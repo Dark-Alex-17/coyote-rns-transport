@@ -32,7 +32,8 @@ env:
 jobs:
   publish:
     name: Publish public crates
-    if: github.event_name == 'workflow_dispatch' || github.event.release.prerelease == false
+    # Disabled in this fork: publishing happens only through publish-coyote-rns-transport.yml.
+    if: false
     runs-on: ubuntu-latest
     environment: crates-io
     steps:

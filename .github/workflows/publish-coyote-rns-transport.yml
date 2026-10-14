@@ -1,0 +1,84 @@
+name: Publish coyote-rns-transport
+
+on:
+  push:
+    tags:
+      - 'coyote-rns-transport-v*'
+  workflow_dispatch:
+    inputs:
+      ref:
+        description: Git ref, tag, or SHA to publish from
+        required: false
+        default: main
+        type: string
+      dry_run:
+        description: Run cargo publish --dry-run instead of publishing
+        required: false
+        default: false
+        type: boolean
+
+permissions:
+  contents: read
+
+concurrency:
+  group: publish-coyote-rns-transport-${{ inputs.ref || github.ref_name }}
+  cancel-in-progress: false
+
+env:
+  CARGO_TERM_COLOR: always
+
+jobs:
+  publish:
+    name: Publish coyote-rns-transport
+    runs-on: ubuntu-latest
+    env:
+      # The one ref this job checks out and publishes. The tag guard below
+      # reads this rather than github.ref so a manual run that leaves the
+      # ref input at its default is checked against the tree it builds.
+      PUBLISH_REF: ${{ inputs.ref || github.ref_name }}
+    steps:
+      - name: Checkout release ref
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ env.PUBLISH_REF }}
+
+      - name: Install Linux build dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y pkg-config libdbus-1-dev
+
+      - name: Install Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Check the tag matches the crate version
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          tag_prefix="coyote-rns-transport-v"
+          if [[ "$PUBLISH_REF" != "$tag_prefix"* ]]; then
+            echo "Ref ${PUBLISH_REF} is not a ${tag_prefix}* release tag; skipping the version check and publishing the version it carries."
+            exit 0
+          fi
+
+          crate_version="$(cargo pkgid --locked -p coyote-rns-transport | sed 's/.*[@#]//')"
+          tag_version="${PUBLISH_REF#"$tag_prefix"}"
+
+          if [ "$crate_version" != "$tag_version" ]; then
+            echo "::error::Tag ${PUBLISH_REF} names version ${tag_version} but crates/libs/rns-transport/Cargo.toml has version ${crate_version}"
+            exit 1
+          fi
+
+      - name: Publish
+        shell: bash
+        env:
+          CARGO_REGISTRY_TOKEN: ${{ secrets.CARGO_REGISTRY_TOKEN }}
+          DRY_RUN: ${{ inputs.dry_run }}
+        run: |
+          set -euo pipefail
+
+          if [ "$DRY_RUN" = "true" ]; then
+            cargo publish -p coyote-rns-transport --locked --dry-run
+          else
+            cargo publish -p coyote-rns-transport --locked
+          fi

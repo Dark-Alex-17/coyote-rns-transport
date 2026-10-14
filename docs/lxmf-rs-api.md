@@ -23,7 +23,7 @@ The hard-break public API is crate-based, not monolithic module fan-out.
   - C ABI for embedded/manual-tick integrations
 - `crates/libs/rns-core` (published as `reticulum-rs-core`)
   - Reticulum primitives
-- `crates/libs/rns-transport` (published as `reticulum-rs-transport`)
+- `crates/libs/rns-transport` (published as `coyote-rns-transport`, Coyote's fork of upstream `reticulum-rs-transport`)
   - transport and interface behavior
 - `crates/libs/rns-rpc` (published as `reticulum-rs-rpc`)
   - daemon JSON-RPC contracts and runtime method surface (`sdk_*_v2`)

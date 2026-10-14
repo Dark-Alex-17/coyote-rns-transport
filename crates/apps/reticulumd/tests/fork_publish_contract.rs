@@ -10,6 +10,15 @@ fn read_repo_file(relative: &str) -> String {
     fs::read_to_string(&path).unwrap_or_else(|err| panic!("read {}: {err}", path.display()))
 }
 
+fn crate_version() -> String {
+    read_repo_file("crates/libs/rns-transport/Cargo.toml")
+        .lines()
+        .find_map(|line| line.strip_prefix("version = \""))
+        .and_then(|rest| rest.strip_suffix('"'))
+        .expect("coyote-rns-transport manifest should declare a package version")
+        .to_string()
+}
+
 #[test]
 fn upstream_publish_workflow_is_disabled() {
     let workflow = read_repo_file(".github/workflows/crates-io-publish.yml");
@@ -30,7 +39,11 @@ fn fork_publish_workflow_pins_its_contract() {
     let workflow = read_repo_file(".github/workflows/publish-coyote-rns-transport.yml");
 
     for required in [
-        "coyote-rns-transport-v*",
+        "workflow_dispatch:",
+        "push:",
+        "tags:",
+        "- 'coyote-rns-transport-v*'",
+        "      ref:\n        description: Git ref, tag, or SHA to publish from",
         "dry_run",
         "type: boolean",
         "libdbus-1-dev",
@@ -39,7 +52,7 @@ fn fork_publish_workflow_pins_its_contract() {
         "cargo publish -p coyote-rns-transport --locked",
         "--dry-run",
         "PUBLISH_REF: ${{ inputs.ref || github.ref_name }}",
-        "cargo pkgid --locked -p coyote-rns-transport",
+        "run: tools/scripts/check-publish-tag-version.sh",
         "concurrency:",
         "default: main",
     ] {
@@ -48,11 +61,61 @@ fn fork_publish_workflow_pins_its_contract() {
             "fork publish workflow should include required token {required:?}"
         );
     }
+}
 
+#[test]
+fn publish_tag_version_guard_pins_its_contract() {
+    let script = read_repo_file("tools/scripts/check-publish-tag-version.sh");
+
+    for required in [
+        "cargo pkgid --locked -p coyote-rns-transport",
+        "[ \"$crate_version\" != \"$tag_version\" ]",
+        "exit 1",
+    ] {
+        assert!(
+            script.contains(required),
+            "publish tag version guard should include required token {required:?}"
+        );
+    }
+}
+
+#[cfg(unix)]
+#[test]
+fn publish_tag_version_guard_rejects_a_mismatched_tag() {
+    use std::process::Command;
+
+    let script = repo_root().join("tools/scripts/check-publish-tag-version.sh");
+    let run = |publish_ref: Option<&str>| {
+        let mut command = Command::new("bash");
+        command.arg(&script).current_dir(repo_root());
+        match publish_ref {
+            Some(publish_ref) => command.env("PUBLISH_REF", publish_ref),
+            None => command.env_remove("PUBLISH_REF"),
+        };
+        let output = command.output().expect("run check-publish-tag-version.sh");
+        (output.status.code(), String::from_utf8_lossy(&output.stdout).into_owned())
+    };
+
+    let (code, stdout) = run(Some("coyote-rns-transport-v9.9.9"));
+    assert_ne!(code, Some(0), "a mismatched release tag must fail the guard");
     assert!(
-        !workflow.contains("environment:"),
-        "fork publish workflow must not require a deployment environment"
+        stdout.contains("::error::Tag coyote-rns-transport-v9.9.9 names version 9.9.9"),
+        "mismatch output should name the tag version, got {stdout:?}"
     );
+
+    let matching_tag = format!("coyote-rns-transport-v{}", crate_version());
+    let (code, stdout) = run(Some(&matching_tag));
+    assert_eq!(code, Some(0), "tag {matching_tag:?} should pass the guard, got {stdout:?}");
+
+    let (code, stdout) = run(Some("main"));
+    assert_eq!(code, Some(0), "a non-tag ref should pass the guard, got {stdout:?}");
+    assert!(
+        stdout.contains("is not a coyote-rns-transport-v* release tag"),
+        "non-tag output should say the check was skipped, got {stdout:?}"
+    );
+
+    let (code, _) = run(None);
+    assert_eq!(code, Some(2), "an unset PUBLISH_REF should exit with the usage code");
 }
 
 #[test]
@@ -60,12 +123,7 @@ fn crate_readme_pins_the_consumer_contract() {
     let readme = read_repo_file("crates/libs/rns-transport/README.md");
     let manifest = read_repo_file("crates/libs/rns-transport/Cargo.toml");
 
-    let version = manifest
-        .lines()
-        .find_map(|line| line.strip_prefix("version = \""))
-        .and_then(|rest| rest.strip_suffix('"'))
-        .expect("coyote-rns-transport manifest should declare a package version");
-    let consumer_line = format!("coyote-rns-transport = \"{version}\"");
+    let consumer_line = format!("coyote-rns-transport = \"{}\"", crate_version());
     assert!(
         readme.contains(&consumer_line),
         "coyote-rns-transport README should pin the consumer line {consumer_line:?}"
@@ -85,11 +143,15 @@ fn crate_readme_pins_the_consumer_contract() {
 
     for required in [
         "name = \"coyote-rns-transport\"",
+        "description = \"Coyote's published fork of reticulum-rs-transport",
+        "license.workspace = true",
         "[lib]",
         "name = \"rns_transport\"",
         "readme = \"README.md\"",
         "repository = \"https://github.com/Dark-Alex-17/coyote-rns-transport\"",
         "documentation = \"https://docs.rs/coyote-rns-transport\"",
+        "keywords = [\"reticulum\", \"transport\", \"network\", \"links\"]",
+        "categories = [\"network-programming\"]",
     ] {
         assert!(
             manifest.contains(required),
@@ -98,73 +160,51 @@ fn crate_readme_pins_the_consumer_contract() {
     }
 }
 
-/// The lxmd smoke script waits for `link: close` in the Rust lxmd log. Since
-/// the stdout print was removed, that text is produced by the tracing
-/// subscriber rendering the surviving `log::warn!` as `<target>: <message>`,
-/// where the target is `rns_transport::destination::link`. That rendering
-/// holds only with ANSI colour off: with it on, the target and the colon are
-/// painted as separate escape-wrapped spans and the needle cannot match, so
-/// the smoke launches lxmd with `NO_COLOR=1`. The target itself holds only
-/// because next_watchdog_deadline.rs is pulled in through `include!` rather
-/// than declared as a module, so this test pins the include chain: turning
-/// the includes into `mod` declarations would move the target to the file's
-/// own path and silently break the needle.
+#[test]
+fn repo_readme_points_at_the_crate_readme() {
+    let pointer = "](crates/libs/rns-transport/README.md)";
+    assert!(
+        read_repo_file("README.md").contains(pointer),
+        "repository README should link to the crate README with {pointer:?}"
+    );
+    assert!(
+        repo_root().join("crates/libs/rns-transport/README.md").is_file(),
+        "the crate README the repository README points at should exist"
+    );
+}
+
+/// The lxmd smoke script waits for the warn's own message, `close /<32 hex>/`,
+/// in the Rust lxmd log, so the needle is independent of how the tracing
+/// subscriber renders the level and target. Re-applying the patch must keep
+/// the message starting with `close ` followed by the link id.
 #[test]
 fn link_close_needle_is_derivable_from_the_surviving_warn() {
-    let needle = "link: close";
+    let needle = "close /[0-9a-f]{32}/";
 
     let smoke = read_repo_file("tools/scripts/python-lxmd-rust-lxmd-smoke.sh");
+    let waits = smoke.matches(&format!("\"{needle}\"")).count();
     assert!(
-        smoke.contains(&format!("\"{needle}\"")),
-        "lxmd smoke script should wait for the {needle:?} needle"
-    );
-    let launch = smoke
-        .lines()
-        .find(|line| line.contains("target/debug/lxmd") && line.contains("RUST_LOG="))
-        .expect("lxmd smoke script should launch the Rust lxmd daemon");
-    assert!(
-        launch.contains("NO_COLOR=1"),
-        "lxmd launch line {launch:?} should set NO_COLOR=1 so the tracing target renders plain"
+        waits >= 2,
+        "lxmd smoke script should wait for the {needle:?} needle at both teardown sites, found {waits}"
     );
 
-    let src = "crates/libs/rns-transport/src";
-
-    let mut target = vec!["rns_transport"];
-    for (file, module) in [("lib.rs", "destination"), ("destination.rs", "link")] {
-        let declaration = format!("pub mod {module};");
-        assert!(
-            read_repo_file(&format!("{src}/{file}")).contains(&declaration),
-            "{file} should declare {declaration:?}"
-        );
-        target.push(module);
-    }
-    let target = target.join("::");
-
-    for (file, included) in [
-        ("destination/link.rs", "link_parts/link.rs"),
-        ("destination/link_parts/link.rs", "link_sections/next_watchdog_deadline.rs"),
-    ] {
-        let directive = format!("include!(\"{included}\");");
-        assert!(
-            read_repo_file(&format!("{src}/{file}")).contains(&directive),
-            "{file} should reach the link close warn through {directive:?}, not a mod declaration"
-        );
-    }
-
-    let source = read_repo_file(&format!(
-        "{src}/destination/link_parts/link_sections/next_watchdog_deadline.rs"
-    ));
+    let source = read_repo_file(
+        "crates/libs/rns-transport/src/destination/link_parts/link_sections/next_watchdog_deadline.rs",
+    );
     let warn_call = "log::warn!(\"close {}\", self.id)";
     assert!(source.contains(warn_call), "link close must keep the warn {warn_call:?}");
     assert!(!source.contains("println!"), "link close must not print to stdout");
 
     let literal = &warn_call[warn_call.find('"').expect("warn call opens a literal") + 1..];
     let prefix = &literal[..literal.find("{}").expect("warn literal interpolates the id")];
-
-    let rendered = format!("{target}: {prefix}");
     assert!(
-        rendered.contains(needle),
-        "rendered warn line {rendered:?} should contain the needle {needle:?}"
+        needle.starts_with(prefix),
+        "needle {needle:?} should start with the warn message prefix {prefix:?}"
+    );
+    assert_eq!(
+        &needle[prefix.len()..],
+        "/[0-9a-f]{32}/",
+        "the rest of the needle should match the link id's Display: a slash, 32 lowercase hex digits, a slash"
     );
 }
 
@@ -182,20 +222,17 @@ const OLD_PACKAGE_NAME_FORMS: [&str; 9] = [
 
 const SKIPPED_DIRECTORIES: [&str; 5] = ["target", ".git", "vendor", "artifacts", "generated"];
 
-/// Historical records under docs/ that describe the tree as it was when they
-/// were written; the old package name is correct there. Live runbooks and
-/// interface docs are scanned so their runnable commands stay current.
-const SKIPPED_DOC_PREFIXES: [&str; 10] = [
+/// Historical subtrees under docs/ (goals, migrations, decision records,
+/// status reports, SDK notes, release notes) describe the tree as it was when
+/// they were written; the old package name is correct there. Everything else
+/// under docs/ is scanned so runnable commands stay current.
+const SKIPPED_DOC_PREFIXES: [&str; 6] = [
     "docs/goals/",
     "docs/migrations/",
     "docs/adr/",
     "docs/status/",
     "docs/sdk/",
     "docs/release-notes-",
-    "docs/runbooks/crates-io-publish-plan.md",
-    "docs/runbooks/release-readiness.md",
-    "docs/lxmf-rs-api.md",
-    "docs/performance/tcp-connection-memory.md",
 ];
 
 const SCANNED_EXTENSIONS: [&str; 8] = ["rs", "toml", "yml", "yaml", "sh", "py", "md", "txt"];

@@ -151,4 +151,4 @@ failure_class = "FAIL_PROTOCOL"
 
 [cases.command]
 program = "cargo"
-args = ["test", "-p", "coyote-rns-transport", "--lib", "channel_retry_exhaustion_closes_link_and_fails_pending_messages", "--", "--nocapture"]
+args = ["test", "-p", "coyote-rns-transport", "--lib", "channel_retry_exhaustion_sends_link_close_and_fails_pending_messages", "--", "--nocapture"]

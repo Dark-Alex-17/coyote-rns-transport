@@ -1068,8 +1068,7 @@ EOF
 cargo build -p reticulumd --bin reticulumd --quiet
 cargo build -p lxmf-cli --bin lxmd --quiet
 
-# NO_COLOR keeps the tracing target plain so the "link: close" wait below can match.
-NO_COLOR=1 RUST_LOG="${RUST_LOG}" SHELL="${HOST_BASH}" "${REPO_ROOT}/target/debug/lxmd" \
+RUST_LOG="${RUST_LOG}" SHELL="${HOST_BASH}" "${REPO_ROOT}/target/debug/lxmd" \
   --config "${RUST_DIR}/launcher.toml" >"${RUST_LXMD_LOG}" 2>&1 &
 RUST_PID=$!
 
@@ -1249,7 +1248,7 @@ reason = closed.get("teardown_reason") or {}
 assert reason.get("name") == "initiator_closed", closed
 assert closed["initiator"] is True, closed
 PY
-      if ! wait_for_file_pattern "${RUST_LXMD_LOG}" "link: close" "${TIMEOUT_SECS}"; then
+      if ! wait_for_file_pattern "${RUST_LXMD_LOG}" "close /[0-9a-f]{32}/" "${TIMEOUT_SECS}"; then
         echo "Rust did not log link close after Python teardown" >&2
         exit 1
       fi
@@ -1270,7 +1269,7 @@ reason = closed.get("teardown_reason") or {}
 assert reason.get("name") == "initiator_closed", closed
 assert closed["initiator"] is False, closed
 PY
-      if ! wait_for_file_pattern "${RUST_LXMD_LOG}" "link: close" "${TIMEOUT_SECS}"; then
+      if ! wait_for_file_pattern "${RUST_LXMD_LOG}" "close /[0-9a-f]{32}/" "${TIMEOUT_SECS}"; then
         echo "Rust did not log link close after watchdog teardown" >&2
         exit 1
       fi

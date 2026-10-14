@@ -41,13 +41,11 @@ coexist in one dependency graph.
   the same information through the logging facade. A unit test
   (`no_non_test_stdout_or_stderr_prints_in_library_sources`) pins that no
   non-test print remains anywhere under `src/`.
-  `tools/scripts/python-lxmd-rust-lxmd-smoke.sh` waits for `link: close` in
-  the lxmd log; after this patch that text comes from the tracing subscriber
-  rendering the target of the `log::warn!`
-  (`rns_transport::destination::link: close <id>`), and only when ANSI colour
-  is off, which is why the smoke script sets `NO_COLOR=1` on the lxmd launch.
-  When re-applying keep that call a `warn!` inside `destination::link` and
-  keep the message starting with `close `. The `link_close_line` helper and
+  `tools/scripts/python-lxmd-rust-lxmd-smoke.sh` waits for the warn's own
+  message, `close /<32 hex link id>/`, in the lxmd log, so the needle tracks
+  the message text and not the subscriber's rendering of the target. When
+  re-applying keep that `warn!` and keep its message starting with `close `
+  followed by the link id. The `link_close_line` helper and
   its `link_close_line_preserves_compatibility_marker` test are now a
   test-only pair, kept to minimise the diff against upstream.
 
@@ -76,7 +74,11 @@ coexist in one dependency graph.
    select what is published. The repository secret `CARGO_REGISTRY_TOKEN`
    must exist for the publish step. A manual run from a ref that is not a
    release tag skips the tag-matches-version check and publishes whatever
-   version that ref carries; publish from the tag when you can.
+   version that ref carries; publish from the tag when you can. The workflow
+   runs without a GitHub deployment environment; if you want required
+   reviewers or tag-only deployment branches, create an environment named
+   `crates-io` in the repository settings and add `environment: crates-io`
+   to the `publish` job.
 
 ## Licence
 

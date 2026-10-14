@@ -51,23 +51,7 @@ jobs:
         uses: dtolnay/rust-toolchain@stable
 
       - name: Check the tag matches the crate version
-        shell: bash
-        run: |
-          set -euo pipefail
-
-          tag_prefix="coyote-rns-transport-v"
-          if [[ "$PUBLISH_REF" != "$tag_prefix"* ]]; then
-            echo "Ref ${PUBLISH_REF} is not a ${tag_prefix}* release tag; skipping the version check and publishing the version it carries."
-            exit 0
-          fi
-
-          crate_version="$(cargo pkgid --locked -p coyote-rns-transport | sed 's/.*[@#]//')"
-          tag_version="${PUBLISH_REF#"$tag_prefix"}"
-
-          if [ "$crate_version" != "$tag_version" ]; then
-            echo "::error::Tag ${PUBLISH_REF} names version ${tag_version} but crates/libs/rns-transport/Cargo.toml has version ${crate_version}"
-            exit 1
-          fi
+        run: tools/scripts/check-publish-tag-version.sh
 
       - name: Publish
         shell: bash

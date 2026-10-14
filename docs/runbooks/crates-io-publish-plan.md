@@ -1,5 +1,9 @@
 # crates.io Publish Plan
 
+In this fork the transport crate is published as `coyote-rns-transport` (see
+`crates/libs/rns-transport/README.md`). Where the upstream name
+`reticulum-rs-transport` appears below it refers to the upstream crate.
+
 This runbook defines the public crates.io packaging strategy for the workspace
 after the repository refactor that split runtime, transport, RPC, embedded, and
 application concerns into separate workspace crates.
@@ -38,7 +42,7 @@ Use a two-tier public model:
   - `lxmf-runtime`
   - `meshchat-api` (the opt-in partial application API)
   - `reticulum-rs-core`
-  - `reticulum-rs-transport`
+  - `coyote-rns-transport`
   - `reticulum-rs-rpc`
   - `lxmf-embedded-mini`
   - `rns-embedded-core`
@@ -78,7 +82,7 @@ not have to rewrite `use` paths just to complete the package rename.
 | `lxmf-sdk` | `lxmf-sdk` | `lxmf_sdk` | GitHub release version | yes |
 | `lxmf-runtime` | `lxmf-runtime` | `lxmf_runtime` | GitHub release version | yes |
 | `rns-core` | `reticulum-rs-core` | `rns_core` | GitHub release version | yes |
-| `rns-transport` | `reticulum-rs-transport` | `rns_transport` | GitHub release version | yes |
+| `rns-transport` | `coyote-rns-transport` | `rns_transport` | GitHub release version | yes |
 | `rns-rpc` | `reticulum-rs-rpc` | `rns_rpc` | GitHub release version | yes |
 | `meshchat-api` | `meshchat-api` | `meshchat_api` | GitHub release version | yes |
 
@@ -199,7 +203,7 @@ Recommended order:
 5. `rns-embedded-core`
 6. `rns-embedded-runtime`
 7. `rns-embedded-ffi`
-8. `reticulum-rs-transport`
+8. `coyote-rns-transport`
 9. `reticulum-rs-rpc`
 10. `meshchat-api`
 11. `lxmf-sdk`

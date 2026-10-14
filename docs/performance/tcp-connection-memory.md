@@ -161,9 +161,9 @@ The following commands passed on the measured Linux host:
 
 ```sh
 cargo fmt --all -- --check
-cargo clippy -p reticulum-rs-transport --all-targets --all-features \
+cargo clippy -p coyote-rns-transport --all-targets --all-features \
   --no-deps -- -D warnings
-cargo test -p reticulum-rs-transport --no-default-features
+cargo test -p coyote-rns-transport --no-default-features
 cargo test -p reticulumd --test code_quality_issue_369
 cargo test -p reticulumd \
   --test backbone_python_channel_interop_contract \
@@ -194,10 +194,10 @@ only to compile bundled C dependencies while checking from Linux:
 ```sh
 env CC_x86_64_pc_windows_gnu='zig cc -target x86_64-windows-gnu' \
   AR_x86_64_pc_windows_gnu='zig ar' CRATE_CC_NO_DEFAULTS=1 \
-  cargo check -p reticulum-rs-transport --lib --no-default-features \
+  cargo check -p coyote-rns-transport --lib --no-default-features \
   --target x86_64-pc-windows-gnu
 env CC_x86_64_apple_darwin='zig cc -target x86_64-macos' \
   AR_x86_64_apple_darwin='zig ar' CRATE_CC_NO_DEFAULTS=1 \
-  cargo check -p reticulum-rs-transport --lib --no-default-features \
+  cargo check -p coyote-rns-transport --lib --no-default-features \
   --target x86_64-apple-darwin
 ```

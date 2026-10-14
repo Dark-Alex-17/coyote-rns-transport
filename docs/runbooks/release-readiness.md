@@ -31,7 +31,7 @@ active branch.
   - `lxmf-wire`
   - `lxmf-sdk`
   - `reticulum-rs-core`
-  - `reticulum-rs-transport`
+  - `coyote-rns-transport` (this fork's published name for upstream `reticulum-rs-transport`)
   - `reticulum-rs-rpc`
 - Breaking changes are called out in migration docs under `docs/migrations/`.
 

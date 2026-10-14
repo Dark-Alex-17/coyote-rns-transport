@@ -49,6 +49,7 @@ pub(crate) fn clamp_link_request_signalling_mtu(packet: &mut Packet, max_mtu: us
     true
 }
 
+#[cfg(test)]
 fn link_close_line(id: &AddressHash) -> String {
     format!("link: close {id}")
 }

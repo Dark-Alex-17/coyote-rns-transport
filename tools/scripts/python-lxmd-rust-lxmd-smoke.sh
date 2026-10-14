@@ -1068,7 +1068,8 @@ EOF
 cargo build -p reticulumd --bin reticulumd --quiet
 cargo build -p lxmf-cli --bin lxmd --quiet
 
-RUST_LOG="${RUST_LOG}" SHELL="${HOST_BASH}" "${REPO_ROOT}/target/debug/lxmd" \
+# NO_COLOR keeps the tracing target plain so the "link: close" wait below can match.
+NO_COLOR=1 RUST_LOG="${RUST_LOG}" SHELL="${HOST_BASH}" "${REPO_ROOT}/target/debug/lxmd" \
   --config "${RUST_DIR}/launcher.toml" >"${RUST_LXMD_LOG}" 2>&1 &
 RUST_PID=$!
 

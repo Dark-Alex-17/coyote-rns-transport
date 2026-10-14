@@ -31,5 +31,7 @@ pub mod transport;
 pub mod utils;
 
 pub mod identity_bridge;
+#[cfg(test)]
+mod no_stdout_prints_tests;
 
 pub use packet::{DestinationType, Packet, PacketContext, PacketDataBuffer, PacketType};

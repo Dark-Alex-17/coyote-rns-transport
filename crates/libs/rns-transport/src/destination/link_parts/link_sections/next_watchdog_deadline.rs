@@ -140,7 +140,6 @@ impl Link {
 
         self.post_event(LinkEvent::Closed);
 
-        println!("{}", link_close_line(&self.id));
         log::warn!("close {}", self.id);
     }
 

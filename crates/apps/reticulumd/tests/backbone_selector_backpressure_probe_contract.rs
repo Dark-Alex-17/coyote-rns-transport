@@ -46,7 +46,7 @@ fn python_interop_workflow_runs_backbone_selector_probe() {
         "--python-rns-path",
         "--require-epoll",
         "program = \"cargo\"",
-        "reticulum-rs-transport",
+        "coyote-rns-transport",
         "backbone_hdlc_stream_backpressures_when_peer_stops_reading",
     ] {
         assert!(

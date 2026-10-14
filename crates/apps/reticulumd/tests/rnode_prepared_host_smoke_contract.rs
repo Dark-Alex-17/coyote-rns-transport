@@ -120,8 +120,8 @@ fn rnode_ble_software_smoke_preserves_evidence_contract() {
 
     for required in [
         "target/rnode-ble-software-smoke",
-        "cargo test -p reticulum-rs-transport --features rnode-ble --test rnode_ble",
-        "cargo test -p reticulum-rs-transport closed_tx_queue_stops_and_cleans_up_iface",
+        "cargo test -p coyote-rns-transport --features rnode-ble --test rnode_ble",
+        "cargo test -p coyote-rns-transport closed_tx_queue_stops_and_cleans_up_iface",
         "cargo test -p rns-tools --test rnodeconf_cli",
         "cargo test -p reticulumd --features rnode-ble bridge_dispatches_native_rnode_ble_management_commands",
         "evidence_scope",

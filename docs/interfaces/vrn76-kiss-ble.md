@@ -177,7 +177,7 @@ firmware or OS BLE stacks.
 The transport crate includes a feature-gated probe example:
 
 ```powershell
-cargo run -p reticulum-rs-transport --features vrn76-kiss-ble --example vrn76_kiss_ble_probe -- --peripheral-id VR-N76
+cargo run -p coyote-rns-transport --features vrn76-kiss-ble --example vrn76_kiss_ble_probe -- --peripheral-id VR-N76
 ```
 
 The probe scans, connects, subscribes, sends KISS configuration frames, and
@@ -187,7 +187,7 @@ prints `connected`, `subscribed`, `interface_ready`, `pending_payloads`,
 does not transmit a test KISS data frame unless explicitly requested:
 
 ```powershell
-cargo run -p reticulum-rs-transport --features vrn76-kiss-ble --example vrn76_kiss_ble_probe -- --peripheral-id VR-N76 --send-test-kiss-frame
+cargo run -p coyote-rns-transport --features vrn76-kiss-ble --example vrn76_kiss_ble_probe -- --peripheral-id VR-N76 --send-test-kiss-frame
 ```
 
 Use `--test-payload-hex <hex>` to send a specific explicit test KISS payload.

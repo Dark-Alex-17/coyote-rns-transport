@@ -244,7 +244,7 @@ expose:
 Focused coverage lives in:
 
 ```powershell
-cargo test -p reticulum-rs-transport --test meshtastic_interface
+cargo test -p coyote-rns-transport --test meshtastic_interface
 cargo test -p reticulumd --test config meshtastic
 ```
 

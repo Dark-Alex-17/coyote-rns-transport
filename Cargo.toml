@@ -63,11 +63,11 @@ allowed_library_edges = [
   "lxmf-sdk->reticulum-rs-rpc",
   "lxmf-runtime->lxmf-sdk",
   "lxmf-runtime->lxmf-wire",
-  "lxmf-runtime->reticulum-rs-transport",
+  "lxmf-runtime->coyote-rns-transport",
   "meshchat-api->reticulum-rs-rpc",
   "reticulum-rs->reticulum-rs-core",
   "reticulum-rs->reticulum-rs-rpc",
-  "reticulum-rs->reticulum-rs-transport",
+  "reticulum-rs->coyote-rns-transport",
   "reticulum-rs-rpc->lxmf-reference",
   "lxmf-wire->reticulum-rs-core",
   "rns-embedded-ffi->rns-embedded-core",
@@ -75,7 +75,7 @@ allowed_library_edges = [
   "rns-embedded-mininode->lxmf-wire",
   "rns-embedded-mininode->reticulum-rs-core",
   "rns-embedded-runtime->rns-embedded-core",
-  "reticulum-rs-transport->reticulum-rs-core",
+  "coyote-rns-transport->reticulum-rs-core",
   "test-support->lxmf-sdk",
   "test-support->lxmf-wire",
   "test-support->reticulum-rs-core",
@@ -87,11 +87,11 @@ allowed_app_edges = [
   "reticulumd->meshchat-api",
   "reticulumd->reticulum-rs-core",
   "reticulumd->reticulum-rs-rpc",
-  "reticulumd->reticulum-rs-transport",
+  "reticulumd->coyote-rns-transport",
   "rns-tools->rns-embedded-core",
   "rns-tools->rns-embedded-runtime",
   "rns-tools->reticulum-rs-rpc",
-  "rns-tools->reticulum-rs-transport",
+  "rns-tools->coyote-rns-transport",
 ]
 
 [workspace.dependencies]
@@ -111,7 +111,7 @@ lxmf-runtime = { version = "0.14.0", path = "crates/libs/lxmf-runtime" }
 reticulum-rs = { version = "0.14.0", path = "crates/libs/reticulum-rs" }
 rns-core = { package = "reticulum-rs-core", version = "0.14.0", path = "crates/libs/rns-core" }
 rns-rpc = { package = "reticulum-rs-rpc", version = "0.14.0", path = "crates/libs/rns-rpc" }
-rns-transport = { package = "reticulum-rs-transport", version = "0.14.0", path = "crates/libs/rns-transport" }
+rns-transport = { package = "coyote-rns-transport", version = "0.14.0", path = "crates/libs/rns-transport" }
 aes = "0.8.4"
 base64 = "0.22"
 cbc = "0.1.2"

@@ -19,7 +19,7 @@ from typing import Any
 
 
 ROOT = Path(__file__).resolve().parents[2]
-PACKAGE = "reticulum-rs-transport"
+PACKAGE = "coyote-rns-transport"
 EXAMPLE = "tcp_connection_memory"
 
 

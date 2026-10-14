@@ -171,10 +171,10 @@ fn run_interfaces_required() -> Result<()> {
     run("cargo", &["check", "-p", "reticulumd", "--all-targets"])?;
     run("cargo", &["check", "-p", "reticulum-rs-rpc", "--all-targets"])?;
     run("cargo", &["check", "-p", "lxmf-sdk", "--all-targets"])?;
-    run("cargo", &["check", "-p", "reticulum-rs-transport", "--all-targets"])?;
+    run("cargo", &["check", "-p", "coyote-rns-transport", "--all-targets"])?;
     run("cargo", &["test", "-p", "reticulumd", "--test", "config"])?;
     run("cargo", &["test", "-p", "reticulumd", "--bin", "reticulumd"])?;
-    run("cargo", &["test", "-p", "reticulum-rs-transport", "serial::tests"])?;
+    run("cargo", &["test", "-p", "coyote-rns-transport", "serial::tests"])?;
     run("cargo", &["test", "-p", "reticulumd", "--bin", "reticulumd", "interfaces::ble::"])?;
     run("cargo", &["test", "-p", "reticulumd", "--bin", "reticulumd", "lora_state::tests"])?;
     run(

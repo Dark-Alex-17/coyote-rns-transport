@@ -1,13 +1,13 @@
 [package]
-name = "reticulum-rs-transport"
+name = "coyote-rns-transport"
 version = "0.14.0"
 edition.workspace = true
 rust-version.workspace = true
 license.workspace = true
-repository.workspace = true
-description = "Transport, link, interface, receipt, and resource layers for the Reticulum network stack."
-readme = "../../../README.md"
-documentation = "https://docs.rs/reticulum-rs-transport"
+repository = "https://github.com/Dark-Alex-17/coyote-rns-transport"
+description = "Coyote's published fork of reticulum-rs-transport: transport, link, interface, receipt, and resource layers for the Reticulum network stack."
+readme = "README.md"
+documentation = "https://docs.rs/coyote-rns-transport"
 keywords = ["reticulum", "transport", "network", "links"]
 categories = ["network-programming"]
 

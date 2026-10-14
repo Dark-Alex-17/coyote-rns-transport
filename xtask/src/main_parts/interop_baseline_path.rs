@@ -223,7 +223,7 @@ const WAVE1_PUBLIC_CRATES: &[PublishedCrate] = &[
     },
     PublishedCrate { package: "lxmf-wire", manifest_path: "crates/libs/lxmf-core/Cargo.toml" },
     PublishedCrate {
-        package: "reticulum-rs-transport",
+        package: "coyote-rns-transport",
         manifest_path: "crates/libs/rns-transport/Cargo.toml",
     },
     PublishedCrate { package: "reticulum-rs-rpc", manifest_path: "crates/libs/rns-rpc/Cargo.toml" },

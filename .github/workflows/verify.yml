@@ -259,7 +259,7 @@ jobs:
 
       - name: Verify I2P outbound reconnect backoff after stream expiry
         run: >-
-          cargo test -p reticulum-rs-transport --lib
+          cargo test -p coyote-rns-transport --lib
           i2p_outbound_reconnect_waits_after_established_stream_expires
           -- --nocapture
 
@@ -512,7 +512,7 @@ jobs:
           RETICULUM_PY_REPO: ${{ github.workspace }}/Reticulum-parity
           LXMF_PYTHON_BIN: python
         run: >-
-          cargo test -p reticulum-rs-transport --lib
+          cargo test -p coyote-rns-transport --lib
           pinned_python_local_client_classification_matches_parent_relationship
           -- --ignored --nocapture
 
@@ -522,7 +522,7 @@ jobs:
           LXMF_PYTHON_BIN: python
         run: |
           test "$(git -C "$RETICULUM_PY_REPO" rev-parse HEAD)" = "$PYTHON_RETICULUM_PARITY_REF"
-          cargo test -p reticulum-rs-transport --lib \
+          cargo test -p coyote-rns-transport --lib \
             pinned_python_local_client_schedule_matches_production_worker_tick \
             -- --ignored --nocapture
 

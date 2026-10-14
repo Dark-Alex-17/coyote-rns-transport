@@ -46,12 +46,12 @@ report = {
     "commands": [
         {
             "name": "rnode_ble_feature_regressions",
-            "command": "cargo test -p reticulum-rs-transport --features rnode-ble --test rnode_ble",
+            "command": "cargo test -p coyote-rns-transport --features rnode-ble --test rnode_ble",
             "log": rnode_ble_log,
         },
         {
             "name": "shared_closed_tx_queue_cleanup",
-            "command": "cargo test -p reticulum-rs-transport closed_tx_queue_stops_and_cleans_up_iface",
+            "command": "cargo test -p coyote-rns-transport closed_tx_queue_stops_and_cleans_up_iface",
             "log": closed_queue_log,
         },
         {
@@ -91,11 +91,11 @@ fail() {
   exit 1
 }
 
-if ! cargo test -p reticulum-rs-transport --features rnode-ble --test rnode_ble >"$RNODE_BLE_TEST_LOG" 2>&1; then
+if ! cargo test -p coyote-rns-transport --features rnode-ble --test rnode_ble >"$RNODE_BLE_TEST_LOG" 2>&1; then
   fail "RNode BLE feature regressions failed; see ${RNODE_BLE_TEST_LOG}"
 fi
 
-if ! cargo test -p reticulum-rs-transport closed_tx_queue_stops_and_cleans_up_iface >"$CLOSED_QUEUE_TEST_LOG" 2>&1; then
+if ! cargo test -p coyote-rns-transport closed_tx_queue_stops_and_cleans_up_iface >"$CLOSED_QUEUE_TEST_LOG" 2>&1; then
   fail "shared closed TX queue cleanup regression failed; see ${CLOSED_QUEUE_TEST_LOG}"
 fi
 

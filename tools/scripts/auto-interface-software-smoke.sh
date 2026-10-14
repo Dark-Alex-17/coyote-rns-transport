@@ -42,7 +42,7 @@ report = {
     "commands": [
         {
             "name": "transport_auto_interface_protocol_helpers",
-            "command": "cargo test -p reticulum-rs-transport auto --lib",
+            "command": "cargo test -p coyote-rns-transport auto --lib",
             "log": transport_test_log,
         },
         {
@@ -78,8 +78,8 @@ fail() {
   exit 1
 }
 
-if ! cargo test -p reticulum-rs-transport auto --lib >"$TRANSPORT_TEST_LOG" 2>&1; then
-  fail "reticulum-rs-transport AutoInterface software regressions failed; see ${TRANSPORT_TEST_LOG}"
+if ! cargo test -p coyote-rns-transport auto --lib >"$TRANSPORT_TEST_LOG" 2>&1; then
+  fail "coyote-rns-transport AutoInterface software regressions failed; see ${TRANSPORT_TEST_LOG}"
 fi
 
 if ! cargo test -p reticulumd auto_ --bin reticulumd >"$RETICULUMD_TEST_LOG" 2>&1; then

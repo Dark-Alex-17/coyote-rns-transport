@@ -9,7 +9,7 @@ failure_class = "FAIL_PROTOCOL"
 
 [cases.command]
 program = "cargo"
-args = ["test", "-p", "reticulum-rs-transport", "--lib", "resource_manager_emits_inbound_failed_when_retry_budget_exhausts", "--", "--nocapture"]
+args = ["test", "-p", "coyote-rns-transport", "--lib", "resource_manager_emits_inbound_failed_when_retry_budget_exhausts", "--", "--nocapture"]
 
 [[cases]]
 id = "resource-split-assembly"
@@ -22,7 +22,7 @@ failure_class = "FAIL_PROTOCOL"
 
 [cases.command]
 program = "cargo"
-args = ["test", "-p", "reticulum-rs-transport", "--lib", "resource_manager_reports_a_split_resource_that_assembles_to_the_wrong_size", "--", "--nocapture"]
+args = ["test", "-p", "coyote-rns-transport", "--lib", "resource_manager_reports_a_split_resource_that_assembles_to_the_wrong_size", "--", "--nocapture"]
 
 [[cases]]
 id = "routing-gravity-precedence"
@@ -35,7 +35,7 @@ failure_class = "FAIL_PROTOCOL"
 
 [cases.command]
 program = "cargo"
-args = ["test", "-p", "reticulum-rs-transport", "--lib", "equal_announce_prefers_higher_gravity_interface", "--", "--nocapture"]
+args = ["test", "-p", "coyote-rns-transport", "--lib", "equal_announce_prefers_higher_gravity_interface", "--", "--nocapture"]
 
 [[cases]]
 id = "virtual-recovery-regression"
@@ -47,7 +47,7 @@ timeout_secs = 300
 
 [cases.command]
 program = "cargo"
-args = ["test", "-p", "reticulum-rs-transport", "--lib", "resource_manager_link_close_allows_later_resource_on_new_link", "--", "--nocapture"]
+args = ["test", "-p", "coyote-rns-transport", "--lib", "resource_manager_link_close_allows_later_resource_on_new_link", "--", "--nocapture"]
 
 [[cases]]
 id = "mtu-8192-resource-window"
@@ -60,7 +60,7 @@ failure_class = "FAIL_PROTOCOL"
 
 [cases.command]
 program = "cargo"
-args = ["test", "-p", "reticulum-rs-transport", "--lib", "resource_sender_preserves_default_packet_mdu_for_large_links", "--", "--nocapture"]
+args = ["test", "-p", "coyote-rns-transport", "--lib", "resource_sender_preserves_default_packet_mdu_for_large_links", "--", "--nocapture"]
 
 [[cases]]
 id = "mtu-fragment-sizing"
@@ -73,7 +73,7 @@ failure_class = "FAIL_PROTOCOL"
 
 [cases.command]
 program = "cargo"
-args = ["test", "-p", "reticulum-rs-transport", "--lib", "resource_sender_constrains_parts_and_hash_updates_to_interface_mtu", "--", "--nocapture"]
+args = ["test", "-p", "coyote-rns-transport", "--lib", "resource_sender_constrains_parts_and_hash_updates_to_interface_mtu", "--", "--nocapture"]
 
 [[cases]]
 id = "resource-compression-roundtrip"
@@ -86,7 +86,7 @@ failure_class = "FAIL_PROTOCOL"
 
 [cases.command]
 program = "cargo"
-args = ["test", "-p", "reticulum-rs-transport", "--lib", "resource_sender_auto_compresses_a_compressible_payload_and_round_trips_through_the_receiver", "--", "--nocapture"]
+args = ["test", "-p", "coyote-rns-transport", "--lib", "resource_sender_auto_compresses_a_compressible_payload_and_round_trips_through_the_receiver", "--", "--nocapture"]
 
 [[cases]]
 id = "resource-cancel-recovery"
@@ -99,7 +99,7 @@ failure_class = "FAIL_PROTOCOL"
 
 [cases.command]
 program = "cargo"
-args = ["test", "-p", "reticulum-rs-transport", "--lib", "remote_cancel_clears_the_partial_split_assembly_and_reports_failure", "--", "--nocapture"]
+args = ["test", "-p", "coyote-rns-transport", "--lib", "remote_cancel_clears_the_partial_split_assembly_and_reports_failure", "--", "--nocapture"]
 
 [[cases]]
 id = "link-response-roundtrip"
@@ -112,7 +112,7 @@ failure_class = "FAIL_PROTOCOL"
 
 [cases.command]
 program = "cargo"
-args = ["test", "-p", "reticulum-rs-transport", "--lib", "a_response_packet_round_trips_across_a_link", "--", "--nocapture"]
+args = ["test", "-p", "coyote-rns-transport", "--lib", "a_response_packet_round_trips_across_a_link", "--", "--nocapture"]
 
 [[cases]]
 id = "path-request-response"
@@ -125,7 +125,7 @@ failure_class = "FAIL_PROTOCOL"
 
 [cases.command]
 program = "cargo"
-args = ["test", "-p", "reticulum-rs-transport", "--lib", "path_request_roundtrip", "--", "--nocapture"]
+args = ["test", "-p", "coyote-rns-transport", "--lib", "path_request_roundtrip", "--", "--nocapture"]
 
 [[cases]]
 id = "virtual-routing-path-rebalance"
@@ -138,7 +138,7 @@ failure_class = "FAIL_PROTOCOL"
 
 [cases.command]
 program = "cargo"
-args = ["test", "-p", "reticulum-rs-transport", "--lib", "restore_tunnel_path_replaces_with_newer_equal_hop_random_blob", "--", "--nocapture"]
+args = ["test", "-p", "coyote-rns-transport", "--lib", "restore_tunnel_path_replaces_with_newer_equal_hop_random_blob", "--", "--nocapture"]
 
 [[cases]]
 id = "channel-retry-terminal-failure"
@@ -151,4 +151,4 @@ failure_class = "FAIL_PROTOCOL"
 
 [cases.command]
 program = "cargo"
-args = ["test", "-p", "reticulum-rs-transport", "--lib", "channel_retry_exhaustion_closes_link_and_fails_pending_messages", "--", "--nocapture"]
+args = ["test", "-p", "coyote-rns-transport", "--lib", "channel_retry_exhaustion_closes_link_and_fails_pending_messages", "--", "--nocapture"]

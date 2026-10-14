@@ -10,7 +10,7 @@
   utilities such as `rnx` and `rnsd`.
 - Core library crates live under `crates/libs`: `lxmf-wire` is in
   `lxmf-core`, `lxmf-sdk` provides typed client/backend surfaces,
-  `reticulum-rs-core` is in `rns-core`, `reticulum-rs-transport` is in
+  `reticulum-rs-core` is in `rns-core`, `coyote-rns-transport` is in
   `rns-transport`, and `reticulum-rs-rpc` is in `rns-rpc`.
 - Embedded and mobile-adjacent crates are split into
   `rns-embedded-core`, `rns-embedded-runtime`, `rns-embedded-ffi`,

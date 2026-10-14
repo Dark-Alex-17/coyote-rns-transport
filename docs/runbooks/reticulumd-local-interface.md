@@ -337,7 +337,7 @@ artifact manifest.
 ## Verification Commands
 
 ```bash
-cargo test -p reticulum-rs-transport shared_instance
+cargo test -p coyote-rns-transport shared_instance
 cargo test -p reticulumd --test config local_interface
 cargo test -p reticulumd --test local_interface_smoke_contract --quiet
 cargo test -p reticulumd --test reticulum_interface_parity_audit_contract --quiet

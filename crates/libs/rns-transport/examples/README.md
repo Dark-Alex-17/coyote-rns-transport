@@ -47,8 +47,8 @@ Pre-built binaries (if available): `dist/lora_serial_probe`, `dist/rnode_ble_pro
 From source:
 
 ```bash
-cargo build --release -p reticulum-rs-transport --example lora_serial_probe
-cargo build --release -p reticulum-rs-transport --features rnode-ble --example rnode_ble_probe
+cargo build --release -p coyote-rns-transport --example lora_serial_probe
+cargo build --release -p coyote-rns-transport --features rnode-ble --example rnode_ble_probe
 # binaries land in target/release/examples/
 ```
 

@@ -310,7 +310,7 @@ fn publish_wave_crates(wave: PublishWave) -> &'static [PublishedCrate] {
                     manifest_path: "crates/libs/rns-embedded-ffi/Cargo.toml",
                 },
                 PublishedCrate {
-                    package: "reticulum-rs-transport",
+                    package: "coyote-rns-transport",
                     manifest_path: "crates/libs/rns-transport/Cargo.toml",
                 },
                 PublishedCrate {

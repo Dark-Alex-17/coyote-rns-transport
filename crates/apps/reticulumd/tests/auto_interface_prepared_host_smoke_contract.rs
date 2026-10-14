@@ -60,7 +60,7 @@ fn auto_interface_software_smoke_preserves_evidence_contract() {
 
     for required in [
         "target/auto-interface-software-smoke",
-        "cargo test -p reticulum-rs-transport auto --lib",
+        "cargo test -p coyote-rns-transport auto --lib",
         "cargo test -p reticulumd auto_ --bin reticulumd",
         "software_auto_interface_runtime",
         "product_boundary",

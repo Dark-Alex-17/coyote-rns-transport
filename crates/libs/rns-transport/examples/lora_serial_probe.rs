@@ -321,7 +321,7 @@ fn parse_hex(value: &str) -> Result<Vec<u8>, String> {
 
 fn print_usage() {
     println!(
-        "Usage: cargo run -p reticulum-rs-transport --example lora_serial_probe \
+        "Usage: cargo run -p coyote-rns-transport --example lora_serial_probe \
 -- --port <device> [options]\n\n\
 Options:\n  \
 --port <device>               Serial device (e.g. /dev/ttyUSB0)\n  \

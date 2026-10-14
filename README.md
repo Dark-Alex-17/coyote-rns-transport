@@ -102,7 +102,7 @@ verification, component crates, and additional run commands.
 | Package group | Purpose | Links |
 | --- | --- | --- |
 | `lxmf`, `lxmf-sdk`, `lxmf-wire` | LXMF wire types and high-level client APIs | [crates.io](https://crates.io/crates/lxmf), [docs.rs](https://docs.rs/lxmf), [SDK guide](docs/sdk/README.md) |
-| `reticulum-rs`, `reticulum-rs-core`, `reticulum-rs-transport`, `reticulum-rs-rpc` | Reticulum primitives, transport, interfaces, resources, and RPC | [crates.io](https://crates.io/crates/reticulum-rs), [docs.rs](https://docs.rs/reticulum-rs), [API overview](docs/lxmf-rs-api.md) |
+| `reticulum-rs`, `reticulum-rs-core`, `coyote-rns-transport`, `reticulum-rs-rpc` | Reticulum primitives, transport, interfaces, resources, and RPC | [crates.io](https://crates.io/crates/reticulum-rs), [docs.rs](https://docs.rs/reticulum-rs), transport fork: [crates.io](https://crates.io/crates/coyote-rns-transport), [docs.rs](https://docs.rs/coyote-rns-transport), [API overview](docs/lxmf-rs-api.md) |
 | `lxmf-cli`, `reticulumd`, `rns-tools` | LXMF, daemon, diagnostic, and operator binaries | [CLI reference](docs/lxmf-cli.md), [examples](docs/examples.md) |
 | `meshchat-api` | Opt-in local MeshChat HTTP/WebSocket adapter for the development POC | [Runbook](docs/runbooks/meshchat-api.md) |
 | Embedded crates | Constrained-device, managed-runtime, mini-node, and C ABI integration | [Package guide](docs/project-layout.md#embedded-libraries), [FFI guide](crates/libs/rns-embedded-ffi/README.md) |

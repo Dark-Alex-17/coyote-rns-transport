@@ -1,7 +1,7 @@
 fn run_embedded_link_check() -> Result<()> {
     run(
         "cargo",
-        &["test", "-p", "reticulum-rs-transport", "--test", "embedded_link_contract", "--no-run"],
+        &["test", "-p", "coyote-rns-transport", "--test", "embedded_link_contract", "--no-run"],
     )?;
 
     let backends = fs::read_to_string("docs/contracts/sdk-v2-backends.md")

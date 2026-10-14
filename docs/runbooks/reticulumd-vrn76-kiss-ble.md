@@ -211,9 +211,9 @@ Repository variables can provide `HIL_VRN76_PERIPHERAL_ID`,
 ## Current Verification
 
 ```powershell
-cargo test -p reticulum-rs-transport --test vrn76_kiss_ble
-cargo test -p reticulum-rs-transport --features vrn76-kiss-ble --test vrn76_kiss_ble
-cargo check -p reticulum-rs-transport --features vrn76-kiss-ble --example vrn76_kiss_ble_probe
+cargo test -p coyote-rns-transport --test vrn76_kiss_ble
+cargo test -p coyote-rns-transport --features vrn76-kiss-ble --test vrn76_kiss_ble
+cargo check -p coyote-rns-transport --features vrn76-kiss-ble --example vrn76_kiss_ble_probe
 cargo test -p reticulumd --test config vrn76
 cargo test -p reticulumd --features vrn76-kiss-ble --bin reticulumd vrn76_builder
 cargo test -p reticulumd --features vrn76-kiss-ble --bin reticulumd vrn76_runtime_status_refresh_updates_matching_interface_record

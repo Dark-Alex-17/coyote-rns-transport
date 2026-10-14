@@ -109,19 +109,19 @@ The umbrella crates provide the simplest dependency surface:
 
 ```toml
 [dependencies]
-lxmf = "0.12.0"
-reticulum-rs = "0.12.0"
+lxmf = "0.14.0"
+reticulum-rs = "0.14.0"
 ```
 
 Applications that need narrower features can depend on component crates:
 
 ```toml
 [dependencies]
-lxmf-sdk = "0.12.0"
-lxmf-wire = "0.12.0"
-reticulum-rs-core = "0.12.0"
-reticulum-rs-transport = "0.12.0"
-reticulum-rs-rpc = "0.12.0"
+lxmf-sdk = "0.14.0"
+lxmf-wire = "0.14.0"
+reticulum-rs-core = "0.14.0"
+coyote-rns-transport = "0.14.0"
+reticulum-rs-rpc = "0.14.0"
 ```
 
 Use the [SDK quickstart](sdk/quickstart.md) for a minimal client, the

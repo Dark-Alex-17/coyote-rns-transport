@@ -177,12 +177,12 @@ fi
 # 1) Core dependency constraints (hard policy).
 check_forbidden_dependency "lxmf-wire" "tokio" "clap" "ureq"
 check_forbidden_dependency "reticulum-rs-core" "tokio" "clap"
-check_forbidden_dependency "reticulum-rs-transport" "clap"
+check_forbidden_dependency "coyote-rns-transport" "clap"
 check_forbidden_dependency "reticulum-rs-rpc" "clap"
 check_no_app_dependencies "lxmf-wire" "lxmf-cli" "rns-tools" "reticulumd"
 check_no_app_dependencies "lxmf-sdk" "lxmf-cli" "rns-tools" "reticulumd"
 check_no_app_dependencies "reticulum-rs-core" "lxmf-cli" "rns-tools" "reticulumd"
-check_no_app_dependencies "reticulum-rs-transport" "lxmf-cli" "rns-tools" "reticulumd"
+check_no_app_dependencies "coyote-rns-transport" "lxmf-cli" "rns-tools" "reticulumd"
 check_no_app_dependencies "reticulum-rs-rpc" "lxmf-cli" "rns-tools" "reticulumd"
 check_no_app_dependencies "test-support" "lxmf-cli" "rns-tools" "reticulumd"
 

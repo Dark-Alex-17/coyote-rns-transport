@@ -339,7 +339,7 @@ fn parse_hex(value: &str) -> Result<Vec<u8>, String> {
 
 fn print_usage() {
     println!(
-        "Usage: cargo run -p reticulum-rs-transport --features rnode-ble \
+        "Usage: cargo run -p coyote-rns-transport --features rnode-ble \
 --example rnode_ble_probe -- --peripheral-id <name|addr> [options]\n\n\
 Options:\n  \
 --adapter <name>              Match a specific host BLE adapter\n  \

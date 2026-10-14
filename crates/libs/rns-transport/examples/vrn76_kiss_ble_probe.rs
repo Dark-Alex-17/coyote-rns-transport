@@ -202,7 +202,7 @@ fn parse_hex(value: &str) -> Result<Vec<u8>, String> {
 
 fn print_usage() {
     println!(
-        "Usage: cargo run -p reticulum-rs-transport --features vrn76-kiss-ble --example vrn76_kiss_ble_probe -- --peripheral-id <name|address|id> [options]\n\n\
+        "Usage: cargo run -p coyote-rns-transport --features vrn76-kiss-ble --example vrn76_kiss_ble_probe -- --peripheral-id <name|address|id> [options]\n\n\
 Options:\n  \
 --adapter <name|id>              Match a specific host BLE adapter\n  \
 --scan-timeout-ms <ms>           Scan timeout, default 10000\n  \

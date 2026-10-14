@@ -152,4 +152,4 @@ failure_class = "FAIL_PROTOCOL"
 
 [cases.command]
 program = "cargo"
-args = ["test", "-p", "reticulum-rs-transport", "iface::tcp_client::tests::backbone_hdlc_stream_backpressures_when_peer_stops_reading", "--", "--nocapture"]
+args = ["test", "-p", "coyote-rns-transport", "iface::tcp_client::tests::backbone_hdlc_stream_backpressures_when_peer_stops_reading", "--", "--nocapture"]

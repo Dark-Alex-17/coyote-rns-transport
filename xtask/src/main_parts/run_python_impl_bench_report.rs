@@ -165,7 +165,7 @@ fn run_python_impl_bench_compare_with_paths(
         &[
             "bench",
             "-p",
-            "reticulum-rs-transport",
+            "coyote-rns-transport",
             "--bench",
             "link_hotpaths",
             "--",

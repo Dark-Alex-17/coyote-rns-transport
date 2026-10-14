@@ -61,7 +61,7 @@ lists their IDs/sizes. Persistent row and byte counts match: 1,000 rows and
 Reproduce with:
 
 ```sh
-cargo test --release -p reticulum-rs-transport profile_repeated_announce_cache_writes -- --ignored --nocapture
+cargo test --release -p coyote-rns-transport profile_repeated_announce_cache_writes -- --ignored --nocapture
 cargo test --release -p reticulum-rs-rpc profile_propagation_payload_retention -- --ignored --nocapture
 ```
 

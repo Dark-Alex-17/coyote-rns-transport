@@ -36,7 +36,7 @@ Start application integration with the [SDK guide](sdk/README.md).
 | --- | --- | --- |
 | [`reticulum-rs`](https://crates.io/crates/reticulum-rs) | `crates/libs/reticulum-rs` | Umbrella crate for the Reticulum stack |
 | [`reticulum-rs-core`](https://crates.io/crates/reticulum-rs-core) | `crates/libs/rns-core` | Packet, identity, ratchet, and cryptographic primitives |
-| [`reticulum-rs-transport`](https://crates.io/crates/reticulum-rs-transport) | `crates/libs/rns-transport` | Transport, interface, link, receipt, and resource behavior |
+| [`coyote-rns-transport`](https://crates.io/crates/coyote-rns-transport) | `crates/libs/rns-transport` | Transport, interface, link, receipt, and resource behavior (Coyote's fork of upstream `reticulum-rs-transport`; see the [crate README](../crates/libs/rns-transport/README.md)) |
 | [`reticulum-rs-rpc`](https://crates.io/crates/reticulum-rs-rpc) | `crates/libs/rns-rpc` | RPC, HTTP, event, and daemon bridge contracts |
 | `test-support` | `crates/libs/test-support` | Shared fixtures, schema validation, and integration helpers |
 

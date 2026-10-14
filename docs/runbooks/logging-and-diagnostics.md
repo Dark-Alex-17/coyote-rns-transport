@@ -69,6 +69,6 @@ cargo test -p reticulumd --test code_quality_issue_369
 Run focused runtime checks for touched components:
 
 ```bash
-cargo test -p reticulum-rs-transport resource::
+cargo test -p coyote-rns-transport resource::
 cargo test -p reticulumd
 ```

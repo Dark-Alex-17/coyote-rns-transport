@@ -184,13 +184,13 @@ const LOCAL_EVIDENCE_CASES: [LocalEvidenceCase; 7] = [
     },
     LocalEvidenceCase {
         id: "rns_unknown_announce_ingress_policy",
-        test_target: "reticulum-rs-transport",
+        test_target: "coyote-rns-transport",
         harness_filter: "held_announces_release_one_lowest_hop_entry_per_interface",
         description: "Deterministic local transport evidence for Transport.py per-interface unknown-announce holding and lowest-hop release policy",
     },
     LocalEvidenceCase {
         id: "rns_link_request_mtu_transport_policy",
-        test_target: "reticulum-rs-transport",
+        test_target: "coyote-rns-transport",
         harness_filter: "mtu_signalling",
         description: "Deterministic local transport evidence for Transport.py intermediate LINKREQUEST MTU signalling rewrite policy",
     },

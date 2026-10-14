@@ -315,8 +315,8 @@ cargo test -p reticulumd --test kiss_fake_pty_smoke_contract
 cargo test -p reticulumd --test kiss_fake_tcp_smoke_contract
 ./tools/scripts/kiss-fake-pty-smoke.sh
 ./tools/scripts/kiss-fake-tcp-smoke.sh
-cargo test -p reticulum-rs-transport --test kiss_codec
-cargo test -p reticulum-rs-transport ax25_payload
+cargo test -p coyote-rns-transport --test kiss_codec
+cargo test -p coyote-rns-transport ax25_payload
 cargo test -p reticulumd --test config kiss
 cargo test -p reticulumd --test config ax25_kiss
 cargo test -p reticulumd --test config kiss_tcp_client

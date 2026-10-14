@@ -88,7 +88,7 @@ jobs:
           cache-targets: true
           cache-on-failure: false
       - name: Build Windows RNode BLE and run pairing/runtime tests
-        run: cargo test -p reticulum-rs-transport --features rnode-ble --lib rnode_ble -- --nocapture
+        run: cargo test -p coyote-rns-transport --features rnode-ble --lib rnode_ble -- --nocapture
 
 
   macos-interface-runtime:
@@ -103,7 +103,7 @@ jobs:
           cache-targets: true
           cache-on-failure: false
       - name: Compile BLE-enabled interface runtime and run software tests
-        run: cargo test -p reticulum-rs-transport --features rnode-ble --lib -- --nocapture
+        run: cargo test -p coyote-rns-transport --features rnode-ble --lib -- --nocapture
 
 
   linux-udp-runtime:

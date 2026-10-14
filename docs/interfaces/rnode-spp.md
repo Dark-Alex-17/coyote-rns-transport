@@ -117,8 +117,8 @@ stream-sized chunk; the KISS decoder handles reassembly.
 Focused software validation for this scaffold is:
 
 ```bash
-cargo test -p reticulum-rs-transport --test rnode_spp
-cargo clippy -p reticulum-rs-transport --all-targets --all-features --no-deps -- -D warnings
+cargo test -p coyote-rns-transport --test rnode_spp
+cargo clippy -p coyote-rns-transport --all-targets --all-features --no-deps -- -D warnings
 ```
 
 The current tests cover startup writes, stream-byte packet decoding,

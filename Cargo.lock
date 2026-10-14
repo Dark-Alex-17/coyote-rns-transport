@@ -625,6 +625,47 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "773648b94d0e5d620f64f280777445740e61fe701025087ec8b57f45c791888b"
 
 [[package]]
+name = "coyote-rns-transport"
+version = "0.14.0"
+dependencies = [
+ "aes",
+ "base64 0.22.1",
+ "btleplug",
+ "bzip2",
+ "cbc",
+ "criterion",
+ "crypto-common",
+ "ed25519-dalek",
+ "futures",
+ "hex",
+ "hkdf",
+ "hmac",
+ "if-addrs",
+ "log",
+ "rand_core 0.6.4",
+ "reticulum-rs-core",
+ "rmp",
+ "rmp-serde",
+ "rmpv",
+ "rusqlite",
+ "serde",
+ "serde_bytes",
+ "serde_json",
+ "sha2",
+ "shlex",
+ "socket2 0.5.10",
+ "tempfile",
+ "thiserror 1.0.69",
+ "tokio",
+ "tokio-serial",
+ "tokio-util",
+ "tracing",
+ "uuid",
+ "windows 0.62.2",
+ "x25519-dalek",
+]
+
+[[package]]
 name = "cpufeatures"
 version = "0.2.17"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1815,11 +1856,11 @@ name = "lxmf-runtime"
 version = "0.14.0"
 dependencies = [
  "base64 0.22.1",
+ "coyote-rns-transport",
  "hex",
  "lxmf-sdk",
  "lxmf-wire",
  "rand_core 0.6.4",
- "reticulum-rs-transport",
  "rmp-serde",
  "serde",
  "serde_json",
@@ -2500,9 +2541,9 @@ checksum = "d6f6ff9a378485b298a5286656da665ba74413d36db0979633275d2e708145d4"
 name = "reticulum-rs"
 version = "0.14.0"
 dependencies = [
+ "coyote-rns-transport",
  "reticulum-rs-core",
  "reticulum-rs-rpc",
- "reticulum-rs-transport",
 ]
 
 [[package]]
@@ -2556,47 +2597,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "reticulum-rs-transport"
-version = "0.14.0"
-dependencies = [
- "aes",
- "base64 0.22.1",
- "btleplug",
- "bzip2",
- "cbc",
- "criterion",
- "crypto-common",
- "ed25519-dalek",
- "futures",
- "hex",
- "hkdf",
- "hmac",
- "if-addrs",
- "log",
- "rand_core 0.6.4",
- "reticulum-rs-core",
- "rmp",
- "rmp-serde",
- "rmpv",
- "rusqlite",
- "serde",
- "serde_bytes",
- "serde_json",
- "sha2",
- "shlex",
- "socket2 0.5.10",
- "tempfile",
- "thiserror 1.0.69",
- "tokio",
- "tokio-serial",
- "tokio-util",
- "tracing",
- "uuid",
- "windows 0.62.2",
- "x25519-dalek",
-]
-
-[[package]]
 name = "reticulum-rs-zeromq"
 version = "0.14.0"
 dependencies = [
@@ -2625,6 +2625,7 @@ dependencies = [
  "base64 0.22.1",
  "btleplug",
  "clap",
+ "coyote-rns-transport",
  "dbus",
  "ed25519-dalek",
  "futures",
@@ -2637,7 +2638,6 @@ dependencies = [
  "rand_core 0.6.4",
  "reticulum-rs-core",
  "reticulum-rs-rpc",
- "reticulum-rs-transport",
  "reticulum-rs-zeromq",
  "rmp-serde",
  "rmpv",
@@ -2750,6 +2750,7 @@ dependencies = [
  "btleplug",
  "bzip2",
  "clap",
+ "coyote-rns-transport",
  "dbus",
  "futures",
  "hex",
@@ -2759,7 +2760,6 @@ dependencies = [
  "process-wrap",
  "rand_core 0.6.4",
  "reticulum-rs-rpc",
- "reticulum-rs-transport",
  "rmp-serde",
  "rmpv",
  "rns-embedded-core",
@@ -4371,6 +4371,7 @@ version = "0.1.0"
 dependencies = [
  "anyhow",
  "clap",
+ "coyote-rns-transport",
  "globset",
  "hex",
  "jsonschema",
@@ -4378,7 +4379,6 @@ dependencies = [
  "lxmf-wire",
  "rand_core 0.6.4",
  "reticulum-rs-core",
- "reticulum-rs-transport",
  "serde",
  "serde_json",
  "sha2",

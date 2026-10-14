@@ -1,4 +1,5 @@
-use crate::iface::{tcp_client::TcpClient, tcp_server::TcpServer};
+use crate::iface::tcp_client::TcpClient;
+use crate::iface::tcp_server::{TcpListenerRuntimeStatusHandle, TcpServer};
 use tokio::sync::broadcast::error::RecvError;
 
 const LOOPBACK_TIMEOUT: Duration = Duration::from_secs(15);
@@ -8,6 +9,22 @@ const LOOPBACK_POLL: Duration = Duration::from_millis(20);
 struct LoopbackListener {
     transport: Transport,
     port: u16,
+    status: TcpListenerRuntimeStatusHandle,
+}
+
+impl LoopbackListener {
+    /// Waits until the server has registered `count` accepted peers. A connector's own
+    /// `connected` state only says the stream is up; the accepted child interface that
+    /// carries the listener's traffic is registered a task wake later.
+    #[deny(clippy::await_holding_invalid_type)]
+    async fn await_accepted_connections(&self, count: u64) {
+        wait_until(
+            "listener to accept",
+            || self.status.to_json()["accepted_connections"].as_u64() == Some(count),
+            || self.status.to_json().to_string(),
+        )
+        .await;
+    }
 }
 
 /// Connecting side: a transport with a `TcpClient` attached to the listener's port. The
@@ -20,6 +37,7 @@ struct LoopbackConnector {
 
 /// `TcpServer` reports the configured bind string in its status, not the bound port, so a
 /// `:0` bind would not reveal the port. Probe-bind to find a free one and release it.
+#[deny(clippy::await_holding_invalid_type)]
 async fn free_loopback_port() -> u16 {
     let probe = tokio::net::TcpListener::bind("127.0.0.1:0").await.expect("bind probe listener");
     let port = probe.local_addr().expect("probe listener address").port();
@@ -29,6 +47,7 @@ async fn free_loopback_port() -> u16 {
 
 /// Polls `condition` until it holds; on timeout the panic carries `detail()` so a bind or
 /// connect failure recorded in the interface status is visible instead of a bare timeout.
+#[deny(clippy::await_holding_invalid_type)]
 async fn wait_until(
     what: &str,
     mut condition: impl FnMut() -> bool,
@@ -45,6 +64,7 @@ async fn wait_until(
     }
 }
 
+#[deny(clippy::await_holding_invalid_type)]
 async fn listener(name: &str, client_mtu: usize) -> LoopbackListener {
     let identity = PrivateIdentity::new_from_rand(OsRng);
     let transport = Transport::new(TransportConfig::new(name, &identity, false));
@@ -59,9 +79,14 @@ async fn listener(name: &str, client_mtu: usize) -> LoopbackListener {
         || status.to_json().to_string(),
     )
     .await;
-    LoopbackListener { transport, port }
+    LoopbackListener {
+        transport,
+        port,
+        status,
+    }
 }
 
+#[deny(clippy::await_holding_invalid_type)]
 async fn connector(name: &str, port: u16, mtu: usize) -> LoopbackConnector {
     let identity = PrivateIdentity::new_from_rand(OsRng);
     let transport = Transport::new(TransportConfig::new(name, &identity, false));
@@ -80,6 +105,7 @@ async fn connector(name: &str, port: u16, mtu: usize) -> LoopbackConnector {
 }
 
 /// Registers an IN single destination on `transport` and announces it once.
+#[deny(clippy::await_holding_invalid_type)]
 async fn register_in_destination(
     transport: &Transport,
     app: &str,
@@ -94,6 +120,7 @@ async fn register_in_destination(
 }
 
 /// Consumes announces until the one for `hash` arrives and returns the learned description.
+#[deny(clippy::await_holding_invalid_type)]
 async fn learn_announce(
     announces: &mut broadcast::Receiver<AnnounceEvent>,
     hash: &AddressHash,
@@ -117,6 +144,7 @@ async fn learn_announce(
 }
 
 /// Waits for the first link event matching `predicate`, skipping everything else.
+#[deny(clippy::await_holding_invalid_type)]
 async fn await_event(
     events: &mut broadcast::Receiver<LinkEventData>,
     mut predicate: impl FnMut(&LinkEventData) -> bool,
@@ -136,6 +164,7 @@ async fn await_event(
 }
 
 /// Requests a link to `desc` and waits for its `Activated` event on the initiator side.
+#[deny(clippy::await_holding_invalid_type)]
 async fn open_link(
     transport: &Transport,
     desc: DestinationDesc,
@@ -167,10 +196,12 @@ fn assert_sent_on_one_link(report: LinkSendReport, direction: &str) {
 }
 
 #[tokio::test]
+#[deny(clippy::await_holding_invalid_type)]
 async fn two_transport_loopback_exchanges_data_both_ways() {
     let listener = listener("loopback-listener", TcpClient::DEFAULT_MTU).await;
     let mut connector =
         connector("loopback-connector", listener.port, TcpClient::DEFAULT_MTU).await;
+    listener.await_accepted_connections(1).await;
     let mut in_events = listener.transport.in_link_events();
 
     let (_destination, desc) =

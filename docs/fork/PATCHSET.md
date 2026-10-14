@@ -15,6 +15,8 @@ sites, so a rebase can re-apply them one commit at a time.
 ## Unreleased
 
 Fork commit `0197768d`: revise the smoke-script leg of the link-close patch.
+This is a mixed commit; only the files below are the patch leg, so re-apply
+those hunks rather than cherry-picking the whole commit.
 
 - `tools/scripts/python-lxmd-rust-lxmd-smoke.sh`: no longer sets
   `NO_COLOR=1` for the Rust `lxmd` process. Both link-close waits now match

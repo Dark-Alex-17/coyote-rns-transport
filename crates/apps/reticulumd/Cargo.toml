@@ -50,8 +50,8 @@ vrn76-kiss-ble = ["rns_transport/vrn76-kiss-ble"]
 [dev-dependencies]
 tempfile = { workspace = true }
 
-# This package does not inherit [workspace.lints] (doing so would newly apply
-# unwrap_used = "warn" under -D warnings), so the workspace allow is mirrored here.
+# This package is deliberately kept out of [workspace.lints] inheritance (which
+# would newly enable unwrap_used = "warn"), so the workspace allow is mirrored here.
 [lints.clippy]
 await_holding_invalid_type = "allow"
 

@@ -169,4 +169,7 @@ unused_imports = "warn"
 dbg_macro = "deny"
 todo = "deny"
 unwrap_used = "warn"
+# Pre-existing debt: the tokio guard types named in clippy.toml are still held
+# across awaits in older code. New code opts in with a fn-level
+# #[deny(clippy::await_holding_invalid_type)], which overrides this table.
 await_holding_invalid_type = "allow"

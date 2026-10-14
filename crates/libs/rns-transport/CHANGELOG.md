@@ -1,6 +1,6 @@
 # Changelog
 
-The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/)
+The section layout follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/)
 and versions follow the cargo semver rules described in the crate README.
 
 ## Unreleased

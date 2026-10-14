@@ -38,6 +38,12 @@
 
 ## crates.io Automation
 
+In this fork the section below describes upstream's publish path, which is
+disabled (`.github/workflows/crates-io-publish.yml` carries `if: false`). The
+fork publishes exactly one crate, `coyote-rns-transport`, through
+`.github/workflows/publish-coyote-rns-transport.yml`; the steps are in
+`crates/libs/rns-transport/README.md` under "Rebase recipe".
+
 Publishing a final GitHub Release triggers `.github/workflows/crates-io-publish.yml`.
 Prereleases are intentionally skipped so RC tags can publish simulation and
 bundle evidence without publishing crates. For a final release, the workflow

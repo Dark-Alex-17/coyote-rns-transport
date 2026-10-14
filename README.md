@@ -12,6 +12,12 @@ LXMF-rs is a Rust implementation of the
 provides reusable libraries, a typed SDK, host daemons and command-line tools,
 plus embedded and FFI surfaces.
 
+## Coyote fork
+
+This repository is Coyote's fork of LXMF-rs. It publishes a single crate,
+`coyote-rns-transport`, which is upstream's `reticulum-rs-transport` plus a
+small patch list; see [its README](crates/libs/rns-transport/README.md).
+
 <!-- performance-summary:start -->
 ## Measured performance
 

@@ -136,7 +136,7 @@ Suggested validation menu:
   for shared behavior changes.
 - `cargo test --workspace --tests` for broad runtime or protocol changes.
 - Package-specific tests for narrow rows, such as `cargo test -p reticulumd`,
-  `cargo test -p reticulum-rs-transport`, `cargo test -p reticulum-rs-rpc`,
+  `cargo test -p coyote-rns-transport`, `cargo test -p reticulum-rs-rpc`,
   `cargo test -p rns-tools`, or `cargo test -p lxmf-wire`.
 - Relevant local software smoke scripts when a row touches daemon, interface,
   utility, or LXMF delivery behavior.

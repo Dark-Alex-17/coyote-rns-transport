@@ -58,16 +58,22 @@ coexist in one dependency graph.
 4. Re-apply every entry in the patch list and re-run
    `cargo test -p coyote-rns-transport --lib no_stdout_prints_tests`.
 5. Re-apply the rename wherever upstream added new sites:
-   `grep -rn reticulum-rs-transport . --exclude-dir=target --exclude-dir=.git --exclude-dir=docs | grep -v Cargo.lock`
-   must return only prose that explains the relationship to upstream plus the
-   needle literals inside
-   `crates/apps/reticulumd/tests/fork_publish_contract.rs`.
+   `grep -rn reticulum-rs-transport . --exclude-dir=target --exclude-dir=.git | grep -v Cargo.lock`
+   shows the candidates, and the authoritative check is
+   `cargo test -p reticulumd --test fork_publish_contract`, whose
+   `old_package_name_survives_only_as_prose` walk fails on every runnable form
+   of the old name (`-p`, `--package`, `package =`, `name =`, dependency and
+   crates.io URL spellings). Prose that explains the relationship to upstream
+   and the needle literals inside the test itself are allowed; the only docs
+   that may keep the old commands are the historical subtrees the test skips
+   (`docs/goals/`, `docs/migrations/`, `docs/adr/`, `docs/release-notes-*`).
 6. Bump the version at every site: `version` in this crate's `Cargo.toml`,
    the workspace `[workspace.dependencies] rns-transport` entry,
    `crates/apps/rns-tools/Cargo.toml` and `crates/apps/reticulumd/Cargo.toml`
    (`package = "coyote-rns-transport", version = ...`), the consumer line in
-   this README, and the version sentence under What this is.
-7. `cargo check --workspace && cargo test -p coyote-rns-transport && cargo publish -p coyote-rns-transport --locked --dry-run`
+   this README, the version sentence under What this is, and the version pins
+   in `crates/apps/reticulumd/tests/fork_publish_contract.rs`.
+7. `cargo check --workspace && cargo test -p coyote-rns-transport && cargo test -p reticulumd --test fork_publish_contract && tools/scripts/check-boundaries.sh && cargo publish -p coyote-rns-transport --locked --dry-run`
 8. Commit, then either tag `coyote-rns-transport-vX.Y.Z` and push the tag, or
    run the `publish-coyote-rns-transport` workflow by hand from the Actions
    tab, setting the `ref` input to the tag; the dropdown choice alone does not

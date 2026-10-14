@@ -122,6 +122,13 @@ fn publish_tag_version_guard_rejects_a_mismatched_tag() {
 fn crate_readme_pins_the_consumer_contract() {
     let readme = read_repo_file("crates/libs/rns-transport/README.md");
     let manifest = read_repo_file("crates/libs/rns-transport/Cargo.toml");
+    let workspace_manifest = read_repo_file("Cargo.toml");
+
+    assert_eq!(
+        crate_version(),
+        "0.14.0",
+        "coyote-rns-transport should declare the published version; bump this pin with the crate"
+    );
 
     let consumer_line = format!("coyote-rns-transport = \"{}\"", crate_version());
     assert!(
@@ -143,8 +150,10 @@ fn crate_readme_pins_the_consumer_contract() {
 
     for required in [
         "name = \"coyote-rns-transport\"",
+        "version = \"0.14.0\"",
         "description = \"Coyote's published fork of reticulum-rs-transport",
         "license.workspace = true",
+        "rns-core.workspace = true",
         "[lib]",
         "name = \"rns_transport\"",
         "readme = \"README.md\"",
@@ -158,6 +167,13 @@ fn crate_readme_pins_the_consumer_contract() {
             "coyote-rns-transport manifest should include required token {required:?}"
         );
     }
+
+    let core_dependency =
+        "rns-core = { package = \"reticulum-rs-core\", version = \"0.14.0\", path = \"crates/libs/rns-core\" }";
+    assert!(
+        workspace_manifest.contains(core_dependency),
+        "workspace manifest should pin the core dependency the published crate resolves through: {core_dependency:?}"
+    );
 }
 
 #[test]
@@ -222,18 +238,13 @@ const OLD_PACKAGE_NAME_FORMS: [&str; 9] = [
 
 const SKIPPED_DIRECTORIES: [&str; 5] = ["target", ".git", "vendor", "artifacts", "generated"];
 
-/// Historical subtrees under docs/ (goals, migrations, decision records,
-/// status reports, SDK notes, release notes) describe the tree as it was when
-/// they were written; the old package name is correct there. Everything else
-/// under docs/ is scanned so runnable commands stay current.
-const SKIPPED_DOC_PREFIXES: [&str; 6] = [
-    "docs/goals/",
-    "docs/migrations/",
-    "docs/adr/",
-    "docs/status/",
-    "docs/sdk/",
-    "docs/release-notes-",
-];
+/// Genuinely historical subtrees under docs/: goal records, migration notes,
+/// decision records, and per-release notes describe the tree as it was when
+/// they were written, so the old package name is correct there. Everything
+/// else under docs/ (including docs/status/, the current roadmap and parity
+/// records, and docs/sdk/) is scanned so runnable commands stay current.
+const SKIPPED_DOC_PREFIXES: [&str; 4] =
+    ["docs/goals/", "docs/migrations/", "docs/adr/", "docs/release-notes-"];
 
 const SCANNED_EXTENSIONS: [&str; 8] = ["rs", "toml", "yml", "yaml", "sh", "py", "md", "txt"];
 

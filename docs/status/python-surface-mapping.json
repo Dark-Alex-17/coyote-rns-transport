@@ -1623,8 +1623,8 @@
         "evidence": ["unit", "simulated", "planned"],
         "evidence_status": "unverified",
         "test_command": [
-          "cargo test -p reticulum-rs-transport --lib",
-          "cargo test -p reticulum-rs-transport --all-features --lib",
+          "cargo test -p coyote-rns-transport --lib",
+          "cargo test -p coyote-rns-transport --all-features --lib",
           "cargo test -p reticulumd --test config",
           "cargo test -p reticulumd --bin reticulumd interface_hot_apply"
         ],
@@ -1642,11 +1642,11 @@
         "evidence": ["unit", "simulated", "pinned-python", "planned"],
         "evidence_status": "unverified",
         "test_command": [
-          "cargo test -p reticulum-rs-transport --lib",
+          "cargo test -p coyote-rns-transport --lib",
           "cargo test -p reticulumd --bin reticulumd",
-          "cargo test -p reticulum-rs-transport --lib close_events_expose_python_teardown_reason_codes",
-          "cargo test -p reticulum-rs-transport --lib a_pending_out_link_that_outlives_its_establishment_timeout",
-          "cargo clippy -p reticulum-rs-transport --lib --all-features --no-deps -- -D warnings",
+          "cargo test -p coyote-rns-transport --lib close_events_expose_python_teardown_reason_codes",
+          "cargo test -p coyote-rns-transport --lib a_pending_out_link_that_outlives_its_establishment_timeout",
+          "cargo clippy -p coyote-rns-transport --lib --all-features --no-deps -- -D warnings",
           "RETICULUM_PY_REPO=.tmp/python-refs/Reticulum LXMF_PYTHON_BIN=python3 cargo test -p reticulumd --test python_channel_interop python_to_python_channel_roundtrip_through_rust_transport -- --ignored --nocapture",
           "RETICULUM_PY_REPO=.tmp/python-refs/Reticulum LXMF_PYTHON_BIN=python3 cargo test -p reticulumd --test python_channel_interop python_to_python_duplicate_link_request_proof_is_filtered_by_rust_transport -- --ignored --nocapture --test-threads=1",
           "RETICULUM_PY_REPO=Reticulum-parity LXMF_PY_REPO=LXMF LXMF_PYTHON_BIN=python cargo test -p lxmf-cli --test python_lxmd_remote_relay python_shared_instance_two_peer_relay_recovers_after_daemon_restart_e2e -- --ignored --nocapture --test-threads=1"
@@ -1665,8 +1665,8 @@
         "evidence": ["unit", "pinned-python", "cross-implementation", "planned"],
         "evidence_status": "unverified",
         "test_command": [
-          "cargo test -p reticulum-rs-transport --all-features --lib",
-          "cargo clippy -p reticulum-rs-transport --lib --all-features --no-deps -- -D warnings",
+          "cargo test -p coyote-rns-transport --all-features --lib",
+          "cargo clippy -p coyote-rns-transport --lib --all-features --no-deps -- -D warnings",
           "RETICULUM_PY_REPO=.tmp/python-refs/Reticulum LXMF_PYTHON_BIN=python3 cargo test --release -p reticulumd --test python_channel_interop rust_to_python_resource_size_matrix_roundtrip -- --ignored --nocapture",
           "RETICULUM_PY_REPO=.tmp/python-refs/Reticulum LXMF_PYTHON_BIN=python3 cargo test --release -p reticulumd --test python_channel_interop python_to_rust_resource_size_matrix_roundtrip -- --ignored --nocapture",
           "RETICULUM_PY_REPO=.tmp/python-refs/Reticulum LXMF_PYTHON_BIN=python3 cargo test --release -p reticulumd --test python_channel_interop rust_reader_to_python_50_mib_peak_memory -- --ignored --nocapture --test-threads=1",
@@ -1734,8 +1734,8 @@
           "cargo test -p rns-tools --all-features",
           "cargo test -p rns-tools --bin rngit --all-features",
           "cargo clippy -p rns-tools --all-targets --all-features --no-deps -- -D warnings",
-          "cargo test -p reticulum-rs-transport --lib resource:: --all-features",
-          "cargo clippy -p reticulum-rs-transport --lib --all-features --no-deps -- -D warnings"
+          "cargo test -p coyote-rns-transport --lib resource:: --all-features",
+          "cargo clippy -p coyote-rns-transport --lib --all-features --no-deps -- -D warnings"
         ],
         "evidence_artifact": "docs/goals/reticulum-reference-parity-605/evidence/613-rngit-pages.md",
         "owner_issue": 613,
@@ -1752,9 +1752,9 @@
         "evidence_status": "hardware-unverified",
         "test_command": [
           "cargo fmt --all -- --check",
-          "cargo test -p reticulum-rs-transport --features rnode-ble --lib rnode_ble -- --nocapture",
-          "cargo test -p reticulum-rs-transport --features rnode-ble --tests",
-          "cargo clippy -p reticulum-rs-transport --features rnode-ble --lib --all-targets --no-deps -- -D warnings"
+          "cargo test -p coyote-rns-transport --features rnode-ble --lib rnode_ble -- --nocapture",
+          "cargo test -p coyote-rns-transport --features rnode-ble --tests",
+          "cargo clippy -p coyote-rns-transport --features rnode-ble --lib --all-targets --no-deps -- -D warnings"
         ],
         "evidence_artifact": "docs/goals/reticulum-reference-parity-605/evidence/614-native-interfaces.md",
         "owner_issue": 614,

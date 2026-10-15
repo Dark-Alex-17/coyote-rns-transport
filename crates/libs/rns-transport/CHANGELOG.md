@@ -31,6 +31,25 @@ and versions follow the cargo semver rules described in the crate README.
   `RNS/Transport.py:1452-1454`; retry dispatch now resolves initiator-side
   links by link id as well (`out_links` is keyed by destination hash).
 
+- `handle_link_resource_packet` sent a Resource advertisement reject
+  (`ResourceReceiverCancel`) while still holding the link's mutex guard;
+  `TransportHandler::send` re-locks that link in `note_link_packet_sent`,
+  so any oversize request or response advertisement deadlocked the
+  transport. The reject is now built under the guard and sent after it is
+  dropped; the rejected advertisement still never reaches the
+  `ResourceManager`.
+
+- `ResourceManager::track_prepared` now registers the outbound sender in
+  `outgoing` before the caller writes the advertisement, so a fast peer's
+  first part request is served instead of dropped; the `pending_outgoing`
+  staging map is gone. `track_prepared` and
+  `ResourceManager::confirm_outbound_dispatch` keep their signatures but
+  change semantics: `track_prepared` places the sender in `outgoing` with
+  `ResourceStatus::None`; `confirm_outbound_dispatch(_, true)` marks it
+  advertised in place; `confirm_outbound_dispatch(_, false)` removes it
+  and emits `OutboundFailed`; `cancel_outgoing` before the confirm now
+  returns a `ResourceInitiatorCancel` packet and emits `OutboundCancelled`.
+
 ## 0.14.0 - 2026-10-14
 
 Initial fork release, based on upstream `reticulum-rs-transport` 0.14.0.

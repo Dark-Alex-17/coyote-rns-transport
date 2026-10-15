@@ -35,7 +35,6 @@ fn resource_manager_removes_link_scoped_state_on_link_close() {
 
     manager.remove_link_state(*link.id());
 
-    assert!(manager.pending_outgoing.is_empty());
     assert!(manager.outgoing.is_empty());
     assert!(manager.incoming.is_empty());
     let events = manager.drain_events();

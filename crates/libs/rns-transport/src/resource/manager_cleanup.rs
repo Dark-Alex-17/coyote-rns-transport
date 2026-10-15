@@ -1,20 +1,6 @@
 impl ResourceManager {
     pub fn remove_link_state(&mut self, link_id: AddressHash) {
         let mut failed_outbound = std::collections::HashSet::new();
-        let pending_outgoing = std::mem::take(&mut self.pending_outgoing);
-        for (hash, sender) in pending_outgoing {
-            if sender.link_id == link_id {
-                if failed_outbound.insert(sender.original_hash) {
-                    self.events.push(ResourceEvent {
-                        hash: sender.original_hash,
-                        link_id,
-                        kind: ResourceEventKind::OutboundFailed,
-                    });
-                }
-            } else {
-                self.pending_outgoing.insert(hash, sender);
-            }
-        }
         let outgoing = std::mem::take(&mut self.outgoing);
         for (hash, sender) in outgoing {
             if sender.link_id == link_id {

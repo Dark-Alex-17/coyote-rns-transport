@@ -122,6 +122,12 @@ pub(super) async fn handle_link_resource_packet<'a>(
         Ok(packet) => packet,
         Err(_) => return true,
     };
+    // A rejected advertisement never reaches the ResourceManager, and the
+    // reject itself is only sent once the link guard is dropped:
+    // `handler.send` re-locks the same link in `note_link_packet_sent`, so
+    // sending it here would deadlock the whole transport.
+    let mut rejected = false;
+    let mut reject = None;
     if packet.context == PacketContext::ResourceAdvrtisement {
         if let Ok(advertisement) = ResourceAdvertisement::unpack(packet_for_manager.data.as_slice())
         {
@@ -136,25 +142,12 @@ pub(super) async fn handle_link_resource_packet<'a>(
                             advertisement.hash,
                             advertisement.transfer_size
                         );
-                        if let Ok(reject) = build_link_packet(
-                            &link,
-                            PacketType::Data,
-                            PacketContext::ResourceReceiverCancel,
-                            advertisement.hash.as_slice(),
-                        ) {
-                            let response_iface = link.ingress_iface().unwrap_or(iface);
-                            handler
-                                .send(TxMessage {
-                                    tx_type: TxMessageType::Direct(response_iface),
-                                    packet: reject,
-                                })
-                                .await;
-                        }
-                        return true;
+                        rejected = true;
+                        reject = advertisement_reject(&link, iface, &advertisement.hash);
                     }
                 }
             }
-            if advertisement.is_request() {
+            if !rejected && advertisement.is_request() {
                 let limit = handler
                     .single_in_destinations
                     .get(&link.destination().address_hash)
@@ -170,21 +163,8 @@ pub(super) async fn handle_link_resource_packet<'a>(
                                 advertisement.transfer_size,
                                 limit
                             );
-                            if let Ok(reject) = build_link_packet(
-                                &link,
-                                PacketType::Data,
-                                PacketContext::ResourceReceiverCancel,
-                                advertisement.hash.as_slice(),
-                            ) {
-                                let response_iface = link.ingress_iface().unwrap_or(iface);
-                                handler
-                                    .send(TxMessage {
-                                        tx_type: TxMessageType::Direct(response_iface),
-                                        packet: reject,
-                                    })
-                                    .await;
-                            }
-                            return true;
+                            rejected = true;
+                            reject = advertisement_reject(&link, iface, &advertisement.hash);
                         }
                     }
                 }
@@ -205,13 +185,16 @@ pub(super) async fn handle_link_resource_packet<'a>(
         .unwrap_or(crate::resource::DEFAULT_RESOURCE_INTERFACE_MTU)
         .min(link.link_mtu());
     let mut responses = std::mem::take(&mut handler.resource_response_packets);
-    handler.resource_manager.handle_packet_into_with_mtu(
-        &packet_for_manager,
-        &mut link,
-        &mut responses,
-        interface_mtu,
-    );
-    let events = handler.resource_manager.drain_events();
+    let mut events = Vec::new();
+    if !rejected {
+        handler.resource_manager.handle_packet_into_with_mtu(
+            &packet_for_manager,
+            &mut link,
+            &mut responses,
+            interface_mtu,
+        );
+        events = handler.resource_manager.drain_events();
+    }
     if !responses.is_empty() {
         log::debug!(
             "[resource-diag] wire_resource_responses node={} link={} ctx={:02x} responses={} iface={}",
@@ -223,6 +206,9 @@ pub(super) async fn handle_link_resource_packet<'a>(
         );
     }
     drop(link);
+    if let Some(reject) = reject {
+        handler.send(reject).await;
+    }
     for response in responses.drain(..) {
         handler
             .send(TxMessage { tx_type: TxMessageType::Direct(response_iface), packet: response })
@@ -231,6 +217,21 @@ pub(super) async fn handle_link_resource_packet<'a>(
     handler.resource_response_packets = responses;
     publish_resource_events(handler, events);
     true
+}
+
+fn advertisement_reject(link: &Link, iface: AddressHash, hash: &Hash) -> Option<TxMessage> {
+    let Ok(packet) = build_link_packet(
+        link,
+        PacketType::Data,
+        PacketContext::ResourceReceiverCancel,
+        hash.as_slice(),
+    ) else {
+        return None;
+    };
+    Some(TxMessage {
+        tx_type: TxMessageType::Direct(link.ingress_iface().unwrap_or(iface)),
+        packet,
+    })
 }
 
 async fn link_for_resource_packet(

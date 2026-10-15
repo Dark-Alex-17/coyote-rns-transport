@@ -165,22 +165,25 @@ impl ResourceManager {
         true
     }
 
+    /// Settles the advertisement write that followed `track_prepared`. A
+    /// hash that is no longer in `outgoing` is a no-op: a fast peer may
+    /// already have requested every part and proved the resource.
     pub fn confirm_outbound_dispatch(&mut self, resource_hash: Hash, sent: bool) {
-        let Some(mut sender) = self.pending_outgoing.remove(&resource_hash) else {
+        if sent {
+            if let Some(sender) = self.outgoing.get_mut(&resource_hash) {
+                sender.mark_advertised(self.retry_limit);
+            }
+            return;
+        }
+        let Some(sender) = self.outgoing.remove(&resource_hash) else {
             return;
         };
-
-        if sent {
-            sender.mark_advertised(self.retry_limit);
-            self.outgoing.insert(resource_hash, sender);
-        } else {
-            self.outgoing_segment_chains.remove(&sender.original_hash);
-            self.events.push(ResourceEvent {
-                hash: resource_hash,
-                link_id: sender.link_id,
-                kind: ResourceEventKind::OutboundFailed,
-            });
-        }
+        self.outgoing_segment_chains.remove(&sender.original_hash);
+        self.events.push(ResourceEvent {
+            hash: resource_hash,
+            link_id: sender.link_id,
+            kind: ResourceEventKind::OutboundFailed,
+        });
     }
 
     fn finish_inbound_payload(

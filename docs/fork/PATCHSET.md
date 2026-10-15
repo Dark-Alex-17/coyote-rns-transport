@@ -477,15 +477,22 @@ its old-name walk to `docs/status/`. The remaining files in that table under
 the `docs/status/` JSON and Markdown files) only have the crate name
 updated.
 
-Fork commit `fd83a9f1`: release 0.14.1. Bumps the crate version at every
-manifest, consumer-snippet and contract-test site, regenerates `Cargo.lock`,
-promotes `## Unreleased` in the crate `CHANGELOG.md`, adds two contract
-tests to `crates/apps/reticulumd/tests/fork_publish_contract.rs` (every
-version site, the dated `CHANGELOG.md` heading and the README policy tokens
-track the crate version; the file table above names only existing files
-and the files every release touches), and amends the `#610` row in
-`docs/status/reticulum-parity-matrix.md`. The ledger-only commit that
-completes this section follows it and is omitted here by convention.
+Fork commits `fd83a9f1` and `256936ca`: release 0.14.1. The first bumps the
+crate version at every manifest, consumer-snippet and contract-test site,
+regenerates `Cargo.lock`, promotes `## Unreleased` in the crate
+`CHANGELOG.md`, adds two contract tests to
+`crates/apps/reticulumd/tests/fork_publish_contract.rs` (every version site,
+the dated `CHANGELOG.md` heading and the README policy tokens track the
+crate version; the file table above names only existing files and the files
+every release touches), and amends the `#610` row in
+`docs/status/reticulum-parity-matrix.md`. The second adds two more contract
+tests (root `VERSION` stays on the upstream baseline; every table row names
+a patch whose `B<n>` id the legend defines), sharpens the fixture comments
+and the lag report in `multi_segment_python_interop.rs` and
+`python_channel_endpoint.py`, and aligns the README's description of this
+ledger. The ledger-only commits that complete this section are omitted here
+by convention. The link-close patch from the `## 0.14.0` section below
+(`3f20c991`) is still carried; its file is unchanged since the tag.
 
 ## 0.14.0 (upstream 0.14.0)
 

@@ -94,7 +94,7 @@ impl Destination<PrivateIdentity, Input, Single> {
         }
         self.request_handlers.insert(
             PathHash::of(path),
-            RegisteredHandler { path: path.to_owned(), handler, allow, auto_compress },
+            Arc::new(RegisteredHandler { path: path.to_owned(), handler, allow, auto_compress }),
         );
         Ok(())
     }
@@ -105,7 +105,7 @@ impl Destination<PrivateIdentity, Input, Single> {
         self.request_handlers.remove(&PathHash::of(path)).is_some()
     }
 
-    pub(crate) fn request_handler(&self, path_hash: &PathHash) -> Option<RegisteredHandler> {
+    pub(crate) fn request_handler(&self, path_hash: &PathHash) -> Option<Arc<RegisteredHandler>> {
         self.request_handlers.get(path_hash).cloned()
     }
 

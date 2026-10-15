@@ -8,13 +8,22 @@ impl Link {
         self.request_dispatch = Some(sender);
     }
 
-    /// Queues a decrypted request for the dispatch worker without blocking:
-    /// a full queue drops it with a debug log. Called under the link lock, so
+    /// Queues a decrypted request for the dispatch worker without blocking.
+    /// Only an active link hands a request on (`RNS/Link.py:805`), and a
+    /// full queue drops it with a debug log. Called under the link lock, so
     /// it must never wait.
     fn dispatch_request(&self, request_id: RequestId, plain_text: &[u8]) {
         let Some(sender) = &self.request_dispatch else {
             return;
         };
+        if self.status != LinkStatus::Active {
+            log::debug!(
+                "link({}): request {} ignored, link is not active",
+                self.id,
+                request_id
+            );
+            return;
+        }
         let item = DispatchItem {
             link_id: self.id,
             destination_hash: self.destination.address_hash,

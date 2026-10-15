@@ -41,6 +41,10 @@ pub(super) async fn run(
     }
 }
 
+/// `RNS/Link.py:999-1001`: a packet-form request larger than the
+/// destination's `max_request_size` is ignored before any handler runs. The
+/// limit and the handler row are read under one destination guard so a
+/// limit changed between the two reads cannot let the request through.
 #[deny(clippy::await_holding_invalid_type)]
 async fn dispatch_one(
     handler: &Arc<Mutex<TransportHandler>>,
@@ -71,7 +75,20 @@ async fn dispatch_one(
         return;
     };
     let path_hash = frame.path_hash();
-    let registered = destination.lock().await.request_handler(&path_hash);
+    let (limit, registered) = {
+        let guard = destination.lock().await;
+        (guard.max_request_size(), guard.request_handler(&path_hash))
+    };
+    if let Some(limit) = limit.filter(|limit| item.plain_text.len() > *limit) {
+        log::debug!(
+            "tp: request {} on link {} ignored, {}B exceeds the destination limit {}B",
+            request_id,
+            item.link_id,
+            item.plain_text.len(),
+            limit
+        );
+        return;
+    }
     let Some(registered) = registered else {
         log::debug!(
             "tp: request {} on link {} has no handler for path hash {}",
@@ -96,7 +113,7 @@ async fn dispatch_one(
     }
     let requested_at = frame.requested_at();
     let request = InboundRequest::new(
-        registered.path,
+        registered.path.clone(),
         path_hash,
         frame.into_data(),
         request_id,
@@ -106,7 +123,7 @@ async fn dispatch_one(
     );
     tasks.spawn(handle_and_respond(
         handler.clone(),
-        registered.handler,
+        registered.handler.clone(),
         registered.auto_compress,
         item.link_id,
         request_id,
@@ -260,24 +277,18 @@ pub(super) async fn find_any_link(
     handler: &Arc<Mutex<TransportHandler>>,
     link_id: &AddressHash,
 ) -> Option<Arc<Mutex<Link>>> {
-    let (out_links, in_link) = {
+    let out_links = {
         let handler = handler.lock().await;
-        (
-            handler.out_links.values().cloned().collect::<Vec<_>>(),
-            handler.in_links.get(link_id).cloned(),
-        )
+        if let Some(link) = handler.in_links.get(link_id) {
+            return Some(link.clone());
+        }
+        handler.out_links.values().cloned().collect::<Vec<_>>()
     };
-
-    if let Some(link) = in_link {
-        return Some(link);
-    }
-
     for link in out_links {
         if *link.lock().await.id() == *link_id {
             return Some(link);
         }
     }
-
     None
 }
 

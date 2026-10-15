@@ -21,9 +21,8 @@ trailing clause of the bullet for the behaviour it pins.
   refuses, with a typed `FrameDecodeError`, container nesting deeper than
   128 levels, a length prefix larger than the remaining input, the reserved
   marker, a truncated value or trailing bytes; the error converts into
-  `RnsError::PacketError`. The request layer API (dispatch, handlers,
-  receipts) lands in later releases. Pinned against Python-generated
-  vectors by `destination/request/tests.rs` and
+  `RnsError::PacketError`. Receipts land in a later release. Pinned
+  against Python-generated vectors by `destination/request/tests.rs` and
   `tests/request_frame_wire.rs`; `ResourceAdvertisement::{pack,unpack}`
   field values, key order `t d n h r o i l q f m`
   (`RNS/Resource.py:1337-1347`) and flag layout (`RNS/Resource.py:1318`)
@@ -47,8 +46,10 @@ trailing clause of the bullet for the behaviour it pins.
   Future<Output = Option<RequestResponse>>`; `InboundRequest` carries the
   six arguments Python hands a `response_generator` (`RNS/Link.py:831`) and
   `RequestResponse::{Value, Bytes, Resource}` are the plain, `bytes` and
-  file-response forms (`RNS/Link.py:839-852`). Pinned by
-  `destination/tests.rs`.
+  file-response forms (`RNS/Link.py:839-852`). The registry is pinned by
+  `destination/tests.rs` and `tests/request_handler_api.rs`; the response
+  forms by `transport/tests_parts/two_transport_loopback_requests.rs` and
+  `two_transport_loopback_requests_probe.rs`.
 
 - The `request-dispatch` transport worker: `RNS.Link.handle_request`
   (`RNS/Link.py:804-855`). A link hands every decrypted request packet to
@@ -58,11 +59,15 @@ trailing clause of the bullet for the behaviour it pins.
   request and never stops the transport. `RequestAllow::None` denies,
   `All` answers, `List` answers a peer whose `LINKIDENTIFY` identity is in
   the set; a denied peer and a peer that never identified are both denied
-  silently (`RNS/Link.py:818-824,855`). `None` from the handler sends
-  nothing (`:844`). A response that fits `Link::link_mdu()` goes out as one
-  `Response` packet, a larger one as a response Resource (`:849-852`).
-  Pinned by `transport/tests_parts/two_transport_loopback_requests.rs` and
-  `two_transport_loopback_requests_isolation.rs`.
+  silently (`RNS/Link.py:818-824,855`). Only an active link hands a request
+  on (`:805`), and a request larger than the destination's
+  `max_request_size` is ignored before any handler runs (`:999-1001`).
+  `None` from the handler sends nothing (`:844`). A response that fits
+  `Link::link_mdu()` goes out as one `Response` packet, a larger one as a
+  response Resource (`:849-852`). Pinned by
+  `transport/tests_parts/two_transport_loopback_requests.rs`,
+  `two_transport_loopback_requests_isolation.rs` and
+  `two_transport_loopback_requests_probe.rs`.
 
 - `LinkEvent::Data` with `PacketContext::Request` keeps posting for every
   inbound request; a request whose path has a registered handler is
@@ -82,7 +87,8 @@ trailing clause of the bullet for the behaviour it pins.
   `transport/request_dispatch.rs`, which the dispatch worker shares. No
   behaviour change. The `test_bridge` module moved from `transport/mod.rs`
   into `transport/test_bridge.rs`, unchanged. Pinned by
-  `transport/tests_parts/two_transport_loopback_resources*.rs`.
+  `transport/tests_parts/two_transport_loopback_resources.rs` and
+  `two_transport_loopback_resources_directions.rs`.
 
 - `Link::request_payload` and `unpack_response_envelope` delegate to the new
   frames. The bytes are unchanged. The response decoder now refuses a

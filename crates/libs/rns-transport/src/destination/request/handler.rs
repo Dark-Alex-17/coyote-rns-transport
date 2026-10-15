@@ -23,7 +23,12 @@ pub enum RequestResponse {
 ///
 /// Every `Fn(InboundRequest) -> impl Future<Output = Option<RequestResponse>>`
 /// whose future is `Send + 'static` is a handler through the blanket impl
-/// below; the `'static` is what lets the future be boxed.
+/// below; the `'static` is what lets the boxed future coerce to the `'_`
+/// trait object.
+///
+/// Each request runs on its own task with no concurrency cap, as Python
+/// runs a thread per request; a handler that needs a bound holds its own
+/// `Semaphore`.
 pub trait RequestHandler: Send + Sync {
     fn handle(
         &self,
@@ -45,9 +50,8 @@ where
 }
 
 /// One row of a destination's handler table
-/// (`RNS/Destination.py:398`: `[path, response_generator, allow,
+/// (`RNS/Destination.py:397-398`: `[path, response_generator, allow,
 /// allowed_list, auto_compress]`).
-#[derive(Clone)]
 pub(crate) struct RegisteredHandler {
     pub(crate) path: String,
     pub(crate) handler: Arc<dyn RequestHandler>,

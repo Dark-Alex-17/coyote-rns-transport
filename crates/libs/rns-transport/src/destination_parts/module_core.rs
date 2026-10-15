@@ -250,7 +250,7 @@ pub struct Destination<I: HashIdentity, D: Direction, T: Type> {
     pub identity: I,
     pub desc: DestinationDesc,
     max_request_size: Option<usize>,
-    request_handlers: HashMap<PathHash, RegisteredHandler>,
+    request_handlers: HashMap<PathHash, Arc<RegisteredHandler>>,
     ratchet_state: RatchetState,
     path_responses: BTreeMap<Vec<u8>, (Instant, Packet)>,
     path_response_queue: VecDeque<(Vec<u8>, Instant)>,

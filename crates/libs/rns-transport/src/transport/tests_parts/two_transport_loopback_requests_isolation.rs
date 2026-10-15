@@ -25,8 +25,11 @@ impl log::Log for DroppedRequestLogger {
     }
 
     fn log(&self, record: &log::Record) {
+        if !self.enabled(record.metadata()) {
+            return;
+        }
         let message = record.args().to_string();
-        if self.enabled(record.metadata()) && message.contains("dropped, dispatch") {
+        if message.contains("dropped, dispatch") {
             self.records.lock().expect("record store").push(message);
         }
     }
@@ -77,6 +80,10 @@ async fn two_transport_loopback_request_slow_or_panicking_handler_does_not_stall
     send_request(&pair, "/panic", rmpv::Value::Nil).await;
     let id = send_request(&pair, "/echo", rmpv::Value::from("after panic")).await;
     assert_eq!(await_response(&mut pair, id).await, rmpv::Value::from("after panic"));
+    // The worker joins the panicked task between requests; a worker that exited on that
+    // join would leave this one unanswered.
+    let id = send_request(&pair, "/echo", rmpv::Value::from("after the join")).await;
+    assert_eq!(await_response(&mut pair, id).await, rmpv::Value::from("after the join"));
 
     exchange_data_both_ways(&mut pair.handles).await;
 

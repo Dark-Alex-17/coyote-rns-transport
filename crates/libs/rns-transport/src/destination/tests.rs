@@ -108,6 +108,8 @@ fn request_handler_registry_refuses_empty_path_overwrites_and_deregisters() {
         SingleInputDestination::new(identity, DestinationName::new("test", "request-handlers"));
     let handler: Arc<dyn RequestHandler> =
         Arc::new(|_: InboundRequest| async { None::<RequestResponse> });
+    let second: Arc<dyn RequestHandler> =
+        Arc::new(|_: InboundRequest| async { None::<RequestResponse> });
 
     assert!(matches!(
         destination.register_request_handler("", handler.clone(), RequestAllow::All, true),
@@ -116,14 +118,15 @@ fn request_handler_registry_refuses_empty_path_overwrites_and_deregisters() {
     assert!(destination.request_handler(&PathHash::of("")).is_none());
 
     destination
-        .register_request_handler("/echo", handler.clone(), RequestAllow::All, true)
+        .register_request_handler("/echo", handler, RequestAllow::All, true)
         .expect("first registration");
     destination
-        .register_request_handler("/echo", handler, RequestAllow::None, false)
+        .register_request_handler("/echo", second.clone(), RequestAllow::None, false)
         .expect("second registration replaces the first");
     let registered =
         destination.request_handler(&PathHash::of("/echo")).expect("handler is registered");
     assert_eq!(registered.path, "/echo");
+    assert!(Arc::ptr_eq(&registered.handler, &second), "the second handler replaced the first");
     assert!(matches!(registered.allow, RequestAllow::None));
     assert!(!registered.auto_compress);
 

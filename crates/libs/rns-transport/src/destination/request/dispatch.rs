@@ -8,8 +8,8 @@ use crate::identity::Identity;
 /// the request with a debug log rather than blocking the link.
 pub(crate) const REQUEST_DISPATCH_CAPACITY: usize = 1024;
 
-/// How the request reached the link. The resource form is not handed off
-/// yet.
+/// How the request reached the link. Only the packet form is queued; its id
+/// is the packet hash.
 pub(crate) enum DispatchForm {
     Packet,
 }

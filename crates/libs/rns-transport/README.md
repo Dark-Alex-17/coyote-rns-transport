@@ -59,8 +59,10 @@ with one of the listed identity hashes; an unidentified peer is denied
 silently. `None` from the handler sends no response at all. A response that
 fits the link MDU goes out as one packet; a larger one travels as a response
 Resource and reaches the requester through `Transport::resource_events()`.
-Each handler runs on a task of its own, so a slow handler holds up only its
-own request.
+Each handler runs on a task of its own with no concurrency cap, so a slow
+handler holds up only its own request; a handler that needs a bound holds its
+own `Semaphore`. A request larger than the destination's `max_request_size`
+is ignored before any handler runs.
 
 `LinkEvent::Data` with `PacketContext::Request` keeps posting for every
 inbound request; a request whose path has a registered handler is answered by

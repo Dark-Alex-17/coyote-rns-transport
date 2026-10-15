@@ -1,8 +1,9 @@
 // Loopback coverage for the responder side of the request layer: a handler registered on
 // the listener's destination answers, or stays silent, for a request the connector sends
 // as one link packet. The allow modes follow `RNS/Link.py:818-824`, `None` from the handler
-// sends nothing (`RNS/Link.py:844`), and the `LinkEvent::Data(Request)` broadcast keeps
-// posting for a handled request. Helpers come from the sibling `tests_parts` files.
+// sends nothing (`RNS/Link.py:844`), a request over the destination's `max_request_size`
+// is ignored (`RNS/Link.py:999-1001`), and the `LinkEvent::Data(Request)` broadcast keeps
+// posting either way. Helpers come from the sibling `tests_parts` files.
 
 use crate::destination::link::unpack_response_envelope;
 use crate::destination::request::{
@@ -90,7 +91,8 @@ async fn await_response(pair: &mut LoopbackRequestPair, id: RequestId) -> rmpv::
 }
 
 /// Bounds the window with a data round trip in both directions, then checks that no
-/// response packet reached the connector's interface or its link events.
+/// response packet reached the connector's interface or its link events. A lagged event
+/// receiver could have missed the response, so it fails the test instead.
 #[deny(clippy::await_holding_invalid_type)]
 async fn assert_no_response(pair: &mut LoopbackRequestPair) {
     exchange_data_both_ways(&mut pair.handles).await;
@@ -108,10 +110,26 @@ async fn assert_no_response(pair: &mut LoopbackRequestPair) {
                         if payload.context() == PacketContext::Response)),
                 "no response event on the link"
             ),
-            Err(tokio::sync::broadcast::error::TryRecvError::Lagged(_)) => continue,
+            Err(tokio::sync::broadcast::error::TryRecvError::Lagged(skipped)) => {
+                panic!("link event receiver lagged by {skipped}; silence check is unreliable")
+            }
             Err(_) => break,
         }
     }
+}
+
+/// Waits for the responder's `LinkEvent::Data(Request)` for `id` on the listener's events.
+/// Call it before `assert_no_response`, whose data round trip reads past earlier events.
+#[deny(clippy::await_holding_invalid_type)]
+async fn await_request_data_event(pair: &mut LoopbackRequestPair, id: RequestId) {
+    let link_id = pair.handles.link_id;
+    await_event(&mut pair.handles.in_events, |event| {
+        event.id == link_id
+            && matches!(&event.event, LinkEvent::Data(payload)
+                if payload.context() == PacketContext::Request
+                    && payload.request_id() == Some(id.to_bytes()))
+    })
+    .await;
 }
 
 /// Identifies the connector to the responder with a fresh identity and returns its hash
@@ -146,20 +164,7 @@ async fn two_transport_loopback_request_allow_all_is_answered_and_still_posts_da
 
     let id = send_request(&pair, "/echo", rmpv::Value::from("ping")).await;
     assert_eq!(await_response(&mut pair, id).await, rmpv::Value::from("ping"));
-
-    let link_id = pair.handles.link_id;
-    let observed = await_event(&mut pair.handles.in_events, |event| {
-        event.id == link_id
-            && matches!(&event.event, LinkEvent::Data(payload)
-                if payload.context() == PacketContext::Request)
-    })
-    .await;
-    let LinkEvent::Data(payload) = observed.event else { unreachable!("matched above") };
-    assert_eq!(
-        payload.request_id(),
-        Some(id.to_bytes()),
-        "a handled request still posts its Data event"
-    );
+    await_request_data_event(&mut pair, id).await;
 }
 
 #[tokio::test]
@@ -224,6 +229,21 @@ async fn two_transport_loopback_request_handler_none_sends_nothing() {
     .await;
 
     send_request(&pair, "/quiet", rmpv::Value::Nil).await;
+    assert_no_response(&mut pair).await;
+}
+
+/// `RNS/Link.py:999-1001`: a request larger than the destination's `max_request_size` is
+/// ignored before the handler runs, while the link still posts its `Data(Request)` event.
+#[tokio::test]
+#[deny(clippy::await_holding_invalid_type)]
+async fn two_transport_loopback_request_over_max_request_size_is_ignored_and_still_posts_data_event(
+) {
+    let mut pair = loopback_request_pair("request-max-size").await;
+    pair.handles.destination.lock().await.set_max_request_size(1).expect("limit is set");
+    register_handler(&pair, "/echo", RequestAllow::All, echo_handler()).await;
+
+    let id = send_request(&pair, "/echo", rmpv::Value::from("too big")).await;
+    await_request_data_event(&mut pair, id).await;
     assert_no_response(&mut pair).await;
 }
 

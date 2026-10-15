@@ -23,12 +23,15 @@ sites, so a rebase can re-apply them one commit at a time.
 Every file changed since the `0.14.1` release and the patch each change
 belongs to. Patch ids: F1 is request wire frames and fuzz. The
 `request wire frames and fuzz` patch is fork commits `8e9970ac`,
-`afc56836`, `71365159`, `f875aff7` and `30d8dfde`.
+`afc56836`, `71365159`, `f875aff7` and `30d8dfde`; the request handlers
+and dispatch patch carries no other id and is fork commits `08a5cff6` and
+`21ab1981`.
 
 | File | Patch |
 | --- | --- |
 | `crates/apps/reticulumd/tests/fuzz_campaign_contract.rs` | request wire frames and fuzz |
-| `crates/libs/rns-transport/CHANGELOG.md` | request wire frames and fuzz |
+| `crates/libs/rns-transport/CHANGELOG.md` | request wire frames and fuzz, request handlers and dispatch |
+| `crates/libs/rns-transport/README.md` | request handlers and dispatch |
 | `crates/libs/rns-transport/fuzz/.gitignore` | request wire frames and fuzz |
 | `crates/libs/rns-transport/fuzz/Cargo.lock` | request wire frames and fuzz |
 | `crates/libs/rns-transport/fuzz/Cargo.toml` | request wire frames and fuzz |
@@ -36,14 +39,40 @@ belongs to. Patch ids: F1 is request wire frames and fuzz. The
 | `crates/libs/rns-transport/fuzz/fuzz_targets/resource_advertisement_decode.rs` | request wire frames and fuzz |
 | `crates/libs/rns-transport/fuzz/fuzz_targets/response_frame_decode.rs` | request wire frames and fuzz |
 | `crates/libs/rns-transport/src/destination.rs` | request wire frames and fuzz |
+| `crates/libs/rns-transport/src/destination/link_parts/link.rs` | request handlers and dispatch |
+| `crates/libs/rns-transport/src/destination/link_parts/link_sections/new.rs` | request handlers and dispatch |
+| `crates/libs/rns-transport/src/destination/link_parts/link_sections/new_from_request.rs` | request handlers and dispatch |
+| `crates/libs/rns-transport/src/destination/link_parts/link_sections/request_dispatch.rs` | request handlers and dispatch |
 | `crates/libs/rns-transport/src/destination/link_parts/link_sections/request_payload.rs` | request wire frames and fuzz |
+| `crates/libs/rns-transport/src/destination/link_parts/linkhandleresult.rs` | request handlers and dispatch |
+| `crates/libs/rns-transport/src/destination/link_parts/module_prelude.rs` | request handlers and dispatch |
+| `crates/libs/rns-transport/src/destination/request/allow.rs` | request handlers and dispatch |
+| `crates/libs/rns-transport/src/destination/request/dispatch.rs` | request handlers and dispatch |
 | `crates/libs/rns-transport/src/destination/request/frame.rs` | request wire frames and fuzz |
+| `crates/libs/rns-transport/src/destination/request/handler.rs` | request handlers and dispatch |
 | `crates/libs/rns-transport/src/destination/request/id.rs` | request wire frames and fuzz |
-| `crates/libs/rns-transport/src/destination/request/mod.rs` | request wire frames and fuzz |
+| `crates/libs/rns-transport/src/destination/request/inbound.rs` | request handlers and dispatch |
+| `crates/libs/rns-transport/src/destination/request/mod.rs` | request wire frames and fuzz, request handlers and dispatch |
 | `crates/libs/rns-transport/src/destination/request/tests.rs` | request wire frames and fuzz |
+| `crates/libs/rns-transport/src/destination/tests.rs` | request handlers and dispatch |
+| `crates/libs/rns-transport/src/destination_parts/destination.rs` | request handlers and dispatch |
+| `crates/libs/rns-transport/src/destination_parts/module_core.rs` | request handlers and dispatch |
+| `crates/libs/rns-transport/src/destination_parts/module_prelude.rs` | request handlers and dispatch |
 | `crates/libs/rns-transport/src/resource/tests.rs` | request wire frames and fuzz |
 | `crates/libs/rns-transport/src/resource/tests_advert_kat.rs` | request wire frames and fuzz |
+| `crates/libs/rns-transport/src/transport/core.rs` | request handlers and dispatch |
+| `crates/libs/rns-transport/src/transport/jobs.rs` | request handlers and dispatch |
+| `crates/libs/rns-transport/src/transport/links_parts/transport_sections/reset_out_link.rs` | request handlers and dispatch |
+| `crates/libs/rns-transport/src/transport/mod.rs` | request handlers and dispatch |
+| `crates/libs/rns-transport/src/transport/path.rs` | request handlers and dispatch |
+| `crates/libs/rns-transport/src/transport/request_dispatch.rs` | request handlers and dispatch |
+| `crates/libs/rns-transport/src/transport/test_bridge.rs` | request handlers and dispatch |
+| `crates/libs/rns-transport/src/transport/tests.rs` | request handlers and dispatch |
+| `crates/libs/rns-transport/src/transport/tests_parts/two_transport_loopback_lifecycle.rs` | request handlers and dispatch |
+| `crates/libs/rns-transport/src/transport/tests_parts/two_transport_loopback_requests.rs` | request handlers and dispatch |
+| `crates/libs/rns-transport/src/transport/tests_parts/two_transport_loopback_requests_isolation.rs` | request handlers and dispatch |
 | `crates/libs/rns-transport/tests/request_frame_wire.rs` | request wire frames and fuzz |
+| `docs/fork/PATCHSET.md` | request wire frames and fuzz, request handlers and dispatch |
 | `docs/runbooks/fuzzing-campaign.md` | request wire frames and fuzz |
 | `tools/scripts/fuzz-campaign.sh` | request wire frames and fuzz |
 | `xtask/src/main_parts/run_key_management_check.rs` | request wire frames and fuzz |
@@ -77,6 +106,49 @@ the campaign. New files: `src/destination/request/{mod,frame,id,tests}.rs`,
 `crates/apps/reticulumd/tests/fuzz_campaign_contract.rs` and the `fuzz/`
 crate with its three targets. The crate `CHANGELOG.md` carries the
 release notes.
+
+Fork commits `08a5cff6` and `21ab1981`: request handlers and dispatch.
+The first moves the `test_bridge` module out of `transport/mod.rs` into
+`transport/test_bridge.rs` unchanged, to make room in that file; the
+second lands the responder half of the link request layer in packet
+form. The file sites below describe the combined result.
+Upstream sites:
+`destination/request/{allow,handler,inbound,dispatch}.rs` (new) carry
+`RequestAllow`, `RequestHandler` with its closure blanket impl,
+`RequestResponse`, `InboundRequest`, the crate-private `RegisteredHandler`
+row, the `DispatchItem` message and the queue bound; `request/mod.rs`
+declares and re-exports them. `destination_parts/module_core.rs` adds the
+`request_handlers` table to the `Destination` struct,
+`destination_parts/destination.rs` initialises it in the three
+constructors and adds `register_request_handler`,
+`deregister_request_handler` and the crate-private lookup, and
+`destination_parts/module_prelude.rs` imports the request types and
+`HashMap`. `link_parts/linkhandleresult.rs` adds the `request_dispatch`
+sender seat to `Link`, `link_sections/{new,new_from_request}.rs`
+initialise it to `None`, `link_sections/request_dispatch.rs` (new,
+listed in `link_parts/link.rs`) carries `set_request_dispatch` and the
+non-blocking `dispatch_request`, which the `Request` arm of
+`handle_data_packet` in `link_sections/new.rs` calls while still posting
+the `Data` event; `link_parts/module_prelude.rs` imports the message
+types. `transport/mod.rs` adds the sender to `TransportHandler` and
+declares `transport/request_dispatch.rs` (new): the `request-dispatch`
+worker, the hoisted `send_on_iface`, `find_any_link`,
+`resource_mtu_for_iface` and `send_response_resource` free functions and
+the packet-response path; `transport/core.rs` creates the channel and
+passes the receiver to `manage_transport`, which spawns the worker in
+`transport/jobs.rs`; `transport/path.rs` sets the sender on every
+accepted link beside its ingress interface;
+`transport_sections/reset_out_link.rs` and `Transport::send_direct` in
+`transport/core.rs` delegate to the hoisted functions. Tests:
+`destination/tests.rs` pins the registry;
+`tests_parts/two_transport_loopback_requests.rs` and
+`two_transport_loopback_requests_isolation.rs` (new, two `include!` lines
+in `transport/tests.rs`) pin the allow modes, the silent `None`, the slow
+and panicking handler, the full queue, the `Data` event contract and the
+oversize response; `two_transport_loopback_lifecycle.rs` keeps the
+destination in its fixture and matches plain data only in its round
+trip. The crate `README.md` gains the request handler section and the
+crate `CHANGELOG.md` carries the release notes.
 
 ## 0.14.1 (upstream 0.14.0)
 

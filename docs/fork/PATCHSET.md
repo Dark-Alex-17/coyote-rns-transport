@@ -70,11 +70,15 @@ describe the combined result.
 - `crates/libs/rns-transport/CHANGELOG.md`: `### Fixed` bullet under
   `## Unreleased`.
 
-Fork commits `e239a239` and `7cfe7e73`: send Resource advertisement rejects
-outside the link lock, and register an outbound Resource sender before its
-advertisement is written. The second commit guards the dispatch confirm and
-moves the unconfirmed-sender tests; the file sites below describe the
-combined result.
+Fork commits `e239a239`, `7cfe7e73`, `40b392b7`, `8eaf1ee7` and `915c214f`:
+send Resource advertisement rejects outside the link lock, and register an
+outbound Resource sender before its advertisement is written. The second
+commit guards the dispatch confirm and moves the unconfirmed-sender tests;
+the third only touches the `track_prepared` doc comment in
+`manager_start.rs` (it cites `RNS/Resource.py:545` and `:552` for the
+reference ordering); the fourth carries parts served before the confirm
+into the sender status; the fifth adds the response-size reject loopback
+test. The file sites below describe the combined result.
 
 - `crates/libs/rns-transport/src/transport/resource_wire.rs`
   (`handle_link_resource_packet`): the response-size and request-size
@@ -96,14 +100,23 @@ combined result.
   `ResourceSender::poll` treats as nothing to retry while
   `handle_request_into` serves parts, so a part request that arrives between
   the advertisement write and the confirm is answered.
-  `confirm_outbound_dispatch(_, true)` calls `mark_advertised` on the sender
-  in place only while it is still in `ResourceStatus::None`; a sender an
-  early request already drove to `Failed` keeps that status for the retry
-  poll to report as `OutboundFailed`. `(_, false)` removes it and emits
-  `OutboundFailed`; a hash no longer present is a no-op. Both methods are
-  `pub` and keep their signatures. `cancel_outgoing` before the confirm now
-  finds the sender and returns a `ResourceInitiatorCancel` packet with
-  `OutboundCancelled`.
+  `confirm_outbound_dispatch(_, true)` acts on the sender in place only
+  while it is still in `ResourceStatus::None`: it calls the new private
+  `ResourceSender::confirm_advertised`, which runs `mark_advertised` and
+  then, when an early request already served parts, applies the transition
+  a post-confirm request makes (all parts sent gives `AwaitingProof` with
+  the bounded proof budget `max_retries.clamp(1, MAX_AWAITING_PROOF_RETRIES)`,
+  otherwise `Transferring`) through the shared private
+  `settle_transfer_status` helper, keeping the serve-time `last_activity`
+  and `last_part_sent`; `handle_request_into` records those two timestamps
+  while the status is `None` so the confirm can carry them over. Without
+  this a fully served sender sat in `Advertised` and the retry poll re-sent
+  the advertisement. A sender an early request already drove to `Failed`
+  keeps that status for the retry poll to report as `OutboundFailed`.
+  `(_, false)` removes it and emits `OutboundFailed`; a hash no longer
+  present is a no-op. Both methods are `pub` and keep their signatures.
+  `cancel_outgoing` before the confirm now finds the sender and returns a
+  `ResourceInitiatorCancel` packet with `OutboundCancelled`.
 - `crates/libs/rns-transport/src/transport/tests_parts/two_transport_loopback_resources_reject.rs`
   (new): the listener arms `set_max_request_size(1024)`, the connector sends
   a 4 KiB random request Resource and must see `OutboundRejected`, then a
@@ -112,23 +125,41 @@ combined result.
   `73e04b76` the reject bytes leave the wire before the re-lock, so the
   connector still sees `OutboundRejected`; the listener's handler then wedges
   and the test times out waiting for the second request's `Complete`.
+- `crates/libs/rns-transport/src/transport/tests_parts/two_transport_loopback_resources_reject_response.rs`
+  (new): the other reject branch. The connector bounds its request's
+  response at 1024 bytes with `send_request_resource_with_max_response_size`,
+  the listener's 4 KiB response must see `OutboundRejected`, a 256-byte
+  response on the same link must complete, and `Transport::stop_interface`
+  on the connector must return within 5 s. On `73e04b76` the connector's
+  handler wedges after the reject, as the listener's does in the request-size
+  test.
 - `crates/libs/rns-transport/src/resource/tests_split_unconfirmed.rs` (new):
-  five ResourceManager tests for the unconfirmed sender (an early part
-  request is served and nothing is retried; a failed confirm drops the
-  sender and its tail chain; a local cancel before the confirm returns an
-  initiator cancel; a sequencing-error request before the confirm leaves the
-  sender `Failed` and the next poll reports it once; link teardown before the
-  confirm fails the sender once and the late confirm is a no-op). The first
-  and third fail on `73e04b76`; the fourth fails on `1365b6a2`, where the
-  confirm still read `Advertised`.
+  nine ResourceManager tests for the unconfirmed sender (an early part
+  request is served, nothing is retried, and the confirm leaves the sender
+  `Transferring` with later requests still served; a failed confirm drops
+  the sender and its tail chain; a local cancel before the confirm returns
+  an initiator cancel; a sequencing-error request before the confirm leaves
+  the sender `Failed` and the next poll reports it once; link teardown
+  before the confirm fails the sender once and the late confirm is a no-op;
+  a repeated confirm leaves an advertised sender alone and the advertisement
+  budget then runs as usual; a failed confirm settles only the hash it
+  names; a single-part sender whose only part was served before the confirm
+  is `AwaitingProof` afterwards, is not re-advertised by the retry poll, and
+  completes on the proof; the same sender without a proof is dropped once
+  the bounded proof budget is spent). The first and third fail on
+  `73e04b76`; the fourth fails on `1365b6a2`, where the confirm still read
+  `Advertised`; the first and the last two fail on `40b392b7`, where the
+  confirm left a served sender in `Advertised` and the retry poll re-sent
+  the advertisement. The split fixture uses random bytes so its first
+  segment keeps more than one part.
 - `crates/libs/rns-transport/src/resource/tests_split_lazy.rs`: the
   `split_send_builds_only_the_first_segment_up_front` assertion is rewritten
   to the new placement; `tests_timeouts.rs` and `tests_timeouts_cleanup.rs`
   lose their `pending_outgoing` asserts and `tests_timeouts.rs` gains an
   `outgoing_segment_chains.is_empty()` assert.
 - `crates/libs/rns-transport/src/transport/tests.rs` and
-  `crates/libs/rns-transport/src/resource/tests.rs`: one `include!` line
-  each.
+  `crates/libs/rns-transport/src/resource/tests.rs`: two `include!` lines
+  in the former, one in the latter.
 - `crates/libs/rns-transport/CHANGELOG.md`: two `### Fixed` bullets under
   `## Unreleased`, including the `track_prepared` /
   `confirm_outbound_dispatch` semantics note.

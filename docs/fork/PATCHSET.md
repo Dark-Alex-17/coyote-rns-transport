@@ -70,7 +70,8 @@ describe the combined result.
 - `crates/libs/rns-transport/CHANGELOG.md`: `### Fixed` bullet under
   `## Unreleased`.
 
-Fork commits `e239a239`, `7cfe7e73`, `40b392b7`, `8eaf1ee7` and `915c214f`:
+Fork commits `e239a239`, `7cfe7e73`, `40b392b7`, `8eaf1ee7`, `915c214f`,
+`cfd7b868` and `21b6dcb3`:
 send Resource advertisement rejects outside the link lock, and register an
 outbound Resource sender before its advertisement is written. The second
 commit guards the dispatch confirm and moves the unconfirmed-sender tests;
@@ -78,7 +79,9 @@ the third only touches the `track_prepared` doc comment in
 `manager_start.rs` (it cites `RNS/Resource.py:545` and `:552` for the
 reference ordering); the fourth carries parts served before the confirm
 into the sender status; the fifth adds the response-size reject loopback
-test. The file sites below describe the combined result.
+test; the sixth only updates this ledger; the seventh adopts the
+served-parts confirm tests. The file sites below describe the combined
+result.
 
 - `crates/libs/rns-transport/src/transport/resource_wire.rs`
   (`handle_link_resource_packet`): the response-size and request-size
@@ -146,9 +149,10 @@ test. The file sites below describe the combined result.
   names; a single-part sender whose only part was served before the confirm
   is `AwaitingProof` afterwards, is not re-advertised by the retry poll, and
   completes on the proof; the same sender without a proof is dropped once
-  the bounded proof budget is spent). The first and third fail on
-  `73e04b76`; the fourth fails on `1365b6a2`, where the confirm still read
-  `Advertised`; the first and the last two fail on `40b392b7`, where the
+  the bounded proof budget is spent). The first, third and fourth
+  (`a_sender_failed_before_the_dispatch_confirm_stays_failed`) fail on
+  `73e04b76`; the fourth also fails on `1365b6a2`, where the confirm still
+  read `Advertised`; the first and the last two fail on `40b392b7`, where the
   confirm left a served sender in `Advertised` and the retry poll re-sent
   the advertisement. The split fixture uses random bytes so its first
   segment keeps more than one part.
@@ -178,6 +182,118 @@ test. The file sites below describe the combined result.
 - `crates/libs/rns-transport/CHANGELOG.md`: two `### Fixed` bullets under
   `## Unreleased`, including the `track_prepared` /
   `confirm_outbound_dispatch` semantics note.
+
+Fork commit `e69eff43`: harden the hex parsers, make announce building
+non-fatal, drop over-cap Resource advertisements, and add the additive
+lifecycle and helper API. Every public change is additive; no existing
+signature, enum or public field changes.
+
+- `crates/libs/rns-transport/src/hash.rs`
+  (`AddressHash::new_from_hex_string`) and
+  `crates/libs/rns-transport/src/identity.rs`
+  (`Identity::new_from_hex_string`, `PrivateIdentity::new_from_hex_string`,
+  new private `decode_key_pair_hex`): the parsers byte-sliced the `&str`
+  two chars at a time, which panics on a multibyte UTF-8 char at a slice
+  boundary. All three now run `hex::decode` first and map any length or
+  digit error to `RnsError::IncorrectHash`. `hash.rs` also gains
+  `AddressHash::short()` (first eight hex chars) for warn-level log lines.
+  Tests in `hash.rs` and `identity/tests.rs`: a correct-byte-length input
+  with `U+00E9` straddling the first two-char slice and a non-hex ASCII
+  input of the right length return `IncorrectHash` for each parser; the
+  leading-char case panics with `end byte index 2 is not a char boundary`
+  on `21b6dcb3`. Further tests for each parser: `U+00E9` straddling the
+  last two-char slice and `U+1F600` in the middle return `IncorrectHash`,
+  empty and odd-length input is rejected, uppercase hex is accepted; and
+  `short_is_first_eight_hex_chars` in `hash.rs`.
+- `crates/libs/rns-transport/src/transport/core.rs` (`send_announce`): the
+  `.expect("valid announce packet")` is replaced by a warn (short
+  destination hash and the error) and an early return. New
+  `try_send_announce` beside it takes the destination guard in a scoped
+  block, logs the same trace line as `send_announce`, builds the packet,
+  drops the guard and returns the build error through
+  `Result<(), RnsError>` (`Ok(())` means the packet was built and handed
+  to the transport, not that an interface accepted it).
+- `crates/libs/rns-transport/src/transport/mod.rs`: new private
+  `manage_task: std::sync::Mutex<Option<JoinHandle<()>>>` field on
+  `Transport` and the `mod lifecycle;` line; `Transport::new` in `core.rs`
+  stores the `manage_transport` `JoinHandle` in that field.
+- `crates/libs/rns-transport/src/transport/lifecycle.rs` (new):
+  `Transport::stop` takes every interface worker tree with
+  `take_worker_tree` and detaches the interfaces under one scoped
+  `iface_manager` guard, waits for the workers, then cancels the token,
+  takes the stored management task handle (std guard dropped before any
+  await) and waits for it. The interface workers go first because one may
+  be blocked handing a packet to the management task. The whole call shares
+  a 5 s budget (`tokio::time::timeout_at`); a handle still running at the
+  deadline is aborted and logged at warn with the interface's short hash.
+  `Drop` stays cancel-only.
+- `crates/libs/rns-transport/src/resource/advertisement_limits.rs`
+  (`advertisement_exceeds_inbound_limits`): a new first branch, keyed on
+  the new `pub(crate) MAX_REFERENCE_ADVERTISED_TRANSFER_SIZE`
+  (`3 * MAX_EFFICIENT_SIZE`), logs at debug and rejects, mirroring the
+  `ValueError("Invalid transfer size")` raised by `RNS/Resource.py:1374`.
+  The 64 MiB `MAX_INBOUND_RESOURCE_TRANSFER_SIZE` branch below it is
+  unreachable while the reference cap is the smaller one; it is kept so the
+  upstream diff stays small and because the receiver re-checks that cap.
+  `MAX_EFFICIENT_SIZE` is unchanged.
+- `crates/libs/rns-transport/src/destination/link_parts/link_sections/remove_channel_handler.rs`:
+  `Link::rtt()` exposes the `rtt` field: set on activation on the initiator
+  (`RNS/Link.py:419`); on the responder set to the larger of its own
+  measurement and the value in the initiator's RTT packet
+  (`RNS/Link.py:518-522`), zero until then.
+- `crates/libs/rns-transport/src/destination_hash.rs`:
+  `destination_address(name_hash, identity_hash)` computes the address the
+  way `create_address_hash` in `destination_parts/destination.rs` does
+  (`RNS/Destination.py:116-130`), with a unit test against
+  `SingleInputDestination::new` for three names.
+- `crates/libs/rns-transport/src/lib.rs`: documented `pub use rand_core;`
+  and `pub use rmpv;`.
+- `crates/libs/rns-transport/src/resource/tests.rs`:
+  `resource_manager_rejects_advertisement_over_transfer_size_limit` is
+  renamed `..._over_reference_transfer_size_limit` and its bounds move to
+  `3 * MAX_EFFICIENT_SIZE` (plus one rejected, exactly at the cap
+  accepted); the old second half, which accepted a 64 MiB single-segment
+  advertisement, fails on the new guard by design. One `include!` line for
+  the file below.
+- `crates/libs/rns-transport/src/resource/tests_advert_limits.rs` (new):
+  the first segment of a 64-segment split Resource at `MAX_EFFICIENT_SIZE`
+  per segment (`d` at 64 times that) is admitted, and a well-formed
+  advertisement after a dropped over-cap one is still admitted on the same
+  link.
+- `crates/libs/rns-transport/src/transport/tests_parts/two_transport_loopback_lifecycle.rs`
+  (new, two `include!` lines in `transport/tests.rs` for this file and the
+  probe file below): `Link::rtt` is
+  non-zero and below the loopback timeout on both ends; `Transport::stop`
+  on the listener returns within 5 s, leaves `interface_hashes()` empty,
+  the server status `closed` and the port bindable, and a second `stop`
+  plus the connector's `stop` return within 5 s; `send_announce` with
+  `PACKET_DATA_MAX + 1` bytes of app data returns (panics with
+  `valid announce packet` on `21b6dcb3`) and `try_send_announce` returns
+  `Err(RnsError::OutOfMemory)` for it and `Ok` for a short payload; an
+  advertisement with `t = MAX_REFERENCE_ADVERTISED_TRANSFER_SIZE + 1` sent
+  on a live link produces no part
+  request back and no resource event, and the link then carries a `Data`
+  packet each way.
+- `crates/libs/rns-transport/src/transport/tests_parts/two_transport_loopback_lifecycle_probe.rs`
+  (new): a successful `try_send_announce` is observed by the peer with the
+  same app data; `stop` on a transport that never attached an interface
+  returns promptly, twice; `stop` releases a `TcpClient` stuck reconnecting
+  to a dead port (the client is detached and its stream state is `closed`)
+  and a second `stop` is a no-op; after `stop` on the listener the public
+  API keeps answering within the budget without panicking
+  (`try_send_announce`, `send_announce`, `send_to_in_links_with_report`
+  reporting zero sent links, `add_destination`, the peer's
+  `send_to_out_links_with_report` and the peer's own `stop`); `stop` on the
+  listener returns within the budget while the peer floods announces and
+  leaves the server `closed`; two concurrent `stop` calls on one transport
+  both return and release the listening socket.
+- `crates/libs/rns-transport/tests/crate_root_reexports.rs` (new
+  integration test target): `rns_transport::rand_core::OsRng` drives the
+  public constructors, `rns_transport::rmpv` round-trips a `Value`, and
+  `destination_address` matches `SingleInputDestination::new` from outside
+  the crate.
+- `crates/libs/rns-transport/CHANGELOG.md`: six `### Added` and three
+  `### Fixed` bullets under `## Unreleased`.
 
 Fork commit `0197768d`: revise the smoke-script leg of the link-close patch.
 This is a mixed commit; only the files below are the patch leg, so re-apply

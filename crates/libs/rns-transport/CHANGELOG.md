@@ -45,9 +45,12 @@ and versions follow the cargo semver rules described in the crate README.
   staging map is gone. `track_prepared` and
   `ResourceManager::confirm_outbound_dispatch` keep their signatures but
   change semantics: `track_prepared` places the sender in `outgoing` with
-  `ResourceStatus::None`; `confirm_outbound_dispatch(_, true)` marks it
-  advertised in place unless an early request already failed it, in which
-  case the retry poll reports `OutboundFailed`;
+  `ResourceStatus::None`; `confirm_outbound_dispatch(_, true)` marks a
+  still-`None` sender advertised in place and then, when an early request
+  already served parts, moves it on to `Transferring` or (all parts
+  served) `AwaitingProof` with the bounded proof budget, exactly as a
+  post-confirm request would have; a sender an early request already
+  failed keeps `Failed` for the retry poll to report `OutboundFailed`;
   `confirm_outbound_dispatch(_, false)` removes it and emits
   `OutboundFailed`; `cancel_outgoing` before the confirm now returns a
   `ResourceInitiatorCancel` packet and emits `OutboundCancelled`.

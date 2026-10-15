@@ -70,6 +70,54 @@ describe the combined result.
 - `crates/libs/rns-transport/CHANGELOG.md`: `### Fixed` bullet under
   `## Unreleased`.
 
+Fork commit `e239a239`: send Resource advertisement rejects outside the link
+lock, and register an outbound Resource sender before its advertisement is
+written.
+
+- `crates/libs/rns-transport/src/transport/resource_wire.rs`
+  (`handle_link_resource_packet`): the response-size and request-size
+  rejects (`ResourceReceiverCancel`) were sent with `handler.send` while the
+  link's mutex guard was still held; `TransportHandler::send` re-locks the
+  same link in `note_link_packet_sent`, so the first reject deadlocked the
+  transport. Both branches now record the reject in a local
+  `Option<TxMessage>` (built by the new private `advertisement_reject`
+  helper, with the interface captured under the guard), skip the
+  ResourceManager dispatch, and send the reject after the existing
+  `drop(link)`. A rejected advertisement still never reaches the manager,
+  including when the reject packet cannot be built.
+- `crates/libs/rns-transport/src/resource/manager_start.rs`
+  (`track_prepared`), `manager_segments.rs` (`confirm_outbound_dispatch`),
+  `manager.rs` (struct, `cancel_outgoing`, `has_no_outbound_state`, the
+  `ResourceReceiverCancel` arm), `manager_cleanup.rs` (`remove_link_state`):
+  the `pending_outgoing` staging map is removed. `track_prepared` inserts the
+  sender straight into `outgoing` with `ResourceStatus::None`, which
+  `ResourceSender::poll` treats as nothing to retry while
+  `handle_request_into` serves parts, so a part request that arrives between
+  the advertisement write and the confirm is answered.
+  `confirm_outbound_dispatch(_, true)` calls `mark_advertised` on the sender
+  in place; `(_, false)` removes it and emits `OutboundFailed`; a hash no
+  longer present is a no-op. Both methods are `pub` and keep their
+  signatures. `cancel_outgoing` before the confirm now finds the sender and
+  returns a `ResourceInitiatorCancel` packet with `OutboundCancelled`.
+- `crates/libs/rns-transport/src/transport/tests_parts/two_transport_loopback_resources_reject.rs`
+  (new): the listener arms `set_max_request_size(1024)`, the connector sends
+  a 4 KiB random request Resource and must see `OutboundRejected`, then a
+  256-byte request on the same link must complete, and
+  `Transport::stop_interface` on the listener must return within 5 s. On
+  `73e04b76` the listener wedges after the first reject and the test times
+  out waiting for `OutboundRejected`.
+- `crates/libs/rns-transport/src/resource/tests_split_lazy.rs`: three
+  ResourceManager tests for the unconfirmed sender (an early part request is
+  served and nothing is retried; a failed confirm drops the sender and its
+  tail chain; a local cancel before the confirm returns an initiator cancel).
+  The first and third fail on `73e04b76`. The `split_send_builds_only_the_first_segment_up_front`
+  assertion is rewritten to the new placement; `tests_timeouts.rs` and
+  `tests_timeouts_cleanup.rs` lose their `pending_outgoing` asserts.
+- `crates/libs/rns-transport/src/transport/tests.rs`: one `include!` line.
+- `crates/libs/rns-transport/CHANGELOG.md`: two `### Fixed` bullets under
+  `## Unreleased`, including the `track_prepared` /
+  `confirm_outbound_dispatch` semantics note.
+
 Fork commit `0197768d`: revise the smoke-script leg of the link-close patch.
 This is a mixed commit; only the files below are the patch leg, so re-apply
 those hunks rather than cherry-picking the whole commit.

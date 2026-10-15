@@ -169,7 +169,7 @@ fn request_frame_agrees_with_link_request_payload() {
 #[test]
 fn request_frame_refuses_wrong_shapes() {
     let good = hex("93cb41d954fc40200000c410a2815deccd7e741285784132e2e477dcc0");
-    // Not an array: a map with 3 entries, or a bare int.
+    // Not an array: a bare int.
     assert_eq!(RequestFrame::decode(&[0x01]), Err(FrameDecodeError::NotAnArray));
     // Two elements [ts, ph].
     let two = hex("92cb41d954fc40200000c410a2815deccd7e741285784132e2e477dc");
@@ -192,7 +192,7 @@ fn request_frame_refuses_wrong_shapes() {
     // Path hash 15 bytes.
     let short_hash = hex("93cb41d954fc40200000c40fa2815deccd7e741285784132e2e477c0");
     assert_eq!(RequestFrame::decode(&short_hash), Err(FrameDecodeError::HashNotBin16));
-    // Path hash as str16 instead of bin16.
+    // Path hash as a 16-byte str instead of bin16.
     let str_hash = hex("93cb41d954fc40200000b0a2815deccd7e741285784132e2e477dcc0");
     assert_eq!(RequestFrame::decode(&str_hash), Err(FrameDecodeError::HashNotBin16));
     // Trailing byte after an otherwise valid frame.

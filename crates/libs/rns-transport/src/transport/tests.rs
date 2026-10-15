@@ -96,3 +96,5 @@ include!("tests_parts/two_transport_loopback_requests_routing.rs");
 include!("tests_parts/two_transport_loopback_requests_malformed.rs");
 
 include!("tests_parts/two_transport_loopback_requests_resource_form.rs");
+
+include!("tests_parts/two_transport_loopback_requests_resource_form_probe.rs");

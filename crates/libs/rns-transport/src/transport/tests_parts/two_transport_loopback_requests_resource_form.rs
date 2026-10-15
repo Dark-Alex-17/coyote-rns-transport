@@ -7,7 +7,8 @@
 // request whose advertised data size is over `max_request_size` is rejected before it is
 // assembled (`RNS/Link.py:1036-1046`). Helpers come from the sibling `tests_parts` files.
 
-/// Any request Resource whose advertised data size is over this is rejected in (e).
+/// Any request Resource whose advertised data size is over this is rejected at its
+/// advertisement, before any segment is accepted.
 const RESOURCE_FORM_REQUEST_LIMIT: usize = 1024;
 /// Zero bytes: bz2 brings the transfer size `t` far under the limit while the data size `d`
 /// stays over it, so only a gate that reads `d` rejects the request.

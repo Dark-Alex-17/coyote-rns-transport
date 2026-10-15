@@ -62,18 +62,25 @@ Resource and reaches the requester through `Transport::resource_events()`.
 Each handler runs on a task of its own with no concurrency cap, so a slow
 handler holds up only its own request; a handler that needs a bound holds its
 own `Semaphore`. A request larger than the destination's `max_request_size`
-is ignored before any handler runs.
+is ignored before any handler runs; a request packet over the limit is dropped
+silently.
 
 A request too large for one packet arrives as a request Resource; once it is
 assembled the same handler runs, with the request id recomputed from the
 assembled bytes. A `max_request_size` is enforced against the advertised data
-size before any part is accepted. On the response side, a `Value` or `Bytes`
-that outgrows the link MDU travels as a Resource whose data is the whole
-`[request_id, body]` envelope; a `RequestResponse::Resource { data, metadata }`
-always travels as a Resource whose data is the raw `data`, with the packed
-metadata ahead of it. Both advertise the request id in `q` with the response
-flag `p` set, and both honour the registration's `auto_compress`; a response
-packet is never compressed.
+size before any part is accepted: an oversize request Resource is rejected at
+its advertisement, which the requester sees as
+`ResourceEventKind::OutboundRejected`. On the response side, a `Value` or
+`Bytes` that outgrows the link MDU travels as a Resource whose data is the
+whole `[request_id, body]` envelope; a
+`RequestResponse::Resource { data, metadata }` always travels as a Resource
+whose data is the raw `data`, with the packed metadata ahead of it. A Python
+requester reads a response Resource as a file response only when it carries
+metadata (`RNS/Link.py:902-912`), so a `Resource { metadata: None }` answer is
+unpacked as an envelope there and is only for a peer that expects raw bytes.
+Both advertise the request id in `q` with the response flag `p` set, and both
+honour the registration's `auto_compress`; a response packet is never
+compressed.
 
 `LinkEvent::Data` with `PacketContext::Request` keeps posting for every
 inbound request packet, and `ResourceEventKind::Complete` with `is_request`

@@ -25,8 +25,8 @@ belongs to. Patch ids: F1 is request wire frames and fuzz. The
 `request wire frames and fuzz` patch is fork commits `8e9970ac`,
 `afc56836`, `71365159`, `f875aff7` and `30d8dfde`; the request handlers
 and dispatch patch carries no other id and is fork commits `08a5cff6`,
-`21ab1981`, `c1a98ff1`, `12d2080c`, `7bbb0197`, `73f177b4`, `1fd1192a`
-and `febec3db`.
+`21ab1981`, `c1a98ff1`, `12d2080c`, `7bbb0197`, `73f177b4`, `1fd1192a`,
+`febec3db` and `7e9e5904`.
 
 | File | Patch |
 | --- | --- |
@@ -78,6 +78,7 @@ and `febec3db`.
 | `crates/libs/rns-transport/src/transport/tests_parts/two_transport_loopback_requests_malformed.rs` | request handlers and dispatch |
 | `crates/libs/rns-transport/src/transport/tests_parts/two_transport_loopback_requests_probe.rs` | request handlers and dispatch |
 | `crates/libs/rns-transport/src/transport/tests_parts/two_transport_loopback_requests_resource_form.rs` | request handlers and dispatch |
+| `crates/libs/rns-transport/src/transport/tests_parts/two_transport_loopback_requests_resource_form_probe.rs` | request handlers and dispatch |
 | `crates/libs/rns-transport/src/transport/tests_parts/two_transport_loopback_requests_routing.rs` | request handlers and dispatch |
 | `crates/libs/rns-transport/tests/request_frame_wire.rs` | request wire frames and fuzz |
 | `crates/libs/rns-transport/tests/request_handler_api.rs` | request handlers and dispatch |
@@ -213,9 +214,9 @@ answered. The crate `CHANGELOG.md` names the file in the worker bullet.
 Fork commit `febec3db`: the resource form of request handlers and
 dispatch. Upstream sites: `handle_link_resource_packet` in
 `transport/resource_wire.rs` hands every drained
-`ResourceEventKind::Complete { is_request }` for the link to
-`Link::dispatch_request` under the existing link guard, before the events
-are published, and compares a request advertisement's data size `d`
+`ResourceEventKind::Complete(ResourceComplete { is_request: true, .. })` for
+the link to `Link::dispatch_request` under the existing link guard, before
+the events are published, and compares a request advertisement's data size `d`
 rather than its transfer size `t` against `max_request_size`
 (`RNS/Link.py:1036-1046`, `RNS/Resource.py:1285-1287`).
 `destination/request/dispatch.rs` reshapes `DispatchForm` into
@@ -233,6 +234,26 @@ the response forms, their `q`/`p` flags and metadata layout. Tests:
 `link_sections/request_dispatch_tests.rs` reads the id from the form. The
 crate `CHANGELOG.md` and `README.md` carry the release notes and the
 user-facing paragraph.
+
+Fork commit `7e9e5904`: the resource-form review probe adopted, and the
+request limit doc in `two_transport_loopback_requests_resource_form.rs`
+reworded to describe the behaviour it guards.
+`two_transport_loopback_requests_resource_form_probe.rs` (new, a seventh
+`include!` line in `transport/tests.rs`) pins the edges of the resource
+form: `Complete(ResourceComplete { is_request: true, .. })` still posts
+for an answered request Resource; `max_request_size` is inclusive of the
+advertised data size `d` (`RNS/Link.py:1039`) and the link a rejection
+used goes on carrying request Resources; a `Resource { metadata: None }`
+response is raw data without metadata (`RNS/Link.py:839-846`); the
+response Resource honours the registration's `auto_compress`
+(`RNS/Link.py:846`, `:852`); an unregistered path, an allow list that
+denies the unidentified peer (`RNS/Link.py:818-824`) and an assembled body
+that is not a request frame all stay silent while the link keeps
+answering. The crate `CHANGELOG.md` and `README.md` name the file, write
+the `Complete` variant in its tuple form, say that a `metadata: None`
+resource is read as an envelope by a Python requester
+(`RNS/Link.py:902-912`) and that an oversize request Resource surfaces to
+the requester as `ResourceEventKind::OutboundRejected`.
 
 ## 0.14.1 (upstream 0.14.0)
 

@@ -96,12 +96,13 @@ trailing clause of the bullet for the behaviour it pins.
   `truncated_hash` over the assembled bytes, never read from the
   advertisement's `q`, and equals the `resource_request_id` that
   `Link::request_payload` reports to the requester. The
-  `ResourceEventKind::Complete { is_request: true, .. }` event keeps
-  posting on `Transport::resource_events()` for every such request; as for
-  `LinkEvent::Data(Request)`, a request whose path has a registered
-  handler is answered by that handler, and event consumers must not answer
-  it. Pinned by
-  `transport/tests_parts/two_transport_loopback_requests_resource_form.rs`.
+  `ResourceEventKind::Complete(ResourceComplete { is_request: true, .. })`
+  event keeps posting on `Transport::resource_events()` for every such
+  request; as for `LinkEvent::Data(Request)`, a request whose path has a
+  registered handler is answered by that handler, and event consumers must
+  not answer it. Pinned by
+  `transport/tests_parts/two_transport_loopback_requests_resource_form.rs`
+  and `two_transport_loopback_requests_resource_form_probe.rs`.
 
 - Response forms on the wire. A `Value` or `Bytes` response whose
   `[request_id, body]` envelope fits the link MDU goes out as one
@@ -112,10 +113,15 @@ trailing clause of the bullet for the behaviour it pins.
   flag (`RNS/Link.py:839-846`, `RNS/Resource.py:261-269`). Either
   Resource advertises `q == request_id` with the response flag `p` set
   (`RNS/Resource.py:1305-1318`). A response packet is never compressed;
-  a response Resource honours the registration's `auto_compress`. Pinned
-  by `transport/tests_parts/two_transport_loopback_requests.rs`,
-  `two_transport_loopback_requests_probe.rs` and
-  `two_transport_loopback_requests_resource_form.rs`.
+  a response Resource honours the registration's `auto_compress`. A
+  Python requester reads a response Resource as a file response only when
+  it carries metadata (`RNS/Link.py:902-912`), so a
+  `Resource { metadata: None }` answer is unpacked as an envelope there
+  and is only for a peer that expects raw bytes. Pinned by
+  `transport/tests_parts/two_transport_loopback_requests.rs`,
+  `two_transport_loopback_requests_probe.rs`,
+  `two_transport_loopback_requests_resource_form.rs` and
+  `two_transport_loopback_requests_resource_form_probe.rs`.
 
 ### Changed
 
@@ -124,7 +130,11 @@ trailing clause of the bullet for the behaviour it pins.
   size `d` (`ResourceAdvertisement.read_size`, `RNS/Resource.py:1285-1287`,
   `RNS/Link.py:1036-1046`) instead of the compressed transfer size `t`, so
   a compressible request over the limit is rejected as Python rejects it.
-  Pinned by `two_transport_loopback_requests_resource_form.rs` and
+  The limit is inclusive (`d <= max_request_size` is admitted), the
+  requester sees the rejection as `ResourceEventKind::OutboundRejected`,
+  and the link goes on carrying request Resources afterwards. Pinned by
+  `two_transport_loopback_requests_resource_form.rs`,
+  `two_transport_loopback_requests_resource_form_probe.rs` and
   `two_transport_loopback_resources_reject.rs`.
 
 - `Transport::send_direct`, `send_response_resource_with_compression` and

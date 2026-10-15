@@ -168,10 +168,12 @@ gone-link retry test. The file sites below describe the combined result.
   the duplicate must not produce a second `Complete`. Both fail on
   `2079a74e`, each seeing a single advertisement or request.
 - `crates/libs/rns-transport/src/transport/tests_parts/two_transport_loopback_resources_gone_link.rs`
-  (new): the connector forgets its `out_links` after the first advertisement
-  is on the wire; exactly one advertisement may reach the listener, the
-  sender must still report `OutboundFailed` once its retries are spent, and
-  a fresh link over the same transports must still carry a Resource.
+  (new): the connector forgets its `out_links` as soon as `send_resource`
+  returns, before the retry worker can be due (the retry clock starts under
+  the handler lock the dispatch releases last, and the worker needs that
+  lock); exactly one advertisement may reach the listener, the sender must
+  still report `OutboundFailed` once its retries are spent, and a fresh link
+  over the same transports must still carry a Resource.
 - `crates/libs/rns-transport/src/transport/tests.rs`: one `include!` line
   for each of the five test files above.
 - `crates/libs/rns-transport/CHANGELOG.md`: `### Fixed` bullet under

@@ -41,14 +41,18 @@ async fn forget_out_links(transport: &Transport) -> usize {
 }
 
 /// Advertisement retry whose link is gone. The listener is stalled so it cannot answer; the
-/// connector advertises a small Resource, the advertisement is read off the listener's wire,
-/// and then the connector forgets the link before the first retry is due. From then on every
-/// retry the worker pulls has no link: the listener must see exactly the one advertisement
-/// that was sent while the link existed, the sender must still report `OutboundFailed` once
-/// its retry budget runs out (so the worker kept polling after the skip), and a fresh link
-/// over the same two transports must still carry a Resource end to end (so the worker did
-/// not stop on the skipped retry). The listener's own request for the orphaned
-/// advertisement is dropped by the connector, which no longer knows the link.
+/// connector advertises a small Resource and forgets the link as soon as the dispatch
+/// returns. `send_resource` hands the advertisement to the interface and starts the retry
+/// clock under the handler lock it releases just before returning, and the retry worker
+/// needs that same lock and only re-advertises once the retry interval has elapsed, so the
+/// link is gone before a retry can be due; waiting for the advertisement to be read off the
+/// listener's wire first would leave the drop racing the worker on a slow host. From then
+/// on every retry the worker pulls has no link: the listener must see exactly the one
+/// advertisement that was dispatched while the link existed, the sender must still report
+/// `OutboundFailed` once its retry budget runs out (so the worker kept polling after the
+/// skip), and a fresh link over the same two transports must still carry a Resource end to
+/// end (so the worker did not stop on the skipped retry). The listener's own request for
+/// the orphaned advertisement is dropped by the connector, which no longer knows the link.
 #[tokio::test]
 #[deny(clippy::await_holding_invalid_type)]
 async fn two_transport_loopback_resources_advertisement_retry_skips_gone_link() {
@@ -64,6 +68,9 @@ async fn two_transport_loopback_resources_advertisement_retry_skips_gone_link() 
         .send_resource(&pair.link_id, payload, None)
         .await
         .expect("resource dispatched from the initiator side");
+    let removed = forget_out_links(&pair.connector.transport).await;
+    assert_eq!(removed, 1, "the connector held exactly the one link under test");
+
     let first = await_link_packets(
         &mut listener_tap,
         pair.link_id,
@@ -71,10 +78,10 @@ async fn two_transport_loopback_resources_advertisement_retry_skips_gone_link() 
         1,
     )
     .await;
-    assert_eq!(first, 1, "exactly one advertisement is on the wire before the link is dropped");
-
-    let removed = forget_out_links(&pair.connector.transport).await;
-    assert_eq!(removed, 1, "the connector held exactly the one link under test");
+    assert_eq!(
+        first, 1,
+        "only the advertisement dispatched while the link existed reaches the listener"
+    );
     stall.await.expect("stall task finished");
 
     let outbound = await_resource_event(&mut sender_events, |event| {

@@ -445,6 +445,66 @@ fn publish_recipe_mirrors_the_workflow_without_a_registry_override() {
     }
 }
 
+/// Release-note bullets under the current `## <version>` heading of the crate
+/// CHANGELOG end in a test clause that names the file pinning the behaviour.
+/// Every backticked `.rs` / `.py` path cited in that section must resolve to
+/// a file in the crate tree or the reticulumd interop tests, so a renamed or
+/// deleted test file cannot leave the release notes pointing at nothing.
+#[test]
+fn release_notes_cite_files_that_exist_in_the_tree() {
+    let version = crate_version();
+    let changelog = read_repo_file("crates/libs/rns-transport/CHANGELOG.md");
+    let heading = format!("\n## {version} - ");
+    let start = changelog.find(&heading).unwrap_or_else(|| {
+        panic!("crate CHANGELOG should have a dated `## {version} - <date>` heading")
+    });
+    let section = &changelog[start + 1..];
+    let section = match section[heading.len() - 1..].find("\n## ") {
+        Some(end) => &section[..heading.len() - 1 + end],
+        None => section,
+    };
+
+    let mut cited: Vec<&str> = Vec::new();
+    let mut rest = section;
+    while let Some(open) = rest.find('`') {
+        let after = &rest[open + 1..];
+        let Some(close) = after.find('`') else { break };
+        let token = &after[..close];
+        let is_path = (token.ends_with(".rs") || token.ends_with(".py"))
+            && token.chars().all(|c| c.is_ascii_alphanumeric() || "/_.-".contains(c));
+        if is_path && !cited.contains(&token) {
+            cited.push(token);
+        }
+        rest = &after[close + 1..];
+    }
+    assert!(
+        cited.len() >= 5,
+        "the {version} release notes should carry per-bullet test clauses, found {} file cites",
+        cited.len()
+    );
+
+    let root = repo_root();
+    let mut tree: Vec<String> = Vec::new();
+    for subtree in ["crates/libs/rns-transport", "crates/apps/reticulumd/tests"] {
+        visit_text_files(&root, &root.join(subtree), &mut |path| {
+            let relative = path.strip_prefix(&root).unwrap_or(path);
+            tree.push(relative.to_string_lossy().replace('\\', "/"));
+        });
+    }
+
+    let unresolved: Vec<&str> = cited
+        .iter()
+        .copied()
+        .filter(|token| !tree.iter().any(|path| path.ends_with(&format!("/{token}"))))
+        .collect();
+    assert!(
+        unresolved.is_empty(),
+        "every file cited in the {version} release notes should exist under the crate or the \
+         reticulumd tests:\n{}",
+        unresolved.join("\n")
+    );
+}
+
 #[test]
 fn repo_readme_points_at_the_crate_readme() {
     let pointer = "](crates/libs/rns-transport/README.md)";

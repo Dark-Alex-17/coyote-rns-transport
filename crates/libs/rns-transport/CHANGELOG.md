@@ -20,6 +20,17 @@ and versions follow the cargo semver rules described in the crate README.
   workspace and `reticulumd` lint tables until the existing hits are
   cleared.
 
+### Fixed
+
+- Multi-segment Resource advertisements and Resource retries were routed
+  through `route_outbound_packet`, which never resolves a link id, so
+  segments 2 and later of any Resource larger than `MAX_EFFICIENT_SIZE`
+  were dropped as `DroppedNoRoute` unless `broadcast` was on. They are now
+  sent on the link's bound interface like the first segment
+  (`handle_resource_proof` and the resource retry worker), matching
+  `RNS/Transport.py:1452-1454`; retry dispatch now resolves initiator-side
+  links by link id as well (`out_links` is keyed by destination hash).
+
 ## 0.14.0 - 2026-10-14
 
 Initial fork release, based on upstream `reticulum-rs-transport` 0.14.0.

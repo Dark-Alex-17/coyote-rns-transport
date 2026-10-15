@@ -37,9 +37,19 @@ pub(super) async fn handle_resource_proof(
         let mut responses = std::mem::take(&mut handler.resource_response_packets);
         handler.resource_manager.handle_packet_into(&packet, &mut link, &mut responses);
         let events = handler.resource_manager.drain_events();
+        // A proof can hand back the next segment's advertisement. Like every
+        // Link-destination packet it goes out on the link's attached
+        // interface (`RNS/Transport.py:1452-1454`); `send_packet` would try
+        // the path table, where a link id never resolves.
+        let response_iface = link.ingress_iface().unwrap_or(iface);
         drop(link);
         for response in responses.drain(..) {
-            handler.send_packet(response).await;
+            handler
+                .send(TxMessage {
+                    tx_type: TxMessageType::Direct(response_iface),
+                    packet: response,
+                })
+                .await;
         }
         handler.resource_response_packets = responses;
         publish_resource_events(&handler, events);
@@ -227,14 +237,22 @@ async fn link_for_resource_packet(
     handler: &TransportHandler,
     packet: &Packet,
 ) -> Option<Arc<Mutex<Link>>> {
-    let mut link = handler
-        .in_links
-        .get(&packet.destination)
-        .cloned()
-        .or_else(|| handler.out_links.get(&packet.destination).cloned());
+    link_by_id(handler, &packet.destination).await
+}
+
+/// `in_links` is keyed by link id but `out_links` by destination hash, so an
+/// initiator-side link is only found by scanning `out_links` for the id after
+/// the keyed lookups miss.
+#[deny(clippy::await_holding_invalid_type)]
+pub(super) async fn link_by_id(
+    handler: &TransportHandler,
+    link_id: &AddressHash,
+) -> Option<Arc<Mutex<Link>>> {
+    let mut link =
+        handler.in_links.get(link_id).cloned().or_else(|| handler.out_links.get(link_id).cloned());
     if link.is_none() {
         for candidate in handler.out_links.values() {
-            if *candidate.lock().await.id() == packet.destination {
+            if *candidate.lock().await.id() == *link_id {
                 link = Some(candidate.clone());
                 break;
             }

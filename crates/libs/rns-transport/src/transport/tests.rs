@@ -66,3 +66,11 @@ include!("tests_parts/single_destination_delivery_proof.rs");
 include!("tests_parts/link_broadcast_helpers_route_via_bound_iface.rs");
 
 include!("tests_parts/two_transport_loopback.rs");
+
+include!("tests_parts/two_transport_loopback_resources.rs");
+
+include!("tests_parts/two_transport_loopback_resources_directions.rs");
+
+include!("tests_parts/resource_retry_link_lookup.rs");
+
+include!("tests_parts/two_transport_loopback_resources_retries.rs");

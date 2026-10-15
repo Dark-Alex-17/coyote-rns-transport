@@ -25,7 +25,7 @@ belongs to. Patch ids: F1 is request wire frames and fuzz. The
 `request wire frames and fuzz` patch is fork commits `8e9970ac`,
 `afc56836`, `71365159`, `f875aff7` and `30d8dfde`; the request handlers
 and dispatch patch carries no other id and is fork commits `08a5cff6`,
-`21ab1981` and `c1a98ff1`.
+`21ab1981`, `c1a98ff1` and `12d2080c`.
 
 | File | Patch |
 | --- | --- |
@@ -40,9 +40,11 @@ and dispatch patch carries no other id and is fork commits `08a5cff6`,
 | `crates/libs/rns-transport/fuzz/fuzz_targets/response_frame_decode.rs` | request wire frames and fuzz |
 | `crates/libs/rns-transport/src/destination.rs` | request wire frames and fuzz |
 | `crates/libs/rns-transport/src/destination/link_parts/link.rs` | request handlers and dispatch |
+| `crates/libs/rns-transport/src/destination/link_parts/link_sections/identify_packet_tests.rs` | request handlers and dispatch |
 | `crates/libs/rns-transport/src/destination/link_parts/link_sections/new.rs` | request handlers and dispatch |
 | `crates/libs/rns-transport/src/destination/link_parts/link_sections/new_from_request.rs` | request handlers and dispatch |
 | `crates/libs/rns-transport/src/destination/link_parts/link_sections/request_dispatch.rs` | request handlers and dispatch |
+| `crates/libs/rns-transport/src/destination/link_parts/link_sections/request_dispatch_tests.rs` | request handlers and dispatch |
 | `crates/libs/rns-transport/src/destination/link_parts/link_sections/request_payload.rs` | request wire frames and fuzz |
 | `crates/libs/rns-transport/src/destination/link_parts/linkhandleresult.rs` | request handlers and dispatch |
 | `crates/libs/rns-transport/src/destination/link_parts/module_prelude.rs` | request handlers and dispatch |
@@ -152,8 +154,8 @@ destination in its fixture and matches plain data only in its round
 trip. The crate `README.md` gains the request handler section and the
 crate `CHANGELOG.md` carries the release notes.
 
-Fork commit `c1a98ff1`: the review fixes for request handlers and
-dispatch. Upstream sites: `dispatch_one` in `transport/request_dispatch.rs`
+Fork commit `c1a98ff1`: the fixes for request handlers and dispatch.
+Upstream sites: `dispatch_one` in `transport/request_dispatch.rs`
 reads the destination's `max_request_size` and the handler row under one
 guard and ignores a packet-form request over the limit before any handler
 runs (`RNS/Link.py:999-1001`); `find_any_link` in the same file checks
@@ -169,7 +171,17 @@ sends one more round trip after the panicked handler is joined;
 `two_transport_loopback_requests_probe.rs` (new, a third `include!` line
 in `transport/tests.rs`) and `tests/request_handler_api.rs` (new) pin the
 remaining registry and response-form promises; `destination/tests.rs`
-asserts the second registration's `Arc` replaced the first.
+asserts the second registration's `Arc` replaced the first. The crate
+`README.md` gains the concurrency note and the `max_request_size`
+sentence.
+
+Fork commit `12d2080c`: tests for request handlers and dispatch.
+`two_transport_loopback_requests_probe.rs` measures the `max_request_size`
+gate against the decrypted request envelope and shows
+`clear_max_request_size` lifting it. `link_sections/request_dispatch_tests.rs`
+(new, an `include!` line in `link_parts/link.rs`) pins the active-link gate
+in `dispatch_request`; `identify_packet_tests.rs` opens its `linked_pair`
+harness to that sibling module.
 
 ## 0.14.1 (upstream 0.14.0)
 

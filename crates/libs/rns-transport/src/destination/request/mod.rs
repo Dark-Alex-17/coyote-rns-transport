@@ -5,8 +5,9 @@
 //! (`RNS/Link.py:486-488`), a response as `[request_id, body]`
 //! (`RNS/Link.py:848`). [`RequestFrame`] and [`ResponseFrame`] encode and
 //! decode those arrays; [`PathHash`] and [`RequestId`] are the two truncated
-//! hashes they carry. Dispatch, handlers and receipts are not part of this
-//! module.
+//! hashes they carry. [`RequestHandler`], [`RequestAllow`], [`InboundRequest`]
+//! and [`RequestResponse`] are the responder API a destination registers
+//! handlers with; receipts are not part of this module.
 //!
 //! # Decoding
 //!
@@ -31,10 +32,19 @@
 //! mean containers.
 #![deny(clippy::await_holding_invalid_type)]
 
+mod allow;
+mod dispatch;
 mod frame;
+mod handler;
 mod id;
+mod inbound;
 #[cfg(test)]
 mod tests;
 
+pub use allow::RequestAllow;
+pub(crate) use dispatch::{DispatchForm, DispatchItem, REQUEST_DISPATCH_CAPACITY};
 pub use frame::{FrameDecodeError, RequestFrame, ResponseFrame, MAX_DEPTH};
+pub(crate) use handler::RegisteredHandler;
+pub use handler::{RequestHandler, RequestResponse};
 pub use id::{PathHash, RequestId};
+pub use inbound::InboundRequest;

@@ -33,6 +33,39 @@ Replace upstream `reticulum-rs-transport` with this crate rather than adding
 it alongside: both crates have the library name `rns_transport` and cannot
 coexist in one dependency graph.
 
+## Request handlers
+
+A `SingleInputDestination` answers link requests through handlers registered
+by path, as `RNS.Destination.register_request_handler` does. A handler is a
+closure (or a `RequestHandler` impl) that receives the `InboundRequest` and
+returns a future of `Option<RequestResponse>`:
+
+```rust
+use std::sync::Arc;
+use rns_transport::destination::request::{InboundRequest, RequestAllow, RequestResponse};
+
+destination.lock().await.register_request_handler(
+    "/echo",
+    Arc::new(|request: InboundRequest| async move {
+        Some(RequestResponse::Value(request.into_data()))
+    }),
+    RequestAllow::All,
+    true,
+)?;
+```
+
+`RequestAllow::List` answers only a peer that identified itself over the link
+with one of the listed identity hashes; an unidentified peer is denied
+silently. `None` from the handler sends no response at all. A response that
+fits the link MDU goes out as one packet; a larger one travels as a response
+Resource and reaches the requester through `Transport::resource_events()`.
+Each handler runs on a task of its own, so a slow handler holds up only its
+own request.
+
+`LinkEvent::Data` with `PacketContext::Request` keeps posting for every
+inbound request; a request whose path has a registered handler is answered by
+that handler, and broadcast consumers must not answer it.
+
 ## Versioning and releases
 
 The root `VERSION` file is the workspace number: the upstream baseline that

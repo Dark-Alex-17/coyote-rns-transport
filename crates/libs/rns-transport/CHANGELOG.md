@@ -37,7 +37,52 @@ trailing clause of the bullet for the behaviour it pins.
   `fuzz_smoke_request_frames_and_advertisement_decoders_do_not_panic` in
   `destination/request/tests.rs`.
 
+- `destination::request::{RequestAllow, RequestHandler, InboundRequest,
+  RequestResponse}` and `SingleInputDestination::register_request_handler`
+  / `deregister_request_handler`: the responder half of the link request
+  layer (`RNS/Destination.py:381-412`). The table is keyed by
+  `PathHash::of(path)` (`RNS/Destination.py:396`), an empty path is refused
+  with `RnsError::InvalidArgument` (`:392`) and a second registration for
+  the same path replaces the first. A handler is any `Fn(InboundRequest) ->
+  Future<Output = Option<RequestResponse>>`; `InboundRequest` carries the
+  six arguments Python hands a `response_generator` (`RNS/Link.py:831`) and
+  `RequestResponse::{Value, Bytes, Resource}` are the plain, `bytes` and
+  file-response forms (`RNS/Link.py:839-852`). Pinned by
+  `destination/tests.rs`.
+
+- The `request-dispatch` transport worker: `RNS.Link.handle_request`
+  (`RNS/Link.py:804-855`). A link hands every decrypted request packet to
+  the worker in-path, the worker looks the handler up and runs it on a task
+  of its own, as Python runs `handle_request` on a thread of its own
+  (`RNS/Link.py:1004-1005`), so a slow or panicking handler delays no other
+  request and never stops the transport. `RequestAllow::None` denies,
+  `All` answers, `List` answers a peer whose `LINKIDENTIFY` identity is in
+  the set; a denied peer and a peer that never identified are both denied
+  silently (`RNS/Link.py:818-824,855`). `None` from the handler sends
+  nothing (`:844`). A response that fits `Link::link_mdu()` goes out as one
+  `Response` packet, a larger one as a response Resource (`:849-852`).
+  Pinned by `transport/tests_parts/two_transport_loopback_requests.rs` and
+  `two_transport_loopback_requests_isolation.rs`.
+
+- `LinkEvent::Data` with `PacketContext::Request` keeps posting for every
+  inbound request; a request whose path has a registered handler is
+  answered by that handler, and broadcast consumers must not answer it.
+  Pinned by `transport/tests_parts/two_transport_loopback_requests.rs`.
+
+- The queue between a link and the dispatch worker holds 1024 requests. A
+  full queue drops the request with a debug log and never blocks the link.
+  Python has no bound here, so this is a resource limit rather than a
+  protocol divergence. Pinned by
+  `transport/tests_parts/two_transport_loopback_requests_isolation.rs`.
+
 ### Changed
+
+- `Transport::send_direct`, `send_response_resource_with_compression` and
+  the transport's link lookup delegate to free functions in
+  `transport/request_dispatch.rs`, which the dispatch worker shares. No
+  behaviour change. The `test_bridge` module moved from `transport/mod.rs`
+  into `transport/test_bridge.rs`, unchanged. Pinned by
+  `transport/tests_parts/two_transport_loopback_resources*.rs`.
 
 - `Link::request_payload` and `unpack_response_envelope` delegate to the new
   frames. The bytes are unchanged. The response decoder now refuses a

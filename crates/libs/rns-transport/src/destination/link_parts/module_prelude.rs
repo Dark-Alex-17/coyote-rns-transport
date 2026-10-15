@@ -12,6 +12,8 @@ use sha2::Digest;
 
 use x25519_dalek::StaticSecret;
 
+use tokio::sync::mpsc::error::TrySendError;
+
 use crate::{
     buffer::OutputBuffer,
     channel::{
@@ -19,6 +21,7 @@ use crate::{
         MessageState as ChannelMessageState,
     },
     crypt::fernet::{CachedFernet, PlainText, Token},
+    destination::request::{DispatchForm, DispatchItem, RequestId},
     error::RnsError,
     hash::{AddressHash, Hash, ADDRESS_HASH_SIZE, HASH_SIZE},
     identity::{DecryptIdentity, DerivedKey, EncryptIdentity, Identity, PrivateIdentity},

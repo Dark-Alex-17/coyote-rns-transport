@@ -9,6 +9,7 @@ impl Destination<PrivateIdentity, Input, Single> {
             identity,
             desc: DestinationDesc { identity: pub_identity, name, address_hash },
             max_request_size: None,
+            request_handlers: HashMap::new(),
             ratchet_state: RatchetState::default(),
             path_responses: BTreeMap::new(),
             path_response_queue: VecDeque::new(),
@@ -75,6 +76,37 @@ impl Destination<PrivateIdentity, Input, Single> {
     /// Return the configured packed request-size limit, if any.
     pub fn max_request_size(&self) -> Option<usize> {
         self.max_request_size
+    }
+
+    /// Registers `handler` for `path`, replacing any earlier registration
+    /// (`RNS/Destination.py:381-398`; the table key is `truncated_hash(path)`,
+    /// `:396`). An empty path is refused (`:392`). `auto_compress` is passed
+    /// on to a response that travels as a resource.
+    pub fn register_request_handler(
+        &mut self,
+        path: &str,
+        handler: Arc<dyn RequestHandler>,
+        allow: RequestAllow,
+        auto_compress: bool,
+    ) -> Result<(), RnsError> {
+        if path.is_empty() {
+            return Err(RnsError::InvalidArgument);
+        }
+        self.request_handlers.insert(
+            PathHash::of(path),
+            RegisteredHandler { path: path.to_owned(), handler, allow, auto_compress },
+        );
+        Ok(())
+    }
+
+    /// Removes the handler for `path`; true when one was registered
+    /// (`RNS/Destination.py:400-412`).
+    pub fn deregister_request_handler(&mut self, path: &str) -> bool {
+        self.request_handlers.remove(&PathHash::of(path)).is_some()
+    }
+
+    pub(crate) fn request_handler(&self, path_hash: &PathHash) -> Option<RegisteredHandler> {
+        self.request_handlers.get(path_hash).cloned()
     }
 
     pub fn decrypt_with_ratchets(
@@ -263,6 +295,7 @@ impl Destination<Identity, Output, Single> {
             identity,
             desc: DestinationDesc { identity, name, address_hash },
             max_request_size: None,
+            request_handlers: HashMap::new(),
             ratchet_state: RatchetState::default(),
             path_responses: BTreeMap::new(),
             path_response_queue: VecDeque::new(),
@@ -281,6 +314,7 @@ impl<D: Direction> Destination<EmptyIdentity, D, Plain> {
             identity,
             desc: DestinationDesc { identity: Default::default(), name, address_hash },
             max_request_size: None,
+            request_handlers: HashMap::new(),
             ratchet_state: RatchetState::default(),
             path_responses: BTreeMap::new(),
             path_response_queue: VecDeque::new(),

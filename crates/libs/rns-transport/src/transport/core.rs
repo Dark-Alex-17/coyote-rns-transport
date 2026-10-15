@@ -16,6 +16,8 @@ impl Transport {
             tokio::sync::broadcast::channel(TRANSPORT_EVENT_CHANNEL_CAPACITY);
         let (resource_events_tx, _) =
             tokio::sync::broadcast::channel(TRANSPORT_EVENT_CHANNEL_CAPACITY);
+        let (request_dispatch_tx, request_dispatch_rx) =
+            tokio::sync::mpsc::channel(REQUEST_DISPATCH_CAPACITY);
 
         let iface_manager = InterfaceManager::new(128);
 
@@ -79,6 +81,7 @@ impl Transport {
             announce_tx,
             link_in_event_tx: link_in_event_tx.clone(),
             received_data_tx: received_data_tx.clone(),
+            request_dispatch_tx,
             ratchet_store,
             resource_manager: ResourceManager::new_with_config(
                 Duration::from_secs(resource_retry_interval_secs),
@@ -97,7 +100,12 @@ impl Transport {
 
         let manage_task = {
             let handler = handler.clone();
-            tokio::spawn(manage_transport(handler, rx_receiver, iface_messages_tx.clone()))
+            tokio::spawn(manage_transport(
+                handler,
+                rx_receiver,
+                iface_messages_tx.clone(),
+                request_dispatch_rx,
+            ))
         };
         fn spawn_link_data_forwarder(
             mut link_rx: broadcast::Receiver<LinkEventData>,
@@ -471,11 +479,7 @@ impl Transport {
     }
 
     pub async fn send_direct(&self, addr: AddressHash, packet: Packet) {
-        self.handler
-            .lock()
-            .await
-            .send(TxMessage { tx_type: TxMessageType::Direct(addr), packet })
-            .await;
+        super::request_dispatch::send_on_iface(&self.handler, addr, packet).await;
     }
 
     pub async fn synthesize_tunnel_on_interface(&self, iface: AddressHash) -> bool {

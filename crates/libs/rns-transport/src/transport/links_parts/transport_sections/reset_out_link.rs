@@ -115,36 +115,11 @@ impl Transport {
     }
 
     async fn find_any_link(&self, link_id: &AddressHash) -> Option<Arc<Mutex<Link>>> {
-        let (out_links, in_link) = {
-            let handler = self.handler.lock().await;
-            (
-                handler.out_links.values().cloned().collect::<Vec<_>>(),
-                handler.in_links.get(link_id).cloned(),
-            )
-        };
-
-        if let Some(link) = in_link {
-            return Some(link);
-        }
-
-        for link in out_links {
-            if *link.lock().await.id() == *link_id {
-                return Some(link);
-            }
-        }
-
-        None
+        super::request_dispatch::find_any_link(&self.handler, link_id).await
     }
 
     async fn resource_mtu_for_iface(&self, iface: Option<AddressHash>) -> usize {
-        let Some(iface) = iface else {
-            return crate::resource::DEFAULT_RESOURCE_INTERFACE_MTU;
-        };
-        self.iface_manager
-            .lock()
-            .await
-            .mtu(&iface)
-            .unwrap_or(crate::resource::DEFAULT_RESOURCE_INTERFACE_MTU)
+        super::request_dispatch::resource_mtu_for_iface(&self.handler, iface).await
     }
 
     pub async fn send_resource(
@@ -264,43 +239,15 @@ impl Transport {
         metadata: Option<Vec<u8>>,
         auto_compress: bool,
     ) -> Result<Hash, RnsError> {
-        let link = self.find_any_link(link_id).await.ok_or(RnsError::InvalidArgument)?;
-        let iface = {
-            let link_guard = link.lock().await;
-            link_guard.ingress_iface()
-        };
-        let interface_mtu = self.resource_mtu_for_iface(iface).await;
-        // See `send_resource_observed`: prepared off the handler lock.
-        let prepared = {
-            let link_guard = link.lock().await;
-            // See `resource_wire.rs`: the negotiated link MTU, not the local
-            // interface alone, is what a fragment has to fit through.
-            let interface_mtu = interface_mtu.min(link_guard.link_mtu());
-            ResourceManager::prepare_send_with_compression(
-                &link_guard,
-                data,
-                metadata,
-                Some(request_id),
-                true,
-                interface_mtu,
-                auto_compress,
-            )?
-        };
-        let mut handler = self.handler.lock().await;
-        let (resource_hash, packet) = handler.resource_manager.track_prepared(prepared);
-        drop(handler);
-        let outcome = self.send_link_packet_on_bound_iface(&link, packet).await;
-        let mut handler = self.handler.lock().await;
-        let sent =
-            matches!(outcome, SendPacketOutcome::SentDirect | SendPacketOutcome::SentBroadcast);
-        handler.resource_manager.confirm_outbound_dispatch(resource_hash, sent);
-        let events = handler.resource_manager.drain_events();
-        super::resource_wire::publish_resource_events(&handler, events);
-        if sent {
-            Ok(resource_hash)
-        } else {
-            Err(RnsError::ConnectionError)
-        }
+        super::request_dispatch::send_response_resource(
+            &self.handler,
+            link_id,
+            request_id,
+            data,
+            metadata,
+            auto_compress,
+        )
+        .await
     }
 
     pub async fn send_request_resource(

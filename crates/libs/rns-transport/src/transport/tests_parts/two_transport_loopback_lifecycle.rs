@@ -13,10 +13,12 @@ const STOP_TIMEOUT: Duration = Duration::from_secs(5);
 const UNBUILDABLE_APP_DATA_LEN: usize = PACKET_DATA_MAX + 1;
 
 /// A link pair that keeps the initiator's `Link` so tests can inspect it and encrypt
-/// packets for it directly.
+/// packets for it directly, and the responder's destination so tests can register request
+/// handlers on it.
 struct LoopbackLinkHandles {
     listener: LoopbackListener,
     connector: LoopbackConnector,
+    destination: Arc<Mutex<SingleInputDestination>>,
     link: Arc<Mutex<Link>>,
     link_id: AddressHash,
     desc: DestinationDesc,
@@ -31,7 +33,7 @@ async fn loopback_link_handles(aspect: &str) -> LoopbackLinkHandles {
     listener.await_accepted_connections(1).await;
     let mut in_events = listener.transport.in_link_events();
 
-    let (_destination, desc) =
+    let (destination, desc) =
         register_in_destination(&listener.transport, "loopback", aspect).await;
     let learned = learn_announce(&mut connector.announces, &desc.address_hash).await;
     let (link, link_id) = open_link(&connector.transport, learned).await;
@@ -43,6 +45,7 @@ async fn loopback_link_handles(aspect: &str) -> LoopbackLinkHandles {
     LoopbackLinkHandles {
         listener,
         connector,
+        destination,
         link,
         link_id,
         desc,
@@ -50,7 +53,9 @@ async fn loopback_link_handles(aspect: &str) -> LoopbackLinkHandles {
     }
 }
 
-/// Sends one Data packet in each direction over the pair's link and checks delivery.
+/// Sends one plain Data packet in each direction over the pair's link and checks delivery.
+/// Only plain data counts: a request or response the link carried earlier may still be in
+/// the event queue.
 #[deny(clippy::await_holding_invalid_type)]
 async fn exchange_data_both_ways(pair: &mut LoopbackLinkHandles) {
     let mut out_events = pair.connector.transport.out_link_events();
@@ -63,7 +68,7 @@ async fn exchange_data_both_ways(pair: &mut LoopbackLinkHandles) {
         .await;
     assert_sent_on_one_link(report, "outbound");
     let inbound = await_event(&mut pair.in_events, |event| {
-        event.id == link_id && matches!(event.event, LinkEvent::Data(_))
+        event.id == link_id && is_plain_data(&event.event)
     })
     .await;
     assert_eq!(data_bytes(inbound), b"ping after advert");
@@ -75,10 +80,14 @@ async fn exchange_data_both_ways(pair: &mut LoopbackLinkHandles) {
         .await;
     assert_sent_on_one_link(report, "inbound");
     let outbound = await_event(&mut out_events, |event| {
-        event.id == link_id && matches!(event.event, LinkEvent::Data(_))
+        event.id == link_id && is_plain_data(&event.event)
     })
     .await;
     assert_eq!(data_bytes(outbound), b"pong after advert");
+}
+
+fn is_plain_data(event: &LinkEvent) -> bool {
+    matches!(event, LinkEvent::Data(payload) if payload.context() == PacketContext::None)
 }
 
 #[tokio::test]

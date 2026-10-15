@@ -1,4 +1,5 @@
 use crate::{
+    destination::request::{PathHash, RegisteredHandler, RequestAllow, RequestHandler},
     error::RnsError,
     hash::{AddressHash, Hash},
     identity::{EmptyIdentity, HashIdentity, Identity, PrivateIdentity, PUBLIC_KEY_LENGTH},
@@ -17,7 +18,7 @@ use rand_core::CryptoRngCore;
 
 use sha2::Digest;
 
-use std::collections::{BTreeMap, VecDeque};
+use std::collections::{BTreeMap, HashMap, VecDeque};
 
 use std::path::Path;
 

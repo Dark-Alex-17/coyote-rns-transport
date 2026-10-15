@@ -6,5 +6,6 @@ include!("link_sections/next_watchdog_deadline.rs");
 include!("link_sections/response_packet.rs");
 include!("link_sections/request_payload.rs");
 include!("link_sections/request_payload_tests.rs");
+include!("link_sections/request_dispatch.rs");
 include!("link_sections/link_mtu.rs");
 include!("link_sections/identify_packet_tests.rs");

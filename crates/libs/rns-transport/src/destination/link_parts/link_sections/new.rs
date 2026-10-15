@@ -38,6 +38,7 @@ impl Link {
             channel_states: HashMap::new(),
             channel_rx_ring: HashMap::new(),
             pending_response_limits: HashMap::new(),
+            request_dispatch: None,
             channel_window: CHANNEL_WINDOW_INIT,
             channel_window_max: CHANNEL_WINDOW_MAX_SLOW,
             channel_window_min: CHANNEL_WINDOW_MIN,
@@ -251,10 +252,9 @@ impl Link {
                     self.note_inbound(packet.context);
                     log::trace!("link({}): data {}B", self.id, plain_text.len());
                     let (request_id, response_accepted) = if packet.context == PacketContext::Request {
-                        let hash = packet.hash().to_bytes();
-                        let mut id = [0u8; ADDRESS_HASH_SIZE];
-                        id.copy_from_slice(&hash[..ADDRESS_HASH_SIZE]);
-                        (Some(id), true)
+                        let id = RequestId::from_packet_hash(&packet.hash());
+                        self.dispatch_request(id, plain_text);
+                        (Some(id.to_bytes()), true)
                     } else if packet.context == PacketContext::Response {
                         match response_envelope_metadata(plain_text) {
                             Some((id, response_size)) => {

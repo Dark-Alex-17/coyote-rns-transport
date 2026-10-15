@@ -1,0 +1,83 @@
+use core::fmt;
+
+use super::{PathHash, RequestId};
+use crate::hash::AddressHash;
+use crate::identity::Identity;
+
+/// A request as a handler receives it: the six arguments Python passes to
+/// `response_generator(path, data, request_id, link_id, remote_identity,
+/// requested_at)` (`RNS/Link.py:831`), plus the path hash the request
+/// carried.
+pub struct InboundRequest {
+    path: String,
+    path_hash: PathHash,
+    data: rmpv::Value,
+    request_id: RequestId,
+    link_id: AddressHash,
+    remote_identity: Option<Identity>,
+    requested_at: f64,
+}
+
+impl InboundRequest {
+    pub(crate) fn new(
+        path: String,
+        path_hash: PathHash,
+        data: rmpv::Value,
+        request_id: RequestId,
+        link_id: AddressHash,
+        remote_identity: Option<Identity>,
+        requested_at: f64,
+    ) -> Self {
+        Self { path, path_hash, data, request_id, link_id, remote_identity, requested_at }
+    }
+
+    /// The path the handler was registered under.
+    pub fn path(&self) -> &str {
+        &self.path
+    }
+
+    pub fn path_hash(&self) -> PathHash {
+        self.path_hash
+    }
+
+    /// The request body as the requester packed it.
+    pub fn data(&self) -> &rmpv::Value {
+        &self.data
+    }
+
+    pub fn into_data(self) -> rmpv::Value {
+        self.data
+    }
+
+    pub fn request_id(&self) -> RequestId {
+        self.request_id
+    }
+
+    pub fn link_id(&self) -> AddressHash {
+        self.link_id
+    }
+
+    /// The identity the peer delivered with `LINKIDENTIFY`, if it did.
+    pub fn remote_identity(&self) -> Option<&Identity> {
+        self.remote_identity.as_ref()
+    }
+
+    /// The requester's clock when it built the request, in seconds.
+    pub fn requested_at(&self) -> f64 {
+        self.requested_at
+    }
+}
+
+impl fmt::Debug for InboundRequest {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.debug_struct("InboundRequest")
+            .field("path", &self.path)
+            .field("path_hash", &self.path_hash)
+            .field("data", &self.data)
+            .field("request_id", &self.request_id)
+            .field("link_id", &self.link_id)
+            .field("remote_identity", &self.remote_identity.map(|identity| identity.address_hash))
+            .field("requested_at", &self.requested_at)
+            .finish()
+    }
+}

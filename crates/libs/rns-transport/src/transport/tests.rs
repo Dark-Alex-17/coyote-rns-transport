@@ -84,3 +84,7 @@ include!("tests_parts/two_transport_loopback_resources_reject_response.rs");
 include!("tests_parts/two_transport_loopback_lifecycle.rs");
 
 include!("tests_parts/two_transport_loopback_lifecycle_probe.rs");
+
+include!("tests_parts/two_transport_loopback_requests.rs");
+
+include!("tests_parts/two_transport_loopback_requests_isolation.rs");

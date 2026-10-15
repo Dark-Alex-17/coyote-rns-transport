@@ -30,6 +30,7 @@ use crate::destination::link::LinkEventData;
 use crate::destination::link::LinkHandleResult;
 use crate::destination::link::LinkId;
 use crate::destination::link::LinkStatus;
+use crate::destination::request::{DispatchItem, REQUEST_DISPATCH_CAPACITY};
 use crate::destination::DestinationAnnounce;
 use crate::destination::DestinationDesc;
 use crate::destination::DestinationHandleStatus;
@@ -234,6 +235,7 @@ pub(crate) struct TransportHandler {
 
     link_in_event_tx: broadcast::Sender<LinkEventData>,
     received_data_tx: broadcast::Sender<ReceivedData>,
+    request_dispatch_tx: tokio::sync::mpsc::Sender<DispatchItem>,
     ratchet_store: Option<RatchetStore>,
 
     resource_manager: ResourceManager,
@@ -438,6 +440,8 @@ mod links;
 // path: path request/response forwarding and intermediate handling.
 mod path;
 mod profiling;
+// request_dispatch: the request handler worker and the response transmit path.
+mod request_dispatch;
 // resource_wire: link-scoped resource packet handling on inbound wire paths.
 mod resource_wire;
 // wire_encryption: packet-context policy for transport-layer encryption.

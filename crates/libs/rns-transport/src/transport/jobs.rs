@@ -149,6 +149,7 @@ pub(super) async fn manage_transport(
     handler_arc: Arc<Mutex<TransportHandler>>,
     rx_receiver: Arc<Mutex<InterfaceRxReceiver>>,
     iface_messages_tx: broadcast::Sender<RxMessage>,
+    request_dispatch_rx: tokio::sync::mpsc::Receiver<DispatchItem>,
 ) {
     let cancel = handler_arc.lock().await.cancel.clone();
 
@@ -213,6 +214,13 @@ pub(super) async fn manage_transport(
             }
         });
     }
+
+    spawn_named_worker(
+        &mut workers,
+        &mut worker_names,
+        "request-dispatch",
+        super::request_dispatch::run(handler_arc.clone(), cancel.clone(), request_dispatch_rx),
+    );
 
     {
         let handler = handler_arc.clone();

@@ -115,6 +115,27 @@ impl PythonChannelInteropPaths {
         )
     }
 
+    pub(super) fn spawn_multi_segment_client(
+        &self,
+        config_dir: &Path,
+        destination_hash: &str,
+    ) -> Child {
+        spawn_python_channel_client(
+            &self.python_bin,
+            &self.reticulum_py_repo,
+            &self.helper,
+            PythonChannelClientConfig {
+                config_dir,
+                destination_hash,
+                payload_kind: "multi-segment-response",
+                resource_size: None,
+                timeout: 180.0,
+                hold_after_close: false,
+                response_envelope_delta: None,
+            },
+        )
+    }
+
     pub(super) fn spawn_resource_client(
         &self,
         config_dir: &Path,

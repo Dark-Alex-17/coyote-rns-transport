@@ -15,6 +15,24 @@ import RNS.Buffer
 from RNS.Channel import MessageBase
 from RNS.vendor import umsgpack
 
+# A 4 MiB + 1 byte body (plus the msgpack response envelope) spans five
+# MAX_EFFICIENT_SIZE (1 MiB - 1) segments.
+MULTI_SEGMENT_RESPONSE_LEN = 4 * 1024 * 1024 + 1
+
+
+def multi_segment_response_body() -> bytes:
+    # Hash blocks keep the body incompressible, so the segment count on the
+    # wire matches the plaintext length instead of whatever bz2 leaves
+    # (RNS/Resource.py:395).
+    body = bytearray()
+    index = 0
+    while len(body) < MULTI_SEGMENT_RESPONSE_LEN:
+        body += (
+            hashlib.sha256(b"coyote-rns-transport multi-segment " + index.to_bytes(8, "big")).digest()
+        )
+        index += 1
+    return bytes(body[:MULTI_SEGMENT_RESPONSE_LEN])
+
 
 class FaultingReader:
     def __init__(self, data, fail_at):
@@ -158,7 +176,12 @@ class ChannelEndpoint:
             "test",
             "channel",
         )
-        if self.payload_kind in ("request", "large-request", "file-response"):
+        if self.payload_kind in (
+            "request",
+            "large-request",
+            "file-response",
+            "multi-segment-response",
+        ):
             destination.register_request_handler(
                 "/test/request",
                 response_generator=self._on_request,
@@ -176,6 +199,21 @@ class ChannelEndpoint:
                 file_path = temp_file.name
             file_handle = open(file_path, "rb")
             return (file_handle, "python-file-meta")
+        if self.payload_kind == "multi-segment-response":
+            body = multi_segment_response_body()
+            # One write, so the report cannot interleave with RNS log lines
+            # the transport thread prints to the same stdout.
+            sys.stdout.write(
+                json.dumps(
+                    {
+                        "served_response_size": len(body),
+                        "served_response_sha256": hashlib.sha256(body).hexdigest(),
+                    }
+                )
+                + "\n"
+            )
+            sys.stdout.flush()
+            return body
         return f"reply:{data}"
 
     def _on_link_established(self, link) -> None:
@@ -551,6 +589,53 @@ class ChannelClient:
             print(f"python_channel_client: request failed: {result}", file=sys.stderr, flush=True)
             return 1
 
+        if self.payload_kind == "multi-segment-response":
+            done = threading.Event()
+            result = {}
+
+            def on_response(receipt) -> None:
+                result["response"] = receipt.response
+                done.set()
+
+            def on_failed(receipt) -> None:
+                result["failed"] = True
+                done.set()
+
+            receipt = active_link.request(
+                "/test/request",
+                data=None,
+                response_callback=on_response,
+                failed_callback=on_failed,
+                timeout=timeout,
+            )
+            if receipt is False:
+                print("python_channel_client: failed to send request", file=sys.stderr, flush=True)
+                return 1
+            while not done.is_set():
+                if time.time() > deadline:
+                    print("python_channel_client: timed out waiting for request response", file=sys.stderr, flush=True)
+                    return 1
+                time.sleep(0.05)
+            body = result.get("response")
+            if not isinstance(body, bytes):
+                print(
+                    f"python_channel_client: request failed: failed={result.get('failed', False)} response_type={type(body).__name__}",
+                    file=sys.stderr,
+                    flush=True,
+                )
+                return 1
+            print(
+                json.dumps(
+                    {
+                        "response_size": len(body),
+                        "response_sha256": hashlib.sha256(body).hexdigest(),
+                        "negotiated_mdu": active_link.mdu,
+                    }
+                ),
+                flush=True,
+            )
+            return 0
+
         if self.payload_kind == "link-data":
             active_link.set_packet_callback(self._on_link_data)
             RNS.Packet(active_link, message_data.encode("utf-8")).send()
@@ -902,6 +987,7 @@ def main() -> int:
             "large-request",
             "mdu-boundary",
             "file-response",
+            "multi-segment-response",
             "identify",
             "link-close",
             "channel-sequence",

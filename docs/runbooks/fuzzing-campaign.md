@@ -9,6 +9,12 @@ This runbook defines parser/envelope fuzz coverage for SDK v2.5.
   - HTTP response body extraction and JSON RPC response parsing
 - `crates/libs/lxmf-sdk/fuzz/fuzz_targets/sdk_json_envelope.rs`
   - JSON envelope decode for `EventBatch`, `SdkEvent`, `SdkError`, `RuntimeSnapshot`, `DeliverySnapshot`, and `ConfigPatch`
+- `crates/libs/rns-transport/fuzz/fuzz_targets/request_frame_decode.rs`
+  - `RequestFrame::decode` on arbitrary bytes; an accepted frame must re-encode and decode to the same bytes
+- `crates/libs/rns-transport/fuzz/fuzz_targets/response_frame_decode.rs`
+  - `ResponseFrame::decode` on arbitrary bytes, with the same re-encode check
+- `crates/libs/rns-transport/fuzz/fuzz_targets/resource_advertisement_decode.rs`
+  - `ResourceAdvertisement::unpack` on arbitrary bytes; an accepted advertisement must survive a pack and unpack unchanged
 
 ## CI gate (fast)
 
@@ -17,8 +23,8 @@ cargo run -p xtask -- sdk-fuzz-check
 ```
 
 The CI gate performs:
-- fuzz target compile checks for both fuzz crates
-- deterministic fuzz-smoke parser runs in `reticulum-rs-rpc` and `lxmf-sdk`
+- fuzz target compile checks for all three fuzz crates
+- deterministic fuzz-smoke parser runs in `reticulum-rs-rpc`, `lxmf-sdk` and `coyote-rns-transport`
 
 ## Long campaign (recommended pre-release)
 

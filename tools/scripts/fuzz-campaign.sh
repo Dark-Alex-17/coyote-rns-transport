@@ -23,4 +23,22 @@ cargo fuzz run \
   sdk_json_envelope \
   -- -max_total_time="${MAX_TOTAL_TIME}"
 
+echo "Running rns-transport fuzz target (request_frame_decode) for ${MAX_TOTAL_TIME}s"
+cargo fuzz run \
+  --manifest-path crates/libs/rns-transport/fuzz/Cargo.toml \
+  request_frame_decode \
+  -- -max_total_time="${MAX_TOTAL_TIME}"
+
+echo "Running rns-transport fuzz target (response_frame_decode) for ${MAX_TOTAL_TIME}s"
+cargo fuzz run \
+  --manifest-path crates/libs/rns-transport/fuzz/Cargo.toml \
+  response_frame_decode \
+  -- -max_total_time="${MAX_TOTAL_TIME}"
+
+echo "Running rns-transport fuzz target (resource_advertisement_decode) for ${MAX_TOTAL_TIME}s"
+cargo fuzz run \
+  --manifest-path crates/libs/rns-transport/fuzz/Cargo.toml \
+  resource_advertisement_decode \
+  -- -max_total_time="${MAX_TOTAL_TIME}"
+
 echo "Fuzz campaign completed"

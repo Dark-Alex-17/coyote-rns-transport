@@ -30,15 +30,15 @@ impl Link {
     /// `unpacked_request[2]` to the service handler as-is, so the type on
     /// the wire is the contract. Fails only if `data` cannot be packed.
     pub fn request_payload(path: &str, data: rmpv::Value) -> Result<LinkRequest, RnsError> {
-        let path_hash = crate::hash::address_hash(path.as_bytes());
-        let envelope = rmpv::Value::Array(vec![
-            rmpv::Value::F64(crate::ratchets::now_secs()),
-            rmpv::Value::Binary(path_hash.to_vec()),
+        let frame = crate::destination::request::RequestFrame::new(
+            crate::ratchets::now_secs(),
+            crate::destination::request::PathHash::of(path),
             data,
-        ]);
-        let mut packed = Vec::new();
-        rmpv::encode::write_value(&mut packed, &envelope).map_err(|_| RnsError::InvalidArgument)?;
-        let resource_request_id = crate::hash::address_hash(&packed);
+        );
+        let packed = frame.encode();
+        let path_hash = frame.path_hash().to_bytes();
+        let resource_request_id =
+            crate::destination::request::RequestId::of_packed_request(&packed).to_bytes();
         Ok(LinkRequest { packed, path_hash, resource_request_id })
     }
 
@@ -72,19 +72,6 @@ pub fn identify_payload(identity: &PrivateIdentity, link_id: &AddressHash) -> Ve
 pub fn unpack_response_envelope(
     data: &[u8],
 ) -> Result<([u8; ADDRESS_HASH_SIZE], rmpv::Value), RnsError> {
-    let mut cursor = std::io::Cursor::new(data);
-    let value = rmpv::decode::read_value(&mut cursor).map_err(|_| RnsError::PacketError)?;
-    if cursor.position() != data.len() as u64 {
-        return Err(RnsError::PacketError);
-    }
-    let rmpv::Value::Array(values) = value else {
-        return Err(RnsError::PacketError);
-    };
-    let [request_id, response] =
-        <[rmpv::Value; 2]>::try_from(values).map_err(|_| RnsError::PacketError)?;
-    let request_id = request_id
-        .as_slice()
-        .and_then(|bytes| <[u8; ADDRESS_HASH_SIZE]>::try_from(bytes).ok())
-        .ok_or(RnsError::PacketError)?;
-    Ok((request_id, response))
+    let frame = crate::destination::request::ResponseFrame::decode(data)?;
+    Ok((frame.request_id().to_bytes(), frame.into_body()))
 }

@@ -152,6 +152,21 @@ test. The file sites below describe the combined result.
   confirm left a served sender in `Advertised` and the retry poll re-sent
   the advertisement. The split fixture uses random bytes so its first
   segment keeps more than one part.
+- `crates/libs/rns-transport/src/resource/tests_split_unconfirmed_served.rs`
+  (new): six ResourceManager tests for a sender that served parts before the
+  confirm, on the `tests_split_unconfirmed.rs` fixtures (a repeated confirm
+  leaves a `Transferring` sender alone and later requests are still served;
+  a repeated confirm leaves an `AwaitingProof` sender alone and the proof
+  still completes it; a failed confirm after served parts drops the sender
+  and its tail chain and a later request is not served; a proof that lands
+  before the confirm completes the sender and the late confirm is a no-op;
+  a split send whose first segment served a part before the confirm hands
+  off to the second segment on the proof, and that segment's advertisement
+  is live in the retry poll; a remote cancel after served parts and before
+  the confirm drops the sender as `OutboundRejected` and the late confirm is
+  a no-op). The first, second and fifth fail on `40b392b7`, where the
+  confirm left a served sender in `Advertised` and the retry poll re-sent
+  the advertisement.
 - `crates/libs/rns-transport/src/resource/tests_split_lazy.rs`: the
   `split_send_builds_only_the_first_segment_up_front` assertion is rewritten
   to the new placement; `tests_timeouts.rs` and `tests_timeouts_cleanup.rs`
@@ -159,7 +174,7 @@ test. The file sites below describe the combined result.
   `outgoing_segment_chains.is_empty()` assert.
 - `crates/libs/rns-transport/src/transport/tests.rs` and
   `crates/libs/rns-transport/src/resource/tests.rs`: two `include!` lines
-  in the former, one in the latter.
+  in the former, two in the latter.
 - `crates/libs/rns-transport/CHANGELOG.md`: two `### Fixed` bullets under
   `## Unreleased`, including the `track_prepared` /
   `confirm_outbound_dispatch` semantics note.

@@ -26,7 +26,7 @@ belongs to. Patch ids: F1 is request wire frames and fuzz. The
 `afc56836`, `71365159`, `f875aff7` and `30d8dfde`; the request handlers
 and dispatch patch carries no other id and is fork commits `08a5cff6`,
 `21ab1981`, `c1a98ff1`, `12d2080c`, `7bbb0197`, `73f177b4`, `1fd1192a`,
-`febec3db` and `7e9e5904`.
+`febec3db`, `7e9e5904`, `5544c49c` and `816032c5`.
 
 | File | Patch |
 | --- | --- |
@@ -79,6 +79,7 @@ and dispatch patch carries no other id and is fork commits `08a5cff6`,
 | `crates/libs/rns-transport/src/transport/tests_parts/two_transport_loopback_requests_probe.rs` | request handlers and dispatch |
 | `crates/libs/rns-transport/src/transport/tests_parts/two_transport_loopback_requests_resource_form.rs` | request handlers and dispatch |
 | `crates/libs/rns-transport/src/transport/tests_parts/two_transport_loopback_requests_resource_form_probe.rs` | request handlers and dispatch |
+| `crates/libs/rns-transport/src/transport/tests_parts/two_transport_loopback_requests_resource_form_probe2.rs` | request handlers and dispatch |
 | `crates/libs/rns-transport/src/transport/tests_parts/two_transport_loopback_requests_routing.rs` | request handlers and dispatch |
 | `crates/libs/rns-transport/tests/request_frame_wire.rs` | request wire frames and fuzz |
 | `crates/libs/rns-transport/tests/request_handler_api.rs` | request handlers and dispatch |
@@ -249,11 +250,30 @@ response Resource honours the registration's `auto_compress`
 (`RNS/Link.py:846`, `:852`); an unregistered path, an allow list that
 denies the unidentified peer (`RNS/Link.py:818-824`) and an assembled body
 that is not a request frame all stay silent while the link keeps
-answering. The crate `CHANGELOG.md` and `README.md` name the file, write
-the `Complete` variant in its tuple form, say that a `metadata: None`
+answering.
+
+Fork commit `5544c49c`: release notes for the resource form. The crate
+`CHANGELOG.md` and `README.md` name
+`two_transport_loopback_requests_resource_form_probe.rs`, write the
+`Complete` variant in its tuple form, say that a `metadata: None`
 resource is read as an envelope by a Python requester
 (`RNS/Link.py:902-912`) and that an oversize request Resource surfaces to
 the requester as `ResourceEventKind::OutboundRejected`.
+
+Fork commit `816032c5`: the second resource-form review probe adopted,
+and the size-constant comment in
+`two_transport_loopback_resources_reject.rs` brought in line with the
+gate reading the advertised `d`.
+`two_transport_loopback_requests_resource_form_probe2.rs` (new, an eighth
+`include!` line in `transport/tests.rs`) pins the response-size boundary
+from the far side: an envelope one byte over the link MDU goes out as a
+response Resource with `p` set and no response packet beside it
+(`RNS/Link.py:849-852`); two request Resources in flight on one link are
+each answered under their own `q`; and a handler that answers `None` for
+a request Resource sends nothing (`RNS/Link.py:844`) while
+`Complete(ResourceComplete { is_request: true, .. })` still posts and the
+link keeps answering. The crate `CHANGELOG.md` names the file in both
+pin clauses.
 
 ## 0.14.1 (upstream 0.14.0)
 

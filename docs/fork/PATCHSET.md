@@ -25,7 +25,8 @@ belongs to. Patch ids: F1 is request wire frames and fuzz. The
 `request wire frames and fuzz` patch is fork commits `8e9970ac`,
 `afc56836`, `71365159`, `f875aff7` and `30d8dfde`; the request handlers
 and dispatch patch carries no other id and is fork commits `08a5cff6`,
-`21ab1981`, `c1a98ff1`, `12d2080c`, `7bbb0197`, `73f177b4` and `1fd1192a`.
+`21ab1981`, `c1a98ff1`, `12d2080c`, `7bbb0197`, `73f177b4`, `1fd1192a`
+and `febec3db`.
 
 | File | Patch |
 | --- | --- |
@@ -68,6 +69,7 @@ and dispatch patch carries no other id and is fork commits `08a5cff6`,
 | `crates/libs/rns-transport/src/transport/mod.rs` | request handlers and dispatch |
 | `crates/libs/rns-transport/src/transport/path.rs` | request handlers and dispatch |
 | `crates/libs/rns-transport/src/transport/request_dispatch.rs` | request handlers and dispatch |
+| `crates/libs/rns-transport/src/transport/resource_wire.rs` | request handlers and dispatch |
 | `crates/libs/rns-transport/src/transport/test_bridge.rs` | request handlers and dispatch |
 | `crates/libs/rns-transport/src/transport/tests.rs` | request handlers and dispatch |
 | `crates/libs/rns-transport/src/transport/tests_parts/two_transport_loopback_lifecycle.rs` | request handlers and dispatch |
@@ -75,6 +77,7 @@ and dispatch patch carries no other id and is fork commits `08a5cff6`,
 | `crates/libs/rns-transport/src/transport/tests_parts/two_transport_loopback_requests_isolation.rs` | request handlers and dispatch |
 | `crates/libs/rns-transport/src/transport/tests_parts/two_transport_loopback_requests_malformed.rs` | request handlers and dispatch |
 | `crates/libs/rns-transport/src/transport/tests_parts/two_transport_loopback_requests_probe.rs` | request handlers and dispatch |
+| `crates/libs/rns-transport/src/transport/tests_parts/two_transport_loopback_requests_resource_form.rs` | request handlers and dispatch |
 | `crates/libs/rns-transport/src/transport/tests_parts/two_transport_loopback_requests_routing.rs` | request handlers and dispatch |
 | `crates/libs/rns-transport/tests/request_frame_wire.rs` | request wire frames and fuzz |
 | `crates/libs/rns-transport/tests/request_handler_api.rs` | request handlers and dispatch |
@@ -206,6 +209,30 @@ a `[requested_at, path_hash, data]` frame and pins what Python does when
 `:804-807`): the `Data(Request)` event still posts, no handler runs, no
 response leaves, and the next well-formed request on the link is
 answered. The crate `CHANGELOG.md` names the file in the worker bullet.
+
+Fork commit `febec3db`: the resource form of request handlers and
+dispatch. Upstream sites: `handle_link_resource_packet` in
+`transport/resource_wire.rs` hands every drained
+`ResourceEventKind::Complete { is_request }` for the link to
+`Link::dispatch_request` under the existing link guard, before the events
+are published, and compares a request advertisement's data size `d`
+rather than its transfer size `t` against `max_request_size`
+(`RNS/Link.py:1036-1046`, `RNS/Resource.py:1285-1287`).
+`destination/request/dispatch.rs` reshapes `DispatchForm` into
+`Packet { request_id }` and `Resource`, drops the `request_id` field of
+`DispatchItem` and gives the form a `Display` for the drop logs;
+`link_sections/request_dispatch.rs` makes `dispatch_request` crate-visible
+and takes the form, `link_sections/new.rs` passes the packet form, and
+`dispatch_one` in `transport/request_dispatch.rs` recomputes the
+resource form's id with `RequestId::of_packed_request` over the assembled
+bytes (`RNS/Link.py:885-889`). `request/handler.rs` and the two
+resource-sending functions in `transport/request_dispatch.rs` document
+the response forms, their `q`/`p` flags and metadata layout. Tests:
+`two_transport_loopback_requests_resource_form.rs` (new, a sixth
+`include!` line in `transport/tests.rs`) and
+`link_sections/request_dispatch_tests.rs` reads the id from the form. The
+crate `CHANGELOG.md` and `README.md` carry the release notes and the
+user-facing paragraph.
 
 ## 0.14.1 (upstream 0.14.0)
 

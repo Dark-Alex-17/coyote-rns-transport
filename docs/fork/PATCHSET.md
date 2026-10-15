@@ -257,9 +257,11 @@ signature, enum or public field changes.
   the file below.
 - `crates/libs/rns-transport/src/resource/tests_advert_limits.rs` (new):
   the first segment of a 64-segment split Resource at `MAX_EFFICIENT_SIZE`
-  per segment (`d` at 64 times that) is admitted, and a well-formed
+  per segment (`d` at 64 times that) is admitted; a well-formed
   advertisement after a dropped over-cap one is still admitted on the same
-  link.
+  link; and the cap sits exactly at `3 * MAX_EFFICIENT_SIZE` (a single
+  segment with `t` at the cap is admitted and requests parts, `t` one byte
+  above it gets no reply and no receiver).
 - `crates/libs/rns-transport/src/transport/tests_parts/two_transport_loopback_lifecycle.rs`
   (new, two `include!` lines in `transport/tests.rs` for this file and the
   probe file below): `Link::rtt` is
@@ -292,6 +294,16 @@ signature, enum or public field changes.
   public constructors, `rns_transport::rmpv` round-trips a `Value`, and
   `destination_address` matches `SingleInputDestination::new` from outside
   the crate.
+- `crates/libs/rns-transport/tests/destination_address_kat.rs` (new
+  integration test target): three known-answer vectors computed
+  independently with Python `hashlib` per `RNS/Destination.py:116-130`
+  (`sha256(sha256(expanded_name)[:10] ++ identity_hash)[:16]`) pin the
+  name hash, the 32-hex address and its `short()` prefix for
+  `lxmf.delivery`, `rnstransport.probe` and `example_utilities.linkexample`;
+  the first vector's address also round-trips through
+  `AddressHash::new_from_hex_string`. This is the only check of
+  `destination_address` against the reference algorithm rather than against
+  `SingleInputDestination`, which shares its implementation.
 - `crates/libs/rns-transport/CHANGELOG.md`: six `### Added` and three
   `### Fixed` bullets under `## Unreleased`.
 

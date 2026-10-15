@@ -2,22 +2,128 @@
 
 One section per published fork release of `coyote-rns-transport`. Each
 section names the upstream `reticulum-rs-transport` release the fork build is
-based on and lists every behavioural patch applied on top of it, with the
-upstream site of the change and the fork commit that introduced it. The
-package rename (`reticulum-rs-transport` to `coyote-rns-transport`) and the
-matching edits to workspace manifests, scripts, CI workflows and docs are
-not patches in this sense and are not listed here. The crate README
+based on, opens with a table of every file changed since the previous release
+and the patch each change belongs to, and then lists every patch applied on
+top of upstream, with the upstream site of the change and the fork commits
+that introduced it. The package rename (`reticulum-rs-transport` to
+`coyote-rns-transport`) and the pure rename edits to workspace manifests,
+scripts, CI workflows and docs are not patches in this sense and are not
+listed; lint-table changes that bind contributors (`clippy.toml` and the
+manifest `[lints]` tables) are. Each patch header lists every commit a rebase
+must re-apply: every commit that touches a file other than this ledger and
+the crate `CHANGELOG.md` (code, tests, fixtures, scripts, doc comments).
+Commits that only update this ledger are omitted. The crate README
 (`crates/libs/rns-transport/README.md`) carries the versioning policy, the
 rebase recipe and a prose summary of the current patch list; this file is
 the per-release ledger of the same patches, with commit hashes and file
 sites, so a rebase can re-apply them one commit at a time.
 
-## Unreleased
+## 0.14.1 (upstream 0.14.0)
 
-Fork commits `7f8b4c96` and `b64cb536`: send later Resource
-segments and Resource retries on the link's bound interface. The second
-commit reshapes the link lookup and its unit test; the file sites below
-describe the combined result.
+Every file changed between the `0.14.0` tag (`b56452e6`) and this release,
+and the patch each change belongs to. Patch ids: B1 is bound-interface
+segment dispatch, B2 is reject outside link lock, B3 is sender before
+advertisement, B4 is hex parsers, B5 is non-fatal announce; the advert cap,
+additive API, fixtures and lint tables, Python-in-the-loop proof, publish
+contract, link-close smoke leg and release 0.14.1 patches carry no other id.
+The `release 0.14.1` patch is fork commit `fd83a9f1`.
+
+| File | Patch |
+| --- | --- |
+| `.github/workflows/publish-coyote-rns-transport.yml` | publish contract |
+| `Cargo.lock` | release 0.14.1 |
+| `Cargo.toml` | fixtures and lint tables, release 0.14.1 |
+| `clippy.toml` | fixtures and lint tables |
+| `crates/apps/reticulumd/Cargo.toml` | fixtures and lint tables, release 0.14.1 |
+| `crates/apps/reticulumd/tests/fork_publish_contract.rs` | publish contract, link-close smoke leg, release 0.14.1 |
+| `crates/apps/reticulumd/tests/python_channel_interop.rs` | Python-in-the-loop proof |
+| `crates/apps/reticulumd/tests/python_channel_interop_parts/multi_segment_python_interop.rs` | Python-in-the-loop proof |
+| `crates/apps/reticulumd/tests/support/python_channel_endpoint.py` | Python-in-the-loop proof |
+| `crates/apps/reticulumd/tests/support/python_channel_process.rs` | Python-in-the-loop proof |
+| `crates/apps/rns-tools/Cargo.toml` | release 0.14.1 |
+| `crates/libs/rns-transport/CHANGELOG.md` | bound-interface segment dispatch, reject outside link lock, sender before advertisement, hex parsers, non-fatal announce, advert cap, additive API, fixtures and lint tables, Python-in-the-loop proof, release 0.14.1 |
+| `crates/libs/rns-transport/Cargo.toml` | release 0.14.1 |
+| `crates/libs/rns-transport/README.md` | link-close smoke leg, publish contract, release 0.14.1 |
+| `crates/libs/rns-transport/src/destination/link_parts/link_sections/remove_channel_handler.rs` | additive API |
+| `crates/libs/rns-transport/src/destination_hash.rs` | additive API |
+| `crates/libs/rns-transport/src/hash.rs` | hex parsers, additive API |
+| `crates/libs/rns-transport/src/identity.rs` | hex parsers |
+| `crates/libs/rns-transport/src/identity/tests.rs` | hex parsers |
+| `crates/libs/rns-transport/src/lib.rs` | additive API |
+| `crates/libs/rns-transport/src/resource/advertisement_limits.rs` | advert cap |
+| `crates/libs/rns-transport/src/resource/manager.rs` | sender before advertisement |
+| `crates/libs/rns-transport/src/resource/manager_cleanup.rs` | sender before advertisement |
+| `crates/libs/rns-transport/src/resource/manager_segments.rs` | sender before advertisement |
+| `crates/libs/rns-transport/src/resource/manager_start.rs` | sender before advertisement |
+| `crates/libs/rns-transport/src/resource/sender.rs` | sender before advertisement |
+| `crates/libs/rns-transport/src/resource/tests.rs` | sender before advertisement, advert cap |
+| `crates/libs/rns-transport/src/resource/tests_advert_limits.rs` | advert cap |
+| `crates/libs/rns-transport/src/resource/tests_split_lazy.rs` | sender before advertisement |
+| `crates/libs/rns-transport/src/resource/tests_split_unconfirmed.rs` | sender before advertisement |
+| `crates/libs/rns-transport/src/resource/tests_split_unconfirmed_served.rs` | sender before advertisement |
+| `crates/libs/rns-transport/src/resource/tests_timeouts.rs` | sender before advertisement |
+| `crates/libs/rns-transport/src/resource/tests_timeouts_cleanup.rs` | sender before advertisement |
+| `crates/libs/rns-transport/src/transport/core.rs` | non-fatal announce, additive API |
+| `crates/libs/rns-transport/src/transport/jobs.rs` | bound-interface segment dispatch |
+| `crates/libs/rns-transport/src/transport/lifecycle.rs` | additive API |
+| `crates/libs/rns-transport/src/transport/mod.rs` | additive API |
+| `crates/libs/rns-transport/src/transport/resource_wire.rs` | bound-interface segment dispatch, reject outside link lock |
+| `crates/libs/rns-transport/src/transport/tests.rs` | bound-interface segment dispatch, reject outside link lock, additive API, fixtures and lint tables |
+| `crates/libs/rns-transport/src/transport/tests_parts/resource_retry_link_lookup.rs` | bound-interface segment dispatch |
+| `crates/libs/rns-transport/src/transport/tests_parts/two_transport_loopback.rs` | fixtures and lint tables |
+| `crates/libs/rns-transport/src/transport/tests_parts/two_transport_loopback_lifecycle.rs` | non-fatal announce, advert cap, additive API |
+| `crates/libs/rns-transport/src/transport/tests_parts/two_transport_loopback_lifecycle_probe.rs` | non-fatal announce, additive API |
+| `crates/libs/rns-transport/src/transport/tests_parts/two_transport_loopback_resources.rs` | bound-interface segment dispatch |
+| `crates/libs/rns-transport/src/transport/tests_parts/two_transport_loopback_resources_directions.rs` | bound-interface segment dispatch |
+| `crates/libs/rns-transport/src/transport/tests_parts/two_transport_loopback_resources_gone_link.rs` | bound-interface segment dispatch |
+| `crates/libs/rns-transport/src/transport/tests_parts/two_transport_loopback_resources_reject.rs` | reject outside link lock |
+| `crates/libs/rns-transport/src/transport/tests_parts/two_transport_loopback_resources_reject_response.rs` | reject outside link lock |
+| `crates/libs/rns-transport/src/transport/tests_parts/two_transport_loopback_resources_retries.rs` | bound-interface segment dispatch |
+| `crates/libs/rns-transport/tests/crate_root_reexports.rs` | additive API |
+| `crates/libs/rns-transport/tests/destination_address_kat.rs` | additive API |
+| `docs/fork/PATCHSET.md` | bound-interface segment dispatch, reject outside link lock, sender before advertisement, hex parsers, non-fatal announce, advert cap, additive API, fixtures and lint tables, Python-in-the-loop proof, release 0.14.1 |
+| `docs/getting-started.md` | release 0.14.1 |
+| `docs/lxmf-rs-api.md` | publish contract |
+| `docs/performance/tcp-connection-memory.md` | publish contract |
+| `docs/runbooks/crates-io-publish-plan.md` | publish contract |
+| `docs/runbooks/release-readiness.md` | publish contract |
+| `docs/status/python-surface-mapping.json` | publish contract |
+| `docs/status/python-surface-parity.json` | publish contract |
+| `docs/status/reticulum-parity-matrix.md` | release 0.14.1 |
+| `docs/status/rns-1.5-delta.md` | publish contract |
+| `docs/status/software-parity-ledger.md` | publish contract |
+| `docs/status/v0.9.6-hardening-audit.md` | publish contract |
+| `tests/hil/cases/core.toml` | publish contract |
+| `tools/scripts/check-publish-tag-version.sh` | publish contract |
+| `tools/scripts/python-lxmd-rust-lxmd-smoke.sh` | link-close smoke leg |
+
+Fork commits `7c98216e`, `42825a54` and `2079a74e`: fixtures and lint
+tables. The first rolls out the guard-across-await lint and seeds the release
+docs; the second adds the loopback fixture; the third brings the fixture
+under the lint.
+
+- `crates/libs/rns-transport/src/transport/tests_parts/two_transport_loopback.rs`
+  (new): in-crate `two_transport_loopback` fixture, two `Transport`s joined
+  over a real `TcpServer` / `TcpClient` pair on 127.0.0.1 with broadcast
+  disabled on both sides, plus a smoke test that opens a link and exchanges
+  one `Data` packet in each direction. Every loopback test under this
+  section builds on it. Its async fns carry
+  `#[deny(clippy::await_holding_invalid_type)]`, the per-fn opt-in that
+  overrides the `allow` tables below. One `include!` line in
+  `crates/libs/rns-transport/src/transport/tests.rs`.
+- `clippy.toml`: the `await-holding-invalid-types` list names the tokio
+  `MutexGuard`, `RwLockReadGuard` and `RwLockWriteGuard` types.
+- `Cargo.toml` (`[workspace.lints.clippy]`) and
+  `crates/apps/reticulumd/Cargo.toml` (`[lints.clippy]`):
+  `await_holding_invalid_type = "allow"` until the existing hits are cleared.
+- `crates/libs/rns-transport/CHANGELOG.md`: the `### Changed` lint bullet
+  under `## 0.14.1`; the fixture is named in the trailing clause of the B1
+  `### Fixed` bullet.
+
+Fork commits `7f8b4c96`, `b64cb536` and `73e04b76` (B1): send later
+Resource segments and Resource retries on the link's bound interface. The second
+commit reshapes the link lookup and its unit test; the third adopts the
+gone-link retry test. The file sites below describe the combined result.
 
 - `crates/libs/rns-transport/src/transport/resource_wire.rs`
   (`handle_resource_proof`): the advertisement for the next segment, built
@@ -68,20 +174,19 @@ describe the combined result.
 - `crates/libs/rns-transport/src/transport/tests.rs`: one `include!` line
   for each of the five test files above.
 - `crates/libs/rns-transport/CHANGELOG.md`: `### Fixed` bullet under
-  `## Unreleased`.
+  `## 0.14.1`.
 
-Fork commits `e239a239`, `7cfe7e73`, `40b392b7`, `8eaf1ee7`, `915c214f`,
-`cfd7b868` and `21b6dcb3`:
-send Resource advertisement rejects outside the link lock, and register an
+Fork commits `e239a239`, `7cfe7e73`, `40b392b7`, `8eaf1ee7`, `915c214f`
+and `21b6dcb3` (B2, B3): send Resource advertisement rejects outside the
+link lock, and register an
 outbound Resource sender before its advertisement is written. The second
 commit guards the dispatch confirm and moves the unconfirmed-sender tests;
 the third only touches the `track_prepared` doc comment in
 `manager_start.rs` (it cites `RNS/Resource.py:545` and `:552` for the
 reference ordering); the fourth carries parts served before the confirm
 into the sender status; the fifth adds the response-size reject loopback
-test; the sixth only updates this ledger; the seventh adopts the
-served-parts confirm tests. The file sites below describe the combined
-result.
+test; the sixth adopts the served-parts confirm tests. The file sites below
+describe the combined result.
 
 - `crates/libs/rns-transport/src/transport/resource_wire.rs`
   (`handle_link_resource_packet`): the response-size and request-size
@@ -97,7 +202,8 @@ result.
 - `crates/libs/rns-transport/src/resource/manager_start.rs`
   (`track_prepared`), `manager_segments.rs` (`confirm_outbound_dispatch`),
   `manager.rs` (struct, `cancel_outgoing`, `has_no_outbound_state`, the
-  `ResourceReceiverCancel` arm), `manager_cleanup.rs` (`remove_link_state`):
+  `ResourceReceiverCancel` arm), `manager_cleanup.rs` (`remove_link_state`),
+  `sender.rs` (`confirm_advertised`, `settle_transfer_status`):
   the `pending_outgoing` staging map is removed. `track_prepared` inserts the
   sender straight into `outgoing` with `ResourceStatus::None`, which
   `ResourceSender::poll` treats as nothing to retry while
@@ -180,13 +286,15 @@ result.
   `crates/libs/rns-transport/src/resource/tests.rs`: two `include!` lines
   in the former, two in the latter.
 - `crates/libs/rns-transport/CHANGELOG.md`: two `### Fixed` bullets under
-  `## Unreleased`, including the `track_prepared` /
+  `## 0.14.1`, including the `track_prepared` /
   `confirm_outbound_dispatch` semantics note.
 
-Fork commit `e69eff43`: harden the hex parsers, make announce building
-non-fatal, drop over-cap Resource advertisements, and add the additive
-lifecycle and helper API. Every public change is additive; no existing
-signature, enum or public field changes.
+Fork commits `e69eff43` and `49923b1a` (B4, B5, advert cap, additive API):
+harden the hex parsers, make announce building non-fatal, drop over-cap Resource advertisements, and add
+the additive lifecycle and helper API. The second commit adopts the
+destination-address known-answer test and the advert-cap boundary tests.
+Every public change is additive; no existing signature, enum or public field
+changes.
 
 - `crates/libs/rns-transport/src/hash.rs`
   (`AddressHash::new_from_hex_string`) and
@@ -305,7 +413,40 @@ signature, enum or public field changes.
   `destination_address` against the reference algorithm rather than against
   `SingleInputDestination`, which shares its implementation.
 - `crates/libs/rns-transport/CHANGELOG.md`: six `### Added` and three
-  `### Fixed` bullets under `## Unreleased`.
+  `### Fixed` bullets under `## 0.14.1`.
+
+Fork commit `0fc93dd4`: Python-in-the-loop proof of multi-segment transfer
+under broadcast off. Test-only; it pins the bound-interface dispatch patch
+above against the reference implementation on either end.
+
+- `crates/apps/reticulumd/tests/python_channel_interop_parts/multi_segment_python_interop.rs`
+  (new): two ignored tests (they need a local Python Reticulum checkout).
+  Both build the Rust `Transport` with broadcast off and move a `4 MiB + 1`
+  byte response Resource, which spans five segments; the body is a run of
+  SHA-256 blocks so it does not compress, and both ends compare SHA-256
+  digests. In `rust_to_python_multi_segment_response_roundtrip` Rust is the
+  requester: `Link::request_payload` plus `send_request_resource`; the
+  receiver asserts five `SegmentComplete` events for the response, and the
+  Python server reports what it served through a stdout pipe the test drains
+  for the whole transfer. In
+  `python_to_rust_multi_segment_response_roundtrip` Rust is the responder:
+  the request arrives through `in_link_events` as a `Data` event with the
+  `Request` context and is answered with `send_response_resource`. On
+  `2079a74e` the Rust-serves case fails with `OutboundFailed` (`outbound
+  resource failed before completion`) while the Rust-requests case passes;
+  both pass on `0fc93dd4` in about 6 s.
+- `crates/apps/reticulumd/tests/python_channel_interop.rs`: one `include!`
+  line for the file above.
+- `crates/apps/reticulumd/tests/support/python_channel_process.rs`: new
+  `spawn_multi_segment_client`, which starts the Python client with the
+  `multi-segment-response` payload kind and a 180 s client timeout.
+- `crates/apps/reticulumd/tests/support/python_channel_endpoint.py`: new
+  `multi-segment-response` payload kind. As a server, `_on_request` returns
+  the hash-block body and prints `served_response_size` and
+  `served_response_sha256`; as a client it sends `Link.request(data=None)`
+  and prints `response_size`, `response_sha256` and `negotiated_mdu`.
+- `crates/libs/rns-transport/CHANGELOG.md`: trailing clause of the
+  B1 `### Fixed` bullet under `## 0.14.1`, added by the release commit.
 
 Fork commit `0197768d`: revise the smoke-script leg of the link-close patch.
 This is a mixed commit; only the files below are the patch leg, so re-apply
@@ -321,7 +462,34 @@ those hunks rather than cherry-picking the whole commit.
   `link_close_needle_is_derivable_from_the_surviving_warn` pins the needle
   to the surviving `warn!` and to both smoke-script wait sites.
 
+Fork commits `0197768d` and `a3e0262c`: publish contract. Not a patch to the
+crate, and the rename edits in these commits are not listed; the files are
+named here because they appear in the table above. `0197768d` moves the
+tag-matches-version guard into `tools/scripts/check-publish-tag-version.sh`,
+called from `.github/workflows/publish-coyote-rns-transport.yml`, pins the
+manifest and workflow tokens in
+`crates/apps/reticulumd/tests/fork_publish_contract.rs`, and points
+`tests/hil/cases/core.toml` at the real link-close test name; `a3e0262c` pins
+the crate version and the `rns-core` dependency in the same test and extends
+its old-name walk to `docs/status/`. The remaining files in that table under
+`publish contract` (`docs/lxmf-rs-api.md`,
+`docs/performance/tcp-connection-memory.md`, the two `docs/runbooks/` files,
+the `docs/status/` JSON and Markdown files) only have the crate name
+updated.
+
+Fork commit `fd83a9f1`: release 0.14.1. Bumps the crate version at every
+manifest, consumer-snippet and contract-test site, regenerates `Cargo.lock`,
+promotes `## Unreleased` in the crate `CHANGELOG.md`, adds two contract
+tests to `crates/apps/reticulumd/tests/fork_publish_contract.rs` (every
+version site, the dated `CHANGELOG.md` heading and the README policy tokens
+track the crate version; the file table above names only existing files
+and the files every release touches), and amends the `#610` row in
+`docs/status/reticulum-parity-matrix.md`. The ledger-only commit that
+completes this section follows it and is omitted here by convention.
+
 ## 0.14.0 (upstream 0.14.0)
+
+The published tag `coyote-rns-transport-v0.14.0` is `b56452e6`.
 
 Fork commit `3f20c991`: drop the stdout print on link close.
 
@@ -342,4 +510,4 @@ Fork commit `3f20c991`: drop the stdout print on link close.
 - `tools/scripts/python-lxmd-rust-lxmd-smoke.sh`: sets `NO_COLOR=1` for the
   Rust `lxmd` process so the smoke script's "link close" wait can match the
   plain `warn!` rendering now that the stdout line is gone (superseded on
-  `main` by `0197768d`; see Unreleased).
+  `main` by `0197768d`; see `## 0.14.1`).

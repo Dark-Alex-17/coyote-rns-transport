@@ -92,3 +92,5 @@ include!("tests_parts/two_transport_loopback_requests_isolation.rs");
 include!("tests_parts/two_transport_loopback_requests_probe.rs");
 
 include!("tests_parts/two_transport_loopback_requests_routing.rs");
+
+include!("tests_parts/two_transport_loopback_requests_malformed.rs");

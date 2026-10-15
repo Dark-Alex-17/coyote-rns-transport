@@ -68,11 +68,15 @@ trailing clause of the bullet for the behaviour it pins.
   `max_request_size` is ignored before any handler runs (`:999-1001`).
   `None` from the handler sends nothing (`:844`). A response that fits
   `Link::link_mdu()` goes out as one `Response` packet, a larger one as a
-  response Resource (`:849-852`). Pinned by
+  response Resource (`:849-852`). A request body that is not a request
+  frame is dropped with a debug log, as Python logs and drops a body
+  `unpackb` or `handle_request` cannot read (`:1003-1007`, `:804-807`): no
+  handler runs, nothing is answered and the link keeps answering. Pinned by
   `transport/tests_parts/two_transport_loopback_requests.rs`,
   `two_transport_loopback_requests_isolation.rs`,
   `two_transport_loopback_requests_probe.rs`,
-  `two_transport_loopback_requests_routing.rs` and
+  `two_transport_loopback_requests_routing.rs`,
+  `two_transport_loopback_requests_malformed.rs` and
   `destination/link_parts/link_sections/request_dispatch_tests.rs`.
 
 - `LinkEvent::Data` with `PacketContext::Request` keeps posting for every

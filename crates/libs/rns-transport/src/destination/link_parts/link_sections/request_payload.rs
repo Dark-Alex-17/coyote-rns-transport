@@ -28,7 +28,8 @@ impl Link {
     /// `data` is packed as its own msgpack type — a map, an array, nil for
     /// no body — never as a byte string: `Link.handle_request` hands
     /// `unpacked_request[2]` to the service handler as-is, so the type on
-    /// the wire is the contract. Fails only if `data` cannot be packed.
+    /// the wire is the contract. Encoding cannot fail; the `Result` is kept
+    /// so callers written against the earlier signature keep compiling.
     pub fn request_payload(path: &str, data: rmpv::Value) -> Result<LinkRequest, RnsError> {
         let frame = crate::destination::request::RequestFrame::new(
             crate::ratchets::now_secs(),

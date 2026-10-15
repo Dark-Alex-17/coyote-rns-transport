@@ -487,4 +487,3 @@ include!("resource/manager_proof.rs");
 include!("resource/manager_polling.rs");
 include!("resource/utils.rs");
 include!("resource/tests.rs");
-include!("resource/tests_advert_kat.rs");

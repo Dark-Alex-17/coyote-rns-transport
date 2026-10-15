@@ -1,6 +1,7 @@
 # Fuzzing Campaign Runbook
 
-This runbook defines parser/envelope fuzz coverage for SDK v2.5.
+This runbook defines parser/envelope fuzz coverage for SDK v2.5 and the
+Reticulum transport wire decoders.
 
 ## Covered targets
 
@@ -28,13 +29,17 @@ The CI gate performs:
 
 ## Long campaign (recommended pre-release)
 
-Install `cargo-fuzz` once:
+Install a nightly toolchain (libFuzzer needs one) and `cargo-fuzz` once:
 
 ```bash
+rustup toolchain install nightly
 cargo install cargo-fuzz
 ```
 
-Run a campaign with minimum runtime of 300 seconds per target:
+Run a campaign with minimum runtime of 300 seconds per target. The script
+runs every target with `cargo +nightly fuzz run`; set `FUZZ_TOOLCHAIN` to use
+another toolchain name. It exits non-zero when any target leaves a file in
+its `fuzz/artifacts/` directory.
 
 ```bash
 FUZZ_MAX_TOTAL_TIME=300 ./tools/scripts/fuzz-campaign.sh

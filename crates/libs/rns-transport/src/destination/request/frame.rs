@@ -35,7 +35,9 @@ pub enum FrameDecodeError {
     /// The reserved marker `0xc1` appears.
     #[error("reserved msgpack marker 0xc1")]
     ReservedMarker,
-    /// The value reader failed on an input the walk accepted.
+    /// The value reader failed on an input the walk accepted. Unreachable
+    /// while the walk mirrors `rmpv`'s reader; kept so a future `rmpv`
+    /// change surfaces as an error instead of a panic.
     #[error("msgpack value could not be read")]
     Malformed,
     /// The frame is not an array.
@@ -74,6 +76,7 @@ pub struct RequestFrame {
 }
 
 impl RequestFrame {
+    /// A request for the path hashing to `path_hash`, carrying `data`.
     pub fn new(requested_at: f64, path_hash: PathHash, data: Value) -> Self {
         Self { requested_at, path_hash, data }
     }
@@ -83,6 +86,7 @@ impl RequestFrame {
         self.requested_at
     }
 
+    /// `truncated_hash` of the requested path (`RNS/Link.py:486`).
     pub fn path_hash(&self) -> PathHash {
         self.path_hash
     }
@@ -93,6 +97,7 @@ impl RequestFrame {
         &self.data
     }
 
+    /// The request body, moved out of the frame.
     pub fn into_data(self) -> Value {
         self.data
     }
@@ -132,10 +137,12 @@ pub struct ResponseFrame {
 }
 
 impl ResponseFrame {
+    /// A response to the request identified by `request_id`, carrying `body`.
     pub fn new(request_id: RequestId, body: Value) -> Self {
         Self { request_id, body }
     }
 
+    /// The id of the request this frame answers.
     pub fn request_id(&self) -> RequestId {
         self.request_id
     }
@@ -147,6 +154,7 @@ impl ResponseFrame {
         &self.body
     }
 
+    /// The handler's return value, moved out of the frame.
     pub fn into_body(self) -> Value {
         self.body
     }

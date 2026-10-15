@@ -64,7 +64,7 @@ impl RequestId {
     /// The resource form: `truncated_hash(packed_request)` over the bytes a
     /// [`RequestFrame`](super::RequestFrame) encodes to (`RNS/Link.py:504`);
     /// the receiver recomputes it from the assembled resource
-    /// (`RNS/Link.py:885-887`).
+    /// (`RNS/Link.py:885-889`).
     pub fn of_packed_request(packed: &[u8]) -> Self {
         Self(address_hash(packed))
     }

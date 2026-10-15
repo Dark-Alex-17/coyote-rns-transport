@@ -156,10 +156,16 @@ fn a_response_frame_agrees_with_unpack_response_envelope() {
     let mut short_id = vec![0x92, 0xc4, 0x0f];
     short_id.extend_from_slice(&[0x42; 15]);
     short_id.push(0xc0);
+    // `rmpv::Value::as_slice` read a `str` id too, so the old decoder
+    // accepted this one.
+    let mut str_id = vec![0x92, 0xb0];
+    str_id.extend_from_slice(&[b'a'; 16]);
+    str_id.push(0xc0);
     for (label, input, expected) in [
         ("a trailing byte", trailing, FrameDecodeError::TrailingBytes),
         ("three elements", three, FrameDecodeError::WrongArity { expected: 2, found: 3 }),
         ("a 15-byte id", short_id, FrameDecodeError::HashNotBin16),
+        ("a 16-byte str id", str_id, FrameDecodeError::HashNotBin16),
     ] {
         assert_eq!(ResponseFrame::decode(&input), Err(expected), "{label}");
         assert!(
@@ -296,15 +302,27 @@ fn hashes_display_as_lowercase_hex() {
 }
 
 fn decode_everything(bytes: &[u8]) {
-    if let Ok(frame) = RequestFrame::decode(bytes) {
-        let encoded = frame.encode();
-        let again = RequestFrame::decode(&encoded).expect("re-encoded request decodes");
-        assert_eq!(again.encode(), encoded);
+    match RequestFrame::decode(bytes) {
+        Ok(frame) => {
+            let encoded = frame.encode();
+            let again = RequestFrame::decode(&encoded).expect("re-encoded request decodes");
+            assert_eq!(again.encode(), encoded);
+        }
+        Err(FrameDecodeError::Malformed) => {
+            panic!("the walk accepted an input the value reader refused")
+        }
+        Err(_) => {}
     }
-    if let Ok(frame) = ResponseFrame::decode(bytes) {
-        let encoded = frame.encode();
-        let again = ResponseFrame::decode(&encoded).expect("re-encoded response decodes");
-        assert_eq!(again.encode(), encoded);
+    match ResponseFrame::decode(bytes) {
+        Ok(frame) => {
+            let encoded = frame.encode();
+            let again = ResponseFrame::decode(&encoded).expect("re-encoded response decodes");
+            assert_eq!(again.encode(), encoded);
+        }
+        Err(FrameDecodeError::Malformed) => {
+            panic!("the walk accepted an input the value reader refused")
+        }
+        Err(_) => {}
     }
     if let Ok(advert) = ResourceAdvertisement::unpack(bytes) {
         let packed = advert.pack().expect("decoded advertisement packs");

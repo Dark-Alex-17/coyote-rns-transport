@@ -16,19 +16,19 @@ trailing clause of the bullet for the behaviour it pins.
   `truncated_hash(path)` (`RNS/Link.py:486`) and `RequestId` has the packet
   form (`RNS/Link.py:996`) and the resource form (`RNS/Link.py:504`).
   `requested_at` always encodes as `float64` (marker `0xcb`), as the
-  vendored `umsgpack` writes it, and decodes from nothing else. Decoding
-  walks the input once without allocating and returns a typed
-  `FrameDecodeError` for container nesting deeper than 128 levels, a length
-  prefix larger than the remaining input, the reserved marker, a truncated
-  value or trailing bytes; the error converts into `RnsError::PacketError`.
-  The request layer API (dispatch, handlers, receipts) lands in later
-  releases. Pinned against Python-generated vectors by
-  `destination/request/tests.rs`.
-
-- `resource/tests_advert_kat.rs` pins `ResourceAdvertisement::unpack` and
-  `pack` against a Python-generated advertisement: field values, the key
-  order `t d n h r o i l q f m` (`RNS/Resource.py:1337-1347`) and the flag
-  bit layout (`RNS/Resource.py:1318`), byte for byte.
+  vendored `umsgpack` writes it, and decodes from nothing else. Before any
+  value is built, decoding walks the input once without allocating and
+  refuses, with a typed `FrameDecodeError`, container nesting deeper than
+  128 levels, a length prefix larger than the remaining input, the reserved
+  marker, a truncated value or trailing bytes; the error converts into
+  `RnsError::PacketError`. The request layer API (dispatch, handlers,
+  receipts) lands in later releases. Pinned against Python-generated
+  vectors by `destination/request/tests.rs` and
+  `tests/request_frame_wire.rs`; `ResourceAdvertisement::{pack,unpack}`
+  field values, key order `t d n h r o i l q f m`
+  (`RNS/Resource.py:1337-1347`) and flag layout (`RNS/Resource.py:1318`)
+  are pinned against three Python-generated advertisements by
+  `resource/tests_advert_kat.rs`.
 
 - The fuzz crate `crates/libs/rns-transport/fuzz/` with the targets
   `request_frame_decode`, `response_frame_decode` and
@@ -40,9 +40,13 @@ trailing clause of the bullet for the behaviour it pins.
 ### Changed
 
 - `Link::request_payload` and `unpack_response_envelope` delegate to the new
-  frames. The bytes are unchanged; the one behaviour change is that the
-  response decoder now refuses nesting deeper than 128 levels. Pinned by
-  `destination/request/tests.rs` and `request_payload_tests.rs`.
+  frames. The bytes are unchanged. The response decoder now refuses a
+  request id that is not a 16-byte `bin` (a 16-byte `str` was accepted
+  before, as `rmpv::Value::as_slice` reads both), nesting deeper than 128
+  levels, the reserved marker, and a length prefix larger than the
+  remaining input before anything is allocated. Pinned by
+  `destination/request/tests.rs`, `tests/request_frame_wire.rs` and
+  `request_payload_tests.rs`.
 
 ## 0.14.1 - 2026-10-15
 

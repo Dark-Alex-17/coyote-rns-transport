@@ -4,41 +4,37 @@ set -euo pipefail
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 cd "$ROOT_DIR"
 
-if ! cargo fuzz --help >/dev/null 2>&1; then
-  echo "cargo-fuzz is required. Install with: cargo install cargo-fuzz" >&2
+# libFuzzer needs a nightly toolchain; the campaign runs every target on it.
+TOOLCHAIN="${FUZZ_TOOLCHAIN:-nightly}"
+MAX_TOTAL_TIME="${FUZZ_MAX_TOTAL_TIME:-300}"
+
+if ! cargo +"$TOOLCHAIN" fuzz --help >/dev/null 2>&1; then
+  echo "cargo-fuzz on the ${TOOLCHAIN} toolchain is required. Install with:" >&2
+  echo "  rustup toolchain install ${TOOLCHAIN} && cargo install cargo-fuzz" >&2
   exit 1
 fi
 
-MAX_TOTAL_TIME="${FUZZ_MAX_TOTAL_TIME:-300}"
+run_target() {
+  local fuzz_dir="$1"
+  local target="$2"
+  echo "Running ${fuzz_dir} target ${target} for ${MAX_TOTAL_TIME}s"
+  cargo +"$TOOLCHAIN" fuzz run \
+    --fuzz-dir "$fuzz_dir" \
+    "$target" \
+    -- -max_total_time="$MAX_TOTAL_TIME"
+}
 
-echo "Running rns-rpc fuzz target (rpc_frame_envelope) for ${MAX_TOTAL_TIME}s"
-cargo fuzz run \
-  --manifest-path crates/libs/rns-rpc/fuzz/Cargo.toml \
-  rpc_frame_envelope \
-  -- -max_total_time="${MAX_TOTAL_TIME}"
+run_target crates/libs/rns-rpc/fuzz rpc_frame_envelope
+run_target crates/libs/lxmf-sdk/fuzz sdk_json_envelope
+run_target crates/libs/rns-transport/fuzz request_frame_decode
+run_target crates/libs/rns-transport/fuzz response_frame_decode
+run_target crates/libs/rns-transport/fuzz resource_advertisement_decode
 
-echo "Running lxmf-sdk fuzz target (sdk_json_envelope) for ${MAX_TOTAL_TIME}s"
-cargo fuzz run \
-  --manifest-path crates/libs/lxmf-sdk/fuzz/Cargo.toml \
-  sdk_json_envelope \
-  -- -max_total_time="${MAX_TOTAL_TIME}"
+artifacts="$(find crates/libs/*/fuzz/artifacts -type f 2>/dev/null || true)"
+if [[ -n "$artifacts" ]]; then
+  echo "Fuzz campaign found crash artifacts:" >&2
+  echo "$artifacts" >&2
+  exit 1
+fi
 
-echo "Running rns-transport fuzz target (request_frame_decode) for ${MAX_TOTAL_TIME}s"
-cargo fuzz run \
-  --manifest-path crates/libs/rns-transport/fuzz/Cargo.toml \
-  request_frame_decode \
-  -- -max_total_time="${MAX_TOTAL_TIME}"
-
-echo "Running rns-transport fuzz target (response_frame_decode) for ${MAX_TOTAL_TIME}s"
-cargo fuzz run \
-  --manifest-path crates/libs/rns-transport/fuzz/Cargo.toml \
-  response_frame_decode \
-  -- -max_total_time="${MAX_TOTAL_TIME}"
-
-echo "Running rns-transport fuzz target (resource_advertisement_decode) for ${MAX_TOTAL_TIME}s"
-cargo fuzz run \
-  --manifest-path crates/libs/rns-transport/fuzz/Cargo.toml \
-  resource_advertisement_decode \
-  -- -max_total_time="${MAX_TOTAL_TIME}"
-
-echo "Fuzz campaign completed"
+echo "Fuzz campaign completed: no crash artifacts"

@@ -349,9 +349,14 @@ pub(super) async fn manage_transport(
                         let now = Instant::now();
                         let requests = handler.resource_manager.retry_requests(now);
                         let advertisements = handler.resource_manager.poll_outgoing(now);
+                        // A retry whose link is gone has nowhere to go and is skipped.
                         for (link_id, request) in requests {
-                            let link =
-                                super::resource_wire::link_by_id(&handler, &link_id).await;
+                            let link = super::resource_wire::link_by_id(
+                                &handler.in_links,
+                                &handler.out_links,
+                                &link_id,
+                            )
+                            .await;
                             if let Some(link) = link {
                                 let link_guard = link.lock().await;
                                 let packet = build_resource_request_packet(&link_guard, &request);
@@ -361,8 +366,16 @@ pub(super) async fn manage_transport(
                             }
                         }
                         for (link_id, packet) in advertisements {
-                            let iface = link_ingress_iface(&handler, &link_id).await;
-                            send_resource_retry(&mut handler, iface, packet).await;
+                            let link = super::resource_wire::link_by_id(
+                                &handler.in_links,
+                                &handler.out_links,
+                                &link_id,
+                            )
+                            .await;
+                            if let Some(link) = link {
+                                let iface = link.lock().await.ingress_iface();
+                                send_resource_retry(&mut handler, iface, packet).await;
+                            }
                         }
                         let events = handler.resource_manager.drain_events();
                         super::resource_wire::publish_resource_events(&handler, events);
@@ -380,20 +393,9 @@ pub(super) async fn manage_transport(
     supervise_workers(&mut workers, &worker_names, &cancel).await;
 }
 
-#[deny(clippy::await_holding_invalid_type)]
-pub(super) async fn link_ingress_iface(
-    handler: &TransportHandler,
-    link_id: &AddressHash,
-) -> Option<AddressHash> {
-    let link = super::resource_wire::link_by_id(handler, link_id).await?;
-    let guard = link.lock().await;
-    guard.ingress_iface()
-}
-
 /// Retries address a Link, so they leave on the link's attached interface
 /// (see `handle_resource_proof`). Path routing is only a fallback for a link
-/// without a bound interface; an advertisement whose link is already gone
-/// also ends up here.
+/// without a bound interface.
 #[deny(clippy::await_holding_invalid_type)]
 async fn send_resource_retry(
     handler: &mut TransportHandler,

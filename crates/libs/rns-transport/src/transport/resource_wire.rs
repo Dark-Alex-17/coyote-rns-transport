@@ -237,21 +237,23 @@ async fn link_for_resource_packet(
     handler: &TransportHandler,
     packet: &Packet,
 ) -> Option<Arc<Mutex<Link>>> {
-    link_by_id(handler, &packet.destination).await
+    link_by_id(&handler.in_links, &handler.out_links, &packet.destination).await
 }
+
+type LinkMap = HashMap<AddressHash, Arc<Mutex<Link>>>;
 
 /// `in_links` is keyed by link id but `out_links` by destination hash, so an
 /// initiator-side link is only found by scanning `out_links` for the id after
 /// the keyed lookups miss.
 #[deny(clippy::await_holding_invalid_type)]
 pub(super) async fn link_by_id(
-    handler: &TransportHandler,
+    in_links: &LinkMap,
+    out_links: &LinkMap,
     link_id: &AddressHash,
 ) -> Option<Arc<Mutex<Link>>> {
-    let mut link =
-        handler.in_links.get(link_id).cloned().or_else(|| handler.out_links.get(link_id).cloned());
+    let mut link = in_links.get(link_id).cloned().or_else(|| out_links.get(link_id).cloned());
     if link.is_none() {
-        for candidate in handler.out_links.values() {
+        for candidate in out_links.values() {
             if *candidate.lock().await.id() == *link_id {
                 link = Some(candidate.clone());
                 break;

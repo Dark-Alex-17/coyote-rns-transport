@@ -23,7 +23,7 @@ sites, so a rebase can re-apply them one commit at a time.
 Every file changed since the `0.14.1` release and the patch each change
 belongs to. Patch ids: F1 is request wire frames and fuzz; it carries no
 other id. The `request wire frames and fuzz` patch is fork commits
-`8e9970ac`, `afc56836` and `71365159`.
+`8e9970ac`, `afc56836`, `71365159` and `f875aff7`.
 
 | File | Patch |
 | --- | --- |
@@ -47,16 +47,18 @@ other id. The `request wire frames and fuzz` patch is fork commits
 | `tools/scripts/fuzz-campaign.sh` | request wire frames and fuzz |
 | `xtask/src/main_parts/run_key_management_check.rs` | request wire frames and fuzz |
 
-Fork commits `8e9970ac`, `afc56836` and `71365159`: F1, request wire
-frames and fuzz. The first lands the frames, the fuzz crate and the
-campaign entries; the second corrects the `request_payload` doc comment;
-the third makes the campaign script runnable (`--fuzz-dir` on the nightly
-toolchain, one `run_target` helper, a crash-artifact gate), pins the
-16-byte `str` request id refusal, makes `FrameDecodeError::Malformed` a
-panic in the fuzz targets and the smoke test, moves the advertisement
-vector include into `resource/tests.rs`, adds the split-response vector
-and the black-box `tests/request_frame_wire.rs`. The file sites below
-describe the combined result. Upstream sites:
+Fork commits `8e9970ac`, `afc56836`, `71365159` and `f875aff7`: F1,
+request wire frames and fuzz. The first lands the frames, the fuzz crate
+and the campaign entries; the second corrects the `request_payload` doc
+comment; the third makes the campaign script runnable (`--fuzz-dir` on
+the nightly toolchain, one `run_target` helper, a crash-artifact gate),
+pins the 16-byte `str` request id refusal, makes
+`FrameDecodeError::Malformed` a panic in the fuzz targets and the smoke
+test, moves the advertisement vector include into `resource/tests.rs`,
+adds the split-response vector and the black-box
+`tests/request_frame_wire.rs`; the fourth corrects two fixture comments
+in that file. The file sites below describe the combined result.
+Upstream sites:
 `crates/libs/rns-transport/src/destination.rs` registers the new
 `destination::request` module; `Link::request_payload` and
 `unpack_response_envelope` in `link_sections/request_payload.rs` delegate

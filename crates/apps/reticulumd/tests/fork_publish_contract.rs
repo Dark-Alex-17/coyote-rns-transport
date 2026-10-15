@@ -126,7 +126,7 @@ fn crate_readme_pins_the_consumer_contract() {
 
     assert_eq!(
         crate_version(),
-        "0.14.0",
+        "0.14.1",
         "coyote-rns-transport should declare the published version; bump this pin with the crate"
     );
 
@@ -150,7 +150,7 @@ fn crate_readme_pins_the_consumer_contract() {
 
     for required in [
         "name = \"coyote-rns-transport\"",
-        "version = \"0.14.0\"",
+        "version = \"0.14.1\"",
         "description = \"Coyote's published fork of reticulum-rs-transport",
         "license.workspace = true",
         "rns-core.workspace = true",
@@ -174,6 +174,130 @@ fn crate_readme_pins_the_consumer_contract() {
         workspace_manifest.contains(core_dependency),
         "workspace manifest should pin the core dependency the published crate resolves through: {core_dependency:?}"
     );
+}
+
+/// Every site that names the published crate carries the same version, and
+/// both release ledgers have a section for it. Cargo cannot catch a stale
+/// dependent manifest on its own: a path dependency declared as
+/// `version = "0.14.0"` is a caret requirement that 0.14.1 satisfies, so the
+/// manifests, the consumer snippets and the lock file are pinned here.
+#[test]
+fn release_sites_and_ledgers_track_the_crate_version() {
+    let version = crate_version();
+    let version_token = format!("version = \"{version}\"");
+
+    for manifest in
+        ["Cargo.toml", "crates/apps/rns-tools/Cargo.toml", "crates/apps/reticulumd/Cargo.toml"]
+    {
+        let text = read_repo_file(manifest);
+        let sites: Vec<&str> = text
+            .lines()
+            .filter(|line| line.contains("package = \"coyote-rns-transport\""))
+            .collect();
+        assert!(
+            !sites.is_empty(),
+            "{manifest} should depend on coyote-rns-transport by package name"
+        );
+        for site in sites {
+            assert!(
+                site.contains(&version_token),
+                "{manifest} should require {version_token:?} on its coyote-rns-transport dependency, got {site:?}"
+            );
+        }
+    }
+
+    let consumer_line = format!("coyote-rns-transport = \"{version}\"");
+    assert!(
+        read_repo_file("docs/getting-started.md").contains(&consumer_line),
+        "docs/getting-started.md should pin the consumer line {consumer_line:?}"
+    );
+
+    let lock_entry = format!("name = \"coyote-rns-transport\"\n{version_token}\n");
+    assert!(
+        read_repo_file("Cargo.lock").contains(&lock_entry),
+        "Cargo.lock should carry the published crate at {version:?}; regenerate it with `cargo update -p coyote-rns-transport --offline`"
+    );
+
+    let changelog = read_repo_file("crates/libs/rns-transport/CHANGELOG.md");
+    let release_heading = format!("\n## {version} - ");
+    assert!(
+        changelog.contains(&release_heading),
+        "crate CHANGELOG.md should have a dated `## {version} - YYYY-MM-DD` release heading"
+    );
+    let heading_offset = changelog.find(&release_heading).expect("release heading located");
+    let dated = &changelog[heading_offset + release_heading.len()..];
+    let date: String = dated.chars().take_while(|c| !c.is_whitespace()).collect();
+    assert!(
+        date.len() == 10
+            && date.chars().enumerate().all(|(i, c)| if i == 4 || i == 7 {
+                c == '-'
+            } else {
+                c.is_ascii_digit()
+            }),
+        "release heading date should be ISO YYYY-MM-DD, got {date:?}"
+    );
+
+    let readme = read_repo_file("crates/libs/rns-transport/README.md");
+    for required in ["follows cargo semver", "docs/fork/PATCHSET.md", "CHANGELOG.md"] {
+        assert!(
+            readme.contains(required),
+            "crate README should state the versioning policy and name both ledgers; missing {required:?}"
+        );
+    }
+}
+
+/// The patch-set ledger's section for the current release opens with a table
+/// of every file changed since the previous tag. Every path in it must exist,
+/// and the files that change on every release must be listed.
+#[test]
+fn patch_set_ledger_lists_existing_files_for_the_current_release() {
+    let version = crate_version();
+    let ledger = read_repo_file("docs/fork/PATCHSET.md");
+    let section_heading = format!("\n## {version} (upstream ");
+    let start = ledger.find(&section_heading).unwrap_or_else(|| {
+        panic!("docs/fork/PATCHSET.md should have a `## {version} (upstream <base>)` section")
+    });
+    let section = &ledger[start + 1..];
+    let section = match section[section_heading.len() - 1..].find("\n## ") {
+        Some(end) => &section[..section_heading.len() - 1 + end],
+        None => section,
+    };
+
+    let root = repo_root();
+    let table_paths: Vec<&str> = section
+        .lines()
+        .filter(|line| line.starts_with("| `"))
+        .filter_map(|line| {
+            let rest = line.strip_prefix("| `")?;
+            rest.split('`').next()
+        })
+        .collect();
+    assert!(
+        table_paths.len() >= 10,
+        "the {version} section should open with a file table, found {} rows",
+        table_paths.len()
+    );
+
+    let missing: Vec<&str> =
+        table_paths.iter().copied().filter(|path| !root.join(path).exists()).collect();
+    assert!(
+        missing.is_empty(),
+        "every file in the {version} table should exist in the tree:\n{}",
+        missing.join("\n")
+    );
+
+    for required in [
+        "Cargo.lock",
+        "crates/libs/rns-transport/Cargo.toml",
+        "crates/libs/rns-transport/CHANGELOG.md",
+        "crates/apps/reticulumd/tests/fork_publish_contract.rs",
+        "docs/fork/PATCHSET.md",
+    ] {
+        assert!(
+            table_paths.contains(&required),
+            "the {version} table should list {required:?}, which changes on every release"
+        );
+    }
 }
 
 #[test]

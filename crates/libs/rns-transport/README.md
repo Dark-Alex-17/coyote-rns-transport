@@ -10,18 +10,19 @@ Apart from the patch list below, only the package name changes: the library
 target stays `rns_transport`, so every `use rns_transport::...` path written
 against upstream compiles unchanged against this crate.
 
-The version is upstream's version plus Coyote's patches. `0.14.0` is upstream
-`0.14.0` with the patch list below applied. Further patches on top of the same
-upstream release bump the patch digit (`0.14.x`). When upstream ships its next
-release the fork is rebased onto it and takes that version. If upstream itself
-ships a `0.14.x` patch release, the fork rebases onto it and takes the next
-unused patch number.
+The version follows cargo semver relative to the upstream baseline. `0.14.0`
+is upstream `0.14.0` renamed, with the link-close patch applied. Fork patches
+that do not break the public API (additive API, internal fixes) bump the patch
+digit; a fork change that breaks the public API bumps the minor digit. When
+upstream ships its next release the fork is rebased onto it and takes that
+version; if upstream itself ships a `0.14.x` patch release, the fork rebases
+onto it and takes the next unused patch number.
 
 ## Consumer
 
 ```toml
 [dependencies]
-coyote-rns-transport = "0.14.0"
+coyote-rns-transport = "0.14.1"
 ```
 
 ```rust
@@ -32,22 +33,51 @@ Replace upstream `reticulum-rs-transport` with this crate rather than adding
 it alongside: both crates have the library name `rns_transport` and cannot
 coexist in one dependency graph.
 
+## Versioning and releases
+
+The root `VERSION` file is the workspace number: the upstream baseline that
+`lxmf --version` prints and that HIL evidence records. The fork publishes only
+`coyote-rns-transport`, so this crate's version moves independently of it and
+root `VERSION` stays at the upstream baseline until the next upstream rebase.
+
+Release notes live in this crate's `CHANGELOG.md`. The per-release ledger of
+every file changed against upstream, with the commit that changed it, is
+`docs/fork/PATCHSET.md`. A release is published by pushing the tag
+`coyote-rns-transport-v<version>`: `tools/scripts/check-publish-tag-version.sh`
+checks that the tag matches the crate version and
+`.github/workflows/publish-coyote-rns-transport.yml` runs the publish.
+
 ## Patch list
 
-- `destination/link_parts/link_sections/next_watchdog_deadline.rs`: the
-  `println!("{}", link_close_line(&self.id))` emitted on every link close,
-  which printed `link: close <id>`, is removed. Upstream still prints to
-  stdout from inside the library; the `log::warn!` on the next line carries
-  the same information through the logging facade. A unit test
-  (`no_non_test_stdout_or_stderr_prints_in_library_sources`) pins that no
-  non-test print remains anywhere under `src/`.
-  `tools/scripts/python-lxmd-rust-lxmd-smoke.sh` waits for the warn's own
-  message, `close /<32 hex link id>/`, in the lxmd log, so the needle tracks
-  the message text and not the subscriber's rendering of the target. When
+`docs/fork/PATCHSET.md` is the single per-release ledger of every file changed
+against upstream, with the commit that changed it and the upstream site. What
+`0.14.1` carries on top of upstream `0.14.0`:
+
+- Link close no longer prints to stdout: the `println!` in
+  `Link::finalize_local_close` is removed and the `log::warn!` on the next line
+  carries the information. `tools/scripts/python-lxmd-rust-lxmd-smoke.sh`
+  waits for the warn's own message, `close /<32 hex link id>/`. When
   re-applying keep that `warn!` and keep its message starting with `close `
-  followed by the link id. The `link_close_line` helper and
-  its `link_close_line_preserves_compatibility_marker` test are now a
-  test-only pair, kept to minimise the diff against upstream.
+  followed by the link id.
+- Later Resource segments and Resource retries are dispatched on the link's
+  bound interface instead of through the path table, so a `Transport` built
+  with broadcast off no longer drops segments 2 and later as `DroppedNoRoute`.
+- A Resource advertisement reject is sent after the link lock is released;
+  sending it under the lock deadlocked the transport on the first oversize
+  request or response advertisement.
+- An outbound Resource sender is registered before its advertisement is
+  written, so a fast peer's first part request is served; the
+  `pending_outgoing` staging map is gone.
+- The hex parsers (`AddressHash`, `Identity`, `PrivateIdentity`) return
+  `IncorrectHash` on multibyte input instead of panicking.
+- `Transport::send_announce` logs and returns instead of panicking when the
+  announce cannot be built; `try_send_announce` returns the error.
+- An inbound Resource advertisement above the reference cap of
+  `3 * MAX_EFFICIENT_SIZE` is dropped before any receiver state is created
+  (`RNS/Resource.py:1374`).
+- Additive API: `Transport::stop`, `Link::rtt`,
+  `destination_hash::destination_address`, `AddressHash::short`, and the
+  `rmpv` and `rand_core` re-exports from the crate root.
 
 ## Rebase recipe
 
@@ -71,9 +101,11 @@ coexist in one dependency graph.
    the workspace `[workspace.dependencies] rns-transport` entry,
    `crates/apps/rns-tools/Cargo.toml` and `crates/apps/reticulumd/Cargo.toml`
    (`package = "coyote-rns-transport", version = ...`), the consumer line in
-   this README, the version sentence under What this is, and the version pins
-   in `crates/apps/reticulumd/tests/fork_publish_contract.rs`.
-7. `cargo check --workspace && cargo test -p coyote-rns-transport && cargo test -p reticulumd --test fork_publish_contract && tools/scripts/check-boundaries.sh && cargo publish -p coyote-rns-transport --locked --dry-run`
+   this README and in `docs/getting-started.md`, and the version pins in
+   `crates/apps/reticulumd/tests/fork_publish_contract.rs`. Regenerate
+   `Cargo.lock` (`cargo update -p coyote-rns-transport --offline`) and add the
+   release headings to `CHANGELOG.md` and `docs/fork/PATCHSET.md`.
+7. `cargo check --workspace && cargo test -p coyote-rns-transport && cargo test -p reticulumd --test fork_publish_contract && tools/scripts/check-boundaries.sh && cargo publish -p coyote-rns-transport --locked --dry-run --registry crates-io`
 8. Commit, then either tag `coyote-rns-transport-vX.Y.Z` and push the tag, or
    run the `publish-coyote-rns-transport` workflow by hand from the Actions
    tab, setting the `ref` input to the tag; the dropdown choice alone does not

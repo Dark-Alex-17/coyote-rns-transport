@@ -111,7 +111,7 @@ lxmf-runtime = { version = "0.14.0", path = "crates/libs/lxmf-runtime" }
 reticulum-rs = { version = "0.14.0", path = "crates/libs/reticulum-rs" }
 rns-core = { package = "reticulum-rs-core", version = "0.14.0", path = "crates/libs/rns-core" }
 rns-rpc = { package = "reticulum-rs-rpc", version = "0.14.0", path = "crates/libs/rns-rpc" }
-rns-transport = { package = "coyote-rns-transport", version = "0.14.0", path = "crates/libs/rns-transport" }
+rns-transport = { package = "coyote-rns-transport", version = "0.14.1", path = "crates/libs/rns-transport" }
 aes = "0.8.4"
 base64 = "0.22"
 cbc = "0.1.2"

@@ -77,6 +77,7 @@ mod announce_table;
 mod diag;
 mod inbound_processing;
 mod inbound_queues;
+mod lifecycle;
 mod link_table;
 mod packet_cache;
 mod packet_disk_cache;
@@ -347,6 +348,7 @@ pub struct Transport {
     handler: Arc<Mutex<TransportHandler>>,
     iface_manager: Arc<Mutex<InterfaceManager>>,
     cancel: CancellationToken,
+    manage_task: std::sync::Mutex<Option<tokio::task::JoinHandle<()>>>,
 }
 
 #[derive(Debug, Clone, Copy, Default, PartialEq)]

@@ -95,7 +95,7 @@ impl Transport {
             receipt_handler: None,
         }));
 
-        {
+        let manage_task = {
             let handler = handler.clone();
             tokio::spawn(manage_transport(handler, rx_receiver, iface_messages_tx.clone()))
         };
@@ -156,6 +156,7 @@ impl Transport {
             resource_events_tx,
             handler,
             cancel,
+            manage_task: std::sync::Mutex::new(Some(manage_task)),
         }
     }
 
@@ -369,9 +370,41 @@ impl Transport {
             destination.desc.address_hash,
             app_data.map(|value| value.len()).unwrap_or(0)
         );
-        let packet = destination.announce(OsRng, app_data).expect("valid announce packet");
+        let packet = match destination.announce(OsRng, app_data) {
+            Ok(packet) => packet,
+            Err(error) => {
+                log::warn!(
+                    "[tp] announce not sent: packet build failed dst={} error={:?}",
+                    destination.desc.address_hash.short(),
+                    error
+                );
+                return;
+            }
+        };
         let mut handler = self.handler.lock().await;
         handler.send_packet(packet).await;
+    }
+
+    /// Builds and sends an announce for `destination`, returning the build error instead of
+    /// logging it. `Ok(())` means the packet was built and handed to the transport, not
+    /// that an interface accepted it.
+    #[deny(clippy::await_holding_invalid_type)]
+    pub async fn try_send_announce(
+        &self,
+        destination: &Arc<Mutex<SingleInputDestination>>,
+        app_data: Option<&[u8]>,
+    ) -> Result<(), RnsError> {
+        let packet = {
+            let mut destination = destination.lock().await;
+            log::trace!(
+                "[tp] announce_tx dst={} app_data_len={}",
+                destination.desc.address_hash,
+                app_data.map(|value| value.len()).unwrap_or(0)
+            );
+            destination.announce(OsRng, app_data)?
+        };
+        self.send_packet(packet).await;
+        Ok(())
     }
 
     pub async fn set_destination_announce_app_data(

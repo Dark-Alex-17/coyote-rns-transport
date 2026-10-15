@@ -1,16 +1,34 @@
+/// Mirrors RNS/Resource.py:1374, which raises on an advertised transfer size
+/// above three times `MAX_EFFICIENT_SIZE`. Here the advertisement is dropped
+/// and logged so the link stays usable.
+pub(crate) const MAX_REFERENCE_ADVERTISED_TRANSFER_SIZE: u64 = 3 * (MAX_EFFICIENT_SIZE as u64);
+
 /// Enforces the inbound advertisement caps before any receiver state is
 /// created (issue #514): a hostile peer must not get a `ResourceReceiver`
-/// — and the part-tracking allocations that come with it — for a resource
-/// that exceeds the transfer-size or part-count caps.
+/// (and the part-tracking allocations that come with it) for a resource
+/// that exceeds the reference transfer-size cap, the inbound transfer-size
+/// cap or the part-count cap.
 ///
 /// Returns `true` when the advertisement must be rejected. Each rejection
 /// logs the exact limit, the advertised value, the resource hash, and the
-/// peer link. `ResourceReceiver::new_with_mtu` re-checks both bounds as
-/// defense in depth; these guards reject early with actionable context.
+/// peer link. `ResourceReceiver::new_with_mtu` re-checks the inbound bounds
+/// as defense in depth; these guards reject early with actionable context.
 fn advertisement_exceeds_inbound_limits(
     advertisement: &ResourceAdvertisement,
     link_id: &AddressHash,
 ) -> bool {
+    if advertisement.transfer_size > MAX_REFERENCE_ADVERTISED_TRANSFER_SIZE {
+        log::debug!(
+            "[resource-diag] reject_advertisement invalid_transfer_size link={} hash={} transfer_size={} limit={}",
+            link_id,
+            advertisement.hash,
+            advertisement.transfer_size,
+            MAX_REFERENCE_ADVERTISED_TRANSFER_SIZE
+        );
+        return true;
+    }
+    // Unreachable while the reference cap above is the smaller one; kept so the
+    // upstream diff stays small and because the receiver re-checks this cap.
     if advertisement.transfer_size > MAX_INBOUND_RESOURCE_TRANSFER_SIZE {
         log::warn!(
             "rejecting resource advertisement over transfer-size limit link={} hash={} transfer_size={} limit={}",

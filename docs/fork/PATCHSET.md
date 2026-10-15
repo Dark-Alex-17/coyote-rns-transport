@@ -22,8 +22,8 @@ sites, so a rebase can re-apply them one commit at a time.
 
 Every file changed since the `0.14.1` release and the patch each change
 belongs to. Patch ids: F1 is request wire frames and fuzz; it carries no
-other id. The `request wire frames and fuzz` patch is fork commit
-`8e9970ac`.
+other id. The `request wire frames and fuzz` patch is fork commits
+`8e9970ac`, `afc56836` and `71365159`.
 
 | File | Patch |
 | --- | --- |
@@ -40,23 +40,34 @@ other id. The `request wire frames and fuzz` patch is fork commit
 | `crates/libs/rns-transport/src/destination/request/id.rs` | request wire frames and fuzz |
 | `crates/libs/rns-transport/src/destination/request/mod.rs` | request wire frames and fuzz |
 | `crates/libs/rns-transport/src/destination/request/tests.rs` | request wire frames and fuzz |
-| `crates/libs/rns-transport/src/resource.rs` | request wire frames and fuzz |
+| `crates/libs/rns-transport/src/resource/tests.rs` | request wire frames and fuzz |
 | `crates/libs/rns-transport/src/resource/tests_advert_kat.rs` | request wire frames and fuzz |
+| `crates/libs/rns-transport/tests/request_frame_wire.rs` | request wire frames and fuzz |
 | `docs/runbooks/fuzzing-campaign.md` | request wire frames and fuzz |
 | `tools/scripts/fuzz-campaign.sh` | request wire frames and fuzz |
 | `xtask/src/main_parts/run_key_management_check.rs` | request wire frames and fuzz |
 
-Fork commit `8e9970ac`: F1, request wire frames and fuzz. Upstream sites:
+Fork commits `8e9970ac`, `afc56836` and `71365159`: F1, request wire
+frames and fuzz. The first lands the frames, the fuzz crate and the
+campaign entries; the second corrects the `request_payload` doc comment;
+the third makes the campaign script runnable (`--fuzz-dir` on the nightly
+toolchain, one `run_target` helper, a crash-artifact gate), pins the
+16-byte `str` request id refusal, makes `FrameDecodeError::Malformed` a
+panic in the fuzz targets and the smoke test, moves the advertisement
+vector include into `resource/tests.rs`, adds the split-response vector
+and the black-box `tests/request_frame_wire.rs`. The file sites below
+describe the combined result. Upstream sites:
 `crates/libs/rns-transport/src/destination.rs` registers the new
 `destination::request` module; `Link::request_payload` and
 `unpack_response_envelope` in `link_sections/request_payload.rs` delegate
 to `RequestFrame` and `ResponseFrame` with unchanged signatures;
-`resource.rs` includes the advertisement vector test;
-`run_key_management_check.rs`, `fuzzing-campaign.md` and
+`resource/tests.rs` includes the advertisement vector test inside its
+`mod tests`; `run_key_management_check.rs`, `fuzzing-campaign.md` and
 `fuzz-campaign.sh` add the third fuzz crate to the gate, the runbook and
 the campaign. New files: `src/destination/request/{mod,frame,id,tests}.rs`,
-`src/resource/tests_advert_kat.rs` and the `fuzz/` crate with its three
-targets. The crate `CHANGELOG.md` carries the release notes.
+`src/resource/tests_advert_kat.rs`, `tests/request_frame_wire.rs` and the
+`fuzz/` crate with its three targets. The crate `CHANGELOG.md` carries the
+release notes.
 
 ## 0.14.1 (upstream 0.14.0)
 

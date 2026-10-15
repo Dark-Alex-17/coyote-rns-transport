@@ -14,8 +14,10 @@ sites, so a rebase can re-apply them one commit at a time.
 
 ## Unreleased
 
-Fork commit `7f8b4c96`: send later Resource segments and Resource retries on
-the link's bound interface.
+Fork commits `7f8b4c96` and `b64cb536`: send later Resource
+segments and Resource retries on the link's bound interface. The second
+commit reshapes the link lookup and its unit test; the file sites below
+describe the combined result.
 
 - `crates/libs/rns-transport/src/transport/resource_wire.rs`
   (`handle_resource_proof`): the advertisement for the next segment, built
@@ -27,18 +29,18 @@ the link's bound interface.
   before the link guard is dropped, matching the lower half of the same
   file and `RNS/Transport.py:1452-1454`.
 - `crates/libs/rns-transport/src/transport/jobs.rs` (`resource-retry`
-  worker, both loops): request retries read the link's `ingress_iface()`
-  while the link guard is held; advertisement retries look the link up by
-  the id `poll_outgoing` already returned through `link_ingress_iface`. Both
-  loops resolve the link with `resource_wire::link_by_id` (shared with
-  `link_for_resource_packet`), which tries the keyed lookups on `in_links`
-  and `out_links` and then scans `out_links` by `link.id()` because that map
-  is keyed by destination hash; a plain `get` on `out_links` never found an
-  initiator-side link. Both dispatch through the new private
+  worker, both loops): request and advertisement retries resolve the link
+  by the id `retry_requests` / `poll_outgoing` returned, using
+  `resource_wire::link_by_id` (shared with `link_for_resource_packet`),
+  then read the link's `ingress_iface()` under the link guard. `link_by_id`
+  takes the `in_links` and `out_links` maps, tries the keyed lookups and
+  then scans `out_links` by `link.id()` because that map is keyed by
+  destination hash; a plain `get` on `out_links` never found an
+  initiator-side link. A retry whose link is gone is skipped in both loops.
+  Both dispatch through the new private
   `send_resource_retry`, which sends `Direct(iface)` and logs at debug when
   the dispatch trace reports no interface written. Path routing is only a
-  fallback for a link without a bound interface; an advertisement whose link
-  is already gone also ends up there.
+  fallback for a link without a bound interface.
 - `crates/libs/rns-transport/src/transport/tests_parts/two_transport_loopback_resources.rs`
   (new): three broadcast-off loopback tests send a 300 KiB, a
   `MAX_EFFICIENT_SIZE + 64 KiB` and a `4 MiB + 1` response Resource and
@@ -49,8 +51,9 @@ the link's bound interface.
   (new): the initiator (out-link) side sending a split Resource, a split
   request Resource, and two split Resources back to back on one link.
 - `crates/libs/rns-transport/src/transport/tests_parts/resource_retry_link_lookup.rs`
-  (new): unit test for `link_ingress_iface` resolving an `out_links` entry
-  by link id, an `in_links` entry, and an unknown id.
+  (new): unit test for `link_by_id` resolving an `out_links` entry by link
+  id, an `in_links` entry, and an unknown id, against link maps the test
+  owns.
 - `crates/libs/rns-transport/src/transport/tests_parts/two_transport_loopback_resources_retries.rs`
   (new): the listener's handler lock is held for five seconds so the
   connector's retry worker re-advertises (and, in the second test,

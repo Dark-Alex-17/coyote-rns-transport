@@ -409,3 +409,78 @@ fn decode_error_converts_to_packet_error_and_is_copy() {
         "containers nest deeper than 128 levels"
     );
 }
+
+/// `unpack_response_envelope` keeps its signature but now sits on
+/// `ResponseFrame::decode`, so every refusal the frame makes reaches a
+/// caller of the old entry point as `RnsError::PacketError`, before anything
+/// is allocated.
+#[test]
+fn unpack_response_envelope_refuses_what_the_response_frame_refuses() {
+    use rns_transport::error::RnsError;
+    let good = hex("92c410000102030405060708090a0b0c0d0e0fc0");
+    // umsgpack.packb(["a" * 16, None]): a 16-byte str where a bin is due.
+    let str_id = hex("92b061616161616161616161616161616161c0");
+    let mut reserved = hex("92c410000102030405060708090a0b0c0d0e0f");
+    reserved.push(0xc1);
+    let mut trailing = good.clone();
+    trailing.push(0x00);
+    // Body nested MAX_DEPTH single-element arrays deep (outer array is level 1).
+    let mut too_deep = hex("92c410000102030405060708090a0b0c0d0e0f");
+    too_deep.extend(std::iter::repeat_n(0x91, MAX_DEPTH));
+    too_deep.push(0xc0);
+    let mut deepest_ok = hex("92c410000102030405060708090a0b0c0d0e0f");
+    deepest_ok.extend(std::iter::repeat_n(0x91, MAX_DEPTH - 1));
+    deepest_ok.push(0xc0);
+    let cases: Vec<(&str, Vec<u8>)> = vec![
+        ("16-byte str id", str_id),
+        ("reserved marker as body", reserved),
+        ("trailing byte", trailing),
+        ("body nested 128 deep", too_deep),
+        ("bin32 0x80000000 id", hex("92c680000000")),
+        ("bin32 0xffffffff body", hex("92c410000102030405060708090a0b0c0d0e0fc6ffffffff")),
+        ("array32 0x80000000 body", hex("92c410000102030405060708090a0b0c0d0e0fdd80000000")),
+        ("map32 0x80000000 body", hex("92c410000102030405060708090a0b0c0d0e0fdf80000000")),
+        ("1 MiB of nested arrays", request_with_nested_data(1 << 20)),
+    ];
+    for (name, input) in cases {
+        let started = Instant::now();
+        let result = unpack_response_envelope(&input);
+        let elapsed = started.elapsed();
+        assert!(
+            matches!(result, Err(RnsError::PacketError)),
+            "{name}: expected PacketError, got {result:?}"
+        );
+        assert!(elapsed < Duration::from_secs(1), "{name}: took {elapsed:?}");
+        // The frame decoder and the envelope agree on refusal.
+        assert!(ResponseFrame::decode(&input).is_err(), "{name}: frame accepted");
+    }
+    // The deepest allowed body still unpacks through the old entry point.
+    let (id, body) = unpack_response_envelope(&deepest_ok).expect("127 nested arrays unpack");
+    assert_eq!(id, hex16("000102030405060708090a0b0c0d0e0f"));
+    let mut depth = 0;
+    let mut cursor = &body;
+    while let Value::Array(items) = cursor {
+        depth += 1;
+        cursor = &items[0];
+    }
+    assert_eq!(depth, MAX_DEPTH - 1);
+    assert_eq!(cursor, &Value::Nil);
+}
+
+/// `Link::request_payload` still produces the bytes the request frame
+/// encodes, with the resource-form id derived over exactly those bytes, for
+/// an empty-string path and an empty map body as well as the vector paths.
+#[test]
+fn request_payload_resource_id_is_derived_over_the_packed_frame_for_edge_paths() {
+    for (path, data) in [("", Value::Nil), ("a", Value::Map(vec![])), ("x/y/z", Value::from(0))] {
+        let payload = Link::request_payload(path, data.clone()).expect("request_payload");
+        let frame = RequestFrame::decode(&payload.packed).expect("frame decodes");
+        assert_eq!(frame.path_hash(), PathHash::of(path), "path {path:?}");
+        assert_eq!(frame.data(), &data, "path {path:?}");
+        assert_eq!(
+            RequestId::of_packed_request(&payload.packed).to_bytes(),
+            payload.resource_request_id
+        );
+        assert_eq!(payload.path_hash, PathHash::of(path).to_bytes());
+    }
+}

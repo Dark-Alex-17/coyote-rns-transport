@@ -26,7 +26,8 @@ segment dispatch, B2 is reject outside link lock, B3 is sender before
 advertisement, B4 is hex parsers, B5 is non-fatal announce; the advert cap,
 additive API, fixtures and lint tables, Python-in-the-loop proof, publish
 contract, link-close smoke leg and release 0.14.1 patches carry no other id.
-The `release 0.14.1` patch is fork commit `fd83a9f1`.
+The `release 0.14.1` patch is fork commits `fd83a9f1`, `256936ca` and
+`e79b6026`.
 
 | File | Patch |
 | --- | --- |
@@ -37,8 +38,8 @@ The `release 0.14.1` patch is fork commit `fd83a9f1`.
 | `crates/apps/reticulumd/Cargo.toml` | fixtures and lint tables, release 0.14.1 |
 | `crates/apps/reticulumd/tests/fork_publish_contract.rs` | publish contract, link-close smoke leg, release 0.14.1 |
 | `crates/apps/reticulumd/tests/python_channel_interop.rs` | Python-in-the-loop proof |
-| `crates/apps/reticulumd/tests/python_channel_interop_parts/multi_segment_python_interop.rs` | Python-in-the-loop proof |
-| `crates/apps/reticulumd/tests/support/python_channel_endpoint.py` | Python-in-the-loop proof |
+| `crates/apps/reticulumd/tests/python_channel_interop_parts/multi_segment_python_interop.rs` | Python-in-the-loop proof, release 0.14.1 |
+| `crates/apps/reticulumd/tests/support/python_channel_endpoint.py` | Python-in-the-loop proof, release 0.14.1 |
 | `crates/apps/reticulumd/tests/support/python_channel_process.rs` | Python-in-the-loop proof |
 | `crates/apps/rns-tools/Cargo.toml` | release 0.14.1 |
 | `crates/libs/rns-transport/CHANGELOG.md` | bound-interface segment dispatch, reject outside link lock, sender before advertisement, hex parsers, non-fatal announce, advert cap, additive API, fixtures and lint tables, Python-in-the-loop proof, release 0.14.1 |
@@ -446,7 +447,7 @@ above against the reference implementation on either end.
   `served_response_sha256`; as a client it sends `Link.request(data=None)`
   and prints `response_size`, `response_sha256` and `negotiated_mdu`.
 - `crates/libs/rns-transport/CHANGELOG.md`: trailing clause of the
-  B1 `### Fixed` bullet under `## 0.14.1`, added by the release commit.
+  B1 `### Fixed` bullet under `## 0.14.1`, added by the first release commit.
 
 Fork commit `0197768d`: revise the smoke-script leg of the link-close patch.
 This is a mixed commit; only the files below are the patch leg, so re-apply
@@ -477,9 +478,9 @@ its old-name walk to `docs/status/`. The remaining files in that table under
 the `docs/status/` JSON and Markdown files) only have the crate name
 updated.
 
-Fork commits `fd83a9f1` and `256936ca`: release 0.14.1. The first bumps the
-crate version at every manifest, consumer-snippet and contract-test site,
-regenerates `Cargo.lock`, promotes `## Unreleased` in the crate
+Fork commits `fd83a9f1`, `256936ca` and `e79b6026`: release 0.14.1. The first
+bumps the crate version at every manifest, consumer-snippet and contract-test
+site, regenerates `Cargo.lock`, promotes `## Unreleased` in the crate
 `CHANGELOG.md`, adds two contract tests to
 `crates/apps/reticulumd/tests/fork_publish_contract.rs` (every version site,
 the dated `CHANGELOG.md` heading and the README policy tokens track the
@@ -487,12 +488,16 @@ crate version; the file table above names only existing files and the files
 every release touches), and amends the `#610` row in
 `docs/status/reticulum-parity-matrix.md`. The second adds two more contract
 tests (root `VERSION` stays on the upstream baseline; every table row names
-a patch whose `B<n>` id the legend defines), sharpens the fixture comments
-and the lag report in `multi_segment_python_interop.rs` and
-`python_channel_endpoint.py`, and aligns the README's description of this
-ledger. The ledger-only commits that complete this section are omitted here
+a patch the legend defines), sharpens the fixture comments and the lag report
+in `multi_segment_python_interop.rs` and `python_channel_endpoint.py`, and
+aligns the README's description of this ledger. The third adds a contract
+test that the README rebase recipe runs the publish workflow's own dry-run
+command with no `--registry` override, makes the row check match every
+phrase of a patch cell against the legend, and names the lint-table patch in
+the README patch list. The ledger-only commits that complete this section are omitted here
 by convention. The link-close patch from the `## 0.14.0` section below
-(`3f20c991`) is still carried; its file is unchanged since the tag.
+(`3f20c991`) is still carried; its crate sources are unchanged since the tag
+and its smoke-script leg is superseded by `0197768d` above.
 
 ## 0.14.0 (upstream 0.14.0)
 

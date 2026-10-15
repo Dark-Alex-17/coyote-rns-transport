@@ -355,7 +355,10 @@ impl ResourceManager {
     /// [`ResourceStatus::None`], so a part request that arrives before the
     /// caller has confirmed the advertisement write is served rather than
     /// dropped. Nothing is retried for it until
-    /// [`confirm_outbound_dispatch`] marks it advertised.
+    /// [`confirm_outbound_dispatch`] marks it advertised. The reference
+    /// registers after sending (`RNS/Resource.py:545` sends, `:552`
+    /// registers); registering first only widens the window in which a
+    /// request is answered.
     ///
     /// Cheap by construction (two map inserts and a clone of an
     /// already-built packet), so it is safe to call with the handler lock

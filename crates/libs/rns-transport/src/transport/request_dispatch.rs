@@ -45,16 +45,19 @@ pub(super) async fn run(
 /// destination's `max_request_size` is ignored before any handler runs. The
 /// limit and the handler row are read under one destination guard so a
 /// limit changed between the two reads cannot let the request through.
+/// A resource-form request was already measured against the limit at its
+/// advertisement (`RNS/Link.py:1036-1046`); the check here is its second gate.
 #[deny(clippy::await_holding_invalid_type)]
 async fn dispatch_one(
     handler: &Arc<Mutex<TransportHandler>>,
     tasks: &mut JoinSet<()>,
     item: DispatchItem,
 ) {
-    // The packet form is known by its packet hash, which the link already
-    // took; a resource form would recompute the id from the assembled bytes.
+    // `RNS/Link.py:885-889`: the resource form's id is `truncated_hash` over
+    // the assembled bytes, computed here rather than under the link lock.
     let request_id = match item.form {
-        DispatchForm::Packet => item.request_id,
+        DispatchForm::Packet { request_id } => request_id,
+        DispatchForm::Resource => RequestId::of_packed_request(&item.plain_text),
     };
     let frame = match RequestFrame::decode(&item.plain_text) {
         Ok(frame) => frame,
@@ -239,6 +242,13 @@ async fn send_packet_response(
     }
 }
 
+/// Both response forms that leave as a resource (`RNS/Link.py:846,852`).
+/// `data` is the whole resource payload: the packed `[request_id, body]`
+/// envelope of an oversize `Value`/`Bytes` response, or the raw bytes of a
+/// `Resource` response. `metadata` is the packed metadata of the latter and
+/// `None` for the former. Either way the advertisement carries
+/// `q == request_id` with the response flag `p` set, which the requester
+/// reads before any part arrives (`RNS/Link.py:1044-1046`).
 #[deny(clippy::await_holding_invalid_type)]
 async fn send_response_as_resource(
     handler: &Arc<Mutex<TransportHandler>>,
@@ -305,9 +315,14 @@ pub(super) async fn resource_mtu_for_iface(
     mtu.unwrap_or(crate::resource::DEFAULT_RESOURCE_INTERFACE_MTU)
 }
 
-/// Sends `data` as a response resource on `link_id`
-/// (`RNS/Link.py:846,852`). `auto_compress` is the registration's flag; some
-/// handlers, such as NomadNet media, return raw binary and turn it off.
+/// Sends `data` as a response resource on `link_id` (`RNS/Link.py:846,852`):
+/// `request_id` becomes the advertisement's `q` and `is_response` its `p`
+/// flag (`RNS/Resource.py:1305-1318`). `metadata`, when present, sets the
+/// `x` flag and travels at the head of the resource data behind a 3-byte
+/// length (`RNS/Resource.py:261-269,338`).
+///
+/// `auto_compress` is the registration's flag; some handlers, such as
+/// NomadNet media, return raw binary and turn it off.
 #[deny(clippy::await_holding_invalid_type)]
 pub(super) async fn send_response_resource(
     handler: &Arc<Mutex<TransportHandler>>,

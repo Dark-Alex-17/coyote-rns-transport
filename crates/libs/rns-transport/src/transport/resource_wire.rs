@@ -1,6 +1,7 @@
 use super::path::send_to_next_hop;
 use super::*;
-use crate::resource::{build_link_packet, ResourceAdvertisement};
+use crate::destination::request::DispatchForm;
+use crate::resource::{build_link_packet, ResourceAdvertisement, ResourceEventKind};
 
 pub(super) fn is_link_resource_packet(packet: &Packet) -> bool {
     packet.header.destination_type == DestinationType::Link
@@ -148,6 +149,10 @@ pub(super) async fn handle_link_resource_packet<'a>(
                 }
             }
             if !rejected && advertisement.is_request() {
+                // `RNS/Link.py:1036-1046` measures the advertised data size
+                // `d` (`ResourceAdvertisement.read_size`,
+                // `RNS/Resource.py:1285-1287`) against `max_request_size`,
+                // not the compressed transfer size `t`.
                 let limit = handler
                     .single_in_destinations
                     .get(&link.destination().address_hash)
@@ -155,11 +160,12 @@ pub(super) async fn handle_link_resource_packet<'a>(
                     .map(|destination| async move { destination.lock().await.max_request_size() });
                 if let Some(limit) = limit {
                     if let Some(limit) = limit.await {
-                        if advertisement.transfer_size > u64::try_from(limit).unwrap_or(u64::MAX) {
+                        if advertisement.data_size > u64::try_from(limit).unwrap_or(u64::MAX) {
                             log::warn!(
-                                "[resource-diag] reject_request_advertisement link={} hash={} size={} limit={}",
+                                "[resource-diag] reject_request_advertisement link={} hash={} data_size={} transfer_size={} limit={}",
                                 link.id(),
                                 advertisement.hash,
+                                advertisement.data_size,
                                 advertisement.transfer_size,
                                 limit
                             );
@@ -194,6 +200,16 @@ pub(super) async fn handle_link_resource_packet<'a>(
             interface_mtu,
         );
         events = handler.resource_manager.drain_events();
+        // `RNS/Link.py:885-889`: an assembled request resource reaches the
+        // handler table like a request packet. The event is still published
+        // below for `resource_events()` consumers.
+        for event in &events {
+            if let ResourceEventKind::Complete(complete) = &event.kind {
+                if complete.is_request && event.link_id == *link.id() {
+                    link.dispatch_request(DispatchForm::Resource, &complete.data);
+                }
+            }
+        }
     }
     if !responses.is_empty() {
         log::debug!(

@@ -8,9 +8,20 @@ use super::{InboundRequest, RequestAllow};
 ///
 /// `Value` goes on the wire as `packb([request_id, response])`
 /// (`RNS/Link.py:848`). `Bytes` is the same envelope with the body packed as
-/// msgpack `bin`, which is how Python packs a `bytes` response. `Resource`
-/// is the file-response form (`RNS/Link.py:839-846`): the raw data travels
-/// as a resource and the metadata rides in the advertisement beside it.
+/// msgpack `bin`, which is how Python packs a `bytes` response. Either one
+/// leaves as a single `RESPONSE` packet when the envelope fits the link MDU
+/// and otherwise as a response resource whose data is that whole envelope
+/// (`RNS/Link.py:849-852`); the requester unpacks `data[0]`/`data[1]` from
+/// it (`RNS/Link.py:907-912`). Neither path compresses a packet; the
+/// resource honours the registration's `auto_compress`.
+///
+/// `Resource` is the file-response form (`RNS/Link.py:839-846`): always a
+/// resource, with `data` as the raw resource payload, not an envelope, and
+/// `metadata` packed as msgpack ahead of it. Python's requester reads a
+/// resource as a file response only when it carries metadata
+/// (`RNS/Link.py:902-912`), so a `Resource { metadata: None }` answer is
+/// unpacked as an envelope there and is readable only by a peer that
+/// expects raw bytes, as Python's own `(file_handle,)` tuple is.
 #[non_exhaustive]
 #[derive(Debug, Clone, PartialEq)]
 pub enum RequestResponse {

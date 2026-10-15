@@ -35,12 +35,14 @@ mod request_dispatch_tests {
         let packet = outbound.request_packet(request).expect("a request packet can be built");
         inbound.handle_packet(&packet, iface);
         let item = dispatch_rx.try_recv().expect("an active link queues the request");
-        assert_eq!(item.request_id, RequestId::from_packet_hash(&packet.hash()));
+        let DispatchForm::Packet { request_id } = item.form else {
+            panic!("a request packet is queued in packet form");
+        };
+        assert_eq!(request_id, RequestId::from_packet_hash(&packet.hash()));
         assert_eq!(item.plain_text, request);
         assert_eq!(item.link_id, *inbound.id());
         assert_eq!(item.destination_hash, inbound.destination().address_hash);
         assert!(item.remote_identity.is_none(), "nobody identified on this link");
-        assert!(matches!(item.form, DispatchForm::Packet));
         assert_eq!(request_event(&mut rx).as_slice(), request);
 
         inbound.status = LinkStatus::Handshake;

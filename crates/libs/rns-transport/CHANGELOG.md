@@ -90,7 +90,42 @@ trailing clause of the bullet for the behaviour it pins.
   protocol divergence. Pinned by
   `transport/tests_parts/two_transport_loopback_requests_isolation.rs`.
 
+- A request that arrives as a request Resource (`RNS/Link.py:503-510`) is
+  dispatched to the registered handler once it is assembled
+  (`RNS/Link.py:885-889`). The request id is recomputed as
+  `truncated_hash` over the assembled bytes, never read from the
+  advertisement's `q`, and equals the `resource_request_id` that
+  `Link::request_payload` reports to the requester. The
+  `ResourceEventKind::Complete { is_request: true, .. }` event keeps
+  posting on `Transport::resource_events()` for every such request; as for
+  `LinkEvent::Data(Request)`, a request whose path has a registered
+  handler is answered by that handler, and event consumers must not answer
+  it. Pinned by
+  `transport/tests_parts/two_transport_loopback_requests_resource_form.rs`.
+
+- Response forms on the wire. A `Value` or `Bytes` response whose
+  `[request_id, body]` envelope fits the link MDU goes out as one
+  `Response` packet, and otherwise as a response Resource whose data is
+  that whole envelope (`RNS/Link.py:849-852`). A `Resource { data,
+  metadata }` response always goes out as a response Resource whose data
+  is the raw `data`, with the packed metadata ahead of it under the `x`
+  flag (`RNS/Link.py:839-846`, `RNS/Resource.py:261-269`). Either
+  Resource advertises `q == request_id` with the response flag `p` set
+  (`RNS/Resource.py:1305-1318`). A response packet is never compressed;
+  a response Resource honours the registration's `auto_compress`. Pinned
+  by `transport/tests_parts/two_transport_loopback_requests.rs`,
+  `two_transport_loopback_requests_probe.rs` and
+  `two_transport_loopback_requests_resource_form.rs`.
+
 ### Changed
+
+- The `max_request_size` gate on a request Resource, applied at its
+  advertisement before any part is accepted, compares the advertised data
+  size `d` (`ResourceAdvertisement.read_size`, `RNS/Resource.py:1285-1287`,
+  `RNS/Link.py:1036-1046`) instead of the compressed transfer size `t`, so
+  a compressible request over the limit is rejected as Python rejects it.
+  Pinned by `two_transport_loopback_requests_resource_form.rs` and
+  `two_transport_loopback_resources_reject.rs`.
 
 - `Transport::send_direct`, `send_response_resource_with_compression` and
   the transport's link lookup delegate to free functions in

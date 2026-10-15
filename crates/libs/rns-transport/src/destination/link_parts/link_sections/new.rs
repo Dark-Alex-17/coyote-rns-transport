@@ -253,7 +253,7 @@ impl Link {
                     log::trace!("link({}): data {}B", self.id, plain_text.len());
                     let (request_id, response_accepted) = if packet.context == PacketContext::Request {
                         let id = RequestId::from_packet_hash(&packet.hash());
-                        self.dispatch_request(id, plain_text);
+                        self.dispatch_request(DispatchForm::Packet { request_id: id }, plain_text);
                         (Some(id.to_bytes()), true)
                     } else if packet.context == PacketContext::Response {
                         match response_envelope_metadata(plain_text) {

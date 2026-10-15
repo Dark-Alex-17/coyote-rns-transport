@@ -64,9 +64,21 @@ handler holds up only its own request; a handler that needs a bound holds its
 own `Semaphore`. A request larger than the destination's `max_request_size`
 is ignored before any handler runs.
 
+A request too large for one packet arrives as a request Resource; once it is
+assembled the same handler runs, with the request id recomputed from the
+assembled bytes. A `max_request_size` is enforced against the advertised data
+size before any part is accepted. On the response side, a `Value` or `Bytes`
+that outgrows the link MDU travels as a Resource whose data is the whole
+`[request_id, body]` envelope; a `RequestResponse::Resource { data, metadata }`
+always travels as a Resource whose data is the raw `data`, with the packed
+metadata ahead of it. Both advertise the request id in `q` with the response
+flag `p` set, and both honour the registration's `auto_compress`; a response
+packet is never compressed.
+
 `LinkEvent::Data` with `PacketContext::Request` keeps posting for every
-inbound request; a request whose path has a registered handler is answered by
-that handler, and broadcast consumers must not answer it.
+inbound request packet, and `ResourceEventKind::Complete` with `is_request`
+for every assembled request Resource; a request whose path has a registered
+handler is answered by that handler, and broadcast consumers must not answer it.
 
 ## Versioning and releases
 

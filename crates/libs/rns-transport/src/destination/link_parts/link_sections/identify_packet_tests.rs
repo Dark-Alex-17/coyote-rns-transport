@@ -20,7 +20,7 @@ mod identify_packet_tests {
         payload
     }
 
-    fn linked_pair() -> (
+    pub(super) fn linked_pair() -> (
         Link,
         Link,
         AddressHash,

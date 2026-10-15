@@ -9,3 +9,4 @@ include!("link_sections/request_payload_tests.rs");
 include!("link_sections/request_dispatch.rs");
 include!("link_sections/link_mtu.rs");
 include!("link_sections/identify_packet_tests.rs");
+include!("link_sections/request_dispatch_tests.rs");

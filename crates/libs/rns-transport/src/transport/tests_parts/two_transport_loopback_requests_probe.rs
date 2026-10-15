@@ -5,7 +5,10 @@
 // for one link run concurrently, a hand-written `RequestHandler` impl answers like a
 // closure, the file-response form (`RNS/Link.py:839-846`) always travels as a resource with
 // its metadata, and a response that exactly fills `Link::link_mdu()` still goes out as one
-// packet (`RNS/Link.py:849`). Helpers come from the sibling `tests_parts` files.
+// packet (`RNS/Link.py:849`). The `max_request_size` gate measures the decrypted request
+// envelope, not the request data, admits an envelope of exactly the limit and lifts again
+// after `clear_max_request_size` (`RNS/Link.py:999-1001`). Helpers come from the sibling
+// `tests_parts` files.
 
 use crate::destination::request::{PathHash, ResponseFrame};
 use std::collections::HashMap;
@@ -136,7 +139,7 @@ async fn two_transport_loopback_request_handler_sees_the_request_fields_of_an_un
     assert_eq!(seen.request_id(), id);
     assert_eq!(seen.link_id(), pair.handles.link_id);
     assert!(seen.remote_identity().is_none(), "nobody identified on this link");
-    // The requester stamps `requested_at` from its clock (`RNS/Link.py:486`); both ends
+    // The requester stamps `requested_at` from its clock (`RNS/Link.py:487`); both ends
     // share this host, so a generous window around the exchange bounds it.
     assert!(
         seen.requested_at() >= before - 60.0 && seen.requested_at() <= after + 60.0,
@@ -285,4 +288,113 @@ async fn two_transport_loopback_request_response_that_exactly_fills_the_mdu_is_o
 
     let id = send_request(&pair, "/edge", rmpv::Value::Nil).await;
     assert_eq!(await_response(&mut pair, id).await, rmpv::Value::Binary(expected));
+}
+
+/// Packs `value` for `path` the way `send_request` does and returns the bytes, so a test can
+/// measure the decrypted envelope before deciding a `max_request_size` around it.
+fn pack_request(path: &str, value: rmpv::Value) -> Vec<u8> {
+    Link::request_payload(path, value).expect("request packs").packed
+}
+
+/// Sends an already packed request envelope as one link packet and returns the id the
+/// responder derives from that packet.
+#[deny(clippy::await_holding_invalid_type)]
+async fn send_packed_request(pair: &LoopbackRequestPair, packed: &[u8]) -> RequestId {
+    let packet =
+        pair.handles.link.lock().await.request_packet(packed).expect("request fits a packet");
+    let id = RequestId::from_packet_hash(&packet.hash());
+    let outcome = pair
+        .handles
+        .connector
+        .transport
+        .send_link_packet_on_bound_iface(&pair.handles.link, packet)
+        .await;
+    assert_eq!(outcome, SendPacketOutcome::SentDirect, "request reaches the wire");
+    id
+}
+
+/// An echo handler that counts how many times it ran, so a test can tell "ignored before
+/// any handler runs" from "ran but stayed silent".
+fn counting_echo_handler(
+    calls: Arc<AtomicUsize>,
+) -> impl Fn(InboundRequest) -> std::future::Ready<Option<RequestResponse>> + Send + Sync {
+    move |request: InboundRequest| {
+        calls.fetch_add(1, Ordering::SeqCst);
+        std::future::ready(Some(RequestResponse::Value(request.into_data())))
+    }
+}
+
+/// `size_ok = len(packed_request) <= self.destination.max_request_size`
+/// (`RNS/Link.py:1000`): the limit is compared with the decrypted `[requested_at,
+/// path_hash, data]` envelope. A limit one byte under that envelope, although still larger
+/// than the request data alone, ignores the request before the handler runs; a limit equal
+/// to the envelope admits it.
+#[tokio::test]
+#[deny(clippy::await_holding_invalid_type)]
+async fn two_transport_loopback_request_max_request_size_measures_the_envelope_inclusive() {
+    let mut pair = loopback_request_pair("request-max-size-boundary").await;
+    let calls = Arc::new(AtomicUsize::new(0));
+    register_handler(&pair, "/echo", RequestAllow::All, counting_echo_handler(calls.clone()))
+        .await;
+
+    let data = vec![0x5a_u8; 64];
+    let packed = pack_request("/echo", rmpv::Value::Binary(data.clone()));
+    let envelope_len = packed.len();
+    assert!(
+        envelope_len - 1 > data.len(),
+        "the discriminating limit sits above the data length ({} vs {})",
+        envelope_len - 1,
+        data.len()
+    );
+
+    pair.handles
+        .destination
+        .lock()
+        .await
+        .set_max_request_size(envelope_len - 1)
+        .expect("limit is set");
+    let id = send_packed_request(&pair, &packed).await;
+    await_request_data_event(&mut pair, id).await;
+    assert_no_response(&mut pair).await;
+    assert_eq!(
+        calls.load(Ordering::SeqCst),
+        0,
+        "an oversize request never reaches the handler"
+    );
+
+    pair.handles
+        .destination
+        .lock()
+        .await
+        .set_max_request_size(envelope_len)
+        .expect("limit is set");
+    let id = send_packed_request(&pair, &packed).await;
+    assert_eq!(await_response(&mut pair, id).await, rmpv::Value::Binary(data));
+    assert_eq!(calls.load(Ordering::SeqCst), 1, "the fitting request ran once");
+}
+
+/// `max_request_size == None` means no limit (`RNS/Destination.py:158`, `RNS/Link.py:999`):
+/// after `clear_max_request_size` a request the previous limit ignored is answered.
+#[tokio::test]
+#[deny(clippy::await_holding_invalid_type)]
+async fn two_transport_loopback_request_clearing_max_request_size_lifts_the_gate() {
+    let mut pair = loopback_request_pair("request-max-size-cleared").await;
+    let calls = Arc::new(AtomicUsize::new(0));
+    pair.handles.destination.lock().await.set_max_request_size(1).expect("limit is set");
+    register_handler(&pair, "/echo", RequestAllow::All, counting_echo_handler(calls.clone()))
+        .await;
+
+    let id = send_request(&pair, "/echo", rmpv::Value::from("gated")).await;
+    await_request_data_event(&mut pair, id).await;
+    assert_no_response(&mut pair).await;
+    assert_eq!(calls.load(Ordering::SeqCst), 0, "gated before the handler");
+
+    {
+        let mut destination = pair.handles.destination.lock().await;
+        destination.clear_max_request_size();
+        assert_eq!(destination.max_request_size(), None, "cleared means unlimited");
+    }
+    let id = send_request(&pair, "/echo", rmpv::Value::from("open")).await;
+    assert_eq!(await_response(&mut pair, id).await, rmpv::Value::from("open"));
+    assert_eq!(calls.load(Ordering::SeqCst), 1, "the handler ran once");
 }

@@ -66,8 +66,9 @@ trailing clause of the bullet for the behaviour it pins.
   `Link::link_mdu()` goes out as one `Response` packet, a larger one as a
   response Resource (`:849-852`). Pinned by
   `transport/tests_parts/two_transport_loopback_requests.rs`,
-  `two_transport_loopback_requests_isolation.rs` and
-  `two_transport_loopback_requests_probe.rs`.
+  `two_transport_loopback_requests_isolation.rs`,
+  `two_transport_loopback_requests_probe.rs` and
+  `destination/link_parts/link_sections/request_dispatch_tests.rs`.
 
 - `LinkEvent::Data` with `PacketContext::Request` keeps posting for every
   inbound request; a request whose path has a registered handler is

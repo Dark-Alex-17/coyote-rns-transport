@@ -167,11 +167,15 @@ impl ResourceManager {
 
     /// Settles the advertisement write that followed `track_prepared`. A
     /// hash that is no longer in `outgoing` is a no-op: a fast peer may
-    /// already have requested every part and proved the resource.
+    /// already have requested every part and proved the resource. A sender
+    /// an early request already failed keeps that status, so the retry poll
+    /// reports it instead of the confirm re-advertising it.
     pub fn confirm_outbound_dispatch(&mut self, resource_hash: Hash, sent: bool) {
         if sent {
             if let Some(sender) = self.outgoing.get_mut(&resource_hash) {
-                sender.mark_advertised(self.retry_limit);
+                if sender.status == ResourceStatus::None {
+                    sender.mark_advertised(self.retry_limit);
+                }
             }
             return;
         }

@@ -46,9 +46,11 @@ and versions follow the cargo semver rules described in the crate README.
   `ResourceManager::confirm_outbound_dispatch` keep their signatures but
   change semantics: `track_prepared` places the sender in `outgoing` with
   `ResourceStatus::None`; `confirm_outbound_dispatch(_, true)` marks it
-  advertised in place; `confirm_outbound_dispatch(_, false)` removes it
-  and emits `OutboundFailed`; `cancel_outgoing` before the confirm now
-  returns a `ResourceInitiatorCancel` packet and emits `OutboundCancelled`.
+  advertised in place unless an early request already failed it, in which
+  case the retry poll reports `OutboundFailed`;
+  `confirm_outbound_dispatch(_, false)` removes it and emits
+  `OutboundFailed`; `cancel_outgoing` before the confirm now returns a
+  `ResourceInitiatorCancel` packet and emits `OutboundCancelled`.
 
 ## 0.14.0 - 2026-10-14
 

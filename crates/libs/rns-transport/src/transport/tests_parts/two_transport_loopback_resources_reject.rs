@@ -45,7 +45,10 @@ async fn loopback_link_pair_with_request_limit(aspect: &str, limit: usize) -> Lo
 
 /// The interface the listener read `link_id`'s traffic on. The tap fires before any handler
 /// lock, so it is populated even when the handler itself is stuck.
-fn tapped_link_iface(tap: &mut broadcast::Receiver<RxMessage>, link_id: AddressHash) -> AddressHash {
+fn tapped_link_iface(
+    tap: &mut broadcast::Receiver<RxMessage>,
+    link_id: AddressHash,
+) -> AddressHash {
     loop {
         match tap.try_recv() {
             Ok(message) if message.packet.destination == link_id => return message.address,

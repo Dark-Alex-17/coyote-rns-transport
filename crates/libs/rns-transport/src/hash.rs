@@ -104,17 +104,9 @@ impl AddressHash {
     }
 
     pub fn new_from_hex_string(hex_string: &str) -> Result<Self, RnsError> {
-        if hex_string.len() != ADDRESS_HASH_SIZE * 2 {
-            return Err(RnsError::IncorrectHash);
-        }
-
-        let mut bytes = [0u8; ADDRESS_HASH_SIZE];
-
-        for i in 0..ADDRESS_HASH_SIZE {
-            bytes[i] = u8::from_str_radix(&hex_string[i * 2..(i * 2) + 2], 16)
-                .map_err(|_| RnsError::IncorrectHash)?;
-        }
-
+        let decoded = hex::decode(hex_string).map_err(|_| RnsError::IncorrectHash)?;
+        let bytes: [u8; ADDRESS_HASH_SIZE] =
+            decoded.try_into().map_err(|_| RnsError::IncorrectHash)?;
         Ok(Self(bytes))
     }
 
@@ -140,6 +132,11 @@ impl AddressHash {
 
     pub fn to_hex_string(&self) -> String {
         hex::encode(self.0)
+    }
+
+    /// First four bytes as eight hex chars, for log lines that must not carry a full address.
+    pub fn short(&self) -> String {
+        hex::encode(&self.0[..4])
     }
 }
 
@@ -182,7 +179,8 @@ mod tests {
 
     use rand_core::OsRng;
 
-    use crate::hash::AddressHash;
+    use crate::error::RnsError;
+    use crate::hash::{AddressHash, ADDRESS_HASH_SIZE};
 
     #[test]
     fn address_hex_string() {
@@ -201,5 +199,54 @@ mod tests {
         assert!(AddressHash::new_from_hex_string("not-a-hash").is_err());
         assert!(AddressHash::new_from_hex_string(&"00".repeat(15)).is_err());
         assert!(AddressHash::new_from_hex_string(&"00".repeat(17)).is_err());
+    }
+
+    #[test]
+    fn address_hex_string_rejects_multibyte_char_of_correct_byte_length() {
+        // The two-byte char straddles the first two-char slice boundary.
+        let input = format!("0\u{00e9}{}", "0".repeat(ADDRESS_HASH_SIZE * 2 - 3));
+        assert_eq!(input.len(), ADDRESS_HASH_SIZE * 2);
+        assert!(matches!(AddressHash::new_from_hex_string(&input), Err(RnsError::IncorrectHash)));
+    }
+
+    #[test]
+    fn address_hex_string_rejects_non_hex_ascii_of_correct_length() {
+        assert!(matches!(
+            AddressHash::new_from_hex_string(&"zz".repeat(ADDRESS_HASH_SIZE)),
+            Err(RnsError::IncorrectHash)
+        ));
+    }
+
+    #[test]
+    fn address_hex_string_rejects_multibyte_char_at_end_and_four_byte_char_in_middle() {
+        // The two-byte char starts on the second-to-last byte, straddling the last pair.
+        let at_end = format!("{}\u{00e9}0", "0".repeat(ADDRESS_HASH_SIZE * 2 - 3));
+        assert_eq!(at_end.len(), ADDRESS_HASH_SIZE * 2);
+        let half = (ADDRESS_HASH_SIZE * 2 - 4) / 2;
+        let in_middle = format!("{}\u{1F600}{}", "a".repeat(half), "a".repeat(half));
+        assert_eq!(in_middle.len(), ADDRESS_HASH_SIZE * 2);
+        for input in [at_end, in_middle] {
+            assert!(matches!(
+                AddressHash::new_from_hex_string(&input),
+                Err(RnsError::IncorrectHash)
+            ));
+        }
+    }
+
+    #[test]
+    fn address_hex_string_rejects_empty_and_odd_length_and_accepts_uppercase() {
+        for input in ["", "0", &"0".repeat(ADDRESS_HASH_SIZE * 2 - 1)] {
+            assert!(AddressHash::new_from_hex_string(input).is_err(), "accepted {input:?}");
+        }
+        let hash = AddressHash::new_from_rand(OsRng);
+        let upper = hash.to_hex_string().to_uppercase();
+        assert_eq!(AddressHash::new_from_hex_string(&upper).expect("uppercase hex parses"), hash);
+    }
+
+    #[test]
+    fn short_is_first_eight_hex_chars() {
+        let hash = AddressHash::new_from_rand(OsRng);
+        assert_eq!(hash.short(), hash.to_hex_string()[..8]);
+        assert_eq!(hash.short().len(), 8);
     }
 }

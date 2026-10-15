@@ -1100,7 +1100,7 @@ mod tests {
     }
 
     // Regression tests for issue #514: the manager must reject
-    // advertisements exceeding MAX_INBOUND_RESOURCE_TRANSFER_SIZE or
+    // advertisements exceeding MAX_REFERENCE_ADVERTISED_TRANSFER_SIZE or
     // MAX_INBOUND_RESOURCE_PARTS before any receiver (and its
     // part-tracking allocations) is created.
     fn advertisement_with(transfer_size: u64, data_size: u64, parts: u32) -> ResourceAdvertisement {
@@ -1134,12 +1134,11 @@ mod tests {
     }
 
     #[test]
-    fn resource_manager_rejects_advertisement_over_transfer_size_limit() {
+    fn resource_manager_rejects_advertisement_over_reference_transfer_size_limit() {
         let (mut manager, mut link) = manager_with_test_link();
-        // A multi-gigabyte advertised transfer must never reach receiver
-        // creation; a transfer exactly at the cap still must.
-        let oversized =
-            advertisement_with(MAX_INBOUND_RESOURCE_TRANSFER_SIZE + 1, 1, 1);
+        // An advertised transfer above the reference decode cap must never
+        // reach receiver creation; a transfer exactly at the cap still must.
+        let oversized = advertisement_with(MAX_REFERENCE_ADVERTISED_TRANSFER_SIZE + 1, 1, 1);
         let packet = resource_packet(
             PacketContext::ResourceAdvrtisement,
             &oversized.pack().expect("advertisement"),
@@ -1150,7 +1149,7 @@ mod tests {
         assert!(responses.is_empty(), "rejected advertisement must not produce a request");
         assert!(manager.incoming.is_empty(), "rejected advertisement must not create a receiver");
 
-        let at_limit = advertisement_with(MAX_INBOUND_RESOURCE_TRANSFER_SIZE, 1, 1);
+        let at_limit = advertisement_with(MAX_REFERENCE_ADVERTISED_TRANSFER_SIZE, 1, 1);
         let packet = resource_packet(
             PacketContext::ResourceAdvrtisement,
             &at_limit.pack().expect("advertisement"),
@@ -1290,6 +1289,8 @@ mod tests {
     include!("tests_window_rounds.rs");
     include!("tests_split_assembly.rs");
     include!("tests_split_lazy.rs");
+    include!("tests_split_unconfirmed.rs");
+    include!("tests_split_unconfirmed_served.rs");
     include!("tests_split_metadata.rs");
     include!("tests_timeouts.rs");
     include!("tests_timeouts_cleanup.rs");
@@ -1297,6 +1298,7 @@ mod tests {
     include!("tests_collision.rs");
     include!("tests_fault_injection.rs");
     include!("tests_reader.rs");
+    include!("tests_advert_limits.rs");
 
     fn resource_packet(context: PacketContext, payload: &[u8], destination: AddressHash) -> Packet {
         Packet {

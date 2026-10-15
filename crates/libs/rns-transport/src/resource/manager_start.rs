@@ -8,7 +8,6 @@ impl ResourceManager {
 
     pub fn new_with_config(retry_interval: Duration, retry_limit: u8) -> Self {
         Self {
-            pending_outgoing: HashMap::new(),
             outgoing: HashMap::new(),
             outgoing_segment_chains: HashMap::new(),
             incoming: HashMap::new(),
@@ -352,11 +351,21 @@ impl ResourceManager {
     /// Takes ownership of a [`prepare_send`] result and returns the
     /// advertisement to dispatch.
     ///
-    /// Cheap by construction — two map inserts and a clone of an
-    /// already-built packet — so it is safe to call with the handler lock
+    /// The sender goes straight into `outgoing`, still in status
+    /// [`ResourceStatus::None`], so a part request that arrives before the
+    /// caller has confirmed the advertisement write is served rather than
+    /// dropped. Nothing is retried for it until
+    /// [`confirm_outbound_dispatch`] marks it advertised. The reference
+    /// registers after sending (`RNS/Resource.py:545` sends, `:552`
+    /// registers); registering first only widens the window in which a
+    /// request is answered.
+    ///
+    /// Cheap by construction (two map inserts and a clone of an
+    /// already-built packet), so it is safe to call with the handler lock
     /// held.
     ///
     /// [`prepare_send`]: ResourceManager::prepare_send
+    /// [`confirm_outbound_dispatch`]: ResourceManager::confirm_outbound_dispatch
     pub fn track_prepared(&mut self, prepared: PreparedSend) -> (Hash, Packet) {
         let PreparedSend { first, pending } = prepared;
         if let Some(pending) = pending {
@@ -364,7 +373,7 @@ impl ResourceManager {
         }
         let resource_hash = first.resource_hash;
         let packet = first.advertisement_packet();
-        self.pending_outgoing.insert(resource_hash, first);
+        self.outgoing.insert(resource_hash, first);
         (resource_hash, packet)
     }
 }

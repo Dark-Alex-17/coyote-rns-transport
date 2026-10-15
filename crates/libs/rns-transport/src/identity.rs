@@ -44,6 +44,18 @@ pub trait HashIdentity {
     fn as_address_hash_slice(&self) -> &[u8];
 }
 
+fn decode_key_pair_hex(
+    hex_string: &str,
+) -> Result<([u8; PUBLIC_KEY_LENGTH], [u8; PUBLIC_KEY_LENGTH]), RnsError> {
+    let decoded = hex::decode(hex_string).map_err(|_| RnsError::IncorrectHash)?;
+    let (first, second) =
+        decoded.split_at_checked(PUBLIC_KEY_LENGTH).ok_or(RnsError::IncorrectHash)?;
+    Ok((
+        first.try_into().map_err(|_| RnsError::IncorrectHash)?,
+        second.try_into().map_err(|_| RnsError::IncorrectHash)?,
+    ))
+}
+
 #[derive(Copy, Clone)]
 pub struct Identity {
     pub public_key: PublicKey,
@@ -84,23 +96,7 @@ impl Identity {
     }
 
     pub fn new_from_hex_string(hex_string: &str) -> Result<Self, RnsError> {
-        if hex_string.len() != PUBLIC_KEY_LENGTH * 2 * 2 {
-            return Err(RnsError::IncorrectHash);
-        }
-
-        let mut public_key_bytes = [0u8; PUBLIC_KEY_LENGTH];
-        let mut verifying_key_bytes = [0u8; PUBLIC_KEY_LENGTH];
-
-        for i in 0..PUBLIC_KEY_LENGTH {
-            public_key_bytes[i] = u8::from_str_radix(&hex_string[i * 2..(i * 2) + 2], 16)
-                .map_err(|_| RnsError::IncorrectHash)?;
-            verifying_key_bytes[i] = u8::from_str_radix(
-                &hex_string[PUBLIC_KEY_LENGTH * 2 + (i * 2)..PUBLIC_KEY_LENGTH * 2 + (i * 2) + 2],
-                16,
-            )
-            .map_err(|_| RnsError::IncorrectHash)?;
-        }
-
+        let (public_key_bytes, verifying_key_bytes) = decode_key_pair_hex(hex_string)?;
         Self::try_new_from_slices(&public_key_bytes[..], &verifying_key_bytes[..])
     }
 
@@ -253,23 +249,7 @@ impl PrivateIdentity {
     }
 
     pub fn new_from_hex_string(hex_string: &str) -> Result<Self, RnsError> {
-        if hex_string.len() != PUBLIC_KEY_LENGTH * 2 * 2 {
-            return Err(RnsError::IncorrectHash);
-        }
-
-        let mut private_key_bytes = [0u8; PUBLIC_KEY_LENGTH];
-        let mut sign_key_bytes = [0u8; PUBLIC_KEY_LENGTH];
-
-        for i in 0..PUBLIC_KEY_LENGTH {
-            private_key_bytes[i] = u8::from_str_radix(&hex_string[i * 2..(i * 2) + 2], 16)
-                .map_err(|_| RnsError::IncorrectHash)?;
-            sign_key_bytes[i] = u8::from_str_radix(
-                &hex_string[PUBLIC_KEY_LENGTH * 2 + (i * 2)..PUBLIC_KEY_LENGTH * 2 + (i * 2) + 2],
-                16,
-            )
-            .map_err(|_| RnsError::IncorrectHash)?;
-        }
-
+        let (private_key_bytes, sign_key_bytes) = decode_key_pair_hex(hex_string)?;
         Ok(Self::new(
             StaticSecret::from(private_key_bytes),
             SigningKey::from_bytes(&sign_key_bytes),

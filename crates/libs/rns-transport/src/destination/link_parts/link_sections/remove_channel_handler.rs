@@ -358,6 +358,15 @@ impl Link {
         self.identified_peer_identity.as_ref()
     }
 
+    /// Round-trip time of the link. On the initiator it is measured from the link request
+    /// to the proof (RNS/Link.py:419) and set on activation; on the responder it is the
+    /// larger of its own measurement and the value in the initiator's RTT packet
+    /// (RNS/Link.py:518-522), which lands shortly after the responder's own activation.
+    /// Zero until then.
+    pub fn rtt(&self) -> Duration {
+        self.rtt
+    }
+
     pub fn create_rtt(&self) -> Packet {
         let rtt = self.rtt.as_secs_f32();
         let mut buf = Vec::new();

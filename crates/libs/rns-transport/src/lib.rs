@@ -35,3 +35,7 @@ pub mod identity_bridge;
 mod no_stdout_prints_tests;
 
 pub use packet::{DestinationType, Packet, PacketContext, PacketDataBuffer, PacketType};
+/// Re-exported so callers can name the `rand_core` RNG types the public constructors take.
+pub use rand_core;
+/// Re-exported so callers can build the exact `rmpv::Value` the public API takes.
+pub use rmpv;

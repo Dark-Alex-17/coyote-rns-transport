@@ -210,8 +210,8 @@ fn resource_manager_emits_outbound_failed_when_advertisement_dispatch_fails() {
 
     manager.confirm_outbound_dispatch(resource_hash, false);
 
-    assert!(manager.pending_outgoing.is_empty());
     assert!(manager.outgoing.is_empty());
+    assert!(manager.outgoing_segment_chains.is_empty());
     let events = manager.drain_events();
     assert_eq!(events.len(), 1);
     assert_eq!(events[0].hash, resource_hash);

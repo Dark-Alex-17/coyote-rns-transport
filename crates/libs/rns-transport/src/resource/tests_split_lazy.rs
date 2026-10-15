@@ -47,10 +47,13 @@ fn split_send_builds_only_the_first_segment_up_front() {
     let first = decrypt_advertisement(&link, &first_packet);
     assert_eq!(first.total_segments, 4);
 
-    // The whole point: exactly one sender exists, and the other three segments
-    // are still just an offset into the caller's payload.
-    assert_eq!(manager.pending_outgoing.len(), 1);
-    assert!(manager.outgoing.is_empty());
+    // The whole point: exactly one sender exists, not yet advertised, and the
+    // other three segments are still just an offset into the caller's payload.
+    assert_eq!(manager.outgoing.len(), 1);
+    assert_eq!(
+        manager.outgoing.get(&first.hash).expect("unconfirmed sender").status,
+        ResourceStatus::None
+    );
     let pending = manager
         .outgoing_segment_chains
         .get(&original_hash)
@@ -301,9 +304,8 @@ fn a_remote_cancel_drops_the_unbuilt_tail() {
 }
 
 /// The same cancel, arriving before the first advertisement has been confirmed
-/// as dispatched — the sender is still in `pending_outgoing` rather than
-/// `outgoing`, which is the other branch `cancel_into` has to clear the tail
-/// from.
+/// as dispatched: the sender sits unconfirmed in `outgoing`, and the tail
+/// chain still has to go with it.
 #[test]
 fn a_remote_cancel_before_dispatch_drops_the_unbuilt_tail() {
     let signer = PrivateIdentity::new_from_rand(OsRng);

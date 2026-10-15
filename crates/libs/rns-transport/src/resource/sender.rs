@@ -242,6 +242,33 @@ impl ResourceSender {
         self.status = ResourceStatus::Advertised;
     }
 
+    /// Marks a sender advertised once its dispatch is confirmed. Parts a
+    /// fast peer requested before then were served with the status still
+    /// `None`, so the sender moves straight on to the status a post-confirm
+    /// request would have left it in, keeping the serve-time timestamps.
+    fn confirm_advertised(&mut self, retry_limit: u8) {
+        let last_activity = self.last_activity;
+        let last_part_sent = self.last_part_sent;
+        self.mark_advertised(retry_limit);
+        if self.sent_parts.iter().any(|sent| *sent) {
+            self.last_activity = last_activity;
+            self.last_part_sent = last_part_sent;
+            self.settle_transfer_status();
+        }
+    }
+
+    fn settle_transfer_status(&mut self) {
+        self.retries_left = self.max_retries;
+        if self.sent_parts.iter().all(|sent| *sent) {
+            self.status = ResourceStatus::AwaitingProof;
+            // Once all parts are sent, only wait a small, bounded number of
+            // retry intervals for the terminal proof before timing out.
+            self.retries_left = self.max_retries.clamp(1, MAX_AWAITING_PROOF_RETRIES);
+        } else {
+            self.status = ResourceStatus::Transferring;
+        }
+    }
+
     fn poll(&mut self, now: Instant, retry_interval: Duration) -> OutboundResourcePoll {
         match self.status {
             ResourceStatus::Advertised => {
@@ -384,21 +411,17 @@ impl ResourceSender {
             }
         }
 
-        if self.status.accepts_transfer_activity() {
+        // An unconfirmed sender records when it served so a late confirm can
+        // carry those timestamps over; only a confirmed one changes status.
+        if self.status == ResourceStatus::None || self.status.accepts_transfer_activity() {
             let now = Instant::now();
             self.last_activity = now;
-            self.retries_left = self.max_retries;
             if sent_any {
                 self.last_part_sent = now;
             }
-            if self.sent_parts.iter().all(|sent| *sent) {
-                self.status = ResourceStatus::AwaitingProof;
-                // Once all parts are sent, only wait a small, bounded number of
-                // retry intervals for the terminal proof before timing out.
-                self.retries_left = self.max_retries.clamp(1, MAX_AWAITING_PROOF_RETRIES);
-            } else {
-                self.status = ResourceStatus::Transferring;
-            }
+        }
+        if self.status.accepts_transfer_activity() {
+            self.settle_transfer_status();
         }
     }
 

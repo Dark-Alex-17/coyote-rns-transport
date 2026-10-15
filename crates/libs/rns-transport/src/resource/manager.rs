@@ -1,6 +1,5 @@
 #[derive(Debug)]
 pub struct ResourceManager {
-    pending_outgoing: HashMap<Hash, ResourceSender>,
     outgoing: HashMap<Hash, ResourceSender>,
     outgoing_segment_chains: HashMap<Hash, PendingSegments>,
     incoming: HashMap<Hash, ResourceReceiver>,
@@ -40,15 +39,6 @@ impl ResourceManager {
             });
             return Ok(Some(packet));
         }
-
-        if let Some(sender) = self.pending_outgoing.remove(&resource_hash) {
-            self.outgoing_segment_chains.remove(&sender.original_hash);
-            self.events.push(ResourceEvent {
-                hash: resource_hash,
-                link_id: sender.link_id,
-                kind: ResourceEventKind::OutboundCancelled,
-            });
-        }
         Ok(None)
     }
 
@@ -58,7 +48,7 @@ impl ResourceManager {
 
     #[cfg(test)]
     pub(crate) fn has_no_outbound_state(&self) -> bool {
-        self.pending_outgoing.is_empty() && self.outgoing.is_empty()
+        self.outgoing.is_empty()
     }
 
     pub fn handle_packet(&mut self, packet: &Packet, link: &mut Link) -> Vec<Packet> {
@@ -462,8 +452,7 @@ impl ResourceManager {
                 // Python Reticulum routes RCL only to outgoing resources and
                 // reports Resource.REJECTED. Keep rejection distinct from a
                 // local cancel and from ICL, which terminates an inbound one.
-                let pending = self.pending_outgoing.remove(&hash);
-                if let Some(sender) = self.outgoing.remove(&hash).or(pending) {
+                if let Some(sender) = self.outgoing.remove(&hash) {
                     self.outgoing_segment_chains.remove(&sender.original_hash);
                     self.events.push(ResourceEvent {
                         hash: sender.original_hash,

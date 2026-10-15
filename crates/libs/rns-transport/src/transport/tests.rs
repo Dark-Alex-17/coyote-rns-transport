@@ -78,3 +78,5 @@ include!("tests_parts/two_transport_loopback_resources_retries.rs");
 include!("tests_parts/two_transport_loopback_resources_gone_link.rs");
 
 include!("tests_parts/two_transport_loopback_resources_reject.rs");
+
+include!("tests_parts/two_transport_loopback_resources_reject_response.rs");

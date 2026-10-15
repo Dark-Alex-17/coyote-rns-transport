@@ -300,6 +300,109 @@ fn patch_set_ledger_lists_existing_files_for_the_current_release() {
     }
 }
 
+/// Root `VERSION` is the workspace number: the upstream baseline that
+/// `lxmf --version` prints and that HIL evidence records. The fork publishes
+/// only `coyote-rns-transport`, so a fork patch release must not move it; it
+/// stays equal to the unpublished workspace crates until the next upstream
+/// rebase.
+#[test]
+fn root_version_stays_on_the_upstream_baseline() {
+    let root_version = read_repo_file("VERSION");
+    let mut tokens = root_version.split_whitespace();
+    let root_version = tokens.next().expect("VERSION should contain a version token");
+    assert!(tokens.next().is_none(), "VERSION should contain exactly one token");
+
+    fn manifest_version(manifest: &str) -> String {
+        read_repo_file(manifest)
+            .lines()
+            .find_map(|line| line.strip_prefix("version = \""))
+            .and_then(|rest| rest.strip_suffix('"'))
+            .unwrap_or_else(|| panic!("{manifest} should declare a package version"))
+            .to_string()
+    }
+
+    for baseline in ["crates/apps/lxmf-cli/Cargo.toml", "crates/libs/rns-core/Cargo.toml"] {
+        assert_eq!(
+            manifest_version(baseline),
+            root_version,
+            "{baseline} is an upstream-baseline crate and should carry the root VERSION; \
+             only coyote-rns-transport moves on a fork release"
+        );
+    }
+
+    let readme = read_repo_file("crates/libs/rns-transport/README.md");
+    assert!(
+        readme.contains("root `VERSION`"),
+        "crate README should explain why root VERSION does not follow the crate version"
+    );
+}
+
+/// Every row of the patch-set table names the patch it belongs to, and every
+/// `B<n>` id used in a row is defined by the legend above the table.
+#[test]
+fn patch_set_ledger_rows_name_a_patch_from_the_legend() {
+    let version = crate_version();
+    let ledger = read_repo_file("docs/fork/PATCHSET.md");
+    let section_heading = format!("\n## {version} (upstream ");
+    let start = ledger
+        .find(&section_heading)
+        .unwrap_or_else(|| panic!("docs/fork/PATCHSET.md should have a `## {version}` section"));
+    let section = &ledger[start + 1..];
+    let section = match section[section_heading.len() - 1..].find("\n## ") {
+        Some(end) => &section[..section_heading.len() - 1 + end],
+        None => section,
+    };
+
+    let table_start = section.find("\n| File | Patch |").unwrap_or_else(|| {
+        panic!("the {version} section should open with a `| File | Patch |` table")
+    });
+    let legend = &section[..table_start];
+    let legend_ids: Vec<String> = (1..=5).map(|n| format!("B{n} is ")).collect();
+    for id in &legend_ids {
+        assert!(
+            legend.contains(id.as_str()),
+            "the {version} legend should define {:?} before the table",
+            id.trim_end()
+        );
+    }
+
+    let rows: Vec<(&str, &str)> = section
+        .lines()
+        .filter(|line| line.starts_with("| `"))
+        .map(|line| {
+            let cells: Vec<&str> = line.trim_matches('|').split('|').map(str::trim).collect();
+            assert_eq!(cells.len(), 2, "table row should have a file and a patch cell: {line:?}");
+            (cells[0], cells[1])
+        })
+        .collect();
+    assert!(!rows.is_empty(), "the {version} table should have rows");
+
+    for (file, patch) in &rows {
+        assert!(!patch.is_empty(), "{file} row should name the patch it belongs to");
+        for id in patch
+            .split(|c: char| !c.is_ascii_alphanumeric())
+            .filter(|token| token.len() == 2 && token.starts_with('B'))
+        {
+            assert!(
+                legend.contains(&format!("{id} is ")),
+                "{file} row uses patch id {id} which the legend does not define"
+            );
+        }
+    }
+
+    let interop_row = rows
+        .iter()
+        .find(|(file, _)| file.contains("multi_segment_python_interop.rs"))
+        .unwrap_or_else(|| {
+            panic!("the {version} table should list the multi-segment interop test")
+        });
+    assert!(
+        interop_row.1.contains("Python-in-the-loop"),
+        "the multi-segment interop row should be attributed to the Python-in-the-loop proof, got {:?}",
+        interop_row.1
+    );
+}
+
 #[test]
 fn repo_readme_points_at_the_crate_readme() {
     let pointer = "](crates/libs/rns-transport/README.md)";

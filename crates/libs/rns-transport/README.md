@@ -41,8 +41,8 @@ The root `VERSION` file is the workspace number: the upstream baseline that
 root `VERSION` stays at the upstream baseline until the next upstream rebase.
 
 Release notes live in this crate's `CHANGELOG.md`. The per-release ledger of
-every file changed against upstream, with the commit that changed it, is
-`docs/fork/PATCHSET.md`. A release is published by pushing the tag
+every file changed since the previous release, with the commit that changed
+it, is `docs/fork/PATCHSET.md`. A release is published by pushing the tag
 `coyote-rns-transport-v<version>`: `tools/scripts/check-publish-tag-version.sh`
 checks that the tag matches the crate version and
 `.github/workflows/publish-coyote-rns-transport.yml` runs the publish.
@@ -50,8 +50,9 @@ checks that the tag matches the crate version and
 ## Patch list
 
 `docs/fork/PATCHSET.md` is the single per-release ledger of every file changed
-against upstream, with the commit that changed it and the upstream site. What
-`0.14.1` carries on top of upstream `0.14.0`:
+since the previous release, with the commit that changed it and the upstream
+site; earlier sections carry the earlier patches. What `0.14.1` carries on top
+of upstream `0.14.0`:
 
 - Link close no longer prints to stdout: the `println!` in
   `Link::finalize_local_close` is removed and the `log::warn!` on the next line
@@ -105,7 +106,7 @@ against upstream, with the commit that changed it and the upstream site. What
    `crates/apps/reticulumd/tests/fork_publish_contract.rs`. Regenerate
    `Cargo.lock` (`cargo update -p coyote-rns-transport --offline`) and add the
    release headings to `CHANGELOG.md` and `docs/fork/PATCHSET.md`.
-7. `cargo check --workspace && cargo test -p coyote-rns-transport && cargo test -p reticulumd --test fork_publish_contract && tools/scripts/check-boundaries.sh && cargo publish -p coyote-rns-transport --locked --dry-run --registry crates-io`
+7. `cargo check --workspace && cargo test -p coyote-rns-transport && cargo test -p reticulumd --test fork_publish_contract && tools/scripts/check-boundaries.sh && cargo publish -p coyote-rns-transport --locked --dry-run`
 8. Commit, then either tag `coyote-rns-transport-vX.Y.Z` and push the tag, or
    run the `publish-coyote-rns-transport` workflow by hand from the Actions
    tab, setting the `ref` input to the tag; the dropdown choice alone does not

@@ -3,9 +3,11 @@
 const MULTI_SEGMENT_RESPONSE_LEN: usize = 4 * 1024 * 1024 + 1;
 const MULTI_SEGMENT_RESPONSE_SEGMENTS: u32 = 5;
 
-// Hash blocks keep the body incompressible, so the segment count on the wire
-// matches the plaintext length instead of whatever bz2 leaves
-// (RNS/Resource.py:395; resource/sender.rs:122).
+// The segment count is decided on the uncompressed size (RNS/Resource.py:307;
+// resource/manager_start.rs:243) and each segment is then bz2-compressed on
+// its own (RNS/Resource.py:395; resource/sender.rs:122). Hash blocks keep the
+// body incompressible so every segment crosses the wire at its full part
+// count instead of as a one-part compressed stub.
 fn multi_segment_response_body() -> Vec<u8> {
     use sha2::Digest as _;
     let mut body = Vec::with_capacity(MULTI_SEGMENT_RESPONSE_LEN + 32);
@@ -94,12 +96,16 @@ async fn wait_for_split_resource_response(
     duration: Duration,
 ) -> (rmpv::Value, Option<u32>) {
     use rns_transport::resource::ResourceEventKind;
+    let mut lagged_events: u64 = 0;
     tokio::time::timeout(duration, async {
         let mut segments_seen = None;
         loop {
             let event = match events.recv().await {
                 Ok(event) => event,
-                Err(tokio::sync::broadcast::error::RecvError::Lagged(_)) => continue,
+                Err(tokio::sync::broadcast::error::RecvError::Lagged(skipped)) => {
+                    lagged_events += skipped;
+                    continue;
+                }
                 Err(tokio::sync::broadcast::error::RecvError::Closed) => {
                     panic!("resource event channel closed")
                 }
@@ -133,7 +139,11 @@ async fn wait_for_split_resource_response(
         }
     })
     .await
-    .expect("timed out waiting for the split resource response")
+    .unwrap_or_else(|_| {
+        panic!(
+            "timed out waiting for the split resource response ({lagged_events} resource events lagged)"
+        )
+    })
 }
 
 #[deny(clippy::await_holding_invalid_type)]

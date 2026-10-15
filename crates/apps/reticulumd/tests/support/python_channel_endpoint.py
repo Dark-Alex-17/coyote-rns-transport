@@ -21,9 +21,11 @@ MULTI_SEGMENT_RESPONSE_LEN = 4 * 1024 * 1024 + 1
 
 
 def multi_segment_response_body() -> bytes:
-    # Hash blocks keep the body incompressible, so the segment count on the
-    # wire matches the plaintext length instead of whatever bz2 leaves
-    # (RNS/Resource.py:395).
+    # The segment count is decided on the uncompressed size
+    # (RNS/Resource.py:307) and each segment is then bz2-compressed on its own
+    # (RNS/Resource.py:395). Hash blocks keep the body incompressible so every
+    # segment crosses the wire at its full part count instead of as a one-part
+    # compressed stub.
     body = bytearray()
     index = 0
     while len(body) < MULTI_SEGMENT_RESPONSE_LEN:

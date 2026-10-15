@@ -42,14 +42,16 @@ trailing clause of the bullet for the behaviour it pins.
   layer (`RNS/Destination.py:381-412`). The table is keyed by
   `PathHash::of(path)` (`RNS/Destination.py:396`), an empty path is refused
   with `RnsError::InvalidArgument` (`:392`) and a second registration for
-  the same path replaces the first. A handler is any `Fn(InboundRequest) ->
-  Future<Output = Option<RequestResponse>>`; `InboundRequest` carries the
+  the same path replaces the first, allow mode included (`:398`). A handler
+  is any `Fn(InboundRequest) -> Future<Output = Option<RequestResponse>>`;
+  `InboundRequest` carries the
   six arguments Python hands a `response_generator` (`RNS/Link.py:831`) and
   `RequestResponse::{Value, Bytes, Resource}` are the plain, `bytes` and
   file-response forms (`RNS/Link.py:839-852`). The registry is pinned by
-  `destination/tests.rs` and `tests/request_handler_api.rs`; the response
-  forms by `transport/tests_parts/two_transport_loopback_requests.rs` and
-  `two_transport_loopback_requests_probe.rs`.
+  `destination/tests.rs`, `tests/request_handler_api.rs` and
+  `transport/tests_parts/two_transport_loopback_requests_routing.rs`; the
+  response forms by `transport/tests_parts/two_transport_loopback_requests.rs`
+  and `two_transport_loopback_requests_probe.rs`.
 
 - The `request-dispatch` transport worker: `RNS.Link.handle_request`
   (`RNS/Link.py:804-855`). A link hands every decrypted request packet to
@@ -58,16 +60,19 @@ trailing clause of the bullet for the behaviour it pins.
   (`RNS/Link.py:1004-1005`), so a slow or panicking handler delays no other
   request and never stops the transport. `RequestAllow::None` denies,
   `All` answers, `List` answers a peer whose `LINKIDENTIFY` identity is in
-  the set; a denied peer and a peer that never identified are both denied
-  silently (`RNS/Link.py:818-824,855`). Only an active link hands a request
-  on (`:805`), and a request larger than the destination's
+  the set, read from the link when each request arrives; a denied peer and
+  a peer that never identified are both denied silently
+  (`RNS/Link.py:818-824,855`). The handler table consulted is the one of
+  the destination that owns the link (`:810`). Only an active link hands a
+  request on (`:805`), and a request larger than the destination's
   `max_request_size` is ignored before any handler runs (`:999-1001`).
   `None` from the handler sends nothing (`:844`). A response that fits
   `Link::link_mdu()` goes out as one `Response` packet, a larger one as a
   response Resource (`:849-852`). Pinned by
   `transport/tests_parts/two_transport_loopback_requests.rs`,
   `two_transport_loopback_requests_isolation.rs`,
-  `two_transport_loopback_requests_probe.rs` and
+  `two_transport_loopback_requests_probe.rs`,
+  `two_transport_loopback_requests_routing.rs` and
   `destination/link_parts/link_sections/request_dispatch_tests.rs`.
 
 - `LinkEvent::Data` with `PacketContext::Request` keeps posting for every

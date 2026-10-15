@@ -25,7 +25,7 @@ belongs to. Patch ids: F1 is request wire frames and fuzz. The
 `request wire frames and fuzz` patch is fork commits `8e9970ac`,
 `afc56836`, `71365159`, `f875aff7` and `30d8dfde`; the request handlers
 and dispatch patch carries no other id and is fork commits `08a5cff6`,
-`21ab1981`, `c1a98ff1`, `12d2080c` and `7bbb0197`.
+`21ab1981`, `c1a98ff1`, `12d2080c`, `7bbb0197` and `73f177b4`.
 
 | File | Patch |
 | --- | --- |
@@ -192,7 +192,10 @@ identity when each request arrives (`RNS/Link.py:818-824`), a second
 its allow mode (`RNS/Destination.py:398`), and the handler table
 belonging to the destination that owns the link (`RNS/Link.py:810`), so
 a sibling destination on the same transport answers only once it has
-registered the path itself.
+registered the path itself. Fork commit `73f177b4` corrects the comment
+on that file's announce spacing: the two-sample announce rate is the
+fork's (`transport/announce_limits.rs:91-114`); Python measures nothing
+until a third sample (`RNS/Interfaces/Interface.py:346-348`).
 
 ## 0.14.1 (upstream 0.14.0)
 

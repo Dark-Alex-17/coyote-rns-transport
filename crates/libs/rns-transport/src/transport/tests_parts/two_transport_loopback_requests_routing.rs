@@ -153,11 +153,13 @@ async fn two_transport_loopback_request_handler_is_scoped_to_its_destination() {
     let mut pair = loopback_request_pair("request-scope-a").await;
     register_handler(&pair, "/echo", RequestAllow::All, echo_handler()).await;
 
-    // The connector's interface is new, so a second announce arriving within a fraction of
-    // a second of the first would trip ingress control and be held for minutes
-    // (`RNS/Interfaces/Interface.py:76-77`, `:188-205`). Two samples `gap` apart measure
-    // as `2 / gap` Hz; two seconds keeps the sibling's announce well under the new-interface
-    // burst threshold.
+    // The connector's interface is new, so announces arriving too close together trip
+    // ingress control and are held for minutes (`RNS/Interfaces/Interface.py:76-77`,
+    // `:188-205`). The fork measures an announce frequency from two samples already
+    // (`transport/announce_limits.rs:91-114`; Python returns zero until a third sample,
+    // `Interface.py:346-348`), so the pair's own announce plus this one a fraction of a
+    // second later would measure above the new-interface threshold. Two samples `gap`
+    // apart measure as `2 / gap` Hz; two seconds keeps the sibling's announce well under it.
     tokio::time::sleep(SIBLING_ANNOUNCE_SPACING).await;
     let (sibling, sibling_desc) =
         register_in_destination(&pair.handles.listener.transport, "loopback", "request-scope-b")

@@ -18,6 +18,46 @@ rebase recipe and a prose summary of the current patch list; this file is
 the per-release ledger of the same patches, with commit hashes and file
 sites, so a rebase can re-apply them one commit at a time.
 
+## Unreleased (upstream 0.14.0)
+
+Every file changed since the `0.14.1` release and the patch each change
+belongs to. Patch ids: F1 is request wire frames and fuzz; it carries no
+other id. The `request wire frames and fuzz` patch is fork commit
+`8e9970ac`.
+
+| File | Patch |
+| --- | --- |
+| `crates/libs/rns-transport/CHANGELOG.md` | request wire frames and fuzz |
+| `crates/libs/rns-transport/fuzz/.gitignore` | request wire frames and fuzz |
+| `crates/libs/rns-transport/fuzz/Cargo.lock` | request wire frames and fuzz |
+| `crates/libs/rns-transport/fuzz/Cargo.toml` | request wire frames and fuzz |
+| `crates/libs/rns-transport/fuzz/fuzz_targets/request_frame_decode.rs` | request wire frames and fuzz |
+| `crates/libs/rns-transport/fuzz/fuzz_targets/resource_advertisement_decode.rs` | request wire frames and fuzz |
+| `crates/libs/rns-transport/fuzz/fuzz_targets/response_frame_decode.rs` | request wire frames and fuzz |
+| `crates/libs/rns-transport/src/destination.rs` | request wire frames and fuzz |
+| `crates/libs/rns-transport/src/destination/link_parts/link_sections/request_payload.rs` | request wire frames and fuzz |
+| `crates/libs/rns-transport/src/destination/request/frame.rs` | request wire frames and fuzz |
+| `crates/libs/rns-transport/src/destination/request/id.rs` | request wire frames and fuzz |
+| `crates/libs/rns-transport/src/destination/request/mod.rs` | request wire frames and fuzz |
+| `crates/libs/rns-transport/src/destination/request/tests.rs` | request wire frames and fuzz |
+| `crates/libs/rns-transport/src/resource.rs` | request wire frames and fuzz |
+| `crates/libs/rns-transport/src/resource/tests_advert_kat.rs` | request wire frames and fuzz |
+| `docs/runbooks/fuzzing-campaign.md` | request wire frames and fuzz |
+| `tools/scripts/fuzz-campaign.sh` | request wire frames and fuzz |
+| `xtask/src/main_parts/run_key_management_check.rs` | request wire frames and fuzz |
+
+Fork commit `8e9970ac`: F1, request wire frames and fuzz. Upstream sites:
+`crates/libs/rns-transport/src/destination.rs` registers the new
+`destination::request` module; `Link::request_payload` and
+`unpack_response_envelope` in `link_sections/request_payload.rs` delegate
+to `RequestFrame` and `ResponseFrame` with unchanged signatures;
+`resource.rs` includes the advertisement vector test;
+`run_key_management_check.rs`, `fuzzing-campaign.md` and
+`fuzz-campaign.sh` add the third fuzz crate to the gate, the runbook and
+the campaign. New files: `src/destination/request/{mod,frame,id,tests}.rs`,
+`src/resource/tests_advert_kat.rs` and the `fuzz/` crate with its three
+targets. The crate `CHANGELOG.md` carries the release notes.
+
 ## 0.14.1 (upstream 0.14.0)
 
 Every file changed between the `0.14.0` tag (`b56452e6`) and this release,
@@ -26,8 +66,8 @@ segment dispatch, B2 is reject outside link lock, B3 is sender before
 advertisement, B4 is hex parsers, B5 is non-fatal announce; the advert cap,
 additive API, fixtures and lint tables, Python-in-the-loop proof, publish
 contract, link-close smoke leg and release 0.14.1 patches carry no other id.
-The `release 0.14.1` patch is fork commits `fd83a9f1`, `256936ca` and
-`e79b6026`.
+The `release 0.14.1` patch is fork commits `fd83a9f1`, `256936ca`,
+`e79b6026`, `a2e37568` and `5243a01d`.
 
 | File | Patch |
 | --- | --- |
@@ -76,7 +116,7 @@ The `release 0.14.1` patch is fork commits `fd83a9f1`, `256936ca` and
 | `crates/libs/rns-transport/src/transport/tests_parts/two_transport_loopback_lifecycle_probe.rs` | non-fatal announce, additive API |
 | `crates/libs/rns-transport/src/transport/tests_parts/two_transport_loopback_resources.rs` | bound-interface segment dispatch |
 | `crates/libs/rns-transport/src/transport/tests_parts/two_transport_loopback_resources_directions.rs` | bound-interface segment dispatch |
-| `crates/libs/rns-transport/src/transport/tests_parts/two_transport_loopback_resources_gone_link.rs` | bound-interface segment dispatch |
+| `crates/libs/rns-transport/src/transport/tests_parts/two_transport_loopback_resources_gone_link.rs` | bound-interface segment dispatch, release 0.14.1 |
 | `crates/libs/rns-transport/src/transport/tests_parts/two_transport_loopback_resources_reject.rs` | reject outside link lock |
 | `crates/libs/rns-transport/src/transport/tests_parts/two_transport_loopback_resources_reject_response.rs` | reject outside link lock |
 | `crates/libs/rns-transport/src/transport/tests_parts/two_transport_loopback_resources_retries.rs` | bound-interface segment dispatch |
@@ -480,10 +520,10 @@ its old-name walk to `docs/status/`. The remaining files in that table under
 the `docs/status/` JSON and Markdown files) only have the crate name
 updated.
 
-Fork commits `fd83a9f1`, `256936ca` and `e79b6026`: release 0.14.1. The first
-bumps the crate version at every manifest, consumer-snippet and contract-test
-site, regenerates `Cargo.lock`, promotes `## Unreleased` in the crate
-`CHANGELOG.md`, adds two contract tests to
+Fork commits `fd83a9f1`, `256936ca`, `e79b6026`, `a2e37568` and `5243a01d`:
+release 0.14.1. The first bumps the crate version at every manifest,
+consumer-snippet and contract-test site, regenerates `Cargo.lock`, promotes
+`## Unreleased` in the crate `CHANGELOG.md`, adds two contract tests to
 `crates/apps/reticulumd/tests/fork_publish_contract.rs` (every version site,
 the dated `CHANGELOG.md` heading and the README policy tokens track the
 crate version; the file table above names only existing files and the files
@@ -496,10 +536,16 @@ aligns the README's description of this ledger. The third adds a contract
 test that the README rebase recipe runs the publish workflow's own dry-run
 command with no `--registry` override, makes the row check match every
 phrase of a patch cell against the legend, and names the lint-table patch in
-the README patch list. The ledger-only commits that complete this section are omitted here
-by convention. The link-close patch from the `## 0.14.0` section below
-(`3f20c991`) is still carried; its crate sources are unchanged since the tag
-and its smoke-script leg is superseded by `0197768d` above.
+the README patch list; it also hardens `multi_segment_python_interop.rs`,
+whose child-stdout drain now skips an `InvalidData` line instead of stopping
+and whose `wait_for_link_request` counts lagged events into its timeout
+report. The fourth adopts the `release_notes_cite_files_that_exist_in_the_tree`
+contract test. The fifth makes `two_transport_loopback_resources_gone_link.rs`
+independent of the retry pump timing. The ledger-only commits that complete
+this section are omitted here by convention. The link-close patch from the
+`## 0.14.0` section below (`3f20c991`) is still carried; its crate sources
+are unchanged since the tag and its smoke-script leg is superseded by
+`0197768d` above.
 
 ## 0.14.0 (upstream 0.14.0)
 

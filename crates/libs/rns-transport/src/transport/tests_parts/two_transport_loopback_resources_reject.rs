@@ -6,7 +6,8 @@
 
 /// Any request Resource larger than this is rejected by the listener's destination.
 const REJECT_REQUEST_LIMIT: usize = 1024;
-/// Random bytes, so bz2 cannot bring the transfer size back under the limit.
+/// The reject fires on the advertised `d` (uncompressed size); random bytes keep `d` and
+/// `t` close, so the advertisement reads the same whichever field is inspected.
 const OVERSIZE_REQUEST_LEN: usize = 4 * 1024;
 const ACCEPTED_REQUEST_LEN: usize = 256;
 /// `stop_interface` locks the handler first; a wedged handler never returns from it.

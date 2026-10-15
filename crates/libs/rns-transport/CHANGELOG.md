@@ -101,8 +101,9 @@ trailing clause of the bullet for the behaviour it pins.
   request; as for `LinkEvent::Data(Request)`, a request whose path has a
   registered handler is answered by that handler, and event consumers must
   not answer it. Pinned by
-  `transport/tests_parts/two_transport_loopback_requests_resource_form.rs`
-  and `two_transport_loopback_requests_resource_form_probe.rs`.
+  `transport/tests_parts/two_transport_loopback_requests_resource_form.rs`,
+  `two_transport_loopback_requests_resource_form_probe.rs` and
+  `two_transport_loopback_requests_resource_form_probe2.rs`.
 
 - Response forms on the wire. A `Value` or `Bytes` response whose
   `[request_id, body]` envelope fits the link MDU goes out as one
@@ -120,8 +121,9 @@ trailing clause of the bullet for the behaviour it pins.
   and is only for a peer that expects raw bytes. Pinned by
   `transport/tests_parts/two_transport_loopback_requests.rs`,
   `two_transport_loopback_requests_probe.rs`,
-  `two_transport_loopback_requests_resource_form.rs` and
-  `two_transport_loopback_requests_resource_form_probe.rs`.
+  `two_transport_loopback_requests_resource_form.rs`,
+  `two_transport_loopback_requests_resource_form_probe.rs` and
+  `two_transport_loopback_requests_resource_form_probe2.rs`.
 
 ### Changed
 

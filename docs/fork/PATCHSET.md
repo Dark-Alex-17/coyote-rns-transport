@@ -25,7 +25,7 @@ belongs to. Patch ids: F1 is request wire frames and fuzz. The
 `request wire frames and fuzz` patch is fork commits `8e9970ac`,
 `afc56836`, `71365159`, `f875aff7` and `30d8dfde`; the request handlers
 and dispatch patch carries no other id and is fork commits `08a5cff6`,
-`21ab1981`, `c1a98ff1` and `12d2080c`.
+`21ab1981`, `c1a98ff1`, `12d2080c` and `7bbb0197`.
 
 | File | Patch |
 | --- | --- |
@@ -74,6 +74,7 @@ and dispatch patch carries no other id and is fork commits `08a5cff6`,
 | `crates/libs/rns-transport/src/transport/tests_parts/two_transport_loopback_requests.rs` | request handlers and dispatch |
 | `crates/libs/rns-transport/src/transport/tests_parts/two_transport_loopback_requests_isolation.rs` | request handlers and dispatch |
 | `crates/libs/rns-transport/src/transport/tests_parts/two_transport_loopback_requests_probe.rs` | request handlers and dispatch |
+| `crates/libs/rns-transport/src/transport/tests_parts/two_transport_loopback_requests_routing.rs` | request handlers and dispatch |
 | `crates/libs/rns-transport/tests/request_frame_wire.rs` | request wire frames and fuzz |
 | `crates/libs/rns-transport/tests/request_handler_api.rs` | request handlers and dispatch |
 | `docs/fork/PATCHSET.md` | request wire frames and fuzz, request handlers and dispatch |
@@ -182,6 +183,16 @@ gate against the decrypted request envelope and shows
 (new, an `include!` line in `link_parts/link.rs`) pins the active-link gate
 in `dispatch_request`; `identify_packet_tests.rs` opens its `linked_pair`
 harness to that sibling module.
+
+Fork commit `7bbb0197`: routing tests for request handlers and dispatch.
+`two_transport_loopback_requests_routing.rs` (new, a fourth `include!`
+line in `transport/tests.rs`) pins the allow list reading the link's
+identity when each request arrives (`RNS/Link.py:818-824`), a second
+`register_request_handler` for a path replacing the whole row including
+its allow mode (`RNS/Destination.py:398`), and the handler table
+belonging to the destination that owns the link (`RNS/Link.py:810`), so
+a sibling destination on the same transport answers only once it has
+registered the path itself.
 
 ## 0.14.1 (upstream 0.14.0)
 

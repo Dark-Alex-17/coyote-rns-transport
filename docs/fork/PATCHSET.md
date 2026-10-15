@@ -24,8 +24,8 @@ Every file changed since the `0.14.1` release and the patch each change
 belongs to. Patch ids: F1 is request wire frames and fuzz. The
 `request wire frames and fuzz` patch is fork commits `8e9970ac`,
 `afc56836`, `71365159`, `f875aff7` and `30d8dfde`; the request handlers
-and dispatch patch carries no other id and is fork commits `08a5cff6` and
-`21ab1981`.
+and dispatch patch carries no other id and is fork commits `08a5cff6`,
+`21ab1981` and `c1a98ff1`.
 
 | File | Patch |
 | --- | --- |
@@ -71,7 +71,9 @@ and dispatch patch carries no other id and is fork commits `08a5cff6` and
 | `crates/libs/rns-transport/src/transport/tests_parts/two_transport_loopback_lifecycle.rs` | request handlers and dispatch |
 | `crates/libs/rns-transport/src/transport/tests_parts/two_transport_loopback_requests.rs` | request handlers and dispatch |
 | `crates/libs/rns-transport/src/transport/tests_parts/two_transport_loopback_requests_isolation.rs` | request handlers and dispatch |
+| `crates/libs/rns-transport/src/transport/tests_parts/two_transport_loopback_requests_probe.rs` | request handlers and dispatch |
 | `crates/libs/rns-transport/tests/request_frame_wire.rs` | request wire frames and fuzz |
+| `crates/libs/rns-transport/tests/request_handler_api.rs` | request handlers and dispatch |
 | `docs/fork/PATCHSET.md` | request wire frames and fuzz, request handlers and dispatch |
 | `docs/runbooks/fuzzing-campaign.md` | request wire frames and fuzz |
 | `tools/scripts/fuzz-campaign.sh` | request wire frames and fuzz |
@@ -149,6 +151,25 @@ oversize response; `two_transport_loopback_lifecycle.rs` keeps the
 destination in its fixture and matches plain data only in its round
 trip. The crate `README.md` gains the request handler section and the
 crate `CHANGELOG.md` carries the release notes.
+
+Fork commit `c1a98ff1`: the review fixes for request handlers and
+dispatch. Upstream sites: `dispatch_one` in `transport/request_dispatch.rs`
+reads the destination's `max_request_size` and the handler row under one
+guard and ignores a packet-form request over the limit before any handler
+runs (`RNS/Link.py:999-1001`); `find_any_link` in the same file checks
+`in_links` under the guard and collects `out_links` only on a miss.
+`dispatch_request` in `link_sections/request_dispatch.rs` hands a request
+on only while the link is active (`RNS/Link.py:805`). The handler table in
+`destination_parts/module_core.rs` holds `Arc<RegisteredHandler>` rows,
+`destination_parts/destination.rs` wraps and returns them, and
+`request/handler.rs` loses the `Clone` derive. Tests:
+`two_transport_loopback_requests.rs` pins the size gate and fails on a
+lagged event receiver; `two_transport_loopback_requests_isolation.rs`
+sends one more round trip after the panicked handler is joined;
+`two_transport_loopback_requests_probe.rs` (new, a third `include!` line
+in `transport/tests.rs`) and `tests/request_handler_api.rs` (new) pin the
+remaining registry and response-form promises; `destination/tests.rs`
+asserts the second registration's `Arc` replaced the first.
 
 ## 0.14.1 (upstream 0.14.0)
 

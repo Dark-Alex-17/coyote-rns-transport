@@ -356,7 +356,9 @@ fn patch_set_ledger_rows_name_a_patch_from_the_legend() {
     let table_start = section.find("\n| File | Patch |").unwrap_or_else(|| {
         panic!("the {version} section should open with a `| File | Patch |` table")
     });
-    let legend = &section[..table_start];
+    // The legend wraps at 80 columns, so phrases are matched on one line.
+    let legend = section[..table_start].split_whitespace().collect::<Vec<_>>().join(" ");
+    let legend = legend.as_str();
     let legend_ids: Vec<String> = (1..=5).map(|n| format!("B{n} is ")).collect();
     for id in &legend_ids {
         assert!(
@@ -379,14 +381,20 @@ fn patch_set_ledger_rows_name_a_patch_from_the_legend() {
 
     for (file, patch) in &rows {
         assert!(!patch.is_empty(), "{file} row should name the patch it belongs to");
-        for id in patch
-            .split(|c: char| !c.is_ascii_alphanumeric())
-            .filter(|token| token.len() == 2 && token.starts_with('B'))
-        {
+        for phrase in patch.split(", ") {
             assert!(
-                legend.contains(&format!("{id} is ")),
-                "{file} row uses patch id {id} which the legend does not define"
+                legend.contains(phrase),
+                "{file} row names patch {phrase:?} which the legend does not define"
             );
+            for id in phrase
+                .split(|c: char| !c.is_ascii_alphanumeric())
+                .filter(|token| token.len() == 2 && token.starts_with('B'))
+            {
+                assert!(
+                    legend.contains(&format!("{id} is ")),
+                    "{file} row uses patch id {id} which the legend does not define"
+                );
+            }
         }
     }
 
@@ -401,6 +409,40 @@ fn patch_set_ledger_rows_name_a_patch_from_the_legend() {
         "the multi-segment interop row should be attributed to the Python-in-the-loop proof, got {:?}",
         interop_row.1
     );
+}
+
+/// The README rebase recipe runs the same `cargo publish` the workflow runs.
+/// Neither carries a `--registry` override: the publish workflow runs on a
+/// GitHub runner with the default crates.io source, and a developer whose
+/// local cargo config replaces that source adds the flag on the command line
+/// rather than in the repository.
+#[test]
+fn publish_recipe_mirrors_the_workflow_without_a_registry_override() {
+    let workflow = read_repo_file(".github/workflows/publish-coyote-rns-transport.yml");
+    let readme = read_repo_file("crates/libs/rns-transport/README.md");
+
+    let dry_run = "cargo publish -p coyote-rns-transport --locked --dry-run";
+    assert!(
+        workflow.contains(dry_run),
+        "fork publish workflow should carry the dry-run publish command {dry_run:?}"
+    );
+    let recipe_step = readme
+        .lines()
+        .find(|line| line.contains("cargo publish"))
+        .expect("crate README rebase recipe should carry a cargo publish step");
+    assert!(
+        recipe_step.contains(dry_run),
+        "README recipe should run the workflow's dry-run publish command {dry_run:?}, got {recipe_step:?}"
+    );
+
+    for (name, text) in [("publish workflow", workflow.as_str()), ("crate README", readme.as_str())]
+    {
+        assert!(
+            !text.contains("--registry"),
+            "{name} should not carry a --registry override; local source replacement is a \
+             per-machine workaround, not a repository contract"
+        );
+    }
 }
 
 #[test]

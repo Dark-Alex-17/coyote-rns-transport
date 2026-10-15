@@ -79,6 +79,9 @@ of upstream `0.14.0`:
 - Additive API: `Transport::stop`, `Link::rtt`,
   `destination_hash::destination_address`, `AddressHash::short`, and the
   `rmpv` and `rand_core` re-exports from the crate root.
+- Workspace clippy configuration names the tokio guard types under
+  `await-holding-invalid-types` (`clippy.toml`, the workspace and
+  `reticulumd` `[lints]` tables); see the CHANGELOG `### Changed` bullet.
 
 ## Rebase recipe
 

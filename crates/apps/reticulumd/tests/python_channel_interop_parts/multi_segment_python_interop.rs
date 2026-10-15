@@ -60,8 +60,10 @@ fn spawn_served_response_reader(
         use std::io::BufRead as _;
         let mut report_tx = Some(report_tx);
         for line in reader.lines() {
-            let Ok(line) = line else {
-                break;
+            let line = match line {
+                Ok(line) => line,
+                Err(err) if err.kind() == std::io::ErrorKind::InvalidData => continue,
+                Err(_) => break,
             };
             if let Ok(value) = serde_json::from_str::<serde_json::Value>(&line) {
                 if value.get("served_response_sha256").is_some() {
@@ -154,6 +156,7 @@ async fn wait_for_link_request(
     link_id: AddressHash,
     duration: Duration,
 ) -> [u8; 16] {
+    let mut lagged_events: u64 = 0;
     tokio::time::timeout(duration, async {
         loop {
             match events.recv().await {
@@ -172,7 +175,10 @@ async fn wait_for_link_request(
                         return request_id;
                     }
                 }
-                Err(tokio::sync::broadcast::error::RecvError::Lagged(_)) => continue,
+                Err(tokio::sync::broadcast::error::RecvError::Lagged(skipped)) => {
+                    lagged_events += skipped;
+                    continue;
+                }
                 Err(tokio::sync::broadcast::error::RecvError::Closed) => {
                     panic!("inbound link event channel closed")
                 }
@@ -180,7 +186,11 @@ async fn wait_for_link_request(
         }
     })
     .await
-    .expect("timed out waiting for the Python request")
+    .unwrap_or_else(|_| {
+        panic!(
+            "timed out waiting for the Python request ({lagged_events} link events lagged)"
+        )
+    })
 }
 
 // The interop lock is a tokio MutexGuard that has to outlive the whole test,

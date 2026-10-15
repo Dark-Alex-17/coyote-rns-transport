@@ -121,7 +121,9 @@ trailing clause of the bullet for the behaviour it pins.
   `OutboundFailed`; `cancel_outgoing` before the confirm now returns a
   `ResourceInitiatorCancel` packet and emits `OutboundCancelled`. Pinned by
   `resource/tests_split_unconfirmed.rs` and
-  `resource/tests_split_unconfirmed_served.rs`.
+  `resource/tests_split_unconfirmed_served.rs`; `tests_split_lazy.rs`,
+  `tests_timeouts.rs` and `tests_timeouts_cleanup.rs` follow the sender into
+  `outgoing`.
 
 ## 0.14.0 - 2026-10-14
 

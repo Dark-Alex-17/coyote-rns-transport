@@ -25,7 +25,7 @@ belongs to. Patch ids: F1 is request wire frames and fuzz. The
 `request wire frames and fuzz` patch is fork commits `8e9970ac`,
 `afc56836`, `71365159`, `f875aff7` and `30d8dfde`; the request handlers
 and dispatch patch carries no other id and is fork commits `08a5cff6`,
-`21ab1981`, `c1a98ff1`, `12d2080c`, `7bbb0197` and `73f177b4`.
+`21ab1981`, `c1a98ff1`, `12d2080c`, `7bbb0197`, `73f177b4` and `1fd1192a`.
 
 | File | Patch |
 | --- | --- |
@@ -73,6 +73,7 @@ and dispatch patch carries no other id and is fork commits `08a5cff6`,
 | `crates/libs/rns-transport/src/transport/tests_parts/two_transport_loopback_lifecycle.rs` | request handlers and dispatch |
 | `crates/libs/rns-transport/src/transport/tests_parts/two_transport_loopback_requests.rs` | request handlers and dispatch |
 | `crates/libs/rns-transport/src/transport/tests_parts/two_transport_loopback_requests_isolation.rs` | request handlers and dispatch |
+| `crates/libs/rns-transport/src/transport/tests_parts/two_transport_loopback_requests_malformed.rs` | request handlers and dispatch |
 | `crates/libs/rns-transport/src/transport/tests_parts/two_transport_loopback_requests_probe.rs` | request handlers and dispatch |
 | `crates/libs/rns-transport/src/transport/tests_parts/two_transport_loopback_requests_routing.rs` | request handlers and dispatch |
 | `crates/libs/rns-transport/tests/request_frame_wire.rs` | request wire frames and fuzz |
@@ -196,6 +197,15 @@ registered the path itself. Fork commit `73f177b4` corrects the comment
 on that file's announce spacing: the two-sample announce rate is the
 fork's (`transport/announce_limits.rs:91-114`); Python measures nothing
 until a third sample (`RNS/Interfaces/Interface.py:346-348`).
+
+Fork commit `1fd1192a`: malformed-request test for request handlers and
+dispatch. `two_transport_loopback_requests_malformed.rs` (new, a fifth
+`include!` line in `transport/tests.rs`) sends request bodies that are not
+a `[requested_at, path_hash, data]` frame and pins what Python does when
+`unpackb` or `handle_request` cannot read one (`RNS/Link.py:1003-1007`,
+`:804-807`): the `Data(Request)` event still posts, no handler runs, no
+response leaves, and the next well-formed request on the link is
+answered. The crate `CHANGELOG.md` names the file in the worker bullet.
 
 ## 0.14.1 (upstream 0.14.0)
 

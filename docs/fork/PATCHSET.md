@@ -26,13 +26,15 @@ belongs to. Patch ids: F1 is request wire frames and fuzz. The
 `afc56836`, `71365159`, `f875aff7` and `30d8dfde`; the request handlers
 and dispatch patch carries no other id and is fork commits `08a5cff6`,
 `21ab1981`, `c1a98ff1`, `12d2080c`, `7bbb0197`, `73f177b4`, `1fd1192a`,
-`febec3db`, `7e9e5904`, `5544c49c`, `816032c5` and `c82dcd0d`.
+`febec3db`, `7e9e5904`, `5544c49c`, `816032c5` and `c82dcd0d`; the
+request receipts and timeouts patch carries no other id and is fork
+commit `1ddd5273`.
 
 | File | Patch |
 | --- | --- |
 | `crates/apps/reticulumd/tests/fuzz_campaign_contract.rs` | request wire frames and fuzz |
-| `crates/libs/rns-transport/CHANGELOG.md` | request wire frames and fuzz, request handlers and dispatch |
-| `crates/libs/rns-transport/README.md` | request handlers and dispatch |
+| `crates/libs/rns-transport/CHANGELOG.md` | request wire frames and fuzz, request handlers and dispatch, request receipts and timeouts |
+| `crates/libs/rns-transport/README.md` | request handlers and dispatch, request receipts and timeouts |
 | `crates/libs/rns-transport/fuzz/.gitignore` | request wire frames and fuzz |
 | `crates/libs/rns-transport/fuzz/Cargo.lock` | request wire frames and fuzz |
 | `crates/libs/rns-transport/fuzz/Cargo.toml` | request wire frames and fuzz |
@@ -40,22 +42,25 @@ and dispatch patch carries no other id and is fork commits `08a5cff6`,
 | `crates/libs/rns-transport/fuzz/fuzz_targets/resource_advertisement_decode.rs` | request wire frames and fuzz |
 | `crates/libs/rns-transport/fuzz/fuzz_targets/response_frame_decode.rs` | request wire frames and fuzz |
 | `crates/libs/rns-transport/src/destination.rs` | request wire frames and fuzz |
-| `crates/libs/rns-transport/src/destination/link_parts/link.rs` | request handlers and dispatch |
+| `crates/libs/rns-transport/src/destination/link_parts/link.rs` | request handlers and dispatch, request receipts and timeouts |
 | `crates/libs/rns-transport/src/destination/link_parts/link_sections/identify_packet_tests.rs` | request handlers and dispatch |
-| `crates/libs/rns-transport/src/destination/link_parts/link_sections/new.rs` | request handlers and dispatch |
-| `crates/libs/rns-transport/src/destination/link_parts/link_sections/new_from_request.rs` | request handlers and dispatch |
+| `crates/libs/rns-transport/src/destination/link_parts/link_sections/new.rs` | request handlers and dispatch, request receipts and timeouts |
+| `crates/libs/rns-transport/src/destination/link_parts/link_sections/new_from_request.rs` | request handlers and dispatch, request receipts and timeouts |
+| `crates/libs/rns-transport/src/destination/link_parts/link_sections/next_watchdog_deadline.rs` | request receipts and timeouts |
+| `crates/libs/rns-transport/src/destination/link_parts/link_sections/pending_requests.rs` | request receipts and timeouts |
 | `crates/libs/rns-transport/src/destination/link_parts/link_sections/request_dispatch.rs` | request handlers and dispatch |
 | `crates/libs/rns-transport/src/destination/link_parts/link_sections/request_dispatch_tests.rs` | request handlers and dispatch |
 | `crates/libs/rns-transport/src/destination/link_parts/link_sections/request_payload.rs` | request wire frames and fuzz |
-| `crates/libs/rns-transport/src/destination/link_parts/linkhandleresult.rs` | request handlers and dispatch |
-| `crates/libs/rns-transport/src/destination/link_parts/module_prelude.rs` | request handlers and dispatch |
+| `crates/libs/rns-transport/src/destination/link_parts/linkhandleresult.rs` | request handlers and dispatch, request receipts and timeouts |
+| `crates/libs/rns-transport/src/destination/link_parts/module_prelude.rs` | request handlers and dispatch, request receipts and timeouts |
 | `crates/libs/rns-transport/src/destination/request/allow.rs` | request handlers and dispatch |
 | `crates/libs/rns-transport/src/destination/request/dispatch.rs` | request handlers and dispatch |
 | `crates/libs/rns-transport/src/destination/request/frame.rs` | request wire frames and fuzz |
 | `crates/libs/rns-transport/src/destination/request/handler.rs` | request handlers and dispatch |
 | `crates/libs/rns-transport/src/destination/request/id.rs` | request wire frames and fuzz |
 | `crates/libs/rns-transport/src/destination/request/inbound.rs` | request handlers and dispatch |
-| `crates/libs/rns-transport/src/destination/request/mod.rs` | request wire frames and fuzz, request handlers and dispatch |
+| `crates/libs/rns-transport/src/destination/request/mod.rs` | request wire frames and fuzz, request handlers and dispatch, request receipts and timeouts |
+| `crates/libs/rns-transport/src/destination/request/receipt.rs` | request receipts and timeouts |
 | `crates/libs/rns-transport/src/destination/request/tests.rs` | request wire frames and fuzz |
 | `crates/libs/rns-transport/src/destination/tests.rs` | request handlers and dispatch |
 | `crates/libs/rns-transport/src/destination_parts/destination.rs` | request handlers and dispatch |
@@ -65,18 +70,22 @@ and dispatch patch carries no other id and is fork commits `08a5cff6`,
 | `crates/libs/rns-transport/src/resource/tests_advert_kat.rs` | request wire frames and fuzz |
 | `crates/libs/rns-transport/src/transport/core.rs` | request handlers and dispatch |
 | `crates/libs/rns-transport/src/transport/jobs.rs` | request handlers and dispatch |
+| `crates/libs/rns-transport/src/transport/links_parts/transport.rs` | request receipts and timeouts |
+| `crates/libs/rns-transport/src/transport/links_parts/transport_sections/request.rs` | request receipts and timeouts |
 | `crates/libs/rns-transport/src/transport/links_parts/transport_sections/reset_out_link.rs` | request handlers and dispatch |
 | `crates/libs/rns-transport/src/transport/mod.rs` | request handlers and dispatch |
 | `crates/libs/rns-transport/src/transport/path.rs` | request handlers and dispatch |
 | `crates/libs/rns-transport/src/transport/request_dispatch.rs` | request handlers and dispatch |
-| `crates/libs/rns-transport/src/transport/resource_wire.rs` | request handlers and dispatch |
+| `crates/libs/rns-transport/src/transport/resource_wire.rs` | request handlers and dispatch, request receipts and timeouts |
 | `crates/libs/rns-transport/src/transport/test_bridge.rs` | request handlers and dispatch |
-| `crates/libs/rns-transport/src/transport/tests.rs` | request handlers and dispatch |
+| `crates/libs/rns-transport/src/transport/tests.rs` | request handlers and dispatch, request receipts and timeouts |
 | `crates/libs/rns-transport/src/transport/tests_parts/two_transport_loopback_lifecycle.rs` | request handlers and dispatch |
 | `crates/libs/rns-transport/src/transport/tests_parts/two_transport_loopback_requests.rs` | request handlers and dispatch |
 | `crates/libs/rns-transport/src/transport/tests_parts/two_transport_loopback_requests_isolation.rs` | request handlers and dispatch |
 | `crates/libs/rns-transport/src/transport/tests_parts/two_transport_loopback_requests_malformed.rs` | request handlers and dispatch |
 | `crates/libs/rns-transport/src/transport/tests_parts/two_transport_loopback_requests_probe.rs` | request handlers and dispatch |
+| `crates/libs/rns-transport/src/transport/tests_parts/two_transport_loopback_requests_receipt.rs` | request receipts and timeouts |
+| `crates/libs/rns-transport/src/transport/tests_parts/two_transport_loopback_requests_receipt_timeouts.rs` | request receipts and timeouts |
 | `crates/libs/rns-transport/src/transport/tests_parts/two_transport_loopback_requests_resource_form.rs` | request handlers and dispatch |
 | `crates/libs/rns-transport/src/transport/tests_parts/two_transport_loopback_requests_resource_form_probe.rs` | request handlers and dispatch |
 | `crates/libs/rns-transport/src/transport/tests_parts/two_transport_loopback_requests_resource_form_probe2.rs` | request handlers and dispatch |
@@ -84,7 +93,7 @@ and dispatch patch carries no other id and is fork commits `08a5cff6`,
 | `crates/libs/rns-transport/src/transport/tests_parts/two_transport_loopback_requests_routing.rs` | request handlers and dispatch |
 | `crates/libs/rns-transport/tests/request_frame_wire.rs` | request wire frames and fuzz |
 | `crates/libs/rns-transport/tests/request_handler_api.rs` | request handlers and dispatch |
-| `docs/fork/PATCHSET.md` | request wire frames and fuzz, request handlers and dispatch |
+| `docs/fork/PATCHSET.md` | request wire frames and fuzz, request handlers and dispatch, request receipts and timeouts |
 | `docs/runbooks/fuzzing-campaign.md` | request wire frames and fuzz |
 | `tools/scripts/fuzz-campaign.sh` | request wire frames and fuzz |
 | `xtask/src/main_parts/run_key_management_check.rs` | request wire frames and fuzz |
@@ -290,6 +299,57 @@ the same link; and a request packet, a request Resource and another
 request packet interleaved on one link are each answered under their own
 id by one handler. The crate `CHANGELOG.md` names the file in both pin
 clauses.
+
+Fork commit `1ddd5273`: request receipts and timeouts, the requester half
+of the link request layer. `Transport::request` sends a request as
+`RNS.Link.request` does (`RNS/Link.py:480-512`) and returns a
+`RequestReceipt` modelled on `RNS.RequestReceipt` (`RNS/Link.py:1330-1452`)
+without callbacks; the response is matched to the receipt in-path, under
+the link lock, and the default timeout is `rtt * 6 + 11.25 s`
+(`RNS/Link.py:491`). A timeout fails the receipt in every state, where
+Python (`RNS/Link.py:1398`, `:1408`) fails only a `DELIVERED` receipt.
+Upstream sites:
+`destination/request/receipt.rs` (new, declared and re-exported by
+`request/mod.rs`) carries `RequestOptions`, `RequestStatus`,
+`RequestError`, `RequestResponseData`, the `Clone` handle
+`RequestReceipt` over a shared outcome cell and status `watch`, and the
+crate-private `PendingRequest` entry and `ResponseArrival` input.
+`link_parts/linkhandleresult.rs` adds the `pending_requests` table to
+`Link`, `link_sections/{new,new_from_request}.rs` initialise it, and
+`link_parts/module_prelude.rs` imports the receipt and resource event
+types. `link_sections/pending_requests.rs` (new, listed in
+`link_parts/link.rs`) carries the synchronous table methods: insert,
+remove, resolve, fail, fail-all, receiving, progress, the request
+Resource outcome, expiry and the earliest deadline. The `Response` arm of
+`handle_data_packet` in `link_sections/new.rs` resolves the receipt an
+accepted response names and fails one over its size limit with
+`Oversize`, before the `Data` event posts; the link-request reset there
+fails every pending receipt with `LinkClosed`, as do `finalize_local_close`
+and `restart` in `link_sections/next_watchdog_deadline.rs`, whose
+`check_watchdog` expires deadlines first for an `Active` or `Stale` link
+and whose `next_watchdog_deadline` folds the earliest pending deadline into
+the link check wake-up. `transport/resource_wire.rs` moves a receipt to
+`Receiving` with the advertised `d` and `t` when its response
+advertisement is admitted and fails it with `Oversize` when it is not,
+resolves it from `Complete { is_response }`, records `Progress`, and
+hands the request Resource's `OutboundComplete`, `OutboundRejected` and
+`OutboundFailed` to the table from both `handle_resource_proof` and
+`handle_link_resource_packet`, all under the existing link guard.
+`transport_sections/request.rs` (new, listed in `links_parts/transport.rs`)
+carries `Transport::request`: the packet form through
+`request_packet_with_max_response_size`, the resource form through a
+mirror of `send_request_resource_with_max_response_size` that registers
+the pending entry with the request Resource hash before the
+advertisement leaves; the older helpers are unchanged. Tests:
+`two_transport_loopback_requests_receipt.rs` and
+`two_transport_loopback_requests_receipt_timeouts.rs` (new, two
+`include!` lines in `transport/tests.rs`) pin the round trips in every
+form on two clones of one receipt, the status orders, the file response,
+`Oversize`, `LinkClosed` from either side, the unknown link, the default
+timeout against `Link::rtt()`, the override timeout for both forms and
+`Delivered` before the resource-form timeout. The crate `CHANGELOG.md`
+and `README.md` carry the release notes and the `Sending requests`
+paragraph.
 
 ## 0.14.1 (upstream 0.14.0)
 

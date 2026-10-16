@@ -30,7 +30,8 @@ and dispatch patch carries no other id and is fork commits `08a5cff6`,
 request receipts and timeouts patch carries no other id and is fork
 commits `1ddd5273`, `a2a40de7`, `3805fe7f`, `3ed78582`, `415d67c8`,
 `afdf0f18`, `fe55cb71`, `10dc355e`, `8909d956`, `642dfc2b`, `7ce1601c`,
-`40409738`, `2f2c11c7`, `140a4fd2` and `8a8c7a4e`.
+`40409738`, `2f2c11c7`, `140a4fd2`, `3035e470`, `8a8c7a4e`, `6a0fc9cb`
+and `bbd34e72`.
 
 | File | Patch |
 | --- | --- |
@@ -81,7 +82,7 @@ commits `1ddd5273`, `a2a40de7`, `3805fe7f`, `3ed78582`, `415d67c8`,
 | `crates/libs/rns-transport/src/transport/lifecycle.rs` | request receipts and timeouts |
 | `crates/libs/rns-transport/src/transport/links_parts/transport.rs` | request receipts and timeouts |
 | `crates/libs/rns-transport/src/transport/links_parts/transport_sections/request.rs` | request receipts and timeouts |
-| `crates/libs/rns-transport/src/transport/links_parts/transport_sections/reset_out_link.rs` | request handlers and dispatch |
+| `crates/libs/rns-transport/src/transport/links_parts/transport_sections/reset_out_link.rs` | request handlers and dispatch, request receipts and timeouts |
 | `crates/libs/rns-transport/src/transport/mod.rs` | request handlers and dispatch |
 | `crates/libs/rns-transport/src/transport/path.rs` | request handlers and dispatch |
 | `crates/libs/rns-transport/src/transport/request_dispatch.rs` | request handlers and dispatch |
@@ -97,6 +98,7 @@ commits `1ddd5273`, `a2a40de7`, `3805fe7f`, `3ed78582`, `415d67c8`,
 | `crates/libs/rns-transport/src/transport/tests_parts/two_transport_loopback_requests_receipt_probe.rs` | request receipts and timeouts |
 | `crates/libs/rns-transport/src/transport/tests_parts/two_transport_loopback_requests_receipt_probe2.rs` | request receipts and timeouts |
 | `crates/libs/rns-transport/src/transport/tests_parts/two_transport_loopback_requests_receipt_probe3.rs` | request receipts and timeouts |
+| `crates/libs/rns-transport/src/transport/tests_parts/two_transport_loopback_requests_receipt_probe4.rs` | request receipts and timeouts |
 | `crates/libs/rns-transport/src/transport/tests_parts/two_transport_loopback_requests_receipt_stop.rs` | request receipts and timeouts |
 | `crates/libs/rns-transport/src/transport/tests_parts/two_transport_loopback_requests_receipt_timeouts.rs` | request receipts and timeouts |
 | `crates/libs/rns-transport/src/transport/tests_parts/two_transport_loopback_requests_resource_form.rs` | request handlers and dispatch |
@@ -556,7 +558,7 @@ segment hash alone, so a responder re-advertising an active segment
 under another request id would have marked that other receipt
 `Receiving` with nothing to ever fail it. Upstream sites:
 `link_sections/pending_requests.rs` maps `OutboundCancelled` to
-`RequestError::Send` (`RNS/Link.py:1375-1385` fails the receipt for
+`RequestError::Send` (`RNS/Link.py:1377-1385` fails the receipt for
 every Resource status but complete) and logs at debug the cause
 `PendingRequest::resolve` hands back for a response that did not decode;
 `transport_sections/reset_out_link.rs` has `cancel_resource` route the
@@ -598,6 +600,16 @@ a closed link fails its receipt `LinkClosed` and refuses the next
 request with `RnsError::ConnectionError`, and `Transport::stop` fails
 every pending receipt on every link whatever state it is in.
 
+Fork commit `3035e470`: release notes for the stop budget, the cancel
+outcome and the keyed gate. The crate `CHANGELOG.md` says `started_at()`
+of a request Resource starts when a response advertisement is admitted,
+adds `RNS/Link.py:1048-1053` to the `Oversize` cite, names the local
+cancel under `Send`, the shared 5 s budget and the held-link skip under
+`Transport::stop`, and the request id and link in the admitted gate. The
+`README.md` `Sending requests` paragraph says a request Resource cancelled
+through `Transport::cancel_resource` fails `Send` and that
+`Transport::stop()` fails every pending receipt within its budget.
+
 Fork commit `8a8c7a4e`: a request Resource cancelled while its receipt is
 already `Receiving` cancels the response inbound for it. The request
 Resource stays in the manager's outgoing table until its proof arrives,
@@ -613,6 +625,39 @@ cancel (`RNS/Link.py:1435`, `RNS/Resource.py:1111-1116`). Tests:
 `link_sections/pending_requests_tests.rs` pins `OutboundCancelled` for an
 entry already `Receiving` failing it `Send` and naming the segment in
 flight.
+
+Fork commit `6a0fc9cb`: the cancelled-request probe adopted and the receipt
+fixtures tidied. `two_transport_loopback_requests_receipt_probe4.rs` (new,
+one more `include!` line in `transport/tests.rs`) cancels a request
+Resource through `Transport::cancel_resource` while the responder is
+stalled and pins the receipt failing `Send` on every clone with no clock
+started and no sizes, the `OutboundCancelled` event for the hash, a cancel
+naming nothing in flight leaving the receipt as it was, a second cancel of
+the same hash finding nothing, and the link answering afterwards.
+`resource.rs` makes `FLAG_RESPONSE` `pub(crate)` and
+`two_transport_loopback_requests_receipt_probe3.rs` reads it instead of
+its own copy; `two_transport_loopback_requests_receipt_stop.rs` spells its
+link-drop bound as `LOOPBACK_TIMEOUT`, says what the holder's `Err` means
+and pins `stop` returning no earlier than the budget;
+`two_transport_loopback_requests_receipt_probe.rs` drops two asserts the
+surrounding `timeout` and the `expected` bound already carry;
+`resource/tests_timeouts_lifecycle.rs` sizes its request ids by
+`ADDRESS_HASH_SIZE`; the `tests/request_receipt_api.rs` header claims
+only what it pins. The `RNS/Link.py` failure-branch cite is `:1377-1385`
+in `link_sections/pending_requests_tests.rs` and the crate `CHANGELOG.md`.
+
+Fork commit `bbd34e72`: the receiver-drop comments say which close path
+they belong to, and `resolve` is `#[must_use]`.
+`link_sections/next_watchdog_deadline.rs` had the two sentences crossed:
+`finalize_local_close` now says the transport drops the link's receivers
+with its state on the next link check, and `restart()` that the link
+stays so a receiver left inbound fails on its own retry limit;
+`link_sections/new.rs` keeps only the sentence about the id changing
+below. `request/receipt_pending.rs` marks `PendingRequest::resolve`
+`#[must_use]`, the cause being for the caller to log, and
+`request/receipt_tests.rs` asserts the `Ready` path hands back `None`;
+`request/receipt.rs` records that `MetadataRead` and `MetadataTrailing`
+are defence in depth behind the walker, kept without a synthetic pin.
 
 ## 0.14.1 (upstream 0.14.0)
 

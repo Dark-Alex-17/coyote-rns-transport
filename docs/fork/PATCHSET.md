@@ -29,7 +29,7 @@ and dispatch patch carries no other id and is fork commits `08a5cff6`,
 `febec3db`, `7e9e5904`, `5544c49c`, `816032c5` and `c82dcd0d`; the
 request receipts and timeouts patch carries no other id and is fork
 commits `1ddd5273`, `a2a40de7`, `3805fe7f`, `3ed78582`, `415d67c8`,
-`afdf0f18`, `fe55cb71` and `8909d956`.
+`afdf0f18`, `fe55cb71`, `10dc355e`, `8909d956`, `642dfc2b` and `7ce1601c`.
 
 | File | Patch |
 | --- | --- |
@@ -94,6 +94,7 @@ commits `1ddd5273`, `a2a40de7`, `3805fe7f`, `3ed78582`, `415d67c8`,
 | `crates/libs/rns-transport/src/transport/tests_parts/two_transport_loopback_requests_probe.rs` | request handlers and dispatch |
 | `crates/libs/rns-transport/src/transport/tests_parts/two_transport_loopback_requests_receipt.rs` | request receipts and timeouts |
 | `crates/libs/rns-transport/src/transport/tests_parts/two_transport_loopback_requests_receipt_probe.rs` | request receipts and timeouts |
+| `crates/libs/rns-transport/src/transport/tests_parts/two_transport_loopback_requests_receipt_probe2.rs` | request receipts and timeouts |
 | `crates/libs/rns-transport/src/transport/tests_parts/two_transport_loopback_requests_receipt_timeouts.rs` | request receipts and timeouts |
 | `crates/libs/rns-transport/src/transport/tests_parts/two_transport_loopback_requests_resource_form.rs` | request handlers and dispatch |
 | `crates/libs/rns-transport/src/transport/tests_parts/two_transport_loopback_requests_resource_form_probe.rs` | request handlers and dispatch |
@@ -312,12 +313,14 @@ clauses.
 
 Fork commit `1ddd5273`: request receipts and timeouts, the requester half
 of the link request layer. `Transport::request` sends a request as
-`RNS.Link.request` does (`RNS/Link.py:480-512`) and returns a
-`RequestReceipt` modelled on `RNS.RequestReceipt` (`RNS/Link.py:1330-1452`)
+`RNS.Link.request` does (`RNS/Link.py:473-510`) and returns a
+`RequestReceipt` modelled on `RNS.RequestReceipt` (`RNS/Link.py:1311-1500`)
 without callbacks; the response is matched to the receipt in-path, under
 the link lock, and the default timeout is `rtt * 6 + 11.25 s`
 (`RNS/Link.py:491`). A timeout fails the receipt in every state, where
-Python (`RNS/Link.py:1398`, `:1408`) fails only a `DELIVERED` receipt.
+Python (`RNS/Link.py:1398`, `:1408`) fails only a `DELIVERED` receipt
+(superseded by `3ed78582`: the clock runs from the send or from
+`Delivered` and never while `Receiving`).
 Upstream sites:
 `destination/request/receipt.rs` (new, declared and re-exported by
 `request/mod.rs`) carries `RequestOptions`, `RequestStatus`,
@@ -384,6 +387,9 @@ receipt `LinkClosed`; a packet response sets both response sizes to the
 packed body length (`RNS/Link.py:1016-1017`) and a split response sets
 `response_size` once and sums `response_transfer_size` over its segments
 (`RNS/Link.py:1057-1061`); response metadata gets the frame depth check.
+It also adds the unit-test files `request/receipt_tests.rs`,
+`link_sections/pending_requests_tests.rs` and
+`resource/tests_timeouts_lifecycle.rs`.
 The third routes the Resource outcomes the periodic workers drain to the
 owning link's pending table, so a request Resource that exhausts its
 retries fails `Send` and a response Resource whose receiver gives up fails
@@ -424,8 +430,91 @@ cancels a displaced receipt's inbound response. Tests:
 `two_transport_loopback_requests_receipt_timeouts.rs`, the new
 `two_transport_loopback_requests_receipt_probe.rs` (one more `include!` in
 `transport/tests.rs`) and the black-box `tests/request_receipt_api.rs`.
-The crate `CHANGELOG.md` and `README.md` carry the release notes and the
-`Sending requests` paragraph.
+The release notes for these commits are fork commit `10dc355e`, below.
+
+Fork commit `10dc355e`: release notes for the request clock. The crate
+`CHANGELOG.md` `Transport::request` bullet states what the receipt
+exposes after the clock amendment (`started_at()` as an `Option` anchored
+per request form, both response sizes for a packet response and summed
+across a split one, cumulative `progress()`, the full `RequestError` set
+with `Receive`, the `Stale` link refusal) and its cites move to
+`RNS/Link.py:473-510`, `:1311-1500` and `:874-876`; the `Changed` bullet
+on the request timeout is rewritten around the divergence from Python's
+`DELIVERED` guard. The `README.md` `Sending requests` paragraph carries
+the same clock rule and the `Rejected`, `Send`, `Receive` and `Stale`
+outcomes, its snippet uses the crate `rmpv` re-export, and the responder
+section says a response Resource resolves the requester's
+`RequestReceipt` and an oversize request Resource reads
+`RequestError::Rejected` on it.
+
+Fork commit `642dfc2b`: a receipt is marked `Receiving` only for an
+admitted response advertisement. The transport marked it as soon as the
+advertisement passed the size check, before the ResourceManager had seen
+it, so an advertisement the manager drops (inbound caps, an out-of-order
+or duplicate segment, a receiver build error) left the receipt
+`Receiving` with no deadline and no Resource whose failure could fail
+it, and a routine advertisement retry over-counted
+`response_transfer_size`.
+Upstream sites:
+`resource/manager_cleanup.rs` adds `ResourceManager::has_active_receiver`.
+`transport/resource_wire.rs` marks the receipt `Receiving` after
+`handle_packet_into_with_mtu` returns, gated on that method
+(`RNS/Link.py:1055-1064` touches the receipt only once `Resource.accept`
+returned one), re-drains the manager's events after the cancels it queues
+in both `handle_link_resource_packet` and `handle_resource_proof`, so a
+cancelled receiver's `InboundFailed` is published with the batch that
+caused it, and logs a response advertisement whose `request_id` has the
+wrong length. `request/receipt_pending.rs` has
+`PendingRequest::mark_receiving` ignore a repeat of the segment in flight
+(`RNS/Resource.py:594-598`, `:238-240`). `request/receipt.rs` has
+`status` and `concluded_at` conclude `LinkClosed` through the new private
+`outcome` when the entry is gone, makes `RESPONSE_GRACE` `pub(crate)`,
+and widens the rustdoc on `RequestError::Oversize` (`RNS/Link.py:1017`,
+`:876`, `:1408`), `RequestError::Send` and `ResponseArrival::Resource`
+(`RNS/Link.py:897-912`). `link_sections/new.rs` and
+`link_sections/pending_requests.rs` `debug_assert!` that the
+`fail_pending_request` result they discard is `None`;
+`link_sections/next_watchdog_deadline.rs` gives `restart` the comment
+`finalize_local_close` had; `transport_sections/request.rs` removes the
+pending entry after a failed send only when `registered.is_some()`;
+`transport/lifecycle.rs` describes the receipt sweep of `stop` as
+outside its 5 s budget. Tests: `request/receipt_tests.rs`, whose two
+async tests carry the `await_holding_invalid_type` deny, pins a repeated
+advertisement counting `t` once and `status()` and `concluded_at()`
+concluding a vanished entry on their own;
+`resource/tests_timeouts_lifecycle.rs` pins `has_active_receiver` for a
+dropped and an admitted advertisement.
+
+Fork commit `7ce1601c`: the `Receiving` loopback tests stall
+mid-transfer, and the advertised sizes are pinned exactly.
+`two_transport_loopback_requests_receipt_timeouts.rs`: the tests that
+stall or drop a response Resource while the receipt reads `Receiving`
+run their pair over `LEGACY_MTU`, where the 512 KiB body is about 1100
+parts rather than three, so the stall lands with most of the transfer
+still to come; the outlasts-the-timeout test is back on the
+`current_thread` runtime; `assert_times_out` measures from a
+`std::time::Instant` and the resource-form test hands it the receipt's
+own `started_at()` rather than the observed `Delivered` instant; the
+fixture reads `RESPONSE_GRACE` in place of the `11_250` literal.
+`two_transport_loopback_requests_receipt.rs` pins `response_size()` to
+the length of the `ResponseFrame` envelope and `response_transfer_size()`
+to the `total_bytes` of the receiver's `Progress` events
+(`RNS/Link.py:1057-1061`), in place of `is_some()`.
+`two_transport_loopback_requests_receipt_probe.rs` drops its
+`DEFAULT_TIMEOUT_BASE` copy for `RESPONSE_GRACE`, which `request/mod.rs`
+re-exports under `cfg(test)`.
+`two_transport_loopback_requests_receipt_probe2.rs` (new, the fourth
+`include!` line this patch adds to `transport/tests.rs`, the
+sixty-fourth in the file) pins the usage patterns: a `Duration::MAX`
+timeout never expires across two link checks and leaves the link
+answering until a close ends the receipt `LinkClosed`; a timed-out
+receipt leaves the request beside it and the one after it `Ready` and
+the link `Active`, and re-reads `Timeout`; a link that closes from the
+requester's side while a response Resource is inbound, over `LEGACY_MTU`
+with the responder stalled, fails the receipt `LinkClosed`, not `Receive`
+(`RNS/Link.py:1435`); and a response that resolved a receipt in-path
+still posts `LinkEvent::Data(Response)` and `ResourceEventKind::Complete`
+with `is_response` and the request id.
 
 ## 0.14.1 (upstream 0.14.0)
 

@@ -30,8 +30,8 @@ and dispatch patch carries no other id and is fork commits `08a5cff6`,
 request receipts and timeouts patch carries no other id and is fork
 commits `1ddd5273`, `a2a40de7`, `3805fe7f`, `3ed78582`, `415d67c8`,
 `afdf0f18`, `fe55cb71`, `10dc355e`, `8909d956`, `642dfc2b`, `7ce1601c`,
-`40409738`, `2f2c11c7`, `140a4fd2`, `3035e470`, `8a8c7a4e`, `6a0fc9cb`
-and `bbd34e72`.
+`40409738`, `2f2c11c7`, `140a4fd2`, `3035e470`, `8a8c7a4e`, `6a0fc9cb`,
+`bbd34e72` and `114dbe1c`.
 
 | File | Patch |
 | --- | --- |
@@ -72,6 +72,7 @@ and `bbd34e72`.
 | `crates/libs/rns-transport/src/destination_parts/destination.rs` | request handlers and dispatch |
 | `crates/libs/rns-transport/src/destination_parts/module_core.rs` | request handlers and dispatch |
 | `crates/libs/rns-transport/src/destination_parts/module_prelude.rs` | request handlers and dispatch |
+| `crates/libs/rns-transport/src/resource.rs` | request receipts and timeouts |
 | `crates/libs/rns-transport/src/resource/manager_cleanup.rs` | request receipts and timeouts |
 | `crates/libs/rns-transport/src/resource/tests.rs` | request wire frames and fuzz |
 | `crates/libs/rns-transport/src/resource/tests_advert_kat.rs` | request wire frames and fuzz |
@@ -99,6 +100,7 @@ and `bbd34e72`.
 | `crates/libs/rns-transport/src/transport/tests_parts/two_transport_loopback_requests_receipt_probe2.rs` | request receipts and timeouts |
 | `crates/libs/rns-transport/src/transport/tests_parts/two_transport_loopback_requests_receipt_probe3.rs` | request receipts and timeouts |
 | `crates/libs/rns-transport/src/transport/tests_parts/two_transport_loopback_requests_receipt_probe4.rs` | request receipts and timeouts |
+| `crates/libs/rns-transport/src/transport/tests_parts/two_transport_loopback_requests_receipt_probe5.rs` | request receipts and timeouts |
 | `crates/libs/rns-transport/src/transport/tests_parts/two_transport_loopback_requests_receipt_stop.rs` | request receipts and timeouts |
 | `crates/libs/rns-transport/src/transport/tests_parts/two_transport_loopback_requests_receipt_timeouts.rs` | request receipts and timeouts |
 | `crates/libs/rns-transport/src/transport/tests_parts/two_transport_loopback_requests_resource_form.rs` | request handlers and dispatch |
@@ -658,6 +660,28 @@ below. `request/receipt_pending.rs` marks `PendingRequest::resolve`
 `request/receipt_tests.rs` asserts the `Ready` path hands back `None`;
 `request/receipt.rs` records that `MetadataRead` and `MetadataTrailing`
 are defence in depth behind the walker, kept without a synthetic pin.
+
+Fork commit `114dbe1c`: the receipt re-read probe adopted, and what a
+dropped sender does to a subscriber.
+`two_transport_loopback_requests_receipt_probe5.rs` (new, one more
+`include!` line in `transport/tests.rs`) pins `response()` as a read that
+returns the same body or the same failure on every repeat, on the same
+clone or on one taken after the conclusion, with `concluded_at()`
+unmoved; a subscriber taken after the conclusion reading the final status
+and being reported no change; and a receipt every clone of which is
+dropped before the response arrives, in packet form and in resource form,
+still having its response reach the link's broadcast, the responder still
+serving the request under the id the receipt reported, and the link
+answering the next request in both forms. Upstream site:
+`request/receipt.rs` has `subscribe()` say that a link which goes away
+without concluding the request drops the sender, so `changed()` returns
+an error rather than a `Failed` change and `borrow()` keeps the last
+status, with `status()` and `response()` concluding the receipt
+`LinkClosed`, and the `ResponseDecodeFailure` doc drops its
+review-process clause; `request/receipt_tests.rs` binds its shallow metadata
+vector mutable in one step. The crate `CHANGELOG.md` names the fixture
+in the `### Added` pin clause and `probe4` and `pending_requests_tests.rs`
+in the `### Changed` one.
 
 ## 0.14.1 (upstream 0.14.0)
 

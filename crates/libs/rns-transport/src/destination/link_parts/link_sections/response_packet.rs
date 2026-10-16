@@ -31,31 +31,62 @@ impl Link {
         self.packet_with_context(data, PacketContext::Request)
     }
 
-    /// Build a request packet and associate the optional Python-compatible
-    /// `max_response_size` with the request id derived from its packet hash.
+    /// Build a request packet and record, under the request id derived from
+    /// its packet hash, that a response is expected, bounded by the optional
+    /// Python-compatible `max_response_size`. A response Resource advertised
+    /// for an id nothing recorded is dropped, so a requester that reads the
+    /// response from the broadcasts builds its packet here, not with
+    /// [`Self::request_packet`].
     pub fn request_packet_with_max_response_size(
         &mut self,
         data: &[u8],
         max_response_size: Option<usize>,
     ) -> Result<Packet, RnsError> {
         let packet = self.packet_with_context(data, PacketContext::Request)?;
-        if let Some(max_response_size) = max_response_size {
-            let request_id = packet.hash().to_bytes()[..ADDRESS_HASH_SIZE].to_vec();
-            self.pending_response_limits.insert(request_id, max_response_size);
-        }
+        let request_id = &packet.hash().to_bytes()[..ADDRESS_HASH_SIZE];
+        self.expect_response(request_id, max_response_size);
         Ok(packet)
     }
 
     /// Register a response-size limit for a resource-backed request.
     pub fn set_response_size_limit(&mut self, request_id: &[u8], max_response_size: usize) {
+        self.expect_response(request_id, Some(max_response_size));
+    }
+
+    /// Records that a response to `request_id` is expected, bounded by
+    /// `max_response_size` when one is given. Python keeps this on the
+    /// `RequestReceipt` (`RNS/Link.py:1046-1049`); a request sent through
+    /// `send_request_resource*` has no receipt, so the entry here is what
+    /// tells its response advertisement from an unsolicited one.
+    pub fn expect_response(&mut self, request_id: &[u8], max_response_size: Option<usize>) {
         self.pending_response_limits.insert(request_id.to_vec(), max_response_size);
     }
 
-    /// Remove a pending limit after the matching response is accepted or
-    /// rejected. A missing limit means the request was unbounded.
+    /// Whether a response Resource advertising `data_size` bytes for
+    /// `request_id` may be received (`RNS/Link.py:1046-1049`, `read_size`
+    /// is `d`, `RNS/Resource.py:1285-1287`): `None` when nothing solicited
+    /// it, `Some(false)` when it is over the limit the request went out
+    /// with. Checked at every segment advertisement, so nothing is removed
+    /// here; the entry goes when the response concludes.
+    pub fn response_size_allowed(&self, request_id: &[u8], data_size: usize) -> Option<bool> {
+        if let Some(limit) = self.pending_response_limits.get(request_id) {
+            return Some(limit.is_none_or(|limit| data_size <= limit));
+        }
+        let id = <[u8; ADDRESS_HASH_SIZE]>::try_from(request_id).ok().map(RequestId::new)?;
+        self.pending_requests.contains_key(&id).then_some(true)
+    }
+
+    /// The `max_response_size` the request `request_id` went out with.
+    pub(crate) fn response_size_limit(&self, request_id: &[u8]) -> Option<usize> {
+        self.pending_response_limits.get(request_id).copied().flatten()
+    }
+
+    /// Remove a pending limit after the matching response packet is
+    /// accepted or rejected. A missing or unbounded entry admits it.
     pub fn take_response_limit_if_allowed(&mut self, request_id: &[u8], response_size: usize) -> bool {
         self.pending_response_limits
             .remove(request_id)
+            .flatten()
             .is_none_or(|limit| response_size <= limit)
     }
 

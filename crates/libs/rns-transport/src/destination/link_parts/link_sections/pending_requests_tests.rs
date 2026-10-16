@@ -5,7 +5,7 @@ mod pending_requests_tests {
     use super::identify_packet_tests::linked_pair;
     use super::*;
 
-    use crate::destination::request::RequestStatus;
+    use crate::destination::request::{RequestStatus, ResponseFrame};
     use crate::resource::{ResourceFailure, ResourceProgress, RANDOM_HASH_SIZE};
 
     const TIMEOUT: Duration = Duration::from_secs(5);
@@ -16,6 +16,10 @@ mod pending_requests_tests {
 
     fn hash(byte: u8) -> Hash {
         Hash::new_from_slice(&[byte; HASH_SIZE])
+    }
+
+    fn hashes(segment: u8, original: u8) -> InboundResponseHashes {
+        InboundResponseHashes { segment: hash(segment), original: hash(original) }
     }
 
     fn response_segment(segment_hash: Hash, original: Hash) -> ResourceAdvertisement {
@@ -55,6 +59,42 @@ mod pending_requests_tests {
     /// A resource-form request whose request Resource is `request_hash`.
     fn pending_resource_request(link: &mut Link, id: RequestId, request_hash: Hash) -> RequestReceipt {
         link.insert_pending_request(id, PendingRequest::new(id, TIMEOUT, Some(request_hash))).0
+    }
+
+    /// `RNS/Link.py:1046-1049` reads the gate at every segment advertisement: an
+    /// advertisement the ResourceManager drops leaves the limit where it was, the next one
+    /// is measured against it, a receipt without a limit admits any size, an id nobody
+    /// waits for solicits nothing, and a `send_request_resource*` id of any length is
+    /// solicited by its entry alone. The limit goes when the response resolves.
+    #[test]
+    fn the_response_size_gate_is_read_per_advertisement_and_not_spent_by_one() {
+        let (mut link, _, _, _) = linked_pair();
+        let bounded = pending_packet_request(&mut link, id(1), TIMEOUT);
+        let bounded_id = id(1);
+        let q = bounded_id.as_bytes().as_slice();
+        assert_eq!(link.response_size_allowed(q, 1024), Some(true), "d == limit is admitted");
+        assert_eq!(link.response_size_allowed(q, 1024), Some(true), "and not spent");
+        assert_eq!(link.response_size_allowed(q, 1025), Some(false), "d == limit + 1 is refused");
+        assert_eq!(link.response_size_limit(q), Some(1024), "refusing leaves the limit in place");
+
+        let _unbounded = pending_resource_request(&mut link, id(2), hash(0xA2));
+        assert_eq!(link.response_size_allowed(id(2).as_bytes(), usize::MAX), Some(true));
+        assert_eq!(link.response_size_allowed(id(3).as_bytes(), 1), None, "nobody asked");
+
+        link.expect_response(b"legacy", None);
+        assert_eq!(link.response_size_allowed(b"legacy", usize::MAX), Some(true));
+        link.expect_response(b"legacy", Some(10));
+        assert_eq!(link.response_size_allowed(b"legacy", 11), Some(false));
+        link.clear_response_size_limit(b"legacy");
+        assert_eq!(link.response_size_allowed(b"legacy", 1), None);
+
+        let envelope = ResponseFrame::new(id(1), rmpv::Value::from(7)).encode();
+        link.resolve_pending_request(
+            id(1),
+            ResponseArrival::Resource { data: &envelope, metadata: None },
+        );
+        assert_eq!(bounded.status(), RequestStatus::Ready);
+        assert_eq!(link.response_size_allowed(q, 1), None, "the limit went with the entry");
     }
 
     #[test]
@@ -111,8 +151,8 @@ mod pending_requests_tests {
         assert_eq!(receipt.status(), RequestStatus::Receiving);
         assert_eq!(
             link.note_request_resource_outcome(hash(1), &inbound_failed()),
-            Some(hash(2)),
-            "the failed entry names the segment in flight"
+            Some(hashes(2, 1)),
+            "the failed entry names the segment in flight and the whole"
         );
         assert_eq!(receipt.status(), RequestStatus::Failed);
         assert!(link.pending_response_limits.is_empty(), "the limit went with the entry");
@@ -133,8 +173,8 @@ mod pending_requests_tests {
         assert_eq!(link.pending_response_limits.len(), 2);
 
         let mut receiving = link.fail_all_pending_requests(RequestError::LinkClosed);
-        receiving.sort_by_key(|hash| hash.to_bytes());
-        assert_eq!(receiving, vec![hash(1), hash(2)]);
+        receiving.sort_by_key(|hashes| hashes.segment.to_bytes());
+        assert_eq!(receiving, vec![hashes(1, 1), hashes(2, 2)]);
         assert_eq!(first.status(), RequestStatus::Failed);
         assert_eq!(second.status(), RequestStatus::Failed);
         assert!(link.pending_response_limits.is_empty());
@@ -148,7 +188,7 @@ mod pending_requests_tests {
 
         let (replacement, cancel) =
             link.insert_pending_request(id(1), PendingRequest::new(id(1), TIMEOUT, None));
-        assert_eq!(cancel, Some(hash(5)));
+        assert_eq!(cancel, Some(hashes(5, 5)));
         assert_eq!(displaced.status(), RequestStatus::Failed);
         assert_eq!(replacement.status(), RequestStatus::Sent);
         assert_eq!(link.fail_pending_request(&id(1), RequestError::Timeout), None);
@@ -221,8 +261,8 @@ mod pending_requests_tests {
 
         assert_eq!(
             link.note_request_resource_outcome(hash(0xAA), &ResourceEventKind::OutboundCancelled),
-            Some(hash(2)),
-            "the failed entry names the segment in flight"
+            Some(hashes(2, 1)),
+            "the failed entry names the segment in flight and the whole"
         );
         assert_eq!(receipt.status(), RequestStatus::Failed);
         assert_eq!(receipt.response().await, Err(RequestError::Send));

@@ -160,6 +160,7 @@ async fn two_transport_loopback_resources_back_to_back_on_one_link() {
         .enumerate()
     {
         let payload = random_payload(MAX_EFFICIENT_SIZE + 64 * 1024);
+        solicit_response(&pair.connector.transport, &pair.link_id, request_tag).await;
         let resource_hash = pair
             .listener
             .transport

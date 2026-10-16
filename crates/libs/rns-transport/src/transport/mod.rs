@@ -357,6 +357,13 @@ pub enum SendPacketOutcome {
     DroppedNoRoute,
 }
 
+impl SendPacketOutcome {
+    /// Whether the packet reached an interface, directly or by broadcast.
+    pub fn is_sent(self) -> bool {
+        matches!(self, Self::SentDirect | Self::SentBroadcast)
+    }
+}
+
 /// Aggregate outcome for a best-effort send across active Reticulum links.
 ///
 /// Fan-out can partially succeed, so a single `Result` cannot represent the

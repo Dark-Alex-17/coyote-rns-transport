@@ -204,8 +204,7 @@ impl Transport {
         drop(handler);
         let outcome = self.send_link_packet_on_bound_iface(&link, packet).await;
         let mut handler = self.handler.lock().await;
-        let sent =
-            matches!(outcome, SendPacketOutcome::SentDirect | SendPacketOutcome::SentBroadcast);
+        let sent = outcome.is_sent();
         handler.resource_manager.confirm_outbound_dispatch(resource_hash, sent);
         let events = handler.resource_manager.drain_events();
         super::resource_wire::publish_resource_events(&handler, events);
@@ -294,18 +293,15 @@ impl Transport {
         let mut handler = self.handler.lock().await;
         let (resource_hash, packet) = handler.resource_manager.track_prepared(prepared);
         drop(handler);
-        if let Some(max_response_size) = max_response_size {
-            link.lock().await.set_response_size_limit(&response_request_id, max_response_size);
-        }
+        // Marked before the advertisement leaves: the response to it is
+        // solicited whether or not a size limit came with it.
+        link.lock().await.expect_response(&response_request_id, max_response_size);
         let outcome = self.send_link_packet_on_bound_iface(&link, packet).await;
-        if !matches!(outcome, SendPacketOutcome::SentDirect | SendPacketOutcome::SentBroadcast)
-            && max_response_size.is_some()
-        {
+        let sent = outcome.is_sent();
+        if !sent {
             link.lock().await.clear_response_size_limit(&response_request_id);
         }
         let mut handler = self.handler.lock().await;
-        let sent =
-            matches!(outcome, SendPacketOutcome::SentDirect | SendPacketOutcome::SentBroadcast);
         handler.resource_manager.confirm_outbound_dispatch(resource_hash, sent);
         let events = handler.resource_manager.drain_events();
         super::resource_wire::publish_resource_events(&handler, events);
@@ -346,7 +342,7 @@ impl Transport {
         };
 
         let outcome = self.send_link_packet_on_bound_iface(&link, packet).await;
-        if matches!(outcome, SendPacketOutcome::SentDirect | SendPacketOutcome::SentBroadcast) {
+        if outcome.is_sent() {
             Ok(true)
         } else {
             Err(RnsError::ConnectionError)

@@ -22,8 +22,8 @@ use crate::{
     },
     crypt::fernet::{CachedFernet, PlainText, Token},
     destination::request::{
-        DispatchForm, DispatchItem, PendingRequest, RequestError, RequestId, RequestReceipt,
-        ResponseArrival,
+        DispatchForm, DispatchItem, InboundResponseHashes, PendingRequest, RequestError,
+        RequestId, RequestReceipt, ResponseArrival,
     },
     error::RnsError,
     hash::{AddressHash, Hash, ADDRESS_HASH_SIZE, HASH_SIZE},

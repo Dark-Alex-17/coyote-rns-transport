@@ -46,7 +46,7 @@ async fn send_request_on_link(
     value: rmpv::Value,
 ) -> RequestId {
     let packed = Link::request_payload(path, value).expect("request packs").packed;
-    let packet = link.lock().await.request_packet(&packed).expect("request fits a packet");
+    let packet = link.lock().await.request_packet_with_max_response_size(&packed, None).expect("request fits a packet");
     let id = RequestId::from_packet_hash(&packet.hash());
     let outcome =
         pair.handles.connector.transport.send_link_packet_on_bound_iface(link, packet).await;

@@ -63,7 +63,7 @@ fn echo_handler(
 async fn send_request(pair: &LoopbackRequestPair, path: &str, value: rmpv::Value) -> RequestId {
     let packed = Link::request_payload(path, value).expect("request packs").packed;
     let packet =
-        pair.handles.link.lock().await.request_packet(&packed).expect("request fits a packet");
+        pair.handles.link.lock().await.request_packet_with_max_response_size(&packed, None).expect("request fits a packet");
     let id = RequestId::from_packet_hash(&packet.hash());
     let outcome = pair
         .handles

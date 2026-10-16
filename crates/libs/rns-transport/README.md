@@ -114,7 +114,11 @@ when the response is a Resource; a resource-form request reaches `Delivered`
 when its Resource completes. The timeout defaults to `rtt * 6 + 11.25 s` and
 `RequestOptions::with_timeout` overrides it; the clock runs from the send for
 a packet-form request and from `Delivered` for a resource-form one, and a
-receipt still waiting when it runs out fails with `RequestError::Timeout`. No
+receipt still waiting when it runs out fails with `RequestError::Timeout`.
+`RequestOptions::with_max_response_size` is measured against
+the uncompressed size of the response, the packed body of a response packet
+or the advertised data size of a response Resource, and a larger response
+fails the receipt with `RequestError::Oversize` without being received. No
 clock runs while a request Resource is in flight or a response Resource is
 being received: a request Resource that is refused fails `Rejected`, one
 that cannot be sent, exhausts its retries or is cancelled through

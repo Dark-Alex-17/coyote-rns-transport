@@ -47,8 +47,7 @@ impl Transport {
         drop(handler);
         let outcome = self.send_link_packet_on_bound_iface(&link, packet).await;
         let mut handler = self.handler.lock().await;
-        let sent =
-            matches!(outcome, SendPacketOutcome::SentDirect | SendPacketOutcome::SentBroadcast);
+        let sent = outcome.is_sent();
         handler.resource_manager.confirm_outbound_dispatch(resource_hash, sent);
         let events = handler.resource_manager.drain_events();
         super::resource_wire::publish_resource_events(&handler, events);

@@ -58,8 +58,7 @@ impl Transport {
 
         for (link, link_id, packet) in packets {
             let outcome = self.send_link_packet_on_bound_iface(&link, packet).await;
-            if matches!(outcome, SendPacketOutcome::SentDirect | SendPacketOutcome::SentBroadcast)
-            {
+            if outcome.is_sent() {
                 report.sent_links += 1;
             } else {
                 report.failed_links += 1;

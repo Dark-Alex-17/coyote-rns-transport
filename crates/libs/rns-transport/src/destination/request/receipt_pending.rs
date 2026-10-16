@@ -62,6 +62,18 @@ struct InboundResponse {
     total_segments: u32,
 }
 
+/// The response Resource a failed receipt was still receiving, under both
+/// hashes the ResourceManager knows it by: the segment in flight, which its
+/// receiver and a receiver cancel name, and the whole Resource, which the
+/// partial assembly of a split response is keyed by. Between one segment's
+/// completion and the next segment's admitted advertisement only the
+/// assembly exists, so a cancel needs both.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(crate) struct InboundResponseHashes {
+    pub(crate) segment: Hash,
+    pub(crate) original: Hash,
+}
+
 /// The link's side of one outstanding request: `RNS.RequestReceipt` as the
 /// entry of `Link.pending_requests` (`RNS/Link.py:1365`). Owns the status
 /// sender; dropping it without concluding tells every receipt the link is
@@ -123,6 +135,14 @@ impl PendingRequest {
 
     pub(crate) fn request_resource_hash(&self) -> Option<Hash> {
         self.request_resource_hash
+    }
+
+    /// The response Resource being received, under both its hashes.
+    pub(crate) fn inbound_response(&self) -> Option<InboundResponseHashes> {
+        self.response.as_ref().map(|response| InboundResponseHashes {
+            segment: response.segment_hash,
+            original: response.original_hash,
+        })
     }
 
     /// The segment of the response Resource in flight, as `Progress` events
@@ -228,11 +248,11 @@ impl PendingRequest {
         }
     }
 
-    /// Concludes `Failed(error)`. Returns the segment of a response Resource
-    /// that was still being received: the caller cancels that transfer
+    /// Concludes `Failed(error)`. Returns the response Resource that was
+    /// still being received: the caller cancels that transfer
     /// (`RNS/Link.py:1435`), this entry only forgets it.
-    pub(crate) fn fail(self, error: RequestError) -> Option<Hash> {
-        let receiving = self.response_segment_hash();
+    pub(crate) fn fail(self, error: RequestError) -> Option<InboundResponseHashes> {
+        let receiving = self.inbound_response();
         self.conclude(Err(error));
         receiving
     }

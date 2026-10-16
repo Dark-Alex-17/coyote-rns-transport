@@ -1,12 +1,19 @@
 use crate::destination::link::LinkRequest;
-use crate::destination::request::{PendingRequest, RequestId, RequestOptions, RequestReceipt};
+use crate::destination::request::{
+    InboundResponseHashes, PendingRequest, RequestId, RequestOptions, RequestReceipt,
+};
 
 /// What `Transport::request` decided under the link lock.
 enum OutboundRequestForm {
     /// The request fits one `REQUEST` packet, built and registered already.
     /// `displaced` is the response Resource an entry under the same id was
     /// receiving.
-    Packet { id: RequestId, packet: Packet, receipt: RequestReceipt, displaced: Option<Hash> },
+    Packet {
+        id: RequestId,
+        packet: Packet,
+        receipt: RequestReceipt,
+        displaced: Option<InboundResponseHashes>,
+    },
     /// The request goes out as a Resource; the registration waits until the
     /// Resource hash is known.
     Resource { timeout: Duration, iface: Option<AddressHash> },
@@ -60,7 +67,7 @@ impl Transport {
             OutboundRequestForm::Packet { id, packet, receipt, displaced } => {
                 self.cancel_inbound_responses(&link, displaced.into_iter().collect()).await;
                 let outcome = self.send_link_packet_on_bound_iface(&link, packet).await;
-                if !outcome_sent(outcome) {
+                if !outcome.is_sent() {
                     link.lock().await.remove_pending_request(&id);
                     return Err(RnsError::ConnectionError);
                 }
@@ -131,7 +138,7 @@ impl Transport {
         let sent = match &registered {
             Some((_, displaced)) => {
                 self.cancel_inbound_responses(link, displaced.iter().copied().collect()).await;
-                outcome_sent(self.send_link_packet_on_bound_iface(link, packet).await)
+                self.send_link_packet_on_bound_iface(link, packet).await.is_sent()
             }
             None => false,
         };
@@ -149,12 +156,17 @@ impl Transport {
     }
 
     /// Cancels the response Resources `receiving` that receipts failed under
-    /// a link guard were still receiving (`RNS/Link.py:1435`): the receivers
+    /// a link guard were still receiving (`RNS/Link.py:1435`): the transfers
     /// are dropped and, while the link is active, the peer is sent a
-    /// receiver cancel for each (`RNS/Resource.py:1111-1116`). The handler
-    /// and the link are locked one after the other, never together.
+    /// receiver cancel for each segment that was in flight
+    /// (`RNS/Resource.py:1111-1116`). The handler and the link are locked
+    /// one after the other, never together.
     #[deny(clippy::await_holding_invalid_type)]
-    async fn cancel_inbound_responses(&self, link: &Arc<Mutex<Link>>, receiving: Vec<Hash>) {
+    async fn cancel_inbound_responses(
+        &self,
+        link: &Arc<Mutex<Link>>,
+        receiving: Vec<InboundResponseHashes>,
+    ) {
         if receiving.is_empty() {
             return;
         }
@@ -162,9 +174,12 @@ impl Transport {
             let mut handler = self.handler.lock().await;
             let cancelled = receiving
                 .into_iter()
-                .filter(|segment_hash| {
-                    handler.resource_manager.cancel_incoming(*segment_hash).is_some()
+                .filter(|response| {
+                    handler
+                        .resource_manager
+                        .cancel_incoming_response(response.segment, response.original)
                 })
+                .map(|response| response.segment)
                 .collect();
             let events = handler.resource_manager.drain_events();
             super::resource_wire::publish_resource_events(&handler, events);
@@ -185,9 +200,4 @@ impl Transport {
             self.send_link_packet_on_bound_iface(link, packet).await;
         }
     }
-}
-
-#[deny(clippy::await_holding_invalid_type)]
-fn outcome_sent(outcome: SendPacketOutcome) -> bool {
-    matches!(outcome, SendPacketOutcome::SentDirect | SendPacketOutcome::SentBroadcast)
 }

@@ -23,17 +23,21 @@ fn receiver_cancel(link: &Link, iface: Option<AddressHash>, hash: &Hash) -> Opti
 }
 
 /// A receipt failed while its response Resource was still inbound: the
-/// receiver is dropped and, on an active link, the peer is told to stop
-/// (`RNS/Link.py:1435`, `RNS/Resource.py:1111-1116`). The cancel is queued
-/// on `cancels` for the caller to send once the link guard is gone.
+/// transfer is dropped, whether a segment is in flight or only the partial
+/// assembly of a split response remains, and while a segment was in flight
+/// on an active link the peer is told to stop (`RNS/Link.py:1435`,
+/// `RNS/Resource.py:1111-1116`). The cancel is queued on `cancels` for the
+/// caller to send once the link guard is gone.
 fn cancel_inbound_response(
     resources: &mut ResourceManager,
     link: &Link,
-    segment_hash: Hash,
+    receiving: InboundResponseHashes,
     cancels: &mut Vec<TxMessage>,
 ) {
-    if resources.cancel_incoming(segment_hash).is_some() && link.status() == LinkStatus::Active {
-        cancels.extend(receiver_cancel(link, None, &segment_hash));
+    if resources.cancel_incoming_response(receiving.segment, receiving.original)
+        && link.status() == LinkStatus::Active
+    {
+        cancels.extend(receiver_cancel(link, None, &receiving.segment));
     }
 }
 

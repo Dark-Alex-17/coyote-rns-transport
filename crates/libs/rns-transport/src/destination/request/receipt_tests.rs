@@ -8,8 +8,8 @@ use std::time::{Duration, Instant};
 
 use super::receipt::ResponseDecodeFailure;
 use super::{
-    FrameDecodeError, PendingRequest, RequestError, RequestId, RequestOptions, RequestStatus,
-    ResponseArrival, ResponseFrame, MAX_DEPTH, RESPONSE_GRACE,
+    FrameDecodeError, InboundResponseHashes, PendingRequest, RequestError, RequestId,
+    RequestOptions, RequestStatus, ResponseArrival, ResponseFrame, MAX_DEPTH, RESPONSE_GRACE,
 };
 use crate::hash::Hash;
 use crate::resource::{ResourceAdvertisement, ResourceProgress, RANDOM_HASH_SIZE};
@@ -208,7 +208,10 @@ fn failing_a_receiving_entry_hands_back_the_segment_to_cancel() {
     let receipt = pending.receipt();
     assert_eq!(packet_form().fail(RequestError::Timeout), None, "nothing inbound to cancel");
     pending.mark_receiving(&response_segment(hash(7), hash(6), 2, 2, 10, 5));
-    assert_eq!(pending.fail(RequestError::LinkClosed), Some(hash(7)));
+    assert_eq!(
+        pending.fail(RequestError::LinkClosed),
+        Some(InboundResponseHashes { segment: hash(7), original: hash(6) })
+    );
     assert_eq!(receipt.status(), RequestStatus::Failed);
     assert!(receipt.concluded_at().is_some());
 }

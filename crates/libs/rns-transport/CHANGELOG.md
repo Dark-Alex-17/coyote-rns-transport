@@ -160,7 +160,9 @@ trailing clause of the bullet for the behaviour it pins.
   decoded. The default timeout is `rtt * 6 + 11.25 s` from `Link::rtt()`
   (`:491`); `RequestOptions::with_timeout` overrides it and
   `with_max_response_size` fails a larger response with
-  `RequestError::Oversize` (`:874-876`, `:1048-1053`). The status order
+  `RequestError::Oversize`, measured on the packed body of a response
+  packet and on the advertised data size `d` of a response Resource
+  (`:874-876`, `:1048-1053`). The status order
   follows Python: a packet-form request goes `Sent -> Ready`, or
   `Sent -> Receiving -> Ready` for a Resource response, and never reaches
   `Delivered` (`:1421-1427`, `:1445-1450` mark only the packet receipt);
@@ -250,6 +252,33 @@ trailing clause of the bullet for the behaviour it pins.
   `two_transport_loopback_requests_resource_form.rs`,
   `two_transport_loopback_requests_resource_form_probe.rs` and
   `two_transport_loopback_resources_reject.rs`.
+
+- The `max_response_size` gate on a response Resource reads the advertised
+  data size `d` (`RNS/Link.py:1049`, `RNS/Resource.py:1285-1287`) instead
+  of the compressed transfer size `t`, so a compressible response over the
+  limit is refused however small its transfer, and reads it at every
+  segment advertisement (`d` is the whole response on each one,
+  `RNS/Resource.py:297`): the limit is no longer spent by the first
+  advertisement, so one the ResourceManager drops (inbound caps, an
+  out-of-order or duplicate segment) leaves it in force for the next, and
+  it goes when the response resolves, fails or is refused. A response
+  advertisement whose `q` names neither a pending receipt nor a request
+  sent through `send_request_resource*` is dropped before it reaches the
+  ResourceManager, with a debug log and no reject packet, as Python's
+  pending-request loop (`RNS/Link.py:1046-1047`) falls through it;
+  `send_request_resource` and `send_request_resource_with_max_response_size`
+  record their id so the response they solicit is admitted, and the record
+  is dropped when the advertisement is not sent. `Link::expect_response`
+  and `Link::response_size_allowed` carry this beside the existing
+  `set_response_size_limit` and `take_response_limit_if_allowed`, which
+  keep their signatures; the packet-response path stays one-shot. Pinned by
+  `transport/tests_parts/two_transport_loopback_requests_resource_form_sizes.rs`,
+  `two_transport_loopback_resources.rs`,
+  `two_transport_loopback_resources_directions.rs`,
+  `two_transport_loopback_resources_retries.rs`,
+  `two_transport_loopback_resources_reject_response.rs` (whose bare
+  response fixtures now send the soliciting request Resource first) and
+  `destination/link_parts/link_sections/pending_requests_tests.rs`.
 
 - `Transport::send_direct`, `send_response_resource_with_compression` and
   the transport's link lookup delegate to free functions in

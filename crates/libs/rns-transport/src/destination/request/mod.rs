@@ -60,4 +60,4 @@ pub(crate) use receipt::RESPONSE_GRACE;
 pub use receipt::{
     RequestError, RequestOptions, RequestReceipt, RequestResponseData, RequestStatus,
 };
-pub(crate) use receipt_pending::PendingRequest;
+pub(crate) use receipt_pending::{InboundResponseHashes, PendingRequest};

@@ -118,4 +118,24 @@ impl ResourceManager {
         }
         Some(original_hash)
     }
+
+    /// `cancel_incoming` for a response whose receipt failed, in whichever
+    /// form the transfer is: a live receiver under `segment_hash`, or, between
+    /// one segment's completion and the next segment's admitted
+    /// advertisement, only the partial assembly under `original_hash`, which
+    /// would otherwise sit there until the link closes. Either way the
+    /// transfer is reported `InboundFailed("cancelled")`. Returns whether a
+    /// receiver was in flight, which is when the peer is owed a receiver
+    /// cancel.
+    pub(crate) fn cancel_incoming_response(
+        &mut self,
+        segment_hash: Hash,
+        original_hash: Hash,
+    ) -> bool {
+        if self.cancel_incoming(segment_hash).is_some() {
+            return true;
+        }
+        self.fail_inbound_segments(original_hash, "cancelled");
+        false
+    }
 }

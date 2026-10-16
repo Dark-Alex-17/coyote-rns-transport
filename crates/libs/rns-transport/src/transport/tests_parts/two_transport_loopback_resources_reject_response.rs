@@ -5,8 +5,8 @@
 // response end to end and the connector's interface can still be stopped. Helpers and the
 // reject-side constants come from the sibling `tests_parts` files included into this module.
 
-/// The bounded request carries 4 KiB of random bytes, so bz2 cannot bring the response's
-/// transfer size back under the limit the requester attached.
+/// The gate reads the advertised data size `d` (`RNS/Link.py:1049`), so 4 KiB of any bytes
+/// are over the limit the requester attached, however well they compress.
 const OVERSIZE_RESPONSE_LEN: usize = 4 * 1024;
 const ACCEPTED_RESPONSE_LEN: usize = 256;
 const BOUNDED_REQUEST_LEN: usize = 64;
@@ -71,9 +71,10 @@ async fn two_transport_loopback_resources_reject_oversize_response_then_recover_
         rejected.kind
     );
 
-    // The same link still carries a response the requester did not bound.
+    // The same link still carries a response the requester solicited without a bound.
     let payload = random_payload(ACCEPTED_RESPONSE_LEN);
     let accepted_request_id = b"loopback-unbounded".to_vec();
+    solicit_response(&pair.connector.transport, &pair.link_id, &accepted_request_id).await;
     let resource_hash = pair
         .listener
         .transport

@@ -25,7 +25,7 @@ pub fn send_outcome_label(outcome: SendPacketOutcome) -> &'static str {
 }
 
 pub fn send_outcome_is_sent(outcome: SendPacketOutcome) -> bool {
-    matches!(outcome, SendPacketOutcome::SentDirect | SendPacketOutcome::SentBroadcast)
+    outcome.is_sent()
 }
 
 pub fn send_outcome_status(method: &str, outcome: SendPacketOutcome) -> String {

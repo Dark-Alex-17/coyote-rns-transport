@@ -1,6 +1,8 @@
 use super::path::send_to_next_hop;
 use super::*;
-use crate::destination::request::{DispatchForm, RequestError, RequestId, ResponseArrival};
+use crate::destination::request::{
+    DispatchForm, InboundResponseHashes, RequestError, RequestId, ResponseArrival,
+};
 use crate::hash::ADDRESS_HASH_SIZE;
 use crate::resource::{build_link_packet, ResourceAdvertisement, ResourceEventKind};
 
@@ -157,9 +159,21 @@ pub(super) async fn handle_link_resource_packet<'a>(
         {
             if advertisement.is_response() {
                 if let Some(request_id) = advertisement.request_id.as_ref() {
-                    let response_size =
-                        usize::try_from(advertisement.transfer_size).unwrap_or(usize::MAX);
-                    let admitted = link.take_response_limit_if_allowed(request_id, response_size);
+                    // `RNS/Link.py:1046-1049` measures `d` (`read_size`,
+                    // `RNS/Resource.py:1285-1287`), the whole response's
+                    // data size on every segment, against the request's
+                    // `max_response_size`; a `q` no pending request matches
+                    // falls out of the loop, neither accepted nor rejected.
+                    let data_size = usize::try_from(advertisement.data_size).unwrap_or(usize::MAX);
+                    let Some(admitted) = link.response_size_allowed(request_id, data_size) else {
+                        log::debug!(
+                            "[resource-diag] drop_unsolicited_response_advertisement link={} hash={} request_id={}",
+                            link.id(),
+                            advertisement.hash,
+                            hex::encode(request_id)
+                        );
+                        return true;
+                    };
                     let pending_id = <[u8; ADDRESS_HASH_SIZE]>::try_from(request_id.as_slice())
                         .ok()
                         .map(RequestId::new);
@@ -175,11 +189,16 @@ pub(super) async fn handle_link_resource_packet<'a>(
                         response_advertised = pending_id.map(|id| (id, advertisement.clone()));
                     } else {
                         log::warn!(
-                            "[resource-diag] reject_response_advertisement link={} hash={} size={}",
+                            "[resource-diag] reject_response_advertisement link={} hash={} data_size={} transfer_size={} limit={:?}",
                             link.id(),
                             advertisement.hash,
-                            advertisement.transfer_size
+                            advertisement.data_size,
+                            advertisement.transfer_size,
+                            link.response_size_limit(request_id)
                         );
+                        // A legacy `send_request_resource*` id has only its
+                        // entry here; a receipt's goes with the receipt.
+                        link.clear_response_size_limit(request_id);
                         if let Some(id) = pending_id {
                             if let Some(receiving) =
                                 link.fail_pending_request(&id, RequestError::Oversize)
@@ -280,18 +299,19 @@ pub(super) async fn handle_link_resource_packet<'a>(
                     link.dispatch_request(DispatchForm::Resource, &complete.data);
                 }
                 ResourceEventKind::Complete(complete) if complete.is_response => {
-                    let id = complete
-                        .request_id
-                        .as_deref()
-                        .and_then(|bytes| <[u8; ADDRESS_HASH_SIZE]>::try_from(bytes).ok());
-                    if let Some(id) = id {
-                        link.resolve_pending_request(
-                            RequestId::new(id),
-                            ResponseArrival::Resource {
-                                data: &complete.data,
-                                metadata: complete.metadata.as_deref(),
-                            },
-                        );
+                    if let Some(request_id) = complete.request_id.as_deref() {
+                        match <[u8; ADDRESS_HASH_SIZE]>::try_from(request_id) {
+                            Ok(id) => link.resolve_pending_request(
+                                RequestId::new(id),
+                                ResponseArrival::Resource {
+                                    data: &complete.data,
+                                    metadata: complete.metadata.as_deref(),
+                                },
+                            ),
+                            // A `send_request_resource*` id of another
+                            // length has no receipt, only its entry.
+                            Err(_) => link.clear_response_size_limit(request_id),
+                        }
                     }
                 }
                 ResourceEventKind::Progress(progress) => {

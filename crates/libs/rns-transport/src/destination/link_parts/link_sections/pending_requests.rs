@@ -2,9 +2,9 @@
 // `RNS/Link.py`. Every method is synchronous and runs under the link lock;
 // the packet and resource paths that receive a response call in from there,
 // and the watchdog expires timeouts from `check_watchdog`. A method that
-// fails an entry hands back the segment hash of the response Resource it was
-// receiving, if any: the entry cannot reach the ResourceManager, so the
-// caller cancels that transfer (`RNS/Link.py:1435`).
+// fails an entry hands back the response Resource it was receiving, if any:
+// the entry cannot reach the ResourceManager, so the caller cancels that
+// transfer (`RNS/Link.py:1435`).
 
 impl Link {
     /// Registers a request just sent and returns the requester's handle. An
@@ -16,7 +16,7 @@ impl Link {
         &mut self,
         id: RequestId,
         pending: PendingRequest,
-    ) -> (RequestReceipt, Option<Hash>) {
+    ) -> (RequestReceipt, Option<InboundResponseHashes>) {
         let receipt = pending.receipt();
         let displaced = self.pending_requests.insert(id, pending).and_then(|displaced| {
             log::debug!("link({}): request {} displaced a pending entry with the same id", self.id, id);
@@ -34,9 +34,11 @@ impl Link {
 
     /// A response for `id` arrived (`RNS/Link.py:857-884`): the receipt
     /// becomes `Ready` with the decoded body, or `Failed(Decode)`. An id
-    /// with no pending request is a response nobody is waiting for.
+    /// with no pending request is a response nobody is waiting for. The
+    /// response size limit goes with the entry.
     #[deny(clippy::await_holding_invalid_type)]
     pub(crate) fn resolve_pending_request(&mut self, id: RequestId, arrival: ResponseArrival<'_>) {
+        self.pending_response_limits.remove(id.as_bytes().as_slice());
         let Some(pending) = self.pending_requests.remove(&id) else {
             log::trace!("link({}): response to {} has no pending request", self.id, id);
             return;
@@ -50,7 +52,11 @@ impl Link {
     /// Fails the request `id` and drops its response size limit. Returns
     /// the response Resource it was receiving, for the caller to cancel.
     #[deny(clippy::await_holding_invalid_type)]
-    pub(crate) fn fail_pending_request(&mut self, id: &RequestId, error: RequestError) -> Option<Hash> {
+    pub(crate) fn fail_pending_request(
+        &mut self,
+        id: &RequestId,
+        error: RequestError,
+    ) -> Option<InboundResponseHashes> {
         let pending = self.pending_requests.remove(id)?;
         self.pending_response_limits.remove(id.as_bytes().as_slice());
         log::debug!("link({}): request {} failed: {error}", self.id, id);
@@ -61,7 +67,10 @@ impl Link {
     /// the link is closed or starting over. Returns the response Resources
     /// they were receiving, for the caller to cancel.
     #[deny(clippy::await_holding_invalid_type)]
-    pub(crate) fn fail_all_pending_requests(&mut self, error: RequestError) -> Vec<Hash> {
+    pub(crate) fn fail_all_pending_requests(
+        &mut self,
+        error: RequestError,
+    ) -> Vec<InboundResponseHashes> {
         let mut receiving = Vec::new();
         for (id, pending) in self.pending_requests.drain() {
             self.pending_response_limits.remove(id.as_bytes().as_slice());
@@ -108,7 +117,7 @@ impl Link {
         &mut self,
         hash: Hash,
         kind: &ResourceEventKind,
-    ) -> Option<Hash> {
+    ) -> Option<InboundResponseHashes> {
         if let ResourceEventKind::InboundFailed(_) = kind {
             let id = self
                 .pending_requests

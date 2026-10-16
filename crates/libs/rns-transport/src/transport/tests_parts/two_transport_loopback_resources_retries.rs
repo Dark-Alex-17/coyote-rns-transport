@@ -157,6 +157,13 @@ async fn two_transport_loopback_resources_initiator_request_retry_lands_once() {
 
     let payload = random_payload(SMALL_RESOURCE_LEN);
     let request_id = b"loopback-retry".to_vec();
+    // The soliciting request completes before the listener is stalled, so the stall holds
+    // back only the response advertisement.
+    let request_hash = solicit_response(&pair.connector.transport, &pair.link_id, &request_id).await;
+    await_resource_event(&mut receiver_events, |event| {
+        event.hash == request_hash && matches!(event.kind, ResourceEventKind::OutboundComplete)
+    })
+    .await;
     let resource_hash = pair
         .listener
         .transport

@@ -113,8 +113,8 @@ impl Transport {
             );
             return;
         };
-        for segment_hash in receiving {
-            handler.resource_manager.cancel_incoming(segment_hash);
+        for response in receiving {
+            handler.resource_manager.cancel_incoming_response(response.segment, response.original);
         }
         let events = handler.resource_manager.drain_events();
         super::resource_wire::publish_resource_events(&handler, events);

@@ -83,7 +83,11 @@ pub struct Link {
     channel_pending: HashMap<Hash, PendingChannelPacket>,
     channel_states: HashMap<u16, ChannelMessageState>,
     channel_rx_ring: HashMap<u16, ChannelEnvelope>,
-    pending_response_limits: HashMap<Vec<u8>, usize>,
+    /// The responses this side is waiting for, by request id: `Some` is the
+    /// `max_response_size` the request went out with, `None` a request sent
+    /// without one. An id absent here and from `pending_requests` solicited
+    /// nothing.
+    pending_response_limits: HashMap<Vec<u8>, Option<usize>>,
     pending_requests: HashMap<RequestId, PendingRequest>,
     request_dispatch: Option<tokio::sync::mpsc::Sender<DispatchItem>>,
     channel_window: u8,

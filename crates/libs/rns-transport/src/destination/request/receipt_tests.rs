@@ -221,7 +221,7 @@ fn metadata_nested_deeper_than_the_frame_limit_is_refused() {
     let mut shallow = vec![0x91; MAX_DEPTH - 1];
     shallow.push(0xc0);
     let decoded = ResponseArrival::Resource { data: b"file", metadata: Some(&shallow) }
-        .decode()
+        .decode(id(1))
         .expect("depth within the limit decodes");
     assert_eq!(decoded.data(), Some(b"file".as_slice()));
 
@@ -229,11 +229,44 @@ fn metadata_nested_deeper_than_the_frame_limit_is_refused() {
     deep.push(0xc0);
     assert!(
         matches!(
-            ResponseArrival::Resource { data: b"file", metadata: Some(&deep) }.decode(),
+            ResponseArrival::Resource { data: b"file", metadata: Some(&deep) }.decode(id(1)),
             Err(ResponseDecodeFailure::Metadata(FrameDecodeError::DepthExceeded))
         ),
         "depth over the limit is refused"
     );
+}
+
+/// The advertisement's `q` chose the entry; the envelope inside the
+/// Resource has to name the same request (`RNS/Link.py:908-912`).
+#[tokio::test]
+#[deny(clippy::await_holding_invalid_type)]
+async fn a_response_resource_whose_envelope_names_another_request_fails_decode() {
+    let pending = packet_form();
+    let receipt = pending.receipt();
+    let envelope = ResponseFrame::new(id(9), rmpv::Value::from("pong")).encode();
+    let cause = pending.resolve(ResponseArrival::Resource { data: &envelope, metadata: None });
+    match cause {
+        Some(ResponseDecodeFailure::RequestIdMismatch { expected, actual }) => {
+            assert_eq!((expected, actual), (id(1), id(9)));
+        }
+        other => panic!("expected a request id mismatch, got {other:?}"),
+    }
+    assert_eq!(receipt.status(), RequestStatus::Failed);
+    assert_eq!(receipt.response().await, Err(RequestError::Decode));
+}
+
+#[tokio::test]
+#[deny(clippy::await_holding_invalid_type)]
+async fn a_response_resource_whose_envelope_names_the_request_is_ready() {
+    let pending = packet_form();
+    let receipt = pending.receipt();
+    let envelope = ResponseFrame::new(id(1), rmpv::Value::from("pong")).encode();
+    assert!(pending
+        .resolve(ResponseArrival::Resource { data: &envelope, metadata: None })
+        .is_none());
+    assert_eq!(receipt.status(), RequestStatus::Ready);
+    let response = receipt.response().await.expect("the envelope matched");
+    assert_eq!(response.value(), Some(&rmpv::Value::from("pong")));
 }
 
 #[tokio::test]

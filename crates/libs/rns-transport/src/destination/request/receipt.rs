@@ -105,8 +105,9 @@ pub enum RequestError {
     /// it fails.
     #[error("the response exceeded the requested maximum size")]
     Oversize,
-    /// The response is not a `[request_id, body]` envelope, or its metadata
-    /// is not msgpack.
+    /// The response is not a `[request_id, body]` envelope, the envelope of
+    /// a response Resource names another request, or the metadata is not
+    /// msgpack.
     #[error("the response could not be decoded")]
     Decode,
     /// The request Resource could not be sent: its retries ran out, its
@@ -195,6 +196,13 @@ pub(crate) enum ResponseDecodeFailure {
     /// The envelope is not a `[request_id, body]` frame.
     #[error("envelope: {0}")]
     Frame(FrameDecodeError),
+    /// The envelope of a response Resource names a request other than the
+    /// one its advertisement (`q`) answered. Python reads the id out of the
+    /// envelope and keys `handle_response` on it (`RNS/Link.py:908-912`);
+    /// here the advertisement picked the receipt and the envelope has to
+    /// agree with it.
+    #[error("envelope answers request {actual}, the receipt is {expected}")]
+    RequestIdMismatch { expected: RequestId, actual: RequestId },
     /// The file metadata is not one well-formed msgpack value.
     #[error("metadata: {0}")]
     Metadata(FrameDecodeError),
@@ -207,11 +215,28 @@ pub(crate) enum ResponseDecodeFailure {
 }
 
 impl ResponseArrival<'_> {
-    pub(super) fn decode(self) -> Result<RequestResponseData, ResponseDecodeFailure> {
+    /// Decodes the response to the request `request_id`. A packet envelope
+    /// is what the link found the receipt by, so only the envelope of a
+    /// response Resource is checked against the id.
+    pub(super) fn decode(
+        self,
+        request_id: RequestId,
+    ) -> Result<RequestResponseData, ResponseDecodeFailure> {
         let body = match self {
-            Self::Packet { envelope, .. } | Self::Resource { data: envelope, metadata: None } => {
+            Self::Packet { envelope, .. } => {
                 let frame =
                     ResponseFrame::decode(envelope).map_err(ResponseDecodeFailure::Frame)?;
+                ResponseBody::Value(frame.into_body())
+            }
+            Self::Resource { data: envelope, metadata: None } => {
+                let frame =
+                    ResponseFrame::decode(envelope).map_err(ResponseDecodeFailure::Frame)?;
+                if frame.request_id() != request_id {
+                    return Err(ResponseDecodeFailure::RequestIdMismatch {
+                        expected: request_id,
+                        actual: frame.request_id(),
+                    });
+                }
                 ResponseBody::Value(frame.into_body())
             }
             Self::Resource { data, metadata: Some(packed) } => {

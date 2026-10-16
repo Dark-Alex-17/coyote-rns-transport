@@ -174,8 +174,11 @@ trailing clause of the bullet for the behaviour it pins.
   `Transport::cancel_resource`, and for a receipt displaced by a second
   request under the same id; `Receive` for a response Resource that
   fails in transfer (a part failure, receiver retry exhaustion, a remote
-  cancel); `Decode` for a response that is not an envelope; `Oversize` as
-  above; `LinkClosed` for a link that closes from either side, for
+  cancel); `Decode` for a response that is not an envelope, and for a
+  response Resource without metadata whose envelope names another request
+  than the advertisement that picked the receipt (`:908-912` keys
+  `handle_response` on the envelope's id); `Oversize` as above;
+  `LinkClosed` for a link that closes from either side, for
   `Transport::stop`, and for a transport dropped with the receipt still
   pending, where `status()` and `concluded_at()` conclude the receipt
   `LinkClosed` on their own once its entry is gone, without a prior

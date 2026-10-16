@@ -225,7 +225,10 @@ impl PendingRequest {
     }
 
     /// Decodes the response and concludes the request with it: `Ready`, or
-    /// `Failed(Decode)` with the cause handed back for the caller to log.
+    /// `Failed(Decode)` with the cause handed back for the caller to log. A
+    /// response Resource whose envelope names another request is a decode
+    /// failure too: its advertisement chose this entry, the envelope must
+    /// agree (`RNS/Link.py:908-912` keys on the envelope alone).
     #[must_use = "the cause is for the caller to log"]
     pub(crate) fn resolve(self, arrival: ResponseArrival<'_>) -> Option<ResponseDecodeFailure> {
         if let ResponseArrival::Packet { response_size, .. } = &arrival {
@@ -235,7 +238,7 @@ impl PendingRequest {
             bookkeeping.response_size = Some(*response_size);
             bookkeeping.response_transfer_size = Some(*response_size);
         }
-        match arrival.decode() {
+        match arrival.decode(self.state.request_id) {
             Ok(response) => {
                 self.state.bookkeeping().progress = 1.0;
                 self.conclude(Ok(response));

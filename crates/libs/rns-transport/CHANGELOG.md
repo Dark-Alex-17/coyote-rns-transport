@@ -191,6 +191,7 @@ trailing clause of the bullet for the behaviour it pins.
   `two_transport_loopback_requests_receipt_probe4.rs`,
   `two_transport_loopback_requests_receipt_probe5.rs`,
   `two_transport_loopback_requests_receipt_probe6.rs`,
+  `two_transport_loopback_requests_receipt_probe7.rs`,
   `two_transport_loopback_requests_receipt_stop.rs`,
   `tests/request_receipt_api.rs`, `tests/request_receipt_readme.rs`,
   `destination/request/receipt_tests.rs`

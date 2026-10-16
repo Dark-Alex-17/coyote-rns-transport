@@ -116,3 +116,5 @@ include!("tests_parts/two_transport_loopback_requests_receipt_probe3.rs");
 include!("tests_parts/two_transport_loopback_requests_receipt_stop.rs");
 
 include!("tests_parts/two_transport_loopback_requests_receipt_probe4.rs");
+
+include!("tests_parts/two_transport_loopback_requests_receipt_probe5.rs");

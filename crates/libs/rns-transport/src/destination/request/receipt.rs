@@ -189,8 +189,7 @@ pub(crate) enum ResponseArrival<'a> {
 
 /// Why a response did not decode. The receipt reports only
 /// [`RequestError::Decode`]; the link logs the cause. `MetadataRead` and
-/// `MetadataTrailing` are defence in depth behind the walker, kept without
-/// a synthetic pin.
+/// `MetadataTrailing` are defence in depth behind the walker.
 #[derive(Debug, thiserror::Error)]
 pub(crate) enum ResponseDecodeFailure {
     /// The envelope is not a `[request_id, body]` frame.
@@ -316,7 +315,11 @@ impl RequestReceipt {
     /// A receiver that reports every status change from now on; the status
     /// current at the call is read with `borrow_and_update`, not reported
     /// as a change. A `watch` keeps only the latest value, so quick
-    /// successive changes may be seen as one.
+    /// successive changes may be seen as one. A link that goes away
+    /// without concluding the request drops the sender: `changed()` then
+    /// returns an error rather than a `Failed` change and `borrow()` keeps
+    /// the last status; [`status`](Self::status) and
+    /// [`response`](Self::response) conclude the receipt `LinkClosed`.
     pub fn subscribe(&self) -> watch::Receiver<RequestStatus> {
         let mut status_rx = self.status_rx.clone();
         status_rx.mark_unchanged();

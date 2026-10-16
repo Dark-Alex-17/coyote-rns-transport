@@ -215,8 +215,7 @@ fn failing_a_receiving_entry_hands_back_the_segment_to_cancel() {
 
 #[test]
 fn metadata_nested_deeper_than_the_frame_limit_is_refused() {
-    let shallow = vec![0x91; MAX_DEPTH - 1];
-    let mut shallow = shallow;
+    let mut shallow = vec![0x91; MAX_DEPTH - 1];
     shallow.push(0xc0);
     let decoded = ResponseArrival::Resource { data: b"file", metadata: Some(&shallow) }
         .decode()

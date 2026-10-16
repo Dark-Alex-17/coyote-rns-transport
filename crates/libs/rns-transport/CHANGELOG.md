@@ -186,6 +186,7 @@ trailing clause of the bullet for the behaviour it pins.
   `two_transport_loopback_requests_receipt_probe2.rs`,
   `two_transport_loopback_requests_receipt_probe3.rs`,
   `two_transport_loopback_requests_receipt_probe4.rs`,
+  `two_transport_loopback_requests_receipt_probe5.rs`,
   `two_transport_loopback_requests_receipt_stop.rs`,
   `tests/request_receipt_api.rs`, `tests/request_receipt_readme.rs`,
   `destination/request/receipt_tests.rs`
@@ -226,7 +227,9 @@ trailing clause of the bullet for the behaviour it pins.
   `transport/tests_parts/two_transport_loopback_requests_receipt_timeouts.rs`,
   `two_transport_loopback_requests_receipt_probe.rs`,
   `two_transport_loopback_requests_receipt_probe2.rs`,
-  `destination/request/receipt_tests.rs` and
+  `two_transport_loopback_requests_receipt_probe4.rs`,
+  `destination/request/receipt_tests.rs`,
+  `destination/link_parts/link_sections/pending_requests_tests.rs` and
   `resource/tests_timeouts_lifecycle.rs`.
 
 - The `max_request_size` gate on a request Resource, applied at its

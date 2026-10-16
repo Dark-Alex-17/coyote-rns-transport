@@ -58,7 +58,8 @@ destination.lock().await.register_request_handler(
 with one of the listed identity hashes; an unidentified peer is denied
 silently. `None` from the handler sends no response at all. A response that
 fits the link MDU goes out as one packet; a larger one travels as a response
-Resource and reaches the requester through `Transport::resource_events()`.
+Resource and reaches the requester through `Transport::resource_events()` and
+resolves its `RequestReceipt`.
 Each handler runs on a task of its own with no concurrency cap, so a slow
 handler holds up only its own request; a handler that needs a bound holds its
 own `Semaphore`. A request larger than the destination's `max_request_size`
@@ -70,7 +71,8 @@ assembled the same handler runs, with the request id recomputed from the
 assembled bytes. A `max_request_size` is enforced against the advertised data
 size before any part is accepted: an oversize request Resource is rejected at
 its advertisement, which the requester sees as
-`ResourceEventKind::OutboundRejected`. On the response side, a `Value` or
+`ResourceEventKind::OutboundRejected` and as `RequestError::Rejected` on its
+receipt. On the response side, a `Value` or
 `Bytes` that outgrows the link MDU travels as a Resource whose data is the
 whole `[request_id, body]` envelope; a
 `RequestResponse::Resource { data, metadata }` always travels as a Resource
@@ -96,7 +98,7 @@ response is matched to the receipt as it arrives, as a packet or as a
 Resource, so nothing has to be read from the broadcast streams:
 
 ```rust
-use rns_transport::destination::request::RequestOptions;
+use rns_transport::{destination::request::RequestOptions, rmpv};
 
 let receipt = transport
     .request(&link_id, "/echo", rmpv::Value::from("ping"), RequestOptions::default())
@@ -109,11 +111,17 @@ The receipt is `Clone`; `response()` resolves on any clone once the request
 is `Ready` or `Failed`, and `subscribe()` reports the status as it moves. A
 packet-form request goes `Sent -> Ready`, or `Sent -> Receiving -> Ready`
 when the response is a Resource; a resource-form request reaches `Delivered`
-when its Resource completes. The timeout defaults to `rtt * 6 + 11.25 s`,
-`RequestOptions::with_timeout` overrides it, and a request still pending at
-the deadline fails with `RequestError::Timeout`. A link that closes fails
-every pending receipt with `RequestError::LinkClosed`. A response Resource
-with metadata is a file response, read through
+when its Resource completes. The timeout defaults to `rtt * 6 + 11.25 s` and
+`RequestOptions::with_timeout` overrides it; the clock runs from the send for
+a packet-form request and from `Delivered` for a resource-form one, and a
+receipt still waiting when it runs out fails with `RequestError::Timeout`. No
+clock runs while a request Resource is in flight or a response Resource is
+being received: a request Resource that is refused fails `Rejected`, one
+that cannot be sent or exhausts its retries fails `Send`, and a response
+Resource that fails in transfer fails `Receive`. A link that closes, from
+either side, fails every pending receipt with `RequestError::LinkClosed`, as
+does `Transport::stop()`; a request on a link that has gone `Stale` is
+refused. A response Resource with metadata is a file response, read through
 `RequestResponseData::data()` and `metadata()`; every other response is the
 envelope body, read through `value()`.
 

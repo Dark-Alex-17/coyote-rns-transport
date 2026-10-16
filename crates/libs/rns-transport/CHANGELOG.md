@@ -130,42 +130,73 @@ trailing clause of the bullet for the behaviour it pins.
 - `Transport::request` and `destination::request::{RequestOptions,
   RequestReceipt, RequestStatus, RequestError, RequestResponseData}`: the
   requester half of the link request layer, `RNS.Link.request`
-  (`RNS/Link.py:480-512`) and `RNS.RequestReceipt` (`RNS/Link.py:1330-1452`)
+  (`RNS/Link.py:473-510`) and `RNS.RequestReceipt` (`RNS/Link.py:1311-1500`)
   without callbacks. The request packs as `Link::request_payload` does and
   goes out as one `Request` packet when it fits `Link::link_mdu()`, as a
   request Resource otherwise (`:493-510`). `RequestReceipt` is `Clone`;
   `response()` resolves on any clone once the request is `Ready` or
-  `Failed`, `subscribe()` hands out a `watch::Receiver<RequestStatus>`,
-  and `progress()`, `response_size()`, `response_transfer_size()`,
-  `started_at()` and `concluded_at()` read what Python's receipt exposes.
+  `Failed`, and `subscribe()` hands out a `watch::Receiver<RequestStatus>`
+  that reports the moves after the call. `started_at()` is `Some` from the
+  send for a packet request and `None` for a request Resource until it
+  completes or a response is advertised, whichever comes first
+  (`:1331-1334`, `:1370-1371`, `:1062-1063`); `concluded_at()` is set once
+  the receipt is `Ready` or `Failed`. `response_size()` and
+  `response_transfer_size()` are set for a packet response too, to the
+  packed body length where Python records `len(packb(body)) - 2`
+  (`:1016-1017`); for a response Resource the first is `d` of the first
+  advertisement, set once, and the second is `t` summed over the segments
+  of a split response (`:1057-1061`). `progress()` is cumulative across
+  those segments (`RNS/Resource.py:1145-1200`).
   A response whose id matches a pending receipt resolves it in-path, under
   the link lock, whether it arrives as a `Response` packet or as a response
   Resource; the `LinkEvent::Data(Response)` and `resource_events()`
   broadcasts still carry it. A response Resource with metadata is a file
   response, `RequestResponseData::data()` and `metadata()` (`:899-903`);
-  every other response is the envelope body, `value()` (`:907-911`). The
-  default timeout is `rtt * 6 + 11.25 s` from `Link::rtt()` (`:491`);
-  `RequestOptions::with_timeout` overrides it and `with_max_response_size`
-  fails a larger response with `RequestError::Oversize` (`:877`). The
-  status order follows Python: a packet-form request goes `Sent -> Ready`,
-  or `Sent -> Receiving -> Ready` for a Resource response, and never
-  reaches `Delivered` (`:1421-1427`, `:1445-1450` mark only the packet
-  receipt); a resource-form request reaches `Delivered` when its Resource
-  completes (`:1372`), then `Receiving -> Ready` or `Ready`. A link that
-  closes, from either side, fails every pending receipt with
-  `RequestError::LinkClosed`; a rejected request Resource reads
-  `Rejected`, one that could not be sent `Send`, and a response that is
-  not an envelope `Decode`. Pinned by
-  `transport/tests_parts/two_transport_loopback_requests_receipt.rs` and
-  `two_transport_loopback_requests_receipt_timeouts.rs`.
+  every other response is the envelope body, `value()` (`:907-911`); the
+  metadata is held to the same nesting depth as the frames before it is
+  decoded. The default timeout is `rtt * 6 + 11.25 s` from `Link::rtt()`
+  (`:491`); `RequestOptions::with_timeout` overrides it and
+  `with_max_response_size` fails a larger response with
+  `RequestError::Oversize` (`:874-876`). The status order follows Python:
+  a packet-form request goes `Sent -> Ready`, or
+  `Sent -> Receiving -> Ready` for a Resource response, and never reaches
+  `Delivered` (`:1421-1427`, `:1445-1450` mark only the packet receipt);
+  a resource-form request reaches `Delivered` when its Resource completes
+  (`:1372`), then `Receiving -> Ready` or `Ready`. The failures:
+  `Timeout` once the request clock runs out; `Rejected` for a request
+  Resource the responder refused; `Send` for a request Resource that could
+  not be sent or exhausted its retries, and for a receipt displaced by a
+  second request under the same id; `Receive` for a response Resource that
+  fails in transfer (a part failure, receiver retry exhaustion, a remote
+  cancel); `Decode` for a response that is not an envelope; `Oversize` as
+  above; `LinkClosed` for a link that closes from either side, for
+  `Transport::stop`, and for a transport dropped with the receipt still
+  pending, where `response()` reads `LinkClosed` and `status()` then reads
+  `Failed`. A request on a `Stale` link is refused, where Python drops a
+  packet only on a `CLOSED` one (`RNS/Packet.py:294-295`). Pinned by
+  `transport/tests_parts/two_transport_loopback_requests_receipt.rs`,
+  `two_transport_loopback_requests_receipt_timeouts.rs`,
+  `two_transport_loopback_requests_receipt_probe.rs`,
+  `tests/request_receipt_api.rs`, `destination/request/receipt_tests.rs`
+  and `destination/link_parts/link_sections/pending_requests_tests.rs`.
 
 ### Changed
 
-- A request timeout fails the receipt with `RequestError::Timeout` in every
-  state, expired by the link watchdog; Python (`RNS/Link.py:1398`, `:1408`)
-  only fails a receipt that reached `DELIVERED`, so a packet-form request
-  that never gets a response stays pending there. Pinned by
-  `transport/tests_parts/two_transport_loopback_requests_receipt_timeouts.rs`.
+- The request timeout runs from the send for a packet request and from
+  `Delivered` for a request Resource (`RNS/Link.py:1331-1334`,
+  `:1370-1373`); no clock runs while the request Resource is in flight, so
+  its own outcome governs there, `Rejected` or `Send`. The link watchdog
+  expires the clock, and it never fires while a response Resource is being
+  received (`:1389`): the Resource's own failure fails the receipt
+  `Receive`, and a receipt that fails for another reason while a response
+  Resource is inbound cancels that Resource (`:1435`), with the receiver
+  cancel packet sent only on an `Active` link (`RNS/Resource.py:1111-1116`).
+  The one divergence left: a receipt that never gets any response, a
+  packet-form receipt or a resource-form receipt in `Delivered`, fails
+  `Timeout`, where Python's `DELIVERED` guard (`:1398`, `:1408`) leaves a
+  packet-form receipt pending forever. Pinned by
+  `transport/tests_parts/two_transport_loopback_requests_receipt_timeouts.rs`
+  and `two_transport_loopback_requests_receipt_probe.rs`.
 
 - The `max_request_size` gate on a request Resource, applied at its
   advertisement before any part is accepted, compares the advertised data

@@ -186,10 +186,11 @@ trailing clause of the bullet for the behaviour it pins.
   `LinkClosed` on their own once its entry is gone, without a prior
   `response()`, and `response()` returns the same. The receipt sweep in
   `Transport::stop` shares `stop`'s 5 s budget: a link whose lock is still
-  held when it runs out is skipped with a warning, and its receipts
-  conclude `LinkClosed` once the link is dropped. A request on a `Stale`
-  link is refused, where Python drops a packet only on a `CLOSED` one
-  (`RNS/Packet.py:294-295`). Pinned by
+  held when it runs out is skipped with a warning, the other links are
+  still swept, and the skipped link's receipts conclude `LinkClosed` once
+  the link is dropped. A request on a link that is not `Active` is refused
+  with `RnsError::ConnectionError`, `Stale` included, where Python drops a
+  packet only on a `CLOSED` one (`RNS/Packet.py:294-295`). Pinned by
   `transport/tests_parts/two_transport_loopback_requests_receipt.rs`,
   `two_transport_loopback_requests_receipt_timeouts.rs`,
   `two_transport_loopback_requests_receipt_probe.rs`,
@@ -200,6 +201,7 @@ trailing clause of the bullet for the behaviour it pins.
   `two_transport_loopback_requests_receipt_probe6.rs`,
   `two_transport_loopback_requests_receipt_probe7.rs`,
   `two_transport_loopback_requests_receipt_stop.rs`,
+  `two_transport_loopback_requests_errors.rs`,
   `tests/request_receipt_api.rs`, `tests/request_receipt_readme.rs`,
   `destination/request/receipt_tests.rs`
   and `destination/link_parts/link_sections/pending_requests_tests.rs`.

@@ -41,6 +41,7 @@ mod handler;
 mod id;
 mod inbound;
 mod receipt;
+mod receipt_pending;
 #[cfg(test)]
 mod tests;
 
@@ -51,7 +52,8 @@ pub(crate) use handler::RegisteredHandler;
 pub use handler::{RequestHandler, RequestResponse};
 pub use id::{PathHash, RequestId};
 pub use inbound::InboundRequest;
-pub(crate) use receipt::{PendingRequest, ResponseArrival};
+pub(crate) use receipt::ResponseArrival;
 pub use receipt::{
     RequestError, RequestOptions, RequestReceipt, RequestResponseData, RequestStatus,
 };
+pub(crate) use receipt_pending::PendingRequest;

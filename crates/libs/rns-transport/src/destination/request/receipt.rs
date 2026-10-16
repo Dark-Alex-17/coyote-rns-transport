@@ -1,13 +1,12 @@
 use core::fmt;
 use std::io::Cursor;
-use std::sync::{Arc, Mutex, OnceLock};
+use std::sync::Arc;
 use std::time::{Duration, Instant};
 
 use tokio::sync::watch;
 
+use super::receipt_pending::ReceiptState;
 use super::{RequestId, ResponseFrame};
-use crate::hash::Hash;
-use crate::resource::ResourceProgress;
 
 /// `Link.TRAFFIC_TIMEOUT_FACTOR` (`RNS/Link.py:82`).
 const TRAFFIC_TIMEOUT_FACTOR: u32 = 6;
@@ -79,7 +78,7 @@ pub enum RequestStatus {
 }
 
 impl RequestStatus {
-    fn is_terminal(self) -> bool {
+    pub(super) fn is_terminal(self) -> bool {
         matches!(self, Self::Ready | Self::Failed)
     }
 }
@@ -170,7 +169,7 @@ pub(crate) enum ResponseArrival<'a> {
 }
 
 impl ResponseArrival<'_> {
-    fn decode(self) -> Result<RequestResponseData, RequestError> {
+    pub(super) fn decode(self) -> Result<RequestResponseData, RequestError> {
         let body = match self {
             Self::Packet(envelope) | Self::Resource { data: envelope, metadata: None } => {
                 let frame = ResponseFrame::decode(envelope).map_err(|_| RequestError::Decode)?;
@@ -190,146 +189,6 @@ impl ResponseArrival<'_> {
     }
 }
 
-#[derive(Default)]
-struct Bookkeeping {
-    progress: f32,
-    response_size: Option<usize>,
-    response_transfer_size: Option<usize>,
-    concluded_at: Option<Instant>,
-}
-
-/// What every clone of a [`RequestReceipt`] shares with the link's pending
-/// entry. The outcome cell is written before the status watch is moved to
-/// `Ready` or `Failed`, so a waiter woken by the watch always finds it set.
-struct ReceiptState {
-    request_id: RequestId,
-    started_at: Instant,
-    timeout: Duration,
-    outcome: OnceLock<Result<RequestResponseData, RequestError>>,
-    bookkeeping: Mutex<Bookkeeping>,
-}
-
-impl ReceiptState {
-    fn bookkeeping(&self) -> std::sync::MutexGuard<'_, Bookkeeping> {
-        self.bookkeeping.lock().unwrap_or_else(|poisoned| poisoned.into_inner())
-    }
-}
-
-/// The link's side of one outstanding request: `RNS.RequestReceipt` as the
-/// entry of `Link.pending_requests` (`RNS/Link.py:1365`). Owns the status
-/// sender; dropping it without concluding tells every receipt the link is
-/// gone.
-pub(crate) struct PendingRequest {
-    status_tx: watch::Sender<RequestStatus>,
-    state: Arc<ReceiptState>,
-    request_resource_hash: Option<Hash>,
-    response_resource_hash: Option<Hash>,
-}
-
-impl PendingRequest {
-    /// A request just sent. `request_resource_hash` is the hash of the
-    /// request Resource when the request left as one, so its sender-side
-    /// events can be matched back to this entry.
-    pub(crate) fn new(
-        request_id: RequestId,
-        timeout: Duration,
-        request_resource_hash: Option<Hash>,
-    ) -> Self {
-        let (status_tx, _) = watch::channel(RequestStatus::Sent);
-        Self {
-            status_tx,
-            state: Arc::new(ReceiptState {
-                request_id,
-                started_at: Instant::now(),
-                timeout,
-                outcome: OnceLock::new(),
-                bookkeeping: Mutex::new(Bookkeeping::default()),
-            }),
-            request_resource_hash,
-            response_resource_hash: None,
-        }
-    }
-
-    pub(crate) fn receipt(&self) -> RequestReceipt {
-        RequestReceipt { status_rx: self.status_tx.subscribe(), state: self.state.clone() }
-    }
-
-    pub(crate) fn deadline(&self) -> Instant {
-        self.state.started_at + self.state.timeout
-    }
-
-    pub(crate) fn status(&self) -> RequestStatus {
-        *self.status_tx.borrow()
-    }
-
-    pub(crate) fn request_resource_hash(&self) -> Option<Hash> {
-        self.request_resource_hash
-    }
-
-    pub(crate) fn response_resource_hash(&self) -> Option<Hash> {
-        self.response_resource_hash
-    }
-
-    /// The request Resource completed (`RNS/Link.py:1372`).
-    pub(crate) fn mark_delivered(&self) {
-        if self.status() == RequestStatus::Sent {
-            self.status_tx.send_replace(RequestStatus::Delivered);
-        }
-    }
-
-    /// The response Resource was advertised: `d` and `t` of the
-    /// advertisement become the response sizes (`RNS/Link.py:870-873`) and
-    /// the receipt starts receiving (`RNS/Link.py:1420`).
-    pub(crate) fn mark_receiving(
-        &mut self,
-        response_size: u64,
-        response_transfer_size: u64,
-        response_hash: Hash,
-    ) {
-        if self.status().is_terminal() {
-            return;
-        }
-        self.response_resource_hash = Some(response_hash);
-        {
-            let mut bookkeeping = self.state.bookkeeping();
-            bookkeeping.response_size = usize::try_from(response_size).ok();
-            bookkeeping.response_transfer_size = usize::try_from(response_transfer_size).ok();
-        }
-        self.status_tx.send_replace(RequestStatus::Receiving);
-    }
-
-    /// Part of the response Resource arrived (`RNS/Link.py:1429`).
-    pub(crate) fn note_progress(&self, progress: &ResourceProgress) {
-        if progress.total_bytes == 0 {
-            return;
-        }
-        self.state.bookkeeping().progress =
-            (progress.received_bytes as f64 / progress.total_bytes as f64) as f32;
-    }
-
-    /// Decodes the response and concludes the request with it.
-    pub(crate) fn resolve(self, arrival: ResponseArrival<'_>) {
-        let outcome = arrival.decode();
-        if outcome.is_ok() {
-            self.state.bookkeeping().progress = 1.0;
-        }
-        self.conclude(outcome);
-    }
-
-    pub(crate) fn fail(self, error: RequestError) {
-        self.conclude(Err(error));
-    }
-
-    fn conclude(self, outcome: Result<RequestResponseData, RequestError>) {
-        let status = if outcome.is_ok() { RequestStatus::Ready } else { RequestStatus::Failed };
-        self.state.bookkeeping().concluded_at = Some(Instant::now());
-        // Set the cell first: a receipt woken by the status change reads it
-        // without any further synchronisation.
-        self.state.outcome.get_or_init(|| outcome);
-        self.status_tx.send_replace(status);
-    }
-}
-
 /// The requester's handle on one request: `RNS.RequestReceipt`
 /// (`RNS/Link.py:1330-1452`) without callbacks. Every clone observes the
 /// same request; [`response`](Self::response) resolves on any of them once
@@ -341,6 +200,10 @@ pub struct RequestReceipt {
 }
 
 impl RequestReceipt {
+    pub(super) fn new(status_rx: watch::Receiver<RequestStatus>, state: Arc<ReceiptState>) -> Self {
+        Self { status_rx, state }
+    }
+
     pub fn request_id(&self) -> RequestId {
         self.state.request_id
     }

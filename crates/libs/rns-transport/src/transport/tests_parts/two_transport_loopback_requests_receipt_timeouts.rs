@@ -9,22 +9,29 @@
 // run out fails `Send`, and a stopped transport fails every receipt `LinkClosed`. Helpers come
 // from the sibling `tests_parts` files.
 
+use crate::destination::request::RESPONSE_GRACE;
+
 /// Short enough to wait for, long enough that the response path cannot race it.
 const OVERRIDE_TIMEOUT: Duration = Duration::from_millis(1500);
 
 /// Scheduling slack on top of the link check tick a timeout may land late by.
 const TIMEOUT_SLACK: Duration = Duration::from_millis(500);
 
-/// A response body that takes many parts to transfer, so a stall can hold it in `Receiving`.
+/// A response body of about 1100 parts over `LEGACY_MTU`, so a stall or a drop placed once
+/// the receipt reads `Receiving` lands while most of the transfer is still to come. Over the
+/// default MTU the same body is three parts and the whole transfer is one round trip after
+/// the advertisement, which the stall would win only by a hair.
 const LONG_RESPONSE_LEN: usize = 512 * 1024;
 
-/// `response()` must read `Timeout`, no earlier than the deadline and no later than one link
-/// check interval plus slack after it.
+/// `response()` must read `Timeout`, no earlier than `OVERRIDE_TIMEOUT` after `started` (the
+/// receipt's own clock start, or an instant before it) and no later than one link check
+/// interval plus slack after it.
 #[deny(clippy::await_holding_invalid_type)]
-async fn assert_times_out(receipt: &RequestReceipt, started: Instant) {
-    let outcome = timeout(OVERRIDE_TIMEOUT + INTERVAL_LINKS_CHECK + TIMEOUT_SLACK, receipt.response())
-        .await
-        .expect("the receipt times out");
+async fn assert_times_out(receipt: &RequestReceipt, started: std::time::Instant) {
+    let outcome =
+        timeout(OVERRIDE_TIMEOUT + INTERVAL_LINKS_CHECK + TIMEOUT_SLACK, receipt.response())
+            .await
+            .expect("the receipt times out");
     let elapsed = started.elapsed();
     assert_eq!(outcome, Err(RequestError::Timeout));
     assert_eq!(receipt.status(), RequestStatus::Failed);
@@ -76,7 +83,7 @@ async fn two_transport_loopback_request_receipt_default_timeout_follows_the_link
     assert!(rtt > Duration::ZERO, "the initiator measured its rtt on activation");
     let receipt = request(&pair, "/quiet", rmpv::Value::Nil).await;
 
-    assert_eq!(receipt.timeout(), rtt * 6 + Duration::from_millis(11_250));
+    assert_eq!(receipt.timeout(), rtt * 6 + RESPONSE_GRACE);
     assert_eq!(receipt.status(), RequestStatus::Sent, "the default timeout is far off");
 }
 
@@ -86,7 +93,7 @@ async fn two_transport_loopback_request_receipt_packet_form_times_out_without_a_
     let pair = loopback_request_pair("receipt-timeout-packet").await;
     register_handler(&pair, "/quiet", RequestAllow::All, silent_handler()).await;
 
-    let started = Instant::now();
+    let started = std::time::Instant::now();
     let receipt = request_with(
         &pair,
         "/quiet",
@@ -106,7 +113,7 @@ async fn two_transport_loopback_request_receipt_packet_form_times_out_without_a_
 async fn two_transport_loopback_request_receipt_unhandled_path_times_out() {
     let pair = loopback_request_pair("receipt-timeout-no-handler").await;
 
-    let started = Instant::now();
+    let started = std::time::Instant::now();
     let receipt = request_with(
         &pair,
         "/nobody-home",
@@ -151,20 +158,17 @@ async fn two_transport_loopback_request_receipt_resource_form_is_delivered_then_
     let started = receipt.started_at().expect("delivery starts the clock");
     assert!(started.elapsed() <= delivered.elapsed() + TIMEOUT_SLACK);
 
-    assert_times_out(&receipt, delivered).await;
+    assert_times_out(&receipt, started).await;
 }
 
 /// `RNS/Link.py:1389`: the clock stops while a response Resource is being received. The
 /// listener is stalled as soon as the connector reports `Receiving`, so the transfer sits
 /// still for longer than the override timeout plus several link checks; the receipt must
-/// still finish `Ready` once the listener wakes, never `Failed`. The runtime is multi-threaded
-/// here so that the test task sees `Receiving` while the transfer is still under way: on one
-/// thread the connector's part processing runs the whole transfer before the test task is
-/// polled again, and the stall would land on a listener that has nothing left to send.
-#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+/// still finish `Ready` once the listener wakes, never `Failed`.
+#[tokio::test]
 #[deny(clippy::await_holding_invalid_type)]
 async fn two_transport_loopback_request_receipt_receiving_outlasts_the_timeout_without_expiring() {
-    let pair = loopback_request_pair("receipt-timeout-receiving").await;
+    let pair = loopback_request_pair_with_mtu("receipt-timeout-receiving", LEGACY_MTU).await;
     let body = random_payload(LONG_RESPONSE_LEN);
     let expected = body.clone();
     register_handler(&pair, "/long", RequestAllow::All, move |_: InboundRequest| {
@@ -201,7 +205,7 @@ async fn two_transport_loopback_request_receipt_receiving_outlasts_the_timeout_w
 #[tokio::test]
 #[deny(clippy::await_holding_invalid_type)]
 async fn two_transport_loopback_request_receipt_failed_response_resource_fails_receive() {
-    let pair = loopback_request_pair("receipt-receive").await;
+    let pair = loopback_request_pair_with_mtu("receipt-receive", LEGACY_MTU).await;
     let body = random_payload(LONG_RESPONSE_LEN);
     register_handler(&pair, "/long", RequestAllow::All, move |_: InboundRequest| {
         std::future::ready(Some(RequestResponse::Bytes(body.clone())))

@@ -13,9 +13,6 @@ fn one_tick_bound() -> Duration {
     INTERVAL_LINKS_CHECK + Duration::from_millis(500)
 }
 
-/// Python's `RequestReceipt.timeout` constant term (`RNS/Link.py:491`).
-const DEFAULT_TIMEOUT_BASE: Duration = Duration::from_millis(11_250);
-
 /// Registers an echo handler at `path` on the responder and returns the channel on which it
 /// reports the id of every request it serves.
 #[deny(clippy::await_holding_invalid_type)]
@@ -203,7 +200,7 @@ async fn two_transport_loopback_request_receipt_default_timeout_fires_from_the_l
     let pair = loopback_request_pair("receipt-probe-default-timeout-fires").await;
     register_handler(&pair, "/quiet", RequestAllow::All, silent_handler()).await;
     let rtt = pair.handles.link.lock().await.rtt();
-    let expected = rtt * 6 + DEFAULT_TIMEOUT_BASE;
+    let expected = rtt * 6 + RESPONSE_GRACE;
 
     let started = Instant::now();
     let receipt = request(&pair, "/quiet", rmpv::Value::Nil).await;
@@ -212,7 +209,7 @@ async fn two_transport_loopback_request_receipt_default_timeout_fires_from_the_l
         .expect("the default timeout fires");
     let elapsed = started.elapsed();
     assert_eq!(outcome, Err(RequestError::Timeout));
-    assert!(elapsed >= DEFAULT_TIMEOUT_BASE, "fired before the constant term: {elapsed:?}");
+    assert!(elapsed >= RESPONSE_GRACE, "fired before the constant term: {elapsed:?}");
     assert!(elapsed >= expected, "fired before rtt * 6 + 11.25 s ({expected:?}): {elapsed:?}");
     assert_eq!(receipt.status(), RequestStatus::Failed);
 }

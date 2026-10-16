@@ -140,10 +140,16 @@ async fn two_transport_loopback_request_receipt_packet_response_resolves_every_c
     .await;
 }
 
+/// `RNS/Link.py:1057-1061`: `response_size` is the advertised `d`, the length of the packed
+/// `[request_id, body]` envelope the responder handed its Resource, and
+/// `response_transfer_size` the advertised `t`, which the receiver reports as the
+/// `total_bytes` of every `Progress` event for the transfer.
 #[tokio::test]
 #[deny(clippy::await_holding_invalid_type)]
 async fn two_transport_loopback_request_receipt_resource_response_resolves_with_sizes() {
     let pair = loopback_request_pair("receipt-packet-resource").await;
+    let mut resource_events = pair.handles.connector.transport.resource_events();
+    let link_id = pair.handles.link_id;
     let body = over_mdu_body(&pair).await;
     let expected = body.clone();
     register_handler(&pair, "/big", RequestAllow::All, move |_: InboundRequest| {
@@ -154,9 +160,22 @@ async fn two_transport_loopback_request_receipt_resource_response_resolves_with_
     let receipt = request(&pair, "/big", rmpv::Value::Nil).await;
     let response = await_ready_on_two_clones(&receipt).await;
     assert_eq!(response.into_value(), Some(rmpv::Value::Binary(expected.clone())));
-    let response_size = receipt.response_size().expect("the advertisement carried `d`");
-    assert!(response_size > expected.len(), "`d` covers the whole envelope: {response_size}");
-    assert!(receipt.response_transfer_size().is_some(), "the advertisement carried `t`");
+
+    let envelope = ResponseFrame::new(receipt.request_id(), rmpv::Value::Binary(expected)).encode();
+    assert_eq!(receipt.response_size(), Some(envelope.len()), "`d` is the packed envelope");
+    let progress = await_resource_event(&mut resource_events, |event| {
+        event.link_id == link_id && matches!(event.kind, ResourceEventKind::Progress(_))
+    })
+    .await;
+    let progress = match progress.kind {
+        ResourceEventKind::Progress(progress) => progress,
+        other => panic!("expected a Progress event, got {other:?}"),
+    };
+    assert_eq!(
+        receipt.response_transfer_size(),
+        Some(usize::try_from(progress.total_bytes).expect("fits")),
+        "`t` is what the receiver counts towards"
+    );
 }
 
 #[tokio::test]
@@ -225,7 +244,10 @@ async fn two_transport_loopback_request_receipt_packet_form_goes_sent_to_ready()
     );
     assert_eq!(seen.last(), Some(&RequestStatus::Ready));
     assert!(!seen.contains(&RequestStatus::Delivered), "nothing proves a request packet");
-    assert!(!seen.contains(&RequestStatus::Receiving), "a packet response is not received in parts");
+    assert!(
+        !seen.contains(&RequestStatus::Receiving),
+        "a packet response is not received in parts"
+    );
 }
 
 #[tokio::test]
@@ -281,7 +303,10 @@ async fn two_transport_loopback_request_receipt_resource_form_goes_through_deliv
     );
     assert_eq!(seen.last(), Some(&RequestStatus::Ready));
     assert!(seen.contains(&RequestStatus::Delivered), "the request Resource completes: {seen:?}");
-    assert!(seen.contains(&RequestStatus::Receiving), "the echo comes back as a Resource: {seen:?}");
+    assert!(
+        seen.contains(&RequestStatus::Receiving),
+        "the echo comes back as a Resource: {seen:?}"
+    );
 }
 
 /// `RNS/Link.py:874-876`: a response over `max_response_size` is rejected and the receipt

@@ -55,6 +55,8 @@ pub use handler::{RequestHandler, RequestResponse};
 pub use id::{PathHash, RequestId};
 pub use inbound::InboundRequest;
 pub(crate) use receipt::ResponseArrival;
+#[cfg(test)]
+pub(crate) use receipt::RESPONSE_GRACE;
 pub use receipt::{
     RequestError, RequestOptions, RequestReceipt, RequestResponseData, RequestStatus,
 };

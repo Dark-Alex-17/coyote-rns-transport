@@ -32,7 +32,7 @@ commits `1ddd5273`, `a2a40de7`, `3805fe7f`, `3ed78582`, `415d67c8`,
 `afdf0f18`, `fe55cb71`, `10dc355e`, `8909d956`, `642dfc2b`, `7ce1601c`,
 `40409738`, `2f2c11c7`, `140a4fd2`, `3035e470`, `8a8c7a4e`, `6a0fc9cb`,
 `bbd34e72`, `114dbe1c`, `6f8cba34`, `1ef4cddd`, `f732e7d4`, `abd9187d`,
-`938d2852` and `6b5e9a4e`.
+`938d2852`, `6b5e9a4e`, `9521e2c0`, `b8ec835a` and `8b7557bd`.
 
 | File | Patch |
 | --- | --- |
@@ -98,6 +98,7 @@ commits `1ddd5273`, `a2a40de7`, `3805fe7f`, `3ed78582`, `415d67c8`,
 | `crates/libs/rns-transport/src/transport/tests.rs` | request handlers and dispatch, request receipts and timeouts |
 | `crates/libs/rns-transport/src/transport/tests_parts/two_transport_loopback_lifecycle.rs` | request handlers and dispatch, request receipts and timeouts |
 | `crates/libs/rns-transport/src/transport/tests_parts/two_transport_loopback_requests.rs` | request handlers and dispatch, request receipts and timeouts |
+| `crates/libs/rns-transport/src/transport/tests_parts/two_transport_loopback_requests_errors.rs` | request receipts and timeouts |
 | `crates/libs/rns-transport/src/transport/tests_parts/two_transport_loopback_requests_isolation.rs` | request handlers and dispatch |
 | `crates/libs/rns-transport/src/transport/tests_parts/two_transport_loopback_requests_malformed.rs` | request handlers and dispatch |
 | `crates/libs/rns-transport/src/transport/tests_parts/two_transport_loopback_requests_probe.rs` | request handlers and dispatch, request receipts and timeouts |
@@ -803,6 +804,48 @@ Fork commit `6b5e9a4e`: `OutboundRequestForm::Packet` in
 `delivery.rs` and `resource/sender.rs` hold theirs, since carrying
 `InboundResponseHashes` in `displaced` pushed the variant past clippy's
 `large_enum_variant` threshold. No behaviour change.
+
+Fork commit `9521e2c0`: a response Resource without metadata carries the
+`[request_id, body]` envelope, and its advertisement's `q` chose the
+receipt; Python reads the id out of the envelope and keys
+`handle_response` on it (`RNS/Link.py:908-912`). `ResponseArrival::decode`
+(`request/receipt.rs`) now takes the receipt's id from
+`PendingRequest::resolve` (`request/receipt_pending.rs`) and, for that
+form only, fails a mismatching envelope with the new
+`ResponseDecodeFailure::RequestIdMismatch { expected, actual }`, which the
+receipt reports as `Failed(Decode)` and `Link::resolve_pending_request`
+logs with both ids. The packet form is keyed on its own envelope and the
+file form has no envelope, so neither is checked. `receipt_tests.rs` pins
+the mismatch and the match; the crate `CHANGELOG.md` names the mismatch
+under `Decode`.
+
+Fork commit `b8ec835a`: `RequestResponseData` (`request/receipt.rs`)
+wraps its body in an `Arc`, so the clone `RequestReceipt::response` hands
+every caller, and any clone of the result, shares one body instead of
+copying a file response; `into_value` moves the body out of the last
+handle and clones it out of a shared one. The three `#[allow(dead_code)]`
+on `MIN_LINKS_CHECK_DELAY`, `link_check_delay_from_deadline` and
+`next_link_check_delay` in `transport/jobs.rs` go: all three are live and
+pinned by `jobs_parts/tests.rs`. `receipt_tests.rs` pins the sharing and
+both `into_value` paths; the crate `CHANGELOG.md` says the handle is
+cheap.
+
+Fork commit `8b7557bd`: new fixture
+`two_transport_loopback_requests_errors.rs` (one `include!` line in
+`transport/tests.rs`) pins `Transport::request` on a link the connector
+knows but that is not `Active`: `RnsError::ConnectionError`, staged with
+a `Pending` out-link toward a destination nobody serves, which stays in
+the table for its establishment timeout where a `close()`d link is
+removed by the link maintenance job within a second.
+`two_transport_loopback_requests_receipt_stop.rs` gains a second connector
+link to a sibling destination: through `Transport::stop` the held link's
+receipt stays `Sent` while the other link's receipt concludes
+`LinkClosed` inside `stop`. The displaced same-id case is not stageable
+through `Transport::request` (the packet-form id is the hash of a freshly
+encrypted packet and both forms pack the send time into the request) and
+stays pinned at the link level in `pending_requests_tests.rs`. The crate
+`CHANGELOG.md` names the new fixture in the receipts pin clause and says
+the sweep skips only the held link.
 
 ## 0.14.1 (upstream 0.14.0)
 

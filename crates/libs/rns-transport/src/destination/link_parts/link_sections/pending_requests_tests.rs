@@ -207,4 +207,24 @@ mod pending_requests_tests {
         assert_eq!(cancelled.response().await, Err(RequestError::Send));
         assert_eq!(other.status(), RequestStatus::Sent, "the other entry is untouched");
     }
+
+    /// The request Resource stays cancellable until its proof arrives, so a
+    /// response advertised ahead of a late proof is already inbound when the
+    /// cancel fails the receipt; the segment comes back for the caller to cancel.
+    #[tokio::test]
+    #[deny(clippy::await_holding_invalid_type)]
+    async fn cancelling_a_request_resource_already_receiving_hands_back_the_segment() {
+        let (mut link, _, _, _) = linked_pair();
+        let receipt = pending_resource_request(&mut link, id(1), hash(0xAA));
+        link.mark_pending_request_receiving(&id(1), &response_segment(hash(2), hash(1)));
+        assert_eq!(receipt.status(), RequestStatus::Receiving);
+
+        assert_eq!(
+            link.note_request_resource_outcome(hash(0xAA), &ResourceEventKind::OutboundCancelled),
+            Some(hash(2)),
+            "the failed entry names the segment in flight"
+        );
+        assert_eq!(receipt.status(), RequestStatus::Failed);
+        assert_eq!(receipt.response().await, Err(RequestError::Send));
+    }
 }

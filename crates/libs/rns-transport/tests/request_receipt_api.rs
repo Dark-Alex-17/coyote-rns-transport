@@ -1,6 +1,6 @@
 //! Black-box usage of the requester-side request types from outside the crate, in the shape
 //! the README's "Sending requests" section shows: the public paths resolve, `RequestOptions`
-//! builds with the documented builders and nothing else, the status and error enums carry
+//! builds with the documented builders, the status and error enums carry
 //! the documented variants (`RNS/Link.py:1318-1322`), `RequestError` is an error type a `?`
 //! in the README snippet can convert, and the receipt is a `Clone + Send + Sync` handle a
 //! consumer can move into another task.

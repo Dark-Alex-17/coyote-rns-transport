@@ -177,7 +177,6 @@ async fn two_transport_loopback_request_receipt_zero_timeout_fails_on_the_next_l
     let pair = loopback_request_pair("receipt-probe-zero-timeout").await;
     register_handler(&pair, "/quiet", RequestAllow::All, silent_handler()).await;
 
-    let started = Instant::now();
     let receipt = request_with(
         &pair,
         "/quiet",
@@ -188,7 +187,6 @@ async fn two_transport_loopback_request_receipt_zero_timeout_fails_on_the_next_l
     let outcome =
         timeout(one_tick_bound(), receipt.response()).await.expect("expired on the next tick");
     assert_eq!(outcome, Err(RequestError::Timeout));
-    assert!(started.elapsed() <= one_tick_bound());
     assert_eq!(receipt.status(), RequestStatus::Failed);
 }
 
@@ -209,7 +207,6 @@ async fn two_transport_loopback_request_receipt_default_timeout_fires_from_the_l
         .expect("the default timeout fires");
     let elapsed = started.elapsed();
     assert_eq!(outcome, Err(RequestError::Timeout));
-    assert!(elapsed >= RESPONSE_GRACE, "fired before the constant term: {elapsed:?}");
     assert!(elapsed >= expected, "fired before rtt * 6 + 11.25 s ({expected:?}): {elapsed:?}");
     assert_eq!(receipt.status(), RequestStatus::Failed);
 }

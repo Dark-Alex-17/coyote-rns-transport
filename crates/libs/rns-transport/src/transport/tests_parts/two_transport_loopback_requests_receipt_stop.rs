@@ -10,7 +10,7 @@ use super::lifecycle::STOP_BUDGET;
 const STOP_SLACK: Duration = Duration::from_secs(3);
 
 /// Bounds the wait for a receipt that concludes on the link drop.
-const LINK_DROP_TIMEOUT: Duration = Duration::from_secs(15);
+const LINK_DROP_TIMEOUT: Duration = LOOPBACK_TIMEOUT;
 
 /// A thread that holds `link`'s lock until `release` fires. The guard lives on the thread, not
 /// across an await in the test, and `locked` tells the test when the lock is taken.
@@ -26,6 +26,7 @@ fn hold_link(link: Arc<Mutex<Link>>) -> HeldLink {
     let thread = std::thread::spawn(move || {
         let guard = link.blocking_lock();
         locked_tx.send(()).expect("the test waits for the lock");
+        // Err means the test dropped its half; either way the guard goes below.
         let _ = release_rx.blocking_recv();
         drop(guard);
     });
@@ -47,6 +48,10 @@ async fn two_transport_loopback_stop_skips_a_held_link_and_its_receipt_concludes
     pair.handles.connector.transport.stop().await;
     let elapsed = started.elapsed();
     assert!(elapsed < STOP_BUDGET + STOP_SLACK, "stop overran its budget: {elapsed:?}");
+    assert!(
+        elapsed >= STOP_BUDGET,
+        "stop returned before the held link's wait ran out: {elapsed:?}"
+    );
     assert_eq!(receipt.status(), RequestStatus::Sent, "the sweep skipped the held link");
 
     held.release.send(()).expect("the holder waits for the release");

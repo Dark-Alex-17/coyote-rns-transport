@@ -80,7 +80,7 @@ const FLAG_ENCRYPTED: u8 = 0x01;
 const FLAG_COMPRESSED: u8 = 0x02;
 const FLAG_SPLIT: u8 = 0x04;
 const FLAG_REQUEST: u8 = 0x08;
-const FLAG_RESPONSE: u8 = 0x10;
+pub(crate) const FLAG_RESPONSE: u8 = 0x10;
 const FLAG_METADATA: u8 = 0x20;
 
 const METADATA_MAX_SIZE: usize = 16 * 1024 * 1024 - 1;

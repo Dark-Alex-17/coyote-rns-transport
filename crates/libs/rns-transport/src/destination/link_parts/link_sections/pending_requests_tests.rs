@@ -182,7 +182,7 @@ mod pending_requests_tests {
         assert!(link.pending_response_limits.is_empty());
     }
 
-    /// `Transport::cancel_resource` on the request Resource (`RNS/Link.py:1375-1385`
+    /// `Transport::cancel_resource` on the request Resource (`RNS/Link.py:1377-1385`
     /// fails the receipt for every status but complete, a cancelled one included).
     #[tokio::test]
     #[deny(clippy::await_holding_invalid_type)]

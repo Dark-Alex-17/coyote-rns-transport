@@ -185,6 +185,7 @@ trailing clause of the bullet for the behaviour it pins.
   `two_transport_loopback_requests_receipt_probe.rs`,
   `two_transport_loopback_requests_receipt_probe2.rs`,
   `two_transport_loopback_requests_receipt_probe3.rs`,
+  `two_transport_loopback_requests_receipt_probe4.rs`,
   `two_transport_loopback_requests_receipt_stop.rs`,
   `tests/request_receipt_api.rs`, `tests/request_receipt_readme.rs`,
   `destination/request/receipt_tests.rs`
@@ -202,7 +203,7 @@ trailing clause of the bullet for the behaviour it pins.
   Resource is inbound cancels that Resource (`:1435`), with the receiver
   cancel packet sent only on an `Active` link (`RNS/Resource.py:1111-1116`).
   A request Resource cancelled locally through `Transport::cancel_resource`
-  fails its receipt `Send` (`RNS/Link.py:1375-1385` fails the receipt for
+  fails its receipt `Send` (`RNS/Link.py:1377-1385` fails the receipt for
   every Resource status but complete); a response already inbound for that
   receipt is cancelled like any other response of a failed receipt.
   A receipt moves to `Receiving` only for a response advertisement the

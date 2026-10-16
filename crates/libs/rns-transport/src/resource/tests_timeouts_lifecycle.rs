@@ -186,8 +186,8 @@ fn resource_manager_has_an_active_receiver_only_for_an_admitted_advertisement() 
 
     let dropped_hash = Hash::new_from_slice(&[0x47; 32]);
     let admitted_hash = Hash::new_from_slice(&[0x48; 32]);
-    let request_id = [0x51u8; 16];
-    let other_request_id = [0x52u8; 16];
+    let request_id = [0x51u8; ADDRESS_HASH_SIZE];
+    let other_request_id = [0x52u8; ADDRESS_HASH_SIZE];
     let other_link_id = AddressHash::new_from_slice(&[0x53; ADDRESS_HASH_SIZE]);
     // `ResourceReceiver::new` copies `request_id` whatever the flags say; the
     // response flag is set because that is the advertisement a response

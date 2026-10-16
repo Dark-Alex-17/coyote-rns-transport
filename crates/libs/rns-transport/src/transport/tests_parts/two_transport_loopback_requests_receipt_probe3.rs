@@ -5,9 +5,6 @@
 // clock still running, and the request clock then fails it `Timeout`. The link keeps
 // answering afterwards. Helpers come from the sibling `tests_parts` files.
 
-/// `FLAG_RESPONSE` of the advertisement flag byte (`RNS/Resource.py:1318`).
-const RESPONSE_FLAG: u8 = 0x10;
-
 /// Builds a response advertisement for `id` the inbound caps refuse: a part count over the
 /// 8192-part inbound limit against a few bytes of data.
 fn unreasonable_response_advertisement(id: RequestId) -> ResourceAdvertisement {
@@ -22,7 +19,7 @@ fn unreasonable_response_advertisement(id: RequestId) -> ResourceAdvertisement {
         segment_index: 1,
         total_segments: 1,
         request_id: Some(serde_bytes::ByteBuf::from(id.to_bytes().to_vec())),
-        flags: RESPONSE_FLAG,
+        flags: crate::resource::FLAG_RESPONSE,
         hashmap: Vec::new(),
     }
 }

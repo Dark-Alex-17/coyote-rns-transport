@@ -16,8 +16,8 @@ fn one_tick_bound() -> Duration {
 /// Python's `RequestReceipt.timeout` constant term (`RNS/Link.py:491`).
 const DEFAULT_TIMEOUT_BASE: Duration = Duration::from_millis(11_250);
 
-/// A response body large enough to come back as a Resource, with the per-request `/echo`
-/// handler recording the ids it serves.
+/// Registers an echo handler at `path` on the responder and returns the channel on which it
+/// reports the id of every request it serves.
 #[deny(clippy::await_holding_invalid_type)]
 async fn register_recording_echo(
     pair: &LoopbackRequestPair,

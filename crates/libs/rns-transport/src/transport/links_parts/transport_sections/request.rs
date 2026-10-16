@@ -10,7 +10,7 @@ enum OutboundRequestForm {
     /// receiving.
     Packet {
         id: RequestId,
-        packet: Packet,
+        packet: Box<Packet>,
         receipt: RequestReceipt,
         displaced: Option<InboundResponseHashes>,
     },
@@ -58,7 +58,7 @@ impl Transport {
                 let id = RequestId::from_packet_hash(&packet.hash());
                 let (receipt, displaced) =
                     guard.insert_pending_request(id, PendingRequest::new(id, timeout, None));
-                OutboundRequestForm::Packet { id, packet, receipt, displaced }
+                OutboundRequestForm::Packet { id, packet: Box::new(packet), receipt, displaced }
             } else {
                 OutboundRequestForm::Resource { timeout, iface: guard.ingress_iface() }
             }
@@ -66,7 +66,7 @@ impl Transport {
         match form {
             OutboundRequestForm::Packet { id, packet, receipt, displaced } => {
                 self.cancel_inbound_responses(&link, displaced.into_iter().collect()).await;
-                let outcome = self.send_link_packet_on_bound_iface(&link, packet).await;
+                let outcome = self.send_link_packet_on_bound_iface(&link, *packet).await;
                 if !outcome.is_sent() {
                     link.lock().await.remove_pending_request(&id);
                     return Err(RnsError::ConnectionError);

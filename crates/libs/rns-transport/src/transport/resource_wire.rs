@@ -351,6 +351,33 @@ fn cancel_inbound_response(
     }
 }
 
+/// Routes Resource outcomes drained by a periodic worker to the pending
+/// requests of the links they belong to: a request Resource whose retries
+/// ran out fails its receipt `Send`, a response Resource whose receiver gave
+/// up fails its receipt `Receive`. The packet paths above route their own
+/// events; this is for outcomes no packet carried. The cancels go out once
+/// every link guard is gone.
+#[deny(clippy::await_holding_invalid_type)]
+pub(super) async fn note_resource_events_on_links(
+    handler: &mut TransportHandler,
+    events: &[ResourceEvent],
+) {
+    let mut cancels = Vec::new();
+    for event in events {
+        let link = link_by_id(&handler.in_links, &handler.out_links, &event.link_id).await;
+        let Some(link) = link else {
+            continue;
+        };
+        let mut link = link.lock().await;
+        if let Some(receiving) = link.note_request_resource_outcome(event.hash, &event.kind) {
+            cancel_inbound_response(&mut handler.resource_manager, &link, receiving, &mut cancels);
+        }
+    }
+    for cancel in cancels {
+        handler.send(cancel).await;
+    }
+}
+
 async fn link_for_resource_packet(
     handler: &TransportHandler,
     packet: &Packet,

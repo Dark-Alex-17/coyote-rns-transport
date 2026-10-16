@@ -138,7 +138,7 @@ trailing clause of the bullet for the behaviour it pins.
   `Failed`, and `subscribe()` hands out a `watch::Receiver<RequestStatus>`
   that reports the moves after the call. `started_at()` is `Some` from the
   send for a packet request and `None` for a request Resource until it
-  completes or a response is advertised, whichever comes first
+  completes or a response advertisement is admitted, whichever comes first
   (`:1331-1334`, `:1370-1371`, `:1062-1063`); `concluded_at()` is set once
   the receipt is `Ready` or `Failed`. `response_size()` and
   `response_transfer_size()` are set for a packet response too, to the
@@ -157,30 +157,37 @@ trailing clause of the bullet for the behaviour it pins.
   decoded. The default timeout is `rtt * 6 + 11.25 s` from `Link::rtt()`
   (`:491`); `RequestOptions::with_timeout` overrides it and
   `with_max_response_size` fails a larger response with
-  `RequestError::Oversize` (`:874-876`). The status order follows Python:
-  a packet-form request goes `Sent -> Ready`, or
+  `RequestError::Oversize` (`:874-876`, `:1048-1053`). The status order
+  follows Python: a packet-form request goes `Sent -> Ready`, or
   `Sent -> Receiving -> Ready` for a Resource response, and never reaches
   `Delivered` (`:1421-1427`, `:1445-1450` mark only the packet receipt);
   a resource-form request reaches `Delivered` when its Resource completes
   (`:1372`), then `Receiving -> Ready` or `Ready`. The failures:
   `Timeout` once the request clock runs out; `Rejected` for a request
   Resource the responder refused; `Send` for a request Resource that could
-  not be sent or exhausted its retries, and for a receipt displaced by a
-  second request under the same id; `Receive` for a response Resource that
+  not be sent, exhausted its retries or was cancelled locally through
+  `Transport::cancel_resource`, and for a receipt displaced by a second
+  request under the same id; `Receive` for a response Resource that
   fails in transfer (a part failure, receiver retry exhaustion, a remote
   cancel); `Decode` for a response that is not an envelope; `Oversize` as
   above; `LinkClosed` for a link that closes from either side, for
   `Transport::stop`, and for a transport dropped with the receipt still
   pending, where `status()` and `concluded_at()` conclude the receipt
   `LinkClosed` on their own once its entry is gone, without a prior
-  `response()`, and `response()` returns the same. A request on a `Stale`
+  `response()`, and `response()` returns the same. The receipt sweep in
+  `Transport::stop` shares `stop`'s 5 s budget: a link whose lock is still
+  held when it runs out is skipped with a warning, and its receipts
+  conclude `LinkClosed` once the link is dropped. A request on a `Stale`
   link is refused, where Python drops a packet only on a `CLOSED` one
   (`RNS/Packet.py:294-295`). Pinned by
   `transport/tests_parts/two_transport_loopback_requests_receipt.rs`,
   `two_transport_loopback_requests_receipt_timeouts.rs`,
   `two_transport_loopback_requests_receipt_probe.rs`,
   `two_transport_loopback_requests_receipt_probe2.rs`,
-  `tests/request_receipt_api.rs`, `destination/request/receipt_tests.rs`
+  `two_transport_loopback_requests_receipt_probe3.rs`,
+  `two_transport_loopback_requests_receipt_stop.rs`,
+  `tests/request_receipt_api.rs`, `tests/request_receipt_readme.rs`,
+  `destination/request/receipt_tests.rs`
   and `destination/link_parts/link_sections/pending_requests_tests.rs`.
 
 ### Changed
@@ -194,13 +201,18 @@ trailing clause of the bullet for the behaviour it pins.
   `Receive`, and a receipt that fails for another reason while a response
   Resource is inbound cancels that Resource (`:1435`), with the receiver
   cancel packet sent only on an `Active` link (`RNS/Resource.py:1111-1116`).
+  A request Resource cancelled locally through `Transport::cancel_resource`
+  fails its receipt `Send` (`RNS/Link.py:1375-1385` fails the receipt for
+  every Resource status but complete).
   A receipt moves to `Receiving` only for a response advertisement the
   ResourceManager admitted and built a receiver for (`RNS/Link.py:1055-1064`
-  touches the receipt only under `if response_resource != None`); an
-  advertisement the manager drops, for the inbound caps, an out-of-order
-  or duplicate segment or an unreasonable part count, leaves the receipt
-  as it was with its clock running, and a repeat advertisement of the
-  segment in flight (`RNS/Resource.py:594-598`) adds nothing to
+  touches the receipt only under `if response_resource != None`), and only
+  when that receiver was built for the receipt's request id on the same
+  link, so a re-advertisement of an active segment under another id marks
+  nothing; an advertisement the manager drops, for the inbound caps, an
+  out-of-order or duplicate segment or an unreasonable part count, leaves
+  the receipt as it was with its clock running, and a repeat advertisement
+  of the segment in flight (`RNS/Resource.py:594-598`) adds nothing to
   `response_transfer_size()` (`RNS/Resource.py:238-240`). Two faces of one
   divergence from Python's `DELIVERED` guard (`RNS/Link.py:1398`, `:1408`)
   remain: a receipt that never gets any response, a packet-form receipt

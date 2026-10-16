@@ -29,7 +29,8 @@ and dispatch patch carries no other id and is fork commits `08a5cff6`,
 `febec3db`, `7e9e5904`, `5544c49c`, `816032c5` and `c82dcd0d`; the
 request receipts and timeouts patch carries no other id and is fork
 commits `1ddd5273`, `a2a40de7`, `3805fe7f`, `3ed78582`, `415d67c8`,
-`afdf0f18`, `fe55cb71`, `10dc355e`, `8909d956`, `642dfc2b` and `7ce1601c`.
+`afdf0f18`, `fe55cb71`, `10dc355e`, `8909d956`, `642dfc2b`, `7ce1601c`,
+`40409738`, `2f2c11c7` and `140a4fd2`.
 
 | File | Patch |
 | --- | --- |
@@ -95,6 +96,8 @@ commits `1ddd5273`, `a2a40de7`, `3805fe7f`, `3ed78582`, `415d67c8`,
 | `crates/libs/rns-transport/src/transport/tests_parts/two_transport_loopback_requests_receipt.rs` | request receipts and timeouts |
 | `crates/libs/rns-transport/src/transport/tests_parts/two_transport_loopback_requests_receipt_probe.rs` | request receipts and timeouts |
 | `crates/libs/rns-transport/src/transport/tests_parts/two_transport_loopback_requests_receipt_probe2.rs` | request receipts and timeouts |
+| `crates/libs/rns-transport/src/transport/tests_parts/two_transport_loopback_requests_receipt_probe3.rs` | request receipts and timeouts |
+| `crates/libs/rns-transport/src/transport/tests_parts/two_transport_loopback_requests_receipt_stop.rs` | request receipts and timeouts |
 | `crates/libs/rns-transport/src/transport/tests_parts/two_transport_loopback_requests_receipt_timeouts.rs` | request receipts and timeouts |
 | `crates/libs/rns-transport/src/transport/tests_parts/two_transport_loopback_requests_resource_form.rs` | request handlers and dispatch |
 | `crates/libs/rns-transport/src/transport/tests_parts/two_transport_loopback_requests_resource_form_probe.rs` | request handlers and dispatch |
@@ -104,6 +107,7 @@ commits `1ddd5273`, `a2a40de7`, `3805fe7f`, `3ed78582`, `415d67c8`,
 | `crates/libs/rns-transport/tests/request_frame_wire.rs` | request wire frames and fuzz |
 | `crates/libs/rns-transport/tests/request_handler_api.rs` | request handlers and dispatch |
 | `crates/libs/rns-transport/tests/request_receipt_api.rs` | request receipts and timeouts |
+| `crates/libs/rns-transport/tests/request_receipt_readme.rs` | request receipts and timeouts |
 | `docs/fork/PATCHSET.md` | request wire frames and fuzz, request handlers and dispatch, request receipts and timeouts |
 | `docs/runbooks/fuzzing-campaign.md` | request wire frames and fuzz |
 | `tools/scripts/fuzz-campaign.sh` | request wire frames and fuzz |
@@ -499,7 +503,8 @@ fixture reads `RESPONSE_GRACE` in place of the `11_250` literal.
 `two_transport_loopback_requests_receipt.rs` pins `response_size()` to
 the length of the `ResponseFrame` envelope and `response_transfer_size()`
 to the `total_bytes` of the receiver's `Progress` events
-(`RNS/Link.py:1057-1061`), in place of `is_some()`.
+(`RNS/Link.py:1057-1061`), in place of the `is_some()` and
+`> expected.len()` checks.
 `two_transport_loopback_requests_receipt_probe.rs` drops its
 `DEFAULT_TIMEOUT_BASE` copy for `RESPONSE_GRACE`, which `request/mod.rs`
 re-exports under `cfg(test)`.
@@ -515,6 +520,83 @@ with the responder stalled, fails the receipt `LinkClosed`, not `Receive`
 (`RNS/Link.py:1435`); and a response that resolved a receipt in-path
 still posts `LinkEvent::Data(Response)` and `ResourceEventKind::Complete`
 with `is_response` and the request id.
+
+Fork commit `40409738`: the receipt sweep of `Transport::stop` shares the
+stop budget, and `RequestOptions` keeps its getters in the crate. The
+sweep ran after the 5 s budget with unbounded handler and link locks, so
+a link whose lock was held elsewhere held `stop` open indefinitely.
+Upstream sites: `transport/lifecycle.rs` passes the `deadline` of `stop`
+into `fail_pending_requests_on_stop`, where every lock waits with
+`time::timeout_at` on it: a handler lock that does not come skips the
+sweep, or the cancels and the publish, a link lock that does not come
+skips that link, each with a `[tp]` warning; `STOP_BUDGET` is
+`pub(super)`, and the `stop` rustdoc says the interface wait, the
+management wait and the sweep share one budget. tokio's `Timeout` polls
+the lock before the deadline, so an uncontended lock is still taken once
+the budget is spent. `request/receipt.rs` makes `max_response_size()`
+`pub(crate)` and removes the unused `timeout()` getter, so the private
+fields and the `with_*` builders are the public surface. Tests:
+`two_transport_loopback_requests_receipt_stop.rs` (new, one more
+`include!` line in `transport/tests.rs`) holds the connector's link lock
+on another thread across `stop` and pins that `stop` returns within the
+budget plus slack, leaves the held link's receipt `Sent`, and that the
+receipt concludes `LinkClosed` once the lock is released and the
+transport dropped; `tests/request_receipt_api.rs` pins the builder chain
+and the `Clone + Default + Debug` bounds in place of the getters;
+`request/receipt_tests.rs` reads the override through
+`timeout_for_rtt`.
+
+Fork commit `2f2c11c7`: a locally cancelled request Resource fails its
+receipt `Send`, and the admitted-advertisement gate is keyed by request.
+`Link::note_request_resource_outcome` treated `OutboundCancelled` as no
+outcome, so a request Resource cancelled through
+`Transport::cancel_resource` left its receipt `Sent` with no clock until
+the link closed; `ResourceManager::has_active_receiver` was keyed by
+segment hash alone, so a responder re-advertising an active segment
+under another request id would have marked that other receipt
+`Receiving` with nothing to ever fail it. Upstream sites:
+`link_sections/pending_requests.rs` maps `OutboundCancelled` to
+`RequestError::Send` (`RNS/Link.py:1375-1385` fails the receipt for
+every Resource status but complete) and logs at debug the cause
+`PendingRequest::resolve` hands back for a response that did not decode;
+`transport_sections/reset_out_link.rs` has `cancel_resource` route the
+manager's events through the link under the handler-then-link lock order
+and re-drain the manager before publishing; `resource/manager_cleanup.rs`
+gives `has_active_receiver` the link id and request id and compares them
+with the receiver's, and makes it and `cancel_incoming` `pub(crate)`;
+`transport/resource_wire.rs` passes `link.id()` and the request id bytes.
+`request/receipt.rs` adds the `pub(crate)` `ResponseDecodeFailure` enum
+(`Frame`, `Metadata`, `MetadataRead`, `MetadataTrailing`) that
+`ResponseArrival::decode` returns and widens the `RequestError::Send`
+rustdoc; `request/receipt_pending.rs` has `resolve` conclude `Decode` and
+return the cause, and its `mark_delivered` rustdoc records that a receipt
+already `Receiving` keeps its state where `RNS/Link.py:1372` sets
+`DELIVERED`. `link_sections/next_watchdog_deadline.rs` and
+`link_sections/new.rs` say a receiver left inbound fails on its own retry
+limit (`RNS/Resource.py:1111`); the oversize response gate cite in
+`two_transport_loopback_requests_receipt_probe.rs` is
+`RNS/Link.py:1048-1053`. Tests: `link_sections/pending_requests_tests.rs`
+pins the cancel failing `Send` and leaving an unrelated entry `Sent`;
+`request/receipt_tests.rs` pins `mark_delivered` after `mark_receiving`
+changing nothing, a non-envelope response failing `Decode` with a
+`Frame` cause, and the depth refusal as a `Metadata` cause;
+`resource/tests_timeouts_lifecycle.rs` pins `has_active_receiver` false
+for another request id and for another link.
+
+Fork commit `140a4fd2`: the dropped-advertisement probe and the README
+usage tests. `two_transport_loopback_requests_receipt_probe3.rs` (new,
+one more `include!` line in `transport/tests.rs`) injects a response
+advertisement the ResourceManager refuses, a part count over the inbound
+cap, for a pending receipt and pins that the receipt stays `Sent` with
+no sizes and its clock running, then fails `Timeout`
+(`RNS/Link.py:1055-1064`), and that the link keeps answering.
+`tests/request_receipt_readme.rs` (new) drives the README's handler and
+request snippets verbatim from outside the crate over a loopback TCP
+pair: a packet-form request goes `Sent` to `Ready` without `Delivered`,
+a response over the link MDU arrives as a Resource through `Receiving`,
+a closed link fails its receipt `LinkClosed` and refuses the next
+request with `RnsError::ConnectionError`, and `Transport::stop` fails
+every pending receipt on every link whatever state it is in.
 
 ## 0.14.1 (upstream 0.14.0)
 

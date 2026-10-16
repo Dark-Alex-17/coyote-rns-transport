@@ -117,13 +117,14 @@ a packet-form request and from `Delivered` for a resource-form one, and a
 receipt still waiting when it runs out fails with `RequestError::Timeout`. No
 clock runs while a request Resource is in flight or a response Resource is
 being received: a request Resource that is refused fails `Rejected`, one
-that cannot be sent or exhausts its retries fails `Send`, and a response
-Resource that fails in transfer fails `Receive`. A link that closes, from
-either side, fails every pending receipt with `RequestError::LinkClosed`, as
-does `Transport::stop()`; a request on a link that has gone `Stale` is
-refused. A response Resource with metadata is a file response, read through
-`RequestResponseData::data()` and `metadata()`; every other response is the
-envelope body, read through `value()`.
+that cannot be sent, exhausts its retries or is cancelled through
+`Transport::cancel_resource` fails `Send`, and a response Resource that
+fails in transfer fails `Receive`. A link that closes, from either side,
+fails every pending receipt with `RequestError::LinkClosed`, as does
+`Transport::stop()` within its budget; a request on a link that has gone
+`Stale` is refused. A response Resource with metadata is a file response,
+read through `RequestResponseData::data()` and `metadata()`; every other
+response is the envelope body, read through `value()`.
 
 ## Versioning and releases
 

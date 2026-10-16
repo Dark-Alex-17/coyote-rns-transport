@@ -271,6 +271,38 @@ async fn a_response_resource_whose_envelope_names_the_request_is_ready() {
 
 #[tokio::test]
 #[deny(clippy::await_holding_invalid_type)]
+async fn response_handles_share_one_body() {
+    let pending = packet_form();
+    let receipt = pending.receipt();
+    let mut metadata = Vec::new();
+    rmpv::encode::write_value(&mut metadata, &rmpv::Value::from("name"))
+        .expect("msgpack into a Vec");
+    assert!(pending
+        .resolve(ResponseArrival::Resource { data: b"file", metadata: Some(&metadata) })
+        .is_none());
+    let first = receipt.response().await.expect("a file response");
+    let second = receipt.clone().response().await.expect("the same response");
+    let third = first.clone();
+    let data = first.data().expect("file bytes");
+    assert!(std::ptr::eq(data, second.data().expect("file bytes")), "`response()` shares it");
+    assert!(std::ptr::eq(data, third.data().expect("file bytes")), "`clone()` shares it");
+    assert_eq!(first.metadata(), Some(&rmpv::Value::from("name")));
+    assert_eq!(third.into_value(), None, "a file response has no envelope body");
+}
+
+#[test]
+fn into_value_moves_the_body_out_of_a_shared_handle_too() {
+    let envelope = ResponseFrame::new(id(1), rmpv::Value::from("pong")).encode();
+    let sole = ResponseArrival::Resource { data: &envelope, metadata: None }
+        .decode(id(1))
+        .expect("the envelope decodes");
+    let shared = sole.clone();
+    assert_eq!(sole.into_value(), Some(rmpv::Value::from("pong")), "cloned out, `shared` lives");
+    assert_eq!(shared.into_value(), Some(rmpv::Value::from("pong")), "moved out of the last");
+}
+
+#[tokio::test]
+#[deny(clippy::await_holding_invalid_type)]
 async fn a_response_that_does_not_decode_fails_decode_and_hands_back_the_cause() {
     let pending = packet_form();
     let receipt = pending.receipt();

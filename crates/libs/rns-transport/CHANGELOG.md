@@ -157,7 +157,9 @@ trailing clause of the bullet for the behaviour it pins.
   response, `RequestResponseData::data()` and `metadata()` (`:899-903`);
   every other response is the envelope body, `value()` (`:907-911`); the
   metadata is held to the same nesting depth as the frames before it is
-  decoded. The default timeout is `rtt * 6 + 11.25 s` from `Link::rtt()`
+  decoded. `RequestResponseData` is a cheap handle: clones share one body,
+  as do the results of every `response()` call on a receipt.
+  The default timeout is `rtt * 6 + 11.25 s` from `Link::rtt()`
   (`:491`); `RequestOptions::with_timeout` overrides it and
   `with_max_response_size` fails a larger response with
   `RequestError::Oversize`, measured on the packed body of a response

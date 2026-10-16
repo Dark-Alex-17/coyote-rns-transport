@@ -5,7 +5,6 @@ use super::inbound_processing::{
 use super::*;
 use crate::destination::link::{LinkCloseReason, LinkWatchdogAction};
 
-#[allow(dead_code)]
 const MIN_LINKS_CHECK_DELAY: Duration = Duration::from_millis(10);
 const PATH_REQUEST_MI: Duration = Duration::from_secs(20);
 
@@ -74,7 +73,6 @@ mod receive_hop_increment_tests {
 
 include!("jobs_parts/link_table_cleanup.rs");
 
-#[allow(dead_code)]
 fn link_check_delay_from_deadline(
     now: std::time::Instant,
     earliest_retry: Option<std::time::Instant>,
@@ -90,7 +88,6 @@ fn link_check_delay_from_deadline(
     std::cmp::min(deadline.duration_since(now), INTERVAL_LINKS_CHECK)
 }
 
-#[allow(dead_code)]
 async fn next_link_check_delay(handler_arc: &Arc<Mutex<TransportHandler>>) -> Duration {
     let (in_links, out_links) = {
         let handler = handler_arc.lock().await;

@@ -132,8 +132,11 @@ pub enum RequestError {
 /// its own msgpack type (`RNS/Link.py:907-911`). A response Resource with
 /// metadata is a file response: its data is the raw file bytes, not an
 /// envelope, and the metadata travels beside it (`RNS/Link.py:899-903`).
+///
+/// A cheap handle: clones, and every [`RequestReceipt::response`] call,
+/// share one body.
 #[derive(Debug, Clone, PartialEq)]
-pub struct RequestResponseData(ResponseBody);
+pub struct RequestResponseData(Arc<ResponseBody>);
 
 #[derive(Debug, Clone, PartialEq)]
 enum ResponseBody {
@@ -144,15 +147,17 @@ enum ResponseBody {
 impl RequestResponseData {
     /// The envelope body; `None` for a file response.
     pub fn value(&self) -> Option<&rmpv::Value> {
-        match &self.0 {
+        match &*self.0 {
             ResponseBody::Value(value) => Some(value),
             ResponseBody::File { .. } => None,
         }
     }
 
-    /// The envelope body, moved out; `None` for a file response.
+    /// The envelope body, moved out of the last handle or cloned out of a
+    /// shared one; `None` for a file response.
     pub fn into_value(self) -> Option<rmpv::Value> {
-        match self.0 {
+        let body = Arc::try_unwrap(self.0).unwrap_or_else(|shared| (*shared).clone());
+        match body {
             ResponseBody::Value(value) => Some(value),
             ResponseBody::File { .. } => None,
         }
@@ -160,7 +165,7 @@ impl RequestResponseData {
 
     /// The raw bytes of a file response; `None` for an envelope.
     pub fn data(&self) -> Option<&[u8]> {
-        match &self.0 {
+        match &*self.0 {
             ResponseBody::File { data, .. } => Some(data),
             ResponseBody::Value(_) => None,
         }
@@ -168,7 +173,7 @@ impl RequestResponseData {
 
     /// The decoded metadata of a file response; `None` for an envelope.
     pub fn metadata(&self) -> Option<&rmpv::Value> {
-        match &self.0 {
+        match &*self.0 {
             ResponseBody::File { metadata, .. } => Some(metadata),
             ResponseBody::Value(_) => None,
         }
@@ -255,7 +260,7 @@ impl ResponseArrival<'_> {
                 ResponseBody::File { data: data.to_vec(), metadata }
             }
         };
-        Ok(RequestResponseData(body))
+        Ok(RequestResponseData(Arc::new(body)))
     }
 }
 

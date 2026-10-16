@@ -31,8 +31,8 @@ request receipts and timeouts patch carries no other id and is fork
 commits `1ddd5273`, `a2a40de7`, `3805fe7f`, `3ed78582`, `415d67c8`,
 `afdf0f18`, `fe55cb71`, `10dc355e`, `8909d956`, `642dfc2b`, `7ce1601c`,
 `40409738`, `2f2c11c7`, `140a4fd2`, `3035e470`, `8a8c7a4e`, `6a0fc9cb`,
-`bbd34e72`, `114dbe1c`, `6f8cba34`, `1ef4cddd`, `f732e7d4`, `abd9187d`
-and `938d2852`.
+`bbd34e72`, `114dbe1c`, `6f8cba34`, `1ef4cddd`, `f732e7d4`, `abd9187d`,
+`938d2852` and `6b5e9a4e`.
 
 | File | Patch |
 | --- | --- |
@@ -797,6 +797,12 @@ through `Link::resolve_pending_request`: a response that is not an
 envelope fails its receipt `Decode`, the entry and its response size
 limit go with it, and a second copy of the response finds nothing
 waiting.
+
+Fork commit `6b5e9a4e`: `OutboundRequestForm::Packet` in
+`transport_sections/request.rs` holds its `Packet` behind a `Box`, as
+`delivery.rs` and `resource/sender.rs` hold theirs, since carrying
+`InboundResponseHashes` in `displaced` pushed the variant past clippy's
+`large_enum_variant` threshold. No behaviour change.
 
 ## 0.14.1 (upstream 0.14.0)
 

@@ -1,11 +1,12 @@
 //! Black-box usage of the requester-side request types from outside the crate, in the shape
 //! the README's "Sending requests" section shows: the public paths resolve, `RequestOptions`
-//! builds with the documented builders and reads back, the status and error enums carry the
-//! documented variants (`RNS/Link.py:1318-1322`), `RequestError` is an error type a `?` in
-//! the README snippet can convert, and the receipt is a `Clone + Send + Sync` handle a
+//! builds with the documented builders and nothing else, the status and error enums carry
+//! the documented variants (`RNS/Link.py:1318-1322`), `RequestError` is an error type a `?`
+//! in the README snippet can convert, and the receipt is a `Clone + Send + Sync` handle a
 //! consumer can move into another task.
 
 use std::error::Error;
+use std::fmt::Debug;
 use std::time::Duration;
 
 use rns_transport::destination::request::{
@@ -14,22 +15,15 @@ use rns_transport::destination::request::{
 
 fn assert_clone_send_sync<T: Clone + Send + Sync + 'static>() {}
 fn assert_send_sync<T: Send + Sync + 'static>() {}
+fn assert_clone_default_debug<T: Clone + Default + Debug>() {}
 
 #[test]
-fn readme_shaped_options_build_and_read_back() {
-    let defaults = RequestOptions::default();
-    assert_eq!(defaults.timeout(), None, "None means rtt * 6 + 11.25 s at request time");
-    assert_eq!(defaults.max_response_size(), None, "no response size gate by default");
-
-    let tuned =
+fn readme_shaped_options_build_from_the_default_and_the_builders() {
+    assert_clone_default_debug::<RequestOptions>();
+    let tuned: RequestOptions =
         RequestOptions::default().with_timeout(Duration::from_secs(3)).with_max_response_size(4096);
-    assert_eq!(tuned.timeout(), Some(Duration::from_secs(3)));
-    assert_eq!(tuned.max_response_size(), Some(4096));
-
-    let last_wins = RequestOptions::default()
-        .with_timeout(Duration::from_secs(1))
-        .with_timeout(Duration::from_secs(2));
-    assert_eq!(last_wins.timeout(), Some(Duration::from_secs(2)));
+    let copy = tuned.clone();
+    assert!(!format!("{copy:?}").is_empty(), "the options render for a consumer's log line");
 }
 
 #[test]

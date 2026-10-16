@@ -7,8 +7,8 @@
 use std::time::{Duration, Instant};
 
 use super::{
-    PendingRequest, RequestError, RequestId, RequestStatus, ResponseArrival, ResponseFrame,
-    MAX_DEPTH,
+    PendingRequest, RequestError, RequestId, RequestOptions, RequestStatus, ResponseArrival,
+    ResponseFrame, MAX_DEPTH, RESPONSE_GRACE,
 };
 use crate::hash::Hash;
 use crate::resource::{ResourceAdvertisement, ResourceProgress, RANDOM_HASH_SIZE};
@@ -58,6 +58,24 @@ fn response_segment(
 
 fn progress(received_bytes: u64, total_bytes: u64) -> ResourceProgress {
     ResourceProgress { received_bytes, total_bytes, received_parts: 0, total_parts: 0 }
+}
+
+#[test]
+fn options_apply_what_the_builders_set() {
+    let rtt = Duration::from_secs(1);
+    let defaults = RequestOptions::default();
+    assert_eq!(defaults.timeout_for_rtt(rtt), rtt * 6 + RESPONSE_GRACE, "rtt * 6 + 11.25 s");
+    assert_eq!(defaults.max_response_size(), None, "no response size gate by default");
+
+    let tuned =
+        RequestOptions::default().with_timeout(Duration::from_secs(3)).with_max_response_size(4096);
+    assert_eq!(tuned.timeout_for_rtt(rtt), Duration::from_secs(3), "the override ignores rtt");
+    assert_eq!(tuned.max_response_size(), Some(4096));
+
+    let last_wins = RequestOptions::default()
+        .with_timeout(Duration::from_secs(1))
+        .with_timeout(Duration::from_secs(2));
+    assert_eq!(last_wins.timeout_for_rtt(rtt), Duration::from_secs(2));
 }
 
 #[test]

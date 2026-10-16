@@ -47,13 +47,8 @@ impl RequestOptions {
         self
     }
 
-    /// The timeout override, if one was set.
-    pub fn timeout(&self) -> Option<Duration> {
-        self.timeout
-    }
-
     /// The response size limit, if one was set.
-    pub fn max_response_size(&self) -> Option<usize> {
+    pub(crate) fn max_response_size(&self) -> Option<usize> {
         self.max_response_size
     }
 

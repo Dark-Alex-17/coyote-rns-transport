@@ -110,3 +110,5 @@ include!("tests_parts/two_transport_loopback_requests_receipt_timeouts.rs");
 include!("tests_parts/two_transport_loopback_requests_receipt_probe.rs");
 
 include!("tests_parts/two_transport_loopback_requests_receipt_probe2.rs");
+
+include!("tests_parts/two_transport_loopback_requests_receipt_stop.rs");

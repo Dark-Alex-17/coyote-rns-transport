@@ -1,19 +1,20 @@
 use super::*;
 use crate::destination::request::RequestError;
 
-const STOP_BUDGET: Duration = Duration::from_secs(5);
+pub(super) const STOP_BUDGET: Duration = Duration::from_secs(5);
 
 impl Transport {
     /// Shuts the transport down: detaches every interface and waits for their
     /// workers, then cancels the transport and waits for the management task.
     /// Interface workers go first because they may be blocked handing a packet
     /// to the management task, which has to stay alive to receive it. The
-    /// interface and management waits share a 5 s budget; whatever is still
-    /// running when it runs out is aborted and logged. The receipt sweep that
-    /// follows takes the handler and each link lock once and has no budget of
-    /// its own: every pending request on every link fails `LinkClosed`, so a
-    /// receipt the caller still holds concludes instead of waiting for a
-    /// watchdog that no longer ticks. Calling it again is a no-op.
+    /// interface wait, the management wait and the receipt sweep that follows
+    /// share one 5 s budget; whatever is still running or still locked when it
+    /// runs out is aborted or skipped and logged. The sweep fails every pending
+    /// request on every link it can lock `LinkClosed`, so a receipt the caller
+    /// still holds concludes instead of waiting for a watchdog that no longer
+    /// ticks; a receipt on a skipped link concludes `LinkClosed` once the link
+    /// is dropped. Calling it again is a no-op.
     #[deny(clippy::await_holding_invalid_type)]
     pub async fn stop(&self) {
         let deadline = Instant::now() + STOP_BUDGET;
@@ -67,24 +68,51 @@ impl Transport {
                 }
             }
         }
-        self.fail_pending_requests_on_stop().await;
+        self.fail_pending_requests_on_stop(deadline).await;
     }
 
     /// Fails every pending request `LinkClosed` and drops the response
     /// Resources they were receiving. No receiver cancel can leave: the
     /// interfaces are detached by now. The handler and each link are locked
-    /// one after the other, never together.
+    /// one after the other, never together, and each lock wait ends at
+    /// `deadline`. `Timeout` polls the lock before it checks the deadline, so
+    /// an uncontended lock is still taken after the budget has run out; only
+    /// a contended one is skipped.
     #[deny(clippy::await_holding_invalid_type)]
-    async fn fail_pending_requests_on_stop(&self) {
-        let links: Vec<Arc<Mutex<Link>>> = {
-            let handler = self.handler.lock().await;
-            handler.in_links.values().chain(handler.out_links.values()).cloned().collect()
+    async fn fail_pending_requests_on_stop(&self, deadline: Instant) {
+        let links: Vec<Arc<Mutex<Link>>> = match time::timeout_at(deadline, self.handler.lock())
+            .await
+        {
+            Ok(handler) => {
+                handler.in_links.values().chain(handler.out_links.values()).cloned().collect()
+            }
+            Err(_) => {
+                log::warn!("[tp] handler still locked after stop budget, receipt sweep skipped");
+                return;
+            }
         };
         let mut receiving = Vec::new();
+        let mut skipped = 0usize;
         for link in links {
-            receiving.extend(link.lock().await.fail_all_pending_requests(RequestError::LinkClosed));
+            match time::timeout_at(deadline, link.lock()).await {
+                Ok(mut link) => {
+                    receiving.extend(link.fail_all_pending_requests(RequestError::LinkClosed));
+                }
+                Err(_) => skipped += 1,
+            }
         }
-        let mut handler = self.handler.lock().await;
+        if skipped > 0 {
+            log::warn!(
+                "[tp] {skipped} link(s) still locked after stop budget, skipped by the receipt sweep"
+            );
+        }
+        let Ok(mut handler) = time::timeout_at(deadline, self.handler.lock()).await else {
+            log::warn!(
+                "[tp] handler still locked after stop budget, {} response receiver(s) not cancelled",
+                receiving.len()
+            );
+            return;
+        };
         for segment_hash in receiving {
             handler.resource_manager.cancel_incoming(segment_hash);
         }

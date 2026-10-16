@@ -28,7 +28,7 @@ and dispatch patch carries no other id and is fork commits `08a5cff6`,
 `21ab1981`, `c1a98ff1`, `12d2080c`, `7bbb0197`, `73f177b4`, `1fd1192a`,
 `febec3db`, `7e9e5904`, `5544c49c`, `816032c5` and `c82dcd0d`; the
 request receipts and timeouts patch carries no other id and is fork
-commit `1ddd5273`.
+commits `1ddd5273` and `a2a40de7`.
 
 | File | Patch |
 | --- | --- |
@@ -350,6 +350,10 @@ timeout against `Link::rtt()`, the override timeout for both forms and
 `Delivered` before the resource-form timeout. The crate `CHANGELOG.md`
 and `README.md` carry the release notes and the `Sending requests`
 paragraph.
+
+Fork commit `a2a40de7`: corrects the `RNS/Link.py` line cites for the
+receipt's progress bookkeeping in `destination/request/receipt.rs` and
+`link_sections/pending_requests.rs` (`:1429` and `:1439`); doc comments only.
 
 ## 0.14.1 (upstream 0.14.0)
 

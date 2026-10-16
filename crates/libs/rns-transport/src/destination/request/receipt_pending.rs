@@ -206,6 +206,7 @@ impl PendingRequest {
 
     /// Decodes the response and concludes the request with it: `Ready`, or
     /// `Failed(Decode)` with the cause handed back for the caller to log.
+    #[must_use = "the cause is for the caller to log"]
     pub(crate) fn resolve(self, arrival: ResponseArrival<'_>) -> Option<ResponseDecodeFailure> {
         if let ResponseArrival::Packet { response_size, .. } = &arrival {
             // A packet response advertises nothing; Python reports the packed

@@ -100,9 +100,7 @@ impl Link {
             data: packet_data,
         };
         // Before the id changes below, so the failure logs name the link
-        // the requests were pending on. No receiver cancel leaves here
-        // (`RNS/Resource.py:1111`); a receiver left inbound fails on its own
-        // retry limit.
+        // the requests were pending on.
         self.fail_all_pending_requests(RequestError::LinkClosed);
         self.status = LinkStatus::Pending;
         self.close_reason = None;

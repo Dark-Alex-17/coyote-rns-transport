@@ -193,7 +193,9 @@ fn a_packet_response_reports_its_packed_body_as_both_sizes() {
     let pending = packet_form();
     let receipt = pending.receipt();
     let envelope = ResponseFrame::new(id(1), rmpv::Value::from("pong")).encode();
-    pending.resolve(ResponseArrival::Packet { envelope: &envelope, response_size: 5 });
+    assert!(pending
+        .resolve(ResponseArrival::Packet { envelope: &envelope, response_size: 5 })
+        .is_none());
     assert_eq!(receipt.status(), RequestStatus::Ready);
     assert_eq!(receipt.response_size(), Some(5));
     assert_eq!(receipt.response_transfer_size(), Some(5));

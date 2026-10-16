@@ -138,8 +138,9 @@ impl Link {
         for pending in self.channel_pending.drain().map(|(_, pending)| pending) {
             self.channel_states.insert(pending.sequence, ChannelMessageState::Failed);
         }
-        // No receiver cancel leaves here (`RNS/Resource.py:1111`); a receiver
-        // left inbound fails on its own retry limit.
+        // No receiver cancel leaves here (`RNS/Resource.py:1111`); the
+        // transport drops the link's receivers with its state on the next
+        // link check.
         self.fail_all_pending_requests(RequestError::LinkClosed);
         self.pending_response_limits.clear();
         self.channel_rx_ring.clear();
@@ -212,8 +213,8 @@ impl Link {
         for pending in self.channel_pending.drain().map(|(_, pending)| pending) {
             self.channel_states.insert(pending.sequence, ChannelMessageState::Failed);
         }
-        // A closed link sends no receiver cancel (`RNS/Resource.py:1111`),
-        // and the transport drops the link's receivers with its state.
+        // No receiver cancel leaves here (`RNS/Resource.py:1111`); the link
+        // stays, so a receiver left inbound fails on its own retry limit.
         self.fail_all_pending_requests(RequestError::LinkClosed);
         self.pending_response_limits.clear();
         self.channel_rx_ring.clear();

@@ -188,7 +188,9 @@ pub(crate) enum ResponseArrival<'a> {
 }
 
 /// Why a response did not decode. The receipt reports only
-/// [`RequestError::Decode`]; the link logs the cause.
+/// [`RequestError::Decode`]; the link logs the cause. `MetadataRead` and
+/// `MetadataTrailing` are defence in depth behind the walker, kept without
+/// a synthetic pin.
 #[derive(Debug, thiserror::Error)]
 pub(crate) enum ResponseDecodeFailure {
     /// The envelope is not a `[request_id, body]` frame.

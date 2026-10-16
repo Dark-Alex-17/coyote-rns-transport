@@ -70,7 +70,7 @@ impl Link {
         }
     }
 
-    /// Progress on the response Resource `hash` (`RNS/Link.py:1430`).
+    /// Progress on the response Resource `hash` (`RNS/Link.py:1429`).
     #[deny(clippy::await_holding_invalid_type)]
     pub(crate) fn note_pending_response_progress(&self, hash: Hash, progress: &ResourceProgress) {
         if let Some(pending) =

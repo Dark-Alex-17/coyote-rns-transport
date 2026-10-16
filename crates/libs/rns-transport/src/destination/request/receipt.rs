@@ -298,7 +298,7 @@ impl PendingRequest {
         self.status_tx.send_replace(RequestStatus::Receiving);
     }
 
-    /// Part of the response Resource arrived (`RNS/Link.py:1430`).
+    /// Part of the response Resource arrived (`RNS/Link.py:1429`).
     pub(crate) fn note_progress(&self, progress: &ResourceProgress) {
         if progress.total_bytes == 0 {
             return;
@@ -350,8 +350,8 @@ impl RequestReceipt {
     }
 
     /// Share of the response received so far, `0.0` to `1.0`
-    /// (`RequestReceipt.progress`, `RNS/Link.py:1431`). A packet response
-    /// jumps straight to `1.0`.
+    /// (`RequestReceipt.progress`, `RNS/Link.py:1429`, `:1439`). A packet
+    /// response jumps straight to `1.0`.
     pub fn progress(&self) -> f32 {
         self.state.bookkeeping().progress
     }

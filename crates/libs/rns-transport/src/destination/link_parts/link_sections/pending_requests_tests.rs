@@ -222,6 +222,25 @@ mod pending_requests_tests {
         assert!(link.pending_response_limits.is_empty());
     }
 
+    /// A response that is not an envelope fails its receipt `Decode` through the link
+    /// (`RNS/Link.py:857-884` would raise out of the unpack); the entry and its limit go
+    /// with it, so a second copy of the response finds nothing waiting.
+    #[tokio::test]
+    #[deny(clippy::await_holding_invalid_type)]
+    async fn a_response_that_does_not_decode_fails_its_receipt_decode_and_drops_the_entry() {
+        let (mut link, _, _, _) = linked_pair();
+        let receipt = pending_packet_request(&mut link, id(1), TIMEOUT);
+        assert_eq!(link.response_size_allowed(id(1).as_bytes(), 1), Some(true));
+
+        link.resolve_pending_request(id(1), ResponseArrival::Resource { data: &[0xc0], metadata: None });
+        assert_eq!(receipt.status(), RequestStatus::Failed);
+        assert_eq!(receipt.response().await, Err(RequestError::Decode));
+        assert!(link.pending_requests.is_empty());
+        assert_eq!(link.response_size_allowed(id(1).as_bytes(), 1), None, "the limit went with it");
+        link.resolve_pending_request(id(1), ResponseArrival::Resource { data: &[0xc0], metadata: None });
+        assert_eq!(receipt.response().await, Err(RequestError::Decode), "a second copy changes nothing");
+    }
+
     /// `Transport::cancel_resource` on the request Resource (`RNS/Link.py:1377-1385`
     /// fails the receipt for every status but complete, a cancelled one included).
     #[tokio::test]

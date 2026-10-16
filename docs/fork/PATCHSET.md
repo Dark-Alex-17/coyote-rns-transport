@@ -31,7 +31,7 @@ request receipts and timeouts patch carries no other id and is fork
 commits `1ddd5273`, `a2a40de7`, `3805fe7f`, `3ed78582`, `415d67c8`,
 `afdf0f18`, `fe55cb71`, `10dc355e`, `8909d956`, `642dfc2b`, `7ce1601c`,
 `40409738`, `2f2c11c7`, `140a4fd2`, `3035e470`, `8a8c7a4e`, `6a0fc9cb`,
-`bbd34e72`, `114dbe1c` and `6f8cba34`.
+`bbd34e72`, `114dbe1c`, `6f8cba34` and `1ef4cddd`.
 
 | File | Patch |
 | --- | --- |
@@ -102,6 +102,7 @@ commits `1ddd5273`, `a2a40de7`, `3805fe7f`, `3ed78582`, `415d67c8`,
 | `crates/libs/rns-transport/src/transport/tests_parts/two_transport_loopback_requests_receipt_probe4.rs` | request receipts and timeouts |
 | `crates/libs/rns-transport/src/transport/tests_parts/two_transport_loopback_requests_receipt_probe5.rs` | request receipts and timeouts |
 | `crates/libs/rns-transport/src/transport/tests_parts/two_transport_loopback_requests_receipt_probe6.rs` | request receipts and timeouts |
+| `crates/libs/rns-transport/src/transport/tests_parts/two_transport_loopback_requests_receipt_probe7.rs` | request receipts and timeouts |
 | `crates/libs/rns-transport/src/transport/tests_parts/two_transport_loopback_requests_receipt_stop.rs` | request receipts and timeouts |
 | `crates/libs/rns-transport/src/transport/tests_parts/two_transport_loopback_requests_receipt_timeouts.rs` | request receipts and timeouts |
 | `crates/libs/rns-transport/src/transport/tests_parts/two_transport_loopback_requests_resource_form.rs` | request handlers and dispatch |
@@ -713,6 +714,20 @@ cancels nothing. The crate README says the same after its
 `Sending requests` paragraph, and the crate `CHANGELOG.md` names the new
 fixture in the `### Added` pin clause and the `*_with_mtu` constructors
 in the `### Changed` one.
+
+Fork commit `1ef4cddd`: the early-subscriber probe for a normal conclusion
+adopted. `two_transport_loopback_requests_receipt_probe7.rs` (new, one
+more `include!` line in `transport/tests.rs`) pins what a `subscribe()`
+receiver taken before the request concludes sees once it does, as the
+`subscribe()` doc says: the terminal status is reported as the last
+change, then `changed()` returns an error rather than a further change,
+`borrow()` keeps the terminal status, `has_changed()` keeps erroring, and
+reading the receipt afterwards (`status()`, `response()`,
+`concluded_at()`) on two clones moves nothing the receiver sees. Covered
+for a packet-form `Ready`, a resource-form `Ready` that passed through
+`Delivered`, and a `Timeout` failure, where a subscriber taken after the
+failure reads `Failed` and no change. The crate `CHANGELOG.md` names the
+fixture in the `### Added` pin clause.
 
 ## 0.14.1 (upstream 0.14.0)
 

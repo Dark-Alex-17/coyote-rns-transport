@@ -29,7 +29,7 @@ and dispatch patch carries no other id and is fork commits `08a5cff6`,
 `febec3db`, `7e9e5904`, `5544c49c`, `816032c5` and `c82dcd0d`; the
 request receipts and timeouts patch carries no other id and is fork
 commits `1ddd5273`, `a2a40de7`, `3805fe7f`, `3ed78582`, `415d67c8`,
-`afdf0f18` and `fe55cb71`.
+`afdf0f18`, `fe55cb71` and `8909d956`.
 
 | File | Patch |
 | --- | --- |
@@ -365,7 +365,8 @@ Fork commit `a2a40de7`: corrects the `RNS/Link.py` line cites for the
 receipt's progress bookkeeping in `destination/request/receipt.rs` and
 `link_sections/pending_requests.rs` (`:1429` and `:1439`); doc comments only.
 
-Fork commits `3805fe7f`, `3ed78582`, `415d67c8`, `afdf0f18` and `fe55cb71`:
+Fork commits `3805fe7f`, `3ed78582`, `415d67c8`, `afdf0f18`, `fe55cb71`
+and `8909d956`:
 request receipts and timeouts, the request clock as `RNS.RequestReceipt`
 keeps it. The first moves `PendingRequest` and `ReceiptState` out of
 `receipt.rs` with no behaviour change. The second anchors the clock: it
@@ -386,8 +387,9 @@ packed body length (`RNS/Link.py:1016-1017`) and a split response sets
 The third routes the Resource outcomes the periodic workers drain to the
 owning link's pending table, so a request Resource that exhausts its
 retries fails `Send` and a response Resource whose receiver gives up fails
-`Receive`. The fourth and fifth add the loopback and black-box tests. The
-file sites below describe the combined result.
+`Receive`. The fourth and fifth add the loopback and black-box tests; the
+sixth corrects a helper's doc comment in the loopback tests. The file
+sites below describe the combined result.
 Upstream sites:
 `destination/request/receipt_pending.rs` (new, declared by
 `request/mod.rs`) carries `PendingRequest`, whose `deadline` is `None`

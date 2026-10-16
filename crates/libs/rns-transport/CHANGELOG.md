@@ -203,7 +203,8 @@ trailing clause of the bullet for the behaviour it pins.
   cancel packet sent only on an `Active` link (`RNS/Resource.py:1111-1116`).
   A request Resource cancelled locally through `Transport::cancel_resource`
   fails its receipt `Send` (`RNS/Link.py:1375-1385` fails the receipt for
-  every Resource status but complete).
+  every Resource status but complete); a response already inbound for that
+  receipt is cancelled like any other response of a failed receipt.
   A receipt moves to `Receiving` only for a response advertisement the
   ResourceManager admitted and built a receiver for (`RNS/Link.py:1055-1064`
   touches the receipt only under `if response_resource != None`), and only

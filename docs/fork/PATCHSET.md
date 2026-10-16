@@ -30,7 +30,7 @@ and dispatch patch carries no other id and is fork commits `08a5cff6`,
 request receipts and timeouts patch carries no other id and is fork
 commits `1ddd5273`, `a2a40de7`, `3805fe7f`, `3ed78582`, `415d67c8`,
 `afdf0f18`, `fe55cb71`, `10dc355e`, `8909d956`, `642dfc2b`, `7ce1601c`,
-`40409738`, `2f2c11c7` and `140a4fd2`.
+`40409738`, `2f2c11c7`, `140a4fd2` and `8a8c7a4e`.
 
 | File | Patch |
 | --- | --- |
@@ -561,7 +561,7 @@ every Resource status but complete) and logs at debug the cause
 `PendingRequest::resolve` hands back for a response that did not decode;
 `transport_sections/reset_out_link.rs` has `cancel_resource` route the
 manager's events through the link under the handler-then-link lock order
-and re-drain the manager before publishing; `resource/manager_cleanup.rs`
+before publishing; `resource/manager_cleanup.rs`
 gives `has_active_receiver` the link id and request id and compares them
 with the receiver's, and makes it and `cancel_incoming` `pub(crate)`;
 `transport/resource_wire.rs` passes `link.id()` and the request id bytes.
@@ -597,6 +597,22 @@ a response over the link MDU arrives as a Resource through `Receiving`,
 a closed link fails its receipt `LinkClosed` and refuses the next
 request with `RnsError::ConnectionError`, and `Transport::stop` fails
 every pending receipt on every link whatever state it is in.
+
+Fork commit `8a8c7a4e`: a request Resource cancelled while its receipt is
+already `Receiving` cancels the response inbound for it. The request
+Resource stays in the manager's outgoing table until its proof arrives,
+and a response advertisement admitted ahead of a lost or late proof
+already moves the receipt to `Receiving`, so `Transport::cancel_resource`
+could fail a receipt whose response receiver was running and leave that
+receiver in place. Upstream site: `transport_sections/reset_out_link.rs`
+has `cancel_resource` collect the segments
+`Link::note_request_resource_outcome` hands back under the lock scope and
+pass them to `cancel_inbound_responses` once both guards are gone, so the
+receiver is dropped and, on an active link, the peer is sent a receiver
+cancel (`RNS/Link.py:1435`, `RNS/Resource.py:1111-1116`). Tests:
+`link_sections/pending_requests_tests.rs` pins `OutboundCancelled` for an
+entry already `Receiving` failing it `Send` and naming the segment in
+flight.
 
 ## 0.14.1 (upstream 0.14.0)
 

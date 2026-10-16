@@ -87,6 +87,36 @@ inbound request packet, and `ResourceEventKind::Complete` with `is_request`
 for every assembled request Resource; a request whose path has a registered
 handler is answered by that handler, and broadcast consumers must not answer it.
 
+## Sending requests
+
+`Transport::request` sends a request over an active link and returns a
+`RequestReceipt`, as `RNS.Link.request` does. The request goes out as one
+packet when it fits the link MDU and as a request Resource otherwise; the
+response is matched to the receipt as it arrives, as a packet or as a
+Resource, so nothing has to be read from the broadcast streams:
+
+```rust
+use rns_transport::destination::request::RequestOptions;
+
+let receipt = transport
+    .request(&link_id, "/echo", rmpv::Value::from("ping"), RequestOptions::default())
+    .await?;
+let response = receipt.response().await?;
+assert_eq!(response.value(), Some(&rmpv::Value::from("ping")));
+```
+
+The receipt is `Clone`; `response()` resolves on any clone once the request
+is `Ready` or `Failed`, and `subscribe()` reports the status as it moves. A
+packet-form request goes `Sent -> Ready`, or `Sent -> Receiving -> Ready`
+when the response is a Resource; a resource-form request reaches `Delivered`
+when its Resource completes. The timeout defaults to `rtt * 6 + 11.25 s`,
+`RequestOptions::with_timeout` overrides it, and a request still pending at
+the deadline fails with `RequestError::Timeout`. A link that closes fails
+every pending receipt with `RequestError::LinkClosed`. A response Resource
+with metadata is a file response, read through
+`RequestResponseData::data()` and `metadata()`; every other response is the
+envelope body, read through `value()`.
+
 ## Versioning and releases
 
 The root `VERSION` file is the workspace number: the upstream baseline that

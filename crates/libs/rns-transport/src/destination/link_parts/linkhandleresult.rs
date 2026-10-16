@@ -84,6 +84,7 @@ pub struct Link {
     channel_states: HashMap<u16, ChannelMessageState>,
     channel_rx_ring: HashMap<u16, ChannelEnvelope>,
     pending_response_limits: HashMap<Vec<u8>, usize>,
+    pending_requests: HashMap<RequestId, PendingRequest>,
     request_dispatch: Option<tokio::sync::mpsc::Sender<DispatchItem>>,
     channel_window: u8,
     channel_window_max: u8,

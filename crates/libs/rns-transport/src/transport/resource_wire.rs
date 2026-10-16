@@ -1,6 +1,7 @@
 use super::path::send_to_next_hop;
 use super::*;
-use crate::destination::request::DispatchForm;
+use crate::destination::request::{DispatchForm, RequestError, RequestId, ResponseArrival};
+use crate::hash::ADDRESS_HASH_SIZE;
 use crate::resource::{build_link_packet, ResourceAdvertisement, ResourceEventKind};
 
 pub(super) fn is_link_resource_packet(packet: &Packet) -> bool {
@@ -38,6 +39,13 @@ pub(super) async fn handle_resource_proof(
         let mut responses = std::mem::take(&mut handler.resource_response_packets);
         handler.resource_manager.handle_packet_into(&packet, &mut link, &mut responses);
         let events = handler.resource_manager.drain_events();
+        // A proof for a request Resource moves its receipt to `Delivered`
+        // (`RNS/Link.py:1372`).
+        for event in &events {
+            if event.link_id == *link.id() {
+                link.note_request_resource_outcome(event.hash, &event.kind);
+            }
+        }
         // A proof can hand back the next segment's advertisement. Like every
         // Link-destination packet it goes out on the link's attached
         // interface (`RNS/Transport.py:1452-1454`); `send_packet` would try
@@ -136,13 +144,29 @@ pub(super) async fn handle_link_resource_packet<'a>(
                 if let Some(request_id) = advertisement.request_id.as_ref() {
                     let response_size =
                         usize::try_from(advertisement.transfer_size).unwrap_or(usize::MAX);
-                    if !link.take_response_limit_if_allowed(request_id, response_size) {
+                    let admitted = link.take_response_limit_if_allowed(request_id, response_size);
+                    let pending_id = <[u8; ADDRESS_HASH_SIZE]>::try_from(request_id.as_slice())
+                        .ok()
+                        .map(RequestId::new);
+                    if admitted {
+                        if let Some(id) = pending_id {
+                            link.mark_pending_request_receiving(
+                                &id,
+                                advertisement.data_size,
+                                advertisement.transfer_size,
+                                advertisement.hash,
+                            );
+                        }
+                    } else {
                         log::warn!(
                             "[resource-diag] reject_response_advertisement link={} hash={} size={}",
                             link.id(),
                             advertisement.hash,
                             advertisement.transfer_size
                         );
+                        if let Some(id) = pending_id {
+                            link.fail_pending_request(&id, RequestError::Oversize);
+                        }
                         rejected = true;
                         reject = advertisement_reject(&link, iface, &advertisement.hash);
                     }
@@ -201,13 +225,39 @@ pub(super) async fn handle_link_resource_packet<'a>(
         );
         events = handler.resource_manager.drain_events();
         // `RNS/Link.py:885-889`: an assembled request resource reaches the
-        // handler table like a request packet. The event is still published
-        // below for `resource_events()` consumers.
+        // handler table like a request packet, and an assembled response
+        // resource resolves the receipt waiting for it (`RNS/Link.py:896-912`).
+        // The events are still published below for `resource_events()`
+        // consumers.
         for event in &events {
-            if let ResourceEventKind::Complete(complete) = &event.kind {
-                if complete.is_request && event.link_id == *link.id() {
+            if event.link_id != *link.id() {
+                continue;
+            }
+            match &event.kind {
+                ResourceEventKind::Complete(complete) if complete.is_request => {
                     link.dispatch_request(DispatchForm::Resource, &complete.data);
                 }
+                ResourceEventKind::Complete(complete) if complete.is_response => {
+                    let id = complete
+                        .request_id
+                        .as_deref()
+                        .and_then(|bytes| <[u8; ADDRESS_HASH_SIZE]>::try_from(bytes).ok());
+                    if let Some(id) = id {
+                        link.resolve_pending_request(
+                            RequestId::new(id),
+                            ResponseArrival::Resource {
+                                data: &complete.data,
+                                metadata: complete.metadata.as_deref(),
+                            },
+                        );
+                    }
+                }
+                ResourceEventKind::Progress(progress) => {
+                    link.note_pending_response_progress(event.hash, progress);
+                }
+                // A receiver cancel for a request Resource surfaces here as
+                // `OutboundRejected`.
+                kind => link.note_request_resource_outcome(event.hash, kind),
             }
         }
     }

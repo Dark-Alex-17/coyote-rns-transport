@@ -21,13 +21,17 @@ use crate::{
         MessageState as ChannelMessageState,
     },
     crypt::fernet::{CachedFernet, PlainText, Token},
-    destination::request::{DispatchForm, DispatchItem, RequestId},
+    destination::request::{
+        DispatchForm, DispatchItem, PendingRequest, RequestError, RequestId, RequestReceipt,
+        ResponseArrival,
+    },
     error::RnsError,
     hash::{AddressHash, Hash, ADDRESS_HASH_SIZE, HASH_SIZE},
     identity::{DecryptIdentity, DerivedKey, EncryptIdentity, Identity, PrivateIdentity},
     packet::{
         DestinationType, Header, Packet, PacketContext, PacketDataBuffer, PacketType, PACKET_MDU,
     },
+    resource::{ResourceEventKind, ResourceProgress},
 };
 
 use super::DestinationDesc;

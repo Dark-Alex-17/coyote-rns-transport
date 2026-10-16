@@ -38,6 +38,7 @@ impl Link {
             channel_states: HashMap::new(),
             channel_rx_ring: HashMap::new(),
             pending_response_limits: HashMap::new(),
+            pending_requests: HashMap::new(),
             request_dispatch: None,
             channel_window: CHANNEL_WINDOW_INIT,
             channel_window_max: CHANNEL_WINDOW_MAX_SLOW,
@@ -98,6 +99,9 @@ impl Link {
             context: PacketContext::None,
             data: packet_data,
         };
+        // Before the id changes below, so the failure logs name the link
+        // the requests were pending on.
+        self.fail_all_pending_requests(RequestError::LinkClosed);
         self.status = LinkStatus::Pending;
         self.close_reason = None;
         self.id = LinkId::from(&packet);
@@ -261,6 +265,17 @@ impl Link {
                                 let accepted = id.as_ref().is_none_or(|id| {
                                     self.take_response_limit_if_allowed(id, response_size)
                                 });
+                                if let Some(id) = id {
+                                    let id = RequestId::new(id);
+                                    if accepted {
+                                        self.resolve_pending_request(
+                                            id,
+                                            ResponseArrival::Packet(plain_text),
+                                        );
+                                    } else {
+                                        self.fail_pending_request(&id, RequestError::Oversize);
+                                    }
+                                }
                                 (id, accepted)
                             }
                             None => {

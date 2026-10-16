@@ -1,6 +1,16 @@
 impl Link {
 
+    /// The earlier of the keepalive/stale deadline and the first pending
+    /// request timeout, so the link check wakes for either.
     pub fn next_watchdog_deadline(&self, initiator: bool) -> Option<Instant> {
+        let request_deadline = match self.status {
+            LinkStatus::Active | LinkStatus::Stale => self.earliest_pending_request_deadline(),
+            _ => None,
+        };
+        [self.keepalive_deadline(initiator), request_deadline].into_iter().flatten().min()
+    }
+
+    fn keepalive_deadline(&self, initiator: bool) -> Option<Instant> {
         match self.status {
             LinkStatus::Active => {
                 let inbound_anchor = self.inbound_anchor();
@@ -29,6 +39,9 @@ impl Link {
 
     pub fn check_watchdog(&mut self, initiator: bool) -> LinkWatchdogAction {
         let now = Instant::now();
+        if matches!(self.status, LinkStatus::Active | LinkStatus::Stale) {
+            self.expire_pending_requests(now);
+        }
         match self.status {
             LinkStatus::Active => {
                 let inbound_anchor = self.inbound_anchor();
@@ -123,6 +136,7 @@ impl Link {
         for pending in self.channel_pending.drain().map(|(_, pending)| pending) {
             self.channel_states.insert(pending.sequence, ChannelMessageState::Failed);
         }
+        self.fail_all_pending_requests(RequestError::LinkClosed);
         self.channel_rx_ring.clear();
         self.channel_open = false;
         self.status = LinkStatus::Closed;
@@ -193,6 +207,7 @@ impl Link {
         for pending in self.channel_pending.drain().map(|(_, pending)| pending) {
             self.channel_states.insert(pending.sequence, ChannelMessageState::Failed);
         }
+        self.fail_all_pending_requests(RequestError::LinkClosed);
         self.channel_rx_ring.clear();
         self.status = LinkStatus::Pending;
         self.close_reason = None;

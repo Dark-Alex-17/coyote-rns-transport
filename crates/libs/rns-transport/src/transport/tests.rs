@@ -102,3 +102,7 @@ include!("tests_parts/two_transport_loopback_requests_resource_form_probe.rs");
 include!("tests_parts/two_transport_loopback_requests_resource_form_probe2.rs");
 
 include!("tests_parts/two_transport_loopback_requests_resource_form_probe3.rs");
+
+include!("tests_parts/two_transport_loopback_requests_receipt.rs");
+
+include!("tests_parts/two_transport_loopback_requests_receipt_timeouts.rs");

@@ -7,7 +7,9 @@
 //! decode those arrays; [`PathHash`] and [`RequestId`] are the two truncated
 //! hashes they carry. [`RequestHandler`], [`RequestAllow`], [`InboundRequest`]
 //! and [`RequestResponse`] are the responder API a destination registers
-//! handlers with; receipts are not part of this module.
+//! handlers with; [`RequestOptions`], [`RequestReceipt`], [`RequestStatus`],
+//! [`RequestError`] and [`RequestResponseData`] are the requester's side of
+//! `Transport::request`.
 //!
 //! # Decoding
 //!
@@ -38,6 +40,7 @@ mod frame;
 mod handler;
 mod id;
 mod inbound;
+mod receipt;
 #[cfg(test)]
 mod tests;
 
@@ -48,3 +51,7 @@ pub(crate) use handler::RegisteredHandler;
 pub use handler::{RequestHandler, RequestResponse};
 pub use id::{PathHash, RequestId};
 pub use inbound::InboundRequest;
+pub(crate) use receipt::{PendingRequest, ResponseArrival};
+pub use receipt::{
+    RequestError, RequestOptions, RequestReceipt, RequestResponseData, RequestStatus,
+};

@@ -82,9 +82,20 @@ impl ResourceManager {
 
     /// Whether an inbound transfer is being received under the segment hash
     /// `segment_hash`: an advertisement the manager admitted and built a
-    /// receiver for, as opposed to one it dropped.
-    pub fn has_active_receiver(&self, segment_hash: &Hash) -> bool {
-        self.incoming.get(segment_hash).is_some_and(|receiver| receiver.is_active())
+    /// receiver for, as opposed to one it dropped, and whose receiver was
+    /// built for `request_id` on `link_id`, so a re-advertisement of an
+    /// active segment under another request id marks nothing.
+    pub(crate) fn has_active_receiver(
+        &self,
+        segment_hash: &Hash,
+        link_id: &AddressHash,
+        request_id: &[u8],
+    ) -> bool {
+        self.incoming.get(segment_hash).is_some_and(|receiver| {
+            receiver.is_active()
+                && receiver.link_id == *link_id
+                && receiver.request_id.as_deref() == Some(request_id)
+        })
     }
 
     /// Drops the inbound transfer whose in-flight segment is `segment_hash`
@@ -92,7 +103,7 @@ impl ResourceManager {
     /// as a remote cancel would. Returns that original hash, `None` when no
     /// such transfer is in progress. Sending the receiver cancel is the
     /// transport's job (`RNS/Resource.py:1111-1116`).
-    pub fn cancel_incoming(&mut self, segment_hash: Hash) -> Option<Hash> {
+    pub(crate) fn cancel_incoming(&mut self, segment_hash: Hash) -> Option<Hash> {
         let receiver = self.incoming.remove(&segment_hash)?;
         let original_hash = receiver.original_hash;
         if !self.fail_inbound_segments(original_hash, "cancelled") {

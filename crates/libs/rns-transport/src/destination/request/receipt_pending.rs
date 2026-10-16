@@ -5,6 +5,7 @@ use tokio::sync::watch;
 
 use super::receipt::{
     RequestError, RequestReceipt, RequestResponseData, RequestStatus, ResponseArrival,
+    ResponseDecodeFailure,
 };
 use super::RequestId;
 use crate::hash::Hash;
@@ -136,7 +137,9 @@ impl PendingRequest {
     }
 
     /// The request Resource completed (`RNS/Link.py:1370-1373`): the receipt
-    /// is `Delivered` and the response clock starts.
+    /// is `Delivered` and the response clock starts. Python (`:1372`) sets
+    /// `DELIVERED` unconditionally; here a receipt already `Receiving` keeps
+    /// its state and its clock.
     pub(crate) fn mark_delivered(&self) {
         if self.status() == RequestStatus::Sent {
             self.state.bookkeeping().started_at.get_or_insert_with(Instant::now);
@@ -201,8 +204,9 @@ impl PendingRequest {
             ((assembled + segment) / f64::from(response.total_segments)).min(1.0) as f32;
     }
 
-    /// Decodes the response and concludes the request with it.
-    pub(crate) fn resolve(self, arrival: ResponseArrival<'_>) {
+    /// Decodes the response and concludes the request with it: `Ready`, or
+    /// `Failed(Decode)` with the cause handed back for the caller to log.
+    pub(crate) fn resolve(self, arrival: ResponseArrival<'_>) -> Option<ResponseDecodeFailure> {
         if let ResponseArrival::Packet { response_size, .. } = &arrival {
             // A packet response advertises nothing; Python reports the packed
             // body as both sizes (`RNS/Link.py:1016-1017`, `:868-871`).
@@ -210,11 +214,17 @@ impl PendingRequest {
             bookkeeping.response_size = Some(*response_size);
             bookkeeping.response_transfer_size = Some(*response_size);
         }
-        let outcome = arrival.decode();
-        if outcome.is_ok() {
-            self.state.bookkeeping().progress = 1.0;
+        match arrival.decode() {
+            Ok(response) => {
+                self.state.bookkeeping().progress = 1.0;
+                self.conclude(Ok(response));
+                None
+            }
+            Err(cause) => {
+                self.conclude(Err(RequestError::Decode));
+                Some(cause)
+            }
         }
-        self.conclude(outcome);
     }
 
     /// Concludes `Failed(error)`. Returns the segment of a response Resource

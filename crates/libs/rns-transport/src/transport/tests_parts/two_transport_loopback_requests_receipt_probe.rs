@@ -1,7 +1,7 @@
 // Usage-pattern coverage for the requester side of the request layer: `Transport::request`
 // and `RequestReceipt` as a consumer drives them. A response Resource over
 // `max_response_size` fails the receipt `Oversize` at its advertisement
-// (`RNS/Link.py:874-876`) and leaves the link usable; the id a receipt reports
+// (`RNS/Link.py:1048-1053`) and leaves the link usable; the id a receipt reports
 // is the id the responder derives, in both forms (`RNS/Link.py:496-510`); several requests in
 // flight on one link resolve independently; `concluded_at()` is empty until the receipt
 // concludes; the default timeout really fires at `rtt * 6 + 11.25 s` (`RNS/Link.py:491`)
@@ -25,7 +25,7 @@ async fn register_recording_echo(
     seen_rx
 }
 
-/// `RNS/Link.py:874-876`: a response Resource whose advertised size exceeds
+/// `RNS/Link.py:1048-1053`: a response Resource whose advertised size exceeds
 /// `max_response_size` is refused at its advertisement; the receipt fails `Oversize` without
 /// ever reporting `Receiving`, and the link keeps answering afterwards.
 #[tokio::test]

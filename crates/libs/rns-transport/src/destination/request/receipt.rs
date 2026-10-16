@@ -6,7 +6,7 @@ use std::time::{Duration, Instant};
 use tokio::sync::watch;
 
 use super::receipt_pending::ReceiptState;
-use super::{RequestId, ResponseFrame};
+use super::{FrameDecodeError, RequestId, ResponseFrame};
 
 /// `Link.TRAFFIC_TIMEOUT_FACTOR` (`RNS/Link.py:82`).
 const TRAFFIC_TIMEOUT_FACTOR: u32 = 6;
@@ -110,8 +110,9 @@ pub enum RequestError {
     #[error("the response could not be decoded")]
     Decode,
     /// The request Resource could not be sent: its retries ran out, its
-    /// send failed, or the entry was displaced by a request under the same
-    /// id.
+    /// send failed, it was cancelled locally through
+    /// `Transport::cancel_resource`, or the entry was displaced by a request
+    /// under the same id.
     #[error("the request could not be sent")]
     Send,
     /// The response Resource failed in transfer before it completed: a part
@@ -186,25 +187,44 @@ pub(crate) enum ResponseArrival<'a> {
     Resource { data: &'a [u8], metadata: Option<&'a [u8]> },
 }
 
+/// Why a response did not decode. The receipt reports only
+/// [`RequestError::Decode`]; the link logs the cause.
+#[derive(Debug, thiserror::Error)]
+pub(crate) enum ResponseDecodeFailure {
+    /// The envelope is not a `[request_id, body]` frame.
+    #[error("envelope: {0}")]
+    Frame(FrameDecodeError),
+    /// The file metadata is not one well-formed msgpack value.
+    #[error("metadata: {0}")]
+    Metadata(FrameDecodeError),
+    /// The walker accepted the metadata but `rmpv` did not.
+    #[error("metadata: {0}")]
+    MetadataRead(rmpv::decode::Error),
+    /// `rmpv` stopped before the end of the metadata the walker accepted.
+    #[error("metadata: bytes follow the value")]
+    MetadataTrailing,
+}
+
 impl ResponseArrival<'_> {
-    pub(super) fn decode(self) -> Result<RequestResponseData, RequestError> {
+    pub(super) fn decode(self) -> Result<RequestResponseData, ResponseDecodeFailure> {
         let body = match self {
             Self::Packet { envelope, .. } | Self::Resource { data: envelope, metadata: None } => {
-                let frame = ResponseFrame::decode(envelope).map_err(|_| RequestError::Decode)?;
+                let frame =
+                    ResponseFrame::decode(envelope).map_err(ResponseDecodeFailure::Frame)?;
                 ResponseBody::Value(frame.into_body())
             }
             Self::Resource { data, metadata: Some(packed) } => {
                 // The same allocation-free walk the frames get (module doc of
                 // `request`), so metadata is held to the nesting rule too.
-                super::frame::validate(packed).map_err(|_| RequestError::Decode)?;
+                super::frame::validate(packed).map_err(ResponseDecodeFailure::Metadata)?;
                 let mut cursor = Cursor::new(packed);
-                let metadata =
-                    rmpv::decode::read_value(&mut cursor).map_err(|_| RequestError::Decode)?;
+                let metadata = rmpv::decode::read_value(&mut cursor)
+                    .map_err(ResponseDecodeFailure::MetadataRead)?;
                 // The walker already saw exactly one value; this guards the
                 // decode against the walker and rmpv disagreeing on where it
                 // ends.
                 if cursor.position() != packed.len() as u64 {
-                    return Err(RequestError::Decode);
+                    return Err(ResponseDecodeFailure::MetadataTrailing);
                 }
                 ResponseBody::File { data: data.to_vec(), metadata }
             }

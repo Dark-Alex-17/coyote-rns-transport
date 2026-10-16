@@ -258,7 +258,11 @@ pub(super) async fn handle_link_resource_packet<'a>(
         // caps, an out-of-order or duplicate segment, an unreasonable part
         // count) leaves the receipt as it was, with its clock running.
         if let Some((id, advertisement)) = &response_advertised {
-            if handler.resource_manager.has_active_receiver(&advertisement.hash) {
+            if handler.resource_manager.has_active_receiver(
+                &advertisement.hash,
+                link.id(),
+                id.as_bytes().as_slice(),
+            ) {
                 link.mark_pending_request_receiving(id, advertisement);
             }
         }

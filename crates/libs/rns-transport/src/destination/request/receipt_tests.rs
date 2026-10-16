@@ -6,9 +6,10 @@
 
 use std::time::{Duration, Instant};
 
+use super::receipt::ResponseDecodeFailure;
 use super::{
-    PendingRequest, RequestError, RequestId, RequestOptions, RequestStatus, ResponseArrival,
-    ResponseFrame, MAX_DEPTH, RESPONSE_GRACE,
+    FrameDecodeError, PendingRequest, RequestError, RequestId, RequestOptions, RequestStatus,
+    ResponseArrival, ResponseFrame, MAX_DEPTH, RESPONSE_GRACE,
 };
 use crate::hash::Hash;
 use crate::resource::{ResourceAdvertisement, ResourceProgress, RANDOM_HASH_SIZE};
@@ -111,6 +112,21 @@ fn a_response_advertisement_starts_the_clock_if_delivery_has_not() {
 }
 
 #[test]
+fn delivery_after_a_response_advertisement_changes_nothing() {
+    let mut pending = resource_form();
+    let receipt = pending.receipt();
+    pending.mark_receiving(&response_segment(hash(1), hash(1), 1, 1, 10, 5));
+    let started = receipt.started_at().expect("the advertisement started the clock");
+    pending.mark_delivered();
+    assert_eq!(
+        receipt.status(),
+        RequestStatus::Receiving,
+        "`RNS/Link.py:1372` would say Delivered"
+    );
+    assert_eq!(receipt.started_at(), Some(started));
+}
+
+#[test]
 fn a_receiving_entry_has_no_deadline() {
     let mut pending = packet_form();
     assert!(pending.deadline().is_some());
@@ -207,10 +223,24 @@ fn metadata_nested_deeper_than_the_frame_limit_is_refused() {
 
     let mut deep = vec![0x91; MAX_DEPTH + 1];
     deep.push(0xc0);
-    assert_eq!(
-        ResponseArrival::Resource { data: b"file", metadata: Some(&deep) }.decode(),
-        Err(RequestError::Decode)
+    assert!(
+        matches!(
+            ResponseArrival::Resource { data: b"file", metadata: Some(&deep) }.decode(),
+            Err(ResponseDecodeFailure::Metadata(FrameDecodeError::DepthExceeded))
+        ),
+        "depth over the limit is refused"
     );
+}
+
+#[tokio::test]
+#[deny(clippy::await_holding_invalid_type)]
+async fn a_response_that_does_not_decode_fails_decode_and_hands_back_the_cause() {
+    let pending = packet_form();
+    let receipt = pending.receipt();
+    let cause = pending.resolve(ResponseArrival::Packet { envelope: &[0xc0], response_size: 1 });
+    assert!(matches!(cause, Some(ResponseDecodeFailure::Frame(_))), "nil is not an envelope");
+    assert_eq!(receipt.status(), RequestStatus::Failed);
+    assert_eq!(receipt.response().await, Err(RequestError::Decode));
 }
 
 /// The entry is dropped without concluding, as a link that vanished would

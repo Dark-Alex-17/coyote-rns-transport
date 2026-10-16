@@ -324,9 +324,18 @@ impl Transport {
         let link = self.find_any_link(link_id).await.ok_or(RnsError::InvalidArgument)?;
         let packet = {
             let mut handler = self.handler.lock().await;
-            let link_guard = link.lock().await;
+            let mut link_guard = link.lock().await;
             let packet = handler.resource_manager.cancel_outgoing(resource_hash, &link_guard)?;
-            let events = handler.resource_manager.drain_events();
+            let mut events = handler.resource_manager.drain_events();
+            // A request Resource still cancellable has not completed, so no
+            // response can be inbound for it.
+            for event in &events {
+                if event.link_id == *link_guard.id() {
+                    let receiving = link_guard.note_request_resource_outcome(event.hash, &event.kind);
+                    debug_assert!(receiving.is_none(), "a request Resource in flight has no response inbound");
+                }
+            }
+            events.extend(handler.resource_manager.drain_events());
             super::resource_wire::publish_resource_events(&handler, events);
             packet
         };

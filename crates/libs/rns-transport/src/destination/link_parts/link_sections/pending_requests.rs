@@ -42,7 +42,9 @@ impl Link {
             return;
         };
         log::debug!("link({}): request {} answered", self.id, id);
-        pending.resolve(arrival);
+        if let Some(cause) = pending.resolve(arrival) {
+            log::debug!("link({}): response to {} could not be decoded: {cause}", self.id, id);
+        }
     }
 
     /// Fails the request `id` and drops its response size limit. Returns
@@ -95,7 +97,8 @@ impl Link {
 
     /// A Resource of this link reached an outcome that concerns a pending
     /// request. For the request Resource `hash` (`RNS/Link.py:1367-1385`):
-    /// complete is `Delivered`, a rejection or a failure fails the receipt.
+    /// complete is `Delivered`; a rejection, a failure or a local cancel
+    /// fails the receipt.
     /// For the response Resource `hash`, an inbound failure fails the
     /// receipt `Receive`; nothing else expires a receipt that is
     /// `Receiving`. Other event kinds are not outcomes. Returns the response
@@ -117,7 +120,9 @@ impl Link {
         let outcome = match kind {
             ResourceEventKind::OutboundComplete => Ok(()),
             ResourceEventKind::OutboundRejected => Err(RequestError::Rejected),
-            ResourceEventKind::OutboundFailed => Err(RequestError::Send),
+            ResourceEventKind::OutboundFailed | ResourceEventKind::OutboundCancelled => {
+                Err(RequestError::Send)
+            }
             _ => return None,
         };
         let id = self

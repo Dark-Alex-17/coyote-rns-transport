@@ -181,4 +181,30 @@ mod pending_requests_tests {
         assert_eq!(receipt.status(), RequestStatus::Failed);
         assert!(link.pending_response_limits.is_empty());
     }
+
+    /// `Transport::cancel_resource` on the request Resource (`RNS/Link.py:1375-1385`
+    /// fails the receipt for every status but complete, a cancelled one included).
+    #[tokio::test]
+    #[deny(clippy::await_holding_invalid_type)]
+    async fn a_locally_cancelled_request_resource_fails_its_receipt_send() {
+        let (mut link, _, _, _) = linked_pair();
+        let cancelled = pending_resource_request(&mut link, id(1), hash(0xAA));
+        let other = pending_resource_request(&mut link, id(2), hash(0xBB));
+
+        assert_eq!(
+            link.note_request_resource_outcome(hash(0xCC), &ResourceEventKind::OutboundCancelled),
+            None,
+            "no entry sent that Resource"
+        );
+        assert_eq!(other.status(), RequestStatus::Sent);
+
+        assert_eq!(
+            link.note_request_resource_outcome(hash(0xAA), &ResourceEventKind::OutboundCancelled),
+            None,
+            "nothing inbound to cancel"
+        );
+        assert_eq!(cancelled.status(), RequestStatus::Failed);
+        assert_eq!(cancelled.response().await, Err(RequestError::Send));
+        assert_eq!(other.status(), RequestStatus::Sent, "the other entry is untouched");
+    }
 }

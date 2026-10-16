@@ -168,7 +168,8 @@ fn resource_manager_cancel_incoming_drops_the_receiver_and_reports_it_once() {
 }
 
 /// An advertisement the manager drops leaves no receiver and no event behind;
-/// only an admitted one has an active receiver under its segment hash.
+/// only an admitted one has an active receiver under its segment hash, and
+/// only for the request id and link it was built for.
 #[test]
 fn resource_manager_has_an_active_receiver_only_for_an_admitted_advertisement() {
     let signer = PrivateIdentity::new_from_rand(OsRng);
@@ -185,6 +186,12 @@ fn resource_manager_has_an_active_receiver_only_for_an_admitted_advertisement() 
 
     let dropped_hash = Hash::new_from_slice(&[0x47; 32]);
     let admitted_hash = Hash::new_from_slice(&[0x48; 32]);
+    let request_id = [0x51u8; 16];
+    let other_request_id = [0x52u8; 16];
+    let other_link_id = AddressHash::new_from_slice(&[0x53; ADDRESS_HASH_SIZE]);
+    // `ResourceReceiver::new` copies `request_id` whatever the flags say; the
+    // response flag is set because that is the advertisement a response
+    // Resource carries (`RNS/Resource.py:1318`).
     let advertisement = |hash: Hash, parts: u32| ResourceAdvertisement {
         transfer_size: 1,
         data_size: 1,
@@ -194,8 +201,8 @@ fn resource_manager_has_an_active_receiver_only_for_an_admitted_advertisement() 
         original_hash: hash,
         segment_index: 1,
         total_segments: 1,
-        request_id: None,
-        flags: 0,
+        request_id: Some(ByteBuf::from(request_id.to_vec())),
+        flags: FLAG_RESPONSE,
         hashmap: vec![0u8; MAPHASH_LEN],
     };
     // `ResourceReceiver::new` refuses a part count of zero.
@@ -205,7 +212,7 @@ fn resource_manager_has_an_active_receiver_only_for_an_admitted_advertisement() 
         *link.id(),
     );
     let _ = manager.handle_packet(&dropped, &mut link);
-    assert!(!manager.has_active_receiver(&dropped_hash));
+    assert!(!manager.has_active_receiver(&dropped_hash, link.id(), &request_id));
     assert!(manager.drain_events().is_empty(), "a dropped advertisement reports nothing");
 
     let admitted = resource_packet(
@@ -214,5 +221,13 @@ fn resource_manager_has_an_active_receiver_only_for_an_admitted_advertisement() 
         *link.id(),
     );
     let _ = manager.handle_packet(&admitted, &mut link);
-    assert!(manager.has_active_receiver(&admitted_hash));
+    assert!(manager.has_active_receiver(&admitted_hash, link.id(), &request_id));
+    assert!(
+        !manager.has_active_receiver(&admitted_hash, link.id(), &other_request_id),
+        "the segment is active for the request it was advertised under only"
+    );
+    assert!(
+        !manager.has_active_receiver(&admitted_hash, &other_link_id, &request_id),
+        "and on the link it was advertised on only"
+    );
 }

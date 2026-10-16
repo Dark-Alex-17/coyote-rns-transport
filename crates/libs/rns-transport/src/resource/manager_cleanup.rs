@@ -80,6 +80,13 @@ impl ResourceManager {
         self.link_stats.remove(&link_id);
     }
 
+    /// Whether an inbound transfer is being received under the segment hash
+    /// `segment_hash`: an advertisement the manager admitted and built a
+    /// receiver for, as opposed to one it dropped.
+    pub fn has_active_receiver(&self, segment_hash: &Hash) -> bool {
+        self.incoming.get(segment_hash).is_some_and(|receiver| receiver.is_active())
+    }
+
     /// Drops the inbound transfer whose in-flight segment is `segment_hash`
     /// and reports it `InboundFailed("cancelled")` under its original hash,
     /// as a remote cancel would. Returns that original hash, `None` when no

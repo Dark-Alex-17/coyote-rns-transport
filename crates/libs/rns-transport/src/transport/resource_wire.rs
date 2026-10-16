@@ -38,7 +38,7 @@ pub(super) async fn handle_resource_proof(
         link.note_inbound(packet.context);
         let mut responses = std::mem::take(&mut handler.resource_response_packets);
         handler.resource_manager.handle_packet_into(&packet, &mut link, &mut responses);
-        let events = handler.resource_manager.drain_events();
+        let mut events = handler.resource_manager.drain_events();
         // A proof for a request Resource moves its receipt to `Delivered`
         // (`RNS/Link.py:1372`).
         let mut cancels = Vec::new();
@@ -55,6 +55,7 @@ pub(super) async fn handle_resource_proof(
                 }
             }
         }
+        events.extend(handler.resource_manager.drain_events());
         // A proof can hand back the next segment's advertisement. Like every
         // Link-destination packet it goes out on the link's attached
         // interface (`RNS/Transport.py:1452-1454`); `send_packet` would try
@@ -150,6 +151,7 @@ pub(super) async fn handle_link_resource_packet<'a>(
     // transport.
     let mut rejected = false;
     let mut cancels = Vec::new();
+    let mut response_advertised: Option<(RequestId, ResourceAdvertisement)> = None;
     if packet.context == PacketContext::ResourceAdvrtisement {
         if let Ok(advertisement) = ResourceAdvertisement::unpack(packet_for_manager.data.as_slice())
         {
@@ -161,10 +163,16 @@ pub(super) async fn handle_link_resource_packet<'a>(
                     let pending_id = <[u8; ADDRESS_HASH_SIZE]>::try_from(request_id.as_slice())
                         .ok()
                         .map(RequestId::new);
+                    if pending_id.is_none() {
+                        log::debug!(
+                            "[resource-diag] response_advertisement_request_id_len link={} hash={} len={}",
+                            link.id(),
+                            advertisement.hash,
+                            request_id.len()
+                        );
+                    }
                     if admitted {
-                        if let Some(id) = pending_id {
-                            link.mark_pending_request_receiving(&id, &advertisement);
-                        }
+                        response_advertised = pending_id.map(|id| (id, advertisement.clone()));
                     } else {
                         log::warn!(
                             "[resource-diag] reject_response_advertisement link={} hash={} size={}",
@@ -245,9 +253,18 @@ pub(super) async fn handle_link_resource_packet<'a>(
             interface_mtu,
         );
         events = handler.resource_manager.drain_events();
+        // `RNS/Link.py:1055-1064` touches the receipt only once a Resource
+        // exists for the advertisement: one the manager dropped (inbound
+        // caps, an out-of-order or duplicate segment, an unreasonable part
+        // count) leaves the receipt as it was, with its clock running.
+        if let Some((id, advertisement)) = &response_advertised {
+            if handler.resource_manager.has_active_receiver(&advertisement.hash) {
+                link.mark_pending_request_receiving(id, advertisement);
+            }
+        }
         // `RNS/Link.py:885-889`: an assembled request resource reaches the
         // handler table like a request packet, and an assembled response
-        // resource resolves the receipt waiting for it (`RNS/Link.py:896-912`).
+        // resource resolves the receipt waiting for it (`RNS/Link.py:897-912`).
         // The events are still published below for `resource_events()`
         // consumers.
         for event in &events {
@@ -291,6 +308,7 @@ pub(super) async fn handle_link_resource_packet<'a>(
                 }
             }
         }
+        events.extend(handler.resource_manager.drain_events());
     }
     if !responses.is_empty() {
         log::debug!(

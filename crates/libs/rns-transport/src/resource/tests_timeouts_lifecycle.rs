@@ -166,3 +166,53 @@ fn resource_manager_cancel_incoming_drops_the_receiver_and_reports_it_once() {
     assert_eq!(manager.cancel_incoming(segment_hash), None, "already gone");
     assert!(manager.drain_events().is_empty());
 }
+
+/// An advertisement the manager drops leaves no receiver and no event behind;
+/// only an admitted one has an active receiver under its segment hash.
+#[test]
+fn resource_manager_has_an_active_receiver_only_for_an_admitted_advertisement() {
+    let signer = PrivateIdentity::new_from_rand(OsRng);
+    let identity = *signer.as_identity();
+    let destination = DestinationDesc {
+        identity,
+        address_hash: identity.address_hash,
+        name: DestinationName::new("lxmf", "resource"),
+    };
+    let (tx, _) = tokio::sync::broadcast::channel(1);
+    let mut link = Link::new(destination, tx);
+    link.request();
+    let mut manager = ResourceManager::new();
+
+    let dropped_hash = Hash::new_from_slice(&[0x47; 32]);
+    let admitted_hash = Hash::new_from_slice(&[0x48; 32]);
+    let advertisement = |hash: Hash, parts: u32| ResourceAdvertisement {
+        transfer_size: 1,
+        data_size: 1,
+        parts,
+        hash,
+        random_hash: [0u8; RANDOM_HASH_SIZE],
+        original_hash: hash,
+        segment_index: 1,
+        total_segments: 1,
+        request_id: None,
+        flags: 0,
+        hashmap: vec![0u8; MAPHASH_LEN],
+    };
+    // `ResourceReceiver::new` refuses a part count of zero.
+    let dropped = resource_packet(
+        PacketContext::ResourceAdvrtisement,
+        &advertisement(dropped_hash, 0).pack().expect("advertisement"),
+        *link.id(),
+    );
+    let _ = manager.handle_packet(&dropped, &mut link);
+    assert!(!manager.has_active_receiver(&dropped_hash));
+    assert!(manager.drain_events().is_empty(), "a dropped advertisement reports nothing");
+
+    let admitted = resource_packet(
+        PacketContext::ResourceAdvrtisement,
+        &advertisement(admitted_hash, 1).pack().expect("advertisement"),
+        *link.id(),
+    );
+    let _ = manager.handle_packet(&admitted, &mut link);
+    assert!(manager.has_active_receiver(&admitted_hash));
+}

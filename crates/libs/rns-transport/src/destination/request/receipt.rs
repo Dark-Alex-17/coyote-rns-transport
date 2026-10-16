@@ -13,7 +13,7 @@ const TRAFFIC_TIMEOUT_FACTOR: u32 = 6;
 
 /// `RNS.Resource.RESPONSE_MAX_GRACE_TIME * 1.125` (`RNS/Resource.py:118`,
 /// `RNS/Link.py:491`).
-const RESPONSE_GRACE: Duration = Duration::from_millis(11_250);
+pub(crate) const RESPONSE_GRACE: Duration = Duration::from_millis(11_250);
 
 /// Options for [`Transport::request`](crate::transport::Transport::request).
 ///
@@ -103,14 +103,20 @@ pub enum RequestError {
     /// The responder rejected the request Resource.
     #[error("the responder rejected the request resource")]
     Rejected,
-    /// The response is larger than the `max_response_size` asked for.
+    /// The response is larger than the `max_response_size` asked for. For a
+    /// response packet (`RNS/Link.py:1017`, `:876`) Python's guard
+    /// (`:1408`) only fails a receipt that is `DELIVERED`, which the receipt
+    /// of a request packet never is, so it leaves that receipt pending; here
+    /// it fails.
     #[error("the response exceeded the requested maximum size")]
     Oversize,
     /// The response is not a `[request_id, body]` envelope, or its metadata
     /// is not msgpack.
     #[error("the response could not be decoded")]
     Decode,
-    /// The request Resource could not be sent.
+    /// The request Resource could not be sent: its retries ran out, its
+    /// send failed, or the entry was displaced by a request under the same
+    /// id.
     #[error("the request could not be sent")]
     Send,
     /// The response Resource failed in transfer before it completed: a part
@@ -181,7 +187,7 @@ pub(crate) enum ResponseArrival<'a> {
     Packet { envelope: &'a [u8], response_size: usize },
     /// An assembled response Resource: the whole envelope when `metadata`
     /// is `None`, raw file bytes beside packed metadata otherwise
-    /// (`RNS/Link.py:896-912`).
+    /// (`RNS/Link.py:897-912`).
     Resource { data: &'a [u8], metadata: Option<&'a [u8]> },
 }
 
@@ -199,6 +205,9 @@ impl ResponseArrival<'_> {
                 let mut cursor = Cursor::new(packed);
                 let metadata =
                     rmpv::decode::read_value(&mut cursor).map_err(|_| RequestError::Decode)?;
+                // The walker already saw exactly one value; this guards the
+                // decode against the walker and rmpv disagreeing on where it
+                // ends.
                 if cursor.position() != packed.len() as u64 {
                     return Err(RequestError::Decode);
                 }
@@ -230,14 +239,23 @@ impl RequestReceipt {
     }
 
     /// Where the request stands now. A receipt whose link went away without
-    /// concluding it reads `Failed` once [`response`](Self::response) has
-    /// noticed.
+    /// concluding it reads `Failed`, with [`RequestError::LinkClosed`] as
+    /// the outcome [`response`](Self::response) returns.
     pub fn status(&self) -> RequestStatus {
-        match self.state.outcome() {
+        match self.outcome() {
             Some(Ok(_)) => RequestStatus::Ready,
             Some(Err(_)) => RequestStatus::Failed,
             None => *self.status_rx.borrow(),
         }
+    }
+
+    /// The outcome, concluding `LinkClosed` first when the link dropped the
+    /// entry without concluding it.
+    fn outcome(&self) -> Option<&Result<RequestResponseData, RequestError>> {
+        if self.status_rx.has_changed().is_err() {
+            return Some(self.state.conclude(Err(RequestError::LinkClosed)));
+        }
+        self.state.outcome()
     }
 
     /// Share of the response received so far, `0.0` to `1.0`
@@ -271,8 +289,10 @@ impl RequestReceipt {
         self.state.bookkeeping().started_at
     }
 
-    /// When the request reached `Ready` or `Failed`.
+    /// When the request reached `Ready` or `Failed`; a receipt whose link
+    /// went away without concluding it is concluded here.
     pub fn concluded_at(&self) -> Option<Instant> {
+        self.outcome();
         self.state.bookkeeping().concluded_at
     }
 

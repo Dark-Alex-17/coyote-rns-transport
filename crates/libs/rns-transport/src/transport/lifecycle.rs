@@ -7,12 +7,13 @@ impl Transport {
     /// Shuts the transport down: detaches every interface and waits for their
     /// workers, then cancels the transport and waits for the management task.
     /// Interface workers go first because they may be blocked handing a packet
-    /// to the management task, which has to stay alive to receive it. The whole
-    /// call shares a 5 s budget; whatever is still running when it runs out is
-    /// aborted and logged. Once nothing runs any more, every pending request
-    /// on every link fails `LinkClosed`, so a receipt the caller still holds
-    /// concludes instead of waiting for a watchdog that no longer ticks.
-    /// Calling it again is a no-op.
+    /// to the management task, which has to stay alive to receive it. The
+    /// interface and management waits share a 5 s budget; whatever is still
+    /// running when it runs out is aborted and logged. The receipt sweep that
+    /// follows takes the handler and each link lock once and has no budget of
+    /// its own: every pending request on every link fails `LinkClosed`, so a
+    /// receipt the caller still holds concludes instead of waiting for a
+    /// watchdog that no longer ticks. Calling it again is a no-op.
     #[deny(clippy::await_holding_invalid_type)]
     pub async fn stop(&self) {
         let deadline = Instant::now() + STOP_BUDGET;

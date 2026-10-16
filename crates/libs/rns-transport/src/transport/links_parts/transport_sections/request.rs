@@ -135,7 +135,7 @@ impl Transport {
             }
             None => false,
         };
-        if !sent {
+        if !sent && registered.is_some() {
             link.lock().await.remove_pending_request(&id);
         }
         let mut handler = self.handler.lock().await;

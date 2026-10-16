@@ -69,8 +69,9 @@ impl Link {
         receiving
     }
 
-    /// A segment of the response to `id` was advertised and admitted
-    /// (`RNS/Link.py:1057-1064`, `:1420`).
+    /// A segment of the response to `id` was advertised and admitted: the
+    /// ResourceManager built a receiver for it (`RNS/Link.py:1055-1064`,
+    /// `:1420`).
     #[deny(clippy::await_holding_invalid_type)]
     pub(crate) fn mark_pending_request_receiving(
         &mut self,
@@ -153,7 +154,9 @@ impl Link {
             .map(|(id, _)| *id)
             .collect();
         for id in expired {
-            self.fail_pending_request(&id, RequestError::Timeout);
+            // `deadline` is `None` while `Receiving`, so nothing is inbound.
+            let receiving = self.fail_pending_request(&id, RequestError::Timeout);
+            debug_assert!(receiving.is_none(), "an expired receipt has no response Resource inbound");
         }
     }
 

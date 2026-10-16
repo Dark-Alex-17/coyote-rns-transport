@@ -144,13 +144,25 @@ impl PendingRequest {
         }
     }
 
-    /// A segment of the response Resource was advertised and admitted
-    /// (`RNS/Link.py:1057-1064`): `d` of the first advertisement is the
-    /// response size, `t` adds up over the segments, the clock starts if the
-    /// request Resource has not started it, and the receipt is `Receiving`
-    /// (`:1420`).
+    /// A segment of the response Resource was advertised and admitted, that
+    /// is, the ResourceManager built a receiver for it (`RNS/Link.py:1055-1064`
+    /// touches the receipt only when `Resource.accept` returned one): `d` of
+    /// the first advertisement is the response size, `t` adds up over the
+    /// segments, the clock starts if the request Resource has not started it,
+    /// and the receipt is `Receiving` (`:1420`).
     pub(crate) fn mark_receiving(&mut self, advertisement: &ResourceAdvertisement) {
         if self.status().is_terminal() {
+            return;
+        }
+        // The sender re-advertises a segment it got no part request for
+        // (`RNS/Resource.py:594-598`); a repeat of the segment in flight
+        // changes nothing, `t` included (`RNS/Resource.py:238-240` hands
+        // `RNS/Link.py:1056` no Resource for it).
+        if self
+            .response
+            .as_ref()
+            .is_some_and(|response| response.segment_hash == advertisement.hash)
+        {
             return;
         }
         self.response = Some(InboundResponse {

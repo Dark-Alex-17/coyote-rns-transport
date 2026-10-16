@@ -121,6 +121,22 @@ fn response_sizes_accumulate_over_the_segments_of_a_split_response() {
     assert_eq!(pending.response_original_hash(), Some(hash(1)));
 }
 
+/// The sender re-advertises a segment it got no part request for
+/// (`RNS/Resource.py:594-598`); Python counts the segment's `t` once
+/// (`RNS/Resource.py:238-240`, `RNS/Link.py:1056`).
+#[test]
+fn a_repeated_advertisement_of_the_segment_in_flight_counts_once() {
+    let mut pending = packet_form();
+    let receipt = pending.receipt();
+    pending.mark_receiving(&response_segment(hash(1), hash(1), 1, 2, 3000, 1000));
+    pending.mark_receiving(&response_segment(hash(1), hash(1), 1, 2, 3000, 1000));
+    assert_eq!(receipt.response_transfer_size(), Some(1000), "`t` is counted once");
+    assert_eq!(receipt.response_size(), Some(3000));
+    pending.mark_receiving(&response_segment(hash(2), hash(1), 2, 2, 3000, 1100));
+    assert_eq!(receipt.response_transfer_size(), Some(2100), "the next segment adds up");
+    assert_eq!(pending.response_segment_hash(), Some(hash(2)));
+}
+
 #[test]
 fn progress_counts_assembled_segments_as_whole_shares() {
     let mut pending = packet_form();
@@ -180,20 +196,24 @@ fn metadata_nested_deeper_than_the_frame_limit_is_refused() {
 }
 
 /// The entry is dropped without concluding, as a link that vanished would
-/// drop it: `response()` reads `LinkClosed` and `status()` agrees.
+/// drop it: `status()` and `concluded_at()` conclude it `LinkClosed` on
+/// their own, and `response()` returns the same.
 #[tokio::test]
+#[deny(clippy::await_holding_invalid_type)]
 async fn a_receipt_whose_entry_vanished_concludes_link_closed() {
     let pending = packet_form();
     let receipt = pending.receipt();
     drop(pending);
-    assert_eq!(receipt.concluded_at(), None, "nothing has noticed yet");
+    assert_eq!(receipt.status(), RequestStatus::Failed);
+    let concluded = receipt.concluded_at().expect("a gone entry concludes the receipt");
     assert_eq!(receipt.response().await, Err(RequestError::LinkClosed));
     assert_eq!(receipt.status(), RequestStatus::Failed);
-    assert!(receipt.concluded_at().is_some());
+    assert_eq!(receipt.concluded_at(), Some(concluded), "concluded once");
     assert_eq!(receipt.clone().response().await, Err(RequestError::LinkClosed));
 }
 
 #[tokio::test]
+#[deny(clippy::await_holding_invalid_type)]
 async fn subscribe_reports_changes_after_the_call_only() {
     let pending = resource_form();
     let receipt = pending.receipt();

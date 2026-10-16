@@ -276,7 +276,12 @@ impl Link {
                                             },
                                         );
                                     } else {
-                                        self.fail_pending_request(&id, RequestError::Oversize);
+                                        let receiving =
+                                            self.fail_pending_request(&id, RequestError::Oversize);
+                                        debug_assert!(
+                                            receiving.is_none(),
+                                            "a packet response has no response Resource inbound"
+                                        );
                                     }
                                 }
                                 (id, accepted)

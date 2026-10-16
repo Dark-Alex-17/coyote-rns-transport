@@ -31,7 +31,7 @@ request receipts and timeouts patch carries no other id and is fork
 commits `1ddd5273`, `a2a40de7`, `3805fe7f`, `3ed78582`, `415d67c8`,
 `afdf0f18`, `fe55cb71`, `10dc355e`, `8909d956`, `642dfc2b`, `7ce1601c`,
 `40409738`, `2f2c11c7`, `140a4fd2`, `3035e470`, `8a8c7a4e`, `6a0fc9cb`,
-`bbd34e72` and `114dbe1c`.
+`bbd34e72`, `114dbe1c` and `6f8cba34`.
 
 | File | Patch |
 | --- | --- |
@@ -101,6 +101,7 @@ commits `1ddd5273`, `a2a40de7`, `3805fe7f`, `3ed78582`, `415d67c8`,
 | `crates/libs/rns-transport/src/transport/tests_parts/two_transport_loopback_requests_receipt_probe3.rs` | request receipts and timeouts |
 | `crates/libs/rns-transport/src/transport/tests_parts/two_transport_loopback_requests_receipt_probe4.rs` | request receipts and timeouts |
 | `crates/libs/rns-transport/src/transport/tests_parts/two_transport_loopback_requests_receipt_probe5.rs` | request receipts and timeouts |
+| `crates/libs/rns-transport/src/transport/tests_parts/two_transport_loopback_requests_receipt_probe6.rs` | request receipts and timeouts |
 | `crates/libs/rns-transport/src/transport/tests_parts/two_transport_loopback_requests_receipt_stop.rs` | request receipts and timeouts |
 | `crates/libs/rns-transport/src/transport/tests_parts/two_transport_loopback_requests_receipt_timeouts.rs` | request receipts and timeouts |
 | `crates/libs/rns-transport/src/transport/tests_parts/two_transport_loopback_requests_resource_form.rs` | request handlers and dispatch |
@@ -397,7 +398,12 @@ packed body length (`RNS/Link.py:1016-1017`) and a split response sets
 (`RNS/Link.py:1057-1061`); response metadata gets the frame depth check.
 It also adds the unit-test files `request/receipt_tests.rs`,
 `link_sections/pending_requests_tests.rs` and
-`resource/tests_timeouts_lifecycle.rs`.
+`resource/tests_timeouts_lifecycle.rs`, and the fixture constructors
+`loopback_link_handles_with_mtu` in
+`tests_parts/two_transport_loopback_lifecycle.rs` and
+`loopback_request_pair_with_mtu` in
+`tests_parts/two_transport_loopback_requests.rs`, which build a loopback
+pair over interfaces of a given MTU; the MTU-less helpers delegate to them.
 The third routes the Resource outcomes the periodic workers drain to the
 owning link's pending table, so a request Resource that exhausts its
 retries fails `Send` and a response Resource whose receiver gives up fails
@@ -669,10 +675,11 @@ returns the same body or the same failure on every repeat, on the same
 clone or on one taken after the conclusion, with `concluded_at()`
 unmoved; a subscriber taken after the conclusion reading the final status
 and being reported no change; and a receipt every clone of which is
-dropped before the response arrives, in packet form and in resource form,
-still having its response reach the link's broadcast, the responder still
-serving the request under the id the receipt reported, and the link
-answering the next request in both forms. Upstream site:
+dropped before the response arrives leaving the link answering the next
+request in both forms: in packet form its response still reaches the
+link's broadcast, in resource form the responder still serves the request
+under the id the receipt reported (the response Resource's own arrival on
+the broadcast is pinned by `6f8cba34` below). Upstream site:
 `request/receipt.rs` has `subscribe()` say that a link which goes away
 without concluding the request drops the sender, so `changed()` returns
 an error rather than a `Failed` change and `borrow()` keeps the last
@@ -681,6 +688,30 @@ status, with `status()` and `response()` concluding the receipt
 review-process clause; `request/receipt_tests.rs` binds its shallow metadata
 vector mutable in one step. The crate `CHANGELOG.md` names the fixture
 in the `### Added` pin clause and `probe4` and `pending_requests_tests.rs`
+in the `### Changed` one.
+
+Fork commit `6f8cba34`: the vanished-link subscriber probe adopted, and
+dropping a receipt said to cancel nothing.
+`two_transport_loopback_requests_receipt_probe6.rs` (new, one more
+`include!` line in `transport/tests.rs`) pins what a `subscribe()`
+receiver sees when the link goes away without concluding the request,
+held through `Transport::stop` the way the stop fixture does and dropped
+afterwards: `changed()` errors out rather than reporting a `Failed`
+change, `borrow()` keeps the last status the link published, `Sent` for
+a packet-form receipt and `Delivered` for a resource-form one, and
+`status()`, `concluded_at()` and `response()` conclude the receipt
+`LinkClosed` on either clone without moving any subscriber.
+`two_transport_loopback_requests_receipt_probe5.rs` has its dropped
+resource-form receipt's response observed on `resource_events()` as a
+`Complete` with `is_response` and the dropped id, carrying the echoed
+envelope; its late subscriber asserts that the conclusion dropped the
+sender (`changed()` is `Err` at once); its one-tick bound is
+`one_tick_bound()`. Upstream site: `request/receipt.rs` has `subscribe()`
+say the sender is dropped once the request concludes or the link goes
+away unconcluded, and `RequestReceipt` say that dropping every clone
+cancels nothing. The crate README says the same after its
+`Sending requests` paragraph, and the crate `CHANGELOG.md` names the new
+fixture in the `### Added` pin clause and the `*_with_mtu` constructors
 in the `### Changed` one.
 
 ## 0.14.1 (upstream 0.14.0)

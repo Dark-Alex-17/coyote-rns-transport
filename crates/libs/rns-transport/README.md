@@ -124,7 +124,9 @@ fails every pending receipt with `RequestError::LinkClosed`, as does
 `Transport::stop()` within its budget; a request on a link that has gone
 `Stale` is refused. A response Resource with metadata is a file response,
 read through `RequestResponseData::data()` and `metadata()`; every other
-response is the envelope body, read through `value()`.
+response is the envelope body, read through `value()`. Dropping every clone
+of a receipt does not cancel the request: the responder still serves it and
+the response still reaches the link's broadcasts.
 
 ## Versioning and releases
 

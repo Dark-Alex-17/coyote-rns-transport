@@ -237,7 +237,10 @@ impl ResponseArrival<'_> {
 /// The requester's handle on one request: `RNS.RequestReceipt`
 /// (`RNS/Link.py:1311-1500`) without callbacks. Every clone observes the
 /// same request; [`response`](Self::response) resolves on any of them once
-/// the request is `Ready` or `Failed`.
+/// the request is `Ready` or `Failed`. Dropping every clone does not cancel
+/// the request: the responder still serves it and the response still
+/// reaches the link's `LinkEvent::Data(Response)` and `resource_events()`
+/// broadcasts.
 #[derive(Clone)]
 pub struct RequestReceipt {
     status_rx: watch::Receiver<RequestStatus>,
@@ -315,11 +318,12 @@ impl RequestReceipt {
     /// A receiver that reports every status change from now on; the status
     /// current at the call is read with `borrow_and_update`, not reported
     /// as a change. A `watch` keeps only the latest value, so quick
-    /// successive changes may be seen as one. A link that goes away
-    /// without concluding the request drops the sender: `changed()` then
-    /// returns an error rather than a `Failed` change and `borrow()` keeps
-    /// the last status; [`status`](Self::status) and
-    /// [`response`](Self::response) conclude the receipt `LinkClosed`.
+    /// successive changes may be seen as one. Once the request concludes,
+    /// or the link goes away without concluding it, the sender is dropped:
+    /// `changed()` returns an error after the last change rather than a
+    /// further one, and `borrow()` keeps the last status. For a link that
+    /// went away, [`status`](Self::status) and [`response`](Self::response)
+    /// conclude the receipt `LinkClosed`.
     pub fn subscribe(&self) -> watch::Receiver<RequestStatus> {
         let mut status_rx = self.status_rx.clone();
         status_rx.mark_unchanged();

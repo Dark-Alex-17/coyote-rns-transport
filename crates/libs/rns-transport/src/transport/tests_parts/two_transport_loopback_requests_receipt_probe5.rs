@@ -3,16 +3,17 @@
 // concluded, `Ok` or `Err`, and reads the same outcome every time; a subscriber taken after
 // the conclusion reads the final status with `borrow_and_update` and is reported no change;
 // a receipt every clone of which is dropped before the response arrives, in either form,
-// still has its response reach the link (`LinkEvent::Data(Response)` keeps broadcasting)
-// and leaves the link answering the next request. Helpers come from the sibling
-// `tests_parts` files.
+// still has its response reach the link (`LinkEvent::Data(Response)` and
+// `ResourceEventKind::Complete` keep broadcasting it under the request's id) and leaves
+// the link answering the next request. Helpers come from the sibling `tests_parts`
+// files.
 
 /// Long enough for a status change that is coming to be seen, short enough that waiting on
 /// one that never comes does not slow the test down.
 const NO_CHANGE_WINDOW: Duration = Duration::from_millis(300);
 
 /// A late subscriber reads `wanted` as the current status, is reported no change for it, and
-/// sees no change arrive afterwards.
+/// finds the sender gone: the conclusion dropped it, so `changed()` errors out at once.
 #[deny(clippy::await_holding_invalid_type)]
 async fn assert_late_subscriber_reads(receipt: &RequestReceipt, wanted: RequestStatus) {
     let mut status_rx = receipt.subscribe();
@@ -26,10 +27,7 @@ async fn assert_late_subscriber_reads(receipt: &RequestReceipt, wanted: RequestS
         "the late subscriber reads the final status"
     );
     let change = timeout(NO_CHANGE_WINDOW, status_rx.changed()).await;
-    assert!(
-        !matches!(change, Ok(Ok(()))),
-        "a concluded receipt reports no further change: {change:?}"
-    );
+    assert!(matches!(change, Ok(Err(_))), "a concluded receipt has dropped its sender: {change:?}");
     assert_eq!(*status_rx.borrow(), wanted, "the final status stays readable");
 }
 
@@ -70,8 +68,8 @@ async fn two_transport_loopback_request_receipt_response_reads_the_same_failure_
         RequestOptions::default().with_timeout(Duration::ZERO),
     )
     .await;
-    let bound = INTERVAL_LINKS_CHECK + TIMEOUT_SLACK;
-    let first = timeout(bound, receipt.response()).await.expect("expired on the next tick");
+    let first =
+        timeout(one_tick_bound(), receipt.response()).await.expect("expired on the next tick");
     assert_eq!(first, Err(RequestError::Timeout));
     for _ in 0..3 {
         assert_eq!(await_receipt(&receipt).await, Err(RequestError::Timeout));
@@ -109,12 +107,15 @@ async fn two_transport_loopback_request_receipt_dropped_packet_form_leaves_the_l
 
 /// A resource-form receipt dropped before its request Resource even completes: the responder
 /// still serves the request (its handler runs with the id the receipt reported), the echoed
-/// Resource comes back to a link with nobody waiting, and the link answers the next request
-/// in both forms afterwards.
+/// Resource comes back to a link with nobody waiting and still posts
+/// `ResourceEventKind::Complete` as a response under that id, and the link answers the next
+/// request in both forms afterwards.
 #[tokio::test]
 #[deny(clippy::await_holding_invalid_type)]
 async fn two_transport_loopback_request_receipt_dropped_resource_form_leaves_the_link_answering() {
     let pair = loopback_request_pair("receipt-probe5-dropped-resource").await;
+    let mut resource_events = pair.handles.connector.transport.resource_events();
+    let link_id = pair.handles.link_id;
     let mut seen = register_recording_echo(&pair, "/echo").await;
     let body = over_mdu_body(&pair).await;
 
@@ -128,6 +129,17 @@ async fn two_transport_loopback_request_receipt_dropped_resource_form_leaves_the
         .expect("the responder serves the request")
         .expect("the handler channel is alive");
     assert_eq!(served, dropped_id, "the responder derives the id the dropped receipt reported");
+
+    let complete = await_resource_event(&mut resource_events, |event| {
+        event.link_id == link_id
+            && matches!(&event.kind, ResourceEventKind::Complete(complete) if complete.is_response)
+    })
+    .await;
+    let complete = complete_payload(complete);
+    assert_eq!(complete.request_id.as_deref(), Some(dropped_id.as_bytes().as_slice()));
+    let (answered, value) = unpack_response_envelope(&complete.data).expect("response envelope");
+    assert_eq!(answered, dropped_id.to_bytes(), "the response still reaches the link");
+    assert_eq!(value, rmpv::Value::Binary(body.clone()));
 
     let small = request(&pair, "/echo", rmpv::Value::from("packet after")).await;
     let response = await_ready_on_two_clones(&small).await;

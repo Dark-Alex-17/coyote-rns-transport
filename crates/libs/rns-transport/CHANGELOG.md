@@ -136,8 +136,11 @@ trailing clause of the bullet for the behaviour it pins.
   request Resource otherwise (`:493-510`). `RequestReceipt` is `Clone`;
   `response()` resolves on any clone once the request is `Ready` or
   `Failed`, and `subscribe()` hands out a `watch::Receiver<RequestStatus>`
-  that reports the moves after the call. `started_at()` is `Some` from the
-  send for a packet request and `None` for a request Resource until it
+  that reports the moves after the call and whose sender is dropped once
+  the request concludes or its link goes away unconcluded. Dropping every
+  clone of a receipt cancels nothing: the responder still serves the
+  request and the response still reaches the broadcasts. `started_at()` is
+  `Some` from the send for a packet request and `None` for a request Resource until it
   completes or a response advertisement is admitted, whichever comes first
   (`:1331-1334`, `:1370-1371`, `:1062-1063`); `concluded_at()` is set once
   the receipt is `Ready` or `Failed`. `response_size()` and
@@ -187,6 +190,7 @@ trailing clause of the bullet for the behaviour it pins.
   `two_transport_loopback_requests_receipt_probe3.rs`,
   `two_transport_loopback_requests_receipt_probe4.rs`,
   `two_transport_loopback_requests_receipt_probe5.rs`,
+  `two_transport_loopback_requests_receipt_probe6.rs`,
   `two_transport_loopback_requests_receipt_stop.rs`,
   `tests/request_receipt_api.rs`, `tests/request_receipt_readme.rs`,
   `destination/request/receipt_tests.rs`
@@ -229,8 +233,10 @@ trailing clause of the bullet for the behaviour it pins.
   `two_transport_loopback_requests_receipt_probe2.rs`,
   `two_transport_loopback_requests_receipt_probe4.rs`,
   `destination/request/receipt_tests.rs`,
-  `destination/link_parts/link_sections/pending_requests_tests.rs` and
-  `resource/tests_timeouts_lifecycle.rs`.
+  `destination/link_parts/link_sections/pending_requests_tests.rs`,
+  `resource/tests_timeouts_lifecycle.rs`, and the `*_with_mtu` fixture
+  constructors of `two_transport_loopback_lifecycle.rs` and
+  `two_transport_loopback_requests.rs` that run a pair over `LEGACY_MTU`.
 
 - The `max_request_size` gate on a request Resource, applied at its
   advertisement before any part is accepted, compares the advertised data

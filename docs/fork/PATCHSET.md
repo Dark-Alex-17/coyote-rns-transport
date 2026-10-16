@@ -26,7 +26,7 @@ belongs to. Patch ids: F1 is request wire frames and fuzz. The
 `afc56836`, `71365159`, `f875aff7` and `30d8dfde`; the request handlers
 and dispatch patch carries no other id and is fork commits `08a5cff6`,
 `21ab1981`, `c1a98ff1`, `12d2080c`, `7bbb0197`, `73f177b4`, `1fd1192a`,
-`febec3db`, `7e9e5904`, `5544c49c` and `816032c5`.
+`febec3db`, `7e9e5904`, `5544c49c`, `816032c5` and `c82dcd0d`.
 
 | File | Patch |
 | --- | --- |
@@ -80,6 +80,7 @@ and dispatch patch carries no other id and is fork commits `08a5cff6`,
 | `crates/libs/rns-transport/src/transport/tests_parts/two_transport_loopback_requests_resource_form.rs` | request handlers and dispatch |
 | `crates/libs/rns-transport/src/transport/tests_parts/two_transport_loopback_requests_resource_form_probe.rs` | request handlers and dispatch |
 | `crates/libs/rns-transport/src/transport/tests_parts/two_transport_loopback_requests_resource_form_probe2.rs` | request handlers and dispatch |
+| `crates/libs/rns-transport/src/transport/tests_parts/two_transport_loopback_requests_resource_form_probe3.rs` | request handlers and dispatch |
 | `crates/libs/rns-transport/src/transport/tests_parts/two_transport_loopback_requests_routing.rs` | request handlers and dispatch |
 | `crates/libs/rns-transport/tests/request_frame_wire.rs` | request wire frames and fuzz |
 | `crates/libs/rns-transport/tests/request_handler_api.rs` | request handlers and dispatch |
@@ -274,6 +275,21 @@ a request Resource sends nothing (`RNS/Link.py:844`) while
 `Complete(ResourceComplete { is_request: true, .. })` still posts and the
 link keeps answering. The crate `CHANGELOG.md` names the file in both
 pin clauses.
+
+Fork commit `c82dcd0d`: the third resource-form review probe adopted.
+`two_transport_loopback_requests_resource_form_probe3.rs` (new, a ninth
+`include!` line in `transport/tests.rs`) pins the response form from the
+requester's side of a request Resource: a small `Value` answer to a
+request that arrived as a Resource goes out as exactly one `Response`
+packet with no response Resource beside it (`RNS/Link.py:849`); a
+registration with `RequestAllow::None` runs no handler and answers
+nothing on the resource path (`RNS/Link.py:818-824`) while
+`Complete(ResourceComplete { is_request: true, .. })` still posts, and
+re-registering the path with `All` answers the next request Resource on
+the same link; and a request packet, a request Resource and another
+request packet interleaved on one link are each answered under their own
+id by one handler. The crate `CHANGELOG.md` names the file in both pin
+clauses.
 
 ## 0.14.1 (upstream 0.14.0)
 

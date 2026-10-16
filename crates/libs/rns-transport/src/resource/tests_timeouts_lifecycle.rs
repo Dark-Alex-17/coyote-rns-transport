@@ -110,3 +110,59 @@ fn resource_manager_link_close_allows_later_resource_on_new_link() {
         ResourceStatus::Transferring
     );
 }
+
+/// A local cancel of an inbound transfer drops its receiver and reports it
+/// `InboundFailed("cancelled")` under the original hash, once; a hash with
+/// no receiver is a no-op.
+#[test]
+fn resource_manager_cancel_incoming_drops_the_receiver_and_reports_it_once() {
+    let signer = PrivateIdentity::new_from_rand(OsRng);
+    let identity = *signer.as_identity();
+    let destination = DestinationDesc {
+        identity,
+        address_hash: identity.address_hash,
+        name: DestinationName::new("lxmf", "resource"),
+    };
+    let (tx, _) = tokio::sync::broadcast::channel(1);
+    let mut link = Link::new(destination, tx);
+    link.request();
+    let mut manager = ResourceManager::new();
+
+    let segment_hash = Hash::new_from_slice(&[0x45; 32]);
+    let unknown_hash = Hash::new_from_slice(&[0x46; 32]);
+    let adv = ResourceAdvertisement {
+        transfer_size: 1,
+        data_size: 1,
+        parts: 1,
+        hash: segment_hash,
+        random_hash: [0u8; RANDOM_HASH_SIZE],
+        original_hash: segment_hash,
+        segment_index: 1,
+        total_segments: 1,
+        request_id: None,
+        flags: 0,
+        hashmap: vec![0u8; MAPHASH_LEN],
+    };
+    let incoming_packet = resource_packet(
+        PacketContext::ResourceAdvrtisement,
+        &adv.pack().expect("advertisement"),
+        *link.id(),
+    );
+    let _ = manager.handle_packet(&incoming_packet, &mut link);
+    manager.drain_events();
+    assert!(manager.incoming.contains_key(&segment_hash));
+
+    assert_eq!(manager.cancel_incoming(unknown_hash), None, "no receiver under that hash");
+    assert_eq!(manager.cancel_incoming(segment_hash), Some(segment_hash));
+    assert!(manager.incoming.is_empty());
+    let events = manager.drain_events();
+    assert_eq!(events.len(), 1);
+    assert_eq!(events[0].hash, segment_hash);
+    assert_eq!(events[0].link_id, *link.id());
+    assert!(matches!(
+        &events[0].kind,
+        ResourceEventKind::InboundFailed(failure) if failure.reason == "cancelled"
+    ));
+    assert_eq!(manager.cancel_incoming(segment_hash), None, "already gone");
+    assert!(manager.drain_events().is_empty());
+}

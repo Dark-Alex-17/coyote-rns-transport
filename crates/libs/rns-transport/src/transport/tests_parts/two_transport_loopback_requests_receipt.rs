@@ -1,5 +1,5 @@
 // Loopback coverage for the requester side of the request layer: `Transport::request` and the
-// `RequestReceipt` it returns (`RNS/Link.py:480-510`, `:1330-1452`). A response that names a
+// `RequestReceipt` it returns (`RNS/Link.py:473-510`, `:1311-1500`). A response that names a
 // pending request resolves the receipt in-path, as a packet or as a Resource, on every clone of
 // the handle; the status order follows Python's `RequestReceipt` (packet form never reaches
 // `Delivered`, the resource form does on its Resource's completion, `RNS/Link.py:1372`); a link
@@ -11,6 +11,17 @@ use crate::destination::request::{
 
 /// Bounds a `response()` wait that should resolve on its own.
 const RECEIPT_TIMEOUT: Duration = LOOPBACK_TIMEOUT;
+
+/// The original Reticulum interface MTU; a link over it carries a few hundred bytes per
+/// packet, so a Resource of some tens of KiB takes many parts and a measurable time.
+const LEGACY_MTU: usize = crate::destination::link::LEGACY_RETICULUM_MTU;
+
+/// A response body that takes a few hundred parts over `LEGACY_MTU`.
+const MANY_PARTS_LEN: usize = 64 * 1024;
+
+/// Long enough to tell two successive status changes apart on the `watch`, short enough not
+/// to approach any timeout.
+const HANDLER_DELAY: Duration = Duration::from_millis(300);
 
 /// A handler that answers nothing, so every request to it stays pending (`RNS/Link.py:844`).
 fn silent_handler(
@@ -106,14 +117,16 @@ async fn two_transport_loopback_request_receipt_packet_response_resolves_every_c
     register_handler(&pair, "/echo", RequestAllow::All, echo_handler()).await;
 
     let receipt = request(&pair, "/echo", rmpv::Value::from("ping")).await;
-    assert_eq!(receipt.status(), RequestStatus::Sent);
 
     let body = await_ready_on_two_clones(&receipt).await;
     assert_eq!(body.value(), Some(&rmpv::Value::from("ping")));
     assert_eq!(body.data(), None, "an envelope response is not a file response");
     assert_eq!(body.metadata(), None);
-    assert_eq!(receipt.response_size(), None, "a packet response advertises no size");
-    assert_eq!(receipt.response_transfer_size(), None);
+    // `RNS/Link.py:1016-1017`: a packet response reports its packed body as both sizes.
+    let mut packed_body = Vec::new();
+    rmpv::encode::write_value(&mut packed_body, &rmpv::Value::from("ping")).expect("packs");
+    assert_eq!(receipt.response_size(), Some(packed_body.len()));
+    assert_eq!(receipt.response_transfer_size(), Some(packed_body.len()));
 
     // The broadcast keeps carrying the response for consumers that correlate it themselves.
     let link_id = pair.handles.link_id;
@@ -165,7 +178,12 @@ async fn two_transport_loopback_request_receipt_resource_form_request_resolves()
     let answered_small = request(&pair, "/small", rmpv::Value::Binary(body)).await;
     let response = await_ready_on_two_clones(&answered_small).await;
     assert_eq!(response.value(), Some(&rmpv::Value::from("small")));
-    assert_eq!(answered_small.response_size(), None, "the answer came back as a packet");
+    let mdu = pair.handles.link.lock().await.link_mdu();
+    assert!(
+        answered_small.response_size().is_some_and(|size| size <= mdu),
+        "the answer came back as a packet: {:?}",
+        answered_small.response_size()
+    );
 }
 
 /// `RNS/Link.py:899-903`: a response Resource with metadata is a file response, its data the
@@ -213,8 +231,8 @@ async fn two_transport_loopback_request_receipt_packet_form_goes_sent_to_ready()
 #[tokio::test]
 #[deny(clippy::await_holding_invalid_type)]
 async fn two_transport_loopback_request_receipt_resource_response_goes_through_receiving() {
-    let pair = loopback_request_pair("receipt-order-resource-response").await;
-    let body = over_mdu_body(&pair).await;
+    let pair = loopback_request_pair_with_mtu("receipt-order-resource-response", LEGACY_MTU).await;
+    let body = random_payload(MANY_PARTS_LEN);
     register_handler(&pair, "/big", RequestAllow::All, move |_: InboundRequest| {
         std::future::ready(Some(RequestResponse::Bytes(body.clone())))
     })
@@ -230,14 +248,21 @@ async fn two_transport_loopback_request_receipt_resource_response_goes_through_r
         "packet request, Resource response: {seen:?}"
     );
     assert_eq!(seen.last(), Some(&RequestStatus::Ready));
+    assert!(seen.contains(&RequestStatus::Receiving), "a Resource response is received: {seen:?}");
     assert!(!seen.contains(&RequestStatus::Delivered), "nothing proves a request packet");
 }
 
+/// The echo waits before answering, so `Delivered` (the request Resource's proof) and
+/// `Receiving` (the response advertisement) cannot land on the `watch` as one change.
 #[tokio::test]
 #[deny(clippy::await_holding_invalid_type)]
 async fn two_transport_loopback_request_receipt_resource_form_goes_through_delivered() {
     let pair = loopback_request_pair("receipt-order-resource-form").await;
-    register_handler(&pair, "/echo", RequestAllow::All, echo_handler()).await;
+    register_handler(&pair, "/echo", RequestAllow::All, |request: InboundRequest| async move {
+        tokio::time::sleep(HANDLER_DELAY).await;
+        Some(RequestResponse::Value(request.into_data()))
+    })
+    .await;
     let body = over_mdu_body(&pair).await;
 
     let receipt = request(&pair, "/echo", rmpv::Value::Binary(body)).await;
@@ -255,9 +280,12 @@ async fn two_transport_loopback_request_receipt_resource_form_goes_through_deliv
         "resource-form request, Resource response: {seen:?}"
     );
     assert_eq!(seen.last(), Some(&RequestStatus::Ready));
+    assert!(seen.contains(&RequestStatus::Delivered), "the request Resource completes: {seen:?}");
+    assert!(seen.contains(&RequestStatus::Receiving), "the echo comes back as a Resource: {seen:?}");
 }
 
-/// `RNS/Link.py:877`: a response over `max_response_size` is rejected and the receipt fails.
+/// `RNS/Link.py:874-876`: a response over `max_response_size` is rejected and the receipt
+/// fails.
 #[tokio::test]
 #[deny(clippy::await_holding_invalid_type)]
 async fn two_transport_loopback_request_receipt_oversize_packet_response_fails_oversize() {
@@ -273,6 +301,29 @@ async fn two_transport_loopback_request_receipt_oversize_packet_response_fails_o
     .await;
     assert_eq!(await_receipt(&receipt).await, Err(RequestError::Oversize));
     assert_eq!(receipt.status(), RequestStatus::Failed);
+}
+
+/// `RNS/Link.py:1036-1046`, `:1377-1385`: a request Resource over the destination's
+/// `max_request_size` is refused at its advertisement and the receipt fails `Rejected`.
+#[tokio::test]
+#[deny(clippy::await_holding_invalid_type)]
+async fn two_transport_loopback_request_receipt_refused_request_resource_fails_rejected() {
+    let pair = loopback_request_pair("receipt-rejected").await;
+    pair.handles
+        .destination
+        .lock()
+        .await
+        .set_max_request_size(RESOURCE_FORM_REQUEST_LIMIT)
+        .expect("limit is set");
+    register_handler(&pair, "/echo", RequestAllow::All, echo_handler()).await;
+
+    // Over the link MDU, so the request leaves as a Resource, and over the limit.
+    let mdu = pair.handles.link.lock().await.link_mdu();
+    let body = random_payload(mdu.max(RESOURCE_FORM_REQUEST_LIMIT) + 1);
+    let receipt = request(&pair, "/echo", rmpv::Value::Binary(body)).await;
+    assert_eq!(await_receipt(&receipt).await, Err(RequestError::Rejected));
+    assert_eq!(receipt.status(), RequestStatus::Failed);
+    assert_eq!(receipt.started_at(), None, "a refused request Resource never started a clock");
 }
 
 #[tokio::test]

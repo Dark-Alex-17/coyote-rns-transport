@@ -4,7 +4,9 @@ use crate::destination::request::{PendingRequest, RequestId, RequestOptions, Req
 /// What `Transport::request` decided under the link lock.
 enum OutboundRequestForm {
     /// The request fits one `REQUEST` packet, built and registered already.
-    Packet { id: RequestId, packet: Packet, receipt: RequestReceipt },
+    /// `displaced` is the response Resource an entry under the same id was
+    /// receiving.
+    Packet { id: RequestId, packet: Packet, receipt: RequestReceipt, displaced: Option<Hash> },
     /// The request goes out as a Resource; the registration waits until the
     /// Resource hash is known.
     Resource { timeout: Duration, iface: Option<AddressHash> },
@@ -13,7 +15,7 @@ enum OutboundRequestForm {
 impl Transport {
     /// Sends a request for `path` carrying `data` over the link `link_id`
     /// and returns the handle its response arrives on: `RNS.Link.request`
-    /// (`RNS/Link.py:480-510`).
+    /// (`RNS/Link.py:473-510`).
     ///
     /// The request packs as `Link::request_payload` does and goes out as
     /// one `REQUEST` packet when it fits `Link::link_mdu()`, otherwise as a
@@ -22,7 +24,9 @@ impl Transport {
     /// packet or a Resource; the `LinkEvent::Data` and `resource_events()`
     /// broadcasts still carry it. `RnsError::InvalidArgument` names an
     /// unknown link, `RnsError::ConnectionError` a link that is not active
-    /// or a packet that reached no interface.
+    /// or a packet that reached no interface. A `Stale` link is refused too,
+    /// where Python drops a packet only on a `CLOSED` one
+    /// (`RNS/Packet.py:294-295`).
     #[deny(clippy::await_holding_invalid_type)]
     pub async fn request(
         &self,
@@ -45,19 +49,19 @@ impl Transport {
                     opts.max_response_size(),
                 )?;
                 let id = RequestId::from_packet_hash(&packet.hash());
-                let receipt = guard.insert_pending_request(id, PendingRequest::new(id, timeout, None));
-                OutboundRequestForm::Packet { id, packet, receipt }
+                let (receipt, displaced) =
+                    guard.insert_pending_request(id, PendingRequest::new(id, timeout, None));
+                OutboundRequestForm::Packet { id, packet, receipt, displaced }
             } else {
                 OutboundRequestForm::Resource { timeout, iface: guard.ingress_iface() }
             }
         };
         match form {
-            OutboundRequestForm::Packet { id, packet, receipt } => {
+            OutboundRequestForm::Packet { id, packet, receipt, displaced } => {
+                self.cancel_inbound_responses(&link, displaced.into_iter().collect()).await;
                 let outcome = self.send_link_packet_on_bound_iface(&link, packet).await;
                 if !outcome_sent(outcome) {
-                    let mut guard = link.lock().await;
-                    guard.remove_pending_request(&id);
-                    guard.clear_response_size_limit(id.as_bytes());
+                    link.lock().await.remove_pending_request(&id);
                     return Err(RnsError::ConnectionError);
                 }
                 Ok(receipt)
@@ -108,33 +112,82 @@ impl Transport {
         };
         let (resource_hash, packet) =
             self.handler.lock().await.resource_manager.track_prepared(prepared);
-        let receipt = {
+        // The link was active when the form was chosen, under an earlier
+        // guard; it may have closed in between.
+        let registered = {
             let mut link_guard = link.lock().await;
-            if let Some(max_response_size) = max_response_size {
-                link_guard.set_response_size_limit(id.as_bytes(), max_response_size);
+            if link_guard.status() == LinkStatus::Active {
+                if let Some(max_response_size) = max_response_size {
+                    link_guard.set_response_size_limit(id.as_bytes(), max_response_size);
+                }
+                Some(link_guard.insert_pending_request(
+                    id,
+                    PendingRequest::new(id, timeout, Some(resource_hash)),
+                ))
+            } else {
+                None
             }
-            link_guard
-                .insert_pending_request(id, PendingRequest::new(id, timeout, Some(resource_hash)))
         };
-        let outcome = self.send_link_packet_on_bound_iface(link, packet).await;
-        let sent = outcome_sent(outcome);
+        let sent = match &registered {
+            Some((_, displaced)) => {
+                self.cancel_inbound_responses(link, displaced.iter().copied().collect()).await;
+                outcome_sent(self.send_link_packet_on_bound_iface(link, packet).await)
+            }
+            None => false,
+        };
         if !sent {
-            let mut link_guard = link.lock().await;
-            link_guard.clear_response_size_limit(id.as_bytes());
-            link_guard.remove_pending_request(&id);
+            link.lock().await.remove_pending_request(&id);
         }
         let mut handler = self.handler.lock().await;
         handler.resource_manager.confirm_outbound_dispatch(resource_hash, sent);
         let events = handler.resource_manager.drain_events();
         super::resource_wire::publish_resource_events(&handler, events);
-        if sent {
-            Ok(receipt)
-        } else {
-            Err(RnsError::ConnectionError)
+        match registered {
+            Some((receipt, _)) if sent => Ok(receipt),
+            _ => Err(RnsError::ConnectionError),
+        }
+    }
+
+    /// Cancels the response Resources `receiving` that receipts failed under
+    /// a link guard were still receiving (`RNS/Link.py:1435`): the receivers
+    /// are dropped and, while the link is active, the peer is sent a
+    /// receiver cancel for each (`RNS/Resource.py:1111-1116`). The handler
+    /// and the link are locked one after the other, never together.
+    #[deny(clippy::await_holding_invalid_type)]
+    async fn cancel_inbound_responses(&self, link: &Arc<Mutex<Link>>, receiving: Vec<Hash>) {
+        if receiving.is_empty() {
+            return;
+        }
+        let cancelled: Vec<Hash> = {
+            let mut handler = self.handler.lock().await;
+            let cancelled = receiving
+                .into_iter()
+                .filter(|segment_hash| {
+                    handler.resource_manager.cancel_incoming(*segment_hash).is_some()
+                })
+                .collect();
+            let events = handler.resource_manager.drain_events();
+            super::resource_wire::publish_resource_events(&handler, events);
+            cancelled
+        };
+        let packets: Vec<Packet> = {
+            let link_guard = link.lock().await;
+            if link_guard.status() == LinkStatus::Active {
+                cancelled
+                    .iter()
+                    .filter_map(|hash| super::resource_wire::receiver_cancel_packet(&link_guard, hash))
+                    .collect()
+            } else {
+                Vec::new()
+            }
+        };
+        for packet in packets {
+            self.send_link_packet_on_bound_iface(link, packet).await;
         }
     }
 }
 
+#[deny(clippy::await_holding_invalid_type)]
 fn outcome_sent(outcome: SendPacketOutcome) -> bool {
     matches!(outcome, SendPacketOutcome::SentDirect | SendPacketOutcome::SentBroadcast)
 }

@@ -27,9 +27,15 @@ struct LoopbackLinkHandles {
 
 #[deny(clippy::await_holding_invalid_type)]
 async fn loopback_link_handles(aspect: &str) -> LoopbackLinkHandles {
-    let listener = listener("loopback-listener", TcpClient::DEFAULT_MTU).await;
-    let mut connector =
-        connector("loopback-connector", listener.port, TcpClient::DEFAULT_MTU).await;
+    loopback_link_handles_with_mtu(aspect, TcpClient::DEFAULT_MTU).await
+}
+
+/// `loopback_link_handles` over interfaces of `mtu` bytes, which sets the link MDU and so
+/// how many parts a Resource takes.
+#[deny(clippy::await_holding_invalid_type)]
+async fn loopback_link_handles_with_mtu(aspect: &str, mtu: usize) -> LoopbackLinkHandles {
+    let listener = listener("loopback-listener", mtu).await;
+    let mut connector = connector("loopback-connector", listener.port, mtu).await;
     listener.await_accepted_connections(1).await;
     let mut in_events = listener.transport.in_link_events();
 

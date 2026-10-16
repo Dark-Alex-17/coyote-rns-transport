@@ -270,7 +270,10 @@ impl Link {
                                     if accepted {
                                         self.resolve_pending_request(
                                             id,
-                                            ResponseArrival::Packet(plain_text),
+                                            ResponseArrival::Packet {
+                                                envelope: plain_text,
+                                                response_size,
+                                            },
                                         );
                                     } else {
                                         self.fail_pending_request(&id, RequestError::Oversize);

@@ -41,9 +41,18 @@ pub(super) async fn handle_resource_proof(
         let events = handler.resource_manager.drain_events();
         // A proof for a request Resource moves its receipt to `Delivered`
         // (`RNS/Link.py:1372`).
+        let mut cancels = Vec::new();
         for event in &events {
             if event.link_id == *link.id() {
-                link.note_request_resource_outcome(event.hash, &event.kind);
+                if let Some(receiving) = link.note_request_resource_outcome(event.hash, &event.kind)
+                {
+                    cancel_inbound_response(
+                        &mut handler.resource_manager,
+                        &link,
+                        receiving,
+                        &mut cancels,
+                    );
+                }
             }
         }
         // A proof can hand back the next segment's advertisement. Like every
@@ -52,6 +61,9 @@ pub(super) async fn handle_resource_proof(
         // the path table, where a link id never resolves.
         let response_iface = link.ingress_iface().unwrap_or(iface);
         drop(link);
+        for cancel in cancels {
+            handler.send(cancel).await;
+        }
         for response in responses.drain(..) {
             handler
                 .send(TxMessage {
@@ -132,11 +144,12 @@ pub(super) async fn handle_link_resource_packet<'a>(
         Err(_) => return true,
     };
     // A rejected advertisement never reaches the ResourceManager, and the
-    // reject itself is only sent once the link guard is dropped:
-    // `handler.send` re-locks the same link in `note_link_packet_sent`, so
-    // sending it here would deadlock the whole transport.
+    // reject, like every receiver cancel, is only sent once the link guard
+    // is dropped: `handler.send` re-locks the same link in
+    // `note_link_packet_sent`, so sending it here would deadlock the whole
+    // transport.
     let mut rejected = false;
-    let mut reject = None;
+    let mut cancels = Vec::new();
     if packet.context == PacketContext::ResourceAdvrtisement {
         if let Ok(advertisement) = ResourceAdvertisement::unpack(packet_for_manager.data.as_slice())
         {
@@ -150,12 +163,7 @@ pub(super) async fn handle_link_resource_packet<'a>(
                         .map(RequestId::new);
                     if admitted {
                         if let Some(id) = pending_id {
-                            link.mark_pending_request_receiving(
-                                &id,
-                                advertisement.data_size,
-                                advertisement.transfer_size,
-                                advertisement.hash,
-                            );
+                            link.mark_pending_request_receiving(&id, &advertisement);
                         }
                     } else {
                         log::warn!(
@@ -165,10 +173,19 @@ pub(super) async fn handle_link_resource_packet<'a>(
                             advertisement.transfer_size
                         );
                         if let Some(id) = pending_id {
-                            link.fail_pending_request(&id, RequestError::Oversize);
+                            if let Some(receiving) =
+                                link.fail_pending_request(&id, RequestError::Oversize)
+                            {
+                                cancel_inbound_response(
+                                    &mut handler.resource_manager,
+                                    &link,
+                                    receiving,
+                                    &mut cancels,
+                                );
+                            }
                         }
                         rejected = true;
-                        reject = advertisement_reject(&link, iface, &advertisement.hash);
+                        cancels.extend(receiver_cancel(&link, Some(iface), &advertisement.hash));
                     }
                 }
             }
@@ -194,7 +211,11 @@ pub(super) async fn handle_link_resource_packet<'a>(
                                 limit
                             );
                             rejected = true;
-                            reject = advertisement_reject(&link, iface, &advertisement.hash);
+                            cancels.extend(receiver_cancel(
+                                &link,
+                                Some(iface),
+                                &advertisement.hash,
+                            ));
                         }
                     }
                 }
@@ -256,8 +277,18 @@ pub(super) async fn handle_link_resource_packet<'a>(
                     link.note_pending_response_progress(event.hash, progress);
                 }
                 // A receiver cancel for a request Resource surfaces here as
-                // `OutboundRejected`.
-                kind => link.note_request_resource_outcome(event.hash, kind),
+                // `OutboundRejected`, the failure of a response Resource as
+                // `InboundFailed`.
+                kind => {
+                    if let Some(receiving) = link.note_request_resource_outcome(event.hash, kind) {
+                        cancel_inbound_response(
+                            &mut handler.resource_manager,
+                            &link,
+                            receiving,
+                            &mut cancels,
+                        );
+                    }
+                }
             }
         }
     }
@@ -272,8 +303,8 @@ pub(super) async fn handle_link_resource_packet<'a>(
         );
     }
     drop(link);
-    if let Some(reject) = reject {
-        handler.send(reject).await;
+    for cancel in cancels {
+        handler.send(cancel).await;
     }
     for response in responses.drain(..) {
         handler
@@ -285,19 +316,39 @@ pub(super) async fn handle_link_resource_packet<'a>(
     true
 }
 
-fn advertisement_reject(link: &Link, iface: AddressHash, hash: &Hash) -> Option<TxMessage> {
-    let Ok(packet) = build_link_packet(
+/// A `RESOURCE_RCL` for `hash`: the receiver's "stop sending"
+/// (`RNS/Resource.py:1111-1116`).
+pub(super) fn receiver_cancel_packet(link: &Link, hash: &Hash) -> Option<Packet> {
+    build_link_packet(
         link,
         PacketType::Data,
         PacketContext::ResourceReceiverCancel,
         hash.as_slice(),
-    ) else {
-        return None;
-    };
-    Some(TxMessage {
-        tx_type: TxMessageType::Direct(link.ingress_iface().unwrap_or(iface)),
-        packet,
-    })
+    )
+    .ok()
+}
+
+/// `receiver_cancel_packet` addressed to the link's bound interface, or to
+/// `iface` while the link has none.
+fn receiver_cancel(link: &Link, iface: Option<AddressHash>, hash: &Hash) -> Option<TxMessage> {
+    let iface = link.ingress_iface().or(iface)?;
+    let packet = receiver_cancel_packet(link, hash)?;
+    Some(TxMessage { tx_type: TxMessageType::Direct(iface), packet })
+}
+
+/// A receipt failed while its response Resource was still inbound: the
+/// receiver is dropped and, on an active link, the peer is told to stop
+/// (`RNS/Link.py:1435`, `RNS/Resource.py:1111-1116`). The cancel is queued
+/// on `cancels` for the caller to send once the link guard is gone.
+fn cancel_inbound_response(
+    resources: &mut ResourceManager,
+    link: &Link,
+    segment_hash: Hash,
+    cancels: &mut Vec<TxMessage>,
+) {
+    if resources.cancel_incoming(segment_hash).is_some() && link.status() == LinkStatus::Active {
+        cancels.extend(receiver_cancel(link, None, &segment_hash));
+    }
 }
 
 async fn link_for_resource_packet(

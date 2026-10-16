@@ -25,7 +25,13 @@ struct LoopbackRequestPair {
 
 #[deny(clippy::await_holding_invalid_type)]
 async fn loopback_request_pair(aspect: &str) -> LoopbackRequestPair {
-    let handles = loopback_link_handles(aspect).await;
+    loopback_request_pair_with_mtu(aspect, TcpClient::DEFAULT_MTU).await
+}
+
+/// `loopback_request_pair` over interfaces of `mtu` bytes.
+#[deny(clippy::await_holding_invalid_type)]
+async fn loopback_request_pair_with_mtu(aspect: &str, mtu: usize) -> LoopbackRequestPair {
+    let handles = loopback_link_handles_with_mtu(aspect, mtu).await;
     let out_events = handles.connector.transport.out_link_events();
     let connector_tap = handles.connector.transport.iface_rx();
     LoopbackRequestPair { handles, out_events, connector_tap }

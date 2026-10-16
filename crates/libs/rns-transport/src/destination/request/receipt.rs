@@ -31,7 +31,11 @@ pub struct RequestOptions {
 
 impl RequestOptions {
     /// Fails the receipt with [`RequestError::Timeout`] once `timeout` has
-    /// passed without a response, instead of the link-RTT default.
+    /// passed without a response, instead of the link-RTT default. The
+    /// clock runs from the send for a request that fits one packet and from
+    /// `Delivered` for one sent as a Resource (`RNS/Link.py:1331-1334`,
+    /// `:1370-1373`), and stops while a response Resource is being received
+    /// (`:1389`).
     pub fn with_timeout(mut self, timeout: Duration) -> Self {
         self.timeout = Some(timeout);
         self
@@ -43,10 +47,12 @@ impl RequestOptions {
         self
     }
 
+    /// The timeout override, if one was set.
     pub fn timeout(&self) -> Option<Duration> {
         self.timeout
     }
 
+    /// The response size limit, if one was set.
     pub fn max_response_size(&self) -> Option<usize> {
         self.max_response_size
     }
@@ -87,7 +93,8 @@ impl RequestStatus {
 #[non_exhaustive]
 #[derive(Debug, Clone, Copy, PartialEq, Eq, thiserror::Error)]
 pub enum RequestError {
-    /// No response within the request timeout.
+    /// No response within the request timeout: counted from the send for a
+    /// request packet, from `Delivered` for a request Resource.
     #[error("no response before the request timeout")]
     Timeout,
     /// The link closed while the request was pending.
@@ -106,6 +113,13 @@ pub enum RequestError {
     /// The request Resource could not be sent.
     #[error("the request could not be sent")]
     Send,
+    /// The response Resource failed in transfer before it completed: a part
+    /// failure, receiver retry exhaustion or a remote cancel. Python
+    /// (`RNS/Link.py:1435`) cancels the Resource when the receipt has
+    /// failed; this is the other direction, which Python surfaces only
+    /// through the Resource's own failure callback.
+    #[error("the response resource failed before it completed")]
+    Receive,
 }
 
 /// A decoded response.
@@ -160,8 +174,11 @@ impl RequestResponseData {
 
 /// A response as it reaches the link, before it is decoded.
 pub(crate) enum ResponseArrival<'a> {
-    /// The decrypted `[request_id, body]` envelope of a `RESPONSE` packet.
-    Packet(&'a [u8]),
+    /// The decrypted `[request_id, body]` envelope of a `RESPONSE` packet
+    /// and the packed length of its body, which the receipt reports as both
+    /// response sizes. Python's figure (`RNS/Link.py:1016`) is this length
+    /// less two.
+    Packet { envelope: &'a [u8], response_size: usize },
     /// An assembled response Resource: the whole envelope when `metadata`
     /// is `None`, raw file bytes beside packed metadata otherwise
     /// (`RNS/Link.py:896-912`).
@@ -171,11 +188,14 @@ pub(crate) enum ResponseArrival<'a> {
 impl ResponseArrival<'_> {
     pub(super) fn decode(self) -> Result<RequestResponseData, RequestError> {
         let body = match self {
-            Self::Packet(envelope) | Self::Resource { data: envelope, metadata: None } => {
+            Self::Packet { envelope, .. } | Self::Resource { data: envelope, metadata: None } => {
                 let frame = ResponseFrame::decode(envelope).map_err(|_| RequestError::Decode)?;
                 ResponseBody::Value(frame.into_body())
             }
             Self::Resource { data, metadata: Some(packed) } => {
+                // The same allocation-free walk the frames get (module doc of
+                // `request`), so metadata is held to the nesting rule too.
+                super::frame::validate(packed).map_err(|_| RequestError::Decode)?;
                 let mut cursor = Cursor::new(packed);
                 let metadata =
                     rmpv::decode::read_value(&mut cursor).map_err(|_| RequestError::Decode)?;
@@ -190,7 +210,7 @@ impl ResponseArrival<'_> {
 }
 
 /// The requester's handle on one request: `RNS.RequestReceipt`
-/// (`RNS/Link.py:1330-1452`) without callbacks. Every clone observes the
+/// (`RNS/Link.py:1311-1500`) without callbacks. Every clone observes the
 /// same request; [`response`](Self::response) resolves on any of them once
 /// the request is `Ready` or `Failed`.
 #[derive(Clone)]
@@ -204,35 +224,51 @@ impl RequestReceipt {
         Self { status_rx, state }
     }
 
+    /// The id the responder knows this request by.
     pub fn request_id(&self) -> RequestId {
         self.state.request_id
     }
 
+    /// Where the request stands now. A receipt whose link went away without
+    /// concluding it reads `Failed` once [`response`](Self::response) has
+    /// noticed.
     pub fn status(&self) -> RequestStatus {
-        *self.status_rx.borrow()
+        match self.state.outcome() {
+            Some(Ok(_)) => RequestStatus::Ready,
+            Some(Err(_)) => RequestStatus::Failed,
+            None => *self.status_rx.borrow(),
+        }
     }
 
     /// Share of the response received so far, `0.0` to `1.0`
-    /// (`RequestReceipt.progress`, `RNS/Link.py:1429`, `:1439`). A packet
-    /// response jumps straight to `1.0`.
+    /// (`RequestReceipt.progress`, `RNS/Link.py:1429`, `:1439`), counted
+    /// across every segment of a split response. A packet response jumps
+    /// straight to `1.0`.
     pub fn progress(&self) -> f32 {
         self.state.bookkeeping().progress
     }
 
-    /// The advertised data size of a response Resource; `None` until the
-    /// advertisement arrives and for a packet response.
+    /// The response size: `d` of the first advertisement of a response
+    /// Resource, the packed body length of a response packet
+    /// (`RNS/Link.py:1057-1058`, `:1016`). `None` until a response arrives.
     pub fn response_size(&self) -> Option<usize> {
         self.state.bookkeeping().response_size
     }
 
-    /// The advertised transfer size of a response Resource, after
-    /// compression; `None` as for [`response_size`](Self::response_size).
+    /// The bytes on the wire: `t` summed over the segments of a response
+    /// Resource, the same figure as [`response_size`](Self::response_size)
+    /// for a packet (`RNS/Link.py:1059-1061`, `:1016`). `None` until a
+    /// response arrives.
     pub fn response_transfer_size(&self) -> Option<usize> {
         self.state.bookkeeping().response_transfer_size
     }
 
-    pub fn started_at(&self) -> Instant {
-        self.state.started_at
+    /// When the response clock started (`RequestReceipt.started_at`): the
+    /// send for a request packet (`RNS/Link.py:1331-1334`); for a request
+    /// Resource `None` until it completes or a response is advertised,
+    /// whichever comes first (`:1370-1371`, `:1062-1063`).
+    pub fn started_at(&self) -> Option<Instant> {
+        self.state.bookkeeping().started_at
     }
 
     /// When the request reached `Ready` or `Failed`.
@@ -240,16 +276,22 @@ impl RequestReceipt {
         self.state.bookkeeping().concluded_at
     }
 
-    /// A receiver that reports every status change from now on. A `watch`
-    /// keeps only the latest value, so quick successive changes may be seen
-    /// as one.
+    /// A receiver that reports every status change from now on; the status
+    /// current at the call is read with `borrow_and_update`, not reported
+    /// as a change. A `watch` keeps only the latest value, so quick
+    /// successive changes may be seen as one.
     pub fn subscribe(&self) -> watch::Receiver<RequestStatus> {
-        self.status_rx.clone()
+        let mut status_rx = self.status_rx.clone();
+        status_rx.mark_unchanged();
+        status_rx
     }
 
     /// Waits until the request is `Ready` or `Failed` and returns the
     /// response or the failure. A link that disappears without concluding
-    /// the request reads as [`RequestError::LinkClosed`].
+    /// the request concludes it here as [`RequestError::LinkClosed`], so
+    /// [`status`](Self::status) and [`concluded_at`](Self::concluded_at)
+    /// agree with what this returned.
+    #[deny(clippy::await_holding_invalid_type)]
     pub async fn response(&self) -> Result<RequestResponseData, RequestError> {
         let mut status_rx = self.status_rx.clone();
         loop {
@@ -258,7 +300,7 @@ impl RequestReceipt {
                 break;
             }
         }
-        self.state.outcome.get().cloned().unwrap_or(Err(RequestError::LinkClosed))
+        self.state.conclude(Err(RequestError::LinkClosed)).clone()
     }
 
     #[cfg(test)]

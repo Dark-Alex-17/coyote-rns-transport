@@ -1,4 +1,5 @@
 use super::*;
+use crate::destination::request::RequestError;
 
 const STOP_BUDGET: Duration = Duration::from_secs(5);
 
@@ -8,7 +9,10 @@ impl Transport {
     /// Interface workers go first because they may be blocked handing a packet
     /// to the management task, which has to stay alive to receive it. The whole
     /// call shares a 5 s budget; whatever is still running when it runs out is
-    /// aborted and logged. Calling it again is a no-op.
+    /// aborted and logged. Once nothing runs any more, every pending request
+    /// on every link fails `LinkClosed`, so a receipt the caller still holds
+    /// concludes instead of waiting for a watchdog that no longer ticks.
+    /// Calling it again is a no-op.
     #[deny(clippy::await_holding_invalid_type)]
     pub async fn stop(&self) {
         let deadline = Instant::now() + STOP_BUDGET;
@@ -62,5 +66,28 @@ impl Transport {
                 }
             }
         }
+        self.fail_pending_requests_on_stop().await;
+    }
+
+    /// Fails every pending request `LinkClosed` and drops the response
+    /// Resources they were receiving. No receiver cancel can leave: the
+    /// interfaces are detached by now. The handler and each link are locked
+    /// one after the other, never together.
+    #[deny(clippy::await_holding_invalid_type)]
+    async fn fail_pending_requests_on_stop(&self) {
+        let links: Vec<Arc<Mutex<Link>>> = {
+            let handler = self.handler.lock().await;
+            handler.in_links.values().chain(handler.out_links.values()).cloned().collect()
+        };
+        let mut receiving = Vec::new();
+        for link in links {
+            receiving.extend(link.lock().await.fail_all_pending_requests(RequestError::LinkClosed));
+        }
+        let mut handler = self.handler.lock().await;
+        for segment_hash in receiving {
+            handler.resource_manager.cancel_incoming(segment_hash);
+        }
+        let events = handler.resource_manager.drain_events();
+        super::resource_wire::publish_resource_events(&handler, events);
     }
 }

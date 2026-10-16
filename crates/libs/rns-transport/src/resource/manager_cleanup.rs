@@ -79,4 +79,25 @@ impl ResourceManager {
         }
         self.link_stats.remove(&link_id);
     }
+
+    /// Drops the inbound transfer whose in-flight segment is `segment_hash`
+    /// and reports it `InboundFailed("cancelled")` under its original hash,
+    /// as a remote cancel would. Returns that original hash, `None` when no
+    /// such transfer is in progress. Sending the receiver cancel is the
+    /// transport's job (`RNS/Resource.py:1111-1116`).
+    pub fn cancel_incoming(&mut self, segment_hash: Hash) -> Option<Hash> {
+        let receiver = self.incoming.remove(&segment_hash)?;
+        let original_hash = receiver.original_hash;
+        if !self.fail_inbound_segments(original_hash, "cancelled") {
+            self.events.push(ResourceEvent {
+                hash: original_hash,
+                link_id: receiver.link_id,
+                kind: ResourceEventKind::InboundFailed(ResourceFailure {
+                    reason: "cancelled".to_string(),
+                    progress: receiver.progress(),
+                }),
+            });
+        }
+        Some(original_hash)
+    }
 }

@@ -43,6 +43,8 @@ mod inbound;
 mod receipt;
 mod receipt_pending;
 #[cfg(test)]
+mod receipt_tests;
+#[cfg(test)]
 mod tests;
 
 pub use allow::RequestAllow;

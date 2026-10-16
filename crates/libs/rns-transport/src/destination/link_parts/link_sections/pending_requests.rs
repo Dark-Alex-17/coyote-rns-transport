@@ -1,27 +1,35 @@
 // The requester's pending-request table, `Link.pending_requests` in
 // `RNS/Link.py`. Every method is synchronous and runs under the link lock;
 // the packet and resource paths that receive a response call in from there,
-// and the watchdog expires timeouts from `check_watchdog`.
+// and the watchdog expires timeouts from `check_watchdog`. A method that
+// fails an entry hands back the segment hash of the response Resource it was
+// receiving, if any: the entry cannot reach the ResourceManager, so the
+// caller cancels that transfer (`RNS/Link.py:1435`).
 
 impl Link {
-    /// Registers a request just sent and returns the requester's handle.
+    /// Registers a request just sent and returns the requester's handle. An
+    /// entry already pending under the same id is failed with
+    /// `RequestError::Send`, and the second value is the response Resource
+    /// it was receiving, for the caller to cancel.
     #[deny(clippy::await_holding_invalid_type)]
     pub(crate) fn insert_pending_request(
         &mut self,
         id: RequestId,
         pending: PendingRequest,
-    ) -> RequestReceipt {
+    ) -> (RequestReceipt, Option<Hash>) {
         let receipt = pending.receipt();
-        if self.pending_requests.insert(id, pending).is_some() {
-            log::debug!("link({}): request {} replaced a pending entry with the same id", self.id, id);
-        }
-        receipt
+        let displaced = self.pending_requests.insert(id, pending).and_then(|displaced| {
+            log::debug!("link({}): request {} displaced a pending entry with the same id", self.id, id);
+            displaced.fail(RequestError::Send)
+        });
+        (receipt, displaced)
     }
 
     /// Forgets a request whose send failed; its receipt reads `LinkClosed`.
     #[deny(clippy::await_holding_invalid_type)]
     pub(crate) fn remove_pending_request(&mut self, id: &RequestId) {
         self.pending_requests.remove(id);
+        self.pending_response_limits.remove(id.as_bytes().as_slice());
     }
 
     /// A response for `id` arrived (`RNS/Link.py:857-884`): the receipt
@@ -37,89 +45,111 @@ impl Link {
         pending.resolve(arrival);
     }
 
+    /// Fails the request `id` and drops its response size limit. Returns
+    /// the response Resource it was receiving, for the caller to cancel.
     #[deny(clippy::await_holding_invalid_type)]
-    pub(crate) fn fail_pending_request(&mut self, id: &RequestId, error: RequestError) {
-        if let Some(pending) = self.pending_requests.remove(id) {
-            log::debug!("link({}): request {} failed: {error}", self.id, id);
-            pending.fail(error);
-        }
+    pub(crate) fn fail_pending_request(&mut self, id: &RequestId, error: RequestError) -> Option<Hash> {
+        let pending = self.pending_requests.remove(id)?;
+        self.pending_response_limits.remove(id.as_bytes().as_slice());
+        log::debug!("link({}): request {} failed: {error}", self.id, id);
+        pending.fail(error)
     }
 
-    /// Fails every pending request; the link is closed or starting over.
+    /// Fails every pending request and drops their response size limits;
+    /// the link is closed or starting over. Returns the response Resources
+    /// they were receiving, for the caller to cancel.
     #[deny(clippy::await_holding_invalid_type)]
-    pub(crate) fn fail_all_pending_requests(&mut self, error: RequestError) {
+    pub(crate) fn fail_all_pending_requests(&mut self, error: RequestError) -> Vec<Hash> {
+        let mut receiving = Vec::new();
         for (id, pending) in self.pending_requests.drain() {
+            self.pending_response_limits.remove(id.as_bytes().as_slice());
             log::debug!("link({}): request {} failed: {error}", self.id, id);
-            pending.fail(error);
+            receiving.extend(pending.fail(error));
         }
+        receiving
     }
 
-    /// The response to `id` was advertised as a Resource of `response_size`
-    /// data bytes and `response_transfer_size` bytes on the wire
-    /// (`RNS/Link.py:870-873`, `:1420`).
+    /// A segment of the response to `id` was advertised and admitted
+    /// (`RNS/Link.py:1057-1064`, `:1420`).
     #[deny(clippy::await_holding_invalid_type)]
     pub(crate) fn mark_pending_request_receiving(
         &mut self,
         id: &RequestId,
-        response_size: u64,
-        response_transfer_size: u64,
-        response_hash: Hash,
+        advertisement: &ResourceAdvertisement,
     ) {
         if let Some(pending) = self.pending_requests.get_mut(id) {
-            pending.mark_receiving(response_size, response_transfer_size, response_hash);
+            pending.mark_receiving(advertisement);
         }
     }
 
-    /// Progress on the response Resource `hash` (`RNS/Link.py:1429`).
+    /// Progress on the response Resource segment `hash` (`RNS/Link.py:1429`).
     #[deny(clippy::await_holding_invalid_type)]
     pub(crate) fn note_pending_response_progress(&self, hash: Hash, progress: &ResourceProgress) {
         if let Some(pending) =
-            self.pending_requests.values().find(|pending| pending.response_resource_hash() == Some(hash))
+            self.pending_requests.values().find(|pending| pending.response_segment_hash() == Some(hash))
         {
             pending.note_progress(progress);
         }
     }
 
-    /// The request Resource `hash` reached a sender-side outcome
-    /// (`RNS/Link.py:1367-1385`): complete is `Delivered`, a rejection or a
-    /// failure fails the receipt. Other event kinds are not outcomes.
+    /// A Resource of this link reached an outcome that concerns a pending
+    /// request. For the request Resource `hash` (`RNS/Link.py:1367-1385`):
+    /// complete is `Delivered`, a rejection or a failure fails the receipt.
+    /// For the response Resource `hash`, an inbound failure fails the
+    /// receipt `Receive`; nothing else expires a receipt that is
+    /// `Receiving`. Other event kinds are not outcomes. Returns the response
+    /// Resource a failed receipt was receiving, for the caller to cancel.
     #[deny(clippy::await_holding_invalid_type)]
-    pub(crate) fn note_request_resource_outcome(&mut self, hash: Hash, kind: &ResourceEventKind) {
+    pub(crate) fn note_request_resource_outcome(
+        &mut self,
+        hash: Hash,
+        kind: &ResourceEventKind,
+    ) -> Option<Hash> {
+        if let ResourceEventKind::InboundFailed(_) = kind {
+            let id = self
+                .pending_requests
+                .iter()
+                .find(|(_, pending)| pending.response_original_hash() == Some(hash))
+                .map(|(id, _)| *id)?;
+            return self.fail_pending_request(&id, RequestError::Receive);
+        }
         let outcome = match kind {
             ResourceEventKind::OutboundComplete => Ok(()),
             ResourceEventKind::OutboundRejected => Err(RequestError::Rejected),
             ResourceEventKind::OutboundFailed => Err(RequestError::Send),
-            _ => return,
+            _ => return None,
         };
-        let Some(id) = self
+        let id = self
             .pending_requests
             .iter()
             .find(|(_, pending)| pending.request_resource_hash() == Some(hash))
-            .map(|(id, _)| *id)
-        else {
-            return;
-        };
+            .map(|(id, _)| *id)?;
         match outcome {
             Ok(()) => {
                 log::debug!("link({}): request {} delivered as a resource", self.id, id);
                 if let Some(pending) = self.pending_requests.get(&id) {
                     pending.mark_delivered();
                 }
+                None
             }
             Err(error) => self.fail_pending_request(&id, error),
         }
     }
 
-    /// Fails every request whose deadline has passed with
-    /// `Failed(Timeout)`, whatever its status. Python fails only a receipt
-    /// that reached `DELIVERED` (`RNS/Link.py:1398`, `:1408`), which leaves
-    /// a packet-form request that was never answered pending forever.
+    /// Fails every request whose clock has run out with `Failed(Timeout)`.
+    /// The clock runs from the send for a request packet and from
+    /// `Delivered` for a request Resource (`RNS/Link.py:1331-1334`,
+    /// `:1370-1373`), and not at all while a response Resource is being
+    /// received (`:1389`): that transfer's own failure fails the receipt.
+    /// Python (`:1398`, `:1408`) also leaves a receipt that never reached
+    /// `DELIVERED` pending forever; here an unanswered request packet times
+    /// out as well.
     #[deny(clippy::await_holding_invalid_type)]
     pub(crate) fn expire_pending_requests(&mut self, now: Instant) {
         let expired: Vec<RequestId> = self
             .pending_requests
             .iter()
-            .filter(|(_, pending)| pending.deadline() <= now)
+            .filter(|(_, pending)| pending.deadline().is_some_and(|deadline| deadline <= now))
             .map(|(id, _)| *id)
             .collect();
         for id in expired {
@@ -127,8 +157,10 @@ impl Link {
         }
     }
 
+    /// The first request timeout due, over the entries whose clock is
+    /// running; see `expire_pending_requests`.
     #[deny(clippy::await_holding_invalid_type)]
     pub(crate) fn earliest_pending_request_deadline(&self) -> Option<Instant> {
-        self.pending_requests.values().map(PendingRequest::deadline).min()
+        self.pending_requests.values().filter_map(PendingRequest::deadline).min()
     }
 }

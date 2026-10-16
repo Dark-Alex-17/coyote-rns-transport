@@ -2,6 +2,7 @@ impl Link {
 
     /// The earlier of the keepalive/stale deadline and the first pending
     /// request timeout, so the link check wakes for either.
+    #[deny(clippy::await_holding_invalid_type)]
     pub fn next_watchdog_deadline(&self, initiator: bool) -> Option<Instant> {
         let request_deadline = match self.status {
             LinkStatus::Active | LinkStatus::Stale => self.earliest_pending_request_deadline(),
@@ -10,6 +11,7 @@ impl Link {
         [self.keepalive_deadline(initiator), request_deadline].into_iter().flatten().min()
     }
 
+    #[deny(clippy::await_holding_invalid_type)]
     fn keepalive_deadline(&self, initiator: bool) -> Option<Instant> {
         match self.status {
             LinkStatus::Active => {
@@ -136,7 +138,10 @@ impl Link {
         for pending in self.channel_pending.drain().map(|(_, pending)| pending) {
             self.channel_states.insert(pending.sequence, ChannelMessageState::Failed);
         }
+        // A closed link sends no receiver cancel (`RNS/Resource.py:1111`),
+        // and the transport drops the link's receivers with its state.
         self.fail_all_pending_requests(RequestError::LinkClosed);
+        self.pending_response_limits.clear();
         self.channel_rx_ring.clear();
         self.channel_open = false;
         self.status = LinkStatus::Closed;
@@ -208,6 +213,7 @@ impl Link {
             self.channel_states.insert(pending.sequence, ChannelMessageState::Failed);
         }
         self.fail_all_pending_requests(RequestError::LinkClosed);
+        self.pending_response_limits.clear();
         self.channel_rx_ring.clear();
         self.status = LinkStatus::Pending;
         self.close_reason = None;

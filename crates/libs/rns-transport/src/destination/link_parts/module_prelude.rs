@@ -31,7 +31,7 @@ use crate::{
     packet::{
         DestinationType, Header, Packet, PacketContext, PacketDataBuffer, PacketType, PACKET_MDU,
     },
-    resource::{ResourceEventKind, ResourceProgress},
+    resource::{ResourceAdvertisement, ResourceEventKind, ResourceProgress},
 };
 
 use super::DestinationDesc;

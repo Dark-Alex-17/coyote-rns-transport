@@ -138,3 +138,5 @@ include!("tests_parts/two_transport_loopback_requests_resource_form_sizes_probe2
 include!("tests_parts/two_transport_loopback_requests_resource_form_sizes_cancel_probe.rs");
 
 include!("tests_parts/two_transport_loopback_requests_resource_form_sizes_probe3.rs");
+
+include!("tests_parts/two_transport_loopback_requests_resource_form_sizes_probe4.rs");

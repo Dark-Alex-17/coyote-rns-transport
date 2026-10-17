@@ -62,38 +62,6 @@ async fn sizes_probe5_capture_response_advertisement(
     .expect("the response advertisement reaches the connector")
 }
 
-/// No response Resource under the raw id `request_id` is assembled on `link_id` within
-/// `SIZES_SILENCE`, and no inbound Resource fails there.
-#[deny(clippy::await_holding_invalid_type)]
-async fn sizes_probe5_assert_no_response_under(
-    events: &mut broadcast::Receiver<ResourceEvent>,
-    link_id: AddressHash,
-    request_id: &[u8],
-) {
-    let deadline = Instant::now() + SIZES_SILENCE;
-    loop {
-        let remaining = deadline.saturating_duration_since(Instant::now());
-        if remaining.is_zero() {
-            return;
-        }
-        match timeout(remaining, events.recv()).await {
-            Ok(Ok(event)) if event.link_id == link_id => match &event.kind {
-                ResourceEventKind::Complete(complete) => assert!(
-                    complete.request_id.as_deref() != Some(request_id),
-                    "a response the record no longer solicits was assembled"
-                ),
-                ResourceEventKind::InboundFailed(failure) => {
-                    panic!("an inbound Resource failed on the link: {failure:?}")
-                }
-                _ => {}
-            },
-            Ok(Ok(_)) => {}
-            Ok(Err(RecvError::Lagged(_))) => continue,
-            Ok(Err(RecvError::Closed)) | Err(_) => return,
-        }
-    }
-}
-
 /// Solicits a response under `request_id` from the connector and waits for the request
 /// Resource to be delivered, from when the record's clock runs.
 #[deny(clippy::await_holding_invalid_type)]
@@ -157,7 +125,7 @@ async fn sizes_probe5_assert_second_response_is_dropped(
         )
         .await
         .expect("second response resource dispatched");
-    sizes_probe5_assert_no_response_under(events, handles.link_id, request_id).await;
+    sizes_assert_no_response_activity_under(events, handles.link_id, &[request_id]).await;
     assert_eq!(
         count_link_packets(
             &mut listener_tap,
@@ -453,5 +421,5 @@ async fn two_transport_loopback_request_resource_form_sizes_probe5_legacy_id_lim
         "one byte over the limit is refused at the advertisement, got {:?}",
         outcome.kind
     );
-    sizes_probe5_assert_no_response_under(&mut events, link_id, &over_limit_id).await;
+    sizes_assert_no_response_activity_under(&mut events, link_id, &[&over_limit_id]).await;
 }

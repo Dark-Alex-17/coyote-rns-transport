@@ -47,7 +47,7 @@ async fn sizes_probe6_assert_response_is_refused(
         "a response over the kept limit is refused at its advertisement, got {:?}",
         outcome.kind
     );
-    sizes_probe5_assert_no_response_under(events, handles.link_id, request_id).await;
+    sizes_assert_no_response_activity_under(events, handles.link_id, &[request_id]).await;
 }
 
 /// Sends a small request Resource under `request_id` with no limit of its own and waits for
@@ -323,7 +323,7 @@ async fn two_transport_loopback_request_resource_form_sizes_probe6_lying_adverti
         matches!(served, ResourceEventKind::OutboundComplete),
         "the lying advertisement is admitted on its claim and the parts are served, got {served:?}"
     );
-    sizes_probe5_assert_no_response_under(&mut events, link_id, &legacy_id).await;
+    sizes_assert_no_response_activity_under(&mut events, link_id, &[&legacy_id]).await;
     sizes_probe5_assert_second_response_is_dropped(&pair.handles, &mut events, &legacy_id).await;
     sizes_assert_link_still_answers(&pair).await;
 }

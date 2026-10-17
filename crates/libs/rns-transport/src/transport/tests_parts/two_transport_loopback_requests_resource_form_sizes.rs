@@ -6,9 +6,10 @@
 // `:1429`); `max_response_size` is measured against `d` at every segment advertisement
 // (`RNS/Link.py:1046-1049`, `RNS/Resource.py:1285-1287`), so a compressible response
 // over the limit is refused however small its transfer, and the limit is not spent by an
-// advertisement the ResourceManager drops; a response advertisement nobody solicited falls
-// through Python's pending-request loop (`RNS/Link.py:1046-1047`) and is dropped here
-// without a reject. Helpers come from the sibling `tests_parts` files.
+// advertisement the ResourceManager drops (`two_transport_loopback_requests_receipt_probe3.rs`);
+// a response advertisement nobody solicited falls through Python's pending-request loop
+// (`RNS/Link.py:1046-1047`) and is dropped here without a reject. Helpers come from the
+// sibling `tests_parts` files.
 
 /// Under `d` of an `over_mdu_zeros` envelope (a little over the link MDU, a quarter MiB
 /// over the default loopback interface), far over its bz2 `t` of a few hundred bytes.
@@ -75,13 +76,24 @@ async fn sizes_sample_progress(
     samples
 }
 
-/// Nothing the connector would do with a response under `id` happens for `SIZES_SILENCE`:
-/// no `Complete`, no `InboundFailed` on the link.
+/// [`sizes_assert_no_response_activity_under`] for one 16-byte id.
 #[deny(clippy::await_holding_invalid_type)]
 async fn sizes_assert_no_response_activity(
     events: &mut broadcast::Receiver<ResourceEvent>,
     link_id: AddressHash,
     id: RequestId,
+) {
+    sizes_assert_no_response_activity_under(events, link_id, &[id.as_bytes().as_slice()]).await;
+}
+
+/// Nothing the connector would do with a response under any of the raw `ids` happens for
+/// `SIZES_SILENCE`: no `Complete` naming one of them, no `InboundFailed` on the link. One
+/// window covers every id, since each event is read off `events` once.
+#[deny(clippy::await_holding_invalid_type)]
+async fn sizes_assert_no_response_activity_under(
+    events: &mut broadcast::Receiver<ResourceEvent>,
+    link_id: AddressHash,
+    ids: &[&[u8]],
 ) {
     let deadline = Instant::now() + SIZES_SILENCE;
     loop {
@@ -92,8 +104,9 @@ async fn sizes_assert_no_response_activity(
         match timeout(remaining, events.recv()).await {
             Ok(Ok(event)) if event.link_id == link_id => match &event.kind {
                 ResourceEventKind::Complete(complete) => assert!(
-                    complete.request_id.as_deref() != Some(id.as_bytes().as_slice()),
-                    "the unsolicited response was assembled"
+                    complete.request_id.as_deref().is_none_or(|id| !ids.contains(&id)),
+                    "a response the link no longer solicits was assembled under {:?}",
+                    complete.request_id.as_deref().map(hex::encode)
                 ),
                 ResourceEventKind::InboundFailed(failure) => {
                     panic!("an inbound Resource failed on the link: {failure:?}")
@@ -102,7 +115,8 @@ async fn sizes_assert_no_response_activity(
             },
             Ok(Ok(_)) => {}
             Ok(Err(RecvError::Lagged(_))) => continue,
-            Ok(Err(RecvError::Closed)) | Err(_) => return,
+            Ok(Err(RecvError::Closed)) => panic!("resource event channel closed"),
+            Err(_) => return,
         }
     }
 }

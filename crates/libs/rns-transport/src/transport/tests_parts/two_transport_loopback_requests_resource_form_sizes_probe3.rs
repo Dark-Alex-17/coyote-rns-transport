@@ -84,7 +84,10 @@ async fn two_transport_loopback_request_resource_form_sizes_probe3_concurrent_re
         sizes_probe3_over_mdu_body_plus(&pair, 2_048).await,
     ];
     let limits: Vec<usize> = bodies.iter().map(|body| sizes_envelope_len(body)).collect();
-    assert!(limits.windows(2).all(|pair| pair[0] < pair[1]), "distinct d per response: {limits:?}");
+    assert!(
+        limits.windows(2).all(|window| window[0] < window[1]),
+        "distinct d per response: {limits:?}"
+    );
 
     let mut receipts = Vec::with_capacity(bodies.len());
     for (body, limit) in bodies.iter().zip(&limits) {

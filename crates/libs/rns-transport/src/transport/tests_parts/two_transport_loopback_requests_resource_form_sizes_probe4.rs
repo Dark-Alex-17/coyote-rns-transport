@@ -45,7 +45,9 @@ async fn sizes_probe4_default_request_timeout(pair: &LoopbackRequestPair) -> Dur
 /// `send_request_resource` request answered past it find their records pruned and their
 /// response Resources dropped without a reject; the link still answers afterwards. The
 /// packet's clock runs from its send, the Resource's from its `OutboundComplete`, so the
-/// wait is anchored at the later of the two and covers both.
+/// wait is anchored at the later of the two and covers both. The two late responses are
+/// released together and watched in one silence window: an event read off the receiver
+/// in a window for one id is gone for the next, so two windows would let one id through.
 #[tokio::test]
 #[deny(clippy::await_holding_invalid_type)]
 async fn two_transport_loopback_request_resource_form_sizes_probe4_receipt_less_record_expires_on_the_default_request_timeout(
@@ -105,8 +107,12 @@ async fn two_transport_loopback_request_resource_form_sizes_probe4_receipt_less_
     late_gate.notify_one();
     legacy_gate.notify_one();
 
-    sizes_assert_no_response_activity(&mut events, link_id, late).await;
-    sizes_assert_no_response_activity(&mut events, link_id, legacy).await;
+    sizes_assert_no_response_activity_under(
+        &mut events,
+        link_id,
+        &[late.as_bytes().as_slice(), legacy.as_bytes().as_slice()],
+    )
+    .await;
     assert_eq!(
         count_link_packets(&mut listener_tap, link_id, PacketContext::ResourceReceiverCancel),
         0,

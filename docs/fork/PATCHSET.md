@@ -33,7 +33,7 @@ commits `1ddd5273`, `a2a40de7`, `3805fe7f`, `3ed78582`, `415d67c8`,
 `40409738`, `2f2c11c7`, `140a4fd2`, `3035e470`, `8a8c7a4e`, `6a0fc9cb`,
 `bbd34e72`, `114dbe1c`, `6f8cba34`, `1ef4cddd`, `f732e7d4`, `abd9187d`,
 `938d2852`, `6b5e9a4e`, `9521e2c0`, `b8ec835a`, `8b7557bd`, `f2ff9922`,
-`60cb3755` and `e28c5a03`.
+`60cb3755`, `e28c5a03` and `1da7243b`.
 
 | File | Patch |
 | --- | --- |
@@ -904,6 +904,11 @@ packet-form request whose Resource response is over `max_response_size`
 failing `Oversize` while the responder sees `OutboundRejected`. The crate
 `CHANGELOG.md` names it in the receipts and the `max_response_size` gate
 pin clauses.
+
+Fork commit `1da7243b`: formatting only, `rustfmt` run over
+`two_transport_loopback_requests_resource_form_sizes.rs`, which is
+`include!`d into `transport/tests.rs` and so is never seen by `cargo fmt`;
+six lines ran past the 100-column width.
 
 ## 0.14.1 (upstream 0.14.0)
 

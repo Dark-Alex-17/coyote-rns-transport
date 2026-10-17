@@ -252,6 +252,7 @@ trailing clause of the bullet for the behaviour it pins.
   `two_transport_loopback_requests_receipt_probe2.rs`,
   `two_transport_loopback_requests_receipt_probe4.rs`,
   `two_transport_loopback_requests_resource_form_sizes_cancel.rs`,
+  `two_transport_loopback_requests_resource_form_sizes_cancel_probe.rs`,
   `destination/request/receipt_tests.rs`,
   `destination/link_parts/link_sections/pending_requests_tests.rs`,
   `resource/tests_timeouts_lifecycle.rs`, and the `*_with_mtu` fixture

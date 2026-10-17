@@ -93,12 +93,52 @@ mod pending_requests_tests {
         assert_eq!(link.response_size_allowed(b"fresh", usize::MAX), Some(true), "sent, no limit");
 
         let envelope = ResponseFrame::new(id(1), rmpv::Value::from(7)).encode();
-        link.resolve_pending_request(
+        let receiving = link.resolve_pending_request(
             id(1),
             ResponseArrival::Resource { data: &envelope, metadata: None },
         );
+        assert!(receiving.is_none(), "a response within its limit resolves");
         assert_eq!(bounded.status(), RequestStatus::Ready);
         assert_eq!(link.response_size_allowed(q, 1), None, "the limit went with the entry");
+    }
+
+    /// The advertised `d` the gate read is the peer's claim; an uncompressed response
+    /// Resource carries up to `t` bytes, so the assembled data is measured against the
+    /// limit once more and fails the receipt `Oversize` when over it, handing back the
+    /// segment it was receiving. Python trusts the advertisement (`RNS/Link.py:1049`).
+    /// The bound is inclusive, as at the advertisement.
+    #[tokio::test]
+    #[deny(clippy::await_holding_invalid_type)]
+    async fn an_assembled_response_over_its_limit_fails_the_receipt_oversize() {
+        let (mut link, _, _, _) = linked_pair();
+        let lied_to = pending_packet_request(&mut link, id(1), TIMEOUT);
+        link.mark_pending_request_receiving(&id(1), &response_segment(hash(1), hash(1)));
+        assert_eq!(link.response_size_allowed(id(1).as_bytes(), 10), Some(true), "d claims 10");
+
+        let envelope = ResponseFrame::new(id(1), rmpv::Value::Binary(vec![0u8; 2000])).encode();
+        let receiving = link.resolve_pending_request(
+            id(1),
+            ResponseArrival::Resource { data: &envelope, metadata: None },
+        );
+        assert_eq!(receiving, Some(hashes(1, 1)), "the segment in flight and the whole");
+        assert_eq!(lied_to.status(), RequestStatus::Failed);
+        assert_eq!(lied_to.response().await, Err(RequestError::Oversize));
+        assert!(link.pending_requests.is_empty());
+        assert_eq!(link.response_size_allowed(id(1).as_bytes(), 1), None, "the limit went with it");
+
+        let at_the_bound = pending_packet_request(&mut link, id(2), TIMEOUT);
+        let probe = ResponseFrame::new(id(2), rmpv::Value::Binary(vec![0u8; 1000])).encode();
+        let overhead = probe.len() - 1000;
+        let envelope =
+            ResponseFrame::new(id(2), rmpv::Value::Binary(vec![0u8; 1024 - overhead])).encode();
+        assert_eq!(envelope.len(), 1024, "the envelope is exactly the limit");
+        let receiving = link.resolve_pending_request(
+            id(2),
+            ResponseArrival::Resource { data: &envelope, metadata: None },
+        );
+        assert!(receiving.is_none());
+        assert_eq!(at_the_bound.status(), RequestStatus::Ready, "the bound is inclusive");
+        assert_eq!(link.response_size_allowed(id(2).as_bytes(), 1), None);
     }
 
     #[test]
@@ -280,12 +320,16 @@ mod pending_requests_tests {
         let receipt = pending_packet_request(&mut link, id(1), TIMEOUT);
         assert_eq!(link.response_size_allowed(id(1).as_bytes(), 1), Some(true));
 
-        link.resolve_pending_request(id(1), ResponseArrival::Resource { data: &[0xc0], metadata: None });
+        let receiving = link
+            .resolve_pending_request(id(1), ResponseArrival::Resource { data: &[0xc0], metadata: None });
+        assert!(receiving.is_none());
         assert_eq!(receipt.status(), RequestStatus::Failed);
         assert_eq!(receipt.response().await, Err(RequestError::Decode));
         assert!(link.pending_requests.is_empty());
         assert_eq!(link.response_size_allowed(id(1).as_bytes(), 1), None, "the limit went with it");
-        link.resolve_pending_request(id(1), ResponseArrival::Resource { data: &[0xc0], metadata: None });
+        let receiving = link
+            .resolve_pending_request(id(1), ResponseArrival::Resource { data: &[0xc0], metadata: None });
+        assert!(receiving.is_none(), "nothing was pending");
         assert_eq!(receipt.response().await, Err(RequestError::Decode), "a second copy changes nothing");
     }
 

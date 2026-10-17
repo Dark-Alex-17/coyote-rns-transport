@@ -302,13 +302,23 @@ pub(super) async fn handle_link_resource_packet<'a>(
                 ResourceEventKind::Complete(complete) if complete.is_response => {
                     if let Some(request_id) = complete.request_id.as_deref() {
                         match <[u8; ADDRESS_HASH_SIZE]>::try_from(request_id) {
-                            Ok(id) => link.resolve_pending_request(
-                                RequestId::new(id),
-                                ResponseArrival::Resource {
-                                    data: &complete.data,
-                                    metadata: complete.metadata.as_deref(),
-                                },
-                            ),
+                            Ok(id) => {
+                                let receiving = link.resolve_pending_request(
+                                    RequestId::new(id),
+                                    ResponseArrival::Resource {
+                                        data: &complete.data,
+                                        metadata: complete.metadata.as_deref(),
+                                    },
+                                );
+                                if let Some(receiving) = receiving {
+                                    cancel_inbound_response(
+                                        &mut handler.resource_manager,
+                                        &link,
+                                        receiving,
+                                        &mut cancels,
+                                    );
+                                }
+                            }
                             // A `send_request_resource*` id of another
                             // length has no receipt, only its entry.
                             Err(_) => link.clear_response_size_limit(request_id),

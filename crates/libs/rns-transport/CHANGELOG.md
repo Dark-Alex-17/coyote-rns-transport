@@ -298,7 +298,12 @@ trailing clause of the bullet for the behaviour it pins.
   request timeout (`rtt * 6 + 11.25 s`, `RNS/Link.py:491`) unless a
   receipt owns the id, and are pruned by the link watchdog, as Python
   prunes through the `RequestReceipt`'s own timeout
-  (`RNS/Link.py:1398-1411`); a receipt's record goes with the receipt.
+  (`RNS/Link.py:1398-1411`); a receipt's record goes with the receipt. The
+  assembled response Resource is measured against the limit once more
+  when it completes, metadata excluded, and fails the receipt `Oversize`
+  when it is over, since the advertised `d` is the peer's claim and an
+  uncompressed response can carry up to `t` bytes; Python trusts the
+  advertisement (`RNS/Link.py:1049`).
   Pinned by
   `transport/tests_parts/two_transport_loopback_requests_resource_form_sizes.rs`
   (`..._sizes_bare_request_packet_solicits_its_response` among them),

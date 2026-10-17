@@ -268,19 +268,16 @@ impl Link {
                                 });
                                 if let Some(id) = id {
                                     let id = RequestId::new(id);
-                                    if accepted {
-                                        self.resolve_pending_request(
-                                            id,
-                                            ResponseArrival::Packet {
-                                                envelope: plain_text,
-                                                response_size,
-                                            },
-                                        );
+                                    let receiving = if accepted {
+                                        let arrival = ResponseArrival::Packet {
+                                            envelope: plain_text,
+                                            response_size,
+                                        };
+                                        self.resolve_pending_request(id, arrival)
                                     } else {
-                                        let receiving =
-                                            self.fail_pending_request(&id, RequestError::Oversize);
-                                        self.owed_response_cancels.extend(receiving);
-                                    }
+                                        self.fail_pending_request(&id, RequestError::Oversize)
+                                    };
+                                    self.owed_response_cancels.extend(receiving);
                                 }
                                 (id, accepted)
                             }

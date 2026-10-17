@@ -36,18 +36,41 @@ impl Link {
     /// A response for `id` arrived (`RNS/Link.py:857-884`): the receipt
     /// becomes `Ready` with the decoded body, or `Failed(Decode)`. An id
     /// with no pending request is a response nobody is waiting for. The
-    /// response size limit goes with the entry.
+    /// response size limit goes with the entry, after an assembled response
+    /// Resource is measured against it once more and fails the receipt
+    /// `Oversize` when it is over: the advertised `d` the gate read was the
+    /// peer's claim, and an uncompressed response carries up to `t` bytes.
+    /// Python trusts the advertisement (`RNS/Link.py:1049`). Returns the
+    /// response Resource an oversize receipt was receiving, for the caller
+    /// to cancel.
     #[deny(clippy::await_holding_invalid_type)]
-    pub(crate) fn resolve_pending_request(&mut self, id: RequestId, arrival: ResponseArrival<'_>) {
+    #[must_use = "the hashes are for the caller to cancel"]
+    pub(crate) fn resolve_pending_request(
+        &mut self,
+        id: RequestId,
+        arrival: ResponseArrival<'_>,
+    ) -> Option<InboundResponseHashes> {
+        if let ResponseArrival::Resource { data, .. } = &arrival {
+            if let Some(limit) = self.response_size_limit(id.as_bytes()) {
+                if data.len() > limit {
+                    log::warn!(
+                        "link({}): response to {} assembled {} bytes over its {} byte limit",
+                        self.id, id, data.len(), limit
+                    );
+                    return self.fail_pending_request(&id, RequestError::Oversize);
+                }
+            }
+        }
         self.pending_response_limits.remove(id.as_bytes().as_slice());
         let Some(pending) = self.pending_requests.remove(&id) else {
             log::trace!("link({}): response to {} has no pending request", self.id, id);
-            return;
+            return None;
         };
         log::debug!("link({}): request {} answered", self.id, id);
         if let Some(cause) = pending.resolve(arrival) {
             log::debug!("link({}): response to {} could not be decoded: {cause}", self.id, id);
         }
+        None
     }
 
     /// Fails the request `id` and drops its response size limit; the limit
@@ -194,9 +217,9 @@ impl Link {
     /// Python (`:1398`, `:1408`) also leaves a receipt that never reached
     /// `DELIVERED` pending forever; here an unanswered request packet times
     /// out as well. A response entry no receipt owns goes once its own
-    /// clock runs out, as Python's receipt-less marker would with the
-    /// `RequestReceipt` that carries it (`:1398-1411`); one owned by a live
-    /// receipt is left to the receipt.
+    /// clock runs out, as Python's marker is the `RequestReceipt` and goes
+    /// with its timeout (`:1398-1411`); one owned by a live receipt is left
+    /// to the receipt.
     #[deny(clippy::await_holding_invalid_type)]
     pub(crate) fn expire_pending_requests(&mut self, now: Instant) {
         let expired: Vec<RequestId> = self

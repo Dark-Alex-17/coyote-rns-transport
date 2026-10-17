@@ -332,6 +332,11 @@ trailing clause of the bullet for the behaviour it pins.
   remotely cancelled response ends a receipt-less record, a bare
   `request_packet` record ends on completion, and the legacy-id limit is
   inclusive at both measurements),
+  `two_transport_loopback_requests_resource_form_sizes_probe6.rs` (a
+  limit set before or after the request Resource or bare request packet
+  is kept by the record the send makes, and a lying `d` under a
+  receipt-less 16-byte or legacy-length record is caught at the
+  post-assembly measurement and its `Complete` withheld),
   `two_transport_loopback_resources.rs`,
   `two_transport_loopback_resources_directions.rs`,
   `two_transport_loopback_resources_retries.rs`,
@@ -352,7 +357,10 @@ trailing clause of the bullet for the behaviour it pins.
   the id when given none. `Transport::request` still replaces the record
   whole, so a request sent without a limit under an id a displaced entry
   recorded one for does not inherit it. Pinned by
-  `destination/link_parts/link_sections/response_packet_tests.rs`.
+  `destination/link_parts/link_sections/response_packet_tests.rs` and
+  `transport/tests_parts/two_transport_loopback_requests_resource_form_sizes_probe7.rs`
+  (the public `expect_response` keeps a prior limit when given none and
+  replaces it when given one).
 
 - A request packet re-sent under the id of a record that is receiving its
   response, or whose request Resource is still in flight, no longer

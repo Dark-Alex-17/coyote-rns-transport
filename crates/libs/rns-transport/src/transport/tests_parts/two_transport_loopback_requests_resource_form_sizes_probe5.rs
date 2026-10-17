@@ -3,20 +3,23 @@
 // one alike stop soliciting once the response Resource they admitted has concluded, whether
 // it completed or the responder cancelled it (`RNS/Link.py:1389` suspends the clock while a
 // response is inbound, `:1437-1443` resolve the receipt on completion and `:1046-1047` then
-// drop a second response as one nothing on the link sent). `max_response_size` is first
-// measured against the advertised `d` and again against the assembled bytes, because `d` is
-// the peer's claim; an assembled response over the limit fails the receipt `Oversize`
-// (`RNS/Link.py:1046-1049`). The boundary of the legacy-id arm is inclusive: a response of
-// exactly the limit is delivered. Helpers come from the sibling `tests_parts` files.
+// drop a second response as one nothing on the link sent). Python measures
+// `max_response_size` against the advertised `d` (`RNS/Link.py:1046-1049`) and trusts it
+// (`:1049`); this crate measures the assembled bytes once more, because `d` is the peer's
+// claim, and an assembled response over the limit fails the receipt `Oversize`. The
+// boundary of the legacy-id arm is inclusive: a response of exactly the limit is delivered.
+// Helpers come from the sibling `tests_parts` files.
 
 /// Bytes the legacy-id boundary tests measure against.
 const SIZES_PROBE5_LIMIT: usize = 2048;
 
-/// A small response Resource, a few parts over the default loopback MTU.
+/// A one-part response Resource under the loopback MTU: the tests that complete or drop a
+/// response need it advertised and assembled, not large.
 const SIZES_PROBE5_SMALL_RESPONSE_LEN: usize = 256;
 
-/// A response long enough that its receiver still has parts to ask for when the
-/// responder's cancel lands behind the advertisement.
+/// The response the responder cancels; still one part under the loopback MTU, so it is the
+/// hold below, not this length, that puts the cancel behind the advertisement before any
+/// part is pulled.
 const SIZES_PROBE5_CANCELLED_RESPONSE_LEN: usize = 16 * 1024;
 
 /// How long the connector is held so the advertisement and the cancel behind it are read
@@ -192,7 +195,10 @@ async fn two_transport_loopback_request_resource_form_sizes_probe5_response_asse
     // The listener advertises a real file response, over the limit, under an id nothing
     // solicited; the connector drops that advertisement and the listener keeps the Resource
     // ready to serve. The same Resource is then re-advertised under the receipt's id with a
-    // data size the limit allows.
+    // data size the limit allows. The payload is random, so the Resource goes uncompressed:
+    // the receiver caps decompression by the advertised `d` (`resource/receiver.rs`,
+    // `max_decompressed_resource_size`), and a compressed lie would fail there instead of
+    // reaching the assembled-bytes measurement this test is about.
     let decoy_id = b"sizes-probe5-decoy".to_vec();
     let metadata =
         rmpv::Value::Map(vec![(rmpv::Value::from("name"), rmpv::Value::from("big.bin"))]);

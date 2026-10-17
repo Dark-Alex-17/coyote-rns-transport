@@ -300,6 +300,26 @@ pub(super) async fn handle_link_resource_packet<'a>(
                 }
                 ResourceEventKind::Complete(complete) if complete.is_response => {
                     if let Some(request_id) = complete.request_id.as_deref() {
+                        // The advertised `d` was the peer's claim, so the
+                        // assembled size is measured against the record's
+                        // limit once more, whatever the id's length. The
+                        // Resource is already assembled and gone from the
+                        // ResourceManager, so withholding the event is the
+                        // failure; the arms below fail the receipt or clear
+                        // the entry.
+                        let over_limit = link
+                            .response_size_limit(request_id)
+                            .filter(|limit| complete.data.len() > *limit);
+                        if let Some(limit) = over_limit {
+                            log::warn!(
+                                "link({}): response to {} assembled {} bytes over its {} byte limit",
+                                link.id(),
+                                hex::encode(request_id),
+                                complete.data.len(),
+                                limit
+                            );
+                            suppressed.push(index);
+                        }
                         match <[u8; ADDRESS_HASH_SIZE]>::try_from(request_id) {
                             Ok(id) => {
                                 let receiving = link.resolve_pending_request(
@@ -322,28 +342,12 @@ pub(super) async fn handle_link_resource_packet<'a>(
                                 }
                             }
                             // A `send_request_resource*` id of another
-                            // length has no receipt, only its entry, so the
-                            // assembled size is measured against the entry's
-                            // limit here, as `resolve_pending_request` does
-                            // for a receipt. The Resource is already
-                            // assembled and gone from the ResourceManager,
-                            // so withholding the event is the failure.
+                            // length has no receipt, only its entry.
                             Err(_) => {
-                                let limit = link.response_size_limit(request_id);
-                                let admitted = link.take_response_limit_if_allowed(
+                                link.take_response_limit_if_allowed(
                                     request_id,
                                     complete.data.len(),
                                 );
-                                if let (false, Some(limit)) = (admitted, limit) {
-                                    log::warn!(
-                                        "link({}): response to {} assembled {} bytes over its {} byte limit",
-                                        link.id(),
-                                        hex::encode(request_id),
-                                        complete.data.len(),
-                                        limit
-                                    );
-                                    suppressed.push(index);
-                                }
                             }
                         }
                     }

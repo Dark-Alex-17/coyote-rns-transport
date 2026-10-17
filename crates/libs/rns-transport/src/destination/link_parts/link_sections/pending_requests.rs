@@ -57,7 +57,7 @@ impl Link {
         if let ResponseArrival::Resource { data, .. } = &arrival {
             if let Some(limit) = self.response_size_limit(id.as_bytes()) {
                 if data.len() > limit {
-                    log::warn!(
+                    log::debug!(
                         "link({}): response to {} assembled {} bytes over its {} byte limit",
                         self.id,
                         id,

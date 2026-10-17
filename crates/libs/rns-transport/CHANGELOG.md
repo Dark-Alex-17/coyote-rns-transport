@@ -310,14 +310,15 @@ trailing clause of the bullet for the behaviour it pins.
   `RECEIVING` is never timed out (`:1389`), and one that never reached
   `DELIVERED` stays, so a packet-form marker there can outlive this
   record. A receipt's record goes with the receipt. The
-  assembled response Resource is measured against the limit once more
-  when it completes, metadata excluded, and fails the receipt `Oversize`
-  when it is over, since the advertised `d` is the peer's claim and an
-  uncompressed response can carry up to `t` bytes; Python trusts the
-  advertisement (`RNS/Link.py:1049`). A response to a `send_request_resource*`
-  id no receipt owns gets the same recheck: one assembled over its limit
-  clears the record, is logged, and is withheld from `resource_events()`
-  subscribers.
+  assembled response Resource is measured against the record's limit once
+  more when it completes, metadata excluded, for every id form (one a
+  receipt owns, a receipt-less 16-byte one from `request_packet*` or
+  `send_request_resource*`, and a legacy-length one), since the advertised
+  `d` is the peer's claim and an uncompressed response can carry up to `t`
+  bytes; Python trusts the advertisement (`RNS/Link.py:1049`). One over
+  the limit is logged, fails the receipt `Oversize` when one owns the id,
+  clears the record, and its `Complete` is withheld from
+  `resource_events()` subscribers.
   Pinned by
   `transport/tests_parts/two_transport_loopback_requests_resource_form_sizes.rs`
   (`..._sizes_bare_request_packet_solicits_its_response` among them),

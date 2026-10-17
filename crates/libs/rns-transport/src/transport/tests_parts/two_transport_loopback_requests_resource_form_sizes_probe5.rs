@@ -168,8 +168,8 @@ async fn sizes_probe5_assert_second_response_is_dropped(
 
 /// A receipt bounded its response; the responder's Resource advertises a data size under
 /// the bound but assembles over it. The advertisement is admitted on its claim, the
-/// assembled bytes are measured again, and the receipt fails `Oversize`; the link still
-/// answers.
+/// assembled bytes are measured again, the receipt fails `Oversize`, and the assembled
+/// `Complete` is withheld from `resource_events()` subscribers; the link still answers.
 #[tokio::test]
 #[deny(clippy::await_holding_invalid_type)]
 async fn two_transport_loopback_request_resource_form_sizes_probe5_response_assembling_over_its_advertised_size_fails_oversize(
@@ -178,6 +178,7 @@ async fn two_transport_loopback_request_resource_form_sizes_probe5_response_asse
     let link_id = pair.handles.link_id;
     register_handler(&pair, "/quiet", RequestAllow::All, silent_handler()).await;
     register_handler(&pair, "/echo", RequestAllow::All, echo_handler()).await;
+    let mut connector_events = pair.handles.connector.transport.resource_events();
 
     let receipt = request_with(
         &pair,
@@ -225,6 +226,7 @@ async fn two_transport_loopback_request_resource_form_sizes_probe5_response_asse
         "the assembled bytes are over the limit the advertisement claimed to respect"
     );
     assert_eq!(receipt.status(), RequestStatus::Failed);
+    sizes_assert_no_response_activity(&mut connector_events, link_id, receipt.request_id()).await;
     sizes_assert_link_still_answers(&pair).await;
 }
 

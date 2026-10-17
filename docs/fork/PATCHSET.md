@@ -33,7 +33,7 @@ commits `1ddd5273`, `a2a40de7`, `3805fe7f`, `3ed78582`, `415d67c8`,
 `40409738`, `2f2c11c7`, `140a4fd2`, `3035e470`, `8a8c7a4e`, `6a0fc9cb`,
 `bbd34e72`, `114dbe1c`, `6f8cba34`, `1ef4cddd`, `f732e7d4`, `abd9187d`,
 `938d2852`, `6b5e9a4e`, `9521e2c0`, `b8ec835a`, `8b7557bd`, `f2ff9922`,
-`60cb3755`, `e28c5a03`, `1da7243b`, `7aaf7a50` and `f575a790`.
+`60cb3755`, `e28c5a03`, `1da7243b`, `7aaf7a50`, `f575a790` and `ad9f6b8a`.
 
 | File | Patch |
 | --- | --- |
@@ -120,6 +120,7 @@ commits `1ddd5273`, `a2a40de7`, `3805fe7f`, `3ed78582`, `415d67c8`,
 | `crates/libs/rns-transport/src/transport/tests_parts/two_transport_loopback_requests_resource_form_probe3.rs` | request handlers and dispatch |
 | `crates/libs/rns-transport/src/transport/tests_parts/two_transport_loopback_requests_resource_form_sizes.rs` | request receipts and timeouts |
 | `crates/libs/rns-transport/src/transport/tests_parts/two_transport_loopback_requests_resource_form_sizes_cancel.rs` | request receipts and timeouts |
+| `crates/libs/rns-transport/src/transport/tests_parts/two_transport_loopback_requests_resource_form_sizes_cancel_probe.rs` | request receipts and timeouts |
 | `crates/libs/rns-transport/src/transport/tests_parts/two_transport_loopback_requests_resource_form_sizes_probe.rs` | request receipts and timeouts |
 | `crates/libs/rns-transport/src/transport/tests_parts/two_transport_loopback_requests_resource_form_sizes_probe2.rs` | request receipts and timeouts |
 | `crates/libs/rns-transport/src/transport/tests_parts/two_transport_loopback_requests_routing.rs` | request handlers and dispatch, request receipts and timeouts |
@@ -919,7 +920,7 @@ already receiving a response Resource fails it `Oversize` and cancels
 that Resource with a receiver cancel to the peer (`RNS/Link.py:1435`);
 the Response branch of `Link::handle_packet` (`link_sections/new.rs`)
 had asserted that nothing was inbound, a premise the non-consuming gate
-of `f2ff9922` broke. `handle_packet` holds the link alone and its
+of `abd9187d` broke. `handle_packet` holds the link alone and its
 public `LinkHandleResult` is unchanged, so the hashes queue on a new
 private `Link::owed_response_cancels` (`linkhandleresult.rs`,
 initialised in `new.rs` and `new_from_request.rs`), drained by
@@ -957,6 +958,19 @@ the envelope's id names and leaves `q`'s receipt pending
 (`RNS/Link.py:908-912`); here the two must agree or `q`'s receipt fails
 `Decode`. The crate `CHANGELOG.md` names the fixture in the
 `max_response_size` gate pin clause.
+
+Fork commit `ad9f6b8a`: new fixture
+`two_transport_loopback_requests_resource_form_sizes_cancel_probe.rs`
+(one `include!` line in `transport/tests.rs`) pins the packet-form
+Response arm of a receipt already receiving a response Resource from
+three sides: an in-limit packet resolves it `Ready` with the packed
+length as its size and no receiver cancel leaves; an oversize packet
+fails only the receipt it names, leaves a second receiving receipt on
+the same link untouched and sends exactly one receiver cancel; an
+oversize packet for a receipt still `Sent` fails it `Oversize` and owes
+no cancel. The second test panicked on the assertion `7aaf7a50`
+replaced. The crate `CHANGELOG.md` names the fixture in the receipts
+`Changed` pin clause.
 
 ## 0.14.1 (upstream 0.14.0)
 

@@ -136,7 +136,10 @@ async fn two_transport_loopback_request_resource_form_sizes_packet_response_skip
         ),
         "resource-form request, packet response: {seen:?}"
     );
-    assert!(!seen.contains(&RequestStatus::Receiving), "a packet response is not received: {seen:?}");
+    assert!(
+        !seen.contains(&RequestStatus::Receiving),
+        "a packet response is not received: {seen:?}"
+    );
     let response = await_receipt(&receipt).await.expect("answered");
     assert_eq!(response.value(), Some(&rmpv::Value::from("small")));
     let mut packed = Vec::new();
@@ -152,8 +155,9 @@ async fn two_transport_loopback_request_resource_form_sizes_packet_response_skip
 #[deny(clippy::await_holding_invalid_type)]
 async fn two_transport_loopback_request_resource_form_sizes_resource_response_is_delivered_then_received(
 ) {
-    let pair = loopback_request_pair_with_mtu("sizes-resource-request-resource-response", LEGACY_MTU)
-        .await;
+    let pair =
+        loopback_request_pair_with_mtu("sizes-resource-request-resource-response", LEGACY_MTU)
+            .await;
     register_handler(&pair, "/echo", RequestAllow::All, echo_handler()).await;
 
     let body = random_payload(MANY_PARTS_LEN);
@@ -172,7 +176,10 @@ async fn two_transport_loopback_request_resource_form_sizes_resource_response_is
         "resource-form request, Resource response: {seen:?}"
     );
     assert!(seen.contains(&RequestStatus::Delivered), "the request Resource completes: {seen:?}");
-    assert!(seen.contains(&RequestStatus::Receiving), "the echo comes back as a Resource: {seen:?}");
+    assert!(
+        seen.contains(&RequestStatus::Receiving),
+        "the echo comes back as a Resource: {seen:?}"
+    );
     let response = await_receipt(&receipt).await.expect("answered");
     assert_eq!(response.into_value(), Some(rmpv::Value::Binary(body)));
 }
@@ -198,10 +205,10 @@ async fn two_transport_loopback_request_resource_form_sizes_packet_request_packe
 /// Request packet, response Resource: `Sent -> Receiving -> Ready`.
 #[tokio::test]
 #[deny(clippy::await_holding_invalid_type)]
-async fn two_transport_loopback_request_resource_form_sizes_packet_request_resource_response_order(
-) {
-    let pair = loopback_request_pair_with_mtu("sizes-packet-request-resource-response", LEGACY_MTU)
-        .await;
+async fn two_transport_loopback_request_resource_form_sizes_packet_request_resource_response_order()
+{
+    let pair =
+        loopback_request_pair_with_mtu("sizes-packet-request-resource-response", LEGACY_MTU).await;
     let body = random_payload(MANY_PARTS_LEN);
     register_handler(&pair, "/big", RequestAllow::All, move |_: InboundRequest| {
         std::future::ready(Some(RequestResponse::Bytes(body.clone())))
@@ -259,7 +266,11 @@ async fn two_transport_loopback_request_resource_form_sizes_three_segment_respon
         advertisements.iter().all(|a| a.data_size == envelope_len),
         "every segment advertises the whole envelope as d: {advertisements:?}"
     );
-    assert_eq!(receipt.response_size(), Some(envelope_len as usize), "d of the first advertisement");
+    assert_eq!(
+        receipt.response_size(),
+        Some(envelope_len as usize),
+        "d of the first advertisement"
+    );
     let transfer: u64 = advertisements.iter().map(|a| a.transfer_size).sum();
     assert_eq!(receipt.response_transfer_size(), Some(transfer as usize), "t summed over segments");
 }
@@ -416,8 +427,7 @@ async fn two_transport_loopback_request_resource_form_sizes_bare_request_packet_
 
     let id = send_request(&pair, "/big", rmpv::Value::Nil).await;
     let complete = await_response_resource(&mut events, pair.handles.link_id, id).await;
-    let (answered, value) =
-        unpack_response_envelope(&complete.data).expect("response envelope");
+    let (answered, value) = unpack_response_envelope(&complete.data).expect("response envelope");
     assert_eq!(answered, id.to_bytes(), "the response names the request");
     assert_eq!(value, rmpv::Value::Binary(expected));
 }

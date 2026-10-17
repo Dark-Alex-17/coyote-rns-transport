@@ -32,7 +32,8 @@ commits `1ddd5273`, `a2a40de7`, `3805fe7f`, `3ed78582`, `415d67c8`,
 `afdf0f18`, `fe55cb71`, `10dc355e`, `8909d956`, `642dfc2b`, `7ce1601c`,
 `40409738`, `2f2c11c7`, `140a4fd2`, `3035e470`, `8a8c7a4e`, `6a0fc9cb`,
 `bbd34e72`, `114dbe1c`, `6f8cba34`, `1ef4cddd`, `f732e7d4`, `abd9187d`,
-`938d2852`, `6b5e9a4e`, `9521e2c0`, `b8ec835a` and `8b7557bd`.
+`938d2852`, `6b5e9a4e`, `9521e2c0`, `b8ec835a`, `8b7557bd`, `f2ff9922`,
+`60cb3755` and `e28c5a03`.
 
 | File | Patch |
 | --- | --- |
@@ -81,6 +82,7 @@ commits `1ddd5273`, `a2a40de7`, `3805fe7f`, `3ed78582`, `415d67c8`,
 | `crates/libs/rns-transport/src/resource/tests_advert_kat.rs` | request wire frames and fuzz |
 | `crates/libs/rns-transport/src/resource/tests_timeouts_lifecycle.rs` | request receipts and timeouts |
 | `crates/libs/rns-transport/src/transport/core.rs` | request handlers and dispatch |
+| `crates/libs/rns-transport/src/transport/handler.rs` | request receipts and timeouts |
 | `crates/libs/rns-transport/src/transport/jobs.rs` | request handlers and dispatch, request receipts and timeouts |
 | `crates/libs/rns-transport/src/transport/jobs_parts/link_maintenance.rs` | request receipts and timeouts |
 | `crates/libs/rns-transport/src/transport/lifecycle.rs` | request receipts and timeouts |
@@ -117,6 +119,7 @@ commits `1ddd5273`, `a2a40de7`, `3805fe7f`, `3ed78582`, `415d67c8`,
 | `crates/libs/rns-transport/src/transport/tests_parts/two_transport_loopback_requests_resource_form_probe2.rs` | request handlers and dispatch |
 | `crates/libs/rns-transport/src/transport/tests_parts/two_transport_loopback_requests_resource_form_probe3.rs` | request handlers and dispatch |
 | `crates/libs/rns-transport/src/transport/tests_parts/two_transport_loopback_requests_resource_form_sizes.rs` | request receipts and timeouts |
+| `crates/libs/rns-transport/src/transport/tests_parts/two_transport_loopback_requests_resource_form_sizes_probe.rs` | request receipts and timeouts |
 | `crates/libs/rns-transport/src/transport/tests_parts/two_transport_loopback_requests_routing.rs` | request handlers and dispatch, request receipts and timeouts |
 | `crates/libs/rns-transport/src/transport/tests_parts/two_transport_loopback_resources.rs` | request receipts and timeouts |
 | `crates/libs/rns-transport/src/transport/tests_parts/two_transport_loopback_resources_directions.rs` | request receipts and timeouts |
@@ -786,12 +789,9 @@ within the limit by `d`, the silent unsolicited drop and a split response
 admitted whole. `pending_requests_tests.rs` and `receipt_tests.rs` follow
 the `InboundResponseHashes` shape and pin the per-advertisement gate; the
 `two_transport_loopback_resources*.rs` fixtures that sent a bare response
-now solicit it with a request Resource first, and the `requests`,
-`requests_probe` and `requests_routing` fixtures build their request
-packet with `request_packet_with_max_response_size(.., None)` so it is
-solicited. The crate README says what `max_response_size` is measured
-against; the crate `CHANGELOG.md` gains a `### Changed` clause naming
-every fixture above.
+now solicit it with a request Resource first. The crate README says what
+`max_response_size` is measured against; the crate `CHANGELOG.md` gains
+a `### Changed` clause naming every fixture above.
 
 Fork commit `938d2852`: `pending_requests_tests.rs` pins `Failed(Decode)`
 through `Link::resolve_pending_request`: a response that is not an
@@ -825,10 +825,12 @@ every caller, and any clone of the result, shares one body instead of
 copying a file response; `into_value` moves the body out of the last
 handle and clones it out of a shared one. The three `#[allow(dead_code)]`
 on `MIN_LINKS_CHECK_DELAY`, `link_check_delay_from_deadline` and
-`next_link_check_delay` in `transport/jobs.rs` go: all three are live and
-pinned by `jobs_parts/tests.rs`. `receipt_tests.rs` pins the sharing and
-both `into_value` paths; the crate `CHANGELOG.md` says the handle is
-cheap.
+`next_link_check_delay` in `transport/jobs.rs` go: all three are live,
+`jobs_parts/tests.rs` pins `link_check_delay_from_deadline` with
+`MIN_LINKS_CHECK_DELAY` as one expected value, and `next_link_check_delay`
+is reached only through the link check job. `receipt_tests.rs` pins the
+sharing and both `into_value` paths; the crate `CHANGELOG.md` says the
+handle is cheap.
 
 Fork commit `8b7557bd`: new fixture
 `two_transport_loopback_requests_errors.rs` (one `include!` line in
@@ -846,6 +848,62 @@ encrypted packet and both forms pack the send time into the request) and
 stays pinned at the link level in `pending_requests_tests.rs`. The crate
 `CHANGELOG.md` names the new fixture in the receipts pin clause and says
 the sweep skips only the held link.
+
+Fork commit `f2ff9922`: every request packet the link sends solicits its
+response, however it was built. The unsolicited-advertisement drop of
+`abd9187d` admitted a response Resource only when its `q` named a pending
+receipt or an entry written by `Link::expect_response`, and only
+`request_packet_with_max_response_size`, `set_response_size_limit` and
+`send_request_resource*` wrote one, so a response too large for a packet
+to a request built with the public `Link::request_packet` was dropped.
+`TransportHandler::note_link_packet_sent` (`transport/handler.rs`), which
+already locks the link for every outbound link packet, records the
+truncated packet hash of a `Request`-context packet through the new
+`Link::note_request_sent` (`link_sections/response_packet.rs`), an entry
+that never overwrites a limit recorded before the send
+(`RNS/Link.py:473-510`, `:1365`). The `requests`, `requests_probe` and
+`requests_routing` fixtures go back to the bare `request_packet` builder,
+leaving them as they were before `abd9187d`, and
+`two_transport_loopback_requests_resource_form_sizes.rs` gains
+`..._sizes_bare_request_packet_solicits_its_response`. The crate README
+and `CHANGELOG.md` say what solicits a response.
+
+Fork commit `60cb3755`: `send_request_as_resource`
+(`transport_sections/request.rs`) calls `Link::expect_response`
+unconditionally, so a request sent without a limit under an id a
+displaced entry recorded one for does not inherit it;
+`Link::fail_pending_request` (`link_sections/pending_requests.rs`) drops
+the response size limit before the receipt lookup, so a limit with no
+receipt under the id goes too, and the `clear_response_size_limit` in
+the `Oversize` branch of `transport/resource_wire.rs` stays for a
+`send_request_resource*` id of another length.
+`ResourceManager::cancel_incoming_response` (`resource/manager_cleanup.rs`)
+takes the link id the hashes came from and fails a receiver or a partial
+assembly only when it belongs to that link; `resource_wire_parts/cancel.rs`,
+`transport_sections/request.rs` and the receipt sweep in
+`transport/lifecycle.rs` pass it. `PendingRequest::fail`
+(`request/receipt_pending.rs`) and `Link::fail_pending_request`,
+`fail_all_pending_requests` and `note_request_resource_outcome` are
+`#[must_use]`; the close and restart paths of `link_sections/new.rs` and
+`next_watchdog_deadline.rs`, which hold the link alone, go through the
+new `Link::abandon_pending_requests`, which logs the response Resources
+left inbound. `PendingRequest::resolve` records that the packet-form
+sizes diverge from Python's `len(packb(response)) - 2`
+(`RNS/Link.py:1016-1017`) by two bytes. `resource/tests_timeouts_lifecycle.rs`
+pins the link-scoped cancel; `pending_requests_tests.rs` and
+`receipt_tests.rs` assert the results they discarded.
+
+Fork commit `e28c5a03`: new fixture
+`two_transport_loopback_requests_resource_form_sizes_probe.rs` (one
+`include!` line in `transport/tests.rs`) pins, on the response Resource
+path, a hand-built envelope naming another request failing the receipt
+`Decode` with no reject on the wire and one naming the receipt resolving
+it, every `response()` handle sharing one body, a response advertised
+under the id of a resolved receipt dropped as unsolicited, and a
+packet-form request whose Resource response is over `max_response_size`
+failing `Oversize` while the responder sees `OutboundRejected`. The crate
+`CHANGELOG.md` names it in the receipts and the `max_response_size` gate
+pin clauses.
 
 ## 0.14.1 (upstream 0.14.0)
 

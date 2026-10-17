@@ -13,13 +13,13 @@ const BOUNDED_REQUEST_LEN: usize = 64;
 
 /// A requester bounds the response it is willing to accept. The responder's oversize
 /// response must be rejected with a receiver cancel that the connector sends from inside
-/// the link's inbound handler; the responder must learn of the rejection, the same link must
-/// then carry an accepted response Resource, and the connector's interface must still stop
-/// within a bounded time.
+/// the link's inbound handler; the responder must learn of the rejection, a second response
+/// under the rejected id must be dropped as unsolicited, the same link must then carry an
+/// accepted response Resource, and the connector's interface must still stop within a
+/// bounded time.
 #[tokio::test]
 #[deny(clippy::await_holding_invalid_type)]
-async fn two_transport_loopback_resources_reject_oversize_response_then_recover_on_same_link()
-{
+async fn two_transport_loopback_resources_reject_oversize_response_then_recover_on_same_link() {
     let pair = loopback_link_pair("reject-response").await;
     let mut requester_events = pair.connector.transport.resource_events();
     let mut responder_events = pair.listener.transport.resource_events();
@@ -69,6 +69,27 @@ async fn two_transport_loopback_resources_reject_oversize_response_then_recover_
         matches!(rejected.kind, ResourceEventKind::OutboundRejected),
         "the oversize response is rejected, got {:?}",
         rejected.kind
+    );
+
+    // The reject cleared the requester's record under this id, so a second response to it
+    // is unsolicited: no `Complete` reaches the requester and no receiver cancel leaves for
+    // it. The listener's tap sees the packets the requester sends.
+    let mut listener_tap = pair.listener.transport.iface_rx();
+    pair.listener
+        .transport
+        .send_response_resource(
+            &pair.link_id,
+            bounded_request_id.clone(),
+            random_payload(ACCEPTED_RESPONSE_LEN),
+            None,
+        )
+        .await
+        .expect("second response resource dispatched");
+    assert_no_further_complete(&mut requester_events, pair.link_id).await;
+    assert_eq!(
+        count_link_packets(&mut listener_tap, pair.link_id, PacketContext::ResourceReceiverCancel),
+        0,
+        "an unsolicited response is dropped without a reject"
     );
 
     // The same link still carries a response the requester solicited without a bound.

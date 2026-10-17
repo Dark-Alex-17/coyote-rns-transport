@@ -291,7 +291,7 @@ async fn response_handles_share_one_body() {
 }
 
 #[test]
-fn into_value_moves_the_body_out_of_a_shared_handle_too() {
+fn into_value_clones_out_of_a_shared_handle_and_moves_out_of_the_last() {
     let envelope = ResponseFrame::new(id(1), rmpv::Value::from("pong")).encode();
     let sole = ResponseArrival::Resource { data: &envelope, metadata: None }
         .decode(id(1))

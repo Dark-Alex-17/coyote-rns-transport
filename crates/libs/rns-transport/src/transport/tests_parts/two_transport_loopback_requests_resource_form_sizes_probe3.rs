@@ -2,19 +2,23 @@
 // inclusive bound on what the receipt later reports as `response_size()`, in the packet
 // form as in the Resource form; several Resource responses in flight on one link each
 // answer to their own limit (`RNS/Link.py:1046-1053` walks the pending requests by `q`),
-// so one refused response neither disturbs its neighbours nor leaves a limit behind for
-// the next request on the link. Helpers come from the sibling `tests_parts` files.
+// so one refused response does not disturb its neighbours. Helpers come from the sibling
+// `tests_parts` files.
 
 /// A body `extra` bytes over the link MDU, so the request and its echo both travel as
 /// Resources and distinct `extra`s give distinct advertised `d`s.
 #[deny(clippy::await_holding_invalid_type)]
-async fn over_mdu_body_plus(pair: &LoopbackRequestPair, extra: usize) -> Vec<u8> {
+async fn sizes_probe3_over_mdu_body_plus(pair: &LoopbackRequestPair, extra: usize) -> Vec<u8> {
     random_payload(pair.handles.link.lock().await.link_mdu() + 1 + extra)
 }
 
 /// An `/echo` of `body` under `limit`.
 #[deny(clippy::await_holding_invalid_type)]
-async fn echo_under_limit(pair: &LoopbackRequestPair, body: &[u8], limit: usize) -> RequestReceipt {
+async fn sizes_probe3_echo_under_limit(
+    pair: &LoopbackRequestPair,
+    body: &[u8],
+    limit: usize,
+) -> RequestReceipt {
     request_with(
         pair,
         "/echo",
@@ -75,16 +79,16 @@ async fn two_transport_loopback_request_resource_form_sizes_probe3_concurrent_re
     let pair = loopback_request_pair("sizes-probe3-concurrent-limits").await;
     register_handler(&pair, "/echo", RequestAllow::All, echo_handler()).await;
     let bodies = [
-        over_mdu_body_plus(&pair, 0).await,
-        over_mdu_body_plus(&pair, 1_024).await,
-        over_mdu_body_plus(&pair, 2_048).await,
+        sizes_probe3_over_mdu_body_plus(&pair, 0).await,
+        sizes_probe3_over_mdu_body_plus(&pair, 1_024).await,
+        sizes_probe3_over_mdu_body_plus(&pair, 2_048).await,
     ];
     let limits: Vec<usize> = bodies.iter().map(|body| sizes_envelope_len(body)).collect();
     assert!(limits.windows(2).all(|pair| pair[0] < pair[1]), "distinct d per response: {limits:?}");
 
     let mut receipts = Vec::with_capacity(bodies.len());
     for (body, limit) in bodies.iter().zip(&limits) {
-        receipts.push(echo_under_limit(&pair, body, *limit).await);
+        receipts.push(sizes_probe3_echo_under_limit(&pair, body, *limit).await);
     }
     let ids: std::collections::HashSet<RequestId> =
         receipts.iter().map(RequestReceipt::request_id).collect();
@@ -120,14 +124,16 @@ async fn two_transport_loopback_request_resource_form_sizes_probe3_one_refused_r
     let mut listener_events = pair.handles.listener.transport.resource_events();
     let link_id = pair.handles.link_id;
     register_handler(&pair, "/echo", RequestAllow::All, echo_handler()).await;
-    let alpha = over_mdu_body_plus(&pair, 0).await;
-    let beta = over_mdu_body_plus(&pair, 1_024).await;
-    let gamma = over_mdu_body_plus(&pair, 2_048).await;
+    let alpha = sizes_probe3_over_mdu_body_plus(&pair, 0).await;
+    let beta = sizes_probe3_over_mdu_body_plus(&pair, 1_024).await;
+    let gamma = sizes_probe3_over_mdu_body_plus(&pair, 2_048).await;
     let beta_len = sizes_envelope_len(&beta);
 
-    let alpha_receipt = echo_under_limit(&pair, &alpha, sizes_envelope_len(&alpha)).await;
-    let beta_receipt = echo_under_limit(&pair, &beta, beta_len - 1).await;
-    let gamma_receipt = echo_under_limit(&pair, &gamma, sizes_envelope_len(&gamma)).await;
+    let alpha_receipt =
+        sizes_probe3_echo_under_limit(&pair, &alpha, sizes_envelope_len(&alpha)).await;
+    let beta_receipt = sizes_probe3_echo_under_limit(&pair, &beta, beta_len - 1).await;
+    let gamma_receipt =
+        sizes_probe3_echo_under_limit(&pair, &gamma, sizes_envelope_len(&gamma)).await;
 
     assert_eq!(sizes_await_resource_receipt(&beta_receipt).await, Err(RequestError::Oversize));
     assert_eq!(beta_receipt.status(), RequestStatus::Failed);
@@ -144,7 +150,7 @@ async fn two_transport_loopback_request_resource_form_sizes_probe3_one_refused_r
     assert_eq!(alpha_receipt.status(), RequestStatus::Ready);
     assert_eq!(gamma_receipt.status(), RequestStatus::Ready);
 
-    let retry = echo_under_limit(&pair, &beta, beta_len).await;
+    let retry = sizes_probe3_echo_under_limit(&pair, &beta, beta_len).await;
     assert_ne!(retry.request_id(), beta_receipt.request_id(), "a fresh request, a fresh id");
     let retry_body =
         sizes_await_resource_receipt(&retry).await.expect("the covering limit admits the retry");

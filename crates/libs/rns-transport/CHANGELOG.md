@@ -333,7 +333,9 @@ trailing clause of the bullet for the behaviour it pins.
   two-segment response under a receipt-less id, stalled past the default
   request timeout, still completes),
   `two_transport_loopback_resources_reject_response.rs` (whose bare
-  response fixtures now send the soliciting request Resource first) and
+  response fixtures now send the soliciting request Resource first, and
+  whose reject test sends a second response under the rejected id and
+  sees it dropped without a reject) and
   `destination/link_parts/link_sections/pending_requests_tests.rs`.
 
 - `Transport::send_direct`, `send_response_resource_with_compression` and

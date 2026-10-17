@@ -156,8 +156,10 @@ impl RequestResponseData {
     /// The envelope body, moved out of the last handle or cloned out of a
     /// shared one; `None` for a file response.
     pub fn into_value(self) -> Option<rmpv::Value> {
-        let body = Arc::try_unwrap(self.0).unwrap_or_else(|shared| (*shared).clone());
-        match body {
+        if let ResponseBody::File { .. } = &*self.0 {
+            return None;
+        }
+        match Arc::try_unwrap(self.0).unwrap_or_else(|shared| (*shared).clone()) {
             ResponseBody::Value(value) => Some(value),
             ResponseBody::File { .. } => None,
         }

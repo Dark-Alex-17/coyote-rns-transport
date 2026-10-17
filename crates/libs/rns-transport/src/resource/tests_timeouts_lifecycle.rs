@@ -286,3 +286,67 @@ fn resource_manager_cancel_incoming_response_drops_only_its_links_assembly() {
         ResourceEventKind::InboundFailed(failure) if failure.reason == "cancelled"
     ));
 }
+
+/// While a response segment's receiver is in flight, cancelling the response
+/// for a failed receipt drops that receiver and reports the transfer
+/// `InboundFailed("cancelled")` once, and says so, since the peer is then owed
+/// a receiver cancel; another link's cancel under the same hashes is a no-op.
+#[test]
+fn resource_manager_cancel_incoming_response_drops_its_links_live_receiver() {
+    let signer = PrivateIdentity::new_from_rand(OsRng);
+    let identity = *signer.as_identity();
+    let destination = DestinationDesc {
+        identity,
+        address_hash: identity.address_hash,
+        name: DestinationName::new("lxmf", "resource"),
+    };
+    let (tx, _) = tokio::sync::broadcast::channel(1);
+    let mut link = Link::new(destination, tx);
+    link.request();
+    let mut manager = ResourceManager::new_with_config(Duration::from_secs(1), 2);
+
+    let segment_hash = Hash::new_from_slice(&[0x49; 32]);
+    let original_hash = segment_hash;
+    let adv = ResourceAdvertisement {
+        transfer_size: 1,
+        data_size: 1,
+        parts: 1,
+        hash: segment_hash,
+        random_hash: [0u8; RANDOM_HASH_SIZE],
+        original_hash,
+        segment_index: 1,
+        total_segments: 1,
+        request_id: Some(ByteBuf::from([0x51u8; ADDRESS_HASH_SIZE].to_vec())),
+        flags: FLAG_RESPONSE,
+        hashmap: vec![0u8; MAPHASH_LEN],
+    };
+    let adv_packet = resource_packet(
+        PacketContext::ResourceAdvrtisement,
+        &adv.pack().expect("pack advertisement"),
+        *link.id(),
+    );
+    let _ = manager.handle_packet(&adv_packet, &mut link);
+    manager.drain_events();
+    assert!(manager.incoming.contains_key(&segment_hash), "the receiver is in flight");
+
+    let other_link_id = AddressHash::new_from_slice(&[0x53; ADDRESS_HASH_SIZE]);
+    assert!(!manager.cancel_incoming_response(segment_hash, original_hash, &other_link_id));
+    assert!(manager.incoming.contains_key(&segment_hash));
+    assert!(manager.drain_events().is_empty(), "another link's cancel reports nothing");
+
+    assert!(
+        manager.cancel_incoming_response(segment_hash, original_hash, link.id()),
+        "a receiver was in flight, so the peer is owed a receiver cancel"
+    );
+    assert!(!manager.incoming.contains_key(&segment_hash));
+    let events = manager.drain_events();
+    assert_eq!(events.len(), 1);
+    assert_eq!(events[0].hash, original_hash);
+    assert_eq!(events[0].link_id, *link.id());
+    assert!(matches!(
+        &events[0].kind,
+        ResourceEventKind::InboundFailed(failure) if failure.reason == "cancelled"
+    ));
+    assert!(!manager.cancel_incoming_response(segment_hash, original_hash, link.id()));
+    assert!(manager.drain_events().is_empty(), "already gone");
+}

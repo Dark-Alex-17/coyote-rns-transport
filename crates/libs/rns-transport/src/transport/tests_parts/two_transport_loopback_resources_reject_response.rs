@@ -26,7 +26,7 @@ async fn two_transport_loopback_resources_reject_oversize_response_then_recover_
     let mut connector_tap = pair.connector.transport.iface_rx();
 
     // The requester attaches a response limit to its request.
-    let bounded_request_id = b"loopback-bounded".to_vec();
+    let bounded_request_id = b"loopback-bounded-id".to_vec();
     let request_hash = pair
         .connector
         .transport

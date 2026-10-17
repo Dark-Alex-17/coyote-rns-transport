@@ -2,7 +2,7 @@ use super::diag;
 use super::diag::bytes_to_hex;
 use super::wire_encryption::should_encrypt_packet;
 use super::*;
-use crate::hash::ADDRESS_HASH_SIZE;
+use crate::destination::request::RequestId;
 use crate::iface::InterfaceMode;
 
 impl TransportHandler {
@@ -40,8 +40,8 @@ impl TransportHandler {
             // Every request packet solicits its response (RNS/Link.py:473-510,
             // :1046-1047); see Link::note_request_sent.
             if packet.context == PacketContext::Request {
-                let request_id = &packet.hash().to_bytes()[..ADDRESS_HASH_SIZE];
-                link.note_request_sent(request_id);
+                let request_id = RequestId::from_packet_hash(&packet.hash());
+                link.note_request_sent(request_id.as_bytes());
             }
         }
     }

@@ -42,8 +42,8 @@ impl Link {
         max_response_size: Option<usize>,
     ) -> Result<Packet, RnsError> {
         let packet = self.packet_with_context(data, PacketContext::Request)?;
-        let request_id = &packet.hash().to_bytes()[..ADDRESS_HASH_SIZE];
-        self.expect_response(request_id, max_response_size);
+        let request_id = RequestId::from_packet_hash(&packet.hash());
+        self.expect_response(request_id.as_bytes(), max_response_size);
         Ok(packet)
     }
 

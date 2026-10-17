@@ -1,10 +1,10 @@
 // Usage-pattern coverage of the solicited-response marker from the consumer's side, written
-// from the CHANGELOG contract: every request packet the link sends solicits its response,
-// whichever public seam puts it on the wire (`Transport::send_packet*` beside the bound-iface
-// helper the in-repo clients use), `Link::request_packet_with_max_response_size` keeps its own gate
-// (`RNS/Link.py:1046-1049`, `<=` admits a response exactly at the limit), and a receipt
-// and a bare request packet interleaved on one link each get their own Resource
-// response. Helpers come from the sibling `tests_parts` files.
+// from the CHANGELOG contract: a request packet sent through `Transport::send_packet*` or the
+// bound-iface link send solicits its response (`send_prepared_packet_broadcast_with_trace` does
+// not: a pre-encrypted packet carries no `PacketContext::Request` the seam can read), and
+// `Link::request_packet_with_max_response_size` keeps its own gate (`RNS/Link.py:1046-1049`, `<=`
+// admits a response exactly at the limit); a receipt and a bare request packet interleaved on
+// one link each get their own Resource response. Helpers come from the sibling `tests_parts` files.
 
 /// A request packet for `path` built with the bare `request_packet` and the id the
 /// responder derives from it.

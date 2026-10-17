@@ -167,7 +167,8 @@ pub(super) async fn handle_link_resource_packet<'a>(
                     let data_size = usize::try_from(advertisement.data_size).unwrap_or(usize::MAX);
                     let Some(admitted) = link.response_size_allowed(request_id, data_size) else {
                         log::debug!(
-                            "[resource-diag] drop_unsolicited_response_advertisement link={} hash={} request_id={}",
+                            "[resource-diag] drop_unsolicited_response_advertisement node={} link={} hash={} request_id={}",
+                            handler.config.name,
                             link.id(),
                             advertisement.hash,
                             hex::encode(request_id)
@@ -179,7 +180,8 @@ pub(super) async fn handle_link_resource_packet<'a>(
                         .map(RequestId::new);
                     if pending_id.is_none() {
                         log::debug!(
-                            "[resource-diag] response_advertisement_request_id_len link={} hash={} len={}",
+                            "[resource-diag] response_advertisement_request_id_len node={} link={} hash={} len={}",
+                            handler.config.name,
                             link.id(),
                             advertisement.hash,
                             request_id.len()

@@ -36,8 +36,8 @@ commits `1ddd5273`, `a2a40de7`, `3805fe7f`, `3ed78582`, `415d67c8`,
 `60cb3755`, `e28c5a03`, `1da7243b`, `7aaf7a50`, `f575a790`, `ad9f6b8a`,
 `0d4c9342`, `181c4a27`, `8eebdfab`, `ca4d1aa4`, `6b3ab18e`, `bb8a94ad`,
 `d042612c`, `e5183c64`, `64d49999`, `08794d16`, `f7922574`, `8549dd6f`,
-`b836157a`, `30f98996`, `55736b0b`, `f10a7843`, `09f6c98b` and
-`21fc1c3f`.
+`b836157a`, `30f98996`, `55736b0b`, `f10a7843`, `09f6c98b`, `21fc1c3f`,
+`f7d8c60d`, `f68479d5`, `c13491a7`, `28d7e69b` and `6ce0e712`.
 
 | File | Patch |
 | --- | --- |
@@ -126,12 +126,15 @@ commits `1ddd5273`, `a2a40de7`, `3805fe7f`, `3ed78582`, `415d67c8`,
 | `crates/libs/rns-transport/src/transport/tests_parts/two_transport_loopback_requests_resource_form_probe3.rs` | request handlers and dispatch |
 | `crates/libs/rns-transport/src/transport/tests_parts/two_transport_loopback_requests_resource_form_sizes.rs` | request receipts and timeouts |
 | `crates/libs/rns-transport/src/transport/tests_parts/two_transport_loopback_requests_resource_form_sizes_cancel.rs` | request receipts and timeouts |
+| `crates/libs/rns-transport/src/transport/tests_parts/two_transport_loopback_requests_resource_form_sizes_cancel2.rs` | request receipts and timeouts |
 | `crates/libs/rns-transport/src/transport/tests_parts/two_transport_loopback_requests_resource_form_sizes_cancel_probe.rs` | request receipts and timeouts |
 | `crates/libs/rns-transport/src/transport/tests_parts/two_transport_loopback_requests_resource_form_sizes_probe.rs` | request receipts and timeouts |
 | `crates/libs/rns-transport/src/transport/tests_parts/two_transport_loopback_requests_resource_form_sizes_probe2.rs` | request receipts and timeouts |
 | `crates/libs/rns-transport/src/transport/tests_parts/two_transport_loopback_requests_resource_form_sizes_probe3.rs` | request receipts and timeouts |
 | `crates/libs/rns-transport/src/transport/tests_parts/two_transport_loopback_requests_resource_form_sizes_probe4.rs` | request receipts and timeouts |
 | `crates/libs/rns-transport/src/transport/tests_parts/two_transport_loopback_requests_resource_form_sizes_probe5.rs` | request receipts and timeouts |
+| `crates/libs/rns-transport/src/transport/tests_parts/two_transport_loopback_requests_resource_form_sizes_probe6.rs` | request receipts and timeouts |
+| `crates/libs/rns-transport/src/transport/tests_parts/two_transport_loopback_requests_resource_form_sizes_probe7.rs` | request receipts and timeouts |
 | `crates/libs/rns-transport/src/transport/tests_parts/two_transport_loopback_requests_routing.rs` | request handlers and dispatch, request receipts and timeouts |
 | `crates/libs/rns-transport/src/transport/tests_parts/two_transport_loopback_resources.rs` | request receipts and timeouts |
 | `crates/libs/rns-transport/src/transport/tests_parts/two_transport_loopback_resources_directions.rs` | request receipts and timeouts |
@@ -1194,7 +1197,8 @@ that no `Complete` for the receipt's id reaches the connector's
 `resource_events()`. New `response_packet_tests.rs` (one `include!` line
 in `link_parts/link.rs`, since `pending_requests_tests.rs` is at the
 module-size cap) pins a receipt-less 16-byte entry reporting its limit
-and going when the measurement refuses the response. The crate
+through `response_size_limit` and going when
+`take_response_limit_if_allowed` refuses the assembled size. The crate
 `CHANGELOG.md` `max_response_size` gate bullet now states the recheck
 for every id form.
 
@@ -1248,6 +1252,92 @@ same pair in `RecordClock::Receiving`, and
 `resource/tests_timeouts_lifecycle.rs` says a first segment's original
 hash is its own. The crate `CHANGELOG.md` gains a bullet for the clock
 and the cancel.
+
+Fork commit `f7d8c60d`: new fixtures
+`two_transport_loopback_requests_resource_form_sizes_probe6.rs` and
+`two_transport_loopback_requests_resource_form_sizes_probe7.rs` (two
+`include!` lines in `transport/tests.rs`). probe6 pins
+`Link::set_response_size_limit` composed with the public request builders:
+a limit set before or after a `send_request_resource` call, or before a
+bare `request_packet` is sent, is kept by the record the send makes, one
+byte over it refused with `OutboundRejected` on the responder and exactly
+the limit delivered; and a response whose advertised `d` lied under the
+limit of a receipt-less 16-byte or a legacy-length record is caught at the
+post-assembly measurement, its `Complete` withheld, the record cleared.
+probe7 pins the public `expect_response` keeping a prior limit when given
+`None` and replacing it when given `Some`, in both directions. The probe5
+header splits the Python cite (`d` measured and trusted at the
+advertisement) from this crate's assembled-bytes recheck, its size
+constants say what each length buys under the 256 KiB loopback MTU, and
+the lying-`d` re-advertisement notes that the payload has to be
+incompressible because the receiver caps decompression by the advertised
+`d`. The crate `CHANGELOG.md` names probe6 in the `max_response_size`
+gate pin clause and probe7 under the `set_response_size_limit` bullet.
+
+Fork commit `f68479d5`: every writer in
+`link_sections/response_packet.rs` that removes or replaces a record
+hands back the `InboundResponseHashes` a `RecordClock::Receiving` record
+held, so a receipt-less record displaced while its response Resource is
+inbound has that transfer cancelled as a receipt's would be. New
+crate-private `Link::take_response_limit` returns `(allowed, hashes)`,
+the hashes only on refusal; the public `take_response_limit_if_allowed`
+keeps its signature as a wrapper that owes them on the link. `replace_response_record`
+and `expect_response_to_resource` return the displaced hashes under
+`#[must_use]`, and the public `expect_response` owes them itself.
+`PendingResponseLimit::into_receiving` (`link_parts/linkhandleresult.rs`)
+is the shared projection. The Response arm in `link_sections/new.rs`
+calls the crate-private writer and owes the hashes, with its comment
+covering both sources of the one cancel and the legacy-length id's
+exemption from the packet-path gate; both forms of `Transport::request`
+(`transport_sections/request.rs`, `displaced` now a `Vec`) fold the
+record's hashes into the cancel they already send, and
+`send_request_resource_with_max_response_size`
+(`transport_sections/reset_out_link.rs`) cancels them after the link
+guard is released. `response_record_tests.rs` gains rows for each writer
+and for the packet handled under a receipt-less receiving record owing
+exactly one cancel; `response_packet_tests.rs` and
+`pending_requests_tests.rs` assert `None` where the new returns were
+ignored. New fixture
+`two_transport_loopback_requests_resource_form_sizes_cancel2.rs` (one
+`include!` line in `transport/tests.rs`) pins one
+`ResourceReceiverCancel` reaching the responder and the transfer
+reported `InboundFailed` on the connector. `rustfmt` also reflowed one
+pre-existing line in `request.rs`. The crate `CHANGELOG.md` gains a
+bullet for the hand-back.
+
+Fork commit `c13491a7`: new
+`sizes_assert_no_response_activity_under(events, link_id, ids)` in
+`two_transport_loopback_requests_resource_form_sizes.rs` watches every
+id in one silence window, since an event read off the receiver in a
+window for one id is gone for the next; `sizes_assert_no_response_activity`
+wraps it for one id, and a closed event channel panics as in
+`sizes_sample_progress` while the timeout stays the clean return.
+`two_transport_loopback_requests_resource_form_sizes_probe4.rs` passes
+both late ids in one call and its doc says why; the local copy in
+`two_transport_loopback_requests_resource_form_sizes_probe5.rs` is gone
+and its call sites there and in probe6 use the shared helper. The sizes
+header names `two_transport_loopback_requests_receipt_probe3.rs` as the
+fixture behind its not-spent clause, and the `windows(2)` closure in
+`two_transport_loopback_requests_resource_form_sizes_probe3.rs` binds
+`window`.
+
+Fork commit `28d7e69b`: the legacy-length arm of the response `Complete`
+handling in `transport/resource_wire.rs` takes its record through the
+crate-private `take_response_limit` and consumes the hashes through
+`cancel_inbound_response` as the 16-byte arm does, instead of owing a
+cancel for a Resource already assembled; and the manager events a
+receiver cancel produces are drained and published with the packet that
+caused them on the rejected branch too, not left for the next resource
+packet or the periodic worker.
+
+Fork commit `6ce0e712`: the crate `README.md`, the crate `CHANGELOG.md`
+receipt bullet and the `RequestReceipt` rustdoc
+(`destination/request/receipt.rs`) qualify the dropped-receipt sentence:
+a response assembling over the receipt's `max_response_size` has its
+`Complete` withheld. The refused-segment cancel bullet in the
+`CHANGELOG.md` claims only the Link half its unit rows pin. The
+`note_request_sent` rustdoc (`link_sections/response_packet.rs`) says an
+`Expires` clock is re-armed whether or not it has run out.
 
 ## 0.14.1 (upstream 0.14.0)
 

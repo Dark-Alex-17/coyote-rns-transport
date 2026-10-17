@@ -36,13 +36,13 @@ mod response_packet_tests {
         let (mut link, _, _, _) = linked_pair();
 
         link.set_response_size_limit(b"limit-first", 512);
-        link.expect_response_to_resource(b"limit-first", None, hash(1));
+        assert_eq!(link.expect_response_to_resource(b"limit-first", None, hash(1)), None);
         assert_eq!(link.response_size_limit(b"limit-first"), Some(512));
         let entry = link.pending_response_limits.get(b"limit-first".as_slice()).expect("recorded");
         assert_eq!(entry.clock, RecordClock::Unarmed, "the request Resource arms the clock");
         assert_eq!(entry.request_resource, Some(hash(1)));
 
-        link.expect_response_to_resource(b"record-first", None, hash(2));
+        assert_eq!(link.expect_response_to_resource(b"record-first", None, hash(2)), None);
         link.set_response_size_limit(b"record-first", 256);
         assert_eq!(link.response_size_limit(b"record-first"), Some(256));
         let entry = link.pending_response_limits.get(b"record-first".as_slice()).expect("kept");
@@ -70,7 +70,7 @@ mod response_packet_tests {
             "a packet-form record runs from now"
         );
 
-        link.replace_response_record(q, None);
+        assert_eq!(link.replace_response_record(q, None), None, "nothing was inbound");
         assert_eq!(link.response_size_limit(q), None, "replaced whole");
     }
 }

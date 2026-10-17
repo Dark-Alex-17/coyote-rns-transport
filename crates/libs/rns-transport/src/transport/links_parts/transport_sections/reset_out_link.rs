@@ -294,12 +294,15 @@ impl Transport {
         drop(handler);
         // Marked before the advertisement leaves: the response to it is
         // solicited whether or not a size limit came with it, and the
-        // record's clock starts at the request Resource's delivery.
-        link.lock().await.expect_response_to_resource(
+        // record's clock starts at the request Resource's delivery. A record
+        // under the id still receiving a response is displaced; that
+        // transfer is cancelled with the link guard released.
+        let displaced = link.lock().await.expect_response_to_resource(
             &response_request_id,
             max_response_size,
             resource_hash,
         );
+        self.cancel_inbound_responses(&link, displaced.into_iter().collect()).await;
         let outcome = self.send_link_packet_on_bound_iface(&link, packet).await;
         let sent = outcome.is_sent();
         if !sent {

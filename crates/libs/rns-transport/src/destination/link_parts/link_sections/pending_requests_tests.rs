@@ -236,9 +236,9 @@ mod pending_requests_tests {
     fn a_resource_form_entry_without_a_receipt_is_armed_by_its_request_resource() {
         let (mut link, _, _, _) = linked_pair();
         let marker_timeout = RequestOptions::default().timeout_for_rtt(link.rtt());
-        link.expect_response_to_resource(b"legacy", Some(10), hash(0xA1));
-        link.expect_response_to_resource(b"refused", None, hash(0xA2));
-        link.expect_response_to_resource(b"lost", None, hash(0xA3));
+        assert_eq!(link.expect_response_to_resource(b"legacy", Some(10), hash(0xA1)), None);
+        assert_eq!(link.expect_response_to_resource(b"refused", None, hash(0xA2)), None);
+        assert_eq!(link.expect_response_to_resource(b"lost", None, hash(0xA3)), None);
         assert_eq!(link.earliest_pending_request_deadline(), None, "no clock before delivery");
         link.expire_pending_requests(Instant::now() + marker_timeout * 2);
         assert_eq!(link.response_size_allowed(b"legacy", 10), Some(true));

@@ -370,6 +370,21 @@ trailing clause of the bullet for the behaviour it pins.
   orphaning it in the ResourceManager. Pinned by
   `destination/link_parts/link_sections/response_record_tests.rs`.
 
+- A record no receipt owns that is removed or replaced while receiving a
+  response Resource hands that transfer back to be cancelled, like the
+  receipt-owned entry does (`RNS/Link.py:1435`). Before, an over-limit
+  response packet for a receipt-less `request_packet_with_max_response_size`
+  record dropped the record with the inbound hashes, so no receiver cancel
+  went out and the partial assembly went on to complete unmeasured, and a
+  `Transport::request` or `send_request_resource*` re-sent under such a
+  record's id left its transfer running. `take_response_limit_if_allowed`
+  and `expect_response` keep their signatures and route the cancel through
+  the link's owed cancels, which the transport drains after each inbound
+  packet. Pinned by
+  `destination/link_parts/link_sections/response_record_tests.rs` and
+  `transport/tests_parts/two_transport_loopback_requests_resource_form_sizes_cancel2.rs`
+  (exactly one `ResourceReceiverCancel` reaches the responder).
+
 - `Transport::send_direct`, `send_response_resource_with_compression` and
   the transport's link lookup delegate to free functions in
   `transport/request_dispatch.rs`, which the dispatch worker shares. No

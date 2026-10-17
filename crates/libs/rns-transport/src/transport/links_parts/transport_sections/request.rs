@@ -6,13 +6,13 @@ use crate::destination::request::{
 /// What `Transport::request` decided under the link lock.
 enum OutboundRequestForm {
     /// The request fits one `REQUEST` packet, built and registered already.
-    /// `displaced` is the response Resource an entry under the same id was
-    /// receiving.
+    /// `displaced` holds the response Resources the record and the receipt
+    /// entry under the same id were receiving, one each at most.
     Packet {
         id: RequestId,
         packet: Box<Packet>,
         receipt: RequestReceipt,
-        displaced: Option<InboundResponseHashes>,
+        displaced: Vec<InboundResponseHashes>,
     },
     /// The request goes out as a Resource; the registration waits until the
     /// Resource hash is known.
@@ -53,17 +53,23 @@ impl Transport {
             if request.packed.len() <= guard.link_mdu() {
                 let packet = guard.request_packet(&request.packed)?;
                 let id = RequestId::from_packet_hash(&packet.hash());
-                guard.replace_response_record(id.as_bytes(), opts.max_response_size());
+                let displaced_record =
+                    guard.replace_response_record(id.as_bytes(), opts.max_response_size());
                 let (receipt, displaced) =
                     guard.insert_pending_request(id, PendingRequest::new(id, timeout, None));
-                OutboundRequestForm::Packet { id, packet: Box::new(packet), receipt, displaced }
+                OutboundRequestForm::Packet {
+                    id,
+                    packet: Box::new(packet),
+                    receipt,
+                    displaced: displaced_record.into_iter().chain(displaced).collect(),
+                }
             } else {
                 OutboundRequestForm::Resource { timeout, iface: guard.ingress_iface() }
             }
         };
         match form {
             OutboundRequestForm::Packet { id, packet, receipt, displaced } => {
-                self.cancel_inbound_responses(&link, displaced.into_iter().collect()).await;
+                self.cancel_inbound_responses(&link, displaced).await;
                 let outcome = self.send_link_packet_on_bound_iface(&link, *packet).await;
                 if !outcome.is_sent() {
                     link.lock().await.remove_pending_request(&id);
@@ -122,18 +128,21 @@ impl Transport {
         let registered = {
             let mut link_guard = link.lock().await;
             if link_guard.status() == LinkStatus::Active {
-                link_guard.replace_response_record(id.as_bytes(), max_response_size);
-                Some(link_guard.insert_pending_request(
+                let displaced_record =
+                    link_guard.replace_response_record(id.as_bytes(), max_response_size);
+                let (receipt, displaced) = link_guard.insert_pending_request(
                     id,
                     PendingRequest::new(id, timeout, Some(resource_hash)),
-                ))
+                );
+                let displaced: Vec<_> = displaced_record.into_iter().chain(displaced).collect();
+                Some((receipt, displaced))
             } else {
                 None
             }
         };
         let sent = match &registered {
             Some((_, displaced)) => {
-                self.cancel_inbound_responses(link, displaced.iter().copied().collect()).await;
+                self.cancel_inbound_responses(link, displaced.clone()).await;
                 self.send_link_packet_on_bound_iface(link, packet).await.is_sent()
             }
             None => false,
@@ -189,7 +198,9 @@ impl Transport {
             if link_guard.status() == LinkStatus::Active {
                 cancelled
                     .iter()
-                    .filter_map(|hash| super::resource_wire::receiver_cancel_packet(&link_guard, hash))
+                    .filter_map(|hash| {
+                        super::resource_wire::receiver_cancel_packet(&link_guard, hash)
+                    })
                     .collect()
             } else {
                 Vec::new()

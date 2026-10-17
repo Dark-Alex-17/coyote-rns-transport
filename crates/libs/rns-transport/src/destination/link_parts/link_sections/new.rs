@@ -265,12 +265,21 @@ impl Link {
                     } else if packet.context == PacketContext::Response {
                         match response_envelope_metadata(plain_text) {
                             Some((id, response_size)) => {
-                                let accepted = id.as_ref().is_none_or(|id| {
-                                    self.take_response_limit_if_allowed(id, response_size)
-                                });
+                                let (accepted, refused_while_receiving) = match &id {
+                                    Some(id) => self.take_response_limit(id, response_size),
+                                    // A legacy-length id is not gated on the packet path:
+                                    // Python's response packet is keyed by the 16-byte receipt
+                                    // id alone (`RNS/Link.py:857-884`). Its response is measured
+                                    // only when it arrives as a Resource (`resource_wire.rs`).
+                                    None => (true, None),
+                                };
+                                self.owed_response_cancels.extend(refused_while_receiving);
                                 if let Some(id) = id {
                                     let id = RequestId::new(id);
-                                    // Only `Oversize` can owe a cancel here: the size recheck in
+                                    // A refused packet owes one cancel: the record's own, for
+                                    // a receipt-less id, or the receipt's, which is the only
+                                    // holder of the hashes when a receipt owns the id. An
+                                    // accepted packet owes none: the size recheck in
                                     // `resolve_pending_request` is for a Resource, not a packet.
                                     let receiving = if accepted {
                                         let arrival = ResponseArrival::Packet {

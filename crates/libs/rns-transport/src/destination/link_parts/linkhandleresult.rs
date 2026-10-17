@@ -81,6 +81,16 @@ pub(crate) struct PendingResponseLimit {
     request_resource: Option<Hash>,
 }
 
+impl PendingResponseLimit {
+    /// The response Resource a record taken out of the table was receiving.
+    fn into_receiving(self) -> Option<InboundResponseHashes> {
+        match self.clock {
+            RecordClock::Receiving(inbound) => Some(inbound),
+            _ => None,
+        }
+    }
+}
+
 pub struct Link {
     id: LinkId,
     is_initiator: bool,

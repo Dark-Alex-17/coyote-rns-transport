@@ -72,51 +72,63 @@ impl Link {
     /// is what tells its response advertisement from an unsolicited one.
     /// The entry lives for the default request timeout unless a receipt
     /// owns the id. A limit already recorded under `request_id` stays when
-    /// none is given.
+    /// none is given. A record already receiving a response Resource is
+    /// replaced, and that transfer is cancelled on the link's next inbound
+    /// packet.
     pub fn expect_response(&mut self, request_id: &[u8], max_response_size: Option<usize>) {
         let limit = max_response_size.or_else(|| self.response_size_limit(request_id));
-        self.replace_response_record(request_id, limit);
+        let displaced = self.replace_response_record(request_id, limit);
+        self.owed_response_cancels.extend(displaced);
     }
 
     /// [`Self::expect_response`] that replaces the record under `request_id`
     /// whole, limit included. For `Transport::request`, whose receipt
     /// displaces whatever was under the id: a request sent without a limit
     /// under an id a displaced entry recorded one for does not inherit it.
-    /// The public builders keep a limit set beforehand instead.
+    /// The public builders keep a limit set beforehand instead. Returns the
+    /// response Resource the displaced record was receiving, for the caller
+    /// to cancel.
     #[deny(clippy::await_holding_invalid_type)]
+    #[must_use = "the hashes are for the caller to cancel"]
     pub(crate) fn replace_response_record(
         &mut self,
         request_id: &[u8],
         max_response_size: Option<usize>,
-    ) {
+    ) -> Option<InboundResponseHashes> {
         let clock = self.pending_response_expiry();
-        self.pending_response_limits.insert(
-            request_id.to_vec(),
-            PendingResponseLimit { limit: max_response_size, clock, request_resource: None },
-        );
+        self.pending_response_limits
+            .insert(
+                request_id.to_vec(),
+                PendingResponseLimit { limit: max_response_size, clock, request_resource: None },
+            )
+            .and_then(PendingResponseLimit::into_receiving)
     }
 
     /// [`Self::expect_response`] for a request leaving as the Resource
     /// `request_resource`: the entry's clock does not run until that
     /// Resource is delivered (`RNS/Link.py:1370-1373`), and its rejection,
     /// failure or cancel drops the entry. A limit already recorded under
-    /// `request_id` stays when none is given.
+    /// `request_id` stays when none is given. Returns the response Resource
+    /// the displaced record was receiving, for the caller to cancel.
     #[deny(clippy::await_holding_invalid_type)]
+    #[must_use = "the hashes are for the caller to cancel"]
     pub(crate) fn expect_response_to_resource(
         &mut self,
         request_id: &[u8],
         max_response_size: Option<usize>,
         request_resource: Hash,
-    ) {
+    ) -> Option<InboundResponseHashes> {
         let limit = max_response_size.or_else(|| self.response_size_limit(request_id));
-        self.pending_response_limits.insert(
-            request_id.to_vec(),
-            PendingResponseLimit {
-                limit,
-                clock: RecordClock::Unarmed,
-                request_resource: Some(request_resource),
-            },
-        );
+        self.pending_response_limits
+            .insert(
+                request_id.to_vec(),
+                PendingResponseLimit {
+                    limit,
+                    clock: RecordClock::Unarmed,
+                    request_resource: Some(request_resource),
+                },
+            )
+            .and_then(PendingResponseLimit::into_receiving)
     }
 
     /// Records that the link sent a request packet under `request_id`. Every
@@ -173,17 +185,38 @@ impl Link {
         self.pending_response_limits.get(request_id).and_then(|entry| entry.limit)
     }
 
-    /// Remove a pending limit after the matching response packet is
-    /// accepted or rejected. A missing or unbounded entry admits it.
+    /// Removes the record under `request_id` for the response packet of
+    /// `response_size` bytes and tells whether the packet is admitted: a
+    /// missing or unbounded record admits it. A record refusing the packet
+    /// while receiving a response Resource has that transfer cancelled by
+    /// the transport once the packet is handled.
     pub fn take_response_limit_if_allowed(
         &mut self,
         request_id: &[u8],
         response_size: usize,
     ) -> bool {
-        self.pending_response_limits
-            .remove(request_id)
-            .and_then(|entry| entry.limit)
-            .is_none_or(|limit| response_size <= limit)
+        let (allowed, refused_while_receiving) =
+            self.take_response_limit(request_id, response_size);
+        self.owed_response_cancels.extend(refused_while_receiving);
+        allowed
+    }
+
+    /// [`Self::take_response_limit_if_allowed`] that hands the response
+    /// Resource a refusing record was receiving to the caller to cancel. An
+    /// admitted packet leaves that Resource to run, as it does for a
+    /// receipt.
+    #[deny(clippy::await_holding_invalid_type)]
+    #[must_use = "the hashes are for the caller to cancel"]
+    pub(crate) fn take_response_limit(
+        &mut self,
+        request_id: &[u8],
+        response_size: usize,
+    ) -> (bool, Option<InboundResponseHashes>) {
+        let Some(entry) = self.pending_response_limits.remove(request_id) else {
+            return (true, None);
+        };
+        let allowed = entry.limit.is_none_or(|limit| response_size <= limit);
+        (allowed, if allowed { None } else { entry.into_receiving() })
     }
 
     pub fn clear_response_size_limit(&mut self, request_id: &[u8]) {
@@ -200,10 +233,7 @@ impl Link {
         &mut self,
         request_id: &[u8],
     ) -> Option<InboundResponseHashes> {
-        match self.pending_response_limits.remove(request_id)?.clock {
-            RecordClock::Receiving(inbound) => Some(inbound),
-            _ => None,
-        }
+        self.pending_response_limits.remove(request_id)?.into_receiving()
     }
 
     /// Build a response packet (context = `Response`) carrying `data`.

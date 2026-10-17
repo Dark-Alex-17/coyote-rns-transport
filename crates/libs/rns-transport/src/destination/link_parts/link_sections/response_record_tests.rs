@@ -8,6 +8,12 @@ mod response_record_tests {
     use super::pending_requests_tests::{hash, hashes, response_segment};
     use super::*;
 
+    use crate::destination::request::ResponseFrame;
+
+    fn id(byte: u8) -> RequestId {
+        RequestId::new([byte; ADDRESS_HASH_SIZE])
+    }
+
     /// A re-send under an id whose record is receiving its response, or whose request
     /// Resource is still in flight, does not restart a clock the record does not run.
     #[test]
@@ -15,7 +21,7 @@ mod response_record_tests {
         let (mut link, _, _, _) = linked_pair();
         link.expect_response(b"legacy", Some(10));
         link.mark_pending_request_receiving(b"legacy", &response_segment(hash(1), hash(3)));
-        link.expect_response_to_resource(b"resource", None, hash(0xA1));
+        assert_eq!(link.expect_response_to_resource(b"resource", None, hash(0xA1)), None);
 
         link.note_request_sent(b"legacy");
         link.note_request_sent(b"resource");
@@ -48,11 +54,112 @@ mod response_record_tests {
     #[test]
     fn a_rejected_request_resource_hands_back_the_response_its_entry_was_receiving() {
         let (mut link, _, _, _) = linked_pair();
-        link.expect_response_to_resource(b"legacy", None, hash(0xA1));
+        assert_eq!(link.expect_response_to_resource(b"legacy", None, hash(0xA1)), None);
         link.mark_pending_request_receiving(b"legacy", &response_segment(hash(1), hash(3)));
 
         let rejected = ResourceEventKind::OutboundRejected;
         assert_eq!(link.note_request_resource_outcome(hash(0xA1), &rejected), Some(hashes(1, 3)));
         assert_eq!(link.response_size_allowed(b"legacy", 1), None, "dropped with the request");
+    }
+
+    /// An over-limit response packet for a receipt-less record that is receiving a response
+    /// Resource refuses the packet, drops the record, and owes that Resource a cancel once;
+    /// there is no receipt to supply it.
+    #[test]
+    fn an_oversize_packet_for_a_receipt_less_receiving_record_owes_its_resource_a_cancel() {
+        let (mut link, _, _, _) = linked_pair();
+        let request = id(7);
+        let q = request.as_bytes().as_slice();
+        link.expect_response(q, Some(10));
+        link.mark_pending_request_receiving(q, &response_segment(hash(1), hash(3)));
+        assert!(link.pending_requests.is_empty(), "no receipt owns the id");
+
+        assert!(!link.take_response_limit_if_allowed(q, 11), "over the limit");
+        assert_eq!(link.response_size_allowed(q, 1), None, "the record is gone");
+        assert_eq!(link.take_owed_response_cancels(), vec![hashes(1, 3)]);
+        assert!(link.take_owed_response_cancels().is_empty(), "handed over once");
+    }
+
+    /// The crate-private writer hands the receiving Resource back only when it refuses the
+    /// packet; an admitted packet leaves the inbound Resource to run, as a receipt does.
+    #[test]
+    fn take_response_limit_hands_back_the_receiving_resource_only_on_refusal() {
+        let (mut link, _, _, _) = linked_pair();
+        link.expect_response(b"refused", Some(10));
+        link.mark_pending_request_receiving(b"refused", &response_segment(hash(1), hash(3)));
+        link.expect_response(b"admitted", Some(10));
+        link.mark_pending_request_receiving(b"admitted", &response_segment(hash(2), hash(4)));
+
+        assert_eq!(link.take_response_limit(b"refused", 11), (false, Some(hashes(1, 3))));
+        assert_eq!(link.take_response_limit(b"admitted", 10), (true, None));
+        assert!(link.take_owed_response_cancels().is_empty(), "the caller routes the hashes");
+        assert_eq!(link.response_size_allowed(b"admitted", 1), None, "removed all the same");
+    }
+
+    /// The over-limit response packet itself, handled by the link under a receipt-less
+    /// 16-byte id whose record is receiving a response Resource: the packet is refused and
+    /// exactly one cancel is owed, where a receipt-owned id gets its one from the receipt
+    /// (see `pending_requests_tests`).
+    #[test]
+    fn handling_an_oversize_packet_under_a_receipt_less_receiving_record_owes_one_cancel() {
+        let (mut link, peer, iface, _) = linked_pair();
+        let request = id(7);
+        let q = request.as_bytes().as_slice();
+        link.expect_response(q, Some(64));
+        link.mark_pending_request_receiving(q, &response_segment(hash(2), hash(1)));
+
+        let envelope = ResponseFrame::new(request, rmpv::Value::Binary(vec![0u8; 65])).encode();
+        let packet = peer.response_packet(&envelope).expect("the peer builds the response");
+        assert!(matches!(link.handle_packet(&packet, iface), LinkHandleResult::None));
+
+        assert!(link.pending_response_limits.is_empty(), "the record went with the refusal");
+        assert_eq!(link.take_owed_response_cancels(), vec![hashes(2, 1)]);
+        assert!(link.take_owed_response_cancels().is_empty(), "handed over once");
+    }
+
+    /// Replacing a record whole hands back the response Resource it was receiving; an idle
+    /// record hands back nothing.
+    #[test]
+    fn replacing_a_receiving_record_hands_back_its_inbound_response() {
+        let (mut link, _, _, _) = linked_pair();
+        link.expect_response(b"legacy", None);
+        link.expect_response(b"idle", None);
+        link.mark_pending_request_receiving(b"legacy", &response_segment(hash(1), hash(3)));
+
+        assert_eq!(link.replace_response_record(b"legacy", Some(10)), Some(hashes(1, 3)));
+        assert_eq!(link.replace_response_record(b"idle", None), None);
+        assert_eq!(link.response_size_limit(b"legacy"), Some(10), "replaced, not removed");
+        assert!(link.take_owed_response_cancels().is_empty(), "the caller routes the hashes");
+    }
+
+    /// A request Resource re-sent under an id whose record is receiving a response hands
+    /// back that response for the caller to cancel.
+    #[test]
+    fn expecting_a_response_to_a_resource_over_a_receiving_record_hands_back_its_response() {
+        let (mut link, _, _, _) = linked_pair();
+        link.expect_response(b"legacy", None);
+        link.mark_pending_request_receiving(b"legacy", &response_segment(hash(1), hash(3)));
+
+        assert_eq!(
+            link.expect_response_to_resource(b"legacy", None, hash(0xA1)),
+            Some(hashes(1, 3))
+        );
+        let entry = link.pending_response_limits.get(b"legacy".as_slice()).expect("recorded");
+        assert_eq!(entry.clock, RecordClock::Unarmed, "waiting on the new request Resource");
+        assert_eq!(link.expect_response_to_resource(b"legacy", None, hash(0xA2)), None);
+    }
+
+    /// The public `expect_response` over a receiving record owes the displaced response one
+    /// cancel, for the transport to send on the link's next inbound packet.
+    #[test]
+    fn expecting_a_response_over_a_receiving_record_owes_the_displaced_response_a_cancel() {
+        let (mut link, _, _, _) = linked_pair();
+        link.expect_response(b"legacy", Some(10));
+        link.mark_pending_request_receiving(b"legacy", &response_segment(hash(1), hash(3)));
+
+        link.expect_response(b"legacy", None);
+        assert_eq!(link.response_size_limit(b"legacy"), Some(10), "the limit stays");
+        assert_eq!(link.take_owed_response_cancels(), vec![hashes(1, 3)]);
+        assert!(link.take_owed_response_cancels().is_empty(), "handed over once");
     }
 }

@@ -117,8 +117,9 @@ a packet-form request and from `Delivered` for a resource-form one, and a
 receipt still waiting when it runs out fails with `RequestError::Timeout`.
 `RequestOptions::with_max_response_size` is measured against
 the uncompressed size of the response, the packed body of a response packet
-or the advertised data size of a response Resource, and a larger response
-fails the receipt with `RequestError::Oversize` without being received. Every
+or the advertised data size of a response Resource; a response Resource over
+the limit is refused before it is received and a response packet over it is
+dropped, and either fails the receipt with `RequestError::Oversize`. Every
 request packet the link sends, however it was built, and every Resource sent
 through `send_request_resource*` solicits its response; a response Resource
 advertised for a request nothing on the link sent is dropped without a reject.
@@ -128,12 +129,12 @@ that cannot be sent, exhausts its retries or is cancelled through
 `Transport::cancel_resource` fails `Send`, and a response Resource that
 fails in transfer fails `Receive`. A link that closes, from either side,
 fails every pending receipt with `RequestError::LinkClosed`, as does
-`Transport::stop()` within its budget; a request on a link that has gone
-`Stale` is refused. A response Resource with metadata is a file response,
-read through `RequestResponseData::data()` and `metadata()`; every other
-response is the envelope body, read through `value()`. Dropping every clone
-of a receipt does not cancel the request: the responder still serves it and
-the response still reaches the link's broadcasts.
+`Transport::stop()` within its budget; a request on a link that is not
+`Active` (`Stale` included) is refused. A response Resource with metadata is
+a file response, read through `RequestResponseData::data()` and `metadata()`;
+every other response is the envelope body, read through `value()`. Dropping
+every clone of a receipt does not cancel the request: the responder still
+serves it and the response still reaches the link's broadcasts.
 
 ## Versioning and releases
 

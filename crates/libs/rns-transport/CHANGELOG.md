@@ -246,7 +246,11 @@ trailing clause of the bullet for the behaviour it pins.
   stays in force while the receipt is `Receiving`) fails it `Oversize`
   the same way and cancels that Resource with a receiver cancel to the
   responder, as a failed receipt cancels its response Resource
-  (`RNS/Link.py:1435`). Pinned by
+  (`RNS/Link.py:1435`). An in-limit response packet for a receipt already
+  receiving a response Resource resolves the receipt `Ready` from the
+  packet and leaves that Resource to its receiver's retry watchdog, as
+  Python resolves on the packet alone (`RNS/Link.py:873`, `:1437-1443`).
+  Pinned by
   `transport/tests_parts/two_transport_loopback_requests_receipt_timeouts.rs`,
   `two_transport_loopback_requests_receipt_probe.rs`,
   `two_transport_loopback_requests_receipt_probe2.rs`,

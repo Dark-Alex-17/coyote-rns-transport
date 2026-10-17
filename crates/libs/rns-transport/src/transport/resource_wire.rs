@@ -309,6 +309,9 @@ pub(super) async fn handle_link_resource_packet<'a>(
                                         metadata: complete.metadata.as_deref(),
                                     },
                                 );
+                                // The Resource is assembled, so nothing is
+                                // inbound for this id: this consumes the
+                                // `#[must_use]` and cancels nothing.
                                 if let Some(receiving) = receiving {
                                     cancel_inbound_response(
                                         &mut handler.resource_manager,

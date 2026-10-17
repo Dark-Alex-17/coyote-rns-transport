@@ -256,7 +256,9 @@ impl Link {
                 if let Ok(plain_text) = self.decrypt(packet.data.as_slice(), &mut buffer[..]) {
                     self.note_inbound(packet.context);
                     log::trace!("link({}): data {}B", self.id, plain_text.len());
-                    let (request_id, response_accepted) = if packet.context == PacketContext::Request {
+                    let (request_id, response_accepted) = if packet.context
+                        == PacketContext::Request
+                    {
                         let id = RequestId::from_packet_hash(&packet.hash());
                         self.dispatch_request(DispatchForm::Packet { request_id: id }, plain_text);
                         (Some(id.to_bytes()), true)
@@ -268,6 +270,8 @@ impl Link {
                                 });
                                 if let Some(id) = id {
                                     let id = RequestId::new(id);
+                                    // Only `Oversize` can owe a cancel here: the size recheck in
+                                    // `resolve_pending_request` is for a Resource, not a packet.
                                     let receiving = if accepted {
                                         let arrival = ResponseArrival::Packet {
                                             envelope: plain_text,

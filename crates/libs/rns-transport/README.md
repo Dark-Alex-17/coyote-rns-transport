@@ -118,11 +118,16 @@ receipt still waiting when it runs out fails with `RequestError::Timeout`.
 `RequestOptions::with_max_response_size` is measured against
 the uncompressed size of the response, the packed body of a response packet
 or the advertised data size of a response Resource; a response Resource over
-the limit is refused before it is received and a response packet over it is
-dropped, and either fails the receipt with `RequestError::Oversize`. Every
-request packet the link sends, however it was built, and every Resource sent
-through `send_request_resource*` solicits its response; a response Resource
-advertised for a request nothing on the link sent is dropped without a reject.
+the limit is refused at its advertisement, a response packet over it is
+dropped, and a response Resource that assembles over it (the advertised size
+was the peer's claim) is failed after assembly; each of the three fails the
+receipt with `RequestError::Oversize`. Every request packet the link sends,
+however it was built, and every Resource sent through `send_request_resource*`
+solicits its response; a response Resource advertised for a request nothing on
+the link sent is dropped without a reject. The solicitation lasts the default
+request timeout, counted from the send for a request packet and from the
+request Resource's delivery for `send_request_resource*`, unless a response
+Resource is being received, in which case that Resource's own outcome ends it.
 No clock runs while a request Resource is in flight or a response Resource
 is being received: a request Resource that is refused fails `Rejected`, one
 that cannot be sent, exhausts its retries or is cancelled through

@@ -153,7 +153,7 @@ pub(super) async fn handle_link_resource_packet<'a>(
     // transport.
     let mut rejected = false;
     let mut cancels = Vec::new();
-    let mut response_advertised: Option<(RequestId, ResourceAdvertisement)> = None;
+    let mut response_advertised: Option<(Vec<u8>, ResourceAdvertisement)> = None;
     if packet.context == PacketContext::ResourceAdvrtisement {
         if let Ok(advertisement) = ResourceAdvertisement::unpack(packet_for_manager.data.as_slice())
         {
@@ -188,7 +188,7 @@ pub(super) async fn handle_link_resource_packet<'a>(
                         );
                     }
                     if admitted {
-                        response_advertised = pending_id.map(|id| (id, advertisement.clone()));
+                        response_advertised = Some((request_id.to_vec(), advertisement.clone()));
                     } else {
                         log::warn!(
                             "[resource-diag] reject_response_advertisement link={} hash={} data_size={} transfer_size={} limit={:?}",
@@ -280,11 +280,7 @@ pub(super) async fn handle_link_resource_packet<'a>(
         // caps, an out-of-order or duplicate segment, an unreasonable part
         // count) leaves the receipt as it was, with its clock running.
         if let Some((id, advertisement)) = &response_advertised {
-            if handler.resource_manager.has_active_receiver(
-                &advertisement.hash,
-                link.id(),
-                id.as_bytes().as_slice(),
-            ) {
+            if handler.resource_manager.has_active_receiver(&advertisement.hash, link.id(), id) {
                 link.mark_pending_request_receiving(id, advertisement);
             }
         }

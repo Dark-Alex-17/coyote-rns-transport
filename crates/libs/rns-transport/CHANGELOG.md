@@ -298,11 +298,18 @@ trailing clause of the bullet for the behaviour it pins.
   `take_response_limit_if_allowed`, which keep their signatures (the
   send-time record, `Link::note_request_sent`, is crate-private); the
   packet-response path stays one-shot. The send-time record of a request
-  packet, and the `send_request_resource*` record, live for the default
-  request timeout (`rtt * 6 + 11.25 s`, `RNS/Link.py:491`) unless a
-  receipt owns the id, and are pruned by the link watchdog, as Python
-  prunes through the `RequestReceipt`'s own timeout
-  (`RNS/Link.py:1398-1411`); a receipt's record goes with the receipt. The
+  packet, and the `send_request_resource*` record, follow a receipt's
+  lifetime rules when no receipt owns the id: the clock runs from the send
+  for a request packet and from the request Resource's delivery
+  (`OutboundComplete`, `RNS/Link.py:1370-1373`) for a request Resource,
+  stops while a response Resource is inbound, and that Resource's own
+  outcome clears the record; otherwise the link watchdog prunes it at the
+  default request timeout (`rtt * 6 + 11.25 s`, `RNS/Link.py:491`).
+  Python's marker is the `RequestReceipt`: one `DELIVERED` past its
+  timeout leaves `pending_requests` (`RNS/Link.py:1397-1405`), one
+  `RECEIVING` is never timed out (`:1389`), and one that never reached
+  `DELIVERED` stays, so a packet-form marker there can outlive this
+  record. A receipt's record goes with the receipt. The
   assembled response Resource is measured against the limit once more
   when it completes, metadata excluded, and fails the receipt `Oversize`
   when it is over, since the advertised `d` is the peer's claim and an

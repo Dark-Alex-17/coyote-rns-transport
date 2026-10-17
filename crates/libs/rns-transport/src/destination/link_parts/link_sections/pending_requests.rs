@@ -20,7 +20,11 @@ impl Link {
     ) -> (RequestReceipt, Option<InboundResponseHashes>) {
         let receipt = pending.receipt();
         let displaced = self.pending_requests.insert(id, pending).and_then(|displaced| {
-            log::debug!("link({}): request {} displaced a pending entry with the same id", self.id, id);
+            log::debug!(
+                "link({}): request {} displaced a pending entry with the same id",
+                self.id,
+                id
+            );
             displaced.fail(RequestError::Send)
         });
         (receipt, displaced)
@@ -55,7 +59,10 @@ impl Link {
                 if data.len() > limit {
                     log::warn!(
                         "link({}): response to {} assembled {} bytes over its {} byte limit",
-                        self.id, id, data.len(), limit
+                        self.id,
+                        id,
+                        data.len(),
+                        limit
                     );
                     return self.fail_pending_request(&id, RequestError::Oversize);
                 }
@@ -137,25 +144,35 @@ impl Link {
         }
     }
 
-    /// A segment of the response to `id` was advertised and admitted: the
-    /// ResourceManager built a receiver for it (`RNS/Link.py:1055-1064`,
-    /// `:1420`).
+    /// A segment of the response to `request_id` was advertised and
+    /// admitted: the ResourceManager built a receiver for it
+    /// (`RNS/Link.py:1055-1064`, `:1420`). A receipt under the id takes it;
+    /// an entry no receipt owns stops its clock until that Resource's own
+    /// outcome clears it (`:1389`).
     #[deny(clippy::await_holding_invalid_type)]
     pub(crate) fn mark_pending_request_receiving(
         &mut self,
-        id: &RequestId,
+        request_id: &[u8],
         advertisement: &ResourceAdvertisement,
     ) {
-        if let Some(pending) = self.pending_requests.get_mut(id) {
+        let receipt_id = <[u8; ADDRESS_HASH_SIZE]>::try_from(request_id).ok().map(RequestId::new);
+        if let Some(pending) = receipt_id.and_then(|id| self.pending_requests.get_mut(&id)) {
             pending.mark_receiving(advertisement);
+        } else if let Some(entry) = self.pending_response_limits.get_mut(request_id) {
+            entry.clock = RecordClock::Receiving(InboundResponseHashes {
+                segment: advertisement.hash,
+                original: advertisement.original_hash,
+            });
         }
     }
 
     /// Progress on the response Resource segment `hash` (`RNS/Link.py:1429`).
     #[deny(clippy::await_holding_invalid_type)]
     pub(crate) fn note_pending_response_progress(&self, hash: Hash, progress: &ResourceProgress) {
-        if let Some(pending) =
-            self.pending_requests.values().find(|pending| pending.response_segment_hash() == Some(hash))
+        if let Some(pending) = self
+            .pending_requests
+            .values()
+            .find(|pending| pending.response_segment_hash() == Some(hash))
         {
             pending.note_progress(progress);
         }
@@ -164,11 +181,13 @@ impl Link {
     /// A Resource of this link reached an outcome that concerns a pending
     /// request. For the request Resource `hash` (`RNS/Link.py:1367-1385`):
     /// complete is `Delivered`; a rejection, a failure or a local cancel
-    /// fails the receipt.
+    /// fails the receipt, and an entry no receipt owns is armed or dropped
+    /// the same way.
     /// For the response Resource `hash`, an inbound failure fails the
-    /// receipt `Receive`; nothing else expires a receipt that is
-    /// `Receiving`. Other event kinds are not outcomes. Returns the response
-    /// Resource a failed receipt was receiving, for the caller to cancel.
+    /// receipt `Receive` and clears the entry receiving it; nothing else
+    /// expires either while `Receiving`. Other event kinds are not
+    /// outcomes. Returns the response Resource a failed receipt or a
+    /// dropped entry was receiving, for the caller to cancel.
     #[deny(clippy::await_holding_invalid_type)]
     #[must_use = "the hashes are for the caller to cancel"]
     pub(crate) fn note_request_resource_outcome(
@@ -177,6 +196,9 @@ impl Link {
         kind: &ResourceEventKind,
     ) -> Option<InboundResponseHashes> {
         if let ResourceEventKind::InboundFailed(_) = kind {
+            self.pending_response_limits.retain(|_, entry| {
+                !matches!(entry.clock, RecordClock::Receiving(inbound) if inbound.original == hash)
+            });
             let id = self
                 .pending_requests
                 .iter()
@@ -192,11 +214,33 @@ impl Link {
             }
             _ => return None,
         };
-        let id = self
+        let mut dropped = None;
+        if outcome.is_ok() {
+            let clock = self.pending_response_expiry();
+            for entry in self.pending_response_limits.values_mut() {
+                if entry.request_resource == Some(hash) && entry.clock == RecordClock::Unarmed {
+                    entry.clock = clock;
+                }
+            }
+        } else {
+            self.pending_response_limits.retain(|_, entry| {
+                if entry.request_resource != Some(hash) {
+                    return true;
+                }
+                if let RecordClock::Receiving(inbound) = entry.clock {
+                    dropped = Some(inbound);
+                }
+                false
+            });
+        }
+        let Some(id) = self
             .pending_requests
             .iter()
             .find(|(_, pending)| pending.request_resource_hash() == Some(hash))
-            .map(|(id, _)| *id)?;
+            .map(|(id, _)| *id)
+        else {
+            return dropped;
+        };
         match outcome {
             Ok(()) => {
                 log::debug!("link({}): request {} delivered as a resource", self.id, id);
@@ -216,10 +260,13 @@ impl Link {
     /// received (`:1389`): that transfer's own failure fails the receipt.
     /// Python (`:1398`, `:1408`) also leaves a receipt that never reached
     /// `DELIVERED` pending forever; here an unanswered request packet times
-    /// out as well. A response entry no receipt owns goes once its own
-    /// clock runs out, as Python's marker is the `RequestReceipt` and goes
-    /// with its timeout (`:1398-1411`); one owned by a live receipt is left
-    /// to the receipt.
+    /// out as well. A response entry no receipt owns follows the same
+    /// clock and goes once it runs out; one owned by a live receipt is left
+    /// to the receipt. Python's marker is the `RequestReceipt`: one
+    /// `DELIVERED` past its timeout leaves `pending_requests`
+    /// (`:1397-1405`), one `RECEIVING` is never timed out (`:1389`), and
+    /// one that never reached `DELIVERED` stays, so a packet-form marker
+    /// there can outlive the entry pruned here.
     #[deny(clippy::await_holding_invalid_type)]
     pub(crate) fn expire_pending_requests(&mut self, now: Instant) {
         let expired: Vec<RequestId> = self
@@ -231,13 +278,15 @@ impl Link {
         for id in expired {
             // `deadline` is `None` while `Receiving`, so nothing is inbound.
             let receiving = self.fail_pending_request(&id, RequestError::Timeout);
-            debug_assert!(receiving.is_none(), "an expired receipt has no response Resource inbound");
+            debug_assert!(
+                receiving.is_none(),
+                "an expired receipt has no response Resource inbound"
+            );
         }
         let pending = &self.pending_requests;
         let before = self.pending_response_limits.len();
-        self.pending_response_limits.retain(|id, entry| {
-            owned_by_receipt(pending, id) || entry.expires_at.is_none_or(|at| at > now)
-        });
+        self.pending_response_limits
+            .retain(|id, entry| owned_by_receipt(pending, id) || !entry.clock.has_run_out(now));
         let pruned = before - self.pending_response_limits.len();
         if pruned > 0 {
             log::debug!("link({}): {pruned} unanswered request entries expired", self.id);
@@ -250,9 +299,13 @@ impl Link {
     #[deny(clippy::await_holding_invalid_type)]
     pub(crate) fn earliest_pending_request_deadline(&self) -> Option<Instant> {
         let receipts = self.pending_requests.values().filter_map(PendingRequest::deadline);
-        let unowned = self.pending_response_limits.iter().filter_map(|(id, entry)| {
-            (!owned_by_receipt(&self.pending_requests, id)).then_some(entry.expires_at).flatten()
-        });
+        let unowned =
+            self.pending_response_limits.iter().filter_map(|(id, entry)| match entry.clock {
+                RecordClock::Expires(at) if !owned_by_receipt(&self.pending_requests, id) => {
+                    Some(at)
+                }
+                _ => None,
+            });
         receipts.chain(unowned).min()
     }
 }

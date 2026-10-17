@@ -49,13 +49,36 @@ pub struct LinkEventData {
     pub close_reason: Option<LinkCloseReason>,
 }
 
+/// When a record no receipt owns goes.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(crate) enum RecordClock {
+    /// The clock runs; the watchdog prunes the record at this instant.
+    Expires(Instant),
+    /// A response Resource is inbound (the segment in flight and the whole
+    /// Resource, as `InboundResponseHashes`); that Resource's own outcome
+    /// clears the record, as `RNS/Link.py:1389` never times out `RECEIVING`.
+    Receiving(InboundResponseHashes),
+    /// No clock: the request Resource is still in flight (`OutboundComplete`
+    /// arms it, `RNS/Link.py:1370-1373`), or the timeout does not fit an `Instant`.
+    Unarmed,
+}
+
+impl RecordClock {
+    /// Whether the clock ran out by `now`; a stopped or unarmed clock never does.
+    fn has_run_out(self, now: Instant) -> bool {
+        matches!(self, Self::Expires(at) if at <= now)
+    }
+}
+
 /// What a request left behind for its response: the `max_response_size`
 /// it went out with, and when the record goes if no receipt owns it.
-/// `expires_at` is `None` when the timeout does not fit an `Instant`.
 #[derive(Debug, Clone, Copy)]
 pub(crate) struct PendingResponseLimit {
     limit: Option<usize>,
-    expires_at: Option<Instant>,
+    clock: RecordClock,
+    /// The request Resource this record waits behind, for a request sent
+    /// through `send_request_resource*`; its outcome arms or drops the record.
+    request_resource: Option<Hash>,
 }
 
 pub struct Link {
@@ -95,10 +118,16 @@ pub struct Link {
     /// The responses this side is waiting for, by request id. An entry's
     /// `limit` is the `max_response_size` the request went out with, `None`
     /// for a request sent without one. An id absent here and from
-    /// `pending_requests` solicited nothing. An entry no receipt owns lives
-    /// for the default request timeout from the send, as Python's
-    /// `RequestReceipt` does (`RNS/Link.py:1398-1411`); one with a receipt
-    /// goes with the receipt.
+    /// `pending_requests` solicited nothing. An entry with a receipt goes
+    /// with the receipt. One no receipt owns keeps its own clock: it runs
+    /// from the send for a request packet and from `OutboundComplete` for a
+    /// request Resource (`RNS/Link.py:1370-1373`), stops while a response
+    /// Resource is inbound, and that Resource's own outcome clears the
+    /// entry; otherwise the watchdog prunes it at the default request
+    /// timeout. Python's marker is the `RequestReceipt`: one `DELIVERED`
+    /// past its timeout leaves `pending_requests` (`:1397-1405`), one
+    /// `RECEIVING` is never timed out (`:1389`), and one that never reached
+    /// `DELIVERED` stays, so a packet-form marker there can outlive this entry.
     pending_response_limits: HashMap<Vec<u8>, PendingResponseLimit>,
     pending_requests: HashMap<RequestId, PendingRequest>,
     /// Response Resources still inbound for receipts `handle_packet` failed

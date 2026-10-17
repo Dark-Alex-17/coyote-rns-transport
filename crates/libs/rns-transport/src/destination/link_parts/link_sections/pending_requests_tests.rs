@@ -57,7 +57,11 @@ mod pending_requests_tests {
     }
 
     /// A resource-form request whose request Resource is `request_hash`.
-    fn pending_resource_request(link: &mut Link, id: RequestId, request_hash: Hash) -> RequestReceipt {
+    fn pending_resource_request(
+        link: &mut Link,
+        id: RequestId,
+        request_hash: Hash,
+    ) -> RequestReceipt {
         link.insert_pending_request(id, PendingRequest::new(id, TIMEOUT, Some(request_hash))).0
     }
 
@@ -112,7 +116,7 @@ mod pending_requests_tests {
     async fn an_assembled_response_over_its_limit_fails_the_receipt_oversize() {
         let (mut link, _, _, _) = linked_pair();
         let lied_to = pending_packet_request(&mut link, id(1), TIMEOUT);
-        link.mark_pending_request_receiving(&id(1), &response_segment(hash(1), hash(1)));
+        link.mark_pending_request_receiving(id(1).as_bytes(), &response_segment(hash(1), hash(1)));
         assert_eq!(link.response_size_allowed(id(1).as_bytes(), 10), Some(true), "d claims 10");
 
         let envelope = ResponseFrame::new(id(1), rmpv::Value::Binary(vec![0u8; 2000])).encode();
@@ -146,7 +150,7 @@ mod pending_requests_tests {
         let (mut link, _, _, _) = linked_pair();
         let receiving = pending_packet_request(&mut link, id(1), Duration::ZERO);
         let waiting = pending_packet_request(&mut link, id(2), TIMEOUT);
-        link.mark_pending_request_receiving(&id(1), &response_segment(hash(1), hash(1)));
+        link.mark_pending_request_receiving(id(1).as_bytes(), &response_segment(hash(1), hash(1)));
         assert_eq!(receiving.status(), RequestStatus::Receiving);
 
         let far = Instant::now() + TIMEOUT / 2;
@@ -160,10 +164,12 @@ mod pending_requests_tests {
     }
 
     /// A response entry no receipt owns, the send-time record of a bare request packet
-    /// or a `send_request_resource*` entry, lives for the default request timeout and is
-    /// pruned by the watchdog, as Python prunes the marker through the `RequestReceipt`'s
-    /// own timeout job (`RNS/Link.py:1398-1411`); an entry owned by a live receipt, `Sent`
-    /// or `Receiving`, is the receipt's to drop.
+    /// or a `send_request_resource*` entry with nothing inbound, is pruned by the watchdog
+    /// at the default request timeout. Python's marker is the `RequestReceipt`: one
+    /// `DELIVERED` past its timeout leaves `pending_requests` (`RNS/Link.py:1397-1405`),
+    /// one that never reached `DELIVERED` stays, so a packet-form marker there can outlive
+    /// this entry. An entry owned by a live receipt, `Sent` or `Receiving`, is the
+    /// receipt's to drop.
     #[test]
     fn an_entry_without_a_receipt_expires_on_the_default_request_timeout() {
         let (mut link, _, _, _) = linked_pair();
@@ -172,7 +178,7 @@ mod pending_requests_tests {
         link.expect_response(b"legacy", Some(10));
         let waiting = pending_packet_request(&mut link, id(1), Duration::from_secs(60));
         let receiving = pending_packet_request(&mut link, id(2), Duration::from_secs(60));
-        link.mark_pending_request_receiving(&id(2), &response_segment(hash(2), hash(2)));
+        link.mark_pending_request_receiving(id(2).as_bytes(), &response_segment(hash(2), hash(2)));
         assert_eq!(receiving.status(), RequestStatus::Receiving);
 
         let folded = link.earliest_pending_request_deadline().expect("the unowned entries");
@@ -197,6 +203,76 @@ mod pending_requests_tests {
             waiting.started_at().map(|sent| sent + Duration::from_secs(60)),
             "only the waiting receipt's clock is left"
         );
+    }
+
+    /// An entry no receipt owns stops its clock while a response Resource is inbound, as
+    /// `RNS/Link.py:1389` never times out `RECEIVING`; that Resource's own outcome clears it.
+    #[test]
+    fn an_entry_without_a_receipt_is_pinned_while_its_response_is_inbound() {
+        let (mut link, _, _, _) = linked_pair();
+        let marker_timeout = RequestOptions::default().timeout_for_rtt(link.rtt());
+        link.note_request_sent(id(1).as_bytes());
+        link.expect_response(b"legacy", Some(10));
+        link.mark_pending_request_receiving(id(1).as_bytes(), &response_segment(hash(1), hash(3)));
+        link.mark_pending_request_receiving(b"legacy", &response_segment(hash(2), hash(4)));
+        assert_eq!(link.earliest_pending_request_deadline(), None, "no clock runs while receiving");
+
+        link.expire_pending_requests(Instant::now() + marker_timeout + Duration::from_millis(1));
+        assert_eq!(link.response_size_allowed(id(1).as_bytes(), 1), Some(true));
+        assert_eq!(link.response_size_allowed(b"legacy", 1), Some(true));
+
+        assert_eq!(link.note_request_resource_outcome(hash(3), &inbound_failed()), None);
+        assert_eq!(link.response_size_allowed(id(1).as_bytes(), 1), None, "cleared by its failure");
+        assert_eq!(link.response_size_allowed(b"legacy", 1), Some(true), "the other is untouched");
+        assert_eq!(link.note_request_resource_outcome(hash(4), &inbound_failed()), None);
+        assert_eq!(link.response_size_allowed(b"legacy", 1), None);
+    }
+
+    /// A `send_request_resource*` entry waits behind its request Resource: no clock until
+    /// `OutboundComplete` arms it (`RNS/Link.py:1370-1373`); a rejection or a failure of
+    /// that Resource drops it.
+    #[test]
+    fn a_resource_form_entry_without_a_receipt_is_armed_by_its_request_resource() {
+        let (mut link, _, _, _) = linked_pair();
+        let marker_timeout = RequestOptions::default().timeout_for_rtt(link.rtt());
+        link.expect_response_to_resource(b"legacy", Some(10), hash(0xA1));
+        link.expect_response_to_resource(b"refused", None, hash(0xA2));
+        link.expect_response_to_resource(b"lost", None, hash(0xA3));
+        assert_eq!(link.earliest_pending_request_deadline(), None, "no clock before delivery");
+        link.expire_pending_requests(Instant::now() + marker_timeout * 2);
+        assert_eq!(link.response_size_allowed(b"legacy", 10), Some(true));
+        assert_eq!(link.response_size_allowed(b"legacy", 11), Some(false));
+
+        let complete = ResourceEventKind::OutboundComplete;
+        assert_eq!(link.note_request_resource_outcome(hash(0xA1), &complete), None);
+        let deadline = link.earliest_pending_request_deadline().expect("delivery arms the clock");
+        assert!(deadline <= Instant::now() + marker_timeout);
+        let rejected = ResourceEventKind::OutboundRejected;
+        assert_eq!(link.note_request_resource_outcome(hash(0xA2), &rejected), None);
+        assert_eq!(link.response_size_allowed(b"refused", 1), None, "dropped with the request");
+        let failed = ResourceEventKind::OutboundFailed;
+        assert_eq!(link.note_request_resource_outcome(hash(0xA3), &failed), None);
+        assert_eq!(link.response_size_allowed(b"lost", 1), None);
+        link.expire_pending_requests(deadline + Duration::from_millis(1));
+        assert_eq!(link.response_size_allowed(b"legacy", 1), None, "pruned at its deadline");
+    }
+
+    /// An entry whose clock ran out ahead of the watchdog admits nothing; the send of a
+    /// request packet under its id restarts the clock and keeps the limit.
+    #[test]
+    fn a_run_out_clock_admits_nothing_and_the_send_restarts_it() {
+        let (mut link, _, _, _) = linked_pair();
+        link.expect_response(b"legacy", Some(10));
+        let ran_out = Instant::now() - Duration::from_secs(1);
+        let entry = link.pending_response_limits.get_mut(b"legacy".as_slice()).expect("recorded");
+        entry.clock = RecordClock::Expires(ran_out);
+        assert_eq!(link.response_size_allowed(b"legacy", 1), None, "run out, not yet pruned");
+        assert_eq!(link.response_size_limit(b"legacy"), Some(10), "the entry is still there");
+
+        link.note_request_sent(b"legacy");
+        assert_eq!(link.response_size_limit(b"legacy"), Some(10), "the send keeps the limit");
+        assert!(link.earliest_pending_request_deadline() > Some(ran_out), "and restarts the clock");
+        assert_eq!(link.response_size_allowed(b"legacy", 10), Some(true));
     }
 
     #[test]
@@ -233,9 +309,13 @@ mod pending_requests_tests {
     fn a_failed_response_resource_fails_its_receipt_receive() {
         let (mut link, _, _, _) = linked_pair();
         let receipt = pending_packet_request(&mut link, id(1), TIMEOUT);
-        link.mark_pending_request_receiving(&id(1), &response_segment(hash(2), hash(1)));
+        link.mark_pending_request_receiving(id(1).as_bytes(), &response_segment(hash(2), hash(1)));
 
-        assert_eq!(link.note_request_resource_outcome(hash(2), &inbound_failed()), None, "not a whole");
+        assert_eq!(
+            link.note_request_resource_outcome(hash(2), &inbound_failed()),
+            None,
+            "not a whole"
+        );
         assert_eq!(receipt.status(), RequestStatus::Receiving);
         assert_eq!(
             link.note_request_resource_outcome(hash(1), &inbound_failed()),
@@ -252,8 +332,8 @@ mod pending_requests_tests {
         let first = pending_packet_request(&mut link, id(1), TIMEOUT);
         let second = pending_packet_request(&mut link, id(2), TIMEOUT);
         let third = pending_packet_request(&mut link, id(3), TIMEOUT);
-        link.mark_pending_request_receiving(&id(1), &response_segment(hash(1), hash(1)));
-        link.mark_pending_request_receiving(&id(2), &response_segment(hash(2), hash(2)));
+        link.mark_pending_request_receiving(id(1).as_bytes(), &response_segment(hash(1), hash(1)));
+        link.mark_pending_request_receiving(id(2).as_bytes(), &response_segment(hash(2), hash(2)));
 
         assert_eq!(link.fail_pending_request(&id(3), RequestError::Timeout), None);
         assert_eq!(link.fail_pending_request(&id(9), RequestError::Timeout), None, "unknown id");
@@ -272,7 +352,7 @@ mod pending_requests_tests {
     fn a_displaced_entry_fails_send_and_hands_back_its_segment() {
         let (mut link, _, _, _) = linked_pair();
         let displaced = pending_packet_request(&mut link, id(1), TIMEOUT);
-        link.mark_pending_request_receiving(&id(1), &response_segment(hash(5), hash(5)));
+        link.mark_pending_request_receiving(id(1).as_bytes(), &response_segment(hash(5), hash(5)));
 
         let (replacement, cancel) =
             link.insert_pending_request(id(1), PendingRequest::new(id(1), TIMEOUT, None));
@@ -304,7 +384,7 @@ mod pending_requests_tests {
     fn a_closing_link_fails_every_entry_and_drops_the_limits() {
         let (mut link, _, _, _) = linked_pair();
         let receipt = pending_packet_request(&mut link, id(1), TIMEOUT);
-        link.mark_pending_request_receiving(&id(1), &response_segment(hash(1), hash(1)));
+        link.mark_pending_request_receiving(id(1).as_bytes(), &response_segment(hash(1), hash(1)));
         link.close();
         assert_eq!(receipt.status(), RequestStatus::Failed);
         assert!(link.pending_response_limits.is_empty());
@@ -320,17 +400,25 @@ mod pending_requests_tests {
         let receipt = pending_packet_request(&mut link, id(1), TIMEOUT);
         assert_eq!(link.response_size_allowed(id(1).as_bytes(), 1), Some(true));
 
-        let receiving = link
-            .resolve_pending_request(id(1), ResponseArrival::Resource { data: &[0xc0], metadata: None });
+        let receiving = link.resolve_pending_request(
+            id(1),
+            ResponseArrival::Resource { data: &[0xc0], metadata: None },
+        );
         assert!(receiving.is_none());
         assert_eq!(receipt.status(), RequestStatus::Failed);
         assert_eq!(receipt.response().await, Err(RequestError::Decode));
         assert!(link.pending_requests.is_empty());
         assert_eq!(link.response_size_allowed(id(1).as_bytes(), 1), None, "the limit went with it");
-        let receiving = link
-            .resolve_pending_request(id(1), ResponseArrival::Resource { data: &[0xc0], metadata: None });
+        let receiving = link.resolve_pending_request(
+            id(1),
+            ResponseArrival::Resource { data: &[0xc0], metadata: None },
+        );
         assert!(receiving.is_none(), "nothing was pending");
-        assert_eq!(receipt.response().await, Err(RequestError::Decode), "a second copy changes nothing");
+        assert_eq!(
+            receipt.response().await,
+            Err(RequestError::Decode),
+            "a second copy changes nothing"
+        );
     }
 
     /// The response size limit stays in force while a response Resource is inbound, so an
@@ -343,7 +431,7 @@ mod pending_requests_tests {
         let (mut link, peer, iface, _) = linked_pair();
         let receipt = pending_packet_request(&mut link, id(1), TIMEOUT);
         link.set_response_size_limit(id(1).as_bytes(), 64);
-        link.mark_pending_request_receiving(&id(1), &response_segment(hash(2), hash(1)));
+        link.mark_pending_request_receiving(id(1).as_bytes(), &response_segment(hash(2), hash(1)));
         assert_eq!(receipt.status(), RequestStatus::Receiving);
         assert!(link.take_owed_response_cancels().is_empty(), "nothing owed yet");
 
@@ -397,7 +485,7 @@ mod pending_requests_tests {
     async fn cancelling_a_request_resource_already_receiving_hands_back_the_segment() {
         let (mut link, _, _, _) = linked_pair();
         let receipt = pending_resource_request(&mut link, id(1), hash(0xAA));
-        link.mark_pending_request_receiving(&id(1), &response_segment(hash(2), hash(1)));
+        link.mark_pending_request_receiving(id(1).as_bytes(), &response_segment(hash(2), hash(1)));
         assert_eq!(receipt.status(), RequestStatus::Receiving);
 
         assert_eq!(

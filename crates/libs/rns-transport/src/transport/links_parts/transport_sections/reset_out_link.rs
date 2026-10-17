@@ -59,7 +59,6 @@ impl Transport {
         None
     }
 
-
     pub async fn reset_out_link(&self, destination: &AddressHash) {
         let removed = {
             let mut handler = self.handler.lock().await;
@@ -144,14 +143,8 @@ impl Transport {
         metadata: Option<Vec<u8>>,
         auto_compress: bool,
     ) -> Result<Hash, RnsError> {
-        self.send_resource_observed_with_compression(
-            link_id,
-            data,
-            metadata,
-            |_| {},
-            auto_compress,
-        )
-        .await
+        self.send_resource_observed_with_compression(link_id, data, metadata, |_| {}, auto_compress)
+            .await
     }
 
     pub async fn send_resource_observed(
@@ -161,8 +154,14 @@ impl Transport {
         metadata: Option<Vec<u8>>,
         observe_resource: impl FnOnce(Hash),
     ) -> Result<Hash, RnsError> {
-        self.send_resource_observed_with_compression(link_id, data, metadata, observe_resource, true)
-            .await
+        self.send_resource_observed_with_compression(
+            link_id,
+            data,
+            metadata,
+            observe_resource,
+            true,
+        )
+        .await
     }
 
     pub async fn send_resource_observed_with_compression(
@@ -294,8 +293,13 @@ impl Transport {
         let (resource_hash, packet) = handler.resource_manager.track_prepared(prepared);
         drop(handler);
         // Marked before the advertisement leaves: the response to it is
-        // solicited whether or not a size limit came with it.
-        link.lock().await.expect_response(&response_request_id, max_response_size);
+        // solicited whether or not a size limit came with it, and the
+        // record's clock starts at the request Resource's delivery.
+        link.lock().await.expect_response_to_resource(
+            &response_request_id,
+            max_response_size,
+            resource_hash,
+        );
         let outcome = self.send_link_packet_on_bound_iface(&link, packet).await;
         let sent = outcome.is_sent();
         if !sent {

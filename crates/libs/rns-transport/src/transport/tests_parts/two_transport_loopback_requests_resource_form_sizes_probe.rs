@@ -2,7 +2,9 @@
 // and CHANGELOG contract: a response Resource without metadata whose envelope names another
 // request than the advertisement's `q` fails the receipt `Decode` while one that names the
 // receipt's own id resolves it (the id is checked only on the Resource path, `RNS/Link.py:908-912`
-// keys `handle_response` on the envelope's id); every `response()` result on a receipt and on
+// keys `handle_response` on the envelope's id; Python resolves the receipt the envelope's id
+// names and leaves `q`'s receipt pending, where here the two must agree or `q`'s receipt fails
+// `Decode`); every `response()` result on a receipt and on
 // its clones shares one body; a response Resource advertised under the id of a receipt that
 // already resolved is unsolicited and is dropped like any other (`RNS/Link.py:1046-1047`), the
 // receipt keeping its answer; a packet-form request whose response Resource is over

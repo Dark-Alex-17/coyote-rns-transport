@@ -296,6 +296,7 @@ trailing clause of the bullet for the behaviour it pins.
   `transport/tests_parts/two_transport_loopback_requests_resource_form_sizes.rs`
   (`..._sizes_bare_request_packet_solicits_its_response` among them),
   `two_transport_loopback_requests_resource_form_sizes_probe.rs`,
+  `two_transport_loopback_requests_resource_form_sizes_probe2.rs`,
   `two_transport_loopback_resources.rs`,
   `two_transport_loopback_resources_directions.rs`,
   `two_transport_loopback_resources_retries.rs`,

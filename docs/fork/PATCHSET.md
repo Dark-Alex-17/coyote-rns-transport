@@ -33,7 +33,7 @@ commits `1ddd5273`, `a2a40de7`, `3805fe7f`, `3ed78582`, `415d67c8`,
 `40409738`, `2f2c11c7`, `140a4fd2`, `3035e470`, `8a8c7a4e`, `6a0fc9cb`,
 `bbd34e72`, `114dbe1c`, `6f8cba34`, `1ef4cddd`, `f732e7d4`, `abd9187d`,
 `938d2852`, `6b5e9a4e`, `9521e2c0`, `b8ec835a`, `8b7557bd`, `f2ff9922`,
-`60cb3755`, `e28c5a03` and `1da7243b`.
+`60cb3755`, `e28c5a03`, `1da7243b`, `7aaf7a50` and `f575a790`.
 
 | File | Patch |
 | --- | --- |
@@ -119,12 +119,15 @@ commits `1ddd5273`, `a2a40de7`, `3805fe7f`, `3ed78582`, `415d67c8`,
 | `crates/libs/rns-transport/src/transport/tests_parts/two_transport_loopback_requests_resource_form_probe2.rs` | request handlers and dispatch |
 | `crates/libs/rns-transport/src/transport/tests_parts/two_transport_loopback_requests_resource_form_probe3.rs` | request handlers and dispatch |
 | `crates/libs/rns-transport/src/transport/tests_parts/two_transport_loopback_requests_resource_form_sizes.rs` | request receipts and timeouts |
+| `crates/libs/rns-transport/src/transport/tests_parts/two_transport_loopback_requests_resource_form_sizes_cancel.rs` | request receipts and timeouts |
 | `crates/libs/rns-transport/src/transport/tests_parts/two_transport_loopback_requests_resource_form_sizes_probe.rs` | request receipts and timeouts |
+| `crates/libs/rns-transport/src/transport/tests_parts/two_transport_loopback_requests_resource_form_sizes_probe2.rs` | request receipts and timeouts |
 | `crates/libs/rns-transport/src/transport/tests_parts/two_transport_loopback_requests_routing.rs` | request handlers and dispatch, request receipts and timeouts |
 | `crates/libs/rns-transport/src/transport/tests_parts/two_transport_loopback_resources.rs` | request receipts and timeouts |
 | `crates/libs/rns-transport/src/transport/tests_parts/two_transport_loopback_resources_directions.rs` | request receipts and timeouts |
 | `crates/libs/rns-transport/src/transport/tests_parts/two_transport_loopback_resources_reject_response.rs` | request receipts and timeouts |
 | `crates/libs/rns-transport/src/transport/tests_parts/two_transport_loopback_resources_retries.rs` | request receipts and timeouts |
+| `crates/libs/rns-transport/src/transport/wire.rs` | request receipts and timeouts |
 | `crates/libs/rns-transport/tests/request_frame_wire.rs` | request wire frames and fuzz |
 | `crates/libs/rns-transport/tests/request_handler_api.rs` | request handlers and dispatch |
 | `crates/libs/rns-transport/tests/request_receipt_api.rs` | request receipts and timeouts |
@@ -908,7 +911,52 @@ pin clauses.
 Fork commit `1da7243b`: formatting only, `rustfmt` run over
 `two_transport_loopback_requests_resource_form_sizes.rs`, which is
 `include!`d into `transport/tests.rs` and so is never seen by `cargo fmt`;
-six lines ran past the 100-column width.
+six hunks: four lines ran past the 100-column width and two took
+rustfmt's preferred shape.
+
+Fork commit `7aaf7a50`: an over-limit response packet for a receipt
+already receiving a response Resource fails it `Oversize` and cancels
+that Resource with a receiver cancel to the peer (`RNS/Link.py:1435`);
+the Response branch of `Link::handle_packet` (`link_sections/new.rs`)
+had asserted that nothing was inbound, a premise the non-consuming gate
+of `f2ff9922` broke. `handle_packet` holds the link alone and its
+public `LinkHandleResult` is unchanged, so the hashes queue on a new
+private `Link::owed_response_cancels` (`linkhandleresult.rs`,
+initialised in `new.rs` and `new_from_request.rs`), drained by
+`Link::take_owed_response_cancels` (`pending_requests.rs`);
+`transport/wire.rs` drains it after each `handle_packet` call and, once
+the proofs are sent, re-locks each link to run
+`resource_wire::cancel_inbound_response` (`resource_wire_parts/cancel.rs`,
+now `pub(super)`), publishes the resource events and sends the cancels.
+`pending_requests_tests.rs` drives the over-limit packet from the peer
+link through `handle_packet`; the new fixture
+`two_transport_loopback_requests_resource_form_sizes_cancel.rs` (one
+`include!` line in `transport/tests.rs`) admits an unbacked response
+advertisement, sends the oversize packet from the listener's in-link
+and counts one receiver cancel on the listener tap. Also:
+`SendPacketOutcome::is_sent` (`transport/mod.rs`) and
+`Link::insert_pending_request` are `#[must_use]`;
+`Link::note_request_sent` (`link_sections/response_packet.rs`) is
+`pub(crate)`; the rustdoc of `request_packet_with_max_response_size` no
+longer says a `request_packet` requester's response is dropped; the
+send seam in `transport/handler.rs` cites `RNS/Link.py:473-510`; the
+gate test pins that `note_request_sent` keeps a prior limit. The crate
+`CHANGELOG.md` gains the cancel clause and an `is_sent` bullet.
+
+Fork commit `f575a790`: new fixture
+`two_transport_loopback_requests_resource_form_sizes_probe2.rs` (one
+`include!` line in `transport/tests.rs`) pins the solicited-response
+marker from the consumer's side: a bare request packet sent through
+`send_packet_broadcast_with_trace` is answered by a Resource response,
+`request_packet_with_max_response_size` refuses `d` over its limit and
+admits `d` at the limit and any `d` without one, and a receipt and a
+bare request packet interleaved on one link each get their own response.
+The header of `two_transport_loopback_requests_resource_form_sizes_probe.rs`
+names the divergence its first test pins: Python resolves the receipt
+the envelope's id names and leaves `q`'s receipt pending
+(`RNS/Link.py:908-912`); here the two must agree or `q`'s receipt fails
+`Decode`. The crate `CHANGELOG.md` names the fixture in the
+`max_response_size` gate pin clause.
 
 ## 0.14.1 (upstream 0.14.0)
 

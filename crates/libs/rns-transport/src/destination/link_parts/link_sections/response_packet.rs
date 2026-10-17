@@ -35,7 +35,7 @@ impl Link {
     /// `max_response_size` under the request id derived from its packet
     /// hash. Without a limit, [`Self::request_packet`] solicits the same
     /// response once the transport sends it; see
-    /// [`Self::note_request_sent`].
+    /// the crate-private `Link::note_request_sent`.
     pub fn request_packet_with_max_response_size(
         &mut self,
         data: &[u8],

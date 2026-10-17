@@ -39,6 +39,7 @@ impl Link {
             channel_rx_ring: HashMap::new(),
             pending_response_limits: HashMap::new(),
             pending_requests: HashMap::new(),
+            owed_response_cancels: Vec::new(),
             request_dispatch: None,
             channel_window: CHANNEL_WINDOW_INIT,
             channel_window_max: CHANNEL_WINDOW_MAX_SLOW,
@@ -278,10 +279,7 @@ impl Link {
                                     } else {
                                         let receiving =
                                             self.fail_pending_request(&id, RequestError::Oversize);
-                                        debug_assert!(
-                                            receiving.is_none(),
-                                            "a packet response has no response Resource inbound"
-                                        );
+                                        self.owed_response_cancels.extend(receiving);
                                     }
                                 }
                                 (id, accepted)

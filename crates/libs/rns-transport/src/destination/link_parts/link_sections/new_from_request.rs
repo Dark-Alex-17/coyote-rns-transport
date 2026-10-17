@@ -63,6 +63,7 @@ impl Link {
             channel_rx_ring: HashMap::new(),
             pending_response_limits: HashMap::new(),
             pending_requests: HashMap::new(),
+            owed_response_cancels: Vec::new(),
             request_dispatch: None,
             channel_window: CHANNEL_WINDOW_INIT,
             channel_window_max: CHANNEL_WINDOW_MAX_SLOW,

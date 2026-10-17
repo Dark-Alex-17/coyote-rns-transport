@@ -359,6 +359,7 @@ pub enum SendPacketOutcome {
 
 impl SendPacketOutcome {
     /// Whether the packet reached an interface, directly or by broadcast.
+    #[must_use]
     pub fn is_sent(self) -> bool {
         matches!(self, Self::SentDirect | Self::SentBroadcast)
     }

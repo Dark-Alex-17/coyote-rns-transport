@@ -12,6 +12,7 @@ impl Link {
     /// `RequestError::Send`, and the second value is the response Resource
     /// it was receiving, for the caller to cancel.
     #[deny(clippy::await_holding_invalid_type)]
+    #[must_use = "the hashes are for the caller to cancel"]
     pub(crate) fn insert_pending_request(
         &mut self,
         id: RequestId,
@@ -63,6 +64,17 @@ impl Link {
         let pending = self.pending_requests.remove(id)?;
         log::debug!("link({}): request {} failed: {error}", self.id, id);
         pending.fail(error)
+    }
+
+    /// The response Resources owed a cancel: a receipt failed by a packet
+    /// the link handled alone, an over-limit response packet for a receipt
+    /// already receiving a response Resource, cannot reach the
+    /// ResourceManager from `handle_packet`, so the transport drains this
+    /// after the call and cancels each one (`RNS/Link.py:1435`).
+    #[deny(clippy::await_holding_invalid_type)]
+    #[must_use = "the hashes are for the caller to cancel"]
+    pub(crate) fn take_owed_response_cancels(&mut self) -> Vec<InboundResponseHashes> {
+        std::mem::take(&mut self.owed_response_cancels)
     }
 
     /// Fails every pending request and drops their response size limits;

@@ -87,6 +87,10 @@ mod pending_requests_tests {
         assert_eq!(link.response_size_allowed(b"legacy", 11), Some(false));
         link.clear_response_size_limit(b"legacy");
         assert_eq!(link.response_size_allowed(b"legacy", 1), None);
+        link.note_request_sent(q);
+        assert_eq!(link.response_size_limit(q), Some(1024), "the send keeps a limit set before it");
+        link.note_request_sent(b"fresh");
+        assert_eq!(link.response_size_allowed(b"fresh", usize::MAX), Some(true), "sent, no limit");
 
         let envelope = ResponseFrame::new(id(1), rmpv::Value::from(7)).encode();
         link.resolve_pending_request(
@@ -243,6 +247,36 @@ mod pending_requests_tests {
         assert_eq!(link.response_size_allowed(id(1).as_bytes(), 1), None, "the limit went with it");
         link.resolve_pending_request(id(1), ResponseArrival::Resource { data: &[0xc0], metadata: None });
         assert_eq!(receipt.response().await, Err(RequestError::Decode), "a second copy changes nothing");
+    }
+
+    /// The response size limit stays in force while a response Resource is inbound, so an
+    /// over-limit response packet arriving then still fails the receipt `Oversize`
+    /// (`RNS/Link.py:874-876`); the Resource it was receiving is owed a cancel
+    /// (`RNS/Link.py:1435`), handed to the transport once.
+    #[tokio::test]
+    #[deny(clippy::await_holding_invalid_type)]
+    async fn an_oversize_response_packet_for_a_receiving_entry_fails_it_and_owes_a_cancel() {
+        let (mut link, peer, iface, _) = linked_pair();
+        let receipt = pending_packet_request(&mut link, id(1), TIMEOUT);
+        link.set_response_size_limit(id(1).as_bytes(), 64);
+        link.mark_pending_request_receiving(&id(1), &response_segment(hash(2), hash(1)));
+        assert_eq!(receipt.status(), RequestStatus::Receiving);
+        assert!(link.take_owed_response_cancels().is_empty(), "nothing owed yet");
+
+        let envelope = ResponseFrame::new(id(1), rmpv::Value::Binary(vec![0u8; 65])).encode();
+        let packet = peer.response_packet(&envelope).expect("the peer builds the response");
+        assert!(matches!(link.handle_packet(&packet, iface), LinkHandleResult::None));
+
+        assert_eq!(receipt.status(), RequestStatus::Failed);
+        assert_eq!(receipt.response().await, Err(RequestError::Oversize));
+        assert!(link.pending_requests.is_empty());
+        assert!(link.pending_response_limits.is_empty(), "the limit went with the entry");
+        assert_eq!(
+            link.take_owed_response_cancels(),
+            vec![hashes(2, 1)],
+            "the segment in flight and the whole are owed a cancel"
+        );
+        assert!(link.take_owed_response_cancels().is_empty(), "handed over once");
     }
 
     /// `Transport::cancel_resource` on the request Resource (`RNS/Link.py:1377-1385`

@@ -89,6 +89,11 @@ pub struct Link {
     /// nothing.
     pending_response_limits: HashMap<Vec<u8>, Option<usize>>,
     pending_requests: HashMap<RequestId, PendingRequest>,
+    /// Response Resources still inbound for receipts `handle_packet` failed
+    /// on its own; the ResourceManager is out of reach there, so the
+    /// transport drains these after the call and cancels them
+    /// (`RNS/Link.py:1435`).
+    owed_response_cancels: Vec<InboundResponseHashes>,
     request_dispatch: Option<tokio::sync::mpsc::Sender<DispatchItem>>,
     channel_window: u8,
     channel_window_max: u8,

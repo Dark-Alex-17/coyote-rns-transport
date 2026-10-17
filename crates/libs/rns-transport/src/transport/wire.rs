@@ -176,22 +176,29 @@ pub(super) async fn handle_data<'a>(
             packet.data.len()
         );
         let mut link_packets = Vec::new();
+        let mut owed_cancels = Vec::new();
         if let Some(link) = handler.in_links.get(&packet.destination).cloned() {
-            let mut link = link.lock().await;
-            let result = link.handle_packet(packet, iface);
+            let mut guard = link.lock().await;
+            let result = guard.handle_packet(packet, iface);
             if let LinkHandleResult::KeepAlive = result {
-                link_packets.push(link.keep_alive_packet(KEEP_ALIVE_RESPONSE));
+                link_packets.push(guard.keep_alive_packet(KEEP_ALIVE_RESPONSE));
             } else if let LinkHandleResult::Proof(proof_packet) = result {
                 link_packets.push(proof_packet);
+            }
+            for receiving in guard.take_owed_response_cancels() {
+                owed_cancels.push((Arc::clone(&link), receiving));
             }
         }
 
         let mut proof_packets = Vec::new();
         for link in handler.out_links.values() {
-            let mut link = link.lock().await;
-            let result = link.handle_packet(packet, iface);
+            let mut guard = link.lock().await;
+            let result = guard.handle_packet(packet, iface);
             if let LinkHandleResult::Proof(proof_packet) = result {
                 proof_packets.push(proof_packet);
+            }
+            for receiving in guard.take_owed_response_cancels() {
+                owed_cancels.push((Arc::clone(link), receiving));
             }
             data_handled = true;
         }
@@ -201,6 +208,23 @@ pub(super) async fn handle_data<'a>(
         }
         for packet in proof_packets {
             handler.send(TxMessage { tx_type: TxMessageType::Direct(iface), packet }).await;
+        }
+        if !owed_cancels.is_empty() {
+            let mut cancels = Vec::new();
+            for (link, receiving) in owed_cancels {
+                let link = link.lock().await;
+                resource_wire::cancel_inbound_response(
+                    &mut handler.resource_manager,
+                    &link,
+                    receiving,
+                    &mut cancels,
+                );
+            }
+            let events = handler.resource_manager.drain_events();
+            resource_wire::publish_resource_events(&handler, events);
+            for cancel in cancels {
+                handler.send(cancel).await;
+            }
         }
 
         if handle_keepalive_response(packet, &mut handler).await {

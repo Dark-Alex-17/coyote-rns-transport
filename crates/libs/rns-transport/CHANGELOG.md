@@ -207,6 +207,9 @@ trailing clause of the bullet for the behaviour it pins.
   `destination/request/receipt_tests.rs`
   and `destination/link_parts/link_sections/pending_requests_tests.rs`.
 
+- `SendPacketOutcome::is_sent`: whether a send reached an interface,
+  directly or by broadcast; the in-crate `matches!` twins use it.
+
 ### Changed
 
 - The request timeout runs from the send for a packet request and from
@@ -238,11 +241,17 @@ trailing clause of the bullet for the behaviour it pins.
   leaves a packet-form receipt pending forever; and a packet-form receipt
   whose response packet is over `max_response_size` fails `Oversize`
   (`:874-876`, `:1017`), where the `:1408` guard leaves it pending because
-  a packet-form receipt is never `DELIVERED`. Pinned by
+  a packet-form receipt is never `DELIVERED`. An over-limit response
+  packet for a receipt already receiving a response Resource (the limit
+  stays in force while the receipt is `Receiving`) fails it `Oversize`
+  the same way and cancels that Resource with a receiver cancel to the
+  responder, as a failed receipt cancels its response Resource
+  (`RNS/Link.py:1435`). Pinned by
   `transport/tests_parts/two_transport_loopback_requests_receipt_timeouts.rs`,
   `two_transport_loopback_requests_receipt_probe.rs`,
   `two_transport_loopback_requests_receipt_probe2.rs`,
   `two_transport_loopback_requests_receipt_probe4.rs`,
+  `two_transport_loopback_requests_resource_form_sizes_cancel.rs`,
   `destination/request/receipt_tests.rs`,
   `destination/link_parts/link_sections/pending_requests_tests.rs`,
   `resource/tests_timeouts_lifecycle.rs`, and the `*_with_mtu` fixture
@@ -279,10 +288,11 @@ trailing clause of the bullet for the behaviour it pins.
   pending-request loop (`RNS/Link.py:1046-1047`) falls through it. The
   transport records the id of each request packet as it goes out, the
   `send_request_resource*` record is dropped when the advertisement is
-  not sent, and `Link::expect_response`, `Link::note_request_sent` and
-  `Link::response_size_allowed` carry this beside the existing
-  `set_response_size_limit` and `take_response_limit_if_allowed`, which
-  keep their signatures; the packet-response path stays one-shot. Pinned by
+  not sent, and `Link::expect_response` and `Link::response_size_allowed`
+  carry this beside the existing `set_response_size_limit` and
+  `take_response_limit_if_allowed`, which keep their signatures (the
+  send-time record, `Link::note_request_sent`, is crate-private); the
+  packet-response path stays one-shot. Pinned by
   `transport/tests_parts/two_transport_loopback_requests_resource_form_sizes.rs`
   (`..._sizes_bare_request_packet_solicits_its_response` among them),
   `two_transport_loopback_requests_resource_form_sizes_probe.rs`,

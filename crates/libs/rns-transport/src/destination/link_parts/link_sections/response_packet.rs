@@ -31,12 +31,11 @@ impl Link {
         self.packet_with_context(data, PacketContext::Request)
     }
 
-    /// Build a request packet and record, under the request id derived from
-    /// its packet hash, that a response is expected, bounded by the optional
-    /// Python-compatible `max_response_size`. A response Resource advertised
-    /// for an id nothing recorded is dropped, so a requester that reads the
-    /// response from the broadcasts builds its packet here, not with
-    /// [`Self::request_packet`].
+    /// Build a request packet and record the optional Python-compatible
+    /// `max_response_size` under the request id derived from its packet
+    /// hash. Without a limit, [`Self::request_packet`] solicits the same
+    /// response once the transport sends it; see
+    /// [`Self::note_request_sent`].
     pub fn request_packet_with_max_response_size(
         &mut self,
         data: &[u8],
@@ -67,7 +66,7 @@ impl Link {
     /// registers a `RequestReceipt` (`RNS/Link.py:473-510`, `:1365`), so a
     /// packet built with [`Self::request_packet`] is admitted like any other.
     /// A limit recorded before the send stays in force.
-    pub fn note_request_sent(&mut self, request_id: &[u8]) {
+    pub(crate) fn note_request_sent(&mut self, request_id: &[u8]) {
         self.pending_response_limits.entry(request_id.to_vec()).or_insert(None);
     }
 

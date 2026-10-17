@@ -37,6 +37,8 @@ impl TransportHandler {
         if let Some(link) = link {
             let mut link = link.lock().await;
             link.note_outbound(packet.context);
+            // Every request packet solicits its response (RNS/Link.py:473-510,
+            // :1046-1047); see Link::note_request_sent.
             if packet.context == PacketContext::Request {
                 let request_id = &packet.hash().to_bytes()[..ADDRESS_HASH_SIZE];
                 link.note_request_sent(request_id);

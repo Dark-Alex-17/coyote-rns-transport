@@ -28,7 +28,7 @@ fn receiver_cancel(link: &Link, iface: Option<AddressHash>, hash: &Hash) -> Opti
 /// on an active link the peer is told to stop (`RNS/Link.py:1435`,
 /// `RNS/Resource.py:1111-1116`). The cancel is queued on `cancels` for the
 /// caller to send once the link guard is gone.
-fn cancel_inbound_response(
+pub(super) fn cancel_inbound_response(
     resources: &mut ResourceManager,
     link: &Link,
     receiving: InboundResponseHashes,

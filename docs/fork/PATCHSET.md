@@ -35,8 +35,9 @@ commits `1ddd5273`, `a2a40de7`, `3805fe7f`, `3ed78582`, `415d67c8`,
 `938d2852`, `6b5e9a4e`, `9521e2c0`, `b8ec835a`, `8b7557bd`, `f2ff9922`,
 `60cb3755`, `e28c5a03`, `1da7243b`, `7aaf7a50`, `f575a790`, `ad9f6b8a`,
 `0d4c9342`, `181c4a27`, `8eebdfab`, `ca4d1aa4`, `6b3ab18e`, `bb8a94ad`,
-`d042612c`, `e5183c64`, `64d49999`, `08794d16`, `f7922574`, `8549dd6f`
-and `b836157a`.
+`d042612c`, `e5183c64`, `64d49999`, `08794d16`, `f7922574`, `8549dd6f`,
+`b836157a`, `30f98996`, `55736b0b`, `f10a7843`, `09f6c98b` and
+`21fc1c3f`.
 
 | File | Patch |
 | --- | --- |
@@ -62,6 +63,8 @@ and `b836157a`.
 | `crates/libs/rns-transport/src/destination/link_parts/link_sections/request_dispatch_tests.rs` | request handlers and dispatch |
 | `crates/libs/rns-transport/src/destination/link_parts/link_sections/request_payload.rs` | request wire frames and fuzz |
 | `crates/libs/rns-transport/src/destination/link_parts/link_sections/response_packet.rs` | request receipts and timeouts |
+| `crates/libs/rns-transport/src/destination/link_parts/link_sections/response_packet_tests.rs` | request receipts and timeouts |
+| `crates/libs/rns-transport/src/destination/link_parts/link_sections/response_record_tests.rs` | request receipts and timeouts |
 | `crates/libs/rns-transport/src/destination/link_parts/linkhandleresult.rs` | request handlers and dispatch, request receipts and timeouts |
 | `crates/libs/rns-transport/src/destination/link_parts/module_prelude.rs` | request handlers and dispatch, request receipts and timeouts |
 | `crates/libs/rns-transport/src/destination/request/allow.rs` | request handlers and dispatch |
@@ -128,6 +131,7 @@ and `b836157a`.
 | `crates/libs/rns-transport/src/transport/tests_parts/two_transport_loopback_requests_resource_form_sizes_probe2.rs` | request receipts and timeouts |
 | `crates/libs/rns-transport/src/transport/tests_parts/two_transport_loopback_requests_resource_form_sizes_probe3.rs` | request receipts and timeouts |
 | `crates/libs/rns-transport/src/transport/tests_parts/two_transport_loopback_requests_resource_form_sizes_probe4.rs` | request receipts and timeouts |
+| `crates/libs/rns-transport/src/transport/tests_parts/two_transport_loopback_requests_resource_form_sizes_probe5.rs` | request receipts and timeouts |
 | `crates/libs/rns-transport/src/transport/tests_parts/two_transport_loopback_requests_routing.rs` | request handlers and dispatch, request receipts and timeouts |
 | `crates/libs/rns-transport/src/transport/tests_parts/two_transport_loopback_resources.rs` | request receipts and timeouts |
 | `crates/libs/rns-transport/src/transport/tests_parts/two_transport_loopback_resources_directions.rs` | request receipts and timeouts |
@@ -1160,6 +1164,90 @@ branch can owe one, and the initiator retry test in
 `two_transport_loopback_resources_retries.rs` says why `RETRY_STALL`
 leaves the record armed. `rustfmt` also reflowed one pre-existing line
 in `new.rs`.
+
+Fork commit `30f98996`: new fixture
+`two_transport_loopback_requests_resource_form_sizes_probe5.rs` (one
+`include!` line in `transport/tests.rs`) pins the end of a request
+record's life and a response Resource whose advertised `d` was a lie: a
+response admitted on an advertised size under the receipt's bound and
+assembled over it fails the receipt `Oversize`; a completed and a
+remotely cancelled response each end a receipt-less
+`send_request_resource` record, so a second response under the id is
+dropped without a reject while a fresh request on the link is still
+answered; a bare `request_packet` record ends the same way on
+completion; and the legacy-id limit is inclusive, a response of exactly
+the limit admitted at its advertisement and delivered after assembly
+while one byte more is refused at the advertisement with
+`OutboundRejected` on the responder. The crate `CHANGELOG.md` names the
+fixture in the `max_response_size` gate pin clause.
+
+Fork commit `55736b0b`: the response `Complete` arm in
+`transport/resource_wire.rs` measures the assembled response against the
+record's limit before the id-length split, so the `Complete` for a
+receipt-owned or a receipt-less 16-byte id over its limit is withheld
+from `resource_events()` as the legacy-length id's already was; the warn
+moves with the measurement, the `Err(_)` arm keeps only its
+`take_response_limit_if_allowed` call, and
+`Link::resolve_pending_request` (`link_sections/pending_requests.rs`)
+logs the same case at debug. The probe5 `Oversize` test now also asserts
+that no `Complete` for the receipt's id reaches the connector's
+`resource_events()`. New `response_packet_tests.rs` (one `include!` line
+in `link_parts/link.rs`, since `pending_requests_tests.rs` is at the
+module-size cap) pins a receipt-less 16-byte entry reporting its limit
+and going when the measurement refuses the response. The crate
+`CHANGELOG.md` `max_response_size` gate bullet now states the recheck
+for every id form.
+
+Fork commit `f10a7843`: `Link::set_response_size_limit`
+(`link_sections/response_packet.rs`) edits only the limit of a record
+already under the id (`entry().and_modify().or_insert()`), leaving its
+clock and request Resource as they were, and `expect_response` and
+`expect_response_to_resource` keep a limit already recorded when given
+`None`, so the limit and the record a request makes compose in either
+order. New crate-private `Link::replace_response_record` does the
+unconditional insert, and both forms of `Transport::request`
+(`transport_sections/request.rs`) use it so a request sent without a
+limit under a displaced id does not inherit the stale one; the packet
+form builds with `request_packet` and then writes the record itself.
+`response_packet_tests.rs` gains rows for both orderings and for the
+writer replacing the record whole. The crate `CHANGELOG.md` gains a
+bullet for the composition.
+
+Fork commit `09f6c98b`:
+`two_transport_loopback_resources_receipt_less_receiving.rs` stalls for
+a 2 s margin instead of 3 s, so the stall still outlasts the record's
+deadline by an `INTERVAL_LINKS_CHECK` tick but ends inside the connector
+link's stale window (the header works out the ceiling from `stale_time`,
+`STALE_GRACE_SECS` and `KEEPALIVE_TIMEOUT_FACTOR`). The record timeout
+comes from `RequestOptions::default().timeout_for_rtt`, the `Progress`
+predicate is keyed on the first segment's hash rather than the link id,
+and `assert_ne!(status, LinkStatus::Closed)` after the stall pins that
+the link survived it.
+
+Fork commit `21fc1c3f`: `Link::note_request_sent` re-anchors only an
+`Expires` clock, so a request packet re-sent under the id of a record
+receiving its response, or of a request Resource still in flight, leaves
+that record as it is. New crate-private `Link::take_response_record`
+removes a record and returns the inbound hashes it was receiving, and the
+rejected-advertisement path in `transport/resource_wire.rs` cancels that
+partial assembly instead of leaving it in the ResourceManager. New
+`response_record_tests.rs` (one `include!` line in `link_parts/link.rs`)
+pins the re-send, the take, and `note_request_resource_outcome` handing
+back the response a rejected request Resource's entry was receiving; the
+`hash`, `hashes` and `response_segment` helpers in
+`pending_requests_tests.rs` become `pub(super)` for it. The
+`two_transport_loopback_requests_resource_form_sizes_probe4.rs` helpers
+carry the `sizes_probe4_` prefix and its silence check delegates to
+`sizes_assert_no_response_activity`; the
+`two_transport_loopback_requests_resource_form_sizes_probe3.rs` doc drops
+the clause about a retry under a covering limit. The crate README says
+an id a `Transport::request` receipt owns is solicited for the receipt's
+own timeout. Comments: `InboundResponseHashes`
+(`request/receipt_pending.rs`) says a receipt-less record carries the
+same pair in `RecordClock::Receiving`, and
+`resource/tests_timeouts_lifecycle.rs` says a first segment's original
+hash is its own. The crate `CHANGELOG.md` gains a bullet for the clock
+and the cancel.
 
 ## 0.14.1 (upstream 0.14.0)
 

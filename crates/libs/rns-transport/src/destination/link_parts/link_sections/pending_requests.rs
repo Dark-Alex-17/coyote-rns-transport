@@ -193,7 +193,10 @@ impl Link {
     /// received (`:1389`): that transfer's own failure fails the receipt.
     /// Python (`:1398`, `:1408`) also leaves a receipt that never reached
     /// `DELIVERED` pending forever; here an unanswered request packet times
-    /// out as well.
+    /// out as well. A response entry no receipt owns goes once its own
+    /// clock runs out, as Python's receipt-less marker would with the
+    /// `RequestReceipt` that carries it (`:1398-1411`); one owned by a live
+    /// receipt is left to the receipt.
     #[deny(clippy::await_holding_invalid_type)]
     pub(crate) fn expire_pending_requests(&mut self, now: Instant) {
         let expired: Vec<RequestId> = self
@@ -207,12 +210,34 @@ impl Link {
             let receiving = self.fail_pending_request(&id, RequestError::Timeout);
             debug_assert!(receiving.is_none(), "an expired receipt has no response Resource inbound");
         }
+        let pending = &self.pending_requests;
+        let before = self.pending_response_limits.len();
+        self.pending_response_limits.retain(|id, entry| {
+            owned_by_receipt(pending, id) || entry.expires_at.is_none_or(|at| at > now)
+        });
+        let pruned = before - self.pending_response_limits.len();
+        if pruned > 0 {
+            log::debug!("link({}): {pruned} unanswered request entries expired", self.id);
+        }
     }
 
     /// The first request timeout due, over the entries whose clock is
-    /// running; see `expire_pending_requests`.
+    /// running, and the expiry of every response entry no receipt owns;
+    /// see `expire_pending_requests`.
     #[deny(clippy::await_holding_invalid_type)]
     pub(crate) fn earliest_pending_request_deadline(&self) -> Option<Instant> {
-        self.pending_requests.values().filter_map(PendingRequest::deadline).min()
+        let receipts = self.pending_requests.values().filter_map(PendingRequest::deadline);
+        let unowned = self.pending_response_limits.iter().filter_map(|(id, entry)| {
+            (!owned_by_receipt(&self.pending_requests, id)).then_some(entry.expires_at).flatten()
+        });
+        receipts.chain(unowned).min()
     }
+}
+
+/// Whether a live receipt under `id` owns the response entry recorded for it.
+fn owned_by_receipt(pending: &HashMap<RequestId, PendingRequest>, id: &[u8]) -> bool {
+    <[u8; ADDRESS_HASH_SIZE]>::try_from(id)
+        .ok()
+        .map(RequestId::new)
+        .is_some_and(|id| pending.contains_key(&id))
 }

@@ -56,18 +56,34 @@ impl Link {
     /// `max_response_size` when one is given. Python keeps this on the
     /// `RequestReceipt` (`RNS/Link.py:1046-1049`); a request sent through
     /// `send_request_resource*` has no receipt, so the entry here is what
-    /// tells its response advertisement from an unsolicited one.
+    /// tells its response advertisement from an unsolicited one. The entry
+    /// lives for the default request timeout unless a receipt owns the id.
     pub fn expect_response(&mut self, request_id: &[u8], max_response_size: Option<usize>) {
-        self.pending_response_limits.insert(request_id.to_vec(), max_response_size);
+        let expires_at = self.pending_response_expiry();
+        self.pending_response_limits
+            .insert(request_id.to_vec(), PendingResponseLimit { limit: max_response_size, expires_at });
     }
 
     /// Records that the link sent a request packet under `request_id`. Every
     /// request packet solicits its response, as every `RNS.Link.request`
     /// registers a `RequestReceipt` (`RNS/Link.py:473-510`, `:1365`), so a
     /// packet built with [`Self::request_packet`] is admitted like any other.
-    /// A limit recorded before the send stays in force.
+    /// A limit recorded before the send stays in force; the send anchors the
+    /// clock, and the entry lives for the default request timeout unless a
+    /// receipt owns the id.
+    #[deny(clippy::await_holding_invalid_type)]
     pub(crate) fn note_request_sent(&mut self, request_id: &[u8]) {
-        self.pending_response_limits.entry(request_id.to_vec()).or_insert(None);
+        let expires_at = self.pending_response_expiry();
+        self.pending_response_limits
+            .entry(request_id.to_vec())
+            .and_modify(|entry| entry.expires_at = expires_at)
+            .or_insert(PendingResponseLimit { limit: None, expires_at });
+    }
+
+    /// When a response entry recorded now goes, if no receipt owns it:
+    /// the default request timeout (`RNS/Link.py:491`) from now.
+    fn pending_response_expiry(&self) -> Option<Instant> {
+        Instant::now().checked_add(RequestOptions::default().timeout_for_rtt(self.rtt()))
     }
 
     /// Whether a response Resource advertising `data_size` bytes for
@@ -77,16 +93,17 @@ impl Link {
     /// with. Checked at every segment advertisement, so nothing is removed
     /// here; the entry goes when the response concludes.
     pub fn response_size_allowed(&self, request_id: &[u8], data_size: usize) -> Option<bool> {
-        if let Some(limit) = self.pending_response_limits.get(request_id) {
-            return Some(limit.is_none_or(|limit| data_size <= limit));
+        if let Some(entry) = self.pending_response_limits.get(request_id) {
+            return Some(entry.limit.is_none_or(|limit| data_size <= limit));
         }
         let id = <[u8; ADDRESS_HASH_SIZE]>::try_from(request_id).ok().map(RequestId::new)?;
         self.pending_requests.contains_key(&id).then_some(true)
     }
 
     /// The `max_response_size` the request `request_id` went out with.
+    #[deny(clippy::await_holding_invalid_type)]
     pub(crate) fn response_size_limit(&self, request_id: &[u8]) -> Option<usize> {
-        self.pending_response_limits.get(request_id).copied().flatten()
+        self.pending_response_limits.get(request_id).and_then(|entry| entry.limit)
     }
 
     /// Remove a pending limit after the matching response packet is
@@ -94,7 +111,7 @@ impl Link {
     pub fn take_response_limit_if_allowed(&mut self, request_id: &[u8], response_size: usize) -> bool {
         self.pending_response_limits
             .remove(request_id)
-            .flatten()
+            .and_then(|entry| entry.limit)
             .is_none_or(|limit| response_size <= limit)
     }
 

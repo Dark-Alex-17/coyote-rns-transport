@@ -119,6 +119,46 @@ mod pending_requests_tests {
         assert_eq!(link.next_watchdog_deadline(true), Some(deadline.min(keepalive)));
     }
 
+    /// A response entry no receipt owns, the send-time record of a bare request packet
+    /// or a `send_request_resource*` entry, lives for the default request timeout and is
+    /// pruned by the watchdog, as Python prunes the marker through the `RequestReceipt`'s
+    /// own timeout job (`RNS/Link.py:1398-1411`); an entry owned by a live receipt, `Sent`
+    /// or `Receiving`, is the receipt's to drop.
+    #[test]
+    fn an_entry_without_a_receipt_expires_on_the_default_request_timeout() {
+        let (mut link, _, _, _) = linked_pair();
+        let marker_timeout = RequestOptions::default().timeout_for_rtt(link.rtt());
+        link.note_request_sent(b"fresh");
+        link.expect_response(b"legacy", Some(10));
+        let waiting = pending_packet_request(&mut link, id(1), Duration::from_secs(60));
+        let receiving = pending_packet_request(&mut link, id(2), Duration::from_secs(60));
+        link.mark_pending_request_receiving(&id(2), &response_segment(hash(2), hash(2)));
+        assert_eq!(receiving.status(), RequestStatus::Receiving);
+
+        let folded = link.earliest_pending_request_deadline().expect("the unowned entries");
+        assert!(folded <= Instant::now() + marker_timeout, "the unowned entries wake the watchdog");
+        assert!(folded < waiting.started_at().expect("sent") + Duration::from_secs(60));
+
+        link.expire_pending_requests(Instant::now() + marker_timeout / 2);
+        assert_eq!(link.response_size_allowed(b"fresh", 1), Some(true));
+        assert_eq!(link.response_size_allowed(b"legacy", 1), Some(true));
+        assert_eq!(link.response_size_limit(id(1).as_bytes()), Some(1024));
+        assert_eq!(link.response_size_limit(id(2).as_bytes()), Some(1024));
+
+        link.expire_pending_requests(Instant::now() + marker_timeout + Duration::from_millis(1));
+        assert_eq!(link.response_size_allowed(b"fresh", 1), None, "the send-time record went");
+        assert_eq!(link.response_size_allowed(b"legacy", 1), None, "the resource-form entry went");
+        assert_eq!(link.response_size_limit(id(1).as_bytes()), Some(1024), "owned by a receipt");
+        assert_eq!(waiting.status(), RequestStatus::Sent);
+        assert_eq!(link.response_size_limit(id(2).as_bytes()), Some(1024), "owned by a receipt");
+        assert_eq!(receiving.status(), RequestStatus::Receiving);
+        assert_eq!(
+            link.earliest_pending_request_deadline(),
+            waiting.started_at().map(|sent| sent + Duration::from_secs(60)),
+            "only the waiting receipt's clock is left"
+        );
+    }
+
     #[test]
     fn a_resource_form_entry_expires_from_delivered_not_from_send() {
         let (mut link, _, _, _) = linked_pair();

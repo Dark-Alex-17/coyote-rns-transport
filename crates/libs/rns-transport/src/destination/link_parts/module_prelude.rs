@@ -23,7 +23,7 @@ use crate::{
     crypt::fernet::{CachedFernet, PlainText, Token},
     destination::request::{
         DispatchForm, DispatchItem, InboundResponseHashes, PendingRequest, RequestError,
-        RequestId, RequestReceipt, ResponseArrival,
+        RequestId, RequestOptions, RequestReceipt, ResponseArrival,
     },
     error::RnsError,
     hash::{AddressHash, Hash, ADDRESS_HASH_SIZE, HASH_SIZE},

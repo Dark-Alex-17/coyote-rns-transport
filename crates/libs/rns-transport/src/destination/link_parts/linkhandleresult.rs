@@ -49,6 +49,15 @@ pub struct LinkEventData {
     pub close_reason: Option<LinkCloseReason>,
 }
 
+/// What a request left behind for its response: the `max_response_size`
+/// it went out with, and when the record goes if no receipt owns it.
+/// `expires_at` is `None` when the timeout does not fit an `Instant`.
+#[derive(Debug, Clone, Copy)]
+pub(crate) struct PendingResponseLimit {
+    limit: Option<usize>,
+    expires_at: Option<Instant>,
+}
+
 pub struct Link {
     id: LinkId,
     is_initiator: bool,
@@ -86,8 +95,10 @@ pub struct Link {
     /// The responses this side is waiting for, by request id: `Some` is the
     /// `max_response_size` the request went out with, `None` a request sent
     /// without one. An id absent here and from `pending_requests` solicited
-    /// nothing.
-    pending_response_limits: HashMap<Vec<u8>, Option<usize>>,
+    /// nothing. An entry no receipt owns lives for the default request
+    /// timeout from the send, as Python's `RequestReceipt` does
+    /// (`RNS/Link.py:1398-1411`); one with a receipt goes with the receipt.
+    pending_response_limits: HashMap<Vec<u8>, PendingResponseLimit>,
     pending_requests: HashMap<RequestId, PendingRequest>,
     /// Response Resources still inbound for receipts `handle_packet` failed
     /// on its own; the ResourceManager is out of reach there, so the

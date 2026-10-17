@@ -293,7 +293,13 @@ trailing clause of the bullet for the behaviour it pins.
   carry this beside the existing `set_response_size_limit` and
   `take_response_limit_if_allowed`, which keep their signatures (the
   send-time record, `Link::note_request_sent`, is crate-private); the
-  packet-response path stays one-shot. Pinned by
+  packet-response path stays one-shot. The send-time record of a request
+  packet, and the `send_request_resource*` record, live for the default
+  request timeout (`rtt * 6 + 11.25 s`, `RNS/Link.py:491`) unless a
+  receipt owns the id, and are pruned by the link watchdog, as Python
+  prunes through the `RequestReceipt`'s own timeout
+  (`RNS/Link.py:1398-1411`); a receipt's record goes with the receipt.
+  Pinned by
   `transport/tests_parts/two_transport_loopback_requests_resource_form_sizes.rs`
   (`..._sizes_bare_request_packet_solicits_its_response` among them),
   `two_transport_loopback_requests_resource_form_sizes_probe.rs`,

@@ -8,10 +8,18 @@
 // advertisement dropped as one nothing on the link sent (`RNS/Link.py:1046-1047`), leaving
 // the transfer stuck after its first segment. Helpers come from the sibling `tests_parts`
 // files.
+//
+// The stall has a ceiling as well as a floor. While the listener is held the connector's
+// link sees nothing inbound; it goes `Stale` after `stale_time` (10 s on loopback) and is
+// torn down `STALE_GRACE_SECS + rtt * KEEPALIVE_TIMEOUT_FACTOR` later
+// (`next_watchdog_deadline.rs`), about 15 s after its last inbound packet. The default
+// request timeout is 11.25 s plus six round trips, so the 2 s margin ends the stall around
+// 13.3 s, inside that window; a 3 s margin would have run it within a second of the teardown.
 
-/// Headroom past the record's deadline, so the stall ends after a running clock would have
-/// expired the record and the watchdog has had several ticks to prune it.
-const RECEIPT_LESS_STALL_MARGIN: Duration = Duration::from_secs(3);
+/// Headroom past the record's deadline: at least one `INTERVAL_LINKS_CHECK` tick, so a
+/// running clock would have expired the record and the watchdog would have pruned it, while
+/// still ending the stall before the connector link's stale teardown.
+const RECEIPT_LESS_STALL_MARGIN: Duration = Duration::from_secs(2);
 
 /// The two-segment body `two_transport_loopback_resources_two_segments` sends.
 const RECEIPT_LESS_RESPONSE_LEN: usize = MAX_EFFICIENT_SIZE + 64 * 1024;
@@ -42,7 +50,8 @@ async fn two_transport_loopback_resources_receipt_less_receiving_outlasts_the_de
     })
     .await;
     let delivered_at = Instant::now();
-    let record_timeout = handles.link.lock().await.rtt() * 6 + RESPONSE_GRACE;
+    let rtt = handles.link.lock().await.rtt();
+    let record_timeout = RequestOptions::default().timeout_for_rtt(rtt);
 
     let payload = random_payload(RECEIPT_LESS_RESPONSE_LEN);
     let resource_hash = handles
@@ -51,8 +60,11 @@ async fn two_transport_loopback_resources_receipt_less_receiving_outlasts_the_de
         .send_response_resource(&link_id, RECEIPT_LESS_REQUEST_ID.to_vec(), payload.clone(), None)
         .await
         .expect("response resource dispatched");
+    // `Progress` carries the segment hash, and the first segment's hash is the hash the
+    // send returned (`sender.rs` defaults `original_hash` to the segment's own), so this is
+    // the first segment's progress and not the second's.
     await_resource_event(&mut receiver_events, |event| {
-        event.link_id == link_id && matches!(event.kind, ResourceEventKind::Progress(_))
+        event.hash == resource_hash && matches!(event.kind, ResourceEventKind::Progress(_))
     })
     .await;
     let stall = stall_transport_for(
@@ -64,6 +76,11 @@ async fn two_transport_loopback_resources_receipt_less_receiving_outlasts_the_de
     assert!(
         delivered_at.elapsed() > record_timeout + INTERVAL_LINKS_CHECK,
         "a clock running from the delivery would have expired the record during the stall"
+    );
+    assert_ne!(
+        handles.link.lock().await.status(),
+        LinkStatus::Closed,
+        "the stall ended inside the connector link's stale window"
     );
 
     let (complete, segments_seen) =

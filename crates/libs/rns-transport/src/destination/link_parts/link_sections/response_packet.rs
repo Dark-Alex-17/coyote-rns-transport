@@ -47,9 +47,21 @@ impl Link {
         Ok(packet)
     }
 
-    /// Register a response-size limit for a resource-backed request.
+    /// Registers `max_response_size` for the response to `request_id`.
+    /// Works in either order with `send_request_resource*` and
+    /// `request_packet*`: on a record already made it changes the limit
+    /// alone, never the clock or the request Resource, and a record made
+    /// afterwards keeps the limit.
     pub fn set_response_size_limit(&mut self, request_id: &[u8], max_response_size: usize) {
-        self.expect_response(request_id, Some(max_response_size));
+        let clock = self.pending_response_expiry();
+        self.pending_response_limits
+            .entry(request_id.to_vec())
+            .and_modify(|entry| entry.limit = Some(max_response_size))
+            .or_insert(PendingResponseLimit {
+                limit: Some(max_response_size),
+                clock,
+                request_resource: None,
+            });
     }
 
     /// Records that a response to `request_id` is expected, bounded by
@@ -59,8 +71,24 @@ impl Link {
     /// crate-private `expect_response_to_resource` makes it for that form)
     /// is what tells its response advertisement from an unsolicited one.
     /// The entry lives for the default request timeout unless a receipt
-    /// owns the id.
+    /// owns the id. A limit already recorded under `request_id` stays when
+    /// none is given.
     pub fn expect_response(&mut self, request_id: &[u8], max_response_size: Option<usize>) {
+        let limit = max_response_size.or_else(|| self.response_size_limit(request_id));
+        self.replace_response_record(request_id, limit);
+    }
+
+    /// [`Self::expect_response`] that replaces the record under `request_id`
+    /// whole, limit included. For `Transport::request`, whose receipt
+    /// displaces whatever was under the id: a request sent without a limit
+    /// under an id a displaced entry recorded one for does not inherit it.
+    /// The public builders keep a limit set beforehand instead.
+    #[deny(clippy::await_holding_invalid_type)]
+    pub(crate) fn replace_response_record(
+        &mut self,
+        request_id: &[u8],
+        max_response_size: Option<usize>,
+    ) {
         let clock = self.pending_response_expiry();
         self.pending_response_limits.insert(
             request_id.to_vec(),
@@ -71,7 +99,8 @@ impl Link {
     /// [`Self::expect_response`] for a request leaving as the Resource
     /// `request_resource`: the entry's clock does not run until that
     /// Resource is delivered (`RNS/Link.py:1370-1373`), and its rejection,
-    /// failure or cancel drops the entry.
+    /// failure or cancel drops the entry. A limit already recorded under
+    /// `request_id` stays when none is given.
     #[deny(clippy::await_holding_invalid_type)]
     pub(crate) fn expect_response_to_resource(
         &mut self,
@@ -79,10 +108,11 @@ impl Link {
         max_response_size: Option<usize>,
         request_resource: Hash,
     ) {
+        let limit = max_response_size.or_else(|| self.response_size_limit(request_id));
         self.pending_response_limits.insert(
             request_id.to_vec(),
             PendingResponseLimit {
-                limit: max_response_size,
+                limit,
                 clock: RecordClock::Unarmed,
                 request_resource: Some(request_resource),
             },

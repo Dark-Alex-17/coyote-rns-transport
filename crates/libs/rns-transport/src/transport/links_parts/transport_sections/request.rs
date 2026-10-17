@@ -51,11 +51,9 @@ impl Transport {
             }
             let timeout = opts.timeout_for_rtt(guard.rtt());
             if request.packed.len() <= guard.link_mdu() {
-                let packet = guard.request_packet_with_max_response_size(
-                    &request.packed,
-                    opts.max_response_size(),
-                )?;
+                let packet = guard.request_packet(&request.packed)?;
                 let id = RequestId::from_packet_hash(&packet.hash());
+                guard.replace_response_record(id.as_bytes(), opts.max_response_size());
                 let (receipt, displaced) =
                     guard.insert_pending_request(id, PendingRequest::new(id, timeout, None));
                 OutboundRequestForm::Packet { id, packet: Box::new(packet), receipt, displaced }
@@ -124,9 +122,7 @@ impl Transport {
         let registered = {
             let mut link_guard = link.lock().await;
             if link_guard.status() == LinkStatus::Active {
-                // Unconditional, so a request sent without a limit under an
-                // id a displaced entry recorded one for does not inherit it.
-                link_guard.expect_response(id.as_bytes(), max_response_size);
+                link_guard.replace_response_record(id.as_bytes(), max_response_size);
                 Some(link_guard.insert_pending_request(
                     id,
                     PendingRequest::new(id, timeout, Some(resource_hash)),

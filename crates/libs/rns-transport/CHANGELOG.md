@@ -344,6 +344,16 @@ trailing clause of the bullet for the behaviour it pins.
   sees it dropped without a reject) and
   `destination/link_parts/link_sections/pending_requests_tests.rs`.
 
+- `Link::set_response_size_limit` composes with the request record in
+  either order: called before `send_request_resource*` or `request_packet*`
+  the limit survives the record those make without one, and called after
+  it changes the record's limit alone, never its clock or request
+  Resource. `Link::expect_response` keeps a limit already recorded under
+  the id when given none. `Transport::request` still replaces the record
+  whole, so a request sent without a limit under an id a displaced entry
+  recorded one for does not inherit it. Pinned by
+  `destination/link_parts/link_sections/response_packet_tests.rs`.
+
 - `Transport::send_direct`, `send_response_resource_with_compression` and
   the transport's link lookup delegate to free functions in
   `transport/request_dispatch.rs`, which the dispatch worker shares. No

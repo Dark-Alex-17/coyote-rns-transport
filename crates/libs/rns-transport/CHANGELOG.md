@@ -200,6 +200,7 @@ trailing clause of the bullet for the behaviour it pins.
   `two_transport_loopback_requests_receipt_probe5.rs`,
   `two_transport_loopback_requests_receipt_probe6.rs`,
   `two_transport_loopback_requests_receipt_probe7.rs`,
+  `two_transport_loopback_requests_resource_form_sizes_probe.rs`,
   `two_transport_loopback_requests_receipt_stop.rs`,
   `two_transport_loopback_requests_errors.rs`,
   `tests/request_receipt_api.rs`, `tests/request_receipt_readme.rs`,
@@ -284,6 +285,7 @@ trailing clause of the bullet for the behaviour it pins.
   keep their signatures; the packet-response path stays one-shot. Pinned by
   `transport/tests_parts/two_transport_loopback_requests_resource_form_sizes.rs`
   (`..._sizes_bare_request_packet_solicits_its_response` among them),
+  `two_transport_loopback_requests_resource_form_sizes_probe.rs`,
   `two_transport_loopback_resources.rs`,
   `two_transport_loopback_resources_directions.rs`,
   `two_transport_loopback_resources_retries.rs`,

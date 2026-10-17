@@ -34,8 +34,8 @@ commits `1ddd5273`, `a2a40de7`, `3805fe7f`, `3ed78582`, `415d67c8`,
 `bbd34e72`, `114dbe1c`, `6f8cba34`, `1ef4cddd`, `f732e7d4`, `abd9187d`,
 `938d2852`, `6b5e9a4e`, `9521e2c0`, `b8ec835a`, `8b7557bd`, `f2ff9922`,
 `60cb3755`, `e28c5a03`, `1da7243b`, `7aaf7a50`, `f575a790`, `ad9f6b8a`,
-`0d4c9342`, `181c4a27`, `8eebdfab`, `ca4d1aa4`, `6b3ab18e` and
-`bb8a94ad`.
+`0d4c9342`, `181c4a27`, `8eebdfab`, `ca4d1aa4`, `6b3ab18e`, `bb8a94ad`
+and `d042612c`.
 
 | File | Patch |
 | --- | --- |
@@ -1040,6 +1040,10 @@ does not see. `bb8a94ad` rewords the crate README on the `Oversize`
 paths and the not-`Active` refusal and adds the crate `CHANGELOG.md`
 sentence on an in-limit response packet for a receipt already receiving
 a response Resource (`RNS/Link.py:873`, `:1437-1443`).
+
+Fork commit `d042612c`: the rustdoc of
+`request_packet_with_max_response_size` names the crate-private
+`Link::note_request_sent` in a code span instead of an intra-doc link.
 
 ## 0.14.1 (upstream 0.14.0)
 

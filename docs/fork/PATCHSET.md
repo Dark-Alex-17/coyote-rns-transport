@@ -33,7 +33,9 @@ commits `1ddd5273`, `a2a40de7`, `3805fe7f`, `3ed78582`, `415d67c8`,
 `40409738`, `2f2c11c7`, `140a4fd2`, `3035e470`, `8a8c7a4e`, `6a0fc9cb`,
 `bbd34e72`, `114dbe1c`, `6f8cba34`, `1ef4cddd`, `f732e7d4`, `abd9187d`,
 `938d2852`, `6b5e9a4e`, `9521e2c0`, `b8ec835a`, `8b7557bd`, `f2ff9922`,
-`60cb3755`, `e28c5a03`, `1da7243b`, `7aaf7a50`, `f575a790` and `ad9f6b8a`.
+`60cb3755`, `e28c5a03`, `1da7243b`, `7aaf7a50`, `f575a790`, `ad9f6b8a`,
+`0d4c9342`, `181c4a27`, `8eebdfab`, `ca4d1aa4`, `6b3ab18e` and
+`bb8a94ad`.
 
 | File | Patch |
 | --- | --- |
@@ -123,6 +125,7 @@ commits `1ddd5273`, `a2a40de7`, `3805fe7f`, `3ed78582`, `415d67c8`,
 | `crates/libs/rns-transport/src/transport/tests_parts/two_transport_loopback_requests_resource_form_sizes_cancel_probe.rs` | request receipts and timeouts |
 | `crates/libs/rns-transport/src/transport/tests_parts/two_transport_loopback_requests_resource_form_sizes_probe.rs` | request receipts and timeouts |
 | `crates/libs/rns-transport/src/transport/tests_parts/two_transport_loopback_requests_resource_form_sizes_probe2.rs` | request receipts and timeouts |
+| `crates/libs/rns-transport/src/transport/tests_parts/two_transport_loopback_requests_resource_form_sizes_probe3.rs` | request receipts and timeouts |
 | `crates/libs/rns-transport/src/transport/tests_parts/two_transport_loopback_requests_routing.rs` | request handlers and dispatch, request receipts and timeouts |
 | `crates/libs/rns-transport/src/transport/tests_parts/two_transport_loopback_resources.rs` | request receipts and timeouts |
 | `crates/libs/rns-transport/src/transport/tests_parts/two_transport_loopback_resources_directions.rs` | request receipts and timeouts |
@@ -971,6 +974,72 @@ oversize packet for a receipt still `Sent` fails it `Oversize` and owes
 no cancel. The second test panicked on the assertion `7aaf7a50`
 replaced. The crate `CHANGELOG.md` names the fixture in the receipts
 `Changed` pin clause.
+
+Fork commits `0d4c9342` and `8eebdfab`: the solicited-response record
+gets a lifetime. `Link::pending_response_limits`
+(`link_parts/linkhandleresult.rs`) is keyed as before but its value is
+the new crate-private `PendingResponseLimit { limit, expires_at }`;
+`expect_response` and `note_request_sent`
+(`link_sections/response_packet.rs`) stamp `expires_at` with the default
+request timeout (`RequestOptions::default().timeout_for_rtt(Link::rtt())`,
+`RNS/Link.py:491`) from now, the send refreshing the stamp of a limit
+recorded before it, and the three readers read `.limit`.
+`Link::expire_pending_requests` (`link_sections/pending_requests.rs`)
+prunes an entry past its stamp unless a live receipt owns the id, and
+`earliest_pending_request_deadline` folds the unowned stamps in so the
+watchdog wakes for them; a receipt's entry still goes with the receipt.
+Python's record is the `RequestReceipt`, pruned by its own timeout job
+(`RNS/Link.py:1398-1411`). `module_prelude.rs` imports `RequestOptions`.
+`pending_requests_tests.rs` pins a bare-send record and a
+`send_request_resource*` record gone after the timeout while a `Sent`
+and a `Receiving` receipt keep theirs. `8eebdfab` rewords the field doc.
+The crate `CHANGELOG.md` gains the lifetime sentence in the
+`max_response_size` gate bullet.
+
+Fork commit `181c4a27`: `Link::resolve_pending_request`
+(`link_sections/pending_requests.rs`) measures an assembled response
+Resource against the limit the request went out with once more, metadata
+excluded, and fails the receipt `Oversize` when it is over, returning the
+segment it was receiving like the sibling failers (`#[must_use]`); the
+advertised `d` the gate read was the peer's claim, and an uncompressed
+response carries up to `t` bytes. Python trusts the advertisement
+(`RNS/Link.py:1049`). `transport/resource_wire.rs` routes the returned
+hashes through `cancel_inbound_response`; `link_sections/new.rs` extends
+`owed_response_cancels` from the Response packet arm's result.
+`pending_requests_tests.rs` pins a `d = 10` advertisement whose assembled
+envelope is 2000 bytes against a 1024 limit, and an envelope of exactly
+1024 bytes admitted. The crate `CHANGELOG.md` gains the sentence in the
+`max_response_size` gate bullet.
+
+Fork commit `ca4d1aa4`: new fixture
+`two_transport_loopback_requests_resource_form_sizes_probe3.rs` (one
+`include!` line in `transport/tests.rs`) pins the packet-form limit as
+inclusive of the `response_size()` an unlimited request reports, three
+Resource responses in flight on one link each under their own limit all
+resolving `Ready`, and one refused response leaving its two neighbours
+and the link intact with the same body admitted again under a covering
+limit. The crate `CHANGELOG.md` names the fixture in the
+`max_response_size` gate pin clause.
+
+Fork commits `6b3ab18e` and `bb8a94ad`: `RequestResponseData::into_value`
+(`destination/request/receipt.rs`) returns `None` for a file response
+before touching the `Arc`; the two `[resource-diag]` lines
+`drop_unsolicited_response_advertisement` and
+`response_advertisement_request_id_len` (`transport/resource_wire.rs`)
+carry `node=`; `transport/handler.rs` and
+`link_sections/response_packet.rs` derive the request id through
+`RequestId::from_packet_hash`; `resource/tests_timeouts_lifecycle.rs`
+pins `cancel_incoming_response` for a live receiver (another link's
+cancel is a no-op, its own link's drops it and owes one receiver cancel);
+`two_transport_loopback_resources_reject_response.rs` sends its bounded
+request under a 19-byte id so the non-`RequestId` clear arm in
+`resource_wire.rs` is reached; the
+`two_transport_loopback_requests_resource_form_sizes_probe2.rs` header
+names `send_prepared_packet_broadcast_with_trace` as the seam the marker
+does not see. `bb8a94ad` rewords the crate README on the `Oversize`
+paths and the not-`Active` refusal and adds the crate `CHANGELOG.md`
+sentence on an in-limit response packet for a receipt already receiving
+a response Resource (`RNS/Link.py:873`, `:1437-1443`).
 
 ## 0.14.1 (upstream 0.14.0)
 

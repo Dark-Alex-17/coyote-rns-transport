@@ -306,6 +306,7 @@ fn resource_manager_cancel_incoming_response_drops_its_links_live_receiver() {
     let mut manager = ResourceManager::new_with_config(Duration::from_secs(1), 2);
 
     let segment_hash = Hash::new_from_slice(&[0x49; 32]);
+    // A first segment's original hash is its own; the receiver refuses any other.
     let original_hash = segment_hash;
     let adv = ResourceAdvertisement {
         transfer_size: 1,

@@ -14,15 +14,15 @@ mod pending_requests_tests {
         RequestId::new([byte; ADDRESS_HASH_SIZE])
     }
 
-    fn hash(byte: u8) -> Hash {
+    pub(super) fn hash(byte: u8) -> Hash {
         Hash::new_from_slice(&[byte; HASH_SIZE])
     }
 
-    fn hashes(segment: u8, original: u8) -> InboundResponseHashes {
+    pub(super) fn hashes(segment: u8, original: u8) -> InboundResponseHashes {
         InboundResponseHashes { segment: hash(segment), original: hash(original) }
     }
 
-    fn response_segment(segment_hash: Hash, original: Hash) -> ResourceAdvertisement {
+    pub(super) fn response_segment(segment_hash: Hash, original: Hash) -> ResourceAdvertisement {
         ResourceAdvertisement {
             transfer_size: 10,
             data_size: 10,

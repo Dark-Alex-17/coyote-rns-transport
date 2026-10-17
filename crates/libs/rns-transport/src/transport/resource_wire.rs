@@ -198,10 +198,19 @@ pub(super) async fn handle_link_resource_packet<'a>(
                             advertisement.transfer_size,
                             link.response_size_limit(request_id)
                         );
-                        // `fail_pending_request` clears a receipt-sized id;
-                        // a `send_request_resource*` id of another length
-                        // never becomes a `RequestId`, so it is cleared here.
-                        link.clear_response_size_limit(request_id);
+                        // A `send_request_resource*` id of another length
+                        // never becomes a `RequestId`, so its record is
+                        // taken here. A receipt-owned id's record never holds
+                        // the inbound hashes (the receipt does), so at most
+                        // one of the two cancels fires for an id.
+                        if let Some(receiving) = link.take_response_record(request_id) {
+                            cancel_inbound_response(
+                                &mut handler.resource_manager,
+                                &link,
+                                receiving,
+                                &mut cancels,
+                            );
+                        }
                         if let Some(id) = pending_id {
                             if let Some(receiving) =
                                 link.fail_pending_request(&id, RequestError::Oversize)

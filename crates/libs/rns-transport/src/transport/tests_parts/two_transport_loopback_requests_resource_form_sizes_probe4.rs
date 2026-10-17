@@ -12,10 +12,10 @@
 // `tests_parts` files.
 
 /// Headroom past the record's deadline for the watchdog tick that prunes it.
-const PROBE4_PRUNE_MARGIN: Duration = Duration::from_secs(2);
+const SIZES_PROBE4_PRUNE_MARGIN: Duration = Duration::from_secs(2);
 
 /// A handler that holds its response until `release` is notified, then answers `body`.
-fn gated_handler(
+fn sizes_probe4_gated_handler(
     release: Arc<tokio::sync::Notify>,
     body: Vec<u8>,
 ) -> impl Fn(
@@ -35,44 +35,9 @@ fn gated_handler(
 
 /// The default request timeout the pair's link stamps on a receipt-less record.
 #[deny(clippy::await_holding_invalid_type)]
-async fn default_request_timeout(pair: &LoopbackRequestPair) -> Duration {
+async fn sizes_probe4_default_request_timeout(pair: &LoopbackRequestPair) -> Duration {
     let rtt = pair.handles.link.lock().await.rtt();
     RequestOptions::default().timeout_for_rtt(rtt)
-}
-
-/// No response Resource for any of `ids` is assembled on `link_id` within `SIZES_SILENCE`,
-/// and no inbound Resource fails there.
-#[deny(clippy::await_holding_invalid_type)]
-async fn probe4_assert_no_response_for(
-    events: &mut broadcast::Receiver<ResourceEvent>,
-    link_id: AddressHash,
-    ids: &[RequestId],
-) {
-    let deadline = Instant::now() + SIZES_SILENCE;
-    loop {
-        let remaining = deadline.saturating_duration_since(Instant::now());
-        if remaining.is_zero() {
-            return;
-        }
-        match timeout(remaining, events.recv()).await {
-            Ok(Ok(event)) if event.link_id == link_id => match &event.kind {
-                ResourceEventKind::Complete(complete) => assert!(
-                    !ids.iter().any(|id| {
-                        complete.request_id.as_deref() == Some(id.as_bytes().as_slice())
-                    }),
-                    "a response whose record expired was assembled: {:?}",
-                    complete.request_id
-                ),
-                ResourceEventKind::InboundFailed(failure) => {
-                    panic!("an inbound Resource failed on the link: {failure:?}")
-                }
-                _ => {}
-            },
-            Ok(Ok(_)) => {}
-            Ok(Err(RecvError::Lagged(_))) => continue,
-            Ok(Err(RecvError::Closed)) | Err(_) => return,
-        }
-    }
 }
 
 /// Three receipt-less requests go out together: a bare request packet answered halfway
@@ -95,27 +60,27 @@ async fn two_transport_loopback_request_resource_form_sizes_probe4_receipt_less_
         &pair,
         "/mid",
         RequestAllow::All,
-        gated_handler(mid_gate.clone(), body.clone()),
+        sizes_probe4_gated_handler(mid_gate.clone(), body.clone()),
     )
     .await;
     register_handler(
         &pair,
         "/late",
         RequestAllow::All,
-        gated_handler(late_gate.clone(), body.clone()),
+        sizes_probe4_gated_handler(late_gate.clone(), body.clone()),
     )
     .await;
     register_handler(
         &pair,
         "/late-legacy",
         RequestAllow::All,
-        gated_handler(legacy_gate.clone(), body.clone()),
+        sizes_probe4_gated_handler(legacy_gate.clone(), body.clone()),
     )
     .await;
     register_handler(&pair, "/echo", RequestAllow::All, echo_handler()).await;
     let mut events = pair.handles.connector.transport.resource_events();
 
-    let record_timeout = default_request_timeout(&pair).await;
+    let record_timeout = sizes_probe4_default_request_timeout(&pair).await;
     let sent_at = Instant::now();
     let mid = send_request(&pair, "/mid", rmpv::Value::Nil).await;
     let late = send_request(&pair, "/late", rmpv::Value::Nil).await;
@@ -134,13 +99,14 @@ async fn two_transport_loopback_request_resource_form_sizes_probe4_receipt_less_
     assert_eq!(answered, mid.to_bytes(), "halfway through its record the response is admitted");
     assert_eq!(value, rmpv::Value::Binary(body.clone()));
 
-    tokio::time::sleep_until(delivered_at + record_timeout + PROBE4_PRUNE_MARGIN).await;
+    tokio::time::sleep_until(delivered_at + record_timeout + SIZES_PROBE4_PRUNE_MARGIN).await;
     let mut events = pair.handles.connector.transport.resource_events();
     let mut listener_tap = pair.handles.listener.transport.iface_rx();
     late_gate.notify_one();
     legacy_gate.notify_one();
 
-    probe4_assert_no_response_for(&mut events, link_id, &[late, legacy]).await;
+    sizes_assert_no_response_activity(&mut events, link_id, late).await;
+    sizes_assert_no_response_activity(&mut events, link_id, legacy).await;
     assert_eq!(
         count_link_packets(&mut listener_tap, link_id, PacketContext::ResourceReceiverCancel),
         0,
@@ -159,11 +125,16 @@ async fn two_transport_loopback_request_resource_form_sizes_probe4_receipt_owned
     let pair = loopback_request_pair_with_mtu("sizes-probe4-receipt-owned", LEGACY_MTU).await;
     let body = over_mdu_body(&pair).await;
     let gate = Arc::new(tokio::sync::Notify::new());
-    register_handler(&pair, "/late", RequestAllow::All, gated_handler(gate.clone(), body.clone()))
-        .await;
+    register_handler(
+        &pair,
+        "/late",
+        RequestAllow::All,
+        sizes_probe4_gated_handler(gate.clone(), body.clone()),
+    )
+    .await;
 
-    let record_timeout = default_request_timeout(&pair).await;
-    let receipt_timeout = record_timeout + PROBE4_PRUNE_MARGIN + RESPONSE_TIMEOUT * 2;
+    let record_timeout = sizes_probe4_default_request_timeout(&pair).await;
+    let receipt_timeout = record_timeout + SIZES_PROBE4_PRUNE_MARGIN + RESPONSE_TIMEOUT * 2;
     let sent_at = Instant::now();
     let receipt = request_with(
         &pair,
@@ -173,7 +144,7 @@ async fn two_transport_loopback_request_resource_form_sizes_probe4_receipt_owned
     )
     .await;
 
-    tokio::time::sleep_until(sent_at + record_timeout + PROBE4_PRUNE_MARGIN).await;
+    tokio::time::sleep_until(sent_at + record_timeout + SIZES_PROBE4_PRUNE_MARGIN).await;
     assert_eq!(receipt.status(), RequestStatus::Sent, "the receipt's own timeout is in force");
     gate.notify_one();
 

@@ -128,6 +128,8 @@ the link sent is dropped without a reject. The solicitation lasts the default
 request timeout, counted from the send for a request packet and from the
 request Resource's delivery for `send_request_resource*`, unless a response
 Resource is being received, in which case that Resource's own outcome ends it.
+An id a `Transport::request` receipt owns is solicited for the receipt's own
+timeout instead, default or not.
 No clock runs while a request Resource is in flight or a response Resource
 is being received: a request Resource that is refused fails `Rejected`, one
 that cannot be sent, exhausts its retries or is cancelled through

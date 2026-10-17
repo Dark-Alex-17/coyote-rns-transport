@@ -354,6 +354,14 @@ trailing clause of the bullet for the behaviour it pins.
   recorded one for does not inherit it. Pinned by
   `destination/link_parts/link_sections/response_packet_tests.rs`.
 
+- A request packet re-sent under the id of a record that is receiving its
+  response, or whose request Resource is still in flight, no longer
+  restarts that record's clock: `Link::note_request_sent` re-arms a running
+  clock alone. A later segment advertisement refused by the record's limit
+  cancels the partial assembly the record was receiving instead of
+  orphaning it in the ResourceManager. Pinned by
+  `destination/link_parts/link_sections/response_record_tests.rs`.
+
 - `Transport::send_direct`, `send_response_resource_with_compression` and
   the transport's link lookup delegate to free functions in
   `transport/request_dispatch.rs`, which the dispatch worker shares. No

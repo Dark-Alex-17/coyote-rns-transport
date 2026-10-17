@@ -67,7 +67,9 @@ struct InboundResponse {
 /// receiver and a receiver cancel name, and the whole Resource, which the
 /// partial assembly of a split response is keyed by. Between one segment's
 /// completion and the next segment's admitted advertisement only the
-/// assembly exists, so a cancel needs both.
+/// assembly exists, so a cancel needs both. A record no receipt owns
+/// carries the same pair in `RecordClock::Receiving`, so the cancel that
+/// follows its removal reaches the same transfer.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(crate) struct InboundResponseHashes {
     pub(crate) segment: Hash,

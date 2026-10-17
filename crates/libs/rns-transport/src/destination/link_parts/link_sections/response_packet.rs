@@ -125,13 +125,19 @@ impl Link {
     /// packet built with [`Self::request_packet`] is admitted like any other.
     /// A limit recorded before the send stays in force; the send anchors the
     /// clock, and the entry lives for the default request timeout unless a
-    /// receipt owns the id.
+    /// receipt owns the id. Only a running clock is re-anchored: a re-send
+    /// under the id of a record receiving its response, or of a request
+    /// Resource still in flight, leaves that record as it is.
     #[deny(clippy::await_holding_invalid_type)]
     pub(crate) fn note_request_sent(&mut self, request_id: &[u8]) {
         let clock = self.pending_response_expiry();
         self.pending_response_limits
             .entry(request_id.to_vec())
-            .and_modify(|entry| entry.clock = clock)
+            .and_modify(|entry| {
+                if let RecordClock::Expires(_) = entry.clock {
+                    entry.clock = clock;
+                }
+            })
             .or_insert(PendingResponseLimit { limit: None, clock, request_resource: None });
     }
 
@@ -182,6 +188,22 @@ impl Link {
 
     pub fn clear_response_size_limit(&mut self, request_id: &[u8]) {
         self.pending_response_limits.remove(request_id);
+    }
+
+    /// Removes the record under `request_id` and returns the response
+    /// Resource it was receiving, for the caller to cancel: a later segment
+    /// refused by the limit would otherwise leave the earlier segments'
+    /// partial assembly behind in the ResourceManager.
+    #[deny(clippy::await_holding_invalid_type)]
+    #[must_use = "the hashes are for the caller to cancel"]
+    pub(crate) fn take_response_record(
+        &mut self,
+        request_id: &[u8],
+    ) -> Option<InboundResponseHashes> {
+        match self.pending_response_limits.remove(request_id)?.clock {
+            RecordClock::Receiving(inbound) => Some(inbound),
+            _ => None,
+        }
     }
 
     /// Build a response packet (context = `Response`) carrying `data`.

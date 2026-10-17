@@ -114,8 +114,7 @@ async fn two_transport_loopback_request_resource_form_sizes_probe3_concurrent_re
 
 /// Of three Resource responses in flight, the one requested one byte under its envelope
 /// length fails `Oversize` and the responder sees `OutboundRejected` for it, while its two
-/// neighbours resolve `Ready`; the failed limit is not left behind: the same body requested
-/// again under a covering limit on the same link is admitted.
+/// neighbours resolve `Ready`.
 #[tokio::test]
 #[deny(clippy::await_holding_invalid_type)]
 async fn two_transport_loopback_request_resource_form_sizes_probe3_one_refused_response_leaves_its_neighbours_and_the_link_intact(

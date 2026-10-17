@@ -13,3 +13,4 @@ include!("link_sections/identify_packet_tests.rs");
 include!("link_sections/request_dispatch_tests.rs");
 include!("link_sections/pending_requests_tests.rs");
 include!("link_sections/response_packet_tests.rs");
+include!("link_sections/response_record_tests.rs");

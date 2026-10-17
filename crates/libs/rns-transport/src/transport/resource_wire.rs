@@ -196,8 +196,9 @@ pub(super) async fn handle_link_resource_packet<'a>(
                             advertisement.transfer_size,
                             link.response_size_limit(request_id)
                         );
-                        // A legacy `send_request_resource*` id has only its
-                        // entry here; a receipt's goes with the receipt.
+                        // `fail_pending_request` clears a receipt-sized id;
+                        // a `send_request_resource*` id of another length
+                        // never becomes a `RequestId`, so it is cleared here.
                         link.clear_response_size_limit(request_id);
                         if let Some(id) = pending_id {
                             if let Some(receiving) =

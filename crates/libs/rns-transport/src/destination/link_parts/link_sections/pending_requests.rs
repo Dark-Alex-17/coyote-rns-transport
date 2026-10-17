@@ -49,16 +49,18 @@ impl Link {
         }
     }
 
-    /// Fails the request `id` and drops its response size limit. Returns
-    /// the response Resource it was receiving, for the caller to cancel.
+    /// Fails the request `id` and drops its response size limit; the limit
+    /// goes even when no receipt is pending under `id`. Returns the
+    /// response Resource it was receiving, for the caller to cancel.
     #[deny(clippy::await_holding_invalid_type)]
+    #[must_use = "the hashes are for the caller to cancel"]
     pub(crate) fn fail_pending_request(
         &mut self,
         id: &RequestId,
         error: RequestError,
     ) -> Option<InboundResponseHashes> {
-        let pending = self.pending_requests.remove(id)?;
         self.pending_response_limits.remove(id.as_bytes().as_slice());
+        let pending = self.pending_requests.remove(id)?;
         log::debug!("link({}): request {} failed: {error}", self.id, id);
         pending.fail(error)
     }
@@ -67,6 +69,7 @@ impl Link {
     /// the link is closed or starting over. Returns the response Resources
     /// they were receiving, for the caller to cancel.
     #[deny(clippy::await_holding_invalid_type)]
+    #[must_use = "the hashes are for the caller to cancel"]
     pub(crate) fn fail_all_pending_requests(
         &mut self,
         error: RequestError,
@@ -78,6 +81,25 @@ impl Link {
             receiving.extend(pending.fail(error));
         }
         receiving
+    }
+
+    /// `fail_all_pending_requests(LinkClosed)` from a path that holds the
+    /// link alone: the link is closing or starting over under its own
+    /// guard, and no ResourceManager is in reach. A response Resource still
+    /// inbound is not cancelled here (`RNS/Resource.py:1111`): the transport
+    /// drops a closed link's receivers with its state on the next link
+    /// check, and a receiver left on a restarted link fails on its own
+    /// retry limit.
+    #[deny(clippy::await_holding_invalid_type)]
+    pub(crate) fn abandon_pending_requests(&mut self) {
+        let receiving = self.fail_all_pending_requests(RequestError::LinkClosed);
+        if !receiving.is_empty() {
+            log::debug!(
+                "link({}): {} response resource(s) left inbound, dropped with the link state",
+                self.id,
+                receiving.len()
+            );
+        }
     }
 
     /// A segment of the response to `id` was advertised and admitted: the
@@ -113,6 +135,7 @@ impl Link {
     /// `Receiving`. Other event kinds are not outcomes. Returns the response
     /// Resource a failed receipt was receiving, for the caller to cancel.
     #[deny(clippy::await_holding_invalid_type)]
+    #[must_use = "the hashes are for the caller to cancel"]
     pub(crate) fn note_request_resource_outcome(
         &mut self,
         hash: Hash,

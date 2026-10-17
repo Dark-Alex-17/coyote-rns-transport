@@ -233,7 +233,9 @@ impl PendingRequest {
     pub(crate) fn resolve(self, arrival: ResponseArrival<'_>) -> Option<ResponseDecodeFailure> {
         if let ResponseArrival::Packet { response_size, .. } = &arrival {
             // A packet response advertises nothing; Python reports the packed
-            // body as both sizes (`RNS/Link.py:1016-1017`, `:868-871`).
+            // body as both sizes (`RNS/Link.py:1016-1017`, `:868-871`), as
+            // `len(packb(response)) - 2`; here it is the exact packed length,
+            // a recorded divergence of two bytes.
             let mut bookkeeping = self.state.bookkeeping();
             bookkeeping.response_size = Some(*response_size);
             bookkeeping.response_transfer_size = Some(*response_size);
@@ -254,6 +256,7 @@ impl PendingRequest {
     /// Concludes `Failed(error)`. Returns the response Resource that was
     /// still being received: the caller cancels that transfer
     /// (`RNS/Link.py:1435`), this entry only forgets it.
+    #[must_use = "the hashes are for the caller to cancel"]
     pub(crate) fn fail(self, error: RequestError) -> Option<InboundResponseHashes> {
         let receiving = self.inbound_response();
         self.conclude(Err(error));

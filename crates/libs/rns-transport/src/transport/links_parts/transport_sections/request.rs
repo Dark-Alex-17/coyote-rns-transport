@@ -124,9 +124,9 @@ impl Transport {
         let registered = {
             let mut link_guard = link.lock().await;
             if link_guard.status() == LinkStatus::Active {
-                if let Some(max_response_size) = max_response_size {
-                    link_guard.set_response_size_limit(id.as_bytes(), max_response_size);
-                }
+                // Unconditional, so a request sent without a limit under an
+                // id a displaced entry recorded one for does not inherit it.
+                link_guard.expect_response(id.as_bytes(), max_response_size);
                 Some(link_guard.insert_pending_request(
                     id,
                     PendingRequest::new(id, timeout, Some(resource_hash)),
@@ -170,14 +170,17 @@ impl Transport {
         if receiving.is_empty() {
             return;
         }
+        let link_id = *link.lock().await.id();
         let cancelled: Vec<Hash> = {
             let mut handler = self.handler.lock().await;
             let cancelled = receiving
                 .into_iter()
                 .filter(|response| {
-                    handler
-                        .resource_manager
-                        .cancel_incoming_response(response.segment, response.original)
+                    handler.resource_manager.cancel_incoming_response(
+                        response.segment,
+                        response.original,
+                        &link_id,
+                    )
                 })
                 .map(|response| response.segment)
                 .collect();

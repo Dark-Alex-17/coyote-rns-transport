@@ -101,7 +101,7 @@ impl Link {
         };
         // Before the id changes below, so the failure logs name the link
         // the requests were pending on.
-        self.fail_all_pending_requests(RequestError::LinkClosed);
+        self.abandon_pending_requests();
         self.status = LinkStatus::Pending;
         self.close_reason = None;
         self.id = LinkId::from(&packet);

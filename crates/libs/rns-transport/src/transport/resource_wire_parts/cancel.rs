@@ -34,7 +34,7 @@ fn cancel_inbound_response(
     receiving: InboundResponseHashes,
     cancels: &mut Vec<TxMessage>,
 ) {
-    if resources.cancel_incoming_response(receiving.segment, receiving.original)
+    if resources.cancel_incoming_response(receiving.segment, receiving.original, link.id())
         && link.status() == LinkStatus::Active
     {
         cancels.extend(receiver_cancel(link, None, &receiving.segment));

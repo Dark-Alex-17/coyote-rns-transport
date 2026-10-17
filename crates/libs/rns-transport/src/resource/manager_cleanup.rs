@@ -124,18 +124,28 @@ impl ResourceManager {
     /// one segment's completion and the next segment's admitted
     /// advertisement, only the partial assembly under `original_hash`, which
     /// would otherwise sit there until the link closes. Either way the
-    /// transfer is reported `InboundFailed("cancelled")`. Returns whether a
-    /// receiver was in flight, which is when the peer is owed a receiver
-    /// cancel.
+    /// transfer is reported `InboundFailed("cancelled")`. A transfer under
+    /// those hashes on a link other than `link_id` is left alone: the
+    /// hashes came from that link's receipt. Returns whether a receiver was
+    /// in flight, which is when the peer is owed a receiver cancel.
     pub(crate) fn cancel_incoming_response(
         &mut self,
         segment_hash: Hash,
         original_hash: Hash,
+        link_id: &AddressHash,
     ) -> bool {
-        if self.cancel_incoming(segment_hash).is_some() {
+        if self.incoming.get(&segment_hash).is_some_and(|receiver| receiver.link_id == *link_id)
+            && self.cancel_incoming(segment_hash).is_some()
+        {
             return true;
         }
-        self.fail_inbound_segments(original_hash, "cancelled");
+        if self
+            .incoming_segments
+            .get(&original_hash)
+            .is_some_and(|assembly| assembly.link_id == *link_id)
+        {
+            self.fail_inbound_segments(original_hash, "cancelled");
+        }
         false
     }
 }

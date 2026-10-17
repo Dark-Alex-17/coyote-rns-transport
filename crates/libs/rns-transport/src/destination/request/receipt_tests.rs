@@ -338,6 +338,6 @@ async fn subscribe_reports_changes_after_the_call_only() {
     let mut status_rx = receipt.subscribe();
     assert!(!status_rx.has_changed().expect("the entry is alive"), "`Delivered` predates it");
     assert_eq!(*status_rx.borrow_and_update(), RequestStatus::Delivered);
-    pending.fail(RequestError::Timeout);
+    assert_eq!(pending.fail(RequestError::Timeout), None, "nothing was inbound");
     assert_eq!(*status_rx.borrow_and_update(), RequestStatus::Failed);
 }

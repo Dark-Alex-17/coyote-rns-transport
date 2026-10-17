@@ -231,3 +231,58 @@ fn resource_manager_has_an_active_receiver_only_for_an_admitted_advertisement() 
         "and on the link it was advertised on only"
     );
 }
+
+/// Between one segment's completion and the next segment's advertisement a
+/// split response is only a partial assembly. Cancelling the response for a
+/// failed receipt drops that assembly when the hashes came from its link,
+/// and leaves it alone for any other link.
+#[test]
+fn resource_manager_cancel_incoming_response_drops_only_its_links_assembly() {
+    let signer = PrivateIdentity::new_from_rand(OsRng);
+    let identity = *signer.as_identity();
+    let destination = DestinationDesc {
+        identity,
+        address_hash: identity.address_hash,
+        name: DestinationName::new("lxmf", "resource"),
+    };
+    let (tx, _) = tokio::sync::broadcast::channel(1);
+    let mut link = Link::new(destination, tx);
+    link.request();
+    let mut manager = ResourceManager::new_with_config(Duration::from_secs(1), 2);
+
+    let first_data = b"first-segment";
+    let second_data = b"second-segment";
+    let total_data_size = (first_data.len() + second_data.len()) as u64;
+    let (first_adv, first_part) = split_test_segment(first_data, None, 1, 2, total_data_size);
+    let original_hash = first_adv.hash;
+    let first_adv_packet = resource_packet(
+        PacketContext::ResourceAdvrtisement,
+        &first_adv.pack().expect("pack first advertisement"),
+        *link.id(),
+    );
+    assert_eq!(manager.handle_packet(&first_adv_packet, &mut link).len(), 1);
+    let first_part_packet = resource_packet(PacketContext::Resource, &first_part, *link.id());
+    assert_eq!(manager.handle_packet(&first_part_packet, &mut link).len(), 1);
+    manager.drain_events();
+    assert!(manager.incoming_segments.contains_key(&original_hash));
+    assert!(manager.incoming.is_empty(), "the first segment is complete, nothing is in flight");
+
+    let other_link_id = AddressHash::new_from_slice(&[0x53; ADDRESS_HASH_SIZE]);
+    assert!(!manager.cancel_incoming_response(original_hash, original_hash, &other_link_id));
+    assert!(manager.incoming_segments.contains_key(&original_hash));
+    assert!(manager.drain_events().is_empty(), "another link's cancel reports nothing");
+
+    assert!(
+        !manager.cancel_incoming_response(original_hash, original_hash, link.id()),
+        "no receiver was in flight, so the peer is owed no receiver cancel"
+    );
+    assert!(!manager.incoming_segments.contains_key(&original_hash));
+    let events = manager.drain_events();
+    assert_eq!(events.len(), 1);
+    assert_eq!(events[0].hash, original_hash);
+    assert_eq!(events[0].link_id, *link.id());
+    assert!(matches!(
+        &events[0].kind,
+        ResourceEventKind::InboundFailed(failure) if failure.reason == "cancelled"
+    ));
+}

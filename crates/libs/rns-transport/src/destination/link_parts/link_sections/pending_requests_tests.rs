@@ -123,7 +123,11 @@ mod pending_requests_tests {
         link.expire_pending_requests(Instant::now() + TIMEOUT * 2);
         assert_eq!(receipt.status(), RequestStatus::Sent, "no clock before delivery");
 
-        link.note_request_resource_outcome(hash(0xA1), &ResourceEventKind::OutboundComplete);
+        assert_eq!(
+            link.note_request_resource_outcome(hash(0xA1), &ResourceEventKind::OutboundComplete),
+            None,
+            "delivery fails nothing"
+        );
         assert_eq!(receipt.status(), RequestStatus::Delivered);
         let delivered = receipt.started_at().expect("delivery starts the clock");
         assert_eq!(link.earliest_pending_request_deadline(), Some(delivered + TIMEOUT));

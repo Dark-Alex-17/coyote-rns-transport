@@ -96,7 +96,12 @@ impl Transport {
         for link in links {
             match time::timeout_at(deadline, link.lock()).await {
                 Ok(mut link) => {
-                    receiving.extend(link.fail_all_pending_requests(RequestError::LinkClosed));
+                    let link_id = *link.id();
+                    receiving.extend(
+                        link.fail_all_pending_requests(RequestError::LinkClosed)
+                            .into_iter()
+                            .map(|response| (link_id, response)),
+                    );
                 }
                 Err(_) => skipped += 1,
             }
@@ -113,8 +118,12 @@ impl Transport {
             );
             return;
         };
-        for response in receiving {
-            handler.resource_manager.cancel_incoming_response(response.segment, response.original);
+        for (link_id, response) in receiving {
+            handler.resource_manager.cancel_incoming_response(
+                response.segment,
+                response.original,
+                &link_id,
+            );
         }
         let events = handler.resource_manager.drain_events();
         super::resource_wire::publish_resource_events(&handler, events);

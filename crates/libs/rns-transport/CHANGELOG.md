@@ -326,6 +326,11 @@ trailing clause of the bullet for the behaviour it pins.
   `two_transport_loopback_requests_resource_form_sizes_probe3.rs`,
   `two_transport_loopback_requests_resource_form_sizes_probe4.rs` (the
   receipt-less record's lifetime as a slow responder sees it),
+  `two_transport_loopback_requests_resource_form_sizes_probe5.rs` (a
+  lying `d` fails the receipt `Oversize` at the recheck, a completed or
+  remotely cancelled response ends a receipt-less record, a bare
+  `request_packet` record ends on completion, and the legacy-id limit is
+  inclusive at both measurements),
   `two_transport_loopback_resources.rs`,
   `two_transport_loopback_resources_directions.rs`,
   `two_transport_loopback_resources_retries.rs`,

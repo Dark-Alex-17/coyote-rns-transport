@@ -288,8 +288,9 @@ pub(super) async fn handle_link_resource_packet<'a>(
         // handler table like a request packet, and an assembled response
         // resource resolves the receipt waiting for it (`RNS/Link.py:897-912`).
         // The events are still published below for `resource_events()`
-        // consumers.
-        for event in &events {
+        // consumers, except an assembled response the link refused.
+        let mut suppressed = Vec::new();
+        for (index, event) in events.iter().enumerate() {
             if event.link_id != *link.id() {
                 continue;
             }
@@ -318,8 +319,29 @@ pub(super) async fn handle_link_resource_packet<'a>(
                                 }
                             }
                             // A `send_request_resource*` id of another
-                            // length has no receipt, only its entry.
-                            Err(_) => link.clear_response_size_limit(request_id),
+                            // length has no receipt, only its entry, so the
+                            // assembled size is measured against the entry's
+                            // limit here, as `resolve_pending_request` does
+                            // for a receipt. The Resource is already
+                            // assembled and gone from the ResourceManager,
+                            // so withholding the event is the failure.
+                            Err(_) => {
+                                let limit = link.response_size_limit(request_id);
+                                let admitted = link.take_response_limit_if_allowed(
+                                    request_id,
+                                    complete.data.len(),
+                                );
+                                if let (false, Some(limit)) = (admitted, limit) {
+                                    log::warn!(
+                                        "link({}): response to {} assembled {} bytes over its {} byte limit",
+                                        link.id(),
+                                        hex::encode(request_id),
+                                        complete.data.len(),
+                                        limit
+                                    );
+                                    suppressed.push(index);
+                                }
+                            }
                         }
                     }
                 }
@@ -340,6 +362,9 @@ pub(super) async fn handle_link_resource_packet<'a>(
                     }
                 }
             }
+        }
+        for index in suppressed.into_iter().rev() {
+            events.remove(index);
         }
         events.extend(handler.resource_manager.drain_events());
     }

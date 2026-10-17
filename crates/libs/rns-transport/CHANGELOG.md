@@ -314,7 +314,10 @@ trailing clause of the bullet for the behaviour it pins.
   when it completes, metadata excluded, and fails the receipt `Oversize`
   when it is over, since the advertised `d` is the peer's claim and an
   uncompressed response can carry up to `t` bytes; Python trusts the
-  advertisement (`RNS/Link.py:1049`).
+  advertisement (`RNS/Link.py:1049`). A response to a `send_request_resource*`
+  id no receipt owns gets the same recheck: one assembled over its limit
+  clears the record, is logged, and is withheld from `resource_events()`
+  subscribers.
   Pinned by
   `transport/tests_parts/two_transport_loopback_requests_resource_form_sizes.rs`
   (`..._sizes_bare_request_packet_solicits_its_response` among them),

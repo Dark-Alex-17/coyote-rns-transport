@@ -69,7 +69,8 @@ mod pending_requests_tests {
     /// advertisement the ResourceManager drops leaves the limit where it was, the next one
     /// is measured against it, a receipt without a limit admits any size, an id nobody
     /// waits for solicits nothing, and a `send_request_resource*` id of any length is
-    /// solicited by its entry alone. The limit goes when the response resolves.
+    /// solicited by its entry alone and measured once more when its response is assembled.
+    /// The limit goes when the response resolves.
     #[test]
     fn the_response_size_gate_is_read_per_advertisement_and_not_spent_by_one() {
         let (mut link, _, _, _) = linked_pair();
@@ -85,12 +86,12 @@ mod pending_requests_tests {
         assert_eq!(link.response_size_allowed(id(2).as_bytes(), usize::MAX), Some(true));
         assert_eq!(link.response_size_allowed(id(3).as_bytes(), 1), None, "nobody asked");
 
-        link.expect_response(b"legacy", None);
-        assert_eq!(link.response_size_allowed(b"legacy", usize::MAX), Some(true));
-        link.expect_response(b"legacy", Some(10));
-        assert_eq!(link.response_size_allowed(b"legacy", 11), Some(false));
-        link.clear_response_size_limit(b"legacy");
-        assert_eq!(link.response_size_allowed(b"legacy", 1), None);
+        link.expect_response(b"legacy-but-longer", None);
+        assert_eq!(link.response_size_allowed(b"legacy-but-longer", usize::MAX), Some(true));
+        link.expect_response(b"legacy-but-longer", Some(10));
+        assert_eq!(link.response_size_allowed(b"legacy-but-longer", 11), Some(false));
+        assert!(!link.take_response_limit_if_allowed(b"legacy-but-longer", 11), "assembled over");
+        assert_eq!(link.response_size_allowed(b"legacy-but-longer", 1), None, "and went with it");
         link.note_request_sent(q);
         assert_eq!(link.response_size_limit(q), Some(1024), "the send keeps a limit set before it");
         link.note_request_sent(b"fresh");

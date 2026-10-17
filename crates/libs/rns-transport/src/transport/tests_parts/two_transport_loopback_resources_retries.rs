@@ -26,13 +26,21 @@ fn stall_handler(
     std::thread::sleep(stall);
 }
 
-/// Spawns the stall against `transport` and returns once the lock is held.
+/// Spawns a `RETRY_STALL` stall against `transport` and returns once the lock is held.
 #[deny(clippy::await_holding_invalid_type)]
 async fn stall_transport(transport: &Transport) -> tokio::task::JoinHandle<()> {
+    stall_transport_for(transport, RETRY_STALL).await
+}
+
+/// Spawns a stall of `stall` against `transport` and returns once the lock is held.
+#[deny(clippy::await_holding_invalid_type)]
+async fn stall_transport_for(
+    transport: &Transport,
+    stall: Duration,
+) -> tokio::task::JoinHandle<()> {
     let (stalled_tx, stalled_rx) = tokio::sync::oneshot::channel();
     let handler = transport.get_handler();
-    let stall =
-        tokio::task::spawn_blocking(move || stall_handler(handler, stalled_tx, RETRY_STALL));
+    let stall = tokio::task::spawn_blocking(move || stall_handler(handler, stalled_tx, stall));
     stalled_rx.await.expect("stall task acquired the handler lock");
     stall
 }
@@ -71,8 +79,7 @@ async fn assert_small_transfer_completes(
     resource_hash: Hash,
     payload: &[u8],
 ) {
-    let (complete, segments_seen) =
-        await_complete_with_segments(receiver_events, link_id).await;
+    let (complete, segments_seen) = await_complete_with_segments(receiver_events, link_id).await;
     assert_eq!(complete.hash, resource_hash, "receiver reports the sender's resource hash");
     assert_eq!(segments_seen, None, "a single-segment transfer emits no SegmentComplete");
     let complete = complete_payload(complete);
@@ -130,11 +137,8 @@ async fn two_transport_loopback_resources_initiator_advertisement_retry_lands_on
     )
     .await;
 
-    let advertisements = count_link_packets(
-        &mut listener_tap,
-        pair.link_id,
-        PacketContext::ResourceAdvrtisement,
-    );
+    let advertisements =
+        count_link_packets(&mut listener_tap, pair.link_id, PacketContext::ResourceAdvrtisement);
     assert!(
         advertisements >= 2,
         "the retried advertisement must reach the listener's interface; saw {advertisements} \
@@ -159,7 +163,8 @@ async fn two_transport_loopback_resources_initiator_request_retry_lands_once() {
     let request_id = b"loopback-retry".to_vec();
     // The soliciting request completes before the listener is stalled, so the stall holds
     // back only the response advertisement.
-    let request_hash = solicit_response(&pair.connector.transport, &pair.link_id, &request_id).await;
+    let request_hash =
+        solicit_response(&pair.connector.transport, &pair.link_id, &request_id).await;
     await_resource_event(&mut receiver_events, |event| {
         event.hash == request_hash && matches!(event.kind, ResourceEventKind::OutboundComplete)
     })

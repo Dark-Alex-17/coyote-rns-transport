@@ -324,6 +324,9 @@ trailing clause of the bullet for the behaviour it pins.
   `two_transport_loopback_resources.rs`,
   `two_transport_loopback_resources_directions.rs`,
   `two_transport_loopback_resources_retries.rs`,
+  `two_transport_loopback_resources_receipt_less_receiving.rs` (a
+  two-segment response under a receipt-less id, stalled past the default
+  request timeout, still completes),
   `two_transport_loopback_resources_reject_response.rs` (whose bare
   response fixtures now send the soliciting request Resource first) and
   `destination/link_parts/link_sections/pending_requests_tests.rs`.

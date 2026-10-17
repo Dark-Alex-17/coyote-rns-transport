@@ -301,7 +301,7 @@ fn pack_request(path: &str, value: rmpv::Value) -> Vec<u8> {
 #[deny(clippy::await_holding_invalid_type)]
 async fn send_packed_request(pair: &LoopbackRequestPair, packed: &[u8]) -> RequestId {
     let packet =
-        pair.handles.link.lock().await.request_packet_with_max_response_size(packed, None).expect("request fits a packet");
+        pair.handles.link.lock().await.request_packet(packed).expect("request fits a packet");
     let id = RequestId::from_packet_hash(&packet.hash());
     let outcome = pair
         .handles

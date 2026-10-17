@@ -62,6 +62,15 @@ impl Link {
         self.pending_response_limits.insert(request_id.to_vec(), max_response_size);
     }
 
+    /// Records that the link sent a request packet under `request_id`. Every
+    /// request packet solicits its response, as every `RNS.Link.request`
+    /// registers a `RequestReceipt` (`RNS/Link.py:473-510`, `:1365`), so a
+    /// packet built with [`Self::request_packet`] is admitted like any other.
+    /// A limit recorded before the send stays in force.
+    pub fn note_request_sent(&mut self, request_id: &[u8]) {
+        self.pending_response_limits.entry(request_id.to_vec()).or_insert(None);
+    }
+
     /// Whether a response Resource advertising `data_size` bytes for
     /// `request_id` may be received (`RNS/Link.py:1046-1049`, `read_size`
     /// is `d`, `RNS/Resource.py:1285-1287`): `None` when nothing solicited

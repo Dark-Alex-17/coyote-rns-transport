@@ -395,3 +395,29 @@ async fn two_transport_loopback_request_resource_form_sizes_limit_covers_every_s
     let indices: Vec<u32> = advertisements.iter().map(|a| a.segment_index).collect();
     assert_eq!(indices, vec![1, 2], "both segments were advertised and admitted");
 }
+
+/// A request packet built with the bare `request_packet` and put on the wire by the
+/// transport solicits its response like any other: every `RNS.Link.request` registers a
+/// `RequestReceipt` the response advertisement is matched against (`RNS/Link.py:473-510`,
+/// `:1046-1047`), so a response Resource to it is admitted rather than dropped as
+/// unsolicited.
+#[tokio::test]
+#[deny(clippy::await_holding_invalid_type)]
+async fn two_transport_loopback_request_resource_form_sizes_bare_request_packet_solicits_its_response(
+) {
+    let pair = loopback_request_pair_with_mtu("sizes-bare-request-packet", LEGACY_MTU).await;
+    let body = random_payload(MANY_PARTS_LEN);
+    let expected = body.clone();
+    register_handler(&pair, "/big", RequestAllow::All, move |_: InboundRequest| {
+        std::future::ready(Some(RequestResponse::Bytes(body.clone())))
+    })
+    .await;
+    let mut events = pair.handles.connector.transport.resource_events();
+
+    let id = send_request(&pair, "/big", rmpv::Value::Nil).await;
+    let complete = await_response_resource(&mut events, pair.handles.link_id, id).await;
+    let (answered, value) =
+        unpack_response_envelope(&complete.data).expect("response envelope");
+    assert_eq!(answered, id.to_bytes(), "the response names the request");
+    assert_eq!(value, rmpv::Value::Binary(expected));
+}

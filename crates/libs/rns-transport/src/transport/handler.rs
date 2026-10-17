@@ -2,6 +2,7 @@ use super::diag;
 use super::diag::bytes_to_hex;
 use super::wire_encryption::should_encrypt_packet;
 use super::*;
+use crate::hash::ADDRESS_HASH_SIZE;
 use crate::iface::InterfaceMode;
 
 impl TransportHandler {
@@ -34,7 +35,12 @@ impl TransportHandler {
         };
 
         if let Some(link) = link {
-            link.lock().await.note_outbound(packet.context);
+            let mut link = link.lock().await;
+            link.note_outbound(packet.context);
+            if packet.context == PacketContext::Request {
+                let request_id = &packet.hash().to_bytes()[..ADDRESS_HASH_SIZE];
+                link.note_request_sent(request_id);
+            }
         }
     }
 

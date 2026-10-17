@@ -118,9 +118,12 @@ receipt still waiting when it runs out fails with `RequestError::Timeout`.
 `RequestOptions::with_max_response_size` is measured against
 the uncompressed size of the response, the packed body of a response packet
 or the advertised data size of a response Resource, and a larger response
-fails the receipt with `RequestError::Oversize` without being received. No
-clock runs while a request Resource is in flight or a response Resource is
-being received: a request Resource that is refused fails `Rejected`, one
+fails the receipt with `RequestError::Oversize` without being received. Every
+request packet the link sends, however it was built, and every Resource sent
+through `send_request_resource*` solicits its response; a response Resource
+advertised for a request nothing on the link sent is dropped without a reject.
+No clock runs while a request Resource is in flight or a response Resource
+is being received: a request Resource that is refused fails `Rejected`, one
 that cannot be sent, exhausts its retries or is cancelled through
 `Transport::cancel_resource` fails `Send`, and a response Resource that
 fails in transfer fails `Receive`. A link that closes, from either side,

@@ -269,17 +269,21 @@ trailing clause of the bullet for the behaviour it pins.
   advertisement, so one the ResourceManager drops (inbound caps, an
   out-of-order or duplicate segment) leaves it in force for the next, and
   it goes when the response resolves, fails or is refused. A response
-  advertisement whose `q` names neither a pending receipt nor a request
-  sent through `send_request_resource*` is dropped before it reaches the
-  ResourceManager, with a debug log and no reject packet, as Python's
-  pending-request loop (`RNS/Link.py:1046-1047`) falls through it;
-  `send_request_resource` and `send_request_resource_with_max_response_size`
-  record their id so the response they solicit is admitted, and the record
-  is dropped when the advertisement is not sent. `Link::expect_response`
-  and `Link::response_size_allowed` carry this beside the existing
+  is solicited by every request packet the link sends, however it was
+  built (`Transport::request`, `Link::request_packet` or
+  `request_packet_with_max_response_size`), and by every Resource sent
+  through `send_request_resource*`; a response advertisement whose `q`
+  names a request nothing on the link sent is dropped before it reaches
+  the ResourceManager, with a debug log and no reject packet, as Python's
+  pending-request loop (`RNS/Link.py:1046-1047`) falls through it. The
+  transport records the id of each request packet as it goes out, the
+  `send_request_resource*` record is dropped when the advertisement is
+  not sent, and `Link::expect_response`, `Link::note_request_sent` and
+  `Link::response_size_allowed` carry this beside the existing
   `set_response_size_limit` and `take_response_limit_if_allowed`, which
   keep their signatures; the packet-response path stays one-shot. Pinned by
-  `transport/tests_parts/two_transport_loopback_requests_resource_form_sizes.rs`,
+  `transport/tests_parts/two_transport_loopback_requests_resource_form_sizes.rs`
+  (`..._sizes_bare_request_packet_solicits_its_response` among them),
   `two_transport_loopback_resources.rs`,
   `two_transport_loopback_resources_directions.rs`,
   `two_transport_loopback_resources_retries.rs`,

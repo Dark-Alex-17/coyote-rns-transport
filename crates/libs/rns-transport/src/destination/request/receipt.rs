@@ -272,7 +272,8 @@ impl ResponseArrival<'_> {
 /// the request is `Ready` or `Failed`. Dropping every clone does not cancel
 /// the request: the responder still serves it and the response still
 /// reaches the link's `LinkEvent::Data(Response)` and `resource_events()`
-/// broadcasts.
+/// broadcasts, unless it assembles over the receipt's `max_response_size`,
+/// in which case its `Complete` is withheld.
 #[derive(Clone)]
 pub struct RequestReceipt {
     status_rx: watch::Receiver<RequestStatus>,

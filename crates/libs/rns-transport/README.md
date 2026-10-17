@@ -141,7 +141,9 @@ fails every pending receipt with `RequestError::LinkClosed`, as does
 a file response, read through `RequestResponseData::data()` and `metadata()`;
 every other response is the envelope body, read through `value()`. Dropping
 every clone of a receipt does not cancel the request: the responder still
-serves it and the response still reaches the link's broadcasts.
+serves it and the response still reaches the link's broadcasts, unless it
+assembles over the receipt's `max_response_size`, in which case its
+`Complete` is withheld.
 
 ## Versioning and releases
 

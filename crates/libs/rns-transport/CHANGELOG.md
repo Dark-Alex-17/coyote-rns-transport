@@ -139,7 +139,9 @@ trailing clause of the bullet for the behaviour it pins.
   that reports the moves after the call and whose sender is dropped once
   the request concludes or its link goes away unconcluded. Dropping every
   clone of a receipt cancels nothing: the responder still serves the
-  request and the response still reaches the broadcasts. `started_at()` is
+  request and the response still reaches the broadcasts, unless it
+  assembles over the receipt's `max_response_size`, in which case its
+  `Complete` is withheld. `started_at()` is
   `Some` from the send for a packet request and `None` for a request Resource until it
   completes or a response advertisement is admitted, whichever comes first
   (`:1331-1334`, `:1370-1371`, `:1062-1063`); `concluded_at()` is set once
@@ -367,8 +369,10 @@ trailing clause of the bullet for the behaviour it pins.
   restarts that record's clock: `Link::note_request_sent` re-arms a running
   clock alone. A later segment advertisement refused by the record's limit
   cancels the partial assembly the record was receiving instead of
-  orphaning it in the ResourceManager. Pinned by
-  `destination/link_parts/link_sections/response_record_tests.rs`.
+  orphaning it in the ResourceManager. The Link half, the record handing
+  back what it was receiving, is pinned by
+  `destination/link_parts/link_sections/response_record_tests.rs`; the wire
+  half, the reject path sending that cancel, has no loopback fixture yet.
 
 - A record no receipt owns that is removed or replaced while receiving a
   response Resource hands that transfer back to be cancelled, like the

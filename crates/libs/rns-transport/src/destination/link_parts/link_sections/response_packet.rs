@@ -137,9 +137,9 @@ impl Link {
     /// packet built with [`Self::request_packet`] is admitted like any other.
     /// A limit recorded before the send stays in force; the send anchors the
     /// clock, and the entry lives for the default request timeout unless a
-    /// receipt owns the id. Only a running clock is re-anchored: a re-send
-    /// under the id of a record receiving its response, or of a request
-    /// Resource still in flight, leaves that record as it is.
+    /// receipt owns the id. Only an `Expires` clock is re-armed, run out or
+    /// not: a re-send under the id of a record receiving its response, or of
+    /// a request Resource still in flight, leaves that record as it is.
     #[deny(clippy::await_holding_invalid_type)]
     pub(crate) fn note_request_sent(&mut self, request_id: &[u8]) {
         let clock = self.pending_response_expiry();

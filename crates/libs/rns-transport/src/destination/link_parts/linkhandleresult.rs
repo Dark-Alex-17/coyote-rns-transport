@@ -92,12 +92,13 @@ pub struct Link {
     channel_pending: HashMap<Hash, PendingChannelPacket>,
     channel_states: HashMap<u16, ChannelMessageState>,
     channel_rx_ring: HashMap<u16, ChannelEnvelope>,
-    /// The responses this side is waiting for, by request id: `Some` is the
-    /// `max_response_size` the request went out with, `None` a request sent
-    /// without one. An id absent here and from `pending_requests` solicited
-    /// nothing. An entry no receipt owns lives for the default request
-    /// timeout from the send, as Python's `RequestReceipt` does
-    /// (`RNS/Link.py:1398-1411`); one with a receipt goes with the receipt.
+    /// The responses this side is waiting for, by request id. An entry's
+    /// `limit` is the `max_response_size` the request went out with, `None`
+    /// for a request sent without one. An id absent here and from
+    /// `pending_requests` solicited nothing. An entry no receipt owns lives
+    /// for the default request timeout from the send, as Python's
+    /// `RequestReceipt` does (`RNS/Link.py:1398-1411`); one with a receipt
+    /// goes with the receipt.
     pending_response_limits: HashMap<Vec<u8>, PendingResponseLimit>,
     pending_requests: HashMap<RequestId, PendingRequest>,
     /// Response Resources still inbound for receipts `handle_packet` failed

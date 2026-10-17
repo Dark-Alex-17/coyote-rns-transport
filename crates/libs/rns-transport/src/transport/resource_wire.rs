@@ -351,12 +351,20 @@ pub(super) async fn handle_link_resource_packet<'a>(
                                 }
                             }
                             // A `send_request_resource*` id of another
-                            // length has no receipt, only its entry.
+                            // length has no receipt, only its entry, whose
+                            // hashes name this assembled Resource: consumed
+                            // the same way, cancelling nothing.
                             Err(_) => {
-                                link.take_response_limit_if_allowed(
-                                    request_id,
-                                    complete.data.len(),
-                                );
+                                let (_, receiving) =
+                                    link.take_response_limit(request_id, complete.data.len());
+                                if let Some(receiving) = receiving {
+                                    cancel_inbound_response(
+                                        &mut handler.resource_manager,
+                                        &link,
+                                        receiving,
+                                        &mut cancels,
+                                    );
+                                }
                             }
                         }
                     }
@@ -382,8 +390,10 @@ pub(super) async fn handle_link_resource_packet<'a>(
         for index in suppressed.into_iter().rev() {
             events.remove(index);
         }
-        events.extend(handler.resource_manager.drain_events());
     }
+    // A cancel on either branch fails a transfer whose event goes out with
+    // this packet's rather than waiting for the next.
+    events.extend(handler.resource_manager.drain_events());
     if !responses.is_empty() {
         log::debug!(
             "[resource-diag] wire_resource_responses node={} link={} ctx={:02x} responses={} iface={}",

@@ -194,6 +194,11 @@ pub(super) async fn handle_link_resource_packet<'a>(
         .min(link.link_mtu());
     let mut responses = std::mem::take(&mut handler.resource_response_packets);
     let mut events = Vec::new();
+    // A cancel the link owed fails the displaced assembly before this
+    // packet's advertisement is admitted under the fresh record; the
+    // `InboundFailed` it raises comes out of the next `drain_events` and
+    // through the routing loop like any other manager event.
+    drain_owed_response_cancels(&mut handler.resource_manager, &mut link, &mut cancels);
     if !rejected {
         handler.resource_manager.handle_packet_into_with_mtu(
             &packet_for_manager,
@@ -309,10 +314,8 @@ pub(super) async fn handle_link_resource_packet<'a>(
             events.remove(index);
         }
     }
-    // A cancel on either branch, or one the link owed, fails a transfer
-    // whose event goes out with this packet's rather than waiting for the
-    // next.
-    drain_owed_response_cancels(&mut handler.resource_manager, &mut link, &mut cancels);
+    // A cancel on either branch fails a transfer whose event goes out with
+    // this packet's rather than waiting for the next.
     events.extend(handler.resource_manager.drain_events());
     if !responses.is_empty() {
         log::debug!(

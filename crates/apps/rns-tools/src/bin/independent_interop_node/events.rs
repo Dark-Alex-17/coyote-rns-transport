@@ -107,7 +107,9 @@ async fn record_link_event(
         LinkEvent::Activated => "activated",
         LinkEvent::Data(_) => "data",
         LinkEvent::PeerIdentified(_) => "peer_identified",
+        LinkEvent::PacketProven { .. } => "packet_proven",
         LinkEvent::Closed => "closed",
+        _ => "unknown",
     };
     let snapshot = json!({
         "link_id": address_hex(&event.id),

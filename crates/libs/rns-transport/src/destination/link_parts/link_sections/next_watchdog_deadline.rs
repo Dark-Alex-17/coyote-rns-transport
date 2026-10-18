@@ -110,6 +110,7 @@ impl Link {
             LinkEvent::Activated => "activated",
             LinkEvent::Data(_) => "data",
             LinkEvent::PeerIdentified(_) => "peer_identified",
+            LinkEvent::PacketProven { .. } => "packet_proven",
             LinkEvent::Closed => "closed",
         };
         let close_reason = if matches!(&event, LinkEvent::Closed) { self.close_reason } else { None };

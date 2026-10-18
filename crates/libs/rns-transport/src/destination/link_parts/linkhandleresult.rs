@@ -15,10 +15,19 @@ pub enum LinkWatchdogAction {
 }
 
 #[derive(Clone)]
+#[non_exhaustive]
 pub enum LinkEvent {
     Activated,
     Data(Box<LinkPayload>),
     PeerIdentified(Box<Identity>),
+    /// The peer proved delivery of a plain Data packet this side sent on the
+    /// link. Only `PacketContext::None` Data packets are proved
+    /// (`RNS/Link.py:950-962`), so this is never posted for a request, a
+    /// response or a Resource packet, and not for a Channel frame, whose
+    /// delivery the channel machinery tracks itself.
+    PacketProven {
+        packet_hash: Hash,
+    },
     Closed,
 }
 

@@ -455,7 +455,9 @@ impl Transport {
             let handler = self.handler.lock().await;
             let receipt = match super::wire_receipt::validated_receipt_hash(&packet, &handler).await
             {
-                Ok(receipt_hash) => receipt_hash.map(DeliveryReceipt::new),
+                Ok(receipt_hash) => {
+                    receipt_hash.map(|hash| DeliveryReceipt::for_proof(hash, &packet))
+                }
                 Err(err) => {
                     log::warn!("[transport] failed to validate inbound test receipt: {err:?}");
                     None

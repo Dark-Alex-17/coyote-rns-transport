@@ -10,6 +10,8 @@ impl Link {
                 if let Some(pending) = self.channel_pending.remove(&hash) {
                     self.channel_states.insert(pending.sequence, ChannelMessageState::Delivered);
                     self.note_channel_delivery();
+                } else {
+                    self.post_event(LinkEvent::PacketProven { packet_hash: hash });
                 }
                 return LinkHandleResult::None;
             }

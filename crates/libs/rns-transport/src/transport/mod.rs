@@ -177,15 +177,30 @@ pub struct DeliveryReceipt {
     /// The field name is retained for API compatibility. Prefer
     /// [`DeliveryReceipt::packet_hash`] in new code.
     pub message_id: [u8; 32],
+    link_id: Option<AddressHash>,
 }
 
 impl DeliveryReceipt {
     pub fn new(message_id: [u8; 32]) -> Self {
-        Self { message_id }
+        Self { message_id, link_id: None }
+    }
+
+    /// The receipt for the validated proof packet `packet`; a proof addressed
+    /// to a link records that link.
+    pub(crate) fn for_proof(message_id: [u8; 32], packet: &Packet) -> Self {
+        let link_id =
+            (packet.header.destination_type == DestinationType::Link).then_some(packet.destination);
+        Self { message_id, link_id }
     }
 
     pub fn packet_hash(&self) -> Hash {
         Hash::new(self.message_id)
+    }
+
+    /// The link the proved packet travelled on, for a proof addressed to a
+    /// link; `None` for a destination proof.
+    pub fn link_id(&self) -> Option<AddressHash> {
+        self.link_id
     }
 
     pub fn matches_packet_hash(&self, packet_hash: &Hash) -> bool {

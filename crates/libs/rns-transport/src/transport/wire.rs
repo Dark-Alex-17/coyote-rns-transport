@@ -26,7 +26,7 @@ pub(super) async fn handle_proof(
         None
     });
     if let Some(receipt_hash) = receipt_hash {
-        let receipt = DeliveryReceipt::new(receipt_hash);
+        let receipt = DeliveryReceipt::for_proof(receipt_hash, &packet);
         let receipt_handler = {
             let handler = handler.lock().await;
             log::trace!("tp({}): handle proof for {}", handler.config.name, packet.destination);

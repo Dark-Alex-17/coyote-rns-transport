@@ -223,7 +223,31 @@ trailing clause of the bullet for the behaviour it pins.
 - `SendPacketOutcome::is_sent`: whether a send reached an interface,
   directly or by broadcast; the in-crate `matches!` twins use it.
 
+- `LinkEvent::PacketProven { packet_hash }`: posted on a link's event
+  stream when the peer proves delivery of a plain Data packet this side
+  sent on the link, from either side of it. Only `PacketContext::None`
+  Data packets are proved (`RNS/Link.py:950-962`), so it never fires for a
+  request, a response or a Resource packet, and not for a Channel frame,
+  whose delivery the channel machinery tracks itself. It is not a
+  request-delivery signal: a packet-form `RequestReceipt` never reports
+  `Delivered`. Pinned by
+  `transport/tests_parts/two_transport_loopback_link_packet_proven.rs`.
+
+- `DeliveryReceipt::link_id()`: `Some(link id)` for a proof addressed to a
+  link, `None` for a destination proof.
+
 ### Changed
+
+- `LinkEvent` is `#[non_exhaustive]`. The two in-workspace exhaustive
+  matches (`destination/link_parts/link_sections/next_watchdog_deadline.rs`
+  and `crates/apps/rns-tools/src/bin/independent_interop_node/events.rs`)
+  gained a `PacketProven` arm, and the latter, being in another crate, a
+  wildcard arm as well; every out-of-tree exhaustive match needs one. This
+  is a breaking change, so the next release is `0.15.0`.
+
+- `DeliveryReceipt` carries a private `link_id`, so it is built through
+  `DeliveryReceipt::new` and no longer by struct literal; `message_id`
+  stays public.
 
 - The request timeout runs from the send for a packet request and from
   `Delivered` for a request Resource (`RNS/Link.py:1331-1334`,

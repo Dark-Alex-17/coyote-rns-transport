@@ -146,6 +146,17 @@ receipt's `max_response_size` refuses it: an over-limit packet Response is
 not posted as `LinkEvent::Data`, and a response Resource that assembles over
 it has its `Complete` withheld.
 
+## Delivery proofs on a link
+
+A plain Data packet sent on a link is proved by the peer (`RNS/Link.py:950-962`).
+The proof posts `LinkEvent::PacketProven { packet_hash }` on the link's event
+stream, on whichever side sent the packet, and reaches the transport's
+`ReceiptHandler` as a `DeliveryReceipt` whose `link_id()` names the link.
+Requests, responses and Resource packets are not proved and post no
+`PacketProven`; the request layer's own `RequestReceipt` is the delivery
+signal for a request, and only a resource-form request ever reports
+`Delivered`.
+
 ## Versioning and releases
 
 The root `VERSION` file is the workspace number: the upstream baseline that

@@ -170,3 +170,5 @@ include!("tests_parts/two_transport_loopback_requests_resource_form_sizes_probe1
 include!("tests_parts/two_transport_loopback_link_packet_proven.rs");
 
 include!("tests_parts/two_transport_loopback_requests_receipt_orders.rs");
+
+include!("tests_parts/two_transport_loopback_link_packet_proven_probe.rs");

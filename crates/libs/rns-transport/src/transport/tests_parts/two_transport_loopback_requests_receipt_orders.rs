@@ -2,19 +2,15 @@
 // `Sent -> Ready` for a packet request with a packet response, `Sent -> Receiving -> Ready`
 // with a Resource response, and `Sent -> Delivered -> ...` for the same two when the request
 // goes out as a Resource (`RNS/Link.py:1348`, `:1372`, `:1420`, `:1442`).
-// `two_transport_loopback_requests_resource_form_sizes.rs` keeps the subsequence form of
-// these, which is all an undelayed responder guarantees: on the current-thread test runtime
-// the request Resource's proof and the response can both be handled before the subscriber
-// task runs, and a `watch` keeps only the latest value. Here the responder waits
-// `RECEIPT_ORDERS_GAP` before answering, so every change the request leg makes is read
-// before the response leg makes the next one. Helpers come from the sibling `tests_parts`
-// files.
+// `two_transport_loopback_requests_resource_form_sizes.rs` and the `receipt-order-*` tests
+// of `two_transport_loopback_requests_receipt.rs` keep the subsequence form of these, which
+// is all an undelayed responder guarantees: on the current-thread test runtime the request
+// Resource's proof and the response can both be handled before the subscriber task runs,
+// and a `watch` keeps only the latest value. Here the responder waits `HANDLER_DELAY`
+// before answering, so every change the request leg makes is read before the response leg
+// makes the next one. Helpers come from the sibling `tests_parts` files.
 
-/// How long the responder waits before answering, so each status change reaches the
-/// subscriber before the next one replaces it on the `watch`.
-const RECEIPT_ORDERS_GAP: Duration = Duration::from_millis(500);
-
-/// A handler that answers `response(request)` after `RECEIPT_ORDERS_GAP`.
+/// A handler that answers `response(request)` after `HANDLER_DELAY`.
 fn receipt_orders_delayed(
     response: impl Fn(InboundRequest) -> RequestResponse + Send + Sync + Clone + 'static,
 ) -> impl Fn(
@@ -25,7 +21,7 @@ fn receipt_orders_delayed(
     move |request: InboundRequest| {
         let response = response.clone();
         Box::pin(async move {
-            tokio::time::sleep(RECEIPT_ORDERS_GAP).await;
+            tokio::time::sleep(HANDLER_DELAY).await;
             Some(response(request))
         })
     }
@@ -85,7 +81,7 @@ async fn two_transport_loopback_requests_receipt_orders_packet_request_resource_
 
 /// Resource request, packet response: `Sent -> Delivered -> Ready`. `Delivered` lands when
 /// the request Resource's proof completes it (`RNS/Link.py:1372`), `Ready` on the response
-/// packet `RECEIPT_ORDERS_GAP` later.
+/// packet `HANDLER_DELAY` later.
 #[tokio::test]
 #[deny(clippy::await_holding_invalid_type)]
 async fn two_transport_loopback_requests_receipt_orders_resource_request_packet_response_is_sent_delivered_ready(

@@ -33,7 +33,9 @@ fn resource_form() -> PendingRequest {
 }
 
 /// Segment `segment_index` of `total_segments` of a response Resource whose
-/// whole is `original`, advertising `data_size` and `transfer_size`.
+/// whole is `original`, advertising `data_size` and `transfer_size`. Its `q`
+/// is fixed to `id(1)`: `PendingRequest::mark_receiving` never reads it, the
+/// Link having routed by id before the entry is reached.
 pub(super) fn response_segment(
     segment_hash: Hash,
     original: Hash,

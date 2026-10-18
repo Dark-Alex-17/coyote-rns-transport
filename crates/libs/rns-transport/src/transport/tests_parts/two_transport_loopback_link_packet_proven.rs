@@ -1,8 +1,10 @@
 // Loopback coverage for `LinkEvent::PacketProven`: the peer proves a plain Data packet sent
-// on the link (`RNS/Link.py:950-962`), and the proof posts one event on the sender's link
-// event stream, from either side of the link, and reaches the transport `ReceiptHandler` as
-// a `DeliveryReceipt` naming the link. A request, its response and a response Resource post
-// none. Helpers come from the sibling `tests_parts` files.
+// on the link (`RNS/Link.py:950-962`), and the proof consumes the hash the sender recorded
+// at send time, the way Python's proof removes the one `SENT` receipt it validates
+// (`RNS/Transport.py:2748-2761`): one event on the sender's link event stream, from either
+// side of the link, and one `DeliveryReceipt` naming the link at the transport
+// `ReceiptHandler`. A request, its response and a response Resource post none. Helpers come
+// from the sibling `tests_parts` files.
 
 use tokio::sync::broadcast::error::TryRecvError;
 
@@ -73,7 +75,7 @@ async fn two_transport_loopback_link_packet_proven_once_per_plain_data_packet() 
         .set_receipt_handler(Box::new(PacketProvenRecording(receipts.clone())))
         .await;
     register_handler(&pair, "/echo", RequestAllow::All, echo_handler()).await;
-    let body = random_payload(MANY_PARTS_LEN);
+    let body = over_mdu_body(&pair).await;
     register_handler(&pair, "/big", RequestAllow::All, move |_: InboundRequest| {
         std::future::ready(Some(RequestResponse::Bytes(body.clone())))
     })

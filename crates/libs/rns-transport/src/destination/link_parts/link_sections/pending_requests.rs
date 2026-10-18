@@ -250,6 +250,14 @@ impl Link {
                 false
             });
         }
+        debug_assert!(
+            dropped.is_none()
+                || !self
+                    .pending_requests
+                    .values()
+                    .any(|pending| pending.request_resource_hash() == Some(hash)),
+            "a request Resource is owned by a receipt or a record, never both"
+        );
         let Some(id) = self
             .pending_requests
             .iter()

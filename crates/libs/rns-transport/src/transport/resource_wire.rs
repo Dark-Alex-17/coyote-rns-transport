@@ -193,12 +193,13 @@ pub(super) async fn handle_link_resource_packet<'a>(
         .unwrap_or(crate::resource::DEFAULT_RESOURCE_INTERFACE_MTU)
         .min(link.link_mtu());
     let mut responses = std::mem::take(&mut handler.resource_response_packets);
-    let mut events = Vec::new();
     // A cancel the link owed fails the displaced assembly before this
-    // packet's advertisement is admitted under the fresh record; the
-    // `InboundFailed` it raises comes out of the next `drain_events` and
-    // through the routing loop like any other manager event.
+    // packet's advertisement is admitted. Its `InboundFailed` is published,
+    // not routed: the fresh record under the same id may be receiving a
+    // retry of the very transfer the cancel took down (same hash), and
+    // `note_request_resource_outcome` keys on hash and would clear it.
     drain_owed_response_cancels(&mut handler.resource_manager, &mut link, &mut cancels);
+    let mut events = handler.resource_manager.drain_events();
     if !rejected {
         handler.resource_manager.handle_packet_into_with_mtu(
             &packet_for_manager,
@@ -206,7 +207,8 @@ pub(super) async fn handle_link_resource_packet<'a>(
             &mut responses,
             interface_mtu,
         );
-        events = handler.resource_manager.drain_events();
+        let admitted_from = events.len();
+        events.extend(handler.resource_manager.drain_events());
         // `RNS/Link.py:1055-1064` touches the receipt only once a Resource
         // exists for the advertisement: one the manager dropped (inbound
         // caps, an out-of-order or duplicate segment, an unreasonable part
@@ -222,7 +224,7 @@ pub(super) async fn handle_link_resource_packet<'a>(
         // The events are still published below for `resource_events()`
         // consumers, except an assembled response the link refused.
         let mut suppressed = Vec::new();
-        for (index, event) in events.iter().enumerate() {
+        for (index, event) in events.iter().enumerate().skip(admitted_from) {
             if event.link_id != *link.id() {
                 continue;
             }

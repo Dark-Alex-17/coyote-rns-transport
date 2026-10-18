@@ -4,10 +4,10 @@
 // `RNS/Resource.py:1111-1116`), sent on the link's next inbound packet, Resource packets
 // included. An over-limit packet response is itself that packet, so its cancel leaves at
 // once. `Transport::send_request_resource*` under an id already receiving replaces the
-// record locally, and the first packet back is the responder's part request for the request
-// Resource, so the cancel is pinned to a Resource packet and not to a keepalive or a later
-// response; the record that replaced it keeps the limit `None` leaves alone and takes the one
-// `Some` sets. `Link::expect_response` owes its displaced transfer the cancel until the
+// record locally and cancels the displaced transfer in the call, before the request Resource
+// is advertised, so no keepalive or response reaches the link first; the record that
+// replaced it keeps the limit `None` leaves alone and takes the one `Some` sets.
+// `Link::expect_response` owes its displaced transfer the cancel until the
 // next inbound packet, here the responder's own receiver cancel refusing a request Resource
 // over its `max_request_size` (`RNS/Link.py:1036-1046`). Helpers come from the sibling
 // `tests_parts` files.
@@ -26,10 +26,8 @@ async fn sizes_probe9_receiving_receipt(
     )
     .await;
     let mut status_rx = receipt.subscribe();
-    let advertisement = sizes_cancel_unbacked_response_advertisement(
-        receipt.request_id(),
-        (SIZES_TIGHT_LIMIT / 2) as u64,
-    );
+    let advertisement =
+        sizes_cancel_unbacked_response_advertisement(receipt.request_id(), SIZES_CANCEL_ADMITTED_D);
     inject_advertisement_from_listener(pair, &advertisement).await;
     await_status(&mut status_rx, RequestStatus::Receiving, RECEIPT_TIMEOUT).await;
     (receipt, advertisement.hash)
@@ -40,7 +38,7 @@ async fn sizes_probe9_receiving_receipt(
 /// connector's link since `connector_tap` was taken, and that one receiver cancel for it
 /// reached the responder.
 #[deny(clippy::await_holding_invalid_type)]
-async fn sizes_probe9_assert_cancelled_on_a_resource_packet(
+async fn sizes_probe9_assert_displaced_transfer_cancelled(
     pair: &LoopbackRequestPair,
     events: &mut broadcast::Receiver<ResourceEvent>,
     connector_tap: &mut broadcast::Receiver<RxMessage>,
@@ -146,11 +144,11 @@ async fn two_transport_loopback_request_resource_form_sizes_probe9_oversize_pack
 }
 
 /// `send_request_resource` under an id whose receipt-less record is receiving: the record
-/// is replaced, the transfer it was receiving is cancelled on the responder's part request
-/// for the new request Resource, before any keepalive or response reaches the link, and
-/// the replacing record keeps `SIZES_TIGHT_LIMIT`: a later advertisement under it is
-/// admitted and asked for parts, and one over it then refused, which fails the record and
-/// cancels that partial assembly too, with a receiver cancel for each.
+/// is replaced, the transfer it was receiving is cancelled in the call, before the request
+/// Resource is advertised and before any keepalive or response reaches the link, and the
+/// replacing record keeps `SIZES_TIGHT_LIMIT`: a later advertisement under it is admitted
+/// and asked for parts, and one over it then refused, which fails the record and cancels
+/// that partial assembly too, with a receiver cancel for each.
 #[tokio::test]
 #[deny(clippy::await_holding_invalid_type)]
 async fn two_transport_loopback_request_resource_form_sizes_probe9_request_resource_over_a_receiving_record_cancels_it_and_keeps_the_limit(
@@ -165,7 +163,7 @@ async fn two_transport_loopback_request_resource_form_sizes_probe9_request_resou
     let (id, displaced_hash) = sizes_probe8_receiving_record(&pair, &mut listener_tap).await;
     let mut connector_tap = pair.handles.connector.transport.iface_rx();
     sizes_probe9_send_request_resource_under(&pair, id, None).await;
-    sizes_probe9_assert_cancelled_on_a_resource_packet(
+    sizes_probe9_assert_displaced_transfer_cancelled(
         &pair,
         &mut events,
         &mut connector_tap,
@@ -176,7 +174,7 @@ async fn two_transport_loopback_request_resource_form_sizes_probe9_request_resou
 
     // Part requests on the tap so far were for the displaced transfer, now cancelled.
     let _ = count_link_packets(&mut listener_tap, link_id, PacketContext::ResourceRequest);
-    let under = sizes_cancel_unbacked_response_advertisement(id, (SIZES_TIGHT_LIMIT / 2) as u64);
+    let under = sizes_cancel_unbacked_response_advertisement(id, SIZES_CANCEL_ADMITTED_D);
     inject_advertisement_from_listener(&pair, &under).await;
     await_link_packets(&mut listener_tap, link_id, PacketContext::ResourceRequest, 1).await;
 
@@ -193,10 +191,9 @@ async fn two_transport_loopback_request_resource_form_sizes_probe9_request_resou
 }
 
 /// `send_request_resource_with_max_response_size(.., Some(limit))` under an id whose
-/// receipt-less record is receiving: the displaced transfer is cancelled on the responder's
-/// part request as above, and the replacing record carries the new limit, so an
-/// advertisement the kept limit admitted is now refused with a receiver cancel and no
-/// part request.
+/// receipt-less record is receiving: the displaced transfer is cancelled in the call as
+/// above, and the replacing record carries the new limit, so an advertisement the kept
+/// limit admitted is now refused with a receiver cancel and no part request.
 #[tokio::test]
 #[deny(clippy::await_holding_invalid_type)]
 async fn two_transport_loopback_request_resource_form_sizes_probe9_request_resource_over_a_receiving_record_cancels_it_and_sets_the_limit(
@@ -211,7 +208,7 @@ async fn two_transport_loopback_request_resource_form_sizes_probe9_request_resou
     let (id, displaced_hash) = sizes_probe8_receiving_record(&pair, &mut listener_tap).await;
     let mut connector_tap = pair.handles.connector.transport.iface_rx();
     sizes_probe9_send_request_resource_under(&pair, id, Some(SIZES_TIGHT_LIMIT / 4)).await;
-    sizes_probe9_assert_cancelled_on_a_resource_packet(
+    sizes_probe9_assert_displaced_transfer_cancelled(
         &pair,
         &mut events,
         &mut connector_tap,
@@ -221,7 +218,7 @@ async fn two_transport_loopback_request_resource_form_sizes_probe9_request_resou
     .await;
 
     let _ = count_link_packets(&mut listener_tap, link_id, PacketContext::ResourceRequest);
-    let refused = sizes_cancel_unbacked_response_advertisement(id, (SIZES_TIGHT_LIMIT / 2) as u64);
+    let refused = sizes_cancel_unbacked_response_advertisement(id, SIZES_CANCEL_ADMITTED_D);
     inject_advertisement_from_listener(&pair, &refused).await;
     await_link_packets(&mut listener_tap, link_id, PacketContext::ResourceReceiverCancel, 1).await;
     sizes_assert_no_response_activity(&mut events, link_id, id).await;
@@ -257,14 +254,14 @@ async fn two_transport_loopback_request_resource_form_sizes_probe9_expect_respon
     let (id, displaced_hash) = sizes_probe8_receiving_record(&pair, &mut listener_tap).await;
     let mut connector_tap = pair.handles.connector.transport.iface_rx();
     pair.handles.link.lock().await.expect_response(id.as_bytes(), None);
-    // The rejection is reported before the drained cancel's failure; read it off its own tap.
+    // Read off its own tap so the order against the drained cancel's failure does not matter.
     let mut outbound_events = pair.handles.connector.transport.resource_events();
 
     let body = vec![0u8; OVERSIZE_COMPRESSIBLE_LEN];
     let (refused_id, refused_hash) =
         send_request_as_resource(&pair, "/quiet", rmpv::Value::Binary(body)).await;
     assert_ne!(refused_id, id, "the refused request is not the displaced one");
-    sizes_probe9_assert_cancelled_on_a_resource_packet(
+    sizes_probe9_assert_displaced_transfer_cancelled(
         &pair,
         &mut events,
         &mut connector_tap,

@@ -5,6 +5,9 @@
 // response Resource is cancelled with a receiver cancel to the responder (`RNS/Link.py:1435`,
 // `RNS/Resource.py:1111-1116`). Helpers come from the sibling `tests_parts` files.
 
+/// `d` of an unbacked response advertisement the tight limit admits.
+const SIZES_CANCEL_ADMITTED_D: u64 = (SIZES_TIGHT_LIMIT / 2) as u64;
+
 /// A single-part response advertisement for `id` the ResourceManager admits, with `d` and
 /// `t` of `data_size`. Nothing backs it on the responder, so the receiver it builds stays
 /// inbound, waiting on its part request, until something cancels it.
@@ -58,20 +61,7 @@ async fn two_transport_loopback_request_resource_form_sizes_oversize_packet_whil
     register_handler(&pair, "/quiet", RequestAllow::All, silent_handler()).await;
     register_handler(&pair, "/echo", RequestAllow::All, echo_handler()).await;
 
-    let receipt = request_with(
-        &pair,
-        "/quiet",
-        rmpv::Value::Nil,
-        RequestOptions::default().with_max_response_size(SIZES_TIGHT_LIMIT),
-    )
-    .await;
-    let mut status_rx = receipt.subscribe();
-    let advertisement = sizes_cancel_unbacked_response_advertisement(
-        receipt.request_id(),
-        (SIZES_TIGHT_LIMIT / 2) as u64,
-    );
-    inject_advertisement_from_listener(&pair, &advertisement).await;
-    await_status(&mut status_rx, RequestStatus::Receiving, RECEIPT_TIMEOUT).await;
+    let (receipt, _status_rx) = sizes_cancel_probe_receiving_receipt(&pair).await;
 
     let envelope = sizes_cancel_probe_oversize_envelope(receipt.request_id());
     sizes_cancel_send_response_packet_from_listener(&pair, &envelope).await;

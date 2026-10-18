@@ -387,9 +387,11 @@ trailing clause of the bullet for the behaviour it pins.
   `Transport::request` or `send_request_resource*` re-sent under such a
   record's id left its transfer running. `take_response_limit_if_allowed`
   and `expect_response` keep their signatures and route the cancel through
-  the link's owed cancels, which the transport drains after each inbound
-  packet of the link, Resource packets included, before that packet's own
-  advertisement is admitted. Pinned by
+  the link's owed cancels, which the transport drains on the link's next
+  inbound packet, Resource packets included, before that packet's own
+  advertisement is admitted; the cancel's own failure event is published,
+  not routed, so a retry of the cancelled transfer admitted by that same
+  packet keeps its fresh record. Pinned by
   `destination/link_parts/link_sections/response_record_tests.rs` and
   `transport/tests_parts/two_transport_loopback_requests_resource_form_sizes_cancel2.rs`
   (exactly one `ResourceReceiverCancel` reaches the responder), and
@@ -399,10 +401,16 @@ trailing clause of the bullet for the behaviour it pins.
   keeps or sets the limit), and
   `transport/tests_parts/two_transport_loopback_requests_resource_form_sizes_probe9.rs`
   (where the cancel leaves: an over-limit packet response sends it on that
-  packet, a `send_request_resource*` re-sent under a receiving id sends it
-  on the responder's first part request, and the cancel `expect_response`
-  owes leaves on the link's next inbound packet, the responder's own
-  receiver cancel included).
+  packet, a `send_request_resource*` re-sent under a receiving id cancels
+  it in the call before the request Resource is advertised, and the cancel
+  `expect_response` owes leaves on the link's next inbound packet, the
+  responder's own receiver cancel included) and
+  `transport/tests_parts/two_transport_loopback_requests_resource_form_sizes_probe10.rs`
+  (the cancel owed to a displaced record runs before the responder's retry
+  of that very advertisement is admitted: the retry is asked for parts
+  again under the fresh record, which keeps its limit, and a later
+  over-limit advertisement under the id is still refused with a receiver
+  cancel; an advertisement for another id is admitted and assembled).
 
 - `Transport::send_direct`, `send_response_resource_with_compression` and
   the transport's link lookup delegate to free functions in

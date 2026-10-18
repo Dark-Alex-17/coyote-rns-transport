@@ -43,7 +43,7 @@ commits `1ddd5273`, `a2a40de7`, `3805fe7f`, `3ed78582`, `415d67c8`,
 `8b512044`, `9ebd348b`, `9842695a`, `10f67e30`, `c18098c9`, `3568f1ab`,
 `f1985d01`, `348cf74d`, `a93e3127`, `c7d5f533` and `d9585ef0`; the
 `link proof event and receipt link id` patch is fork commits `6499621f`,
-`d4127c6d`, `04de5d71` and `875edf92`.
+`d4127c6d`, `04de5d71`, `875edf92` and `8c262c9f`.
 
 | File | Patch |
 | --- | --- |
@@ -120,6 +120,7 @@ commits `1ddd5273`, `a2a40de7`, `3805fe7f`, `3ed78582`, `415d67c8`,
 | `crates/libs/rns-transport/src/transport/tests_parts/two_transport_loopback_lifecycle.rs` | request handlers and dispatch, request receipts and timeouts |
 | `crates/libs/rns-transport/src/transport/tests_parts/two_transport_loopback_link_packet_proven.rs` | link proof event and receipt link id |
 | `crates/libs/rns-transport/src/transport/tests_parts/two_transport_loopback_link_packet_proven_probe.rs` | link proof event and receipt link id |
+| `crates/libs/rns-transport/src/transport/tests_parts/two_transport_loopback_link_packet_proven_probe2.rs` | link proof event and receipt link id |
 | `crates/libs/rns-transport/src/transport/tests_parts/two_transport_loopback_requests.rs` | request handlers and dispatch, request receipts and timeouts |
 | `crates/libs/rns-transport/src/transport/tests_parts/two_transport_loopback_requests_errors.rs` | request receipts and timeouts |
 | `crates/libs/rns-transport/src/transport/tests_parts/two_transport_loopback_requests_isolation.rs` | request handlers and dispatch |
@@ -1664,11 +1665,12 @@ Fork commit `6499621f`: F2, link proof event and receipt link id. Upstream
 validates a per-packet proof on an active link, resolves the pending
 Channel frame it may answer and returns `LinkHandleResult::None` without
 posting anything; the fork posts `LinkEvent::PacketProven { packet_hash }`
-there when the proved hash answered no pending Channel frame. Only
-`PacketContext::None` Data packets are proved (`RNS/Link.py:950-962`, the
-crate's gate at `new.rs:321-323`), so a request, a response or a Resource
-packet never produces the event, and a Channel frame's proof keeps going to
-the channel machinery alone. `LinkEvent` (`linkhandleresult.rs`) becomes
+there when the proved hash answered no pending Channel frame (the gate
+`875edf92` replaces that test with the sent-hash record). Of a link's Data
+packets the peer proves the plain `PacketContext::None` ones
+(`RNS/Link.py:950-962`, the crate's gate in `new.rs`) and Channel frames
+(`:1147-1151`); a request, a response or a Resource packet is never proved
+and so never produces the event. `LinkEvent` (`linkhandleresult.rs`) becomes
 `#[non_exhaustive]`, a breaking change that makes the next release
 `0.15.0`; the exhaustive name map in `Link::post_event`
 (`next_watchdog_deadline.rs`) gains the `packet_proven` arm and the one in
@@ -1742,6 +1744,23 @@ oldest record dropped past the cap. The variant rustdoc, the crate
 contract, the Python peer's `PROVE_NONE` default (`RNS/Link.py:961-968`,
 `RNS/Destination.py:161`), the `ReceiptHandler` twin and the `PartialEq`
 change; the `CHANGELOG.md` names the four pinning files.
+
+Fork commit `8c262c9f`: new fixture
+`two_transport_loopback_link_packet_proven_probe2.rs` (one `include!` line
+in `transport/tests.rs`): the sent-hash record driven through the
+transport send path, a burst of `UNPROVEN_DATA_HASHES_CAP` plus three plain
+Data packets while the peer is stalled earning exactly the cap in
+`PacketProven` events, for the newest hashes, while every proof still
+reaches the `ReceiptHandler` naming the link, and a Channel frame sent
+through `Transport::channel` proved, marked `Delivered` and reaching the
+`ReceiptHandler` without a `PacketProven`. The `PacketProven` variant and
+`unproven_data_hashes` rustdoc, the `DeliveryReceipt::link_id` rustdoc, the
+crate `CHANGELOG.md` bullet and the crate `README.md` section name the
+1024 bound as Python's `Transport.MAX_RECEIPTS` applied per link
+(`RNS/Transport.py:159`, `:745-748`), cite the record side (`:1359-1377`)
+with this side's narrowing to plain Data, and say the `DeliveryReceipt` is
+handed out for every validly signed link proof, not filtered by the
+record; the `CHANGELOG.md` names the fixture.
 
 ## 0.14.1 (upstream 0.14.0)
 

@@ -191,7 +191,11 @@ trailing clause of the bullet for the behaviour it pins.
   `Transport::stop` shares `stop`'s 5 s budget: a link whose lock is still
   held when it runs out is skipped with a warning, the other links are
   still swept, a swept receipt's inbound response Resource is cancelled
-  and reported `InboundFailed("cancelled")` once inside `stop`, and the
+  and reported `InboundFailed("cancelled")` once inside `stop`, after
+  whatever the manager still held queued when `stop` ran, which the sweep
+  publishes first in the order of the periodic drains and routes to no
+  receipt (a receipt whose transfer was dropped before the stop concludes
+  `LinkClosed` like every other receipt the sweep reaches), and the
   skipped link's receipts conclude `LinkClosed` once the link is dropped. A
   request on a link that is not `Active` is refused with
   `RnsError::ConnectionError`, `Stale` included, where Python drops a
@@ -207,6 +211,10 @@ trailing clause of the bullet for the behaviour it pins.
   `two_transport_loopback_requests_receipt_probe7.rs`,
   `two_transport_loopback_requests_resource_form_sizes_probe.rs`,
   `two_transport_loopback_requests_receipt_stop.rs`,
+  `two_transport_loopback_requests_resource_form_sizes_probe16.rs` (the
+  stop sweep publishes a sibling link's queued `link_closed` failure
+  before the `cancelled` failure it raises for the receipt it sweeps, each
+  once, and both receipts conclude `LinkClosed`),
   `two_transport_loopback_requests_errors.rs`,
   `tests/request_receipt_api.rs`, `tests/request_receipt_readme.rs`,
   `destination/request/receipt_tests.rs`

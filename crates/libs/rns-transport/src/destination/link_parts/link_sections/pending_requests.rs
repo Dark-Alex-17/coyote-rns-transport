@@ -57,13 +57,6 @@ impl Link {
         if let ResponseArrival::Resource { data, .. } = &arrival {
             if let Some(limit) = self.response_size_limit(id.as_bytes()) {
                 if data.len() > limit {
-                    log::debug!(
-                        "link({}): response to {} assembled {} bytes over its {} byte limit",
-                        self.id,
-                        id,
-                        data.len(),
-                        limit
-                    );
                     return self.fail_pending_request(&id, RequestError::Oversize);
                 }
             }

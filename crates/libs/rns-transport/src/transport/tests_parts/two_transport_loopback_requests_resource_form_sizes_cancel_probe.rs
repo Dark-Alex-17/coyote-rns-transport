@@ -50,7 +50,7 @@ async fn two_transport_loopback_request_resource_form_sizes_cancel_probe_in_limi
     let (receipt, _status_rx) = sizes_cancel_probe_receiving_receipt(&pair).await;
     assert_eq!(
         receipt.response_size(),
-        Some(SIZES_TIGHT_LIMIT / 2),
+        Some(SIZES_CANCEL_ADMITTED_D as usize),
         "d of the admitted advertisement while receiving"
     );
 
@@ -113,7 +113,7 @@ async fn two_transport_loopback_request_resource_form_sizes_cancel_probe_oversiz
     );
     assert_eq!(
         bystander.response_size(),
-        Some(SIZES_TIGHT_LIMIT / 2),
+        Some(SIZES_CANCEL_ADMITTED_D as usize),
         "the other receipt keeps its advertised d"
     );
     assert_eq!(

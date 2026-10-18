@@ -415,7 +415,20 @@ trailing clause of the bullet for the behaviour it pins.
   of that very advertisement is admitted: the retry is asked for parts
   again under the fresh record, which keeps its limit, and a later
   over-limit advertisement under the id is still refused with a receiver
-  cancel; an advertisement for another id is admitted and assembled).
+  cancel; an advertisement for another id is admitted and assembled), and
+  `transport/tests_parts/two_transport_loopback_requests_resource_form_sizes_probe11.rs`
+  (a second displace-and-retry cycle on one id behaves like the first,
+  and a wider limit set while displacing governs the re-admitted record),
+  `transport/tests_parts/two_transport_loopback_requests_resource_form_sizes_probe12.rs`
+  (an in-limit packet response answers a receipt-less `Receiving` record
+  and spends it, no receiver cancel goes back, and a real many-part
+  response over the legacy MTU still assembles) and
+  `transport/tests_parts/two_transport_loopback_requests_resource_form_sizes_probe13.rs`
+  (a manager failure queued before an unrelated Resource packet on the
+  link still reaches the receipt as `Err(RequestError::Receive)`; this
+  made the race the receipt-timeouts fixture
+  `..._failed_response_resource_fails_receive` runs against the retry
+  worker deterministic).
 
 - `Transport::send_direct`, `send_response_resource_with_compression` and
   the transport's link lookup delegate to free functions in

@@ -72,12 +72,13 @@ impl Transport {
     }
 
     /// Fails every pending request `LinkClosed` and drops the response
-    /// Resources they were receiving. No receiver cancel can leave: the
-    /// interfaces are detached by now. The handler and each link are locked
-    /// one after the other, never together, and each lock wait ends at
-    /// `deadline`. `Timeout` polls the lock before it checks the deadline, so
-    /// an uncontended lock is still taken after the budget has run out; only
-    /// a contended one is skipped.
+    /// Resources their receipts were receiving; a record no receipt owns
+    /// and a cancel still owed stay with the link state. No receiver cancel
+    /// can leave: the interfaces are detached by now. The handler and each
+    /// link are locked one after the other, never together, and each lock
+    /// wait ends at `deadline`. `Timeout` polls the lock before it checks
+    /// the deadline, so an uncontended lock is still taken after the budget
+    /// has run out; only a contended one is skipped.
     #[deny(clippy::await_holding_invalid_type)]
     async fn fail_pending_requests_on_stop(&self, deadline: Instant) {
         let links: Vec<Arc<Mutex<Link>>> = match time::timeout_at(deadline, self.handler.lock())

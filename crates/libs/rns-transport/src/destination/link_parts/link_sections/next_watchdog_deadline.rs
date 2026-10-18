@@ -139,7 +139,6 @@ impl Link {
             self.channel_states.insert(pending.sequence, ChannelMessageState::Failed);
         }
         self.abandon_pending_requests();
-        self.pending_response_limits.clear();
         self.channel_rx_ring.clear();
         self.channel_open = false;
         self.status = LinkStatus::Closed;
@@ -211,7 +210,6 @@ impl Link {
             self.channel_states.insert(pending.sequence, ChannelMessageState::Failed);
         }
         self.abandon_pending_requests();
-        self.pending_response_limits.clear();
         self.channel_rx_ring.clear();
         self.status = LinkStatus::Pending;
         self.close_reason = None;

@@ -125,7 +125,6 @@ impl Link {
         self.channel_pending.clear();
         self.channel_states.clear();
         self.channel_rx_ring.clear();
-        self.pending_response_limits.clear();
         self.reset_channel_flow_control();
 
         packet

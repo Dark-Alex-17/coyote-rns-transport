@@ -97,7 +97,12 @@ impl Link {
             return record_receiving;
         };
         log::debug!("link({}): request {} failed: {error}", self.id, id);
-        pending.fail(error).or(record_receiving)
+        let pending_receiving = pending.fail(error);
+        debug_assert!(
+            pending_receiving.is_none() || record_receiving.is_none(),
+            "a receipt and its record never both hold the inbound response"
+        );
+        pending_receiving.or(record_receiving)
     }
 
     /// The response Resources owed a cancel: a receipt failed by a packet
@@ -112,8 +117,9 @@ impl Link {
     }
 
     /// Fails every pending request and drops their response size limits;
-    /// the link is closed or starting over. Returns the response Resources
-    /// they were receiving, for the caller to cancel.
+    /// the link is closed or starting over, or the transport is stopping.
+    /// Returns the response Resources they were receiving, for the caller
+    /// to cancel.
     #[deny(clippy::await_holding_invalid_type)]
     #[must_use = "the hashes are for the caller to cancel"]
     pub(crate) fn fail_all_pending_requests(
@@ -136,10 +142,12 @@ impl Link {
     /// drops a closed link's receivers with its state on the next link
     /// check, and a receiver left on a restarted link fails on its own
     /// retry limit. The cancels the link still owed go the same way, with
-    /// the link state.
+    /// the link state, and so does the whole limits table: a record no
+    /// receipt owns belongs to the old link as much as a receipt does.
     #[deny(clippy::await_holding_invalid_type)]
     pub(crate) fn abandon_pending_requests(&mut self) {
         let receiving = self.fail_all_pending_requests(RequestError::LinkClosed);
+        self.pending_response_limits.clear();
         self.owed_response_cancels.clear();
         if !receiving.is_empty() {
             log::debug!(

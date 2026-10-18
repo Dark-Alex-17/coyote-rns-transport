@@ -218,4 +218,32 @@ mod response_record_tests {
         link.abandon_pending_requests();
         assert!(link.take_owed_response_cancels().is_empty(), "dropped with the link state");
     }
+
+    /// A fresh link request, a restart and a close drop every record no receipt owns and
+    /// every cancel still owed, with the receipts: nothing of the old link outlives it.
+    #[test]
+    fn a_fresh_link_request_a_restart_and_a_close_drop_the_records_and_the_owed_cancels() {
+        type Reset = fn(&mut Link);
+        let resets: [(&str, Reset); 3] = [
+            ("request", |link| {
+                link.request();
+            }),
+            ("restart", Link::restart),
+            ("close", Link::close),
+        ];
+        for (name, reset) in resets {
+            let (mut link, _, _, _) = linked_pair();
+            link.note_request_sent(b"bare");
+            link.expect_response(b"legacy", Some(10));
+            link.mark_pending_request_receiving(b"legacy", &response_segment(hash(1), hash(3)));
+            link.expect_response(b"legacy", None);
+            assert_eq!(link.pending_response_limits.len(), 2, "{name}: two records seeded");
+            assert!(!link.owed_response_cancels.is_empty(), "{name}: one cancel owed");
+
+            reset(&mut link);
+            assert!(link.pending_requests.is_empty(), "{name}: no receipt survives");
+            assert!(link.pending_response_limits.is_empty(), "{name}: no record survives");
+            assert!(link.take_owed_response_cancels().is_empty(), "{name}: nothing owed");
+        }
+    }
 }

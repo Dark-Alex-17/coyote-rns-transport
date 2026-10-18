@@ -186,8 +186,8 @@ async fn two_transport_loopback_request_resource_form_sizes_probe14_an_owed_canc
 /// cancel. The refused advertisement fails its own receipt `Oversize` and routes nothing:
 /// the queued failure still reaches the dropped receipt, `Err(Receive)` then `Failed`,
 /// within the periodic drain's window, and the link still answers. This documents the
-/// contract; it is not RED-capable against the per-link drain, since a drain on the
-/// refused packet would route the same failure sooner and pass the same assertions.
+/// contract without discriminating it: a drain on the refused packet would route the
+/// same failure sooner and pass the same assertions.
 #[tokio::test]
 #[deny(clippy::await_holding_invalid_type)]
 async fn two_transport_loopback_request_resource_form_sizes_probe14_a_refused_advertisement_leaves_a_queued_same_link_failure_for_the_periodic_drain(

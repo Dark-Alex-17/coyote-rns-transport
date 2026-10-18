@@ -233,11 +233,18 @@ trailing clause of the bullet for the behaviour it pins.
   stream once per plain Data packet this side sent on the link, from
   either side of it, when the peer's proof of it arrives. Every plain Data
   packet (`PacketContext::None`) sent on a link has its hash recorded on
-  the link, and the first valid proof naming a recorded hash consumes it
-  and posts the event, the way Python's proof removes the one `SENT`
-  receipt it validates (`RNS/Transport.py:2748-2761`). The record keeps
-  the latest 1024 hashes, oldest dropped first, where Python culls a link
-  receipt after `max(rtt * 6, 5 ms)` (`RNS/Packet.py:428`). It never fires
+  the link as it is sent (Python records a `PacketReceipt` for every Data
+  packet outside the link-control and Resource contexts, request, response
+  and Channel packets included, which expire unproved,
+  `RNS/Transport.py:1359-1377`; this side records plain Data only), and
+  the first valid proof naming a recorded hash consumes it and posts the
+  event, the way Python's proof removes the one `SENT` receipt it
+  validates (`RNS/Transport.py:2748-2761`). The record keeps the latest
+  1024 hashes, oldest dropped first, Python's `Transport.MAX_RECEIPTS`
+  (`RNS/Transport.py:159`, `:745-748`) applied per link; Python also fails
+  a link receipt after `max(rtt * 6, 5 ms)` (`RNS/Packet.py:428`), which
+  the record does not, so a proof for a hash the cap dropped posts
+  nothing. It never fires
   for a request, a response or a Resource packet, none of which is proved;
   nor for a Channel frame, which the peer proves (`RNS/Link.py:1147-1151`)
   but whose hash is never recorded, its proof going to the channel
@@ -246,11 +253,15 @@ trailing clause of the bullet for the behaviour it pins.
   strategy is `PROVE_ALL`, or `PROVE_APP` says yes (`RNS/Link.py:961-968`),
   and the default is `PROVE_NONE` (`RNS/Destination.py:161`); this crate
   always proves. It is not a request-delivery signal: a packet-form
-  `RequestReceipt` never reports `Delivered`. The same proof also reaches
-  the transport `ReceiptHandler` as a `DeliveryReceipt` naming the link,
-  for a Channel-frame proof as well. Pinned by
+  `RequestReceipt` never reports `Delivered`. Every validly signed link
+  proof also reaches the transport `ReceiptHandler` as a `DeliveryReceipt`
+  naming the link, a Channel-frame proof, a replayed proof or one for a
+  hash this side never sent included: the receipt is not filtered by the
+  record. Pinned by
   `transport/tests_parts/two_transport_loopback_link_packet_proven.rs`,
   `transport/tests_parts/two_transport_loopback_link_packet_proven_probe.rs`,
+  `transport/tests_parts/two_transport_loopback_link_packet_proven_probe2.rs`
+  (the cap and a Channel frame, through the transport send path),
   `destination/link_parts/link_sections/data_proof_tests.rs` and
   `tests/link_event_packet_proven_api.rs`.
 

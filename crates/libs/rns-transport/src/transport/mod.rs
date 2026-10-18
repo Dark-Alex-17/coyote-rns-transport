@@ -198,7 +198,10 @@ impl DeliveryReceipt {
     }
 
     /// The link the proved packet travelled on, for a proof addressed to a
-    /// link; `None` for a destination proof.
+    /// link; `None` for a destination proof. A receipt is handed out for
+    /// every validly signed link proof, whether or not the link still
+    /// remembers sending the packet; `LinkEvent::PacketProven` is the gated
+    /// signal.
     pub fn link_id(&self) -> Option<AddressHash> {
         self.link_id
     }

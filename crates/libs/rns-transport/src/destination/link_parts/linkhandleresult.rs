@@ -27,7 +27,10 @@ pub enum LinkEvent {
     /// side sent are recorded, so a Channel frame's proof, which the channel
     /// machinery consumes, a proof for a hash this side never sent and a
     /// replayed proof post nothing. Requests, responses and Resource packets
-    /// are never proved.
+    /// are never proved. A link remembers at most `UNPROVEN_DATA_HASHES_CAP`
+    /// unproved sent packets, oldest dropped first (Python's
+    /// `Transport.MAX_RECEIPTS`, `RNS/Transport.py:159`), so a proof for a
+    /// dropped record posts nothing.
     PacketProven {
         packet_hash: Hash,
     },
@@ -143,8 +146,9 @@ pub struct Link {
     /// matches a proof against the outstanding receipts of status `SENT`,
     /// removing the one it proves (`RNS/Transport.py:2748-2761`). Here the
     /// list is capped at `UNPROVEN_DATA_HASHES_CAP` entries, the oldest
-    /// dropped first, where Python culls a receipt at `max(rtt * 6, 5 ms)`
-    /// (`RNS/Packet.py:428`).
+    /// dropped first, Python's `Transport.MAX_RECEIPTS` (`RNS/Transport.py:159`,
+    /// `:745-748`) applied per link; Python also fails a link receipt after
+    /// `max(rtt * 6, 5 ms)` (`RNS/Packet.py:428`), which this list does not.
     unproven_data_hashes: VecDeque<Hash>,
     /// The responses this side is waiting for, by request id. An entry's
     /// `limit` is the `max_response_size` the request went out with, `None`

@@ -37,6 +37,7 @@ impl Link {
             channel_pending: HashMap::new(),
             channel_states: HashMap::new(),
             channel_rx_ring: HashMap::new(),
+            unproven_data_hashes: VecDeque::new(),
             pending_response_limits: HashMap::new(),
             pending_requests: HashMap::new(),
             owed_response_cancels: Vec::new(),

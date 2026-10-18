@@ -20,11 +20,14 @@ pub enum LinkEvent {
     Activated,
     Data(Box<LinkPayload>),
     PeerIdentified(Box<Identity>),
-    /// The peer proved delivery of a plain Data packet this side sent on the
-    /// link. Only `PacketContext::None` Data packets are proved
-    /// (`RNS/Link.py:950-962`), so this is never posted for a request, a
-    /// response or a Resource packet, and not for a Channel frame, whose
-    /// delivery the channel machinery tracks itself.
+    /// Posted once, when the peer's proof names a plain Data packet
+    /// (`PacketContext::None`) this side sent on the link and not yet proved.
+    /// The peer proves plain Data packets (`RNS/Link.py:950-962`) and Channel
+    /// frames (`RNS/Link.py:1147-1151`), but only the plain Data packets this
+    /// side sent are recorded, so a Channel frame's proof, which the channel
+    /// machinery consumes, a proof for a hash this side never sent and a
+    /// replayed proof post nothing. Requests, responses and Resource packets
+    /// are never proved.
     PacketProven {
         packet_hash: Hash,
     },
@@ -134,6 +137,15 @@ pub struct Link {
     channel_pending: HashMap<Hash, PendingChannelPacket>,
     channel_states: HashMap<u16, ChannelMessageState>,
     channel_rx_ring: HashMap<u16, ChannelEnvelope>,
+    /// The hashes of the plain Data packets (`PacketContext::None`) this side
+    /// sent on the link whose proof has not arrived, oldest first. Python
+    /// keeps one `PacketReceipt` per sent packet in `Transport.receipts` and
+    /// matches a proof against the outstanding receipts of status `SENT`,
+    /// removing the one it proves (`RNS/Transport.py:2748-2761`). Here the
+    /// list is capped at `UNPROVEN_DATA_HASHES_CAP` entries, the oldest
+    /// dropped first, where Python culls a receipt at `max(rtt * 6, 5 ms)`
+    /// (`RNS/Packet.py:428`).
+    unproven_data_hashes: VecDeque<Hash>,
     /// The responses this side is waiting for, by request id. An entry's
     /// `limit` is the `max_response_size` the request went out with, `None`
     /// for a request sent without one. An id absent here and from

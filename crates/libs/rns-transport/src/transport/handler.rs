@@ -43,6 +43,13 @@ impl TransportHandler {
                 let request_id = RequestId::from_packet_hash(&packet.hash());
                 link.note_request_sent(request_id.as_bytes());
             }
+            // Every plain Data packet sent on a link is recorded for its proof
+            // (RNS/Transport.py:2748-2761); see Link::note_data_sent.
+            if packet.header.packet_type == PacketType::Data
+                && packet.context == PacketContext::None
+            {
+                link.note_data_sent(packet.hash());
+            }
         }
     }
 

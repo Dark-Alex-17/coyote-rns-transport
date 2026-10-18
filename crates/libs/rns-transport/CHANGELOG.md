@@ -230,17 +230,36 @@ trailing clause of the bullet for the behaviour it pins.
   directly or by broadcast; the in-crate `matches!` twins use it.
 
 - `LinkEvent::PacketProven { packet_hash }`: posted on a link's event
-  stream when the peer proves delivery of a plain Data packet this side
-  sent on the link, from either side of it. Only `PacketContext::None`
-  Data packets are proved (`RNS/Link.py:950-962`), so it never fires for a
-  request, a response or a Resource packet, and not for a Channel frame,
-  whose delivery the channel machinery tracks itself. It is not a
-  request-delivery signal: a packet-form `RequestReceipt` never reports
-  `Delivered`. Pinned by
-  `transport/tests_parts/two_transport_loopback_link_packet_proven.rs`.
+  stream once per plain Data packet this side sent on the link, from
+  either side of it, when the peer's proof of it arrives. Every plain Data
+  packet (`PacketContext::None`) sent on a link has its hash recorded on
+  the link, and the first valid proof naming a recorded hash consumes it
+  and posts the event, the way Python's proof removes the one `SENT`
+  receipt it validates (`RNS/Transport.py:2748-2761`). The record keeps
+  the latest 1024 hashes, oldest dropped first, where Python culls a link
+  receipt after `max(rtt * 6, 5 ms)` (`RNS/Packet.py:428`). It never fires
+  for a request, a response or a Resource packet, none of which is proved;
+  nor for a Channel frame, which the peer proves (`RNS/Link.py:1147-1151`)
+  but whose hash is never recorded, its proof going to the channel
+  machinery; nor for a replayed proof or a hash this side never sent. A
+  Python peer proves link packets only when its destination's proof
+  strategy is `PROVE_ALL`, or `PROVE_APP` says yes (`RNS/Link.py:961-968`),
+  and the default is `PROVE_NONE` (`RNS/Destination.py:161`); this crate
+  always proves. It is not a request-delivery signal: a packet-form
+  `RequestReceipt` never reports `Delivered`. The same proof also reaches
+  the transport `ReceiptHandler` as a `DeliveryReceipt` naming the link,
+  for a Channel-frame proof as well. Pinned by
+  `transport/tests_parts/two_transport_loopback_link_packet_proven.rs`,
+  `transport/tests_parts/two_transport_loopback_link_packet_proven_probe.rs`,
+  `destination/link_parts/link_sections/data_proof_tests.rs` and
+  `tests/link_event_packet_proven_api.rs`.
 
 - `DeliveryReceipt::link_id()`: `Some(link id)` for a proof addressed to a
-  link, `None` for a destination proof.
+  link, `None` for a destination proof. Pinned by
+  `transport/tests_parts/two_transport_loopback_link_packet_proven.rs`,
+  `transport/tests_parts/two_transport_loopback_link_packet_proven_probe.rs`
+  (the single-destination `None` case) and
+  `tests/link_event_packet_proven_api.rs`.
 
 ### Changed
 
@@ -249,11 +268,13 @@ trailing clause of the bullet for the behaviour it pins.
   and `crates/apps/rns-tools/src/bin/independent_interop_node/events.rs`)
   gained a `PacketProven` arm, and the latter, being in another crate, a
   wildcard arm as well; every out-of-tree exhaustive match needs one. This
-  is a breaking change, so the next release is `0.15.0`.
+  is a breaking change, so the next release is `0.15.0`. The attribute is
+  pinned by `tests/link_event_packet_proven_api.rs`.
 
 - `DeliveryReceipt` carries a private `link_id`, so it is built through
   `DeliveryReceipt::new` and no longer by struct literal; `message_id`
-  stays public.
+  stays public. `PartialEq` and `Eq` now compare `link_id` as well; a
+  hash-only comparison is `matches_packet_hash`.
 
 - The request timeout runs from the send for a packet request and from
   `Delivered` for a request Resource (`RNS/Link.py:1331-1334`,

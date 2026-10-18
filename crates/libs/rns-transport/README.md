@@ -148,12 +148,18 @@ it has its `Complete` withheld.
 
 ## Delivery proofs on a link
 
-A plain Data packet sent on a link is proved by the peer (`RNS/Link.py:950-962`).
-The proof posts `LinkEvent::PacketProven { packet_hash }` on the link's event
-stream, on whichever side sent the packet, and reaches the transport's
-`ReceiptHandler` as a `DeliveryReceipt` whose `link_id()` names the link.
-Requests, responses and Resource packets are not proved and post no
-`PacketProven`; the request layer's own `RequestReceipt` is the delivery
+A plain Data packet sent on a link is proved by the peer (`RNS/Link.py:950-962`),
+and the proof posts `LinkEvent::PacketProven { packet_hash }` on the link's
+event stream, on whichever side sent the packet, once per packet: the hash is
+recorded when the packet is sent and the first valid proof naming it consumes
+the record, the way Python's proof removes the one outstanding receipt it
+validates (`RNS/Transport.py:2748-2761`). A Python peer proves link packets
+only when its destination's proof strategy is `PROVE_ALL` or `PROVE_APP`
+(`RNS/Link.py:961-968`); its default is `PROVE_NONE`, while this crate always
+proves. Requests, responses and Resource packets are never proved, and a
+Channel frame, though proved, posts no `PacketProven`. The same proof reaches
+the transport's `ReceiptHandler` as a `DeliveryReceipt` whose `link_id()`
+names the link. The request layer's own `RequestReceipt` is the delivery
 signal for a request, and only a resource-form request ever reports
 `Delivered`.
 

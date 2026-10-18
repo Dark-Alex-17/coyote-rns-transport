@@ -40,7 +40,7 @@ commits `1ddd5273`, `a2a40de7`, `3805fe7f`, `3ed78582`, `415d67c8`,
 `f7d8c60d`, `f68479d5`, `c13491a7`, `28d7e69b`, `6ce0e712`, `4309e2ee`,
 `62cd6799`, `64ab1317`, `20019b5f`, `1dd36956`, `03f63892`, `032e9142`,
 `8b512044`, `9ebd348b`, `9842695a`, `10f67e30`, `c18098c9`, `3568f1ab`,
-`f1985d01`, `348cf74d`, `a93e3127` and `c7d5f533`.
+`f1985d01`, `348cf74d`, `a93e3127`, `c7d5f533` and `d9585ef0`.
 
 | File | Patch |
 | --- | --- |
@@ -149,6 +149,7 @@ commits `1ddd5273`, `a2a40de7`, `3805fe7f`, `3ed78582`, `415d67c8`,
 | `crates/libs/rns-transport/src/transport/tests_parts/two_transport_loopback_requests_resource_form_sizes_probe13.rs` | request receipts and timeouts |
 | `crates/libs/rns-transport/src/transport/tests_parts/two_transport_loopback_requests_resource_form_sizes_probe14.rs` | request receipts and timeouts |
 | `crates/libs/rns-transport/src/transport/tests_parts/two_transport_loopback_requests_resource_form_sizes_probe15.rs` | request receipts and timeouts |
+| `crates/libs/rns-transport/src/transport/tests_parts/two_transport_loopback_requests_resource_form_sizes_probe16.rs` | request receipts and timeouts |
 | `crates/libs/rns-transport/src/transport/tests_parts/two_transport_loopback_requests_routing.rs` | request handlers and dispatch, request receipts and timeouts |
 | `crates/libs/rns-transport/src/transport/tests_parts/two_transport_loopback_resources.rs` | request receipts and timeouts |
 | `crates/libs/rns-transport/src/transport/tests_parts/two_transport_loopback_resources_directions.rs` | request receipts and timeouts |
@@ -1630,6 +1631,21 @@ The `CHANGELOG.md` owed-cancel bullet names it.
 Fork commit `c7d5f533`: the third `..._sizes_probe14.rs` test's doc says
 in plain words that a drain on the refused packet would pass the same
 assertions sooner.
+
+Fork commit `d9585ef0`: new fixture
+`two_transport_loopback_requests_resource_form_sizes_probe16.rs` (one
+`include!` line in `transport/tests.rs`): a receipt `Receiving` on a
+sibling link of the same connector has its inbound Resource dropped, which
+queues a `link_closed` failure for that link, while a receipt on the
+pair's link is still `Receiving` when `Transport::stop` runs; the sweep
+fails both receipts `LinkClosed` (the queued failure is published, not
+routed) and on `resource_events()` the queued failure precedes the
+`cancelled` failure the sweep raises, each reported once, with no cancel
+for the receiver already gone. It passes at `348cf74d` and fails with the
+sweep order before it, which no earlier fixture told apart. The
+`CHANGELOG.md` receipt bullet says the sweep publishes the manager queue
+first, in the order of the periodic drains and routed to no receipt, and
+names the fixture.
 
 ## 0.14.1 (upstream 0.14.0)
 

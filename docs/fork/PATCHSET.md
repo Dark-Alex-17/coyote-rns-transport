@@ -37,7 +37,8 @@ commits `1ddd5273`, `a2a40de7`, `3805fe7f`, `3ed78582`, `415d67c8`,
 `0d4c9342`, `181c4a27`, `8eebdfab`, `ca4d1aa4`, `6b3ab18e`, `bb8a94ad`,
 `d042612c`, `e5183c64`, `64d49999`, `08794d16`, `f7922574`, `8549dd6f`,
 `b836157a`, `30f98996`, `55736b0b`, `f10a7843`, `09f6c98b`, `21fc1c3f`,
-`f7d8c60d`, `f68479d5`, `c13491a7`, `28d7e69b` and `6ce0e712`.
+`f7d8c60d`, `f68479d5`, `c13491a7`, `28d7e69b`, `6ce0e712`, `4309e2ee`,
+`62cd6799`, `64ab1317` and `20019b5f`.
 
 | File | Patch |
 | --- | --- |
@@ -102,6 +103,7 @@ commits `1ddd5273`, `a2a40de7`, `3805fe7f`, `3ed78582`, `415d67c8`,
 | `crates/libs/rns-transport/src/transport/request_dispatch.rs` | request handlers and dispatch |
 | `crates/libs/rns-transport/src/transport/resource_wire.rs` | request handlers and dispatch, request receipts and timeouts |
 | `crates/libs/rns-transport/src/transport/resource_wire_parts/cancel.rs` | request receipts and timeouts |
+| `crates/libs/rns-transport/src/transport/resource_wire_parts/proof.rs` | request receipts and timeouts |
 | `crates/libs/rns-transport/src/transport/test_bridge.rs` | request handlers and dispatch |
 | `crates/libs/rns-transport/src/transport/tests.rs` | request handlers and dispatch, request receipts and timeouts |
 | `crates/libs/rns-transport/src/transport/tests_parts/two_transport_loopback_lifecycle.rs` | request handlers and dispatch, request receipts and timeouts |
@@ -135,6 +137,7 @@ commits `1ddd5273`, `a2a40de7`, `3805fe7f`, `3ed78582`, `415d67c8`,
 | `crates/libs/rns-transport/src/transport/tests_parts/two_transport_loopback_requests_resource_form_sizes_probe5.rs` | request receipts and timeouts |
 | `crates/libs/rns-transport/src/transport/tests_parts/two_transport_loopback_requests_resource_form_sizes_probe6.rs` | request receipts and timeouts |
 | `crates/libs/rns-transport/src/transport/tests_parts/two_transport_loopback_requests_resource_form_sizes_probe7.rs` | request receipts and timeouts |
+| `crates/libs/rns-transport/src/transport/tests_parts/two_transport_loopback_requests_resource_form_sizes_probe8.rs` | request receipts and timeouts |
 | `crates/libs/rns-transport/src/transport/tests_parts/two_transport_loopback_requests_routing.rs` | request handlers and dispatch, request receipts and timeouts |
 | `crates/libs/rns-transport/src/transport/tests_parts/two_transport_loopback_resources.rs` | request receipts and timeouts |
 | `crates/libs/rns-transport/src/transport/tests_parts/two_transport_loopback_resources_directions.rs` | request receipts and timeouts |
@@ -1339,6 +1342,59 @@ a response assembling over the receipt's `max_response_size` has its
 `CHANGELOG.md` claims only the Link half its unit rows pin. The
 `note_request_sent` rustdoc (`link_sections/response_packet.rs`) says an
 `Expires` clock is re-armed whether or not it has run out.
+
+Fork commit `4309e2ee`: new fixture
+`two_transport_loopback_requests_resource_form_sizes_probe8.rs` (one
+`include!` line in `transport/tests.rs`) pins the public
+`expect_response` over a receipt-less record receiving its response: the
+displaced transfer is cancelled with one receiver cancel on the link's
+next inbound packet and the replacing record keeps or sets the limit; a
+later advertisement over the limit of a record receiving again cancels
+that partial assembly too. The two `CHANGELOG.md` pin clauses that named
+the reject path as unpinned now cite it.
+
+Fork commit `62cd6799`: `handle_link_resource_packet`
+(`transport/resource_wire.rs`) drains the link's owed response cancels
+itself, since the Resource packets it routes never reach `handle_data`'s
+drain: the main path through `drain_owed_response_cancels` next to the
+cancels of its own, and both early-return arms through
+`owed_response_cancels` and `send_owed_response_cancels`
+(`resource_wire_parts/cancel.rs`), which take the cancels and the events
+they raised under the link guard and send them once it is gone.
+`handle_resource_proof` drains them the same way and moves verbatim to
+`resource_wire_parts/proof.rs`, an `include!`d part, to keep
+`resource_wire.rs` under the 500-line cap. `Link::fail_pending_request`
+(`link_sections/pending_requests.rs`) hands back the `Receiving` hashes
+of a record no receipt owns, so the 16-byte and legacy-length `Complete`
+arms cancel the same transfer, and `abandon_pending_requests` clears the
+owed cancels with the rest of the link state. `response_record_tests.rs`
+gains rows for the receipt-less hand-back, the over-limit resolve of a
+receipt-less record and the cleared owed cancels. Both probe8 tests make
+the next inbound packet a response advertisement and count the keepalive
+and Response packets that reached the connector's link at zero on its
+interface tap, pinning the cancel to the Resource path. `wire.rs` notes
+the Resource path drains for itself.
+
+Fork commit `64ab1317`: the crate `README.md`, the crate `CHANGELOG.md`
+receipt bullet and the `RequestReceipt` rustdoc
+(`destination/request/receipt.rs`) carry one exception clause, word for
+word: an over-limit packet Response is not posted as `LinkEvent::Data`,
+and a response Resource assembling over the limit has its `Complete`
+withheld. The probe6 pin clause in the `CHANGELOG.md`, the probe6 bare
+`request_packet` test doc and this ledger's `f7d8c60d` paragraph say the
+limit is kept when the send seam re-arms the record's clock. The
+`cancel_inbound_responses` rustdoc (`transport_sections/request.rs`)
+names displaced records alongside failed receipts.
+
+Fork commit `20019b5f`: `..._sizes_cancel2.rs` asserts the
+`InboundFailed` reason is `cancelled` and the event hash is the
+advertisement's original hash; `pending_requests_tests.rs` exports its
+`id` helper and `response_record_tests.rs` and `response_packet_tests.rs`
+import it; the `OutboundRejected` filters in `..._sizes_probe.rs`,
+`..._sizes_probe2.rs` and `..._sizes_probe3.rs` admit a completion or
+failure so the assert after them discriminates; the lying-advertisement
+test in `..._sizes_probe5.rs` calls `sizes_probe6_readvertise_under_a_lie`
+instead of its own copy of the decoy-then-lie block.
 
 ## 0.14.1 (upstream 0.14.0)
 

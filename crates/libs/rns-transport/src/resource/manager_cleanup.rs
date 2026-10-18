@@ -146,10 +146,14 @@ impl ResourceManager {
         original_hash: Hash,
         link_id: &AddressHash,
     ) -> CancelledResponse {
-        if self.incoming.get(&segment_hash).is_some_and(|receiver| receiver.link_id == *link_id) {
-            if let Some(event) = self.take_cancelled_incoming(segment_hash) {
-                return CancelledResponse { receiver_in_flight: true, event: Some(event) };
-            }
+        let event = self
+            .incoming
+            .get(&segment_hash)
+            .is_some_and(|receiver| receiver.link_id == *link_id)
+            .then(|| self.take_cancelled_incoming(segment_hash))
+            .flatten();
+        if event.is_some() {
+            return CancelledResponse { receiver_in_flight: true, event };
         }
         let event = self
             .incoming_segments

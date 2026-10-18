@@ -1,6 +1,5 @@
 use super::*;
 
-#[allow(dead_code)]
 pub(in crate::transport) async fn handle_check_links<'a>(
     mut handler: MutexGuard<'a, TransportHandler>,
 ) {

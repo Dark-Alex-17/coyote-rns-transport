@@ -181,16 +181,15 @@ impl Transport {
             let mut events = Vec::new();
             let cancelled = receiving
                 .into_iter()
-                .filter(|response| {
+                .filter_map(|response| {
                     let cancelled = handler.resource_manager.cancel_incoming_response(
                         response.segment,
                         response.original,
                         &link_id,
                     );
                     events.extend(cancelled.event);
-                    cancelled.receiver_in_flight
+                    cancelled.receiver_in_flight.then_some(response.segment)
                 })
-                .map(|response| response.segment)
                 .collect();
             super::resource_wire::publish_resource_events(&handler, events);
             cancelled

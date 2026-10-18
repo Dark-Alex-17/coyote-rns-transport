@@ -394,9 +394,11 @@ trailing clause of the bullet for the behaviour it pins.
   packet keeps its fresh record; this holds by construction:
   `ResourceManager::cancel_incoming_response` hands the event back to its
   caller instead of queueing it, so it never enters the manager's event
-  queue, and everything the manager queued before a packet is routed by
-  that packet's drain as before, where it used to be published unrouted
-  alongside the cancel's. Pinned by
+  queue; everything the manager queued for this link before a packet is
+  routed by that packet's drain; other links' events wait for the periodic
+  drain, which routes them. Before, a Resource packet or proof drained the
+  whole queue and published the other links' events unrouted, so a receipt
+  on a sibling link could sit `Receiving` after its transfer was dropped. Pinned by
   `destination/link_parts/link_sections/response_record_tests.rs` and
   `transport/tests_parts/two_transport_loopback_requests_resource_form_sizes_cancel2.rs`
   (exactly one `ResourceReceiverCancel` reaches the responder), and
@@ -428,7 +430,11 @@ trailing clause of the bullet for the behaviour it pins.
   link still reaches the receipt as `Err(RequestError::Receive)`; this
   made the race the receipt-timeouts fixture
   `..._failed_response_resource_fails_receive` runs against the retry
-  worker deterministic).
+  worker deterministic), and `resource/tests_timeouts_lifecycle.rs`
+  (`..._drain_events_for_link_leaves_other_links_events_queued`: a
+  packet's drain takes its link's events in order and leaves the others
+  queued in order; `..._drops_the_receiver_and_the_assembly_together`: a
+  cancel finding both reports the transfer once, under the original hash).
 
 - `Transport::send_direct`, `send_response_resource_with_compression` and
   the transport's link lookup delegate to free functions in

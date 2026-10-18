@@ -357,3 +357,106 @@ fn resource_manager_cancel_incoming_response_drops_its_links_live_receiver() {
     assert!(!cancelled.receiver_in_flight);
     assert!(cancelled.event.is_none(), "already gone");
 }
+
+/// With the first segment of a split response assembled and the second's
+/// receiver in flight, cancelling the response for a failed receipt drops
+/// both and reports the transfer `InboundFailed("cancelled")` once, under
+/// the original hash, and says a receiver cancel is owed. The event is
+/// handed back, the queue is untouched.
+#[test]
+fn resource_manager_cancel_incoming_response_drops_the_receiver_and_the_assembly_together() {
+    let signer = PrivateIdentity::new_from_rand(OsRng);
+    let identity = *signer.as_identity();
+    let destination = DestinationDesc {
+        identity,
+        address_hash: identity.address_hash,
+        name: DestinationName::new("lxmf", "resource"),
+    };
+    let (tx, _) = tokio::sync::broadcast::channel(1);
+    let mut link = Link::new(destination, tx);
+    link.request();
+    let mut manager = ResourceManager::new_with_config(Duration::from_secs(1), 2);
+
+    let first_data = b"first-segment";
+    let second_data = b"second-segment";
+    let total_data_size = (first_data.len() + second_data.len()) as u64;
+    let (first_adv, first_part) = split_test_segment(first_data, None, 1, 2, total_data_size);
+    let original_hash = first_adv.hash;
+    let (second_adv, _) =
+        split_test_segment(second_data, Some(original_hash), 2, 2, total_data_size);
+    let segment_hash = second_adv.hash;
+    let first_adv_packet = resource_packet(
+        PacketContext::ResourceAdvrtisement,
+        &first_adv.pack().expect("pack first advertisement"),
+        *link.id(),
+    );
+    assert_eq!(manager.handle_packet(&first_adv_packet, &mut link).len(), 1);
+    let first_part_packet = resource_packet(PacketContext::Resource, &first_part, *link.id());
+    assert_eq!(manager.handle_packet(&first_part_packet, &mut link).len(), 1);
+    let second_adv_packet = resource_packet(
+        PacketContext::ResourceAdvrtisement,
+        &second_adv.pack().expect("pack second advertisement"),
+        *link.id(),
+    );
+    assert_eq!(manager.handle_packet(&second_adv_packet, &mut link).len(), 1);
+    manager.drain_events();
+    assert!(manager.incoming_segments.contains_key(&original_hash));
+    assert!(manager.incoming.contains_key(&segment_hash), "the second receiver is in flight");
+
+    let cancelled = manager.cancel_incoming_response(segment_hash, original_hash, link.id());
+    assert!(cancelled.receiver_in_flight, "the peer is owed a receiver cancel");
+    assert!(!manager.incoming.contains_key(&segment_hash));
+    assert!(!manager.incoming_segments.contains_key(&original_hash));
+    let event = cancelled.event.expect("the cancel hands its event back");
+    assert_eq!(event.hash, original_hash);
+    assert_eq!(event.link_id, *link.id());
+    assert!(matches!(
+        &event.kind,
+        ResourceEventKind::InboundFailed(failure) if failure.reason == "cancelled"
+    ));
+    assert!(manager.drain_events().is_empty(), "the cancel's event never enters the queue");
+}
+
+/// A packet's drain takes only the events queued for its link, in order,
+/// and leaves the other links' events queued, in order, for the drain that
+/// routes by link.
+#[test]
+fn resource_manager_drain_events_for_link_leaves_other_links_events_queued() {
+    let signer = PrivateIdentity::new_from_rand(OsRng);
+    let identity = *signer.as_identity();
+    let destination = DestinationDesc {
+        identity,
+        address_hash: identity.address_hash,
+        name: DestinationName::new("lxmf", "resource"),
+    };
+    let (tx, _) = tokio::sync::broadcast::channel(1);
+    let mut first_link = Link::new(destination, tx.clone());
+    first_link.request();
+    let mut second_link = Link::new(destination, tx);
+    second_link.request();
+    assert_ne!(first_link.id(), second_link.id());
+    let mut manager = ResourceManager::new_with_config(Duration::from_secs(1), 2);
+
+    // An unsent advertisement fails its sender and queues `OutboundFailed`
+    // under the sender's link, so the queue interleaves the two links.
+    let mut queued = Vec::new();
+    for link in [&first_link, &second_link, &first_link, &second_link] {
+        let (hash, _) = manager.start_send(link, b"queued".to_vec(), None).expect("start sender");
+        manager.confirm_outbound_dispatch(hash, false);
+        queued.push((hash, *link.id()));
+    }
+
+    let first_events = manager.drain_events_for_link(first_link.id());
+    let first_hashes: Vec<Hash> = first_events.iter().map(|event| event.hash).collect();
+    assert_eq!(first_hashes, vec![queued[0].0, queued[2].0]);
+    assert!(first_events.iter().all(|event| event.link_id == *first_link.id()));
+    assert!(first_events
+        .iter()
+        .all(|event| matches!(event.kind, ResourceEventKind::OutboundFailed)));
+
+    let second_events = manager.drain_events();
+    let second_hashes: Vec<Hash> = second_events.iter().map(|event| event.hash).collect();
+    assert_eq!(second_hashes, vec![queued[1].0, queued[3].0]);
+    assert!(second_events.iter().all(|event| event.link_id == *second_link.id()));
+    assert!(manager.drain_events().is_empty());
+}

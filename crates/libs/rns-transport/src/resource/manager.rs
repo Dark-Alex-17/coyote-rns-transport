@@ -46,6 +46,15 @@ impl ResourceManager {
         std::mem::take(&mut self.events)
     }
 
+    /// Takes only the events queued for `link_id`, leaving every other
+    /// link's events for the periodic routed drain.
+    pub fn drain_events_for_link(&mut self, link_id: &AddressHash) -> Vec<ResourceEvent> {
+        let (for_link, others): (Vec<_>, Vec<_>) =
+            std::mem::take(&mut self.events).into_iter().partition(|event| event.link_id == *link_id);
+        self.events = others;
+        for_link
+    }
+
     #[cfg(test)]
     pub(crate) fn has_no_outbound_state(&self) -> bool {
         self.outgoing.is_empty()

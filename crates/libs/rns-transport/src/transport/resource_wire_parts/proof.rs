@@ -17,23 +17,21 @@ pub(super) async fn handle_resource_proof(
         link.note_inbound(packet.context);
         let mut responses = std::mem::take(&mut handler.resource_response_packets);
         handler.resource_manager.handle_packet_into(&packet, &mut link, &mut responses);
-        let mut events = handler.resource_manager.drain_events();
+        let mut events = handler.resource_manager.drain_events_for_link(link.id());
         // A proof for a request Resource moves its receipt to `Delivered`
         // (`RNS/Link.py:1372`).
         let mut cancels = Vec::new();
         let mut cancel_events = Vec::new();
         for event in &events {
-            if event.link_id == *link.id() {
-                if let Some(receiving) = link.note_request_resource_outcome(event.hash, &event.kind)
-                {
-                    cancel_inbound_response(
-                        &mut handler.resource_manager,
-                        &link,
-                        receiving,
-                        &mut cancels,
-                        &mut cancel_events,
-                    );
-                }
+            debug_assert_eq!(event.link_id, *link.id(), "the drain was for this link only");
+            if let Some(receiving) = link.note_request_resource_outcome(event.hash, &event.kind) {
+                cancel_inbound_response(
+                    &mut handler.resource_manager,
+                    &link,
+                    receiving,
+                    &mut cancels,
+                    &mut cancel_events,
+                );
             }
         }
         drain_owed_response_cancels(

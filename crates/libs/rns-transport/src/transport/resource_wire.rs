@@ -200,7 +200,8 @@ pub(super) async fn handle_link_resource_packet<'a>(
     // packet's advertisement is admitted. Its `InboundFailed` comes back in
     // `cancel_events` and never enters the manager's queue, so a retry of
     // the same hash admitted by this packet keeps its fresh record, and
-    // everything the manager queued before this packet is routed below.
+    // everything the manager queued for this link before this packet is
+    // routed below; other links' events wait for the periodic drain.
     drain_owed_response_cancels(
         &mut handler.resource_manager,
         &mut link,
@@ -215,7 +216,7 @@ pub(super) async fn handle_link_resource_packet<'a>(
             &mut responses,
             interface_mtu,
         );
-        events = handler.resource_manager.drain_events();
+        events = handler.resource_manager.drain_events_for_link(link.id());
         // `RNS/Link.py:1055-1064` touches the receipt only once a Resource
         // exists for the advertisement: one the manager dropped (inbound
         // caps, an out-of-order or duplicate segment, an unreasonable part
@@ -232,9 +233,7 @@ pub(super) async fn handle_link_resource_packet<'a>(
         // consumers, except an assembled response the link refused.
         let mut suppressed = Vec::new();
         for (index, event) in events.iter().enumerate() {
-            if event.link_id != *link.id() {
-                continue;
-            }
+            debug_assert_eq!(event.link_id, *link.id(), "the drain was for this link only");
             match &event.kind {
                 ResourceEventKind::Complete(complete) if complete.is_request => {
                     link.dispatch_request(DispatchForm::Resource, &complete.data);

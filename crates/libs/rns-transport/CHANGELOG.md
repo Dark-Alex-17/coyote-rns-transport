@@ -388,14 +388,21 @@ trailing clause of the bullet for the behaviour it pins.
   record's id left its transfer running. `take_response_limit_if_allowed`
   and `expect_response` keep their signatures and route the cancel through
   the link's owed cancels, which the transport drains after each inbound
-  packet of the link, Resource packets included. Pinned by
+  packet of the link, Resource packets included, before that packet's own
+  advertisement is admitted. Pinned by
   `destination/link_parts/link_sections/response_record_tests.rs` and
   `transport/tests_parts/two_transport_loopback_requests_resource_form_sizes_cancel2.rs`
   (exactly one `ResourceReceiverCancel` reaches the responder), and
   `transport/tests_parts/two_transport_loopback_requests_resource_form_sizes_probe8.rs`
   (the public `expect_response` over a receipt-less record receiving its
   response: the displaced transfer is cancelled and the replacing record
-  keeps or sets the limit).
+  keeps or sets the limit), and
+  `transport/tests_parts/two_transport_loopback_requests_resource_form_sizes_probe9.rs`
+  (where the cancel leaves: an over-limit packet response sends it on that
+  packet, a `send_request_resource*` re-sent under a receiving id sends it
+  on the responder's first part request, and the cancel `expect_response`
+  owes leaves on the link's next inbound packet, the responder's own
+  receiver cancel included).
 
 - `Transport::send_direct`, `send_response_resource_with_compression` and
   the transport's link lookup delegate to free functions in

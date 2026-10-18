@@ -38,7 +38,8 @@ commits `1ddd5273`, `a2a40de7`, `3805fe7f`, `3ed78582`, `415d67c8`,
 `d042612c`, `e5183c64`, `64d49999`, `08794d16`, `f7922574`, `8549dd6f`,
 `b836157a`, `30f98996`, `55736b0b`, `f10a7843`, `09f6c98b`, `21fc1c3f`,
 `f7d8c60d`, `f68479d5`, `c13491a7`, `28d7e69b`, `6ce0e712`, `4309e2ee`,
-`62cd6799`, `64ab1317` and `20019b5f`.
+`62cd6799`, `64ab1317`, `20019b5f`, `1dd36956`, `03f63892`, `032e9142`
+and `8b512044`.
 
 | File | Patch |
 | --- | --- |
@@ -138,6 +139,7 @@ commits `1ddd5273`, `a2a40de7`, `3805fe7f`, `3ed78582`, `415d67c8`,
 | `crates/libs/rns-transport/src/transport/tests_parts/two_transport_loopback_requests_resource_form_sizes_probe6.rs` | request receipts and timeouts |
 | `crates/libs/rns-transport/src/transport/tests_parts/two_transport_loopback_requests_resource_form_sizes_probe7.rs` | request receipts and timeouts |
 | `crates/libs/rns-transport/src/transport/tests_parts/two_transport_loopback_requests_resource_form_sizes_probe8.rs` | request receipts and timeouts |
+| `crates/libs/rns-transport/src/transport/tests_parts/two_transport_loopback_requests_resource_form_sizes_probe9.rs` | request receipts and timeouts |
 | `crates/libs/rns-transport/src/transport/tests_parts/two_transport_loopback_requests_routing.rs` | request handlers and dispatch, request receipts and timeouts |
 | `crates/libs/rns-transport/src/transport/tests_parts/two_transport_loopback_resources.rs` | request receipts and timeouts |
 | `crates/libs/rns-transport/src/transport/tests_parts/two_transport_loopback_resources_directions.rs` | request receipts and timeouts |
@@ -1350,8 +1352,9 @@ Fork commit `4309e2ee`: new fixture
 displaced transfer is cancelled with one receiver cancel on the link's
 next inbound packet and the replacing record keeps or sets the limit; a
 later advertisement over the limit of a record receiving again cancels
-that partial assembly too. The two `CHANGELOG.md` pin clauses that named
-the reject path as unpinned now cite it.
+that partial assembly too. Of the two `CHANGELOG.md` pin clauses it
+touches, the one that named the reject path as unpinned now cites it and
+the other gained it as a pin.
 
 Fork commit `62cd6799`: `handle_link_resource_packet`
 (`transport/resource_wire.rs`) drains the link's owed response cancels
@@ -1380,11 +1383,11 @@ receipt bullet and the `RequestReceipt` rustdoc
 (`destination/request/receipt.rs`) carry one exception clause, word for
 word: an over-limit packet Response is not posted as `LinkEvent::Data`,
 and a response Resource assembling over the limit has its `Complete`
-withheld. The probe6 pin clause in the `CHANGELOG.md`, the probe6 bare
-`request_packet` test doc and this ledger's `f7d8c60d` paragraph say the
-limit is kept when the send seam re-arms the record's clock. The
-`cancel_inbound_responses` rustdoc (`transport_sections/request.rs`)
-names displaced records alongside failed receipts.
+withheld. The probe6 bare `request_packet` test doc and this ledger's
+`f7d8c60d` paragraph say the limit is kept when the send seam re-arms
+the record's clock. The `cancel_inbound_responses` rustdoc
+(`transport_sections/request.rs`) names displaced records alongside
+failed receipts.
 
 Fork commit `20019b5f`: `..._sizes_cancel2.rs` asserts the
 `InboundFailed` reason is `cancelled` and the event hash is the
@@ -1395,6 +1398,56 @@ import it; the `OutboundRejected` filters in `..._sizes_probe.rs`,
 failure so the assert after them discriminates; the lying-advertisement
 test in `..._sizes_probe5.rs` calls `sizes_probe6_readvertise_under_a_lie`
 instead of its own copy of the decoy-then-lie block.
+
+Fork commit `1dd36956`: `Link::abandon_pending_requests`
+(`link_sections/pending_requests.rs`) clears the whole
+`pending_response_limits` table itself, so the records no receipt owns
+go with the link state where the receipts and the owed cancels already
+went; the follow-up clears after its three callers
+(`request_with_mtu_limit` in `link_sections/new.rs`,
+`finalize_local_close` and `restart` in
+`link_sections/next_watchdog_deadline.rs`) are gone.
+`fail_pending_request` asserts in debug builds that a receipt and its
+record never both hold the inbound response. The
+`fail_all_pending_requests` rustdoc names the stopping transport as a
+caller; the `fail_pending_requests_on_stop` rustdoc
+(`transport/lifecycle.rs`) says the stop sweep drops what receipts were
+receiving and leaves records and owed cancels with the link state.
+`response_record_tests.rs` gains a row seeding a bare record, a
+receiving record and an owed cancel before a fresh link request, a
+restart and a close, and finds nothing of them after.
+
+Fork commit `03f63892`: `handle_link_resource_packet`
+(`transport/resource_wire.rs`) drains the link's owed response cancels
+before the ResourceManager admits the packet, so a cancel owed to a
+displaced assembly fails it before the same packet's advertisement is
+admitted under the fresh record, and the `InboundFailed` it raises goes
+through the routing loop with the manager's other events.
+
+Fork commit `032e9142`: new fixture
+`two_transport_loopback_requests_resource_form_sizes_probe9.rs` (one
+`include!` line in `transport/tests.rs`) pins where the owed cancel
+leaves the link: an over-limit packet response sends it on that packet,
+a `send_request_resource*` re-sent under a receiving id sends it on the
+responder's first part request for the request Resource and the
+replacing record keeps the limit `None` leaves alone or takes the one
+`Some` sets, and the cancel `expect_response` owes leaves on the link's
+next inbound packet, here the responder's own receiver cancel refusing
+an over-`max_request_size` request Resource. The owed-cancel bullet in
+the `CHANGELOG.md` names the fixture and says the drain precedes the
+packet's own admission.
+
+Fork commit `8b512044`: the `owed_response_cancels` field doc
+(`link_parts/linkhandleresult.rs`) and the `take_owed_response_cancels`
+rustdoc (`link_sections/pending_requests.rs`) name receipts and records,
+failed and displaced, the three producers and the drain on the link's
+next inbound packet; the `OutboundRejected` filter in
+`..._sizes_probe3.rs` no longer admits a completion, which an earlier
+neighbour's transfer could supply first; `..._sizes_cancel.rs` and
+`..._sizes_cancel2.rs` build their over-limit envelope with
+`sizes_cancel_probe_oversize_envelope`; `response_packet_tests.rs`
+imports `hash` from `pending_requests_tests.rs` instead of keeping a
+copy; `..._sizes_probe8.rs` spells `Hash` bare like its siblings.
 
 ## 0.14.1 (upstream 0.14.0)
 

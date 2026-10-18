@@ -39,7 +39,8 @@ commits `1ddd5273`, `a2a40de7`, `3805fe7f`, `3ed78582`, `415d67c8`,
 `b836157a`, `30f98996`, `55736b0b`, `f10a7843`, `09f6c98b`, `21fc1c3f`,
 `f7d8c60d`, `f68479d5`, `c13491a7`, `28d7e69b`, `6ce0e712`, `4309e2ee`,
 `62cd6799`, `64ab1317`, `20019b5f`, `1dd36956`, `03f63892`, `032e9142`,
-`8b512044`, `9ebd348b`, `9842695a`, `10f67e30`, `c18098c9`, `3568f1ab` and `f1985d01`.
+`8b512044`, `9ebd348b`, `9842695a`, `10f67e30`, `c18098c9`, `3568f1ab`,
+`f1985d01`, `348cf74d`, `a93e3127` and `c7d5f533`.
 
 | File | Patch |
 | --- | --- |
@@ -85,6 +86,7 @@ commits `1ddd5273`, `a2a40de7`, `3805fe7f`, `3ed78582`, `415d67c8`,
 | `crates/libs/rns-transport/src/destination_parts/module_core.rs` | request handlers and dispatch |
 | `crates/libs/rns-transport/src/destination_parts/module_prelude.rs` | request handlers and dispatch |
 | `crates/libs/rns-transport/src/resource.rs` | request receipts and timeouts |
+| `crates/libs/rns-transport/src/resource/manager.rs` | request receipts and timeouts |
 | `crates/libs/rns-transport/src/resource/manager_cleanup.rs` | request receipts and timeouts |
 | `crates/libs/rns-transport/src/resource/manager_segments.rs` | request receipts and timeouts |
 | `crates/libs/rns-transport/src/resource/tests.rs` | request wire frames and fuzz |
@@ -146,6 +148,7 @@ commits `1ddd5273`, `a2a40de7`, `3805fe7f`, `3ed78582`, `415d67c8`,
 | `crates/libs/rns-transport/src/transport/tests_parts/two_transport_loopback_requests_resource_form_sizes_probe12.rs` | request receipts and timeouts |
 | `crates/libs/rns-transport/src/transport/tests_parts/two_transport_loopback_requests_resource_form_sizes_probe13.rs` | request receipts and timeouts |
 | `crates/libs/rns-transport/src/transport/tests_parts/two_transport_loopback_requests_resource_form_sizes_probe14.rs` | request receipts and timeouts |
+| `crates/libs/rns-transport/src/transport/tests_parts/two_transport_loopback_requests_resource_form_sizes_probe15.rs` | request receipts and timeouts |
 | `crates/libs/rns-transport/src/transport/tests_parts/two_transport_loopback_requests_routing.rs` | request handlers and dispatch, request receipts and timeouts |
 | `crates/libs/rns-transport/src/transport/tests_parts/two_transport_loopback_resources.rs` | request receipts and timeouts |
 | `crates/libs/rns-transport/src/transport/tests_parts/two_transport_loopback_resources_directions.rs` | request receipts and timeouts |
@@ -1552,8 +1555,10 @@ Fork commit `3568f1ab`: `ResourceManager::drain_events_for_link`
 back only the events queued for the given link, leaving the rest in
 order. `handle_link_resource_packet` (`transport/resource_wire.rs`) and
 `handle_resource_proof` (`resource_wire_parts/proof.rs`) drain with it
-after the manager has handled the packet, so their routing loops no
-longer skip events of another link, which a `debug_assert_eq!` on the
+after the manager has admitted the packet (a refused or unsolicited
+advertisement, like an undecryptable Resource packet, skips the drain and
+leaves the link's queue for the periodic drain), so their routing loops
+no longer skip events of another link, which a `debug_assert_eq!` on the
 link id now records as impossible. Before, both drained the whole queue
 and published the other links' events unrouted, so a failure queued for a
 sibling link of the same connector, such as the `InboundFailed` a dropped
@@ -1581,12 +1586,50 @@ link's queued failure leave on one admitting advertisement, the second of
 which failed at `3568f1ab`'s parent and passes after it.
 `..._sizes_cancel.rs` adds `SIZES_OVER_D`, the over-limit `d` the
 `..._probe8.rs`, `..._probe9.rs`, `..._probe10.rs` and `..._probe11.rs`
-advertisements spelt out; those probes' tests with a listener tap close
-by counting no further `ResourceReceiverCancel`; `..._probe13.rs`'s
-header says it biases the race rather than deciding it.
+advertisements spelt out; those probes' tests with a listener tap close by
+counting no further `ResourceReceiverCancel` (the last two such closes,
+probe11's first test and probe10's second, land in `348cf74d`);
+`..._probe13.rs`'s header says it biases the race rather than deciding it.
 `two_transport_loopback_requests_receipt_stop.rs` pins the stop sweep
 cancelling a `Receiving` receipt's inbound response once. The
 `CHANGELOG.md` receipt and owed-cancel bullets name the new pins.
+
+Fork commit `348cf74d`: `ResourceManager::drain_events_for_link`
+(`resource/manager.rs`) becomes `pub(crate)`; every caller is in-crate
+and the crate's public surface is as it was before `3568f1ab`. The stop
+sweep (`transport/lifecycle.rs`) drains the manager queue first and
+appends the cancel events it raises, the order of the retry worker and
+`handle_check_links`. The comment above the owed-cancel drain in
+`handle_link_resource_packet` (`transport/resource_wire.rs`) and the
+owed-cancel bullet in the `CHANGELOG.md` say what the per-link drain
+covers: events queued for the link before a Resource packet it admits
+(or a proof it handles); a refused or unsolicited packet leaves the queue
+for the periodic drain, as other links' events always do. Test changes:
+`..._sizes_probe14.rs` gains a third test, a refused over-limit
+advertisement on a link with a queued failure, where the receipt still
+fails `Receive` on the periodic drain (it documents the contract and
+passes with either drain shape, as its doc says), and its header and
+second test's doc describe the two drains at work; `..._probe11.rs`'s
+first test and `..._probe10.rs`'s second close by counting no further
+`ResourceReceiverCancel` after the `/echo` round trip;
+`..._sizes_cancel_probe.rs` sizes its over-limit envelope from
+`SIZES_OVER_D`; `..._probe12.rs`'s `sizes_probe12_assert_still_inbound`
+treats a lagged broadcast receiver as more events to read rather than
+the end of them. The `CHANGELOG.md` receipt bullet is reflowed in two
+places with no wording change.
+
+Fork commit `a93e3127`: new fixture
+`two_transport_loopback_requests_resource_form_sizes_probe15.rs` (one
+`include!` line in `transport/tests.rs`): the responder's part requests
+and proof for a resource-form request on one link leave a sibling link's
+queued failure for the periodic drain, which fails that receipt `Receive`
+while the request is proved and answered; it fails with the proof-side
+drain of `3568f1ab` reverted alone, which no earlier fixture told apart.
+The `CHANGELOG.md` owed-cancel bullet names it.
+
+Fork commit `c7d5f533`: the third `..._sizes_probe14.rs` test's doc says
+in plain words that a drain on the refused packet would pass the same
+assertions sooner.
 
 ## 0.14.1 (upstream 0.14.0)
 

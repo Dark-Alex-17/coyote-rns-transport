@@ -3,12 +3,8 @@
 #[cfg(test)]
 mod response_packet_tests {
     use super::identify_packet_tests::linked_pair;
-    use super::pending_requests_tests::id;
+    use super::pending_requests_tests::{hash, id};
     use super::*;
-
-    fn hash(byte: u8) -> Hash {
-        Hash::new_from_slice(&[byte; HASH_SIZE])
-    }
 
     /// A receipt-less entry under a 16-byte id reports its limit, so the wire can measure
     /// an assembled response against it; there is no receipt to fail, and the entry goes

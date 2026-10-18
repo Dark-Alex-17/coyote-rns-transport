@@ -41,7 +41,8 @@ async fn sizes_cancel_send_response_packet_from_listener(
         .find_in_link(&pair.handles.link_id)
         .await
         .expect("the listener tracks the inbound link");
-    let packet = in_link.lock().await.response_packet(envelope).expect("the response fits a packet");
+    let packet =
+        in_link.lock().await.response_packet(envelope).expect("the response fits a packet");
     let outcome =
         pair.handles.listener.transport.send_link_packet_on_bound_iface(&in_link, packet).await;
     assert_eq!(outcome, SendPacketOutcome::SentDirect, "the response packet reaches the wire");
@@ -72,8 +73,7 @@ async fn two_transport_loopback_request_resource_form_sizes_oversize_packet_whil
     inject_advertisement_from_listener(&pair, &advertisement).await;
     await_status(&mut status_rx, RequestStatus::Receiving, RECEIPT_TIMEOUT).await;
 
-    let oversize = rmpv::Value::Binary(vec![0u8; SIZES_TIGHT_LIMIT + 64]);
-    let envelope = ResponseFrame::new(receipt.request_id(), oversize).encode();
+    let envelope = sizes_cancel_probe_oversize_envelope(receipt.request_id());
     sizes_cancel_send_response_packet_from_listener(&pair, &envelope).await;
 
     assert_eq!(await_receipt(&receipt).await, Err(RequestError::Oversize));

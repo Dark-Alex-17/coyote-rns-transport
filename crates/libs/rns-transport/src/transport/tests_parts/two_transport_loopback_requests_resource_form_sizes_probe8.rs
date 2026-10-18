@@ -17,7 +17,7 @@ async fn sizes_probe8_await_inbound_failed(
     events: &mut broadcast::Receiver<ResourceEvent>,
     link_id: AddressHash,
     id: RequestId,
-    hash: crate::hash::Hash,
+    hash: Hash,
 ) {
     let failed = timeout(LOOPBACK_TIMEOUT, async {
         loop {
@@ -48,7 +48,7 @@ async fn sizes_probe8_await_inbound_failed(
 async fn sizes_probe8_receiving_record(
     pair: &LoopbackRequestPair,
     listener_tap: &mut broadcast::Receiver<RxMessage>,
-) -> (RequestId, crate::hash::Hash) {
+) -> (RequestId, Hash) {
     let id =
         sizes_probe2_send_limited_request_packet(pair, "/quiet", Some(SIZES_TIGHT_LIMIT)).await;
     let hash = sizes_probe8_admit_advertisement(pair, listener_tap, id).await;
@@ -63,7 +63,7 @@ async fn sizes_probe8_admit_advertisement(
     pair: &LoopbackRequestPair,
     listener_tap: &mut broadcast::Receiver<RxMessage>,
     id: RequestId,
-) -> crate::hash::Hash {
+) -> Hash {
     let link_id = pair.handles.link_id;
     // Part requests already on the tap belong to an earlier receiver.
     let _ = count_link_packets(listener_tap, link_id, PacketContext::ResourceRequest);

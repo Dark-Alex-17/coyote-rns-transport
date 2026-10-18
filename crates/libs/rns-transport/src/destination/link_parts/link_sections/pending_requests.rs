@@ -105,11 +105,12 @@ impl Link {
         pending_receiving.or(record_receiving)
     }
 
-    /// The response Resources owed a cancel: a receipt failed by a packet
-    /// the link handled alone, an over-limit response packet for a receipt
-    /// already receiving a response Resource, cannot reach the
-    /// ResourceManager from `handle_packet`, so the transport drains this
-    /// after the call and cancels each one (`RNS/Link.py:1435`).
+    /// The response Resources owed a cancel: a receipt or a record failed or
+    /// displaced under the link lock while receiving (an over-limit packet
+    /// response, a request re-sent under a receiving id, `expect_response`
+    /// over a receiving record) cannot reach the ResourceManager, so the
+    /// transport drains this on the link's next inbound packet, Resource
+    /// packets included, and cancels each one (`RNS/Link.py:1435`).
     #[deny(clippy::await_holding_invalid_type)]
     #[must_use = "the hashes are for the caller to cancel"]
     pub(crate) fn take_owed_response_cancels(&mut self) -> Vec<InboundResponseHashes> {

@@ -140,9 +140,12 @@ pub struct Link {
     /// `DELIVERED` stays, so a packet-form marker there can outlive this entry.
     pending_response_limits: HashMap<Vec<u8>, PendingResponseLimit>,
     pending_requests: HashMap<RequestId, PendingRequest>,
-    /// Response Resources still inbound for receipts `handle_packet` failed
-    /// on its own; the ResourceManager is out of reach there, so the
-    /// transport drains these after the call and cancels them
+    /// Response Resources still inbound that a receipt or a record failed or
+    /// displaced under the link lock left owed a cancel: an over-limit
+    /// packet response, a request re-sent under a receiving id,
+    /// `expect_response` over a receiving record. The ResourceManager is
+    /// out of reach there, so the transport drains these on the link's
+    /// next inbound packet, Resource packets included, and cancels each
     /// (`RNS/Link.py:1435`).
     owed_response_cancels: Vec<InboundResponseHashes>,
     request_dispatch: Option<tokio::sync::mpsc::Sender<DispatchItem>>,

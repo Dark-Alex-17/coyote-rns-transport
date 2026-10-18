@@ -24,8 +24,7 @@ async fn two_transport_loopback_request_resource_form_sizes_cancel2_oversize_pac
     // The connector asks for parts only once the record is marked receiving.
     await_link_packets(&mut listener_tap, link_id, PacketContext::ResourceRequest, 1).await;
 
-    let oversize = rmpv::Value::Binary(vec![0u8; SIZES_TIGHT_LIMIT + 64]);
-    let envelope = ResponseFrame::new(id, oversize).encode();
+    let envelope = sizes_cancel_probe_oversize_envelope(id);
     sizes_cancel_send_response_packet_from_listener(&pair, &envelope).await;
 
     let failed = await_resource_event(&mut events, |event| {

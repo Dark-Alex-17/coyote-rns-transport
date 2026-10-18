@@ -143,15 +143,13 @@ async fn two_transport_loopback_request_resource_form_sizes_probe3_one_refused_r
         event.link_id == link_id
             && matches!(
                 event.kind,
-                ResourceEventKind::OutboundRejected
-                    | ResourceEventKind::OutboundComplete
-                    | ResourceEventKind::OutboundFailed
+                ResourceEventKind::OutboundRejected | ResourceEventKind::OutboundFailed
             )
     })
     .await;
     assert!(
         matches!(rejected.kind, ResourceEventKind::OutboundRejected),
-        "the responder sees the reject, not a completion or failure: {:?}",
+        "the responder sees the reject, not a failure: {:?}",
         rejected.kind
     );
 

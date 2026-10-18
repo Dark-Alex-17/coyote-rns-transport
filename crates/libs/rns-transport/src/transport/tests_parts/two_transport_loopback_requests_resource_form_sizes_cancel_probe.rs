@@ -9,7 +9,7 @@
 
 /// A packet response the connector will measure as over `SIZES_TIGHT_LIMIT`.
 fn sizes_cancel_probe_oversize_envelope(id: RequestId) -> Vec<u8> {
-    ResponseFrame::new(id, rmpv::Value::Binary(vec![0u8; SIZES_TIGHT_LIMIT + 64])).encode()
+    ResponseFrame::new(id, rmpv::Value::Binary(vec![0u8; SIZES_OVER_D as usize])).encode()
 }
 
 /// A `/quiet` receipt under `SIZES_TIGHT_LIMIT` moved to `Receiving` by an unbacked

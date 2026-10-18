@@ -119,7 +119,8 @@ impl Transport {
             );
             return;
         };
-        let mut events = Vec::new();
+        // No routed drain follows a stop; publishing the queue is all that is left.
+        let mut events = handler.resource_manager.drain_events();
         for (link_id, response) in receiving {
             let cancelled = handler.resource_manager.cancel_incoming_response(
                 response.segment,
@@ -128,8 +129,6 @@ impl Transport {
             );
             events.extend(cancelled.event);
         }
-        // No routed drain follows a stop; publishing the queue is all that is left.
-        events.extend(handler.resource_manager.drain_events());
         super::resource_wire::publish_resource_events(&handler, events);
     }
 }

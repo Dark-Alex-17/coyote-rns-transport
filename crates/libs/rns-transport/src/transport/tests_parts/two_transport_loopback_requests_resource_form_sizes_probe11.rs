@@ -115,6 +115,11 @@ async fn two_transport_loopback_request_resource_form_sizes_probe11_a_second_dis
     sizes_probe11_await_cancelled(&mut events, link_id, advertisement.hash).await;
 
     sizes_assert_link_still_answers(&pair).await;
+    assert_eq!(
+        count_link_packets(&mut listener_tap, link_id, PacketContext::ResourceReceiverCancel),
+        0,
+        "no further receiver cancel leaves the connector"
+    );
 }
 
 /// `expect_response(id, Some(4 * SIZES_TIGHT_LIMIT))` over a record receiving under

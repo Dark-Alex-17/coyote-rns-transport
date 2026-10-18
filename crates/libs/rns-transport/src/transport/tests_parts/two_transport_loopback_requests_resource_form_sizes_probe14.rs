@@ -1,14 +1,18 @@
 // Usage-pattern coverage of the two kinds of failure event that can meet on one inbound
-// Resource packet, written from the public contract: everything the ResourceManager queued
-// before a packet is routed by that packet's drain and reaches the receipt it concerns,
-// while the failure a cancel the link owes produces is published and never routed. The
-// first test makes the packet the responder's advertisement for a response another receipt
-// is waiting on, which is admitted: the queued failure fails its receipt `Receive` no later
-// than the admitted response completes. The second adds a cancel the pair's link owes to a
-// displaced record and makes the queued failure come from a second link of the same
-// connector, so one drain carries both: the owed cancel goes out once, the other link's
-// receipt fails `Receive`, the admitted response assembles. Helpers come from the sibling
-// `tests_parts` files.
+// Resource packet, written from the public contract: a packet the link admits routes what
+// the ResourceManager queued for that link before it, and each event reaches the receipt it
+// concerns; a failure queued for a sibling link waits for the periodic routed drain; a
+// refused or unsolicited packet routes nothing and leaves the link's queue for that
+// periodic drain; and the failure a cancel the link owes produces is published and never
+// routed. The first test makes the packet the responder's advertisement for a response
+// another receipt is waiting on, which is admitted: the queued failure fails its receipt
+// `Receive` no later than the admitted response completes. The second adds a cancel the
+// pair's link owes to a displaced record and makes the queued failure come from a second
+// link of the same connector, so two drains share the work: the admitting packet's sends
+// the owed cancel once and assembles the response, the periodic one fails the other link's
+// receipt `Receive`. The third refuses an over-limit advertisement on the pair's link while
+// a failure is queued for that same link: the refusal routes nothing, and the periodic
+// drain fails the receipt. Helpers come from the sibling `tests_parts` files.
 
 /// Sends `advertisement` from the responder over `link_id` as a resource advertisement
 /// packet; `inject_advertisement_from_listener` for a link other than the pair's.
@@ -104,14 +108,16 @@ async fn two_transport_loopback_request_resource_form_sizes_probe14_a_queued_fai
     sizes_assert_link_still_answers(&pair).await;
 }
 
-/// One drain, both failure kinds. On the pair's link a receipt-less record receiving an
+/// Both failure kinds, two drains. On the pair's link a receipt-less record receiving an
 /// unbacked response is displaced by `expect_response(id, None)`, so the link owes that
 /// transfer a cancel. On a second link of the same connector a receipt `Receiving` has its
 /// inbound Resource dropped, which queues a failure in the shared manager. The pair link's
 /// next inbound packet is the responder's advertisement for a third request's response:
 /// the owed cancel leaves on it once and only its transfer is reported cancelled, the
-/// second link's receipt fails `Receive`, the advertised response is admitted and read
-/// whole, and nothing is cancelled on the second link, whose receiver was already gone.
+/// advertised response is admitted and read whole, and the admitting packet's drain leaves
+/// the second link's failure queued. The periodic drain routes it: the second link's
+/// receipt fails `Receive`, and nothing is cancelled on that link, whose receiver was
+/// already gone.
 #[tokio::test]
 #[deny(clippy::await_holding_invalid_type)]
 async fn two_transport_loopback_request_resource_form_sizes_probe14_an_owed_cancel_and_a_queued_failure_from_another_link_leave_on_one_admitting_advertisement(
@@ -149,8 +155,8 @@ async fn two_transport_loopback_request_resource_form_sizes_probe14_an_owed_canc
     let response = await_receipt(&answered).await.expect("the admitted response completes");
     assert_eq!(response.into_value(), Some(rmpv::Value::Binary(body)));
 
-    // Within the loopback budget whichever drain finds the queued failure: the admitting
-    // packet's, or the retry worker's if the packet's left it behind.
+    // The admitting packet's drain is confined to the pair's link, so the sibling link's
+    // failure waits for the retry worker's drain, which runs within the loopback budget.
     assert_eq!(
         await_receipt(&dropped).await,
         Err(RequestError::Receive),
@@ -172,4 +178,61 @@ async fn two_transport_loopback_request_resource_form_sizes_probe14_an_owed_canc
         "a receiver already dropped has nothing left to cancel"
     );
     sizes_assert_link_still_answers(&pair).await;
+}
+
+/// A receipt `Receiving` an unbacked response on the pair's link has its inbound Resource
+/// dropped, which queues a failure for that link, and the link's next inbound Resource
+/// packet is an over-limit advertisement for a second receipt, refused with a receiver
+/// cancel. The refused advertisement fails its own receipt `Oversize` and routes nothing:
+/// the queued failure still reaches the dropped receipt, `Err(Receive)` then `Failed`,
+/// within the periodic drain's window, and the link still answers. This documents the
+/// contract; it is not RED-capable against the per-link drain, since a drain on the
+/// refused packet would route the same failure sooner and pass the same assertions.
+#[tokio::test]
+#[deny(clippy::await_holding_invalid_type)]
+async fn two_transport_loopback_request_resource_form_sizes_probe14_a_refused_advertisement_leaves_a_queued_same_link_failure_for_the_periodic_drain(
+) {
+    let pair = loopback_request_pair("sizes-probe14-refused-advertisement").await;
+    let mut listener_tap = pair.handles.listener.transport.iface_rx();
+    let link_id = pair.handles.link_id;
+    register_handler(&pair, "/quiet", RequestAllow::All, silent_handler()).await;
+    register_handler(&pair, "/echo", RequestAllow::All, echo_handler()).await;
+
+    let dropped = sizes_probe14_receiving_receipt_on(&pair, link_id).await;
+    let refused = pair
+        .handles
+        .connector
+        .transport
+        .request(
+            &link_id,
+            "/quiet",
+            rmpv::Value::Nil,
+            RequestOptions::default().with_max_response_size(SIZES_TIGHT_LIMIT),
+        )
+        .await
+        .expect("request is sent");
+    drop_resource_state(&pair.handles.connector.transport, link_id).await;
+    assert_eq!(dropped.status(), RequestStatus::Receiving, "the drop queues, it does not route");
+
+    // The link's next inbound Resource packet is refused at its advertisement.
+    let over = sizes_cancel_unbacked_response_advertisement(refused.request_id(), SIZES_OVER_D);
+    inject_advertisement_from_listener(&pair, &over).await;
+    assert_eq!(
+        await_receipt(&refused).await,
+        Err(RequestError::Oversize),
+        "the refused advertisement fails the receipt it names"
+    );
+
+    assert_eq!(
+        await_receipt(&dropped).await,
+        Err(RequestError::Receive),
+        "the periodic drain routes the queued failure"
+    );
+    assert_eq!(dropped.status(), RequestStatus::Failed);
+    sizes_assert_link_still_answers(&pair).await;
+    assert_eq!(
+        count_link_packets(&mut listener_tap, link_id, PacketContext::ResourceReceiverCancel),
+        1,
+        "the refused advertisement draws one receiver cancel; the dropped receiver had nothing left"
+    );
 }

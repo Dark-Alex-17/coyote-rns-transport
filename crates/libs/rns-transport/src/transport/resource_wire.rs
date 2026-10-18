@@ -199,9 +199,11 @@ pub(super) async fn handle_link_resource_packet<'a>(
     // A cancel the link owed fails the displaced assembly before this
     // packet's advertisement is admitted. Its `InboundFailed` comes back in
     // `cancel_events` and never enters the manager's queue, so a retry of
-    // the same hash admitted by this packet keeps its fresh record, and
-    // everything the manager queued for this link before this packet is
-    // routed below; other links' events wait for the periodic drain.
+    // the same hash admitted by this packet keeps its fresh record. What
+    // the manager queued for this link before this packet is routed below
+    // only when the packet is admitted; a refused or unsolicited packet
+    // leaves it for the periodic drain, and other links' events wait for
+    // that periodic drain as well.
     drain_owed_response_cancels(
         &mut handler.resource_manager,
         &mut link,

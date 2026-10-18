@@ -192,9 +192,9 @@ trailing clause of the bullet for the behaviour it pins.
   held when it runs out is skipped with a warning, the other links are
   still swept, a swept receipt's inbound response Resource is cancelled
   and reported `InboundFailed("cancelled")` once inside `stop`, and the
-  skipped link's receipts conclude `LinkClosed` once
-  the link is dropped. A request on a link that is not `Active` is refused
-  with `RnsError::ConnectionError`, `Stale` included, where Python drops a
+  skipped link's receipts conclude `LinkClosed` once the link is dropped. A
+  request on a link that is not `Active` is refused with
+  `RnsError::ConnectionError`, `Stale` included, where Python drops a
   packet only on a `CLOSED` one (`RNS/Packet.py:294-295`). Pinned by
   `transport/tests_parts/two_transport_loopback_requests_receipt.rs`,
   `two_transport_loopback_requests_receipt_timeouts.rs`,
@@ -396,11 +396,13 @@ trailing clause of the bullet for the behaviour it pins.
   packet keeps its fresh record; this holds by construction:
   `ResourceManager::cancel_incoming_response` hands the event back to its
   caller instead of queueing it, so it never enters the manager's event
-  queue; everything the manager queued for this link before a packet is
-  routed by that packet's drain; other links' events wait for the periodic
-  drain, which routes them. Before, a Resource packet or proof drained the
-  whole queue and published the other links' events unrouted, so a receipt
-  on a sibling link could sit `Receiving` after its transfer was dropped. Pinned by
+  queue; everything the manager queued for this link before a Resource
+  packet it admits (or a proof it handles) is routed by that packet's
+  drain; a refused or unsolicited packet leaves the queue for the periodic
+  drain, which routes it; other links' events wait for that periodic drain
+  as well. Before, a Resource packet or proof drained the whole queue and
+  published the other links' events unrouted, so a receipt on a sibling
+  link could sit `Receiving` after its transfer was dropped. Pinned by
   `destination/link_parts/link_sections/response_record_tests.rs` and
   `transport/tests_parts/two_transport_loopback_requests_resource_form_sizes_cancel2.rs`
   (exactly one `ResourceReceiverCancel` reaches the responder), and
@@ -438,7 +440,9 @@ trailing clause of the bullet for the behaviour it pins.
   which still assembles; and on one admitting advertisement an owed cancel
   goes out once while a failure queued for a sibling link of the same
   connector fails that link's receipt `Receive`, with no receiver cancel on
-  either link afterwards), and `resource/tests_timeouts_lifecycle.rs`
+  either link afterwards; and a refused advertisement on the link routes
+  nothing, so a failure queued for that link reaches its receipt on the
+  periodic drain), and `resource/tests_timeouts_lifecycle.rs`
   (`..._drain_events_for_link_leaves_other_links_events_queued`: a
   packet's drain takes its link's events in order and leaves the others
   queued in order; `..._drops_the_receiver_and_the_assembly_together`: a

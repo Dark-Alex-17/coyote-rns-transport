@@ -135,11 +135,11 @@ async fn two_transport_loopback_request_resource_form_sizes_probe10_owed_cancel_
     )
     .await;
     sizes_probe10_await_response_complete(&mut events, link_id, other).await;
+
+    sizes_assert_link_still_answers(&pair).await;
     assert_eq!(
         count_link_packets(&mut listener_tap, link_id, PacketContext::ResourceReceiverCancel),
         0,
         "the other id's response is not cancelled"
     );
-
-    sizes_assert_link_still_answers(&pair).await;
 }

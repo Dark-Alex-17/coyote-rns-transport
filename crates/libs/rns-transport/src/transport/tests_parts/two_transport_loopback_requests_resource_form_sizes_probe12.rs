@@ -35,15 +35,21 @@ fn sizes_probe12_assert_still_inbound(
     link_id: AddressHash,
     id: RequestId,
 ) {
-    while let Ok(event) = events.try_recv() {
-        if event.link_id == link_id {
-            if let ResourceEventKind::Complete(complete) = &event.kind {
-                assert_ne!(
-                    complete.request_id.as_deref(),
-                    Some(id.as_bytes().as_slice()),
-                    "premise: the response Resource is still inbound when the packet is sent"
-                );
+    loop {
+        match events.try_recv() {
+            Ok(event) => {
+                if event.link_id == link_id {
+                    if let ResourceEventKind::Complete(complete) = &event.kind {
+                        assert_ne!(
+                            complete.request_id.as_deref(),
+                            Some(id.as_bytes().as_slice()),
+                            "premise: the response Resource is still inbound when the packet is sent"
+                        );
+                    }
+                }
             }
+            Err(broadcast::error::TryRecvError::Lagged(_)) => continue,
+            Err(_) => break,
         }
     }
 }

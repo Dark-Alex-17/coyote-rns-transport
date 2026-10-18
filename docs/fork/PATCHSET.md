@@ -39,7 +39,7 @@ commits `1ddd5273`, `a2a40de7`, `3805fe7f`, `3ed78582`, `415d67c8`,
 `b836157a`, `30f98996`, `55736b0b`, `f10a7843`, `09f6c98b`, `21fc1c3f`,
 `f7d8c60d`, `f68479d5`, `c13491a7`, `28d7e69b`, `6ce0e712`, `4309e2ee`,
 `62cd6799`, `64ab1317`, `20019b5f`, `1dd36956`, `03f63892`, `032e9142`,
-`8b512044`, `9ebd348b` and `9842695a`.
+`8b512044`, `9ebd348b`, `9842695a`, `10f67e30` and `c18098c9`.
 
 | File | Patch |
 | --- | --- |
@@ -141,6 +141,9 @@ commits `1ddd5273`, `a2a40de7`, `3805fe7f`, `3ed78582`, `415d67c8`,
 | `crates/libs/rns-transport/src/transport/tests_parts/two_transport_loopback_requests_resource_form_sizes_probe8.rs` | request receipts and timeouts |
 | `crates/libs/rns-transport/src/transport/tests_parts/two_transport_loopback_requests_resource_form_sizes_probe9.rs` | request receipts and timeouts |
 | `crates/libs/rns-transport/src/transport/tests_parts/two_transport_loopback_requests_resource_form_sizes_probe10.rs` | request receipts and timeouts |
+| `crates/libs/rns-transport/src/transport/tests_parts/two_transport_loopback_requests_resource_form_sizes_probe11.rs` | request receipts and timeouts |
+| `crates/libs/rns-transport/src/transport/tests_parts/two_transport_loopback_requests_resource_form_sizes_probe12.rs` | request receipts and timeouts |
+| `crates/libs/rns-transport/src/transport/tests_parts/two_transport_loopback_requests_resource_form_sizes_probe13.rs` | request receipts and timeouts |
 | `crates/libs/rns-transport/src/transport/tests_parts/two_transport_loopback_requests_routing.rs` | request handlers and dispatch, request receipts and timeouts |
 | `crates/libs/rns-transport/src/transport/tests_parts/two_transport_loopback_resources.rs` | request receipts and timeouts |
 | `crates/libs/rns-transport/src/transport/tests_parts/two_transport_loopback_resources_directions.rs` | request receipts and timeouts |
@@ -1377,7 +1380,10 @@ receipt-less record and the cleared owed cancels. Both probe8 tests make
 the next inbound packet a response advertisement and count the keepalive
 and Response packets that reached the connector's link at zero on its
 interface tap, pinning the cancel to the Resource path. `wire.rs` notes
-the Resource path drains for itself.
+the Resource path drains for itself. The whole-queue `drain_events` that
+`owed_response_cancels` returned alongside the cancels is gone since
+`10f67e30`: the cancel's event comes back from the manager, and the
+queue is left for the next routed drain.
 
 Fork commit `64ab1317`: the crate `README.md`, the crate `CHANGELOG.md`
 receipt bullet and the `RequestReceipt` rustdoc
@@ -1471,10 +1477,14 @@ receiver cancel; an advertisement for another id is admitted and
 assembled. `..._sizes_probe9.rs` renames its helper to
 `sizes_probe9_assert_displaced_transfer_cancelled` and says that
 `send_request_resource*` cancels the displaced transfer in the call,
-before the request Resource is advertised; `..._sizes_cancel.rs` adds
-`SIZES_CANCEL_ADMITTED_D` and reuses `sizes_cancel_probe_receiving_receipt`.
+before the request Resource is advertised, and uses it for its own
+advertisements; `..._sizes_cancel.rs` adds `SIZES_CANCEL_ADMITTED_D` and
+reuses `sizes_cancel_probe_receiving_receipt`.
 The owed-cancel bullet in the `CHANGELOG.md` says the cancel's failure
-is published and not routed and names the new fixture.
+is published and not routed and names the new fixture. The pre-admission
+`drain_events` and the `admitted_from` skip this commit added are gone
+since `10f67e30`: the cancel's event never enters the queue, so the
+single post-admission drain is routed in full again.
 
 Fork commit `9842695a`: `..._sizes_cancel_probe.rs`, `..._sizes_cancel2.rs`
 and `..._sizes_probe8.rs` build their admitted advertisement with
@@ -1484,6 +1494,55 @@ single-segment advertisement's original hash is its own;
 barrier its round trip provides; the `expect_response` rustdoc
 (`link_sections/response_packet.rs`) covers the record waiting on a
 request Resource.
+
+Fork commit `10f67e30`: `ResourceManager::cancel_incoming_response`
+(`resource/manager_cleanup.rs`) returns `CancelledResponse`, whether a
+receiver was in flight and the transfer's `InboundFailed("cancelled")`,
+instead of pushing that event onto the manager's queue; `cancel_incoming`
+is folded into the private `take_cancelled_incoming`, which builds the
+event, and `fail_inbound_segments` (`resource/manager_segments.rs`)
+splits the assembly removal into `take_inbound_segments`, which both
+share. The cancel's event had to be published and not routed, and every
+site that kept it out of the routing loop drained the whole queue
+publish-only, swallowing any failure the manager had queued across a lock
+release before the packet, so the receipt parked `Receiving` with no
+clock; the receipt-timeouts fixture `..._failed_response_resource_fails_receive`
+races exactly that. `cancel_inbound_response` and
+`drain_owed_response_cancels` (`resource_wire_parts/cancel.rs`) take
+an `events` sink, `owed_response_cancels` returns only the returned
+cancel events and `note_resource_events_on_links` returns the ones it
+raised; `handle_link_resource_packet` (`transport/resource_wire.rs`)
+collects every cancel event in `cancel_events` and appends it after the
+`suppressed` removal, with one post-admission drain routed in full;
+`handle_resource_proof` (`resource_wire_parts/proof.rs`), `handle_data`
+(`transport/wire.rs`), `cancel_inbound_responses`
+(`links_parts/transport_sections/request.rs`), the retry worker
+(`transport/jobs.rs`) and `handle_check_links`
+(`jobs_parts/link_maintenance.rs`) publish the returned events and drop
+their second whole-queue drain; the stop sweep (`transport/lifecycle.rs`)
+publishes the returned events with the queue it already drained, since
+no routed drain follows a stop. The manager unit tests
+(`resource/tests_timeouts_lifecycle.rs`) read the returned struct and
+assert the queue is untouched. The owed-cancel bullet in the
+`CHANGELOG.md` says the publish-not-route property now holds by
+construction.
+
+Fork commit `c18098c9`: new fixtures
+`two_transport_loopback_requests_resource_form_sizes_probe11.rs`,
+`..._probe12.rs` and `..._probe13.rs` (three `include!` lines in
+`transport/tests.rs`): probe11 runs the displace-and-retry cycle twice
+on one id and widens the limit while displacing, probe12 answers a
+receipt-less `Receiving` record with an in-limit packet response and
+lets a real many-part response over the legacy MTU complete, probe13
+makes the race of `..._failed_response_resource_fails_receive`
+deterministic by dropping the connector's Resource state and sending an
+unsolicited advertisement before the retry worker's drain, which failed
+at `10f67e30`'s parent and passes after it. `..._sizes_cancel_probe.rs`
+reads the admitted `d` from `SIZES_CANCEL_ADMITTED_D`;
+`resolve_pending_request` (`link_sections/pending_requests.rs`) drops
+its over-limit `debug!`, leaving the wire-level `warn!` as the one log
+per over-limit assembly. The owed-cancel bullet in the `CHANGELOG.md`
+names the three fixtures.
 
 ## 0.14.1 (upstream 0.14.0)
 

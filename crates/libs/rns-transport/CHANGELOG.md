@@ -372,7 +372,10 @@ trailing clause of the bullet for the behaviour it pins.
   orphaning it in the ResourceManager. The Link half, the record handing
   back what it was receiving, is pinned by
   `destination/link_parts/link_sections/response_record_tests.rs`; the wire
-  half, the reject path sending that cancel, has no loopback fixture yet.
+  half, the reject path sending that cancel, by
+  `transport/tests_parts/two_transport_loopback_requests_resource_form_sizes_probe8.rs`
+  (a later advertisement over the limit of a record receiving again
+  cancels that partial assembly too).
 
 - A record no receipt owns that is removed or replaced while receiving a
   response Resource hands that transfer back to be cancelled, like the
@@ -387,7 +390,11 @@ trailing clause of the bullet for the behaviour it pins.
   packet. Pinned by
   `destination/link_parts/link_sections/response_record_tests.rs` and
   `transport/tests_parts/two_transport_loopback_requests_resource_form_sizes_cancel2.rs`
-  (exactly one `ResourceReceiverCancel` reaches the responder).
+  (exactly one `ResourceReceiverCancel` reaches the responder), and
+  `transport/tests_parts/two_transport_loopback_requests_resource_form_sizes_probe8.rs`
+  (the public `expect_response` over a receipt-less record receiving its
+  response: the displaced transfer is cancelled and the replacing record
+  keeps or sets the limit).
 
 - `Transport::send_direct`, `send_response_resource_with_compression` and
   the transport's link lookup delegate to free functions in

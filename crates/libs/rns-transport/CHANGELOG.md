@@ -190,7 +190,9 @@ trailing clause of the bullet for the behaviour it pins.
   `response()`, and `response()` returns the same. The receipt sweep in
   `Transport::stop` shares `stop`'s 5 s budget: a link whose lock is still
   held when it runs out is skipped with a warning, the other links are
-  still swept, and the skipped link's receipts conclude `LinkClosed` once
+  still swept, a swept receipt's inbound response Resource is cancelled
+  and reported `InboundFailed("cancelled")` once inside `stop`, and the
+  skipped link's receipts conclude `LinkClosed` once
   the link is dropped. A request on a link that is not `Active` is refused
   with `RnsError::ConnectionError`, `Stale` included, where Python drops a
   packet only on a `CLOSED` one (`RNS/Packet.py:294-295`). Pinned by
@@ -428,9 +430,15 @@ trailing clause of the bullet for the behaviour it pins.
   `transport/tests_parts/two_transport_loopback_requests_resource_form_sizes_probe13.rs`
   (a manager failure queued before an unrelated Resource packet on the
   link still reaches the receipt as `Err(RequestError::Receive)`; this
-  made the race the receipt-timeouts fixture
+  biases the race the receipt-timeouts fixture
   `..._failed_response_resource_fails_receive` runs against the retry
-  worker deterministic), and `resource/tests_timeouts_lifecycle.rs`
+  worker so the inbound packet all but certainly wins),
+  `transport/tests_parts/two_transport_loopback_requests_resource_form_sizes_probe14.rs`
+  (a queued failure leaves on the advertisement another receipt admits,
+  which still assembles; and on one admitting advertisement an owed cancel
+  goes out once while a failure queued for a sibling link of the same
+  connector fails that link's receipt `Receive`, with no receiver cancel on
+  either link afterwards), and `resource/tests_timeouts_lifecycle.rs`
   (`..._drain_events_for_link_leaves_other_links_events_queued`: a
   packet's drain takes its link's events in order and leaves the others
   queued in order; `..._drops_the_receiver_and_the_assembly_together`: a

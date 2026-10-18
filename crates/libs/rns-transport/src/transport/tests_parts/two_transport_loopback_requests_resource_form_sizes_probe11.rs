@@ -109,7 +109,7 @@ async fn two_transport_loopback_request_resource_form_sizes_probe11_a_second_dis
         );
     }
 
-    let over = sizes_cancel_unbacked_response_advertisement(id, (SIZES_TIGHT_LIMIT + 64) as u64);
+    let over = sizes_cancel_unbacked_response_advertisement(id, SIZES_OVER_D);
     inject_advertisement_from_listener(&pair, &over).await;
     await_link_packets(&mut listener_tap, link_id, PacketContext::ResourceReceiverCancel, 1).await;
     sizes_probe11_await_cancelled(&mut events, link_id, advertisement.hash).await;
@@ -156,7 +156,7 @@ async fn two_transport_loopback_request_resource_form_sizes_probe11_a_wider_limi
     // one alone could be a retry of an earlier receiver: the hash the refusal below cancels
     // is what shows this advertisement was admitted under the record.
     let _ = count_link_packets(&mut listener_tap, link_id, PacketContext::ResourceRequest);
-    let between = sizes_cancel_unbacked_response_advertisement(id, (SIZES_TIGHT_LIMIT + 64) as u64);
+    let between = sizes_cancel_unbacked_response_advertisement(id, SIZES_OVER_D);
     inject_advertisement_from_listener(&pair, &between).await;
     await_link_packets(&mut listener_tap, link_id, PacketContext::ResourceRequest, 1).await;
     assert_eq!(
@@ -172,4 +172,9 @@ async fn two_transport_loopback_request_resource_form_sizes_probe11_a_wider_limi
     sizes_probe11_await_cancelled(&mut events, link_id, between.hash).await;
 
     sizes_assert_link_still_answers(&pair).await;
+    assert_eq!(
+        count_link_packets(&mut listener_tap, link_id, PacketContext::ResourceReceiverCancel),
+        0,
+        "no further receiver cancel leaves the connector"
+    );
 }

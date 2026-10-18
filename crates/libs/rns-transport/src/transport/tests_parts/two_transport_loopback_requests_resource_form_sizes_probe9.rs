@@ -141,6 +141,11 @@ async fn two_transport_loopback_request_resource_form_sizes_probe9_oversize_pack
         "the cancel did not wait for a keepalive"
     );
     sizes_assert_link_still_answers(&pair).await;
+    assert_eq!(
+        count_link_packets(&mut listener_tap, link_id, PacketContext::ResourceReceiverCancel),
+        0,
+        "no further receiver cancel leaves the connector"
+    );
 }
 
 /// `send_request_resource` under an id whose receipt-less record is receiving: the record
@@ -178,7 +183,7 @@ async fn two_transport_loopback_request_resource_form_sizes_probe9_request_resou
     inject_advertisement_from_listener(&pair, &under).await;
     await_link_packets(&mut listener_tap, link_id, PacketContext::ResourceRequest, 1).await;
 
-    let over = sizes_cancel_unbacked_response_advertisement(id, (SIZES_TIGHT_LIMIT + 64) as u64);
+    let over = sizes_cancel_unbacked_response_advertisement(id, SIZES_OVER_D);
     inject_advertisement_from_listener(&pair, &over).await;
     sizes_probe8_await_inbound_failed(&mut events, link_id, id, under.hash).await;
     await_link_packets(&mut listener_tap, link_id, PacketContext::ResourceReceiverCancel, 2).await;
@@ -228,6 +233,11 @@ async fn two_transport_loopback_request_resource_form_sizes_probe9_request_resou
         "the refused advertisement is not asked for parts"
     );
     sizes_assert_link_still_answers(&pair).await;
+    assert_eq!(
+        count_link_packets(&mut listener_tap, link_id, PacketContext::ResourceReceiverCancel),
+        0,
+        "no further receiver cancel leaves the connector"
+    );
 }
 
 /// `expect_response(id, None)` over a receiving receipt-less record, then a request
@@ -285,4 +295,13 @@ async fn two_transport_loopback_request_resource_form_sizes_probe9_expect_respon
         outcome.kind
     );
     sizes_assert_link_still_answers(&pair).await;
+    assert_eq!(
+        count_link_packets(
+            &mut listener_tap,
+            pair.handles.link_id,
+            PacketContext::ResourceReceiverCancel
+        ),
+        0,
+        "no further receiver cancel leaves the connector"
+    );
 }

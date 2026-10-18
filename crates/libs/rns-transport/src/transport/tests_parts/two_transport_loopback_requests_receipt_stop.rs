@@ -135,3 +135,45 @@ async fn two_transport_loopback_stop_sweeps_the_links_it_can_lock_beside_a_held_
         .expect("the receipt concludes once the link is dropped");
     assert_eq!(outcome, Err(RequestError::LinkClosed));
 }
+
+/// The sweep fails a receipt `Receiving` a response Resource `LinkClosed` and cancels the
+/// transfer it was receiving, whose `InboundFailed("cancelled")` is published once, inside
+/// `stop`. The listener is stalled so the transfer is still inbound when `stop` runs.
+#[tokio::test]
+#[deny(clippy::await_holding_invalid_type)]
+async fn two_transport_loopback_stop_cancels_the_response_a_swept_receipt_was_receiving() {
+    let pair = loopback_request_pair_with_mtu("receipt-stop-receiving", LEGACY_MTU).await;
+    let link_id = pair.handles.link_id;
+    let body = random_payload(LONG_RESPONSE_LEN);
+    register_handler(&pair, "/long", RequestAllow::All, move |_: InboundRequest| {
+        std::future::ready(Some(RequestResponse::Bytes(body.clone())))
+    })
+    .await;
+    let mut events = pair.handles.connector.transport.resource_events();
+
+    let receipt = request(&pair, "/long", rmpv::Value::Nil).await;
+    let mut status_rx = receipt.subscribe();
+    await_status(&mut status_rx, RequestStatus::Receiving, LOOPBACK_TIMEOUT).await;
+    let stall = stall_transport(&pair.handles.listener.transport).await;
+
+    pair.handles.connector.transport.stop().await;
+    assert_eq!(receipt.status(), RequestStatus::Failed, "the sweep failed the receipt");
+    assert_eq!(receipt.response().await, Err(RequestError::LinkClosed));
+    let failed = await_resource_event(&mut events, |event| {
+        event.link_id == link_id && matches!(event.kind, ResourceEventKind::InboundFailed(_))
+    })
+    .await;
+    assert!(
+        matches!(
+            &failed.kind,
+            ResourceEventKind::InboundFailed(failure) if failure.reason == "cancelled"
+        ),
+        "the transfer the receipt was receiving is cancelled, got {:?}",
+        failed.kind
+    );
+    let later_failures = std::iter::from_fn(|| events.try_recv().ok())
+        .filter(|event| matches!(event.kind, ResourceEventKind::InboundFailed(_)))
+        .count();
+    assert_eq!(later_failures, 0, "the cancelled transfer is reported once");
+    stall.await.expect("stall task finished");
+}

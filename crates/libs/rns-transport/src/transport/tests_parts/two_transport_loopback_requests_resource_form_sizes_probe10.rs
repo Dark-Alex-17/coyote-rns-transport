@@ -87,12 +87,17 @@ async fn two_transport_loopback_request_resource_form_sizes_probe10_owed_cancel_
 
     // Over the kept limit: refused at its advertisement, and the record was receiving the
     // re-admitted transfer, so that partial assembly is cancelled with it.
-    let over = sizes_cancel_unbacked_response_advertisement(id, (SIZES_TIGHT_LIMIT + 64) as u64);
+    let over = sizes_cancel_unbacked_response_advertisement(id, SIZES_OVER_D);
     inject_advertisement_from_listener(&pair, &over).await;
     await_link_packets(&mut listener_tap, link_id, PacketContext::ResourceReceiverCancel, 1).await;
     sizes_probe8_await_inbound_failed(&mut events, link_id, id, advertisement.hash).await;
 
     sizes_assert_link_still_answers(&pair).await;
+    assert_eq!(
+        count_link_packets(&mut listener_tap, link_id, PacketContext::ResourceReceiverCancel),
+        0,
+        "no further receiver cancel leaves the connector"
+    );
 }
 
 /// `expect_response(id, None)` over a receipt-less record receiving its response, then a

@@ -1,13 +1,14 @@
 // Usage-pattern coverage of the contract pinned by
-// `two_transport_loopback_request_receipt_failed_response_resource_fails_receive`, made
-// deterministic: a response Resource that fails in transfer fails the receipt `Receive`
+// `two_transport_loopback_request_receipt_failed_response_resource_fails_receive`, with the
+// race biased: a response Resource that fails in transfer fails the receipt `Receive`
 // rather than leaving it `Receiving` with no clock (`RNS/Link.py:1389`, `:1435`). That
 // fixture races the retry worker's periodic drain against the link's next inbound Resource
-// packet; this one forces the loser of that race. The failure is produced by dropping the
-// connector's Resource state for the link, as the receiver giving up or a link close does,
-// and the next packet on the link is a Resource packet: an advertisement under an id nothing
-// solicited, which the link drops. The failure already queued must still reach the receipt,
-// whichever drain finds it first. Helpers come from the sibling `tests_parts` files.
+// packet; this one makes the inbound packet all but certain to win. The failure is produced
+// by dropping the connector's Resource state for the link, as the receiver giving up or a
+// link close does, and the next packet on the link is a Resource packet: an advertisement
+// under an id nothing solicited, which the link drops. The failure already queued must still
+// reach the receipt, whichever drain finds it first. Helpers come from the sibling
+// `tests_parts` files.
 
 /// A receipt `Receiving` an unbacked response has its inbound Resource dropped, then an
 /// unsolicited advertisement reaches the link before the retry worker's next drain: the

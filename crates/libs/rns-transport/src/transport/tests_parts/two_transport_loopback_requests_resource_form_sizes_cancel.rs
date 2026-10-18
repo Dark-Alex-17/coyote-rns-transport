@@ -8,6 +8,9 @@
 /// `d` of an unbacked response advertisement the tight limit admits.
 const SIZES_CANCEL_ADMITTED_D: u64 = (SIZES_TIGHT_LIMIT / 2) as u64;
 
+/// `d` of an unbacked response advertisement the tight limit refuses.
+const SIZES_OVER_D: u64 = (SIZES_TIGHT_LIMIT + 64) as u64;
+
 /// A single-part response advertisement for `id` the ResourceManager admits, with `d` and
 /// `t` of `data_size`. Nothing backs it on the responder, so the receiver it builds stays
 /// inbound, waiting on its part request, until something cancels it.

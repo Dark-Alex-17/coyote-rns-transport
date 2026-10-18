@@ -124,7 +124,7 @@ async fn two_transport_loopback_request_resource_form_sizes_probe8_expect_respon
     await_link_packets(&mut listener_tap, link_id, PacketContext::ResourceReceiverCancel, 1).await;
     sizes_probe8_assert_no_non_resource_packet_arrived(&mut connector_tap, link_id);
 
-    let over = sizes_cancel_unbacked_response_advertisement(id, (SIZES_TIGHT_LIMIT + 64) as u64);
+    let over = sizes_cancel_unbacked_response_advertisement(id, SIZES_OVER_D);
     inject_advertisement_from_listener(&pair, &over).await;
     sizes_probe8_await_inbound_failed(&mut events, link_id, id, receiving.hash).await;
     await_link_packets(&mut listener_tap, link_id, PacketContext::ResourceReceiverCancel, 2).await;
@@ -176,4 +176,9 @@ async fn two_transport_loopback_request_resource_form_sizes_probe8_expect_respon
     );
 
     sizes_assert_link_still_answers(&pair).await;
+    assert_eq!(
+        count_link_packets(&mut listener_tap, link_id, PacketContext::ResourceReceiverCancel),
+        0,
+        "no further receiver cancel leaves the connector"
+    );
 }

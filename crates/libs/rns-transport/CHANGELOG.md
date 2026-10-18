@@ -442,7 +442,12 @@ trailing clause of the bullet for the behaviour it pins.
   connector fails that link's receipt `Receive`, with no receiver cancel on
   either link afterwards; and a refused advertisement on the link routes
   nothing, so a failure queued for that link reaches its receipt on the
-  periodic drain), and `resource/tests_timeouts_lifecycle.rs`
+  periodic drain),
+  `transport/tests_parts/two_transport_loopback_requests_resource_form_sizes_probe15.rs`
+  (the responder's part requests and proof for a resource-form request on
+  one link leave a sibling link's queued failure for the periodic drain,
+  which fails that receipt `Receive` while the request is proved and
+  answered), and `resource/tests_timeouts_lifecycle.rs`
   (`..._drain_events_for_link_leaves_other_links_events_queued`: a
   packet's drain takes its link's events in order and leaves the others
   queued in order; `..._drops_the_receiver_and_the_assembly_together`: a

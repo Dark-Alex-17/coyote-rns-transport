@@ -21,6 +21,7 @@ pub(super) async fn handle_resource_proof(
         // A proof for a request Resource moves its receipt to `Delivered`
         // (`RNS/Link.py:1372`).
         let mut cancels = Vec::new();
+        let mut cancel_events = Vec::new();
         for event in &events {
             if event.link_id == *link.id() {
                 if let Some(receiving) = link.note_request_resource_outcome(event.hash, &event.kind)
@@ -30,12 +31,18 @@ pub(super) async fn handle_resource_proof(
                         &link,
                         receiving,
                         &mut cancels,
+                        &mut cancel_events,
                     );
                 }
             }
         }
-        drain_owed_response_cancels(&mut handler.resource_manager, &mut link, &mut cancels);
-        events.extend(handler.resource_manager.drain_events());
+        drain_owed_response_cancels(
+            &mut handler.resource_manager,
+            &mut link,
+            &mut cancels,
+            &mut cancel_events,
+        );
+        events.extend(cancel_events);
         // A proof can hand back the next segment's advertisement. Like every
         // Link-destination packet it goes out on the link's attached
         // interface (`RNS/Transport.py:1452-1454`); `send_packet` would try

@@ -135,9 +135,10 @@ pub(in crate::transport) async fn handle_check_links<'a>(
         handler.resource_manager.remove_link_state(*link_id);
     }
     let mut resource_events = handler.resource_manager.drain_events();
-    super::super::resource_wire::note_resource_events_on_links(&mut handler, &resource_events)
-        .await;
-    resource_events.extend(handler.resource_manager.drain_events());
+    let cancel_events =
+        super::super::resource_wire::note_resource_events_on_links(&mut handler, &resource_events)
+            .await;
+    resource_events.extend(cancel_events);
     super::super::resource_wire::publish_resource_events(&handler, resource_events);
     closed_pending_destinations.sort();
     closed_pending_destinations.dedup();

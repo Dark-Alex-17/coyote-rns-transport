@@ -111,11 +111,11 @@ fn resource_manager_link_close_allows_later_resource_on_new_link() {
     );
 }
 
-/// A local cancel of an inbound transfer drops its receiver and reports it
-/// `InboundFailed("cancelled")` under the original hash, once; a hash with
-/// no receiver is a no-op.
+/// A local cancel of an inbound transfer drops its receiver and hands back
+/// its `InboundFailed("cancelled")` under the original hash, once, queueing
+/// nothing; a hash with no receiver is a no-op.
 #[test]
-fn resource_manager_cancel_incoming_drops_the_receiver_and_reports_it_once() {
+fn resource_manager_take_cancelled_incoming_drops_the_receiver_and_reports_it_once() {
     let signer = PrivateIdentity::new_from_rand(OsRng);
     let identity = *signer.as_identity();
     let destination = DestinationDesc {
@@ -152,18 +152,17 @@ fn resource_manager_cancel_incoming_drops_the_receiver_and_reports_it_once() {
     manager.drain_events();
     assert!(manager.incoming.contains_key(&segment_hash));
 
-    assert_eq!(manager.cancel_incoming(unknown_hash), None, "no receiver under that hash");
-    assert_eq!(manager.cancel_incoming(segment_hash), Some(segment_hash));
+    assert!(manager.take_cancelled_incoming(unknown_hash).is_none(), "no receiver under that hash");
+    let event = manager.take_cancelled_incoming(segment_hash).expect("the receiver's event");
     assert!(manager.incoming.is_empty());
-    let events = manager.drain_events();
-    assert_eq!(events.len(), 1);
-    assert_eq!(events[0].hash, segment_hash);
-    assert_eq!(events[0].link_id, *link.id());
+    assert_eq!(event.hash, segment_hash);
+    assert_eq!(event.link_id, *link.id());
     assert!(matches!(
-        &events[0].kind,
+        &event.kind,
         ResourceEventKind::InboundFailed(failure) if failure.reason == "cancelled"
     ));
-    assert_eq!(manager.cancel_incoming(segment_hash), None, "already gone");
+    assert!(manager.drain_events().is_empty(), "the event is handed back, not queued");
+    assert!(manager.take_cancelled_incoming(segment_hash).is_none(), "already gone");
     assert!(manager.drain_events().is_empty());
 }
 
@@ -235,7 +234,8 @@ fn resource_manager_has_an_active_receiver_only_for_an_admitted_advertisement() 
 /// Between one segment's completion and the next segment's advertisement a
 /// split response is only a partial assembly. Cancelling the response for a
 /// failed receipt drops that assembly when the hashes came from its link,
-/// and leaves it alone for any other link.
+/// and leaves it alone for any other link. The cancel's event is handed back,
+/// the queue is untouched.
 #[test]
 fn resource_manager_cancel_incoming_response_drops_only_its_links_assembly() {
     let signer = PrivateIdentity::new_from_rand(OsRng);
@@ -268,29 +268,32 @@ fn resource_manager_cancel_incoming_response_drops_only_its_links_assembly() {
     assert!(manager.incoming.is_empty(), "the first segment is complete, nothing is in flight");
 
     let other_link_id = AddressHash::new_from_slice(&[0x53; ADDRESS_HASH_SIZE]);
-    assert!(!manager.cancel_incoming_response(original_hash, original_hash, &other_link_id));
+    let cancelled = manager.cancel_incoming_response(original_hash, original_hash, &other_link_id);
+    assert!(!cancelled.receiver_in_flight);
+    assert!(cancelled.event.is_none(), "another link's cancel reports nothing");
     assert!(manager.incoming_segments.contains_key(&original_hash));
-    assert!(manager.drain_events().is_empty(), "another link's cancel reports nothing");
 
+    let cancelled = manager.cancel_incoming_response(original_hash, original_hash, link.id());
     assert!(
-        !manager.cancel_incoming_response(original_hash, original_hash, link.id()),
+        !cancelled.receiver_in_flight,
         "no receiver was in flight, so the peer is owed no receiver cancel"
     );
     assert!(!manager.incoming_segments.contains_key(&original_hash));
-    let events = manager.drain_events();
-    assert_eq!(events.len(), 1);
-    assert_eq!(events[0].hash, original_hash);
-    assert_eq!(events[0].link_id, *link.id());
+    let event = cancelled.event.expect("the cancel hands its event back");
+    assert_eq!(event.hash, original_hash);
+    assert_eq!(event.link_id, *link.id());
     assert!(matches!(
-        &events[0].kind,
+        &event.kind,
         ResourceEventKind::InboundFailed(failure) if failure.reason == "cancelled"
     ));
+    assert!(manager.drain_events().is_empty(), "the cancel's event never enters the queue");
 }
 
 /// While a response segment's receiver is in flight, cancelling the response
 /// for a failed receipt drops that receiver and reports the transfer
 /// `InboundFailed("cancelled")` once, and says so, since the peer is then owed
 /// a receiver cancel; another link's cancel under the same hashes is a no-op.
+/// The cancel's event is handed back, the queue is untouched.
 #[test]
 fn resource_manager_cancel_incoming_response_drops_its_links_live_receiver() {
     let signer = PrivateIdentity::new_from_rand(OsRng);
@@ -331,23 +334,26 @@ fn resource_manager_cancel_incoming_response_drops_its_links_live_receiver() {
     assert!(manager.incoming.contains_key(&segment_hash), "the receiver is in flight");
 
     let other_link_id = AddressHash::new_from_slice(&[0x53; ADDRESS_HASH_SIZE]);
-    assert!(!manager.cancel_incoming_response(segment_hash, original_hash, &other_link_id));
+    let cancelled = manager.cancel_incoming_response(segment_hash, original_hash, &other_link_id);
+    assert!(!cancelled.receiver_in_flight);
+    assert!(cancelled.event.is_none(), "another link's cancel reports nothing");
     assert!(manager.incoming.contains_key(&segment_hash));
-    assert!(manager.drain_events().is_empty(), "another link's cancel reports nothing");
 
+    let cancelled = manager.cancel_incoming_response(segment_hash, original_hash, link.id());
     assert!(
-        manager.cancel_incoming_response(segment_hash, original_hash, link.id()),
+        cancelled.receiver_in_flight,
         "a receiver was in flight, so the peer is owed a receiver cancel"
     );
     assert!(!manager.incoming.contains_key(&segment_hash));
-    let events = manager.drain_events();
-    assert_eq!(events.len(), 1);
-    assert_eq!(events[0].hash, original_hash);
-    assert_eq!(events[0].link_id, *link.id());
+    let event = cancelled.event.expect("the cancel hands its event back");
+    assert_eq!(event.hash, original_hash);
+    assert_eq!(event.link_id, *link.id());
     assert!(matches!(
-        &events[0].kind,
+        &event.kind,
         ResourceEventKind::InboundFailed(failure) if failure.reason == "cancelled"
     ));
-    assert!(!manager.cancel_incoming_response(segment_hash, original_hash, link.id()));
-    assert!(manager.drain_events().is_empty(), "already gone");
+    assert!(manager.drain_events().is_empty(), "the cancel's event never enters the queue");
+    let cancelled = manager.cancel_incoming_response(segment_hash, original_hash, link.id());
+    assert!(!cancelled.receiver_in_flight);
+    assert!(cancelled.event.is_none(), "already gone");
 }

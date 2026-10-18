@@ -212,6 +212,7 @@ pub(super) async fn handle_data<'a>(
         }
         if !owed_cancels.is_empty() {
             let mut cancels = Vec::new();
+            let mut events = Vec::new();
             for (link, receiving) in owed_cancels {
                 let link = link.lock().await;
                 resource_wire::cancel_inbound_response(
@@ -219,9 +220,9 @@ pub(super) async fn handle_data<'a>(
                     &link,
                     receiving,
                     &mut cancels,
+                    &mut events,
                 );
             }
-            let events = handler.resource_manager.drain_events();
             resource_wire::publish_resource_events(&handler, events);
             for cancel in cancels {
                 handler.send(cancel).await;

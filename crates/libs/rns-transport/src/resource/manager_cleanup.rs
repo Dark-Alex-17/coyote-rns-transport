@@ -1,3 +1,15 @@
+/// What `cancel_incoming_response` did: whether a receiver was in flight,
+/// which is when the peer is owed a receiver cancel, and the transfer's
+/// `InboundFailed("cancelled")`, handed back for the caller to publish
+/// rather than queued. It never sits in the shared event queue because the
+/// next routed drain would key it by hash into the pending requests, where
+/// a fresh record may be receiving a retry of the very same transfer.
+#[must_use = "the event is for the caller to publish"]
+pub(crate) struct CancelledResponse {
+    pub(crate) receiver_in_flight: bool,
+    pub(crate) event: Option<ResourceEvent>,
+}
+
 impl ResourceManager {
     pub fn remove_link_state(&mut self, link_id: AddressHash) {
         let mut failed_outbound = std::collections::HashSet::new();
@@ -98,54 +110,53 @@ impl ResourceManager {
         })
     }
 
-    /// Drops the inbound transfer whose in-flight segment is `segment_hash`
-    /// and reports it `InboundFailed("cancelled")` under its original hash,
-    /// as a remote cancel would. Returns that original hash, `None` when no
-    /// such transfer is in progress. Sending the receiver cancel is the
-    /// transport's job (`RNS/Resource.py:1111-1116`).
-    pub(crate) fn cancel_incoming(&mut self, segment_hash: Hash) -> Option<Hash> {
+    /// Drops the inbound transfer whose in-flight segment is `segment_hash`,
+    /// as a remote cancel would, and builds its `InboundFailed("cancelled")`
+    /// under the original hash: when the earlier segments of a split
+    /// transfer are assembled under that hash, the assembly goes too and its
+    /// event is the one, else the receiver's. `None` when no receiver is in
+    /// flight. Sending the receiver cancel is the transport's job
+    /// (`RNS/Resource.py:1111-1116`).
+    fn take_cancelled_incoming(&mut self, segment_hash: Hash) -> Option<ResourceEvent> {
         let receiver = self.incoming.remove(&segment_hash)?;
         let original_hash = receiver.original_hash;
-        if !self.fail_inbound_segments(original_hash, "cancelled") {
-            self.events.push(ResourceEvent {
+        Some(self.take_inbound_segments(original_hash, "cancelled").unwrap_or_else(|| {
+            ResourceEvent {
                 hash: original_hash,
                 link_id: receiver.link_id,
                 kind: ResourceEventKind::InboundFailed(ResourceFailure {
                     reason: "cancelled".to_string(),
                     progress: receiver.progress(),
                 }),
-            });
-        }
-        Some(original_hash)
+            }
+        }))
     }
 
-    /// `cancel_incoming` for a response whose receipt failed, in whichever
-    /// form the transfer is: a live receiver under `segment_hash`, or, between
-    /// one segment's completion and the next segment's admitted
-    /// advertisement, only the partial assembly under `original_hash`, which
-    /// would otherwise sit there until the link closes. Either way the
-    /// transfer is reported `InboundFailed("cancelled")`. A transfer under
-    /// those hashes on a link other than `link_id` is left alone: the
-    /// hashes came from that link's receipt. Returns whether a receiver was
-    /// in flight, which is when the peer is owed a receiver cancel.
+    /// Cancels a response whose receipt failed, in whichever form the
+    /// transfer is: a live receiver under `segment_hash`, or, between one
+    /// segment's completion and the next segment's admitted advertisement,
+    /// only the partial assembly under `original_hash`, which would
+    /// otherwise sit there until the link closes. Either way the transfer's
+    /// `InboundFailed("cancelled")` is handed back, not queued. A transfer
+    /// under those hashes on a link other than `link_id` is left alone: the
+    /// hashes came from that link's receipt.
     pub(crate) fn cancel_incoming_response(
         &mut self,
         segment_hash: Hash,
         original_hash: Hash,
         link_id: &AddressHash,
-    ) -> bool {
-        if self.incoming.get(&segment_hash).is_some_and(|receiver| receiver.link_id == *link_id)
-            && self.cancel_incoming(segment_hash).is_some()
-        {
-            return true;
+    ) -> CancelledResponse {
+        if self.incoming.get(&segment_hash).is_some_and(|receiver| receiver.link_id == *link_id) {
+            if let Some(event) = self.take_cancelled_incoming(segment_hash) {
+                return CancelledResponse { receiver_in_flight: true, event: Some(event) };
+            }
         }
-        if self
+        let event = self
             .incoming_segments
             .get(&original_hash)
             .is_some_and(|assembly| assembly.link_id == *link_id)
-        {
-            self.fail_inbound_segments(original_hash, "cancelled");
-        }
-        false
+            .then(|| self.take_inbound_segments(original_hash, "cancelled"))
+            .flatten();
+        CancelledResponse { receiver_in_flight: false, event }
     }
 }

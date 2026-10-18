@@ -178,18 +178,20 @@ impl Transport {
         let link_id = *link.lock().await.id();
         let cancelled: Vec<Hash> = {
             let mut handler = self.handler.lock().await;
+            let mut events = Vec::new();
             let cancelled = receiving
                 .into_iter()
                 .filter(|response| {
-                    handler.resource_manager.cancel_incoming_response(
+                    let cancelled = handler.resource_manager.cancel_incoming_response(
                         response.segment,
                         response.original,
                         &link_id,
-                    )
+                    );
+                    events.extend(cancelled.event);
+                    cancelled.receiver_in_flight
                 })
                 .map(|response| response.segment)
                 .collect();
-            let events = handler.resource_manager.drain_events();
             super::resource_wire::publish_resource_events(&handler, events);
             cancelled
         };

@@ -383,9 +383,10 @@ pub(super) async fn manage_transport(
                             }
                         }
                         let mut events = handler.resource_manager.drain_events();
-                        super::resource_wire::note_resource_events_on_links(&mut handler, &events)
-                            .await;
-                        events.extend(handler.resource_manager.drain_events());
+                        let cancel_events =
+                            super::resource_wire::note_resource_events_on_links(&mut handler, &events)
+                                .await;
+                        events.extend(cancel_events);
                         super::resource_wire::publish_resource_events(&handler, events);
                     }
                 }

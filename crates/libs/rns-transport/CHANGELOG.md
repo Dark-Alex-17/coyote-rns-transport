@@ -389,9 +389,14 @@ trailing clause of the bullet for the behaviour it pins.
   and `expect_response` keep their signatures and route the cancel through
   the link's owed cancels, which the transport drains on the link's next
   inbound packet, Resource packets included, before that packet's own
-  advertisement is admitted; the cancel's own failure event is published,
+  advertisement is admitted. The cancel's own failure event is published,
   not routed, so a retry of the cancelled transfer admitted by that same
-  packet keeps its fresh record. Pinned by
+  packet keeps its fresh record; this holds by construction:
+  `ResourceManager::cancel_incoming_response` hands the event back to its
+  caller instead of queueing it, so it never enters the manager's event
+  queue, and everything the manager queued before a packet is routed by
+  that packet's drain as before, where it used to be published unrouted
+  alongside the cancel's. Pinned by
   `destination/link_parts/link_sections/response_record_tests.rs` and
   `transport/tests_parts/two_transport_loopback_requests_resource_form_sizes_cancel2.rs`
   (exactly one `ResourceReceiverCancel` reaches the responder), and

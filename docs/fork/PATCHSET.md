@@ -42,8 +42,8 @@ commits `1ddd5273`, `a2a40de7`, `3805fe7f`, `3ed78582`, `415d67c8`,
 `62cd6799`, `64ab1317`, `20019b5f`, `1dd36956`, `03f63892`, `032e9142`,
 `8b512044`, `9ebd348b`, `9842695a`, `10f67e30`, `c18098c9`, `3568f1ab`,
 `f1985d01`, `348cf74d`, `a93e3127`, `c7d5f533` and `d9585ef0`; the
-`link proof event and receipt link id` patch is fork commits `6499621f`
-and `d4127c6d`.
+`link proof event and receipt link id` patch is fork commits `6499621f`,
+`d4127c6d`, `04de5d71` and `875edf92`.
 
 | File | Patch |
 | --- | --- |
@@ -59,11 +59,12 @@ and `d4127c6d`.
 | `crates/libs/rns-transport/fuzz/fuzz_targets/response_frame_decode.rs` | request wire frames and fuzz |
 | `crates/libs/rns-transport/src/delivery.rs` | request receipts and timeouts |
 | `crates/libs/rns-transport/src/destination.rs` | request wire frames and fuzz |
-| `crates/libs/rns-transport/src/destination/link_parts/link.rs` | request handlers and dispatch, request receipts and timeouts |
+| `crates/libs/rns-transport/src/destination/link_parts/link.rs` | request handlers and dispatch, request receipts and timeouts, link proof event and receipt link id |
+| `crates/libs/rns-transport/src/destination/link_parts/link_sections/data_proof_tests.rs` | link proof event and receipt link id |
 | `crates/libs/rns-transport/src/destination/link_parts/link_sections/handle_proof_packet.rs` | link proof event and receipt link id |
 | `crates/libs/rns-transport/src/destination/link_parts/link_sections/identify_packet_tests.rs` | request handlers and dispatch |
-| `crates/libs/rns-transport/src/destination/link_parts/link_sections/new.rs` | request handlers and dispatch, request receipts and timeouts |
-| `crates/libs/rns-transport/src/destination/link_parts/link_sections/new_from_request.rs` | request handlers and dispatch, request receipts and timeouts |
+| `crates/libs/rns-transport/src/destination/link_parts/link_sections/new.rs` | request handlers and dispatch, request receipts and timeouts, link proof event and receipt link id |
+| `crates/libs/rns-transport/src/destination/link_parts/link_sections/new_from_request.rs` | request handlers and dispatch, request receipts and timeouts, link proof event and receipt link id |
 | `crates/libs/rns-transport/src/destination/link_parts/link_sections/next_watchdog_deadline.rs` | request receipts and timeouts, link proof event and receipt link id |
 | `crates/libs/rns-transport/src/destination/link_parts/link_sections/pending_requests.rs` | request receipts and timeouts |
 | `crates/libs/rns-transport/src/destination/link_parts/link_sections/pending_requests_tests.rs` | request receipts and timeouts |
@@ -74,7 +75,7 @@ and `d4127c6d`.
 | `crates/libs/rns-transport/src/destination/link_parts/link_sections/response_packet_tests.rs` | request receipts and timeouts |
 | `crates/libs/rns-transport/src/destination/link_parts/link_sections/response_record_tests.rs` | request receipts and timeouts, link proof event and receipt link id |
 | `crates/libs/rns-transport/src/destination/link_parts/linkhandleresult.rs` | request handlers and dispatch, request receipts and timeouts, link proof event and receipt link id |
-| `crates/libs/rns-transport/src/destination/link_parts/module_prelude.rs` | request handlers and dispatch, request receipts and timeouts |
+| `crates/libs/rns-transport/src/destination/link_parts/module_prelude.rs` | request handlers and dispatch, request receipts and timeouts, link proof event and receipt link id |
 | `crates/libs/rns-transport/src/destination/request/allow.rs` | request handlers and dispatch |
 | `crates/libs/rns-transport/src/destination/request/dispatch.rs` | request handlers and dispatch |
 | `crates/libs/rns-transport/src/destination/request/frame.rs` | request wire frames and fuzz |
@@ -99,7 +100,7 @@ and `d4127c6d`.
 | `crates/libs/rns-transport/src/resource/tests_advert_kat.rs` | request wire frames and fuzz |
 | `crates/libs/rns-transport/src/resource/tests_timeouts_lifecycle.rs` | request receipts and timeouts |
 | `crates/libs/rns-transport/src/transport/core.rs` | request handlers and dispatch, link proof event and receipt link id |
-| `crates/libs/rns-transport/src/transport/handler.rs` | request receipts and timeouts |
+| `crates/libs/rns-transport/src/transport/handler.rs` | request receipts and timeouts, link proof event and receipt link id |
 | `crates/libs/rns-transport/src/transport/jobs.rs` | request handlers and dispatch, request receipts and timeouts |
 | `crates/libs/rns-transport/src/transport/jobs_parts/link_maintenance.rs` | request receipts and timeouts |
 | `crates/libs/rns-transport/src/transport/lifecycle.rs` | request receipts and timeouts |
@@ -118,6 +119,7 @@ and `d4127c6d`.
 | `crates/libs/rns-transport/src/transport/tests.rs` | request handlers and dispatch, request receipts and timeouts, link proof event and receipt link id |
 | `crates/libs/rns-transport/src/transport/tests_parts/two_transport_loopback_lifecycle.rs` | request handlers and dispatch, request receipts and timeouts |
 | `crates/libs/rns-transport/src/transport/tests_parts/two_transport_loopback_link_packet_proven.rs` | link proof event and receipt link id |
+| `crates/libs/rns-transport/src/transport/tests_parts/two_transport_loopback_link_packet_proven_probe.rs` | link proof event and receipt link id |
 | `crates/libs/rns-transport/src/transport/tests_parts/two_transport_loopback_requests.rs` | request handlers and dispatch, request receipts and timeouts |
 | `crates/libs/rns-transport/src/transport/tests_parts/two_transport_loopback_requests_errors.rs` | request receipts and timeouts |
 | `crates/libs/rns-transport/src/transport/tests_parts/two_transport_loopback_requests_isolation.rs` | request handlers and dispatch |
@@ -165,6 +167,7 @@ and `d4127c6d`.
 | `crates/libs/rns-transport/src/transport/tests_parts/two_transport_loopback_resources_reject_response.rs` | request receipts and timeouts |
 | `crates/libs/rns-transport/src/transport/tests_parts/two_transport_loopback_resources_retries.rs` | request receipts and timeouts |
 | `crates/libs/rns-transport/src/transport/wire.rs` | request receipts and timeouts, link proof event and receipt link id |
+| `crates/libs/rns-transport/tests/link_event_packet_proven_api.rs` | link proof event and receipt link id |
 | `crates/libs/rns-transport/tests/request_frame_wire.rs` | request wire frames and fuzz |
 | `crates/libs/rns-transport/tests/request_handler_api.rs` | request handlers and dispatch |
 | `crates/libs/rns-transport/tests/request_receipt_api.rs` | request receipts and timeouts |
@@ -1699,6 +1702,46 @@ in `transport/tests.rs`) pins the same four orders end to end with a
 responder that waits before answering, so no change is coalesced on the
 watch, while `..._resource_form_sizes.rs` keeps its subsequence tests. The
 `CHANGELOG.md` receipt bullet names the three files.
+
+Fork commit `04de5d71`: the packet-proven fixtures. In
+`two_transport_loopback_link_packet_proven.rs` the `/big` handler answers
+with an `over_mdu_body`, so the response the test calls a Resource travels
+as one (a 64 KiB body fits a single packet at the default loopback MTU);
+its header names the sent-hash record of `875edf92`. New fixture
+`two_transport_loopback_link_packet_proven_probe.rs` (one `include!` line
+in `transport/tests.rs`): three plain Data packets in a burst earn exactly
+their three `PacketProven` hashes and three receipts naming the link; a
+plain Resource and a resource-form request on the link earn none on either
+side; a single-destination proof reaches the `ReceiptHandler` with
+`link_id()` of `None`. New `tests/link_event_packet_proven_api.rs`: the
+downstream match shape with the wildcard arm, under
+`#[deny(unreachable_patterns)]` so the arm pins `#[non_exhaustive]`, and
+the public `DeliveryReceipt::new` naming no link.
+`two_transport_loopback_requests_receipt_orders.rs` reuses `HANDLER_DELAY`
+from `two_transport_loopback_requests_receipt.rs` in place of a twin
+constant and names both subsequence siblings; `response_segment` in
+`destination/request/receipt_tests.rs` says its `q` is fixed to `id(1)`.
+
+Fork commit `875edf92`: `PacketProven` only for a plain Data packet this
+side sent. `Link` (`linkhandleresult.rs`) gains `unproven_data_hashes`, a
+`VecDeque<Hash>` capped at `UNPROVEN_DATA_HASHES_CAP = 1024`
+(`link_parts/module_prelude.rs`), initialised in both constructors
+(`new.rs`, `new_from_request.rs`); `TransportHandler::note_link_packet_sent`
+(`transport/handler.rs`) records every `PacketType::Data` packet with
+`PacketContext::None` through the new `Link::note_data_sent`
+(`handle_proof_packet.rs`), and `handle_proof_packet` posts the event only
+when `take_unproven_data_hash` consumes the proved hash, independently of
+the pending Channel frame it may resolve, as Python's proof removes the
+one `SENT` receipt it validates (`RNS/Transport.py:2748-2761`); the FIFO
+cap stands in for Python's receipt timeout (`RNS/Packet.py:428`). New
+`link_sections/data_proof_tests.rs` (one `include!` line in `link.rs`):
+proven once and not again on a replayed proof, nothing for an unrecorded
+hash, nothing for a Channel frame whose state still goes `Delivered`, the
+oldest record dropped past the cap. The variant rustdoc, the crate
+`CHANGELOG.md` bullets and the crate `README.md` section describe the
+contract, the Python peer's `PROVE_NONE` default (`RNS/Link.py:961-968`,
+`RNS/Destination.py:161`), the `ReceiptHandler` twin and the `PartialEq`
+change; the `CHANGELOG.md` names the four pinning files.
 
 ## 0.14.1 (upstream 0.14.0)
 

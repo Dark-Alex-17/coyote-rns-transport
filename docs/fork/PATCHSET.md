@@ -38,8 +38,8 @@ commits `1ddd5273`, `a2a40de7`, `3805fe7f`, `3ed78582`, `415d67c8`,
 `d042612c`, `e5183c64`, `64d49999`, `08794d16`, `f7922574`, `8549dd6f`,
 `b836157a`, `30f98996`, `55736b0b`, `f10a7843`, `09f6c98b`, `21fc1c3f`,
 `f7d8c60d`, `f68479d5`, `c13491a7`, `28d7e69b`, `6ce0e712`, `4309e2ee`,
-`62cd6799`, `64ab1317`, `20019b5f`, `1dd36956`, `03f63892`, `032e9142`
-and `8b512044`.
+`62cd6799`, `64ab1317`, `20019b5f`, `1dd36956`, `03f63892`, `032e9142`,
+`8b512044`, `9ebd348b` and `9842695a`.
 
 | File | Patch |
 | --- | --- |
@@ -140,6 +140,7 @@ and `8b512044`.
 | `crates/libs/rns-transport/src/transport/tests_parts/two_transport_loopback_requests_resource_form_sizes_probe7.rs` | request receipts and timeouts |
 | `crates/libs/rns-transport/src/transport/tests_parts/two_transport_loopback_requests_resource_form_sizes_probe8.rs` | request receipts and timeouts |
 | `crates/libs/rns-transport/src/transport/tests_parts/two_transport_loopback_requests_resource_form_sizes_probe9.rs` | request receipts and timeouts |
+| `crates/libs/rns-transport/src/transport/tests_parts/two_transport_loopback_requests_resource_form_sizes_probe10.rs` | request receipts and timeouts |
 | `crates/libs/rns-transport/src/transport/tests_parts/two_transport_loopback_requests_routing.rs` | request handlers and dispatch, request receipts and timeouts |
 | `crates/libs/rns-transport/src/transport/tests_parts/two_transport_loopback_resources.rs` | request receipts and timeouts |
 | `crates/libs/rns-transport/src/transport/tests_parts/two_transport_loopback_resources_directions.rs` | request receipts and timeouts |
@@ -1421,16 +1422,17 @@ Fork commit `03f63892`: `handle_link_resource_packet`
 (`transport/resource_wire.rs`) drains the link's owed response cancels
 before the ResourceManager admits the packet, so a cancel owed to a
 displaced assembly fails it before the same packet's advertisement is
-admitted under the fresh record, and the `InboundFailed` it raises goes
-through the routing loop with the manager's other events.
+admitted under the fresh record, and the `InboundFailed` it raises is
+published with this packet's events. It was also routed through the
+hash-keyed outcome step; a later fix commit below stopped that.
 
 Fork commit `032e9142`: new fixture
 `two_transport_loopback_requests_resource_form_sizes_probe9.rs` (one
 `include!` line in `transport/tests.rs`) pins where the owed cancel
 leaves the link: an over-limit packet response sends it on that packet,
-a `send_request_resource*` re-sent under a receiving id sends it on the
-responder's first part request for the request Resource and the
-replacing record keeps the limit `None` leaves alone or takes the one
+a `send_request_resource*` re-sent under a receiving id cancels it in
+the call before the request Resource is advertised and the replacing
+record keeps the limit `None` leaves alone or takes the one
 `Some` sets, and the cancel `expect_response` owes leaves on the link's
 next inbound packet, here the responder's own receiver cancel refusing
 an over-`max_request_size` request Resource. The owed-cancel bullet in
@@ -1447,7 +1449,41 @@ neighbour's transfer could supply first; `..._sizes_cancel.rs` and
 `..._sizes_cancel2.rs` build their over-limit envelope with
 `sizes_cancel_probe_oversize_envelope`; `response_packet_tests.rs`
 imports `hash` from `pending_requests_tests.rs` instead of keeping a
-copy; `..._sizes_probe8.rs` spells `Hash` bare like its siblings.
+copy; `..._sizes_probe8.rs` spells `Hash` bare; `..._sizes_probe9.rs`
+and `..._sizes_cancel.rs` still qualify it.
+
+Fork commit `9ebd348b`: `handle_link_resource_packet`
+(`transport/resource_wire.rs`) collects the owed cancel's own events
+right after the drain and routes only the admitted packet's: the
+cancel's `InboundFailed` carries the hash of the transfer it took down,
+and a retry of that very advertisement admitted by the same packet is
+received under the fresh record with the same hash, so routing the old
+failure through the hash-keyed `note_request_resource_outcome` cleared
+the fresh record and left the admitted receiver recordless.
+`note_request_resource_outcome` (`link_sections/pending_requests.rs`)
+gains the `debug_assert!` that a request Resource is owned by a receipt
+or a record, never both, mirroring the one in `fail_pending_request`.
+New fixture `two_transport_loopback_requests_resource_form_sizes_probe10.rs`
+(one `include!` line in `transport/tests.rs`) pins the retry-admitted
+case: the retry is asked for parts again under the fresh record, which
+keeps its limit and refuses a later over-limit advertisement with a
+receiver cancel; an advertisement for another id is admitted and
+assembled. `..._sizes_probe9.rs` renames its helper to
+`sizes_probe9_assert_displaced_transfer_cancelled` and says that
+`send_request_resource*` cancels the displaced transfer in the call,
+before the request Resource is advertised; `..._sizes_cancel.rs` adds
+`SIZES_CANCEL_ADMITTED_D` and reuses `sizes_cancel_probe_receiving_receipt`.
+The owed-cancel bullet in the `CHANGELOG.md` says the cancel's failure
+is published and not routed and names the new fixture.
+
+Fork commit `9842695a`: `..._sizes_cancel_probe.rs`, `..._sizes_cancel2.rs`
+and `..._sizes_probe8.rs` build their admitted advertisement with
+`SIZES_CANCEL_ADMITTED_D`; the `..._sizes_cancel2.rs` hash assert says a
+single-segment advertisement's original hash is its own;
+`sizes_assert_link_still_answers` (`..._sizes.rs`) documents the ordering
+barrier its round trip provides; the `expect_response` rustdoc
+(`link_sections/response_packet.rs`) covers the record waiting on a
+request Resource.
 
 ## 0.14.1 (upstream 0.14.0)
 

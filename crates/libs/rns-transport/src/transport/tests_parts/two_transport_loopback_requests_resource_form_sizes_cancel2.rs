@@ -18,8 +18,7 @@ async fn two_transport_loopback_request_resource_form_sizes_cancel2_oversize_pac
 
     let id =
         sizes_probe2_send_limited_request_packet(&pair, "/quiet", Some(SIZES_TIGHT_LIMIT)).await;
-    let advertisement =
-        sizes_cancel_unbacked_response_advertisement(id, (SIZES_TIGHT_LIMIT / 2) as u64);
+    let advertisement = sizes_cancel_unbacked_response_advertisement(id, SIZES_CANCEL_ADMITTED_D);
     inject_advertisement_from_listener(&pair, &advertisement).await;
     // The connector asks for parts only once the record is marked receiving.
     await_link_packets(&mut listener_tap, link_id, PacketContext::ResourceRequest, 1).await;
@@ -46,7 +45,7 @@ async fn two_transport_loopback_request_resource_form_sizes_cancel2_oversize_pac
     }
     assert_eq!(
         failed.hash, advertisement.original_hash,
-        "the transfer the record was receiving is dropped under its original hash"
+        "the transfer the record was receiving is dropped (a single-segment advertisement: its original hash is its own)"
     );
 
     sizes_assert_link_still_answers(&pair).await;

@@ -74,7 +74,8 @@ impl Link {
     /// owns the id. A limit already recorded under `request_id` stays when
     /// none is given. A record already receiving a response Resource is
     /// replaced, and that transfer is cancelled on the link's next inbound
-    /// packet.
+    /// packet; a record waiting on a request Resource is replaced too, and
+    /// no longer follows that Resource's outcome.
     pub fn expect_response(&mut self, request_id: &[u8], max_response_size: Option<usize>) {
         let limit = max_response_size.or_else(|| self.response_size_limit(request_id));
         let displaced = self.replace_response_record(request_id, limit);

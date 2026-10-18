@@ -26,10 +26,8 @@ async fn sizes_cancel_probe_receiving_receipt(
     )
     .await;
     let mut status_rx = receipt.subscribe();
-    let advertisement = sizes_cancel_unbacked_response_advertisement(
-        receipt.request_id(),
-        (SIZES_TIGHT_LIMIT / 2) as u64,
-    );
+    let advertisement =
+        sizes_cancel_unbacked_response_advertisement(receipt.request_id(), SIZES_CANCEL_ADMITTED_D);
     inject_advertisement_from_listener(pair, &advertisement).await;
     await_status(&mut status_rx, RequestStatus::Receiving, RECEIPT_TIMEOUT).await;
     (receipt, status_rx)

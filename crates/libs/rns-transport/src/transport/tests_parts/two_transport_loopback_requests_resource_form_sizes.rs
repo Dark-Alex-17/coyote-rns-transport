@@ -121,7 +121,9 @@ async fn sizes_assert_no_response_activity_under(
     }
 }
 
-/// A packet-form `/echo` on the pair's link still answers.
+/// A packet-form `/echo` on the pair's link still answers. The round trip is also the
+/// ordering barrier for a `count_link_packets` that follows it: everything the link sent
+/// before the echo is on the tap by then.
 #[deny(clippy::await_holding_invalid_type)]
 async fn sizes_assert_link_still_answers(pair: &LoopbackRequestPair) {
     let after = request(pair, "/echo", rmpv::Value::from("still here")).await;

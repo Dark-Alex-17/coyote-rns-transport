@@ -67,8 +67,7 @@ async fn sizes_probe8_admit_advertisement(
     let link_id = pair.handles.link_id;
     // Part requests already on the tap belong to an earlier receiver.
     let _ = count_link_packets(listener_tap, link_id, PacketContext::ResourceRequest);
-    let advertisement =
-        sizes_cancel_unbacked_response_advertisement(id, (SIZES_TIGHT_LIMIT / 2) as u64);
+    let advertisement = sizes_cancel_unbacked_response_advertisement(id, SIZES_CANCEL_ADMITTED_D);
     inject_advertisement_from_listener(pair, &advertisement).await;
     await_link_packets(listener_tap, link_id, PacketContext::ResourceRequest, 1).await;
     advertisement.hash
@@ -119,8 +118,7 @@ async fn two_transport_loopback_request_resource_form_sizes_probe8_expect_respon
     // limit. The displaced transfer's cancel leaves the connector ahead of the part request
     // for it, and the connector publishes the failure only once both are sent, so the
     // failure is the mark that the advertisement has been handled.
-    let receiving =
-        sizes_cancel_unbacked_response_advertisement(id, (SIZES_TIGHT_LIMIT / 2) as u64);
+    let receiving = sizes_cancel_unbacked_response_advertisement(id, SIZES_CANCEL_ADMITTED_D);
     inject_advertisement_from_listener(&pair, &receiving).await;
     sizes_probe8_await_inbound_failed(&mut events, link_id, id, displaced_hash).await;
     await_link_packets(&mut listener_tap, link_id, PacketContext::ResourceReceiverCancel, 1).await;
@@ -163,7 +161,7 @@ async fn two_transport_loopback_request_resource_form_sizes_probe8_expect_respon
     // Under the kept limit this advertisement was admitted above; under the set one it
     // is over `d` and refused at its advertisement, which is also the next inbound packet
     // the displaced transfer's cancel waits for: one receiver cancel each.
-    let refused = sizes_cancel_unbacked_response_advertisement(id, (SIZES_TIGHT_LIMIT / 2) as u64);
+    let refused = sizes_cancel_unbacked_response_advertisement(id, SIZES_CANCEL_ADMITTED_D);
     inject_advertisement_from_listener(&pair, &refused).await;
     sizes_probe8_await_inbound_failed(&mut events, link_id, id, displaced_hash).await;
     await_link_packets(&mut listener_tap, link_id, PacketContext::ResourceReceiverCancel, 2).await;

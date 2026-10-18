@@ -387,7 +387,7 @@ trailing clause of the bullet for the behaviour it pins.
   record's id left its transfer running. `take_response_limit_if_allowed`
   and `expect_response` keep their signatures and route the cancel through
   the link's owed cancels, which the transport drains after each inbound
-  packet. Pinned by
+  packet of the link, Resource packets included. Pinned by
   `destination/link_parts/link_sections/response_record_tests.rs` and
   `transport/tests_parts/two_transport_loopback_requests_resource_form_sizes_cancel2.rs`
   (exactly one `ResourceReceiverCancel` reaches the responder), and

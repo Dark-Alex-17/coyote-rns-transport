@@ -1,11 +1,13 @@
 // Usage-pattern coverage of the public `Link::expect_response` called over a receipt-less
 // record that is receiving its response Resource, written from its rustdoc contract: the
 // record is replaced, the transfer it was receiving is cancelled on the link's next inbound
-// packet (one `ResourceReceiverCancel` to the responder, `RNS/Link.py:1435`), and the new
-// record carries the limit the call keeps or sets. The same fixture reaches the wire half
-// of a refused later advertisement under a receiving receipt-less record: the refusal
-// cancels the partial assembly as well as the advertised transfer. Helpers come from the
-// sibling `tests_parts` files.
+// packet, Resource packets included (one `ResourceReceiverCancel` to the responder,
+// `RNS/Link.py:1435`), and the new record carries the limit the call keeps or sets. Both
+// tests make that next packet a response advertisement, so the cancel is pinned to the
+// Resource path and not to a keepalive or an echo arriving later. The same fixture reaches
+// the wire half of a refused later advertisement under a receiving receipt-less record: the
+// refusal cancels the partial assembly as well as the advertised transfer. Helpers come
+// from the sibling `tests_parts` files.
 
 /// Waits, within the loopback budget, for the connector to drop the inbound Resource
 /// `hash` on the pair's link. A `Complete` naming `id` on the way is a response the link
@@ -72,12 +74,32 @@ async fn sizes_probe8_admit_advertisement(
     advertisement.hash
 }
 
+/// No keepalive and no response packet reached the connector's link since `connector_tap`
+/// was taken: the cancel just seen went out on a Resource packet.
+fn sizes_probe8_assert_no_non_resource_packet_arrived(
+    connector_tap: &mut broadcast::Receiver<RxMessage>,
+    link_id: AddressHash,
+) {
+    assert_eq!(
+        count_link_packets(connector_tap, link_id, PacketContext::KeepAlive),
+        0,
+        "the displaced transfer is cancelled on a Resource packet, before any keepalive"
+    );
+    assert_eq!(
+        count_link_packets(connector_tap, link_id, PacketContext::Response),
+        0,
+        "the displaced transfer is cancelled on a Resource packet, before any response"
+    );
+}
+
 /// `expect_response(id, None)` over a receiving record: the transfer it was receiving is
-/// cancelled on the link's next inbound packet with one receiver cancel, and the record
-/// that replaced it still carries `SIZES_TIGHT_LIMIT`: a response under it is admitted at
-/// `d` under the limit and refused at `d` over it. The refusal, arriving while the record
-/// is receiving again, cancels that partial assembly too: a second receiver cancel for it
-/// and a third for the refused advertisement. The link still answers.
+/// cancelled on the link's next inbound packet, here the next response advertisement, with
+/// one receiver cancel and before any non-Resource packet reaches the link. The record
+/// that replaced it still carries `SIZES_TIGHT_LIMIT`: that advertisement, at `d` under
+/// the limit, is admitted, and a later one at `d` over it refused. The refusal, arriving
+/// while the record is receiving again, cancels that partial assembly too, which is what
+/// shows the first was admitted: a second receiver cancel for it and a third for the
+/// refused advertisement. The link still answers.
 #[tokio::test]
 #[deny(clippy::await_holding_invalid_type)]
 async fn two_transport_loopback_request_resource_form_sizes_probe8_expect_response_over_a_receiving_record_cancels_it_and_keeps_the_limit(
@@ -90,18 +112,23 @@ async fn two_transport_loopback_request_resource_form_sizes_probe8_expect_respon
     let mut events = pair.handles.connector.transport.resource_events();
 
     let (id, displaced_hash) = sizes_probe8_receiving_record(&pair, &mut listener_tap).await;
+    let mut connector_tap = pair.handles.connector.transport.iface_rx();
     pair.handles.link.lock().await.expect_response(id.as_bytes(), None);
 
-    // The next inbound packet on the link is the answer to this echo.
-    sizes_assert_link_still_answers(&pair).await;
+    // The next inbound packet on the link is this advertisement, admitted under the kept
+    // limit. The displaced transfer's cancel leaves the connector ahead of the part request
+    // for it, and the connector publishes the failure only once both are sent, so the
+    // failure is the mark that the advertisement has been handled.
+    let receiving =
+        sizes_cancel_unbacked_response_advertisement(id, (SIZES_TIGHT_LIMIT / 2) as u64);
+    inject_advertisement_from_listener(&pair, &receiving).await;
     sizes_probe8_await_inbound_failed(&mut events, link_id, id, displaced_hash).await;
     await_link_packets(&mut listener_tap, link_id, PacketContext::ResourceReceiverCancel, 1).await;
+    sizes_probe8_assert_no_non_resource_packet_arrived(&mut connector_tap, link_id);
 
-    // The replacing record solicits a response under the id and keeps the limit.
-    let receiving_hash = sizes_probe8_admit_advertisement(&pair, &mut listener_tap, id).await;
     let over = sizes_cancel_unbacked_response_advertisement(id, (SIZES_TIGHT_LIMIT + 64) as u64);
     inject_advertisement_from_listener(&pair, &over).await;
-    sizes_probe8_await_inbound_failed(&mut events, link_id, id, receiving_hash).await;
+    sizes_probe8_await_inbound_failed(&mut events, link_id, id, receiving.hash).await;
     await_link_packets(&mut listener_tap, link_id, PacketContext::ResourceReceiverCancel, 2).await;
 
     sizes_assert_link_still_answers(&pair).await;
@@ -113,10 +140,11 @@ async fn two_transport_loopback_request_resource_form_sizes_probe8_expect_respon
 }
 
 /// `expect_response(id, Some(limit))` over a receiving record: the transfer it was
-/// receiving is cancelled on the link's next inbound packet with one receiver cancel, and
-/// the record that replaced it carries the new limit: a response advertisement the kept
-/// limit would have admitted is refused with a receiver cancel and no part request, and
-/// nothing is assembled or dropped under the id afterwards. The link still answers.
+/// receiving is cancelled on the link's next inbound packet, here a response advertisement
+/// the kept limit would have admitted, before any non-Resource packet reaches the link. The
+/// record that replaced it carries the new limit, so that advertisement is refused with a
+/// receiver cancel of its own and no part request, and nothing is assembled or dropped
+/// under the id afterwards. The link still answers.
 #[tokio::test]
 #[deny(clippy::await_holding_invalid_type)]
 async fn two_transport_loopback_request_resource_form_sizes_probe8_expect_response_over_a_receiving_record_cancels_it_and_sets_the_limit(
@@ -129,18 +157,19 @@ async fn two_transport_loopback_request_resource_form_sizes_probe8_expect_respon
     let mut events = pair.handles.connector.transport.resource_events();
 
     let (id, displaced_hash) = sizes_probe8_receiving_record(&pair, &mut listener_tap).await;
+    let mut connector_tap = pair.handles.connector.transport.iface_rx();
     pair.handles.link.lock().await.expect_response(id.as_bytes(), Some(SIZES_TIGHT_LIMIT / 4));
 
-    sizes_assert_link_still_answers(&pair).await;
-    sizes_probe8_await_inbound_failed(&mut events, link_id, id, displaced_hash).await;
-    await_link_packets(&mut listener_tap, link_id, PacketContext::ResourceReceiverCancel, 1).await;
-
     // Under the kept limit this advertisement was admitted above; under the set one it
-    // is over `d` and refused at its advertisement.
-    let _ = count_link_packets(&mut listener_tap, link_id, PacketContext::ResourceRequest);
+    // is over `d` and refused at its advertisement, which is also the next inbound packet
+    // the displaced transfer's cancel waits for: one receiver cancel each.
     let refused = sizes_cancel_unbacked_response_advertisement(id, (SIZES_TIGHT_LIMIT / 2) as u64);
     inject_advertisement_from_listener(&pair, &refused).await;
-    await_link_packets(&mut listener_tap, link_id, PacketContext::ResourceReceiverCancel, 1).await;
+    sizes_probe8_await_inbound_failed(&mut events, link_id, id, displaced_hash).await;
+    await_link_packets(&mut listener_tap, link_id, PacketContext::ResourceReceiverCancel, 2).await;
+    sizes_probe8_assert_no_non_resource_packet_arrived(&mut connector_tap, link_id);
+
+    // Every part request on the tap so far was for the displaced transfer, now cancelled.
     sizes_assert_no_response_activity(&mut events, link_id, id).await;
     assert_eq!(
         count_link_packets(&mut listener_tap, link_id, PacketContext::ResourceRequest),

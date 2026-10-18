@@ -81,8 +81,9 @@ impl Link {
     }
 
     /// Fails the request `id` and drops its response size limit; the limit
-    /// goes even when no receipt is pending under `id`. Returns the
-    /// response Resource it was receiving, for the caller to cancel.
+    /// goes even when no receipt is pending under `id`. Returns the response
+    /// Resource the receipt, or the record no receipt owns, was receiving,
+    /// for the caller to cancel.
     #[deny(clippy::await_holding_invalid_type)]
     #[must_use = "the hashes are for the caller to cancel"]
     pub(crate) fn fail_pending_request(
@@ -90,10 +91,13 @@ impl Link {
         id: &RequestId,
         error: RequestError,
     ) -> Option<InboundResponseHashes> {
-        self.pending_response_limits.remove(id.as_bytes().as_slice());
-        let pending = self.pending_requests.remove(id)?;
+        let removed = self.pending_response_limits.remove(id.as_bytes().as_slice());
+        let record_receiving = removed.and_then(PendingResponseLimit::into_receiving);
+        let Some(pending) = self.pending_requests.remove(id) else {
+            return record_receiving;
+        };
         log::debug!("link({}): request {} failed: {error}", self.id, id);
-        pending.fail(error)
+        pending.fail(error).or(record_receiving)
     }
 
     /// The response Resources owed a cancel: a receipt failed by a packet
@@ -131,10 +135,12 @@ impl Link {
     /// inbound is not cancelled here (`RNS/Resource.py:1111`): the transport
     /// drops a closed link's receivers with its state on the next link
     /// check, and a receiver left on a restarted link fails on its own
-    /// retry limit.
+    /// retry limit. The cancels the link still owed go the same way, with
+    /// the link state.
     #[deny(clippy::await_holding_invalid_type)]
     pub(crate) fn abandon_pending_requests(&mut self) {
         let receiving = self.fail_all_pending_requests(RequestError::LinkClosed);
+        self.owed_response_cancels.clear();
         if !receiving.is_empty() {
             log::debug!(
                 "link({}): {} response resource(s) left inbound, dropped with the link state",
@@ -159,6 +165,8 @@ impl Link {
         if let Some(pending) = receipt_id.and_then(|id| self.pending_requests.get_mut(&id)) {
             pending.mark_receiving(advertisement);
         } else if let Some(entry) = self.pending_response_limits.get_mut(request_id) {
+            // The next segment of the same response replaces the previous
+            // one's hashes; nothing is owed.
             entry.clock = RecordClock::Receiving(InboundResponseHashes {
                 segment: advertisement.hash,
                 original: advertisement.original_hash,

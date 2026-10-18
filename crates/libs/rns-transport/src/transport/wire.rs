@@ -163,6 +163,7 @@ pub(super) async fn handle_data<'a>(
     let mut data_handled = false;
 
     if packet.header.destination_type == DestinationType::Link {
+        // The Resource path drains the link's owed response cancels itself.
         if resource_wire::is_link_resource_packet(packet)
             && resource_wire::handle_link_resource_packet(packet, iface, &mut handler).await
         {

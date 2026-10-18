@@ -150,7 +150,8 @@ mod response_record_tests {
     }
 
     /// The public `expect_response` over a receiving record owes the displaced response one
-    /// cancel, for the transport to send on the link's next inbound packet.
+    /// cancel, for the transport to send on the link's next inbound packet, Resource packets
+    /// included.
     #[test]
     fn expecting_a_response_over_a_receiving_record_owes_the_displaced_response_a_cancel() {
         let (mut link, _, _, _) = linked_pair();
@@ -161,5 +162,64 @@ mod response_record_tests {
         assert_eq!(link.response_size_limit(b"legacy"), Some(10), "the limit stays");
         assert_eq!(link.take_owed_response_cancels(), vec![hashes(1, 3)]);
         assert!(link.take_owed_response_cancels().is_empty(), "handed over once");
+    }
+
+    /// Failing a 16-byte id no receipt owns hands back the response Resource its record was
+    /// receiving, once, and drops the record; an idle record is dropped handing back nothing.
+    #[test]
+    fn failing_a_receipt_less_receiving_record_hands_back_its_inbound_response() {
+        let (mut link, _, _, _) = linked_pair();
+        let receiving = id(7);
+        let q = receiving.as_bytes().as_slice();
+        link.expect_response(q, Some(10));
+        link.mark_pending_request_receiving(q, &response_segment(hash(1), hash(3)));
+        let idle = id(8);
+        link.expect_response(idle.as_bytes(), Some(10));
+        assert!(link.pending_requests.is_empty(), "no receipt owns either id");
+
+        assert_eq!(
+            link.fail_pending_request(&receiving, RequestError::Oversize),
+            Some(hashes(1, 3))
+        );
+        assert_eq!(link.response_size_allowed(q, 1), None, "the record is gone");
+        assert_eq!(link.fail_pending_request(&receiving, RequestError::Oversize), None, "once");
+        assert_eq!(link.fail_pending_request(&idle, RequestError::Oversize), None);
+        assert_eq!(link.response_size_allowed(idle.as_bytes(), 1), None, "removed all the same");
+    }
+
+    /// An assembled response over the limit of a 16-byte id no receipt owns fails the record
+    /// and hands back what it was receiving; one under the limit resolves it, cancelling
+    /// nothing. The limit goes either way.
+    #[test]
+    fn resolving_an_over_limit_response_for_a_receipt_less_receiving_record_hands_back_its_response(
+    ) {
+        let (mut link, _, _, _) = linked_pair();
+        let request = id(7);
+        let q = request.as_bytes().as_slice();
+        link.expect_response(q, Some(10));
+        link.mark_pending_request_receiving(q, &response_segment(hash(1), hash(3)));
+
+        let over = ResponseArrival::Resource { data: &[0u8; 11], metadata: None };
+        assert_eq!(link.resolve_pending_request(request, over), Some(hashes(1, 3)));
+        assert_eq!(link.response_size_allowed(q, 1), None, "the record is gone");
+
+        link.expect_response(q, Some(10));
+        link.mark_pending_request_receiving(q, &response_segment(hash(2), hash(4)));
+        let within = ResponseArrival::Resource { data: &[0u8; 10], metadata: None };
+        assert_eq!(link.resolve_pending_request(request, within), None, "assembled, not inbound");
+        assert_eq!(link.response_size_allowed(q, 1), None, "the limit went with the response");
+    }
+
+    /// A link closing or starting over drops the cancels it still owed with its state.
+    #[test]
+    fn abandoning_pending_requests_clears_the_owed_cancels() {
+        let (mut link, _, _, _) = linked_pair();
+        link.expect_response(b"legacy", Some(10));
+        link.mark_pending_request_receiving(b"legacy", &response_segment(hash(1), hash(3)));
+        link.expect_response(b"legacy", None);
+        assert_eq!(link.owed_response_cancels, vec![hashes(1, 3)], "one cancel owed");
+
+        link.abandon_pending_requests();
+        assert!(link.take_owed_response_cancels().is_empty(), "dropped with the link state");
     }
 }

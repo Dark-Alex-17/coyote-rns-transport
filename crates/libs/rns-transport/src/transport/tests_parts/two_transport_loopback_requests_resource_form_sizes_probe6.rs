@@ -135,9 +135,9 @@ async fn two_transport_loopback_request_resource_form_sizes_probe6_limit_set_aft
 }
 
 /// A limit set under the id of a bare `Link::request_packet` before the packet is sent is
-/// kept by the record the send seam makes: the handler's response Resource over it is
-/// refused at its advertisement and the responder sees `OutboundRejected`; under a limit of
-/// exactly the envelope length the same response is assembled; the link still answers.
+/// kept when the send seam re-arms the record's clock: the handler's response Resource over
+/// it is refused at its advertisement and the responder sees `OutboundRejected`; under a
+/// limit of exactly the envelope length the same response is assembled; the link still answers.
 #[tokio::test]
 #[deny(clippy::await_holding_invalid_type)]
 async fn two_transport_loopback_request_resource_form_sizes_probe6_limit_set_before_a_bare_request_packet_is_kept(

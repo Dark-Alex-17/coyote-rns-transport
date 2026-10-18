@@ -1259,11 +1259,12 @@ Fork commit `f7d8c60d`: new fixtures
 `include!` lines in `transport/tests.rs`). probe6 pins
 `Link::set_response_size_limit` composed with the public request builders:
 a limit set before or after a `send_request_resource` call, or before a
-bare `request_packet` is sent, is kept by the record the send makes, one
-byte over it refused with `OutboundRejected` on the responder and exactly
-the limit delivered; and a response whose advertised `d` lied under the
-limit of a receipt-less 16-byte or a legacy-length record is caught at the
-post-assembly measurement, its `Complete` withheld, the record cleared.
+bare `request_packet` is sent, is kept when the send seam re-arms the
+record's clock, one byte over it refused with `OutboundRejected` on the
+responder and exactly the limit delivered; and a response whose advertised
+`d` lied under the limit of a receipt-less 16-byte or a legacy-length
+record is caught at the post-assembly measurement, its `Complete`
+withheld, the record cleared.
 probe7 pins the public `expect_response` keeping a prior limit when given
 `None` and replacing it when given `Some`, in both directions. The probe5
 header splits the Python cite (`d` measured and trusted at the

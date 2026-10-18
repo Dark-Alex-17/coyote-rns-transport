@@ -139,9 +139,10 @@ trailing clause of the bullet for the behaviour it pins.
   that reports the moves after the call and whose sender is dropped once
   the request concludes or its link goes away unconcluded. Dropping every
   clone of a receipt cancels nothing: the responder still serves the
-  request and the response still reaches the broadcasts, unless it
-  assembles over the receipt's `max_response_size`, in which case its
-  `Complete` is withheld. `started_at()` is
+  request and the response still reaches the broadcasts, unless the
+  receipt's `max_response_size` refuses it: an over-limit packet Response
+  is not posted as `LinkEvent::Data`, and a response Resource that
+  assembles over it has its `Complete` withheld. `started_at()` is
   `Some` from the send for a packet request and `None` for a request Resource until it
   completes or a response advertisement is admitted, whichever comes first
   (`:1331-1334`, `:1370-1371`, `:1062-1063`); `concluded_at()` is set once
@@ -335,8 +336,8 @@ trailing clause of the bullet for the behaviour it pins.
   `request_packet` record ends on completion, and the legacy-id limit is
   inclusive at both measurements),
   `two_transport_loopback_requests_resource_form_sizes_probe6.rs` (a
-  limit set before or after the request Resource or bare request packet
-  is kept by the record the send makes, and a lying `d` under a
+  limit set before or after the request Resource, or before a bare
+  request packet, is kept, and a lying `d` under a
   receipt-less 16-byte or legacy-length record is caught at the
   post-assembly measurement and its `Complete` withheld),
   `two_transport_loopback_resources.rs`,

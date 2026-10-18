@@ -160,12 +160,12 @@ impl Transport {
         }
     }
 
-    /// Cancels the response Resources `receiving` that receipts failed under
-    /// a link guard were still receiving (`RNS/Link.py:1435`): the transfers
-    /// are dropped and, while the link is active, the peer is sent a
-    /// receiver cancel for each segment that was in flight
-    /// (`RNS/Resource.py:1111-1116`). The handler and the link are locked
-    /// one after the other, never together.
+    /// Cancels the response Resources `receiving` that receipts failed, or
+    /// records displaced, under a link guard were still receiving
+    /// (`RNS/Link.py:1435`): the transfers are dropped and, while the link
+    /// is active, the peer is sent a receiver cancel for each segment that
+    /// was in flight (`RNS/Resource.py:1111-1116`). The handler and the
+    /// link are locked one after the other, never together.
     #[deny(clippy::await_holding_invalid_type)]
     async fn cancel_inbound_responses(
         &self,

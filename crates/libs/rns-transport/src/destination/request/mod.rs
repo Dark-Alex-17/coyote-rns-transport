@@ -41,6 +41,8 @@ mod handler;
 mod id;
 mod inbound;
 mod receipt;
+#[cfg(test)]
+mod receipt_order_tests;
 mod receipt_pending;
 #[cfg(test)]
 mod receipt_tests;

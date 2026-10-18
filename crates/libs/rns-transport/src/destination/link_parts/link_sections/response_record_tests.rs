@@ -8,7 +8,7 @@ mod response_record_tests {
     use super::pending_requests_tests::{hash, hashes, id, response_segment};
     use super::*;
 
-    use crate::destination::request::ResponseFrame;
+    use crate::destination::request::{RequestStatus, ResponseFrame};
 
     /// A re-send under an id whose record is receiving its response, or whose request
     /// Resource is still in flight, does not restart a clock the record does not run.
@@ -245,5 +245,27 @@ mod response_record_tests {
             assert!(link.pending_response_limits.is_empty(), "{name}: no record survives");
             assert!(link.take_owed_response_cancels().is_empty(), "{name}: nothing owed");
         }
+    }
+
+    /// A completed request Resource marks the entry that sent it `Delivered`
+    /// (`RNS/Link.py:1372`) and nothing else: a packet-form entry has no request Resource
+    /// to match, so it stays `Sent`, as does every entry when the hash matches none.
+    #[test]
+    fn a_request_resource_outcome_leaves_a_packet_form_entry_in_sent() {
+        let (mut link, _, _, _) = linked_pair();
+        let timeout = Duration::from_secs(30);
+        let (packet_form, _) =
+            link.insert_pending_request(id(1), PendingRequest::new(id(1), timeout, None));
+        let (resource_form, _) = link
+            .insert_pending_request(id(2), PendingRequest::new(id(2), timeout, Some(hash(0xAA))));
+
+        let complete = ResourceEventKind::OutboundComplete;
+        assert_eq!(link.note_request_resource_outcome(hash(0xAA), &complete), None);
+        assert_eq!(packet_form.status(), RequestStatus::Sent, "no request Resource to prove");
+        assert_eq!(resource_form.status(), RequestStatus::Delivered);
+
+        assert_eq!(link.note_request_resource_outcome(hash(0xBB), &complete), None);
+        assert_eq!(packet_form.status(), RequestStatus::Sent, "a hash matching nothing");
+        assert_eq!(resource_form.status(), RequestStatus::Delivered);
     }
 }

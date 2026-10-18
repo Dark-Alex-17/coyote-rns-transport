@@ -216,9 +216,15 @@ trailing clause of the bullet for the behaviour it pins.
   before the `cancelled` failure it raises for the receipt it sweeps, each
   once, and both receipts conclude `LinkClosed`),
   `two_transport_loopback_requests_errors.rs`,
+  `two_transport_loopback_requests_receipt_orders.rs` (the four status
+  orders pinned exactly, the responder delayed so no change is coalesced
+  on the watch),
   `tests/request_receipt_api.rs`, `tests/request_receipt_readme.rs`,
-  `destination/request/receipt_tests.rs`
-  and `destination/link_parts/link_sections/pending_requests_tests.rs`.
+  `destination/request/receipt_tests.rs`,
+  `destination/request/receipt_order_tests.rs`,
+  `destination/link_parts/link_sections/pending_requests_tests.rs` and
+  `destination/link_parts/link_sections/response_record_tests.rs` (a
+  request Resource outcome never marks a packet-form entry `Delivered`).
 
 - `SendPacketOutcome::is_sent`: whether a send reached an interface,
   directly or by broadcast; the in-crate `matches!` twins use it.

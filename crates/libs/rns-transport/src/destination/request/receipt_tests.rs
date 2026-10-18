@@ -16,11 +16,11 @@ use crate::resource::{ResourceAdvertisement, ResourceProgress, RANDOM_HASH_SIZE}
 
 const TIMEOUT: Duration = Duration::from_secs(30);
 
-fn id(byte: u8) -> RequestId {
+pub(super) fn id(byte: u8) -> RequestId {
     RequestId::new([byte; 16])
 }
 
-fn hash(byte: u8) -> Hash {
+pub(super) fn hash(byte: u8) -> Hash {
     Hash::new_from_slice(&[byte; 32])
 }
 
@@ -34,7 +34,7 @@ fn resource_form() -> PendingRequest {
 
 /// Segment `segment_index` of `total_segments` of a response Resource whose
 /// whole is `original`, advertising `data_size` and `transfer_size`.
-fn response_segment(
+pub(super) fn response_segment(
     segment_hash: Hash,
     original: Hash,
     segment_index: u32,

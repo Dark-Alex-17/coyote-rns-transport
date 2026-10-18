@@ -5,14 +5,10 @@
 #[cfg(test)]
 mod response_record_tests {
     use super::identify_packet_tests::linked_pair;
-    use super::pending_requests_tests::{hash, hashes, response_segment};
+    use super::pending_requests_tests::{hash, hashes, id, response_segment};
     use super::*;
 
     use crate::destination::request::ResponseFrame;
-
-    fn id(byte: u8) -> RequestId {
-        RequestId::new([byte; ADDRESS_HASH_SIZE])
-    }
 
     /// A re-send under an id whose record is receiving its response, or whose request
     /// Resource is still in flight, does not restart a clock the record does not run.

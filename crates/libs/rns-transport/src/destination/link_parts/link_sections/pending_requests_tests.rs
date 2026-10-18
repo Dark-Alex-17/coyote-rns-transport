@@ -10,7 +10,7 @@ mod pending_requests_tests {
 
     const TIMEOUT: Duration = Duration::from_secs(5);
 
-    fn id(byte: u8) -> RequestId {
+    pub(super) fn id(byte: u8) -> RequestId {
         RequestId::new([byte; ADDRESS_HASH_SIZE])
     }
 

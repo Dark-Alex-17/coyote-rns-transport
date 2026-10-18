@@ -3,11 +3,8 @@
 #[cfg(test)]
 mod response_packet_tests {
     use super::identify_packet_tests::linked_pair;
+    use super::pending_requests_tests::id;
     use super::*;
-
-    fn id(byte: u8) -> RequestId {
-        RequestId::new([byte; ADDRESS_HASH_SIZE])
-    }
 
     fn hash(byte: u8) -> Hash {
         Hash::new_from_slice(&[byte; HASH_SIZE])

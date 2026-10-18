@@ -100,10 +100,20 @@ async fn two_transport_loopback_request_resource_form_sizes_probe2_limited_reque
     let id = sizes_probe2_send_limited_request_packet(&pair, "/big", Some(SIZES_TIGHT_LIMIT)).await;
 
     let rejected = await_resource_event(&mut listener_events, |event| {
-        event.link_id == link_id && matches!(event.kind, ResourceEventKind::OutboundRejected)
+        event.link_id == link_id
+            && matches!(
+                event.kind,
+                ResourceEventKind::OutboundRejected
+                    | ResourceEventKind::OutboundComplete
+                    | ResourceEventKind::OutboundFailed
+            )
     })
     .await;
-    assert!(matches!(rejected.kind, ResourceEventKind::OutboundRejected));
+    assert!(
+        matches!(rejected.kind, ResourceEventKind::OutboundRejected),
+        "the responder sees the reject, not a completion or failure: {:?}",
+        rejected.kind
+    );
     sizes_assert_no_response_activity(&mut connector_events, link_id, id).await;
     sizes_assert_link_still_answers(&pair).await;
 }

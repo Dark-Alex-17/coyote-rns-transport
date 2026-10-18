@@ -140,10 +140,20 @@ async fn two_transport_loopback_request_resource_form_sizes_probe3_one_refused_r
     assert_eq!(sizes_await_resource_receipt(&beta_receipt).await, Err(RequestError::Oversize));
     assert_eq!(beta_receipt.status(), RequestStatus::Failed);
     let rejected = await_resource_event(&mut listener_events, |event| {
-        event.link_id == link_id && matches!(event.kind, ResourceEventKind::OutboundRejected)
+        event.link_id == link_id
+            && matches!(
+                event.kind,
+                ResourceEventKind::OutboundRejected
+                    | ResourceEventKind::OutboundComplete
+                    | ResourceEventKind::OutboundFailed
+            )
     })
     .await;
-    assert!(matches!(rejected.kind, ResourceEventKind::OutboundRejected));
+    assert!(
+        matches!(rejected.kind, ResourceEventKind::OutboundRejected),
+        "the responder sees the reject, not a completion or failure: {:?}",
+        rejected.kind
+    );
 
     let alpha_body = sizes_await_resource_receipt(&alpha_receipt).await.expect("alpha unaffected");
     assert_eq!(alpha_body.into_value(), Some(rmpv::Value::Binary(alpha)));

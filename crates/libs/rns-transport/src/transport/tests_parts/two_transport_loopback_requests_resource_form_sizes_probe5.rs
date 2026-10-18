@@ -167,31 +167,7 @@ async fn two_transport_loopback_request_resource_form_sizes_probe5_response_asse
     // the receiver caps decompression by the advertised `d` (`resource/receiver.rs`,
     // `max_decompressed_resource_size`), and a compressed lie would fail there instead of
     // reaching the assembled-bytes measurement this test is about.
-    let decoy_id = b"sizes-probe5-decoy".to_vec();
-    let metadata =
-        rmpv::Value::Map(vec![(rmpv::Value::from("name"), rmpv::Value::from("big.bin"))]);
-    let mut packed_metadata = Vec::new();
-    rmpv::encode::write_value(&mut packed_metadata, &metadata).expect("metadata packs");
-    pair.handles
-        .listener
-        .transport
-        .send_response_resource(
-            &link_id,
-            decoy_id.clone(),
-            random_payload(SIZES_TIGHT_LIMIT + 64),
-            Some(packed_metadata),
-        )
-        .await
-        .expect("decoy response resource dispatched");
-    let mut advertisement = sizes_probe5_capture_response_advertisement(&mut pair, &decoy_id).await;
-    assert!(
-        advertisement.data_size as usize > SIZES_TIGHT_LIMIT,
-        "the real advertisement is over the limit"
-    );
-    advertisement.request_id =
-        Some(serde_bytes::ByteBuf::from(receipt.request_id().to_bytes().to_vec()));
-    advertisement.data_size = (SIZES_TIGHT_LIMIT / 2) as u64;
-    inject_advertisement_from_listener(&pair, &advertisement).await;
+    sizes_probe6_readvertise_under_a_lie(&mut pair, receipt.request_id().as_bytes()).await;
 
     await_status(&mut status_rx, RequestStatus::Receiving, RECEIPT_TIMEOUT).await;
     assert_eq!(

@@ -39,7 +39,16 @@ async fn two_transport_loopback_request_resource_form_sizes_cancel2_oversize_pac
             }
     })
     .await;
-    assert_eq!(failed.hash, advertisement.hash, "the transfer the record was receiving is dropped");
+    match &failed.kind {
+        ResourceEventKind::InboundFailed(failure) => {
+            assert_eq!(failure.reason, "cancelled", "a local cancel, not a retry exhaustion")
+        }
+        kind => panic!("not an inbound failure: {kind:?}"),
+    }
+    assert_eq!(
+        failed.hash, advertisement.original_hash,
+        "the transfer the record was receiving is dropped under its original hash"
+    );
 
     sizes_assert_link_still_answers(&pair).await;
     assert_eq!(

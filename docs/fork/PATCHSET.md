@@ -43,7 +43,7 @@ commits `1ddd5273`, `a2a40de7`, `3805fe7f`, `3ed78582`, `415d67c8`,
 `8b512044`, `9ebd348b`, `9842695a`, `10f67e30`, `c18098c9`, `3568f1ab`,
 `f1985d01`, `348cf74d`, `a93e3127`, `c7d5f533` and `d9585ef0`; the
 `link proof event and receipt link id` patch is fork commits `6499621f`,
-`d4127c6d`, `04de5d71`, `875edf92` and `8c262c9f`.
+`d4127c6d`, `04de5d71`, `875edf92`, `8c262c9f` and `631203b5`.
 
 | File | Patch |
 | --- | --- |
@@ -121,6 +121,7 @@ commits `1ddd5273`, `a2a40de7`, `3805fe7f`, `3ed78582`, `415d67c8`,
 | `crates/libs/rns-transport/src/transport/tests_parts/two_transport_loopback_link_packet_proven.rs` | link proof event and receipt link id |
 | `crates/libs/rns-transport/src/transport/tests_parts/two_transport_loopback_link_packet_proven_probe.rs` | link proof event and receipt link id |
 | `crates/libs/rns-transport/src/transport/tests_parts/two_transport_loopback_link_packet_proven_probe2.rs` | link proof event and receipt link id |
+| `crates/libs/rns-transport/src/transport/tests_parts/two_transport_loopback_link_packet_proven_probe3.rs` | link proof event and receipt link id |
 | `crates/libs/rns-transport/src/transport/tests_parts/two_transport_loopback_requests.rs` | request handlers and dispatch, request receipts and timeouts |
 | `crates/libs/rns-transport/src/transport/tests_parts/two_transport_loopback_requests_errors.rs` | request receipts and timeouts |
 | `crates/libs/rns-transport/src/transport/tests_parts/two_transport_loopback_requests_isolation.rs` | request handlers and dispatch |
@@ -1755,12 +1756,39 @@ reaches the `ReceiptHandler` naming the link, and a Channel frame sent
 through `Transport::channel` proved, marked `Delivered` and reaching the
 `ReceiptHandler` without a `PacketProven`. The `PacketProven` variant and
 `unproven_data_hashes` rustdoc, the `DeliveryReceipt::link_id` rustdoc, the
-crate `CHANGELOG.md` bullet and the crate `README.md` section name the
-1024 bound as Python's `Transport.MAX_RECEIPTS` applied per link
-(`RNS/Transport.py:159`, `:745-748`), cite the record side (`:1359-1377`)
-with this side's narrowing to plain Data, and say the `DeliveryReceipt` is
-handed out for every validly signed link proof, not filtered by the
-record; the `CHANGELOG.md` names the fixture.
+crate `CHANGELOG.md` bullet and the crate `README.md` section between them
+(no one site carries all three) name the 1024 bound as Python's
+`Transport.MAX_RECEIPTS` applied per link (`RNS/Transport.py:159`,
+`:745-748`), cite the record side (`:1359-1377`) with this side's narrowing
+to plain Data, and say the `DeliveryReceipt` is handed out for every
+validly signed link proof, not filtered by the record; the `CHANGELOG.md`
+names the fixture.
+
+Fork commit `631203b5`: new fixture
+`two_transport_loopback_link_packet_proven_probe3.rs` (one `include!` line
+in `transport/tests.rs`): the peer's proof of a plain Data packet captured
+off the connector's interface tap and fed back in; byte-identical, it is
+refused by the ingress packet filter and adds neither a `DeliveryReceipt`
+nor a `PacketProven`; delivered past the filter into inbound processing, it
+is validated again and handed out as a second `DeliveryReceipt` naming the
+link, the consumed record posts no event, and a fresh plain Data packet
+afterwards earns exactly one. The crate `CHANGELOG.md` bullet and the crate
+`README.md` section qualify the replayed-proof clause to a replay the
+ingress filter lets through (one the bounded duplicate cache has
+forgotten), split Python's recorded receipts into request and response
+packets, which expire unproved, and Channel frames, which the peer proves,
+and the `README.md` names the Channel frame's proof in place of "those";
+the `PacketProven` rustdoc (`linkhandleresult.rs`) states the 1024 bound as
+a number, `UNPROVEN_DATA_HASHES_CAP` being `pub(crate)`; the record-site
+comment in `transport/handler.rs` cites `RNS/Transport.py:1359-1377`
+beside `:2748-2761`. In `two_transport_loopback_link_packet_proven_probe.rs`
+the Resource test asserts an empty receipt list (its `all()` over an empty
+`Vec` held vacuously) and its docstring says why none arrives;
+`..._probe2.rs` notes the link event channel capacity equals the cap;
+`response_record_tests.rs` says it hosts the receipt-entry rows its sibling
+has no room for; the rns-tools interop node `events.rs` logs an unnamed
+link event at debug before reporting it as `unknown`. The `CHANGELOG.md`
+names the fixture.
 
 ## 0.14.1 (upstream 0.14.0)
 

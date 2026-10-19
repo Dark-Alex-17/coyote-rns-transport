@@ -7,6 +7,7 @@ use lxmf_sdk::{MessageId, SdkError};
 use rns_transport::delivery::{await_link_activation, send_on_link, LinkSendResult};
 use rns_transport::destination::link::{Link, LinkStatus};
 use rns_transport::destination::DestinationDesc;
+use rns_transport::error::RnsError;
 use rns_transport::resource::ResourceEventKind;
 use rns_transport::transport::Transport;
 use tokio::sync::Mutex;
@@ -100,23 +101,37 @@ async fn activate_link(
         }
     }
 
-    let mut last_error = None;
+    let mut last_error: Option<String> = None;
     for _ in 0..attempts.max(1) {
-        let link = transport
-            .link(destination)
-            .await
-            .map_err(|error| transport_error(format!("link request not sent: {error}")))?;
+        let link = match transport.link(destination).await {
+            Ok(link) => link,
+            Err(error @ RnsError::NoPath) => {
+                let Some(previous) = last_error.take() else {
+                    return Err(transport_error(format!("link request not sent: {error}")));
+                };
+                // A pending link that never activated expires its path and
+                // queues rediscovery, so a later attempt legitimately finds
+                // none. Wait for the rediscovered path rather than abandoning
+                // the attempts that are left.
+                last_error = Some(format!("{previous}; then no path to the destination"));
+                transport.await_path(&destination.address_hash, timeout, None).await;
+                continue;
+            }
+            Err(error) => {
+                return Err(transport_error(format!("link request not sent: {error}")));
+            }
+        };
         match await_link_activation(transport, &link, timeout).await {
             Ok(()) => return Ok(link),
             Err(error) => {
-                last_error = Some(error);
+                last_error = Some(error.to_string());
                 transport.reset_out_link(&destination.address_hash).await;
             }
         }
     }
     Err(transport_error(format!(
         "link activation failed: {}",
-        last_error.map_or_else(|| "no attempts made".to_owned(), |error| error.to_string())
+        last_error.unwrap_or_else(|| "no attempts made".to_owned())
     )))
 }
 

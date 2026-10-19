@@ -611,11 +611,16 @@ trailing clause of the bullet for the behaviour it pins.
   `RNS/Transport.py:1443` floods a packet without a path entry. `RnsError`
   is now `#[non_exhaustive]`. `delivery::send_via_link` and the
   lxmf-runtime link delivery surface that failure immediately instead of
-  waiting out their activation timeout. Pinned by
+  waiting out their activation timeout. The lxmf-runtime delivery fails
+  fast only when its first attempt finds no path; a later attempt that
+  finds none, after a pending link's expiry removed the path, spends that
+  attempt in `await_path` and keeps the remaining attempts, and the final
+  error carries both the activation failure and the missing path. Pinned by
   `transport/tests_parts/link_no_path_fast_fail.rs`, `delivery.rs`
   (`send_via_link_without_path_fails_before_the_activation_wait`) and the
-  lxmf-runtime test
-  `link_delivery_without_path_fails_before_the_first_activation_wait`.
+  lxmf-runtime tests
+  `link_delivery_without_path_fails_before_the_first_activation_wait` and
+  `link_delivery_waits_for_a_path_that_vanished_between_attempts`.
 
 ## 0.14.1 - 2026-10-15
 

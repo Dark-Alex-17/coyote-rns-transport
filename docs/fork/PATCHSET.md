@@ -21,8 +21,9 @@ sites, so a rebase can re-apply them one commit at a time.
 ## Unreleased (upstream 0.14.0)
 
 Every file changed since the `0.14.1` release and the patch each change
-belongs to. Patch ids: F1 is request wire frames and fuzz,
-F2 is link proof event and receipt link id. The
+belongs to. Patch ids: F1 is request wire frames and fuzz, F2 is link
+proof event and receipt link id, F3 is outbound outcomes, link fast fail
+and accept hook. The
 `request wire frames and fuzz` patch is fork commits `8e9970ac`,
 `afc56836`, `71365159`, `f875aff7` and `30d8dfde`; the request handlers
 and dispatch patch carries no other id and is fork commits `08a5cff6`,
@@ -43,21 +44,60 @@ commits `1ddd5273`, `a2a40de7`, `3805fe7f`, `3ed78582`, `415d67c8`,
 `8b512044`, `9ebd348b`, `9842695a`, `10f67e30`, `c18098c9`, `3568f1ab`,
 `f1985d01`, `348cf74d`, `a93e3127`, `c7d5f533` and `d9585ef0`; the
 `link proof event and receipt link id` patch is fork commits `6499621f`,
-`d4127c6d`, `04de5d71`, `875edf92`, `8c262c9f` and `631203b5`.
+`d4127c6d`, `04de5d71`, `875edf92`, `8c262c9f` and `631203b5`; the
+`outbound outcomes, link fast fail and accept hook` patch is fork commits
+`50793515`, `4a4a91ae`, `3a5cd726`, `a0a88883`, `9eaafcc1`, `98718b4d`
+and `97bd6a91`.
 
 | File | Patch |
 | --- | --- |
+| `crates/apps/reticulumd/src/bin/reticulumd/bridge.rs` | outbound outcomes, link fast fail and accept hook |
+| `crates/apps/reticulumd/src/bin/reticulumd/bridge_delivery_task_parts/deliverytask_sections/resolve_or_create_propagation_link.rs` | outbound outcomes, link fast fail and accept hook |
+| `crates/apps/reticulumd/src/bin/reticulumd/bridge_delivery_task_tests_parts/module_prelude.rs` | outbound outcomes, link fast fail and accept hook |
+| `crates/apps/reticulumd/src/bin/reticulumd/bridge_delivery_task_tests_parts/oversized_opportunistic_delivery_fal.rs` | outbound outcomes, link fast fail and accept hook |
+| `crates/apps/reticulumd/src/bin/reticulumd/bridge_link_send.rs` | outbound outcomes, link fast fail and accept hook |
+| `crates/apps/reticulumd/src/bin/reticulumd/bridge_propagation.rs` | outbound outcomes, link fast fail and accept hook |
+| `crates/apps/reticulumd/src/bin/reticulumd/bridge_remote_control_link.rs` | outbound outcomes, link fast fail and accept hook |
+| `crates/apps/reticulumd/src/bin/reticulumd/bridge_remote_control_link_tests.rs` | outbound outcomes, link fast fail and accept hook |
+| `crates/apps/reticulumd/src/bin/reticulumd/direct_backchannel.rs` | outbound outcomes, link fast fail and accept hook |
+| `crates/apps/reticulumd/src/bin/reticulumd/inbound_routing.rs` | outbound outcomes, link fast fail and accept hook |
+| `crates/apps/reticulumd/src/bin/reticulumd/inbound_worker_link_identification.rs` | outbound outcomes, link fast fail and accept hook |
+| `crates/apps/reticulumd/src/bin/reticulumd/inbound_worker_parts/inbound_propagation_payload_is_inges_sections/partial_inbound_resource_teardown.rs` | outbound outcomes, link fast fail and accept hook |
+| `crates/apps/reticulumd/src/bin/reticulumd/inbound_worker_parts/inbound_propagation_payload_is_inges_sections/remote_inbound_resource_cancel.rs` | outbound outcomes, link fast fail and accept hook |
+| `crates/apps/reticulumd/src/bin/reticulumd/inbound_worker_parts/inbound_propagation_payload_is_inges_sections/resource_terminal_consumer.rs` | outbound outcomes, link fast fail and accept hook |
+| `crates/apps/reticulumd/src/bin/reticulumd/inbound_worker_parts/module_core.rs` | outbound outcomes, link fast fail and accept hook |
+| `crates/apps/reticulumd/tests/direct_link_delivery.rs` | outbound outcomes, link fast fail and accept hook |
 | `crates/apps/reticulumd/tests/fuzz_campaign_contract.rs` | request wire frames and fuzz |
-| `crates/apps/rns-tools/src/bin/independent_interop_node/events.rs` | link proof event and receipt link id |
-| `crates/libs/rns-transport/CHANGELOG.md` | request wire frames and fuzz, request handlers and dispatch, request receipts and timeouts, link proof event and receipt link id |
-| `crates/libs/rns-transport/README.md` | request handlers and dispatch, request receipts and timeouts, link proof event and receipt link id |
+| `crates/apps/reticulumd/tests/python_channel_interop_parts/ax25_kiss_pty.rs` | outbound outcomes, link fast fail and accept hook |
+| `crates/apps/reticulumd/tests/python_channel_interop_parts/ifac_kiss_pty.rs` | outbound outcomes, link fast fail and accept hook |
+| `crates/apps/reticulumd/tests/python_channel_interop_parts/ifac_python_interop.rs` | outbound outcomes, link fast fail and accept hook |
+| `crates/apps/reticulumd/tests/python_channel_interop_parts/module_prelude.rs` | outbound outcomes, link fast fail and accept hook |
+| `crates/apps/reticulumd/tests/python_channel_interop_parts/multi_segment_python_interop.rs` | outbound outcomes, link fast fail and accept hook |
+| `crates/apps/reticulumd/tests/python_channel_interop_parts/python_resource_fault_reverse.rs` | outbound outcomes, link fast fail and accept hook |
+| `crates/apps/reticulumd/tests/python_channel_interop_parts/reader_resource_interop.rs` | outbound outcomes, link fast fail and accept hook |
+| `crates/apps/reticulumd/tests/python_channel_interop_parts/resource_faults.rs` | outbound outcomes, link fast fail and accept hook |
+| `crates/apps/reticulumd/tests/python_channel_interop_parts/resource_memory_profile.rs` | outbound outcomes, link fast fail and accept hook |
+| `crates/apps/reticulumd/tests/python_channel_interop_parts/resource_size_matrix.rs` | outbound outcomes, link fast fail and accept hook |
+| `crates/apps/reticulumd/tests/python_channel_interop_parts/rust_to_python_raw_resource_roundtri.rs` | outbound outcomes, link fast fail and accept hook |
+| `crates/apps/reticulumd/tests/support/python_channel_events.rs` | outbound outcomes, link fast fail and accept hook |
+| `crates/apps/rns-tools/src/bin/independent_interop_node/events.rs` | link proof event and receipt link id, outbound outcomes, link fast fail and accept hook |
+| `crates/apps/rns-tools/src/bin/independent_interop_node/node.rs` | outbound outcomes, link fast fail and accept hook |
+| `crates/apps/rns-tools/src/bin/rncp_parts/client.rs` | outbound outcomes, link fast fail and accept hook |
+| `crates/apps/rns-tools/src/bin/rncp_parts/server.rs` | outbound outcomes, link fast fail and accept hook |
+| `crates/apps/rns-tools/src/bin/rngit_parts/native_client.rs` | outbound outcomes, link fast fail and accept hook |
+| `crates/apps/rns-tools/src/bin/rnsh_parts/network.rs` | outbound outcomes, link fast fail and accept hook |
+| `crates/libs/lxmf-runtime/src/link_delivery.rs` | outbound outcomes, link fast fail and accept hook |
+| `crates/libs/lxmf-runtime/src/tests.rs` | outbound outcomes, link fast fail and accept hook |
+| `crates/libs/rns-transport/CHANGELOG.md` | request wire frames and fuzz, request handlers and dispatch, request receipts and timeouts, link proof event and receipt link id, outbound outcomes, link fast fail and accept hook |
+| `crates/libs/rns-transport/README.md` | request handlers and dispatch, request receipts and timeouts, link proof event and receipt link id, outbound outcomes, link fast fail and accept hook |
 | `crates/libs/rns-transport/fuzz/.gitignore` | request wire frames and fuzz |
 | `crates/libs/rns-transport/fuzz/Cargo.lock` | request wire frames and fuzz |
 | `crates/libs/rns-transport/fuzz/Cargo.toml` | request wire frames and fuzz |
 | `crates/libs/rns-transport/fuzz/fuzz_targets/request_frame_decode.rs` | request wire frames and fuzz |
 | `crates/libs/rns-transport/fuzz/fuzz_targets/resource_advertisement_decode.rs` | request wire frames and fuzz |
 | `crates/libs/rns-transport/fuzz/fuzz_targets/response_frame_decode.rs` | request wire frames and fuzz |
-| `crates/libs/rns-transport/src/delivery.rs` | request receipts and timeouts |
+| `crates/libs/rns-transport/src/channel_buffer_parts/stream_data_message_roundtrips_compr.rs` | outbound outcomes, link fast fail and accept hook |
+| `crates/libs/rns-transport/src/delivery.rs` | request receipts and timeouts, outbound outcomes, link fast fail and accept hook |
 | `crates/libs/rns-transport/src/destination.rs` | request wire frames and fuzz |
 | `crates/libs/rns-transport/src/destination/link_parts/link.rs` | request handlers and dispatch, request receipts and timeouts, link proof event and receipt link id |
 | `crates/libs/rns-transport/src/destination/link_parts/link_sections/data_proof_tests.rs` | link proof event and receipt link id |
@@ -66,14 +106,14 @@ commits `1ddd5273`, `a2a40de7`, `3805fe7f`, `3ed78582`, `415d67c8`,
 | `crates/libs/rns-transport/src/destination/link_parts/link_sections/new.rs` | request handlers and dispatch, request receipts and timeouts, link proof event and receipt link id |
 | `crates/libs/rns-transport/src/destination/link_parts/link_sections/new_from_request.rs` | request handlers and dispatch, request receipts and timeouts, link proof event and receipt link id |
 | `crates/libs/rns-transport/src/destination/link_parts/link_sections/next_watchdog_deadline.rs` | request receipts and timeouts, link proof event and receipt link id |
-| `crates/libs/rns-transport/src/destination/link_parts/link_sections/pending_requests.rs` | request receipts and timeouts |
-| `crates/libs/rns-transport/src/destination/link_parts/link_sections/pending_requests_tests.rs` | request receipts and timeouts |
+| `crates/libs/rns-transport/src/destination/link_parts/link_sections/pending_requests.rs` | request receipts and timeouts, outbound outcomes, link fast fail and accept hook |
+| `crates/libs/rns-transport/src/destination/link_parts/link_sections/pending_requests_tests.rs` | request receipts and timeouts, outbound outcomes, link fast fail and accept hook |
 | `crates/libs/rns-transport/src/destination/link_parts/link_sections/request_dispatch.rs` | request handlers and dispatch |
 | `crates/libs/rns-transport/src/destination/link_parts/link_sections/request_dispatch_tests.rs` | request handlers and dispatch |
 | `crates/libs/rns-transport/src/destination/link_parts/link_sections/request_payload.rs` | request wire frames and fuzz |
 | `crates/libs/rns-transport/src/destination/link_parts/link_sections/response_packet.rs` | request receipts and timeouts |
 | `crates/libs/rns-transport/src/destination/link_parts/link_sections/response_packet_tests.rs` | request receipts and timeouts |
-| `crates/libs/rns-transport/src/destination/link_parts/link_sections/response_record_tests.rs` | request receipts and timeouts, link proof event and receipt link id |
+| `crates/libs/rns-transport/src/destination/link_parts/link_sections/response_record_tests.rs` | request receipts and timeouts, link proof event and receipt link id, outbound outcomes, link fast fail and accept hook |
 | `crates/libs/rns-transport/src/destination/link_parts/linkhandleresult.rs` | request handlers and dispatch, request receipts and timeouts, link proof event and receipt link id |
 | `crates/libs/rns-transport/src/destination/link_parts/module_prelude.rs` | request handlers and dispatch, request receipts and timeouts, link proof event and receipt link id |
 | `crates/libs/rns-transport/src/destination/request/allow.rs` | request handlers and dispatch |
@@ -92,38 +132,60 @@ commits `1ddd5273`, `a2a40de7`, `3805fe7f`, `3ed78582`, `415d67c8`,
 | `crates/libs/rns-transport/src/destination_parts/destination.rs` | request handlers and dispatch |
 | `crates/libs/rns-transport/src/destination_parts/module_core.rs` | request handlers and dispatch |
 | `crates/libs/rns-transport/src/destination_parts/module_prelude.rs` | request handlers and dispatch |
-| `crates/libs/rns-transport/src/resource.rs` | request receipts and timeouts |
-| `crates/libs/rns-transport/src/resource/manager.rs` | request receipts and timeouts |
-| `crates/libs/rns-transport/src/resource/manager_cleanup.rs` | request receipts and timeouts |
-| `crates/libs/rns-transport/src/resource/manager_segments.rs` | request receipts and timeouts |
-| `crates/libs/rns-transport/src/resource/tests.rs` | request wire frames and fuzz |
+| `crates/libs/rns-transport/src/error.rs` | outbound outcomes, link fast fail and accept hook |
+| `crates/libs/rns-transport/src/resource.rs` | request receipts and timeouts, outbound outcomes, link fast fail and accept hook |
+| `crates/libs/rns-transport/src/resource/manager.rs` | request receipts and timeouts, outbound outcomes, link fast fail and accept hook |
+| `crates/libs/rns-transport/src/resource/manager_cleanup.rs` | request receipts and timeouts, outbound outcomes, link fast fail and accept hook |
+| `crates/libs/rns-transport/src/resource/manager_polling.rs` | outbound outcomes, link fast fail and accept hook |
+| `crates/libs/rns-transport/src/resource/manager_proof.rs` | outbound outcomes, link fast fail and accept hook |
+| `crates/libs/rns-transport/src/resource/manager_segments.rs` | request receipts and timeouts, outbound outcomes, link fast fail and accept hook |
+| `crates/libs/rns-transport/src/resource/manager_start.rs` | outbound outcomes, link fast fail and accept hook |
+| `crates/libs/rns-transport/src/resource/outcome.rs` | outbound outcomes, link fast fail and accept hook |
+| `crates/libs/rns-transport/src/resource/sender.rs` | outbound outcomes, link fast fail and accept hook |
+| `crates/libs/rns-transport/src/resource/tests.rs` | request wire frames and fuzz, outbound outcomes, link fast fail and accept hook |
 | `crates/libs/rns-transport/src/resource/tests_advert_kat.rs` | request wire frames and fuzz |
-| `crates/libs/rns-transport/src/resource/tests_timeouts_lifecycle.rs` | request receipts and timeouts |
-| `crates/libs/rns-transport/src/transport/core.rs` | request handlers and dispatch, link proof event and receipt link id |
+| `crates/libs/rns-transport/src/resource/tests_fault_injection.rs` | outbound outcomes, link fast fail and accept hook |
+| `crates/libs/rns-transport/src/resource/tests_outcome.rs` | outbound outcomes, link fast fail and accept hook |
+| `crates/libs/rns-transport/src/resource/tests_split_lazy.rs` | outbound outcomes, link fast fail and accept hook |
+| `crates/libs/rns-transport/src/resource/tests_split_unconfirmed_served.rs` | outbound outcomes, link fast fail and accept hook |
+| `crates/libs/rns-transport/src/resource/tests_timeouts.rs` | outbound outcomes, link fast fail and accept hook |
+| `crates/libs/rns-transport/src/resource/tests_timeouts_lifecycle.rs` | request receipts and timeouts, outbound outcomes, link fast fail and accept hook |
+| `crates/libs/rns-transport/src/transport/announce.rs` | outbound outcomes, link fast fail and accept hook |
+| `crates/libs/rns-transport/src/transport/core.rs` | request handlers and dispatch, link proof event and receipt link id, outbound outcomes, link fast fail and accept hook |
 | `crates/libs/rns-transport/src/transport/handler.rs` | request receipts and timeouts, link proof event and receipt link id |
 | `crates/libs/rns-transport/src/transport/jobs.rs` | request handlers and dispatch, request receipts and timeouts |
 | `crates/libs/rns-transport/src/transport/jobs_parts/link_maintenance.rs` | request receipts and timeouts |
 | `crates/libs/rns-transport/src/transport/lifecycle.rs` | request receipts and timeouts |
-| `crates/libs/rns-transport/src/transport/links_parts/transport.rs` | request receipts and timeouts |
+| `crates/libs/rns-transport/src/transport/links_parts/transport.rs` | request receipts and timeouts, outbound outcomes, link fast fail and accept hook |
+| `crates/libs/rns-transport/src/transport/links_parts/transport_sections/close_channel.rs` | outbound outcomes, link fast fail and accept hook |
 | `crates/libs/rns-transport/src/transport/links_parts/transport_sections/link_fanout.rs` | request receipts and timeouts |
+| `crates/libs/rns-transport/src/transport/links_parts/transport_sections/link_open.rs` | outbound outcomes, link fast fail and accept hook |
 | `crates/libs/rns-transport/src/transport/links_parts/transport_sections/request.rs` | request receipts and timeouts |
-| `crates/libs/rns-transport/src/transport/links_parts/transport_sections/reset_out_link.rs` | request handlers and dispatch, request receipts and timeouts |
+| `crates/libs/rns-transport/src/transport/links_parts/transport_sections/reset_out_link.rs` | request handlers and dispatch, request receipts and timeouts, outbound outcomes, link fast fail and accept hook |
 | `crates/libs/rns-transport/src/transport/links_parts/transport_sections/resource_reader.rs` | request receipts and timeouts |
-| `crates/libs/rns-transport/src/transport/mod.rs` | request handlers and dispatch, request receipts and timeouts, link proof event and receipt link id |
+| `crates/libs/rns-transport/src/transport/links_parts/transport_sections/send_outcome.rs` | outbound outcomes, link fast fail and accept hook |
+| `crates/libs/rns-transport/src/transport/mod.rs` | request handlers and dispatch, request receipts and timeouts, link proof event and receipt link id, outbound outcomes, link fast fail and accept hook |
 | `crates/libs/rns-transport/src/transport/path.rs` | request handlers and dispatch |
-| `crates/libs/rns-transport/src/transport/request_dispatch.rs` | request handlers and dispatch |
-| `crates/libs/rns-transport/src/transport/resource_wire.rs` | request handlers and dispatch, request receipts and timeouts |
+| `crates/libs/rns-transport/src/transport/request_dispatch.rs` | request handlers and dispatch, outbound outcomes, link fast fail and accept hook |
+| `crates/libs/rns-transport/src/transport/resource_accept_hook.rs` | outbound outcomes, link fast fail and accept hook |
+| `crates/libs/rns-transport/src/transport/resource_wire.rs` | request handlers and dispatch, request receipts and timeouts, outbound outcomes, link fast fail and accept hook |
 | `crates/libs/rns-transport/src/transport/resource_wire_parts/cancel.rs` | request receipts and timeouts |
 | `crates/libs/rns-transport/src/transport/resource_wire_parts/proof.rs` | request receipts and timeouts |
 | `crates/libs/rns-transport/src/transport/test_bridge.rs` | request handlers and dispatch |
-| `crates/libs/rns-transport/src/transport/tests.rs` | request handlers and dispatch, request receipts and timeouts, link proof event and receipt link id |
+| `crates/libs/rns-transport/src/transport/tests.rs` | request handlers and dispatch, request receipts and timeouts, link proof event and receipt link id, outbound outcomes, link fast fail and accept hook |
+| `crates/libs/rns-transport/src/transport/tests_parts/link_no_path_fast_fail.rs` | outbound outcomes, link fast fail and accept hook |
+| `crates/libs/rns-transport/src/transport/tests_parts/pending_out_link_establishment_timeout.rs` | outbound outcomes, link fast fail and accept hook |
+| `crates/libs/rns-transport/src/transport/tests_parts/pending_out_link_rediscovery.rs` | outbound outcomes, link fast fail and accept hook |
+| `crates/libs/rns-transport/src/transport/tests_parts/rns_1_5_ingress_admission.rs` | outbound outcomes, link fast fail and accept hook |
+| `crates/libs/rns-transport/src/transport/tests_parts/two_transport_loopback.rs` | outbound outcomes, link fast fail and accept hook |
+| `crates/libs/rns-transport/src/transport/tests_parts/two_transport_loopback_announce_path_response.rs` | outbound outcomes, link fast fail and accept hook |
 | `crates/libs/rns-transport/src/transport/tests_parts/two_transport_loopback_lifecycle.rs` | request handlers and dispatch, request receipts and timeouts |
 | `crates/libs/rns-transport/src/transport/tests_parts/two_transport_loopback_link_packet_proven.rs` | link proof event and receipt link id |
-| `crates/libs/rns-transport/src/transport/tests_parts/two_transport_loopback_link_packet_proven_probe.rs` | link proof event and receipt link id |
+| `crates/libs/rns-transport/src/transport/tests_parts/two_transport_loopback_link_packet_proven_probe.rs` | link proof event and receipt link id, outbound outcomes, link fast fail and accept hook |
 | `crates/libs/rns-transport/src/transport/tests_parts/two_transport_loopback_link_packet_proven_probe2.rs` | link proof event and receipt link id |
 | `crates/libs/rns-transport/src/transport/tests_parts/two_transport_loopback_link_packet_proven_probe3.rs` | link proof event and receipt link id |
 | `crates/libs/rns-transport/src/transport/tests_parts/two_transport_loopback_requests.rs` | request handlers and dispatch, request receipts and timeouts |
-| `crates/libs/rns-transport/src/transport/tests_parts/two_transport_loopback_requests_errors.rs` | request receipts and timeouts |
+| `crates/libs/rns-transport/src/transport/tests_parts/two_transport_loopback_requests_errors.rs` | request receipts and timeouts, outbound outcomes, link fast fail and accept hook |
 | `crates/libs/rns-transport/src/transport/tests_parts/two_transport_loopback_requests_isolation.rs` | request handlers and dispatch |
 | `crates/libs/rns-transport/src/transport/tests_parts/two_transport_loopback_requests_malformed.rs` | request handlers and dispatch |
 | `crates/libs/rns-transport/src/transport/tests_parts/two_transport_loopback_requests_probe.rs` | request handlers and dispatch, request receipts and timeouts |
@@ -138,23 +200,23 @@ commits `1ddd5273`, `a2a40de7`, `3805fe7f`, `3ed78582`, `415d67c8`,
 | `crates/libs/rns-transport/src/transport/tests_parts/two_transport_loopback_requests_receipt_probe7.rs` | request receipts and timeouts |
 | `crates/libs/rns-transport/src/transport/tests_parts/two_transport_loopback_requests_receipt_stop.rs` | request receipts and timeouts |
 | `crates/libs/rns-transport/src/transport/tests_parts/two_transport_loopback_requests_receipt_timeouts.rs` | request receipts and timeouts |
-| `crates/libs/rns-transport/src/transport/tests_parts/two_transport_loopback_requests_resource_form.rs` | request handlers and dispatch |
-| `crates/libs/rns-transport/src/transport/tests_parts/two_transport_loopback_requests_resource_form_probe.rs` | request handlers and dispatch |
+| `crates/libs/rns-transport/src/transport/tests_parts/two_transport_loopback_requests_resource_form.rs` | request handlers and dispatch, outbound outcomes, link fast fail and accept hook |
+| `crates/libs/rns-transport/src/transport/tests_parts/two_transport_loopback_requests_resource_form_probe.rs` | request handlers and dispatch, outbound outcomes, link fast fail and accept hook |
 | `crates/libs/rns-transport/src/transport/tests_parts/two_transport_loopback_requests_resource_form_probe2.rs` | request handlers and dispatch |
-| `crates/libs/rns-transport/src/transport/tests_parts/two_transport_loopback_requests_resource_form_probe3.rs` | request handlers and dispatch |
-| `crates/libs/rns-transport/src/transport/tests_parts/two_transport_loopback_requests_resource_form_sizes.rs` | request receipts and timeouts |
+| `crates/libs/rns-transport/src/transport/tests_parts/two_transport_loopback_requests_resource_form_probe3.rs` | request handlers and dispatch, outbound outcomes, link fast fail and accept hook |
+| `crates/libs/rns-transport/src/transport/tests_parts/two_transport_loopback_requests_resource_form_sizes.rs` | request receipts and timeouts, outbound outcomes, link fast fail and accept hook |
 | `crates/libs/rns-transport/src/transport/tests_parts/two_transport_loopback_requests_resource_form_sizes_cancel.rs` | request receipts and timeouts |
 | `crates/libs/rns-transport/src/transport/tests_parts/two_transport_loopback_requests_resource_form_sizes_cancel2.rs` | request receipts and timeouts |
 | `crates/libs/rns-transport/src/transport/tests_parts/two_transport_loopback_requests_resource_form_sizes_cancel_probe.rs` | request receipts and timeouts |
-| `crates/libs/rns-transport/src/transport/tests_parts/two_transport_loopback_requests_resource_form_sizes_probe.rs` | request receipts and timeouts |
-| `crates/libs/rns-transport/src/transport/tests_parts/two_transport_loopback_requests_resource_form_sizes_probe2.rs` | request receipts and timeouts |
-| `crates/libs/rns-transport/src/transport/tests_parts/two_transport_loopback_requests_resource_form_sizes_probe3.rs` | request receipts and timeouts |
+| `crates/libs/rns-transport/src/transport/tests_parts/two_transport_loopback_requests_resource_form_sizes_probe.rs` | request receipts and timeouts, outbound outcomes, link fast fail and accept hook |
+| `crates/libs/rns-transport/src/transport/tests_parts/two_transport_loopback_requests_resource_form_sizes_probe2.rs` | request receipts and timeouts, outbound outcomes, link fast fail and accept hook |
+| `crates/libs/rns-transport/src/transport/tests_parts/two_transport_loopback_requests_resource_form_sizes_probe3.rs` | request receipts and timeouts, outbound outcomes, link fast fail and accept hook |
 | `crates/libs/rns-transport/src/transport/tests_parts/two_transport_loopback_requests_resource_form_sizes_probe4.rs` | request receipts and timeouts |
-| `crates/libs/rns-transport/src/transport/tests_parts/two_transport_loopback_requests_resource_form_sizes_probe5.rs` | request receipts and timeouts |
-| `crates/libs/rns-transport/src/transport/tests_parts/two_transport_loopback_requests_resource_form_sizes_probe6.rs` | request receipts and timeouts |
-| `crates/libs/rns-transport/src/transport/tests_parts/two_transport_loopback_requests_resource_form_sizes_probe7.rs` | request receipts and timeouts |
+| `crates/libs/rns-transport/src/transport/tests_parts/two_transport_loopback_requests_resource_form_sizes_probe5.rs` | request receipts and timeouts, outbound outcomes, link fast fail and accept hook |
+| `crates/libs/rns-transport/src/transport/tests_parts/two_transport_loopback_requests_resource_form_sizes_probe6.rs` | request receipts and timeouts, outbound outcomes, link fast fail and accept hook |
+| `crates/libs/rns-transport/src/transport/tests_parts/two_transport_loopback_requests_resource_form_sizes_probe7.rs` | request receipts and timeouts, outbound outcomes, link fast fail and accept hook |
 | `crates/libs/rns-transport/src/transport/tests_parts/two_transport_loopback_requests_resource_form_sizes_probe8.rs` | request receipts and timeouts |
-| `crates/libs/rns-transport/src/transport/tests_parts/two_transport_loopback_requests_resource_form_sizes_probe9.rs` | request receipts and timeouts |
+| `crates/libs/rns-transport/src/transport/tests_parts/two_transport_loopback_requests_resource_form_sizes_probe9.rs` | request receipts and timeouts, outbound outcomes, link fast fail and accept hook |
 | `crates/libs/rns-transport/src/transport/tests_parts/two_transport_loopback_requests_resource_form_sizes_probe10.rs` | request receipts and timeouts |
 | `crates/libs/rns-transport/src/transport/tests_parts/two_transport_loopback_requests_resource_form_sizes_probe11.rs` | request receipts and timeouts |
 | `crates/libs/rns-transport/src/transport/tests_parts/two_transport_loopback_requests_resource_form_sizes_probe12.rs` | request receipts and timeouts |
@@ -163,18 +225,22 @@ commits `1ddd5273`, `a2a40de7`, `3805fe7f`, `3ed78582`, `415d67c8`,
 | `crates/libs/rns-transport/src/transport/tests_parts/two_transport_loopback_requests_resource_form_sizes_probe15.rs` | request receipts and timeouts |
 | `crates/libs/rns-transport/src/transport/tests_parts/two_transport_loopback_requests_resource_form_sizes_probe16.rs` | request receipts and timeouts |
 | `crates/libs/rns-transport/src/transport/tests_parts/two_transport_loopback_requests_routing.rs` | request handlers and dispatch, request receipts and timeouts |
-| `crates/libs/rns-transport/src/transport/tests_parts/two_transport_loopback_resources.rs` | request receipts and timeouts |
-| `crates/libs/rns-transport/src/transport/tests_parts/two_transport_loopback_resources_directions.rs` | request receipts and timeouts |
-| `crates/libs/rns-transport/src/transport/tests_parts/two_transport_loopback_resources_receipt_less_receiving.rs` | request receipts and timeouts |
-| `crates/libs/rns-transport/src/transport/tests_parts/two_transport_loopback_resources_reject_response.rs` | request receipts and timeouts |
-| `crates/libs/rns-transport/src/transport/tests_parts/two_transport_loopback_resources_retries.rs` | request receipts and timeouts |
+| `crates/libs/rns-transport/src/transport/tests_parts/two_transport_loopback_resources.rs` | request receipts and timeouts, outbound outcomes, link fast fail and accept hook |
+| `crates/libs/rns-transport/src/transport/tests_parts/two_transport_loopback_resources_accept_hook.rs` | outbound outcomes, link fast fail and accept hook |
+| `crates/libs/rns-transport/src/transport/tests_parts/two_transport_loopback_resources_directions.rs` | request receipts and timeouts, outbound outcomes, link fast fail and accept hook |
+| `crates/libs/rns-transport/src/transport/tests_parts/two_transport_loopback_resources_gone_link.rs` | outbound outcomes, link fast fail and accept hook |
+| `crates/libs/rns-transport/src/transport/tests_parts/two_transport_loopback_resources_outcome.rs` | outbound outcomes, link fast fail and accept hook |
+| `crates/libs/rns-transport/src/transport/tests_parts/two_transport_loopback_resources_receipt_less_receiving.rs` | request receipts and timeouts, outbound outcomes, link fast fail and accept hook |
+| `crates/libs/rns-transport/src/transport/tests_parts/two_transport_loopback_resources_reject.rs` | outbound outcomes, link fast fail and accept hook |
+| `crates/libs/rns-transport/src/transport/tests_parts/two_transport_loopback_resources_reject_response.rs` | request receipts and timeouts, outbound outcomes, link fast fail and accept hook |
+| `crates/libs/rns-transport/src/transport/tests_parts/two_transport_loopback_resources_retries.rs` | request receipts and timeouts, outbound outcomes, link fast fail and accept hook |
 | `crates/libs/rns-transport/src/transport/wire.rs` | request receipts and timeouts, link proof event and receipt link id |
 | `crates/libs/rns-transport/tests/link_event_packet_proven_api.rs` | link proof event and receipt link id |
 | `crates/libs/rns-transport/tests/request_frame_wire.rs` | request wire frames and fuzz |
 | `crates/libs/rns-transport/tests/request_handler_api.rs` | request handlers and dispatch |
 | `crates/libs/rns-transport/tests/request_receipt_api.rs` | request receipts and timeouts |
-| `crates/libs/rns-transport/tests/request_receipt_readme.rs` | request receipts and timeouts |
-| `docs/fork/PATCHSET.md` | request wire frames and fuzz, request handlers and dispatch, request receipts and timeouts, link proof event and receipt link id |
+| `crates/libs/rns-transport/tests/request_receipt_readme.rs` | request receipts and timeouts, outbound outcomes, link fast fail and accept hook |
+| `docs/fork/PATCHSET.md` | request wire frames and fuzz, request handlers and dispatch, request receipts and timeouts, link proof event and receipt link id, outbound outcomes, link fast fail and accept hook |
 | `docs/runbooks/fuzzing-campaign.md` | request wire frames and fuzz |
 | `tools/scripts/fuzz-campaign.sh` | request wire frames and fuzz |
 | `xtask/src/main_parts/run_key_management_check.rs` | request wire frames and fuzz |
@@ -1789,6 +1855,158 @@ the Resource test asserts an empty receipt list (its `all()` over an empty
 has no room for; the rns-tools interop node `events.rs` logs an unnamed
 link event at debug before reporting it as `unknown`. The `CHANGELOG.md`
 names the fixture.
+
+Fork commit `50793515`: F3, outbound outcomes, link fast fail and accept
+hook. The ResourceManager hands out a verdict for an outbound Resource.
+New `src/resource/outcome.rs` (an `include!` line in `resource.rs`)
+carries `RejectReason` (`PeerCancelled`; `Oversize { limit }` and
+`Unknown` reserved, since a refusal arrives as a `RESOURCE_RCL` carrying
+only the resource hash, `RNS/Resource.py:155-165`), `OutboundFailure`
+(`NotSent`, `RetriesExhausted`, `Segmenting`, `LinkClosed`),
+`OutboundResult` (`Complete`, `Failed`, `Rejected`, `Cancelled`), all three
+`#[non_exhaustive]`, the oneshot-backed `OutboundOutcome` future, which
+resolves `Failed(LinkClosed)` when the manager is dropped before a verdict,
+`ResourceManager::track_prepared_with_outcome`, keyed by the original hash
+so a split resource resolves once, and the crate-private
+`conclude_outbound`, the one exit that queues the terminal `ResourceEvent`
+and resolves the outcome registered for it.
+Upstream sites: `resource.rs` makes `ResourceEventKind::OutboundRejected` a
+struct variant carrying `reason: RejectReason`; `resource/manager.rs` adds
+the `outbound_outcomes` table and routes the local cancel and the receiver
+cancel through `conclude_outbound`, `manager_start.rs` initialises the
+table, `manager_cleanup.rs` concludes `Failed(LinkClosed)` once per
+original hash when a link's state is removed, `manager_proof.rs` concludes
+`Complete` on the final proof and `Failed(Segmenting)` when a later segment
+cannot be built, `manager_segments.rs` concludes `Failed(NotSent)` when
+`confirm_outbound_dispatch` learns the advertisement was not sent, and
+`manager_polling.rs` maps the new `OutboundResourcePoll::RetriesExhausted`,
+which `resource/sender.rs` returns in place of `Failed` on an exhausted
+retry budget, to `Failed(RetriesExhausted)` and the failed state to
+`Failed(Segmenting)`. Every `OutboundRejected` match in the workspace takes
+the `{ .. }` or `{ reason }` form: the `rncp` client and server, the
+independent interop node's `events.rs`, reticulumd's
+`bridge_remote_control_link.rs`, inbound worker `module_core.rs` and the
+`python_channel_events.rs` test support, lxmf-runtime's `link_delivery.rs`
+and `tests.rs`, the link's `pending_requests.rs` with its two test files,
+and the resource and transport test fixtures. New `resource/tests_outcome.rs`
+(an `include!` line in `resource/tests.rs`) pins the not-sent, link-closed,
+receiver-cancel, local-cancel, manager-dropped and retries-exhausted
+verdicts. The release notes for this commit are in fork commit `9eaafcc1`,
+below.
+
+Fork commit `4a4a91ae`: `Transport::{send_resource_with_outcome,
+send_request_resource_with_outcome, send_response_resource_with_outcome}`,
+the existing `send_*` entry points returning `(Hash, OutboundOutcome)`.
+Upstream sites: `transport_sections/send_outcome.rs` (new, an `include!`
+line in `links_parts/transport.rs`) carries the three public methods and
+their rustdoc: the verdict mapping, a request Resource refused under
+`max_request_size` (`RNS/Link.py:1036-1042`) and a response Resource
+refused under `max_response_size` (`RNS/Link.py:1044-1051`) both reading
+`Rejected(PeerCancelled)`, a response advertisement nobody expects dropped
+without an answer (`RNS/Link.py:1046-1047`) ending in
+`Failed(RetriesExhausted)`, and dropping the outcome cancelling nothing.
+`transport_sections/reset_out_link.rs` moves the bodies of
+`send_resource_observed_with_compression` and
+`send_request_resource_with_max_response_size` into the crate-private
+`send_resource_outcome_inner` and `send_request_resource_outcome_inner`,
+which call `track_prepared_with_outcome` under the handler lock and return
+the outcome beside the hash; the public forms map it away.
+`transport/request_dispatch.rs` has the free `send_response_resource`
+return the pair and `send_response_as_resource` discard the outcome. New
+fixture `two_transport_loopback_resources_outcome.rs` (one `include!` line
+in `transport/tests.rs`) pins a three-segment send resolving `Complete`
+only once the final segment is proven, a torn-down link resolving
+`Failed(LinkClosed)`, a receiver cap drawing `Rejected(PeerCancelled)`, and
+`cancel_resource` resolving `Cancelled`. The release notes for this commit
+are in fork commit `9eaafcc1`, below.
+
+Fork commit `3a5cd726`: `Transport::link` returns
+`Result<Arc<Mutex<Link>>, RnsError>` and fails fast with the new
+`RnsError::NoPath` when the path table has no next hop for the destination
+and the transport does not broadcast; the request used to be dropped as
+`DroppedNoRoute` on the way out and the caller learned of it only when the
+link timed out after `DEFAULT_ESTABLISHMENT_TIMEOUT` (12 s). With
+`broadcast` on the request still goes out on every outgoing interface, as
+`RNS/Transport.py:1443` floods a packet without a path entry.
+Upstream sites: `link()` moves out of `transport_sections/close_channel.rs`
+into the new `transport_sections/link_open.rs` (an `include!` line in
+`links_parts/transport.rs`), which reads the next hop, the hop count and
+the `broadcast` flag under one handler guard and returns `Err(NoPath)`
+before any link is built or inserted; `error.rs` adds the variant, citing
+`RNS/Transport.py:1383` for the path-table route and `:1443` for the
+flood, and makes `RnsError` `#[non_exhaustive]`. `delivery::send_via_link`
+(`delivery.rs`) and lxmf-runtime's `activate_link`
+(`lxmf-runtime/src/link_delivery.rs`) surface the failure at once instead
+of waiting out their activation timeout; reticulumd's
+`propagation_link_for_node` (`bridge_propagation.rs`) returns an
+`io::Result` so the delivery task
+(`resolve_or_create_propagation_link.rs`) can report it, and
+`bridge_link_send.rs` records the failed outbound activity before
+returning. The remaining call sites in reticulumd, rns-tools (`rncp`,
+`rngit`, `rnsh`, the independent interop node) and the crate's own tests
+and fixtures unwrap or map the `Result`. Tests: new fixture
+`link_no_path_fast_fail.rs` (one `include!` line in `transport/tests.rs`)
+pins the refusal without broadcast and the request still leaving with it;
+`delivery.rs` gains
+`send_via_link_without_path_fails_before_the_activation_wait` and
+lxmf-runtime `tests.rs`
+`link_delivery_without_path_fails_before_the_first_activation_wait`, each
+bounding the failure under a second;
+`two_transport_loopback_requests_errors.rs` seeds a path for its unserved
+destination over the served one's interface, since its connector does not
+broadcast. The crate `CHANGELOG.md` carries the `### Changed` bullet.
+
+Fork commit `a0a88883`: `AnnounceEvent::is_path_response`. Upstream sites:
+`AnnounceEvent` (`transport/mod.rs`) gains the public `bool` field, true
+for an announce the destination sent in answer to a path request, which it
+files under `PacketContext::PathResponse` (`RNS/Destination.py:308`), the
+flag Python hands its announce handlers (`RNS/Transport.py:2524-2528`);
+`transport/announce.rs` sets it from the packet context where the event is
+published. New fixture `two_transport_loopback_announce_path_response.rs`
+(one `include!` line in `transport/tests.rs`) pins a fresh announce
+reading false and the announce drawn out by `request_path` for a
+destination registered without announcing reading true. The crate
+`CHANGELOG.md` carries the `### Added` bullet.
+
+Fork commit `9eaafcc1`: `Transport::set_resource_accept_hook`, the
+`ACCEPT_APP` callback of `RNS/Link.py:1065-1074`. Upstream sites: new
+`transport/resource_accept_hook.rs` (declared in `transport/mod.rs`, which
+re-exports the alias) carries `ResourceAcceptHook`, an
+`Arc<dyn Fn(&ResourceAdvertisement, &LinkId, Option<&Identity>) -> bool +
+Send + Sync>`, and `set_resource_accept_hook`, and takes over
+`set_receipt_handler` and `emit_receipt_for_test` from `transport/core.rs`
+unchanged; `TransportHandler` (`transport/mod.rs`) gains the
+`resource_accept_hook` seat, initialised to `None` in `core.rs`.
+`handle_link_resource_packet` in `transport/resource_wire.rs` consults the
+hook, under the link guard, for an advertisement that is neither a request
+nor a response and that the size caps did not already refuse, with the
+link id and `Link::identified_peer_identity`; `false` logs at debug and
+queues the same receiver cancel the caps send (`RNS/Resource.py:155-165`),
+so the sender reads `Rejected(PeerCancelled)`. New fixture
+`two_transport_loopback_resources_accept_hook.rs` (one `include!` line in
+`transport/tests.rs`) pins a refusing hook drawing `Rejected(PeerCancelled)`
+on the sender's outcome and event stream with the link it saw, nothing
+assembled and the link surviving, a replacement hook returning `true`
+admitting the next transfer, and a request advertisement completing under
+`max_request_size` (`RNS/Link.py:1036-1042`) without the hook being
+consulted. The crate `CHANGELOG.md` gains the `### Added` bullets for the
+`send_*_with_outcome` family and the hook, and the `### Changed` bullet
+for `OutboundRejected { reason }` as a breaking change whose out-of-tree
+patterns need `{ .. }` or `{ reason }`.
+
+Fork commit `98718b4d`: the crate `README.md` gains an `Outbound resource
+outcomes` section, with a `send_resource_with_outcome` snippet whose match
+keeps the wildcard arm the `#[non_exhaustive]` enums call for and the
+verdict mapping as the rustdoc of `resource/outcome.rs` and
+`transport_sections/send_outcome.rs` states it, and an `Opening links and
+admitting resources` section on `Transport::link` failing fast with
+`RnsError::NoPath` (`RNS/Transport.py:1439-1443`), `RnsError` being
+`#[non_exhaustive]`, `AnnounceEvent::is_path_response` and the scope of
+`Transport::set_resource_accept_hook` (`RNS/Link.py:1036-1064` against
+`:1065-1074`), both between `Delivery proofs on a link` and `Versioning
+and releases`. The `Request handlers` and `Sending requests` snippets,
+which `tests/request_receipt_readme.rs` drives verbatim, are untouched.
+Fork commit `97bd6a91` spells out the alias's `Send + Sync` bounds there.
 
 ## 0.14.1 (upstream 0.14.0)
 

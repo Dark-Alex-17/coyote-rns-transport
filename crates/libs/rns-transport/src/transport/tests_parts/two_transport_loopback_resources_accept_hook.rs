@@ -1,5 +1,5 @@
 // Loopback coverage for `Transport::set_resource_accept_hook`: a hook refusing a plain
-// advertisement draws the same receiver cancel the size caps do (`RNS/Link.py:1065-1074`,
+// advertisement draws the same receiver cancel the size caps do (`RNS/Link.py:1066-1074`,
 // `RNS/Resource.py:155-165`), the link survives it, and a replacement hook admits the next
 // transfer; a hook that panics takes neither the advertisement's answer nor the transport
 // down. Helpers come from the sibling `tests_parts` files included into this module.

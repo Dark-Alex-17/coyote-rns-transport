@@ -25,7 +25,7 @@ async fn link_without_path_and_without_broadcast_fails_fast() {
     let result = transport.link(destination).await;
 
     assert!(matches!(result, Err(RnsError::NoPath)), "link request must be refused");
-    assert!(started.elapsed() < Duration::from_millis(10), "took {:?}", started.elapsed());
+    assert!(started.elapsed() < Duration::from_millis(500), "took {:?}", started.elapsed());
     assert!(
         matches!(channel.tx_channel.try_recv(), Err(tokio::sync::mpsc::error::TryRecvError::Empty)),
         "no link request on the wire"

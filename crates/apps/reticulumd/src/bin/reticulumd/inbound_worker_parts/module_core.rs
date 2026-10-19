@@ -215,6 +215,11 @@ pub(super) fn spawn_inbound_worker(
                             )
                         );
                     }
+                    kind => log::debug!(
+                        "[daemon-rx] unhandled resource event kind={kind:?} link={} hash={}",
+                        event.link_id,
+                        event.hash
+                    ),
                 }
             }
         }

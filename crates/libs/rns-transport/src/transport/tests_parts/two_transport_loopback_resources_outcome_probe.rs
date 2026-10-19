@@ -243,7 +243,7 @@ async fn outcome_probe_stopping_and_dropping_the_sender_resolves_failed_link_clo
 }
 
 /// The hook sees `None` for a peer that has not identified and `Some(identity)` once it
-/// has (`RNS/Link.py:1065-1074` hands `ACCEPT_APP` the link, whose identity is the remote's
+/// has (`RNS/Link.py:1066-1074` hands `ACCEPT_APP` the link, whose identity is the remote's
 /// once identified).
 #[tokio::test]
 #[deny(clippy::await_holding_invalid_type)]

@@ -13,7 +13,7 @@ use crate::resource::ResourceAdvertisement;
 /// and its workers carry on. Request and response advertisements are
 /// governed by `max_request_size` and `max_response_size` instead
 /// (`RNS/Link.py:1036-1064`); the hook is the `ACCEPT_APP` callback of
-/// `RNS/Link.py:1065-1074` for everything else. The identity is the peer's,
+/// `RNS/Link.py:1066-1074` for everything else. The identity is the peer's,
 /// when it has identified itself on the link. Without a hook every plain
 /// advertisement is accepted, which is Python's `ACCEPT_ALL`
 /// (`RNS/Link.py:1075-1076`); Python's default `ACCEPT_NONE`

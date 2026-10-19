@@ -180,7 +180,7 @@ pub(super) async fn handle_link_resource_packet<'a>(
                     }
                 }
             }
-            // `RNS/Link.py:1065-1074`: the `ACCEPT_APP` callback sees only
+            // `RNS/Link.py:1066-1074`: the `ACCEPT_APP` callback sees only
             // what the request and response branches above did not claim.
             if !rejected && !advertisement.is_request() && !advertisement.is_response() {
                 match consult_accept_hook(handler, &link, &advertisement) {

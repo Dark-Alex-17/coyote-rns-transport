@@ -216,6 +216,7 @@ pub trait ReceiptHandler: Send + Sync {
 }
 
 #[derive(Clone)]
+#[non_exhaustive]
 pub struct AnnounceEvent {
     pub destination: Arc<Mutex<SingleOutputDestination>>,
     pub app_data: PacketDataBuffer,
@@ -227,7 +228,11 @@ pub struct AnnounceEvent {
     /// it under `PacketContext::PathResponse` (`RNS/Destination.py:308`),
     /// and Python hands its announce handlers the same flag
     /// (`RNS/Transport.py:2524-2528`, `is_path_response`). False for an
-    /// unsolicited announce.
+    /// unsolicited announce. Python drops a path response before the
+    /// handler unless it sets `receive_path_responses`
+    /// (`RNS/Transport.py:2500-2504`); here every announce reaches
+    /// `announce_events()` and carries the flag. The flag is asserted by
+    /// the peer that sent the announce, not verified locally.
     pub is_path_response: bool,
 }
 

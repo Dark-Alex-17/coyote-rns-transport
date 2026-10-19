@@ -31,8 +31,10 @@ pub enum OutboundFailure {
     /// The retry budget ran out while the resource was advertised,
     /// transferring or awaiting its proof.
     RetriesExhausted,
-    /// A later segment of a split resource could not be built, or the peer's
-    /// requests put the sender in a failed state.
+    /// A later segment of a split resource could not be built, or the sender
+    /// failed while serving the peer's part requests: a part or hash-map
+    /// packet that would not build, or a request out of sequence. The second
+    /// path is open to a single-segment send as well.
     Segmenting,
     /// The link went away under the transfer. This is also what an outcome
     /// resolves to when the transport is dropped before reaching a verdict.

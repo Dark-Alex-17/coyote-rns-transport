@@ -221,10 +221,11 @@ pub struct ResourceEvent {
 
 /// Resource transfer event emitted by `ResourceManager`.
 ///
-/// Downstream consumers should include a catch-all match arm. New terminal
-/// variants may be added when previously silent failure classes become
-/// operator-visible.
+/// The enum is `#[non_exhaustive]`, so a downstream match keeps a wildcard
+/// arm. New terminal variants may be added when previously silent failure
+/// classes become operator-visible.
 #[derive(Debug, Clone)]
+#[non_exhaustive]
 pub enum ResourceEventKind {
     Progress(ResourceProgress),
     /// One segment of a split resource completed and was accepted into the

@@ -36,6 +36,10 @@ def multi_segment_response_body() -> bytes:
     return bytes(body[:MULTI_SEGMENT_RESPONSE_LEN])
 
 
+def request_forms_body(size: int) -> bytes:
+    return bytes((i % 251) for i in range(size))
+
+
 class FaultingReader:
     def __init__(self, data, fail_at):
         self.data = data
@@ -100,8 +104,9 @@ class MessageTest(MessageBase):
 
 
 class ChannelEndpoint:
-    def __init__(self, payload_kind: str):
+    def __init__(self, payload_kind: str, prove_all: bool = False):
         self.payload_kind = payload_kind
+        self.prove_all = prove_all
         self.lock = threading.Lock()
         self.links = []
         self.received = []
@@ -178,11 +183,14 @@ class ChannelEndpoint:
             "test",
             "channel",
         )
+        if self.prove_all:
+            destination.set_proof_strategy(RNS.Destination.PROVE_ALL)
         if self.payload_kind in (
             "request",
             "large-request",
             "file-response",
             "multi-segment-response",
+            "request-forms",
         ):
             destination.register_request_handler(
                 "/test/request",
@@ -216,6 +224,39 @@ class ChannelEndpoint:
             )
             sys.stdout.flush()
             return body
+        if self.payload_kind == "request-forms":
+            if isinstance(data, dict) and data.get("response") == "none":
+                response = None
+            elif isinstance(data, dict) and "response_size" in data:
+                response = request_forms_body(int(data["response_size"]))
+            else:
+                response = f"reply:{data}"
+            if response is None:
+                response_kind = "none"
+                response_bytes = b""
+            elif isinstance(response, bytes):
+                response_kind = "bytes"
+                response_bytes = response
+            else:
+                response_kind = "text"
+                response_bytes = response.encode("utf-8")
+            sys.stdout.write(
+                json.dumps(
+                    {
+                        "request_received": True,
+                        "request_id": request_id.hex(),
+                        "path": path,
+                        "response_kind": response_kind,
+                        "response_size": len(response_bytes),
+                        "response_sha256": None
+                        if response is None
+                        else hashlib.sha256(response_bytes).hexdigest(),
+                    }
+                )
+                + "\n"
+            )
+            sys.stdout.flush()
+            return response
         return f"reply:{data}"
 
     def _on_link_established(self, link) -> None:
@@ -453,6 +494,8 @@ class ChannelClient:
         send_delay: float,
         timeout: float,
         hold_after_close: bool,
+        request_size: int = 0,
+        identify: bool = False,
     ) -> int:
         print("python_channel_client: starting Reticulum", file=sys.stderr, flush=True)
         RNS.Reticulum(configdir=config_dir, loglevel=7)
@@ -590,6 +633,86 @@ class ChannelClient:
                 return 0
             print(f"python_channel_client: request failed: {result}", file=sys.stderr, flush=True)
             return 1
+
+        if self.payload_kind == "request-forms":
+            if identify:
+                self.identity = RNS.Identity()
+                active_link.set_packet_callback(self._on_link_data)
+                active_link.identify(self.identity)
+                print(json.dumps({"identified": self.identity.hash.hex()}), flush=True)
+                while True:
+                    with self.lock:
+                        replies = list(self.received)
+                    if any(reply["data"] == "go" for reply in replies):
+                        break
+                    if time.time() > deadline:
+                        print("python_channel_client: timed out waiting for go", file=sys.stderr, flush=True)
+                        return 1
+                    time.sleep(0.05)
+
+            done = threading.Event()
+            result = {}
+            request_data = ("x" * request_size) if request_size > 0 else message_data
+
+            def on_response(receipt) -> None:
+                result["response"] = receipt.response
+                done.set()
+
+            def on_failed(receipt) -> None:
+                result["failed"] = True
+                done.set()
+
+            receipt = active_link.request(
+                "/test/request",
+                data=request_data,
+                response_callback=on_response,
+                failed_callback=on_failed,
+                timeout=timeout,
+            )
+            if receipt is False:
+                print("python_channel_client: failed to send request", file=sys.stderr, flush=True)
+                return 1
+            request_id = receipt.request_id.hex()
+            print(json.dumps({"request_sent": True, "request_id": request_id}), flush=True)
+            while not done.is_set():
+                if time.time() > deadline:
+                    break
+                time.sleep(0.05)
+
+            # Every terminal outcome exits 0 and reports which one it was; the
+            # Rust test decides whether that outcome was the expected one.
+            if "response" in result:
+                response = result["response"]
+                body = response if isinstance(response, bytes) else str(response).encode("utf-8")
+                print(
+                    json.dumps(
+                        {
+                            "request_id": request_id,
+                            "response_size": len(body),
+                            "response_sha256": hashlib.sha256(body).hexdigest(),
+                        }
+                    ),
+                    flush=True,
+                )
+                return 0
+            if result.get("failed"):
+                print(
+                    json.dumps(
+                        {"request_id": request_id, "request_failed": True, "status": receipt.status}
+                    ),
+                    flush=True,
+                )
+                return 0
+            # A packet-form request that is silently dropped never fires
+            # failed_callback: request_timed_out requires status DELIVERED
+            # (RNS/Link.py:1398), which only the Resource form sets (:1372).
+            print(
+                json.dumps(
+                    {"request_id": request_id, "request_no_response": True, "status": receipt.status}
+                ),
+                flush=True,
+            )
+            return 0
 
         if self.payload_kind == "multi-segment-response":
             done = threading.Event()
@@ -990,6 +1113,7 @@ def main() -> int:
             "mdu-boundary",
             "file-response",
             "multi-segment-response",
+            "request-forms",
             "identify",
             "link-close",
             "channel-sequence",
@@ -1006,6 +1130,9 @@ def main() -> int:
     parser.add_argument("--timeout", type=float, default=8.0)
     parser.add_argument("--hold-after-close", action="store_true")
     parser.add_argument("--response-envelope-delta", type=int, default=0)
+    parser.add_argument("--request-size", type=int, default=0)
+    parser.add_argument("--identify", action="store_true")
+    parser.add_argument("--prove-all", action="store_true")
     args = parser.parse_args()
 
     if args.resource_boundary_probe:
@@ -1055,11 +1182,13 @@ def main() -> int:
             args.send_delay,
             args.timeout,
             args.hold_after_close,
+            args.request_size,
+            args.identify,
         )
 
     if args.config_dir is None:
         parser.error("--config-dir is required outside boundary-probe mode")
-    endpoint = ChannelEndpoint(args.payload_kind)
+    endpoint = ChannelEndpoint(args.payload_kind, args.prove_all)
     destination = endpoint.start(args.config_dir)
     print(json.dumps({"ready": True, "destination_hash": destination.hash.hex()}), flush=True)
 

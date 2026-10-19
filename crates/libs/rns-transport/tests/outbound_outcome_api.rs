@@ -1,11 +1,11 @@
 //! Black-box usage of the outbound outcome, link fast-fail and accept hook surface from
 //! outside the crate, written from the README "Outbound resource outcomes" and "Opening
 //! links and admitting resources" sections: the
-//! new public paths resolve; `OutboundResult`, `OutboundFailure`, `RejectReason` and
-//! `RnsError` are `#[non_exhaustive]` (the wildcard arm a downstream match needs is pinned by
-//! `#[deny(unreachable_patterns)]`); the README's `send_resource_with_outcome` snippet
-//! compiles as written and, aimed at a link the transport does not hold, returns
-//! `Err(InvalidArgument)` before any advertisement exists (the same answer the plain senders
+//! new public paths resolve; `OutboundResult`, `OutboundFailure`, `RejectReason`,
+//! `RnsError` and `ResourceEventKind` are `#[non_exhaustive]` (the wildcard arm a downstream
+//! match needs is pinned by `#[deny(unreachable_patterns)]`); a snippet of the README's
+//! `send_resource_with_outcome` shape compiles and, aimed at a link the transport does not
+//! hold, returns `Err(InvalidArgument)` before any advertisement exists (the same answer the plain senders
 //! gave before this release; `ConnectionError` is reserved for an advertisement that failed
 //! to leave an interface the link does have); `Transport::link`
 //! fails fast and repeatably with `NoPath` through the public API alone; the pre-task
@@ -22,7 +22,7 @@ use rns_transport::error::RnsError;
 use rns_transport::hash::{AddressHash, Hash};
 use rns_transport::identity::PrivateIdentity;
 use rns_transport::rand_core::OsRng;
-use rns_transport::resource::{OutboundFailure, OutboundResult, RejectReason};
+use rns_transport::resource::{OutboundFailure, OutboundResult, RejectReason, ResourceEventKind};
 use rns_transport::transport::{ResourceAcceptHook, Transport, TransportConfig};
 
 /// The README's `match` on an outcome, wildcard arm included.
@@ -74,6 +74,22 @@ fn error_name(error: &RnsError) -> &'static str {
     }
 }
 
+/// The shape every downstream `match` on `ResourceEventKind` has to take now: a wildcard arm.
+#[deny(unreachable_patterns)]
+fn resource_event_name(kind: &ResourceEventKind) -> &'static str {
+    match kind {
+        ResourceEventKind::Progress(_) => "progress",
+        ResourceEventKind::SegmentComplete(_) => "segment_complete",
+        ResourceEventKind::Complete(_) => "complete",
+        ResourceEventKind::InboundFailed(_) => "inbound_failed",
+        ResourceEventKind::OutboundComplete => "outbound_complete",
+        ResourceEventKind::OutboundFailed => "outbound_failed",
+        ResourceEventKind::OutboundRejected { .. } => "outbound_rejected",
+        ResourceEventKind::OutboundCancelled => "outbound_cancelled",
+        _ => "unknown",
+    }
+}
+
 #[test]
 fn outcome_enums_are_matchable_with_the_readme_wildcard_arm() {
     assert_eq!(outcome_name(&OutboundResult::Complete), "complete");
@@ -87,7 +103,19 @@ fn outcome_enums_are_matchable_with_the_readme_wildcard_arm() {
     assert_eq!(RnsError::NoPath.to_string(), "no path to destination");
 }
 
-/// The README snippet, verbatim apart from returning the error instead of `?` into `main`.
+#[test]
+fn resource_event_kind_is_matchable_with_a_wildcard_arm() {
+    assert_eq!(resource_event_name(&ResourceEventKind::OutboundComplete), "outbound_complete");
+    assert_eq!(
+        resource_event_name(&ResourceEventKind::OutboundRejected {
+            reason: RejectReason::PeerCancelled
+        }),
+        "outbound_rejected"
+    );
+}
+
+/// The README snippet's shape: the same call and the same five arms, each arm reduced to a
+/// label where the README logs.
 #[deny(clippy::await_holding_invalid_type)]
 async fn readme_outcome_snippet(
     transport: &Transport,

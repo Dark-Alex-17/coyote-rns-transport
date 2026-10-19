@@ -6,7 +6,7 @@ async fn link_delivery_without_path_fails_before_the_first_activation_wait() {
     let identity = rns_transport::identity::PrivateIdentity::new_from_rand(OsRng);
     let transport =
         Transport::new(TransportConfig::new("lxmf-runtime-link-no-path-test", &identity, false));
-    let _iface = transport.iface_manager().lock().await.new_channel(4);
+    let mut iface = transport.iface_manager().lock().await.new_channel(4);
     let remote = *rns_transport::identity::PrivateIdentity::new_from_rand(OsRng).as_identity();
     let destination = rns_transport::destination::DestinationDesc {
         identity: remote,
@@ -37,6 +37,7 @@ async fn link_delivery_without_path_fails_before_the_first_activation_wait() {
         "unexpected message: {}",
         error.message
     );
+    assert!(iface.tx_channel.try_recv().is_err(), "no packet left the interface");
 }
 
 /// A pending link that never activates expires its path and queues a

@@ -188,3 +188,5 @@ include!("tests_parts/two_transport_loopback_resources_accept_hook.rs");
 include!("tests_parts/two_transport_loopback_resources_outcome_stop.rs");
 
 include!("tests_parts/two_transport_loopback_resources_outcome_probe.rs");
+
+include!("tests_parts/two_transport_loopback_resources_outcome_probe2.rs");

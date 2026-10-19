@@ -211,3 +211,47 @@ async fn wait_for_link_request_response_fails_on_link_close_signal() {
     assert_eq!(err.kind(), std::io::ErrorKind::PermissionDenied);
     assert!(err.to_string().contains("propagation node denied access"));
 }
+
+/// With `broadcast` off and no path, `Transport::link` fails fast with `NoPath`. The
+/// open takes that as the cue to refresh the path once and retry; the second `NoPath` is
+/// final and names the first.
+#[tokio::test]
+#[deny(clippy::await_holding_invalid_type)]
+async fn open_refreshed_remote_link_without_a_path_refreshes_once_and_fails() {
+    let identity = rns_transport::identity::PrivateIdentity::new_from_rand(rand_core::OsRng);
+    let transport = Transport::new(rns_transport::transport::TransportConfig::new(
+        "remote-control-link-no-path",
+        &identity,
+        false,
+    ));
+    let mut iface = transport.iface_manager().lock().await.new_channel(4);
+    let remote =
+        *rns_transport::identity::PrivateIdentity::new_from_rand(rand_core::OsRng).as_identity();
+    let destination = DestinationDesc {
+        identity: remote,
+        address_hash: remote.address_hash,
+        name: DestinationName::new("lxmf", "propagation"),
+    };
+    let timeout = Duration::from_millis(300);
+
+    let started = std::time::Instant::now();
+    let Err(err) =
+        open_refreshed_remote_link(&transport, &remote.address_hash, destination, timeout).await
+    else {
+        panic!("no path and no broadcast, yet a link opened");
+    };
+    let elapsed = started.elapsed();
+
+    assert!(elapsed < timeout + Duration::from_secs(2), "took {elapsed:?}");
+    let message = err.to_string();
+    assert!(message.contains("no path"), "unexpected message: {message}");
+    assert!(message.contains("retried after refreshing"), "unexpected message: {message}");
+    let path_request = tokio::time::timeout(Duration::from_secs(1), iface.tx_channel.recv())
+        .await
+        .expect("a path request leaves within a second")
+        .expect("interface tx open");
+    assert_eq!(
+        &path_request.packet.data.as_slice()[..rns_transport::hash::ADDRESS_HASH_SIZE],
+        remote.address_hash.as_slice()
+    );
+}

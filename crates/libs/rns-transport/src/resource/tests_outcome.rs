@@ -151,3 +151,45 @@ async fn outcome_resolves_segmenting_when_the_sender_has_failed() {
     assert_eq!(events[0].hash, hash);
     assert!(matches!(events[0].kind, ResourceEventKind::OutboundFailed));
 }
+
+/// The proof of the first segment is where the next one gets built; a reader
+/// that fails there resolves the outcome `Failed(Segmenting)` and leaves no
+/// segment chain behind.
+#[tokio::test]
+#[deny(clippy::await_holding_invalid_type)]
+async fn outcome_resolves_segmenting_when_the_next_segment_cannot_be_built() {
+    let (sender_link, _) = resource_link_pair();
+    let data = vec![0x6d; MAX_EFFICIENT_SIZE + 1];
+    let mut manager = ResourceManager::new_with_config(Duration::from_secs(1), 2);
+    let prepared = ResourceManager::prepare_send_from_reader(
+        &sender_link,
+        FailingReader { data: data.clone(), offset: 0, fail_at: MAX_EFFICIENT_SIZE },
+        data.len() as u64,
+        None,
+        None,
+        false,
+        DEFAULT_RESOURCE_INTERFACE_MTU,
+        false,
+    )
+    .expect("first reader segment should be available");
+    let (original_hash, _advert, outcome) = manager.track_prepared_with_outcome(prepared);
+    manager.confirm_outbound_dispatch(original_hash, true);
+
+    let expected_proof = manager.outgoing.get(&original_hash).expect("first sender").expected_proof;
+    let proof = ResourceProof { resource_hash: original_hash, proof: expected_proof };
+    let mut link = sender_link;
+    let packets = manager.handle_packet(
+        &resource_packet(PacketContext::ResourceProof, &proof.encode(), *link.id()),
+        &mut link,
+    );
+
+    assert!(packets.is_empty());
+    assert_eq!(settled(outcome).await, OutboundResult::Failed(OutboundFailure::Segmenting));
+    assert!(manager.has_no_outbound_state());
+    let events = manager.drain_events();
+    assert!(
+        events.iter().any(|event| event.hash == original_hash
+            && matches!(event.kind, ResourceEventKind::OutboundFailed)),
+        "got {events:?}"
+    );
+}

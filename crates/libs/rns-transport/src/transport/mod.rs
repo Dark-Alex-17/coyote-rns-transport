@@ -223,6 +223,12 @@ pub struct AnnounceEvent {
     pub name_hash: [u8; crate::destination::NAME_HASH_LENGTH],
     pub hops: u8,
     pub interface: Vec<u8>,
+    /// True when the announce answered a path request: the responder files
+    /// it under `PacketContext::PathResponse` (`RNS/Destination.py:308`),
+    /// and Python hands its announce handlers the same flag
+    /// (`RNS/Transport.py:2524-2528`, `is_path_response`). False for an
+    /// unsolicited announce.
+    pub is_path_response: bool,
 }
 
 pub(crate) struct TransportHandler {

@@ -278,6 +278,13 @@ trailing clause of the bullet for the behaviour it pins.
   (the single-destination `None` case) and
   `tests/link_event_packet_proven_api.rs`.
 
+- `AnnounceEvent::is_path_response`: true for an announce the destination
+  sent in answer to a path request, which it files under
+  `PacketContext::PathResponse` (`RNS/Destination.py:308`), false for an
+  unsolicited one; the same flag Python hands its announce handlers
+  (`RNS/Transport.py:2524-2528`). Pinned by
+  `transport/tests_parts/two_transport_loopback_announce_path_response.rs`.
+
 ### Changed
 
 - `LinkEvent` is `#[non_exhaustive]`. The two in-workspace exhaustive

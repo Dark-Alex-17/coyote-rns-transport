@@ -176,3 +176,5 @@ include!("tests_parts/two_transport_loopback_link_packet_proven_probe.rs");
 include!("tests_parts/two_transport_loopback_link_packet_proven_probe2.rs");
 
 include!("tests_parts/two_transport_loopback_link_packet_proven_probe3.rs");
+
+include!("tests_parts/two_transport_loopback_resources_outcome.rs");

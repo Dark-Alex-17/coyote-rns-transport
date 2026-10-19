@@ -3,6 +3,7 @@ use crate::destination::request::{
     DispatchForm, InboundRequest, RequestAllow, RequestFrame, RequestHandler, RequestId,
     RequestResponse, ResponseFrame,
 };
+use crate::resource::OutboundOutcome;
 use tokio::sync::mpsc;
 use tokio::task::JoinSet;
 
@@ -266,7 +267,8 @@ async fn send_response_as_resource(
         metadata,
         auto_compress,
     )
-    .await;
+    .await
+    .map(|(hash, _)| hash);
     if let Err(err) = sent {
         log::debug!("tp: response resource {} on link {} not sent: {err:?}", request_id, link_id);
     }
@@ -323,6 +325,9 @@ pub(super) async fn resource_mtu_for_iface(
 ///
 /// `auto_compress` is the registration's flag; some handlers, such as
 /// NomadNet media, return raw binary and turn it off.
+///
+/// The [`OutboundOutcome`] resolves with the transfer's verdict; there is
+/// none when the advertisement never left (`Err(ConnectionError)`).
 #[deny(clippy::await_holding_invalid_type)]
 pub(super) async fn send_response_resource(
     handler: &Arc<Mutex<TransportHandler>>,
@@ -331,7 +336,7 @@ pub(super) async fn send_response_resource(
     data: Vec<u8>,
     metadata: Option<Vec<u8>>,
     auto_compress: bool,
-) -> Result<Hash, RnsError> {
+) -> Result<(Hash, OutboundOutcome), RnsError> {
     let link = find_any_link(handler, link_id).await.ok_or(RnsError::InvalidArgument)?;
     let iface = {
         let link_guard = link.lock().await;
@@ -354,7 +359,8 @@ pub(super) async fn send_response_resource(
             auto_compress,
         )?
     };
-    let (resource_hash, packet) = handler.lock().await.resource_manager.track_prepared(prepared);
+    let (resource_hash, packet, outcome) =
+        handler.lock().await.resource_manager.track_prepared_with_outcome(prepared);
     let sent = match iface {
         Some(iface) => send_on_iface(handler, iface, packet).await.sent_ifaces > 0,
         None => false,
@@ -364,7 +370,7 @@ pub(super) async fn send_response_resource(
     let events = guard.resource_manager.drain_events();
     super::resource_wire::publish_resource_events(&guard, events);
     if sent {
-        Ok(resource_hash)
+        Ok((resource_hash, outcome))
     } else {
         Err(RnsError::ConnectionError)
     }

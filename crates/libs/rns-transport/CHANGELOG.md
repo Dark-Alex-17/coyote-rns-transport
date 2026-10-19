@@ -299,7 +299,9 @@ trailing clause of the bullet for the behaviour it pins.
   carries only the resource hash, so `RejectReason::{Oversize { limit },
   Unknown}` are reserved and no code path produces them in this release;
   and `Cancelled` after `cancel_resource`. A transport dropped before a
-  verdict resolves `Failed(LinkClosed)` rather than hanging. Dropping the
+  verdict resolves `Failed(LinkClosed)` rather than hanging, and
+  `Transport::stop()` concludes every outbound transfer still running on
+  the stopped transport `Failed(LinkClosed)` the same way. Dropping the
   outcome cancels nothing: the transfer runs on and `resource_events()`
   still carries its terminal event. `Err(ConnectionError)` means the
   advertisement never left, so there is no transfer to follow.
@@ -307,8 +309,19 @@ trailing clause of the bullet for the behaviour it pins.
   RejectReason}` are the new types, the three enums `#[non_exhaustive]`,
   and `ResourceManager::track_prepared_with_outcome` is the manager-level
   pairing of `track_prepared` with an outcome. Pinned by
-  `resource/tests_outcome.rs` and
-  `transport/tests_parts/two_transport_loopback_resources_outcome.rs`.
+  `resource/tests_outcome.rs`,
+  `transport/tests_parts/two_transport_loopback_resources_outcome.rs`,
+  `two_transport_loopback_resources_outcome_stop.rs` (`stop()` on the
+  sender resolves a running split transfer `Failed(LinkClosed)`),
+  `two_transport_loopback_resources_outcome_probe.rs` (a dropped outcome
+  leaves the transfer running to `OutboundComplete`; a response Resource
+  resolves `Complete` under the requester's `max_response_size`,
+  `Rejected(PeerCancelled)` over it and `Failed(RetriesExhausted)` when no
+  request solicited it; a stopped and dropped sender resolves
+  `Failed(LinkClosed)`) and `tests/outbound_outcome_api.rs` (the three
+  enums and `RnsError` need a wildcard arm from another crate, the README
+  snippet compiles as written, an unknown link id is `InvalidArgument` on
+  all three entry points, and the plain `send_*` signatures are unchanged).
 
 - `Transport::set_resource_accept_hook` and the `transport::ResourceAcceptHook`
   alias (`Arc<dyn Fn(&ResourceAdvertisement, &LinkId, Option<&Identity>)
@@ -321,9 +334,19 @@ trailing clause of the bullet for the behaviour it pins.
   This is the `ACCEPT_APP` callback of `RNS/Link.py:1065-1074`; request and
   response advertisements stay with `max_request_size` and
   `max_response_size` (`RNS/Link.py:1036-1064`) and never reach the hook.
+  A split resource consults the hook once per segment advertisement, so a
+  refusal is consulted once and later segments are never offered. A hook
+  that panics is logged at error and the advertisement is dropped
+  unanswered, neither accepted nor refused, as `RNS/Link.py:1073-1074`
+  logs the callback's exception; the transport's workers survive it.
   A later call replaces the hook; without one every plain advertisement is
   accepted, as before. Pinned by
-  `transport/tests_parts/two_transport_loopback_resources_accept_hook.rs`.
+  `transport/tests_parts/two_transport_loopback_resources_accept_hook.rs`
+  (`accept_hook_panic_drops_the_advertisement_and_the_transport_survives`
+  for the panic path) and `two_transport_loopback_resources_outcome_probe.rs`
+  (the hook sees `None` before the peer identifies and `Some(identity)`
+  after, a refused split resource draws one receiver cancel and one
+  `Rejected`, and a response advertisement never reaches the hook).
 
 ### Changed
 

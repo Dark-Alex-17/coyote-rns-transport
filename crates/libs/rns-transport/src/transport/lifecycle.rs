@@ -10,11 +10,12 @@ impl Transport {
     /// to the management task, which has to stay alive to receive it. The
     /// interface wait, the management wait and the receipt sweep that follows
     /// share one 5 s budget; whatever is still running or still locked when it
-    /// runs out is aborted or skipped and logged. On every link it can lock
-    /// the sweep fails every pending request `LinkClosed`, so a receipt the
-    /// caller still holds concludes instead of waiting for a watchdog that no
-    /// longer ticks, and concludes every outbound transfer `Failed(LinkClosed)`,
-    /// so an outcome the caller still holds resolves. A receipt on a skipped
+    /// runs out is aborted or skipped and logged. On every link it can lock,
+    /// provided the handler itself can be re-locked within the budget, the
+    /// sweep fails every pending request `LinkClosed`, so a receipt the caller
+    /// still holds concludes instead of waiting for a watchdog that no longer
+    /// ticks, and concludes every outbound transfer `Failed(LinkClosed)`, so
+    /// an outcome the caller still holds resolves. A receipt on a skipped
     /// link concludes `LinkClosed` once the link is dropped; an outcome on one
     /// resolves `Failed(LinkClosed)` once the transport is dropped. Calling it
     /// again is a no-op.
@@ -98,7 +99,9 @@ impl Transport {
                 handler.in_links.values().chain(handler.out_links.values()).cloned().collect()
             }
             Err(_) => {
-                log::warn!("[tp] handler still locked after stop budget, receipt sweep skipped");
+                log::warn!(
+                    "[tp] handler still locked after stop budget, receipt and outbound outcome sweep skipped"
+                );
                 return;
             }
         };

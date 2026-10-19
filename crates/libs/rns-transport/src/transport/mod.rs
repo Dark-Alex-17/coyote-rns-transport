@@ -231,8 +231,8 @@ pub struct AnnounceEvent {
     /// unsolicited announce. Python drops a path response before the
     /// handler unless it sets `receive_path_responses`
     /// (`RNS/Transport.py:2500-2504`); here every announce reaches
-    /// `announce_events()` and carries the flag. The flag is asserted by
-    /// the peer that sent the announce, not verified locally.
+    /// [`Transport::recv_announces`] and carries the flag. The flag is
+    /// asserted by the peer that sent the announce, not verified locally.
     pub is_path_response: bool,
 }
 

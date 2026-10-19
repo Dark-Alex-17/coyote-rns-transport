@@ -260,8 +260,8 @@ peer put on the packet and is not matched against any path request this
 transport sent, so it is information about the announce, not a check.
 Python's announce handler path drops a path response unless the handler
 sets `receive_path_responses` (`RNS/Transport.py:2500-2504`); here every
-announce reaches `announce_events()` and a consumer that wants Python's
-default filters on the flag itself.
+announce reaches `Transport::recv_announces()` and a consumer that wants
+Python's default filters on the flag itself.
 
 `Transport::set_resource_accept_hook` installs a `ResourceAcceptHook`, an
 `Arc<dyn Fn(&ResourceAdvertisement, &LinkId, Option<&Identity>) -> bool +

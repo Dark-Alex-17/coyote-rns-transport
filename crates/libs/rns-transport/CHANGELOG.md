@@ -287,8 +287,8 @@ trailing clause of the bullet for the behaviour it pins.
   request this transport sent; it informs, it does not check. Python's
   announce handler path drops a path response unless the handler sets
   `receive_path_responses` (`RNS/Transport.py:2500-2504`); here every
-  announce reaches `announce_events()` with the flag set or clear, and
-  filtering is the consumer's. Pinned by
+  announce reaches `Transport::recv_announces()` with the flag set or
+  clear, and filtering is the consumer's. Pinned by
   `transport/tests_parts/two_transport_loopback_announce_path_response.rs`.
 
 - `Transport::{send_resource_with_outcome, send_request_resource_with_outcome,
@@ -305,7 +305,8 @@ trailing clause of the bullet for the behaviour it pins.
   three entry points, which return `Err(ConnectionError)` instead of the
   outcome in that case;
   `Rejected(RejectReason::PeerCancelled)` when the peer answers the
-  advertisement with a receiver cancel (`RNS/Resource.py:155-165`), which
+  advertisement, or a later segment of it, with a receiver cancel
+  (`RNS/Resource.py:155-165`), which
   carries only the resource hash, so `RejectReason::{Oversize { limit },
   Unknown}` are reserved and no code path produces them in this release;
   and `Cancelled` after `cancel_resource`. A transport dropped before a
@@ -339,11 +340,22 @@ trailing clause of the bullet for the behaviour it pins.
   link into `Complete` and `Rejected(PeerCancelled)`; two split Resources
   in flight each resolve `Complete` under their own hash; `stop()`
   concludes every transfer on the links it locks; a sender dropped without
-  `stop()` resolves `Failed(LinkClosed)`, the only pin that goes through
-  the drop path alone) and `tests/outbound_outcome_api.rs` (the three
-  enums and `RnsError` need a wildcard arm from another crate, a snippet of
-  the README's shape compiles, an unknown link id is `InvalidArgument` on
-  all three entry points, and the plain `send_*` signatures are unchanged).
+  `stop()` resolves `Failed(LinkClosed)`, the only loopback pin that goes
+  through the drop path alone),
+  `two_transport_loopback_resources_outcome_probe3.rs` (an accepting hook
+  is consulted once per segment advertisement of a three-segment Resource
+  and sees the sender's hash as `original_hash` on each; a panicking hook
+  that is never replaced resolves `Failed(RetriesExhausted)` on the sender
+  with nothing assembled, the retries never re-running the hook because
+  they re-send the first advertisement packet and the receiver's duplicate
+  filter drops it, where Python builds a fresh packet per retry,
+  `RNS/Resource.py:597-598`; `stop()` skips a link whose lock it cannot
+  take within the budget and that transfer's outcome resolves
+  `Failed(LinkClosed)` only when the transport is dropped) and
+  `tests/outbound_outcome_api.rs` (the three enums and `RnsError` need a
+  wildcard arm from another crate, a snippet of the README's shape
+  compiles, an unknown link id is `InvalidArgument` on all three entry
+  points, and the plain `send_*` signatures are unchanged).
 
 - `Transport::set_resource_accept_hook` and the `transport::ResourceAcceptHook`
   alias (`Arc<dyn Fn(&ResourceAdvertisement, &LinkId, Option<&Identity>)
@@ -690,11 +702,17 @@ trailing clause of the bullet for the behaviour it pins.
   finds none, after a pending link's expiry removed the path, spends that
   attempt in `await_path` and keeps the remaining attempts, and the final
   error carries both the activation failure and the missing path. Pinned by
-  `transport/tests_parts/link_no_path_fast_fail.rs`, `delivery.rs`
-  (`send_via_link_without_path_fails_before_the_activation_wait`) and the
-  lxmf-runtime tests
+  `transport/tests_parts/link_no_path_fast_fail.rs`,
+  `tests/outbound_outcome_api.rs`
+  (`link_without_a_path_fails_fast_and_repeatably_when_broadcast_is_off`),
+  `delivery.rs`
+  (`send_via_link_without_path_fails_before_the_activation_wait`),
+  the reticulumd test
+  `open_refreshed_remote_link_without_a_path_refreshes_once_and_fails` and
+  the lxmf-runtime tests
   `link_delivery_without_path_fails_before_the_first_activation_wait` and
-  `link_delivery_waits_for_a_path_that_vanished_between_attempts`.
+  `link_delivery_waits_for_a_path_that_vanished_between_attempts`; the two
+  in-crate fast-fail pins bound the call at 500 ms (`delivery.rs` at 1 s).
 
 ## 0.14.1 - 2026-10-15
 

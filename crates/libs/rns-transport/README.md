@@ -239,15 +239,15 @@ which it files under `PacketContext::PathResponse`
 its announce handlers the same flag (`RNS/Transport.py:2524-2528`).
 
 `Transport::set_resource_accept_hook` installs a `ResourceAcceptHook`, an
-`Arc<dyn Fn(&ResourceAdvertisement, &LinkId, Option<&Identity>) -> bool>`,
-consulted from then on for every inbound plain resource advertisement, one
-that is neither a request nor a response, with the link it arrived on and
-the peer's identity when it has identified itself on that link. This is the
-`ACCEPT_APP` callback of `RNS/Link.py:1065-1074`; request and response
-advertisements stay under `max_request_size` and `max_response_size`
-(`RNS/Link.py:1036-1064`) and never reach the hook. `false` refuses the
-transfer with a receiver cancel, exactly as the size caps do, so the sender
-reads `Rejected(PeerCancelled)` on its outcome and
+`Arc<dyn Fn(&ResourceAdvertisement, &LinkId, Option<&Identity>) -> bool +
+Send + Sync>`, consulted from then on for every inbound plain resource
+advertisement, one that is neither a request nor a response, with the link
+it arrived on and the peer's identity when it has identified itself on that
+link. This is the `ACCEPT_APP` callback of `RNS/Link.py:1065-1074`; request
+and response advertisements stay under `max_request_size` and
+`max_response_size` (`RNS/Link.py:1036-1064`) and never reach the hook.
+`false` refuses the transfer with a receiver cancel, exactly as the size
+caps do, so the sender reads `Rejected(PeerCancelled)` on its outcome and
 `ResourceEventKind::OutboundRejected` on its events, nothing is assembled,
 and the link survives. The hook runs inside the inbound packet path with
 the link locked, so it must return promptly and must not call back into the

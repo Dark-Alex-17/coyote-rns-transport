@@ -282,7 +282,9 @@ trailing clause of the bullet for the behaviour it pins.
   sent in answer to a path request, which it files under
   `PacketContext::PathResponse` (`RNS/Destination.py:308`), false for an
   unsolicited one; the same flag Python hands its announce handlers
-  (`RNS/Transport.py:2524-2528`). Pinned by
+  (`RNS/Transport.py:2524-2528`). The flag repeats the context the
+  announcing peer put on the packet and is not matched against any path
+  request this transport sent; it informs, it does not check. Pinned by
   `transport/tests_parts/two_transport_loopback_announce_path_response.rs`.
 
 - `Transport::{send_resource_with_outcome, send_request_resource_with_outcome,
@@ -293,7 +295,11 @@ trailing clause of the bullet for the behaviour it pins.
   the final segment (a split resource resolves once, not per segment);
   `Failed(OutboundFailure::{NotSent, RetriesExhausted, Segmenting,
   LinkClosed})` when the advertisement never left, the retry budget ran
-  out, a later segment could not be built or the link went away;
+  out, a later segment could not be built or the link went away, where
+  `NotSent` is the verdict of `track_prepared_with_outcome` followed by
+  `confirm_outbound_dispatch(.., false)` and never reaches a caller of the
+  three entry points, which return `Err(ConnectionError)` instead of the
+  outcome in that case;
   `Rejected(RejectReason::PeerCancelled)` when the peer answers the
   advertisement with a receiver cancel (`RNS/Resource.py:155-165`), which
   carries only the resource hash, so `RejectReason::{Oversize { limit },
@@ -362,10 +368,13 @@ trailing clause of the bullet for the behaviour it pins.
   `OutboundRejected { reason: RejectReason }`, carrying why the transfer was
   refused as far as the sender can tell (`PeerCancelled` for a receiver
   cancel, the only reason produced in this release). This is a breaking
-  change; every in-workspace match (`rns-tools` `rncp` client and server,
-  the independent interop node's event feed, the resource and transport
-  tests) was adapted, and an out-of-tree `OutboundRejected` pattern needs
-  `{ .. }` or `{ reason }`.
+  change; every in-workspace match was adapted: in this crate the link's
+  `pending_requests.rs` and the resource and transport tests, in
+  `lxmf-runtime` the link delivery and its tests, in `rns-tools` the `rncp`
+  client and server and the independent interop node's event feed, and in
+  `reticulumd` the remote-control link bridge, the inbound worker core and
+  the Python channel interop test support. An out-of-tree
+  `OutboundRejected` pattern needs `{ .. }` or `{ reason }`.
 
 - `DeliveryReceipt` carries a private `link_id`, so it is built through
   `DeliveryReceipt::new` and no longer by struct literal; `message_id`
@@ -629,7 +638,15 @@ trailing clause of the bullet for the behaviour it pins.
   fast with the new `RnsError::NoPath` when the path table has no next hop
   for the destination and the transport's `broadcast` is off. The request
   used to be dropped as `DroppedNoRoute` on the way out and the caller
-  learned of it only when the link timed out after 12 s. With `broadcast`
+  learned of it only when the pending link outlived its establishment
+  timeout, which the transport sizes from the path as `RNS.Link.__init__`
+  does: the first hop's timeout plus `ESTABLISHMENT_TIMEOUT_PER_HOP` (6 s)
+  per hop, where a destination without a path entry counts as
+  `PATHFINDER_M` (128) hops and has no first-hop metrics, so 6 s + 128 x
+  6 s = 774 s, not the 12 s `DEFAULT_ESTABLISHMENT_TIMEOUT` earlier notes
+  claimed. `NoPath` sends nothing, no link request and no path request;
+  discovering the destination first is `Transport::request_path` plus
+  `Transport::await_path`, then `link`. With `broadcast`
   on the request still goes out on every interface, as
   `RNS/Transport.py:1443` floods a packet without a path entry. `RnsError`
   is now `#[non_exhaustive]`. `delivery::send_via_link` and the

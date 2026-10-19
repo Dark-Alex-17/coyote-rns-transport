@@ -196,7 +196,12 @@ match outcome.await {
 `Complete` when the peer proves the final segment; a split resource resolves
 once, when its last segment concludes, not per segment. `Failed(failure)`
 when the transfer stops without a proof: `NotSent` when the advertisement
-was never dispatched, `RetriesExhausted` when the retry budget ran out while
+was never dispatched, a verdict the three `send_*_with_outcome` entry points
+never hand out, since they return `Err(ConnectionError)` instead of the
+outcome when the advertisement does not leave; it reaches only a caller of
+`ResourceManager::track_prepared_with_outcome` that follows up with
+`confirm_outbound_dispatch(.., false)`. `RetriesExhausted` when the retry
+budget ran out while
 the resource was advertised, transferring or awaiting its proof,
 `Segmenting` when a later segment of a split resource could not be built or
 the peer's requests put the sender in a failed state, and `LinkClosed` when
@@ -209,10 +214,13 @@ path produces them. `Cancelled` after `Transport::cancel_resource`. Every
 terminal path goes through one exit, so the outcome and the
 `ResourceEventKind` published for the hash cannot disagree. Dropping the
 outcome cancels nothing: the transfer runs on and `resource_events()` still
-carries its terminal event. A transport dropped before a verdict resolves
-the outcome `Failed(LinkClosed)` rather than leaving it pending, and
-`Err(ConnectionError)` from the send means the advertisement never left, so
-there is no transfer to follow. For a request Resource, a destination whose
+carries its terminal event. A transport dropped before a verdict, or
+stopped with `Transport::stop()`, resolves the outcome `Failed(LinkClosed)`
+rather than leaving it pending. A link id the transport does not hold is
+refused with `Err(InvalidArgument)` before any advertisement exists, the
+answer the plain `send_*` entry points gave before, and `Err(ConnectionError)`
+from the send means the advertisement never left, so in neither case is
+there a transfer to follow. For a request Resource, a destination whose
 `max_request_size` the advertisement exceeds refuses it with a receiver
 cancel (`RNS/Link.py:1036-1042`), read as `Rejected(PeerCancelled)`; the
 outcome says nothing about the response, which arrives through
@@ -229,14 +237,24 @@ the request id drops the advertisement without answering
 fast with `RnsError::NoPath` when the path table has no next hop for the
 destination and the transport's `broadcast` is off: the request would have
 been dropped as `DroppedNoRoute` on the way out, and the caller learned of
-it only when the link timed out after 12 s. With `broadcast` on the request
-still goes out on every outgoing interface, as `RNS/Transport.py:1439-1443`
-floods a packet without a path entry. `RnsError` is `#[non_exhaustive]`, so
-a match on it keeps a wildcard arm. `AnnounceEvent::is_path_response` is
-true for an announce the destination sent in answer to a path request,
-which it files under `PacketContext::PathResponse`
-(`RNS/Destination.py:308`), and false for an unsolicited one; Python hands
-its announce handlers the same flag (`RNS/Transport.py:2524-2528`).
+it only when the pending link outlived its establishment timeout. That
+timeout is sized from the path as `RNS.Link.__init__` sizes it, the first
+hop's timeout plus `ESTABLISHMENT_TIMEOUT_PER_HOP` for every hop to the
+destination, and a destination without a path entry counts as
+`PATHFINDER_M` hops, so the wait ran to minutes rather than seconds.
+`NoPath` sends nothing: no link request and no path request. A caller that
+wants to discover the destination first asks with `Transport::request_path`
+and waits with `Transport::await_path`, then calls `link`. With `broadcast`
+on the request still goes out on every outgoing interface, as
+`RNS/Transport.py:1439-1443` floods a packet without a path entry.
+`RnsError` is `#[non_exhaustive]`, so a match on it keeps a wildcard arm.
+`AnnounceEvent::is_path_response` is true for an announce the destination
+sent in answer to a path request, which it files under
+`PacketContext::PathResponse` (`RNS/Destination.py:308`), and false for an
+unsolicited one; Python hands its announce handlers the same flag
+(`RNS/Transport.py:2524-2528`). The flag repeats the context the announcing
+peer put on the packet and is not matched against any path request this
+transport sent, so it is information about the announce, not a check.
 
 `Transport::set_resource_accept_hook` installs a `ResourceAcceptHook`, an
 `Arc<dyn Fn(&ResourceAdvertisement, &LinkId, Option<&Identity>) -> bool +

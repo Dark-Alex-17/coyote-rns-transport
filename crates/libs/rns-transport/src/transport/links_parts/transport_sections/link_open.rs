@@ -8,10 +8,15 @@ impl Transport {
     /// Fails with [`RnsError::NoPath`] when the path table has no next hop
     /// for the destination and this transport does not broadcast: the request
     /// would be dropped as `DroppedNoRoute` on the way out, and the caller
-    /// would previously only learn that when the link timed out after
-    /// `DEFAULT_ESTABLISHMENT_TIMEOUT` (12 s). With `broadcast` on the
-    /// request is sent on every outgoing interface, as `RNS/Transport.py:1443`
-    /// does for a destination without a path entry.
+    /// would previously only learn that when the pending link outlived the
+    /// establishment timeout `establishment_timeout_for` sizes from
+    /// the path: with no path entry `hops_to` reports `PATHFINDER_M`, so that
+    /// wait ran to minutes. `NoPath` sends nothing, no link request and no
+    /// path request; a caller that wants to discover the destination first
+    /// calls [`Self::request_path`] and [`Self::await_path`], then `link`.
+    /// With `broadcast` on the request is sent on every outgoing interface,
+    /// as `RNS/Transport.py:1443` does for a destination without a path
+    /// entry.
     #[deny(clippy::await_holding_invalid_type)]
     pub async fn link(&self, destination: DestinationDesc) -> Result<Arc<Mutex<Link>>, RnsError> {
         let link = self.handler.lock().await.out_links.get(&destination.address_hash).cloned();

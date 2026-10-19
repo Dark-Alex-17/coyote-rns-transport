@@ -214,9 +214,12 @@ path produces them. `Cancelled` after `Transport::cancel_resource`. Every
 terminal path goes through one exit, so the outcome and the
 `ResourceEventKind` published for the hash cannot disagree. Dropping the
 outcome cancels nothing: the transfer runs on and `resource_events()` still
-carries its terminal event. A transport dropped before a verdict, or
-stopped with `Transport::stop()`, resolves the outcome `Failed(LinkClosed)`
-rather than leaving it pending. A link id the transport does not hold is
+carries its terminal event. A transport dropped before a verdict resolves
+the outcome `Failed(LinkClosed)` rather than leaving it pending;
+`Transport::stop()` does the same for every transfer on a link its sweep
+locks within the 5 s stop budget, and a transfer on a link it had to skip
+keeps its outcome until the transport is dropped. A link id the transport
+does not hold is
 refused with `Err(InvalidArgument)` before any advertisement exists, the
 answer the plain `send_*` entry points gave before, and `Err(ConnectionError)`
 from the send means the advertisement never left, so in neither case is
@@ -255,19 +258,28 @@ unsolicited one; Python hands its announce handlers the same flag
 (`RNS/Transport.py:2524-2528`). The flag repeats the context the announcing
 peer put on the packet and is not matched against any path request this
 transport sent, so it is information about the announce, not a check.
+Python's announce handler path drops a path response unless the handler
+sets `receive_path_responses` (`RNS/Transport.py:2500-2504`); here every
+announce reaches `announce_events()` and a consumer that wants Python's
+default filters on the flag itself.
 
 `Transport::set_resource_accept_hook` installs a `ResourceAcceptHook`, an
 `Arc<dyn Fn(&ResourceAdvertisement, &LinkId, Option<&Identity>) -> bool +
 Send + Sync>`, consulted from then on for every inbound plain resource
 advertisement, one that is neither a request nor a response, with the link
 it arrived on and the peer's identity when it has identified itself on that
-link. This is the `ACCEPT_APP` callback of `RNS/Link.py:1065-1074`; request
+link. This is the `ACCEPT_APP` callback of `RNS/Link.py:1066-1074`; request
 and response advertisements stay under `max_request_size` and
 `max_response_size` (`RNS/Link.py:1036-1064`) and never reach the hook.
 `false` refuses the transfer with a receiver cancel, exactly as the size
 caps do, so the sender reads `Rejected(PeerCancelled)` on its outcome and
 `ResourceEventKind::OutboundRejected` on its events, nothing is assembled,
-and the link survives. The hook runs inside the inbound packet path with
+and the link survives. A split resource consults the hook once per segment
+advertisement, so a refusal is consulted once and later segments are never
+offered. A hook that panics is logged at error and the advertisement is
+dropped unanswered, neither accepted nor refused, as `RNS/Link.py:1073-1074`
+logs the callback's exception; the transport's workers survive it. The
+hook runs inside the inbound packet path with
 the link locked, so it must return promptly and must not call back into the
 transport. A later call replaces it; without one every plain advertisement
 is accepted.

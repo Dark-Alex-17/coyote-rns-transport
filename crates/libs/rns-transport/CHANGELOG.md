@@ -284,7 +284,11 @@ trailing clause of the bullet for the behaviour it pins.
   unsolicited one; the same flag Python hands its announce handlers
   (`RNS/Transport.py:2524-2528`). The flag repeats the context the
   announcing peer put on the packet and is not matched against any path
-  request this transport sent; it informs, it does not check. Pinned by
+  request this transport sent; it informs, it does not check. Python's
+  announce handler path drops a path response unless the handler sets
+  `receive_path_responses` (`RNS/Transport.py:2500-2504`); here every
+  announce reaches `announce_events()` with the flag set or clear, and
+  filtering is the consumer's. Pinned by
   `transport/tests_parts/two_transport_loopback_announce_path_response.rs`.
 
 - `Transport::{send_resource_with_outcome, send_request_resource_with_outcome,
@@ -306,8 +310,11 @@ trailing clause of the bullet for the behaviour it pins.
   Unknown}` are reserved and no code path produces them in this release;
   and `Cancelled` after `cancel_resource`. A transport dropped before a
   verdict resolves `Failed(LinkClosed)` rather than hanging, and
-  `Transport::stop()` concludes every outbound transfer still running on
-  the stopped transport `Failed(LinkClosed)` the same way. Dropping the
+  `Transport::stop()` concludes every outbound transfer `Failed(LinkClosed)`
+  the same way on every link its sweep locks within the 5 s stop budget;
+  a transfer on a link the sweep could not lock keeps its outcome pending
+  until the transport is dropped, and the sweep logs how many links it
+  skipped. Dropping the
   outcome cancels nothing: the transfer runs on and `resource_events()`
   still carries its terminal event. `Err(ConnectionError)` means the
   advertisement never left, so there is no transfer to follow.
@@ -315,7 +322,9 @@ trailing clause of the bullet for the behaviour it pins.
   RejectReason}` are the new types, the three enums `#[non_exhaustive]`,
   and `ResourceManager::track_prepared_with_outcome` is the manager-level
   pairing of `track_prepared` with an outcome. Pinned by
-  `resource/tests_outcome.rs`,
+  `resource/tests_outcome.rs` (one test per verdict, including
+  `Failed(Segmenting)` from a reader that fails while the next segment is
+  built on the first segment's proof),
   `transport/tests_parts/two_transport_loopback_resources_outcome.rs`,
   `two_transport_loopback_resources_outcome_stop.rs` (`stop()` on the
   sender resolves a running split transfer `Failed(LinkClosed)`),
@@ -324,9 +333,16 @@ trailing clause of the bullet for the behaviour it pins.
   resolves `Complete` under the requester's `max_response_size`,
   `Rejected(PeerCancelled)` over it and `Failed(RetriesExhausted)` when no
   request solicited it; a stopped and dropped sender resolves
-  `Failed(LinkClosed)`) and `tests/outbound_outcome_api.rs` (the three
-  enums and `RnsError` need a wildcard arm from another crate, the README
-  snippet compiles as written, an unknown link id is `InvalidArgument` on
+  `Failed(LinkClosed)`),
+  `two_transport_loopback_resources_outcome_probe2.rs` (a hook applying a
+  size policy read off the advertisement sorts two sends in flight on one
+  link into `Complete` and `Rejected(PeerCancelled)`; two split Resources
+  in flight each resolve `Complete` under their own hash; `stop()`
+  concludes every transfer on the links it locks; a sender dropped without
+  `stop()` resolves `Failed(LinkClosed)`, the only pin that goes through
+  the drop path alone) and `tests/outbound_outcome_api.rs` (the three
+  enums and `RnsError` need a wildcard arm from another crate, a snippet of
+  the README's shape compiles, an unknown link id is `InvalidArgument` on
   all three entry points, and the plain `send_*` signatures are unchanged).
 
 - `Transport::set_resource_accept_hook` and the `transport::ResourceAcceptHook`
@@ -337,7 +353,7 @@ trailing clause of the bullet for the behaviour it pins.
   identified itself; `false` refuses the transfer with a `RESOURCE_RCL`
   receiver cancel (`RNS/Resource.py:155-165`) exactly as the size caps do,
   so the sender sees `Rejected(PeerCancelled)` and nothing is assembled.
-  This is the `ACCEPT_APP` callback of `RNS/Link.py:1065-1074`; request and
+  This is the `ACCEPT_APP` callback of `RNS/Link.py:1066-1074`; request and
   response advertisements stay with `max_request_size` and
   `max_response_size` (`RNS/Link.py:1036-1064`) and never reach the hook.
   A split resource consults the hook once per segment advertisement, so a
@@ -375,6 +391,24 @@ trailing clause of the bullet for the behaviour it pins.
   `reticulumd` the remote-control link bridge, the inbound worker core and
   the Python channel interop test support. An out-of-tree
   `OutboundRejected` pattern needs `{ .. }` or `{ reason }`.
+
+- `ResourceEventKind` is `#[non_exhaustive]`: an out-of-tree exhaustive
+  match on it no longer compiles without a wildcard arm. The enum was
+  already broken for such a match this release by `OutboundRejected {
+  reason }`, so the attribute lands in the same major bump rather than
+  costing another one. The in-workspace matches in `reticulumd` (the
+  remote-control link bridge and the inbound worker core, which log an
+  unknown kind at debug) and in the independent interop node (recorded as
+  `"unknown"`) gained the arm; `rncp` and the Python channel test support
+  already had one. Pinned by `tests/outbound_outcome_api.rs`.
+
+- `AnnounceEvent` is `#[non_exhaustive]`: an out-of-tree struct literal
+  no longer compiles, and a destructuring pattern needs `..`. Reading the
+  fields is unchanged. The struct was already broken for a literal this
+  release by the new `is_path_response` field. No cross-crate pin: a
+  struct-literal refusal is a compile failure, and the crate's tests
+  carry no compile-fail harness; the in-crate constructors are
+  unaffected.
 
 - `DeliveryReceipt` carries a private `link_id`, so it is built through
   `DeliveryReceipt::new` and no longer by struct literal; `message_id`

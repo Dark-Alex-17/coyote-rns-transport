@@ -96,6 +96,7 @@ impl Transport {
             multicast_peer_routings: HashMap::new(),
             cancel: cancel.clone(),
             receipt_handler: None,
+            resource_accept_hook: None,
         }));
 
         let manage_task = {
@@ -426,27 +427,6 @@ impl Transport {
             handler.single_in_destination_app_data.insert(address_hash, app_data);
         } else {
             handler.single_in_destination_app_data.remove(&address_hash);
-        }
-    }
-
-    /// Installs the handler delivery proofs are reported to. Takes `&self`:
-    /// the handler lives behind the transport's own lock, and a `Transport`
-    /// is shared as an `Arc` by the time a client is ready to install one.
-    pub async fn set_receipt_handler(&self, handler: Box<dyn ReceiptHandler>) {
-        self.handler.lock().await.receipt_handler = Some(Arc::from(handler));
-    }
-
-    pub fn emit_receipt_for_test(&self, receipt: DeliveryReceipt) {
-        let receipt_handler = match self.handler.try_lock() {
-            Ok(handler) => handler.receipt_handler.clone(),
-            Err(err) => {
-                log::warn!("[transport] failed to read receipt handler for test receipt: {err}");
-                None
-            }
-        };
-
-        if let Some(handler) = receipt_handler {
-            handler.on_receipt(&receipt);
         }
     }
 

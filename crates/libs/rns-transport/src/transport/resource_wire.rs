@@ -180,6 +180,22 @@ pub(super) async fn handle_link_resource_packet<'a>(
                     }
                 }
             }
+            // `RNS/Link.py:1065-1074`: the `ACCEPT_APP` callback sees only
+            // what the request and response branches above did not claim.
+            if !rejected && !advertisement.is_request() && !advertisement.is_response() {
+                if let Some(hook) = handler.resource_accept_hook.as_ref() {
+                    if !hook(&advertisement, link.id(), link.identified_peer_identity()) {
+                        log::debug!(
+                            "[resource-diag] reject_advertisement_by_hook link={} hash={} data_size={}",
+                            link.id(),
+                            advertisement.hash,
+                            advertisement.data_size
+                        );
+                        rejected = true;
+                        cancels.extend(receiver_cancel(&link, Some(iface), &advertisement.hash));
+                    }
+                }
+            }
         }
     }
     let response_iface = link.ingress_iface().unwrap_or(iface);

@@ -285,6 +285,46 @@ trailing clause of the bullet for the behaviour it pins.
   (`RNS/Transport.py:2524-2528`). Pinned by
   `transport/tests_parts/two_transport_loopback_announce_path_response.rs`.
 
+- `Transport::{send_resource_with_outcome, send_request_resource_with_outcome,
+  send_response_resource_with_outcome}`: the existing `send_*` entry points
+  plus an `OutboundOutcome`, returned as `(Hash, OutboundOutcome)`. The
+  outcome is a future that resolves once, with the verdict the resource
+  events report: `resource::OutboundResult::Complete` when the peer proves
+  the final segment (a split resource resolves once, not per segment);
+  `Failed(OutboundFailure::{NotSent, RetriesExhausted, Segmenting,
+  LinkClosed})` when the advertisement never left, the retry budget ran
+  out, a later segment could not be built or the link went away;
+  `Rejected(RejectReason::PeerCancelled)` when the peer answers the
+  advertisement with a receiver cancel (`RNS/Resource.py:155-165`), which
+  carries only the resource hash, so `RejectReason::{Oversize { limit },
+  Unknown}` are reserved and no code path produces them in this release;
+  and `Cancelled` after `cancel_resource`. A transport dropped before a
+  verdict resolves `Failed(LinkClosed)` rather than hanging. Dropping the
+  outcome cancels nothing: the transfer runs on and `resource_events()`
+  still carries its terminal event. `Err(ConnectionError)` means the
+  advertisement never left, so there is no transfer to follow.
+  `resource::{OutboundOutcome, OutboundResult, OutboundFailure,
+  RejectReason}` are the new types, the three enums `#[non_exhaustive]`,
+  and `ResourceManager::track_prepared_with_outcome` is the manager-level
+  pairing of `track_prepared` with an outcome. Pinned by
+  `resource/tests_outcome.rs` and
+  `transport/tests_parts/two_transport_loopback_resources_outcome.rs`.
+
+- `Transport::set_resource_accept_hook` and the `transport::ResourceAcceptHook`
+  alias (`Arc<dyn Fn(&ResourceAdvertisement, &LinkId, Option<&Identity>)
+  -> bool + Send + Sync>`): once installed, the hook is consulted for every
+  inbound plain resource advertisement, one that is neither a request nor
+  a response, with the link it arrived on and the peer's identity if it has
+  identified itself; `false` refuses the transfer with a `RESOURCE_RCL`
+  receiver cancel (`RNS/Resource.py:155-165`) exactly as the size caps do,
+  so the sender sees `Rejected(PeerCancelled)` and nothing is assembled.
+  This is the `ACCEPT_APP` callback of `RNS/Link.py:1065-1074`; request and
+  response advertisements stay with `max_request_size` and
+  `max_response_size` (`RNS/Link.py:1036-1064`) and never reach the hook.
+  A later call replaces the hook; without one every plain advertisement is
+  accepted, as before. Pinned by
+  `transport/tests_parts/two_transport_loopback_resources_accept_hook.rs`.
+
 ### Changed
 
 - `LinkEvent` is `#[non_exhaustive]`. The two in-workspace exhaustive
@@ -294,6 +334,15 @@ trailing clause of the bullet for the behaviour it pins.
   wildcard arm as well; every out-of-tree exhaustive match needs one. This
   is a breaking change, so the next release is `0.15.0`. The attribute is
   pinned by `tests/link_event_packet_proven_api.rs`.
+
+- `ResourceEventKind::OutboundRejected` is now
+  `OutboundRejected { reason: RejectReason }`, carrying why the transfer was
+  refused as far as the sender can tell (`PeerCancelled` for a receiver
+  cancel, the only reason produced in this release). This is a breaking
+  change; every in-workspace match (`rns-tools` `rncp` client and server,
+  the independent interop node's event feed, the resource and transport
+  tests) was adapted, and an out-of-tree `OutboundRejected` pattern needs
+  `{ .. }` or `{ reason }`.
 
 - `DeliveryReceipt` carries a private `link_id`, so it is built through
   `DeliveryReceipt::new` and no longer by struct literal; `message_id`

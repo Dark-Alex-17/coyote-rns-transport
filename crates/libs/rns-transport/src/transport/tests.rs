@@ -182,3 +182,5 @@ include!("tests_parts/two_transport_loopback_resources_outcome.rs");
 include!("tests_parts/link_no_path_fast_fail.rs");
 
 include!("tests_parts/two_transport_loopback_announce_path_response.rs");
+
+include!("tests_parts/two_transport_loopback_resources_accept_hook.rs");

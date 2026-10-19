@@ -169,6 +169,91 @@ record. The request layer's own `RequestReceipt` is the delivery
 signal for a request, and only a resource-form request ever reports
 `Delivered`.
 
+## Outbound resource outcomes
+
+`Transport::send_resource_with_outcome`, `send_request_resource_with_outcome`
+and `send_response_resource_with_outcome` are the existing `send_*` entry
+points plus an `OutboundOutcome`, returned as `(Hash, OutboundOutcome)`: a
+future that resolves once, with the verdict `resource_events()` reports for
+the same transfer. `OutboundResult`, `OutboundFailure` and `RejectReason`
+are `#[non_exhaustive]`, so a match on any of them keeps a wildcard arm:
+
+```rust
+use rns_transport::resource::OutboundResult;
+
+let (hash, outcome) = transport
+    .send_resource_with_outcome(&link_id, payload, None, true)
+    .await?;
+match outcome.await {
+    OutboundResult::Complete => log::info!("{hash} proven"),
+    OutboundResult::Failed(failure) => log::warn!("{hash} failed: {failure:?}"),
+    OutboundResult::Rejected(reason) => log::warn!("{hash} refused: {reason:?}"),
+    OutboundResult::Cancelled => log::info!("{hash} cancelled here"),
+    _ => log::warn!("{hash} ended with a verdict this match predates"),
+}
+```
+
+`Complete` when the peer proves the final segment; a split resource resolves
+once, when its last segment concludes, not per segment. `Failed(failure)`
+when the transfer stops without a proof: `NotSent` when the advertisement
+was never dispatched, `RetriesExhausted` when the retry budget ran out while
+the resource was advertised, transferring or awaiting its proof,
+`Segmenting` when a later segment of a split resource could not be built or
+the peer's requests put the sender in a failed state, and `LinkClosed` when
+the link went away under the transfer. `Rejected(reason)` when the peer
+refused the transfer: a refusal arrives as a receiver cancel carrying only
+the resource hash (`RNS/Resource.py:155-165`), so the sender never learns
+the peer's motive and the reason is always `RejectReason::PeerCancelled` in
+this release; `Oversize { limit }` and `Unknown` are reserved and no code
+path produces them. `Cancelled` after `Transport::cancel_resource`. Every
+terminal path goes through one exit, so the outcome and the
+`ResourceEventKind` published for the hash cannot disagree. Dropping the
+outcome cancels nothing: the transfer runs on and `resource_events()` still
+carries its terminal event. A transport dropped before a verdict resolves
+the outcome `Failed(LinkClosed)` rather than leaving it pending, and
+`Err(ConnectionError)` from the send means the advertisement never left, so
+there is no transfer to follow. For a request Resource, a destination whose
+`max_request_size` the advertisement exceeds refuses it with a receiver
+cancel (`RNS/Link.py:1036-1042`), read as `Rejected(PeerCancelled)`; the
+outcome says nothing about the response, which arrives through
+`resource_events()` as before. For a response Resource, a requester whose
+`max_response_size` it exceeds refuses it the same way
+(`RNS/Link.py:1044-1051`), and one that no longer expects a response under
+the request id drops the advertisement without answering
+(`RNS/Link.py:1046-1047`), so that outcome ends in
+`Failed(RetriesExhausted)`.
+
+## Opening links and admitting resources
+
+`Transport::link` returns `Result<Arc<Mutex<Link>>, RnsError>` and fails
+fast with `RnsError::NoPath` when the path table has no next hop for the
+destination and the transport's `broadcast` is off: the request would have
+been dropped as `DroppedNoRoute` on the way out, and the caller learned of
+it only when the link timed out after 12 s. With `broadcast` on the request
+still goes out on every outgoing interface, as `RNS/Transport.py:1439-1443`
+floods a packet without a path entry. `RnsError` is `#[non_exhaustive]`, so
+a match on it keeps a wildcard arm. `AnnounceEvent::is_path_response` is
+true for an announce the destination sent in answer to a path request,
+which it files under `PacketContext::PathResponse`
+(`RNS/Destination.py:308`), and false for an unsolicited one; Python hands
+its announce handlers the same flag (`RNS/Transport.py:2524-2528`).
+
+`Transport::set_resource_accept_hook` installs a `ResourceAcceptHook`, an
+`Arc<dyn Fn(&ResourceAdvertisement, &LinkId, Option<&Identity>) -> bool>`,
+consulted from then on for every inbound plain resource advertisement, one
+that is neither a request nor a response, with the link it arrived on and
+the peer's identity when it has identified itself on that link. This is the
+`ACCEPT_APP` callback of `RNS/Link.py:1065-1074`; request and response
+advertisements stay under `max_request_size` and `max_response_size`
+(`RNS/Link.py:1036-1064`) and never reach the hook. `false` refuses the
+transfer with a receiver cancel, exactly as the size caps do, so the sender
+reads `Rejected(PeerCancelled)` on its outcome and
+`ResourceEventKind::OutboundRejected` on its events, nothing is assembled,
+and the link survives. The hook runs inside the inbound packet path with
+the link locked, so it must return promptly and must not call back into the
+transport. A later call replaces it; without one every plain advertisement
+is accepted.
+
 ## Versioning and releases
 
 The root `VERSION` file is the workspace number: the upstream baseline that

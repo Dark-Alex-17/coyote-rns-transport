@@ -1,6 +1,7 @@
 // The outcome future handed out by `track_prepared_with_outcome`: one test
-// per terminal path, each checking the verdict the future resolves to and
-// that the verdict leaves no outbound state behind.
+// per failure path, plus `Complete`, `Rejected` and `Cancelled`, each
+// checking the verdict the future resolves to and that the verdict leaves
+// no outbound state behind.
 
 const OUTCOME_WAIT: Duration = Duration::from_secs(1);
 

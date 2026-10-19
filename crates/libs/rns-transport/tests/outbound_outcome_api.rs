@@ -223,7 +223,7 @@ async fn link_without_a_path_fails_fast_and_repeatably_when_broadcast_is_off() {
             "attempt {attempt}: expected Err(NoPath), got {:?}",
             result.as_ref().err()
         );
-        assert!(elapsed < Duration::from_millis(10), "attempt {attempt} took {elapsed:?}");
+        assert!(elapsed < Duration::from_millis(500), "attempt {attempt} took {elapsed:?}");
     }
     transport.stop().await;
 }

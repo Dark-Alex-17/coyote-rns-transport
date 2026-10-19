@@ -47,7 +47,8 @@ commits `1ddd5273`, `a2a40de7`, `3805fe7f`, `3ed78582`, `415d67c8`,
 `d4127c6d`, `04de5d71`, `875edf92`, `8c262c9f` and `631203b5`; the
 `outbound outcomes, link fast fail and accept hook` patch is fork commits
 `50793515`, `4a4a91ae`, `3a5cd726`, `a0a88883`, `9eaafcc1`, `98718b4d`,
-`97bd6a91`, `85c20ef5`, `1bd387b4`, `5df575ec` and `873ef34f`.
+`97bd6a91`, `85c20ef5`, `1bd387b4`, `5df575ec`, `873ef34f` and
+`211d84b8`.
 
 | File | Patch |
 | --- | --- |
@@ -88,6 +89,7 @@ commits `1ddd5273`, `a2a40de7`, `3805fe7f`, `3ed78582`, `415d67c8`,
 | `crates/apps/rns-tools/src/bin/rnsh_parts/network.rs` | outbound outcomes, link fast fail and accept hook |
 | `crates/libs/lxmf-runtime/src/link_delivery.rs` | outbound outcomes, link fast fail and accept hook |
 | `crates/libs/lxmf-runtime/src/tests.rs` | outbound outcomes, link fast fail and accept hook |
+| `crates/libs/lxmf-runtime/src/tests_link_delivery.rs` | outbound outcomes, link fast fail and accept hook |
 | `crates/libs/rns-transport/CHANGELOG.md` | request wire frames and fuzz, request handlers and dispatch, request receipts and timeouts, link proof event and receipt link id, outbound outcomes, link fast fail and accept hook |
 | `crates/libs/rns-transport/README.md` | request handlers and dispatch, request receipts and timeouts, link proof event and receipt link id, outbound outcomes, link fast fail and accept hook |
 | `crates/libs/rns-transport/fuzz/.gitignore` | request wire frames and fuzz |
@@ -2096,6 +2098,11 @@ nor a path request, discovery first being `request_path` plus
 against a sent path request; an unknown link id is `Err(InvalidArgument)`;
 and the `OutboundRejected { reason }` enumeration of adapted matches lists
 every crate fork commit `50793515` touched.
+
+Fork commit `211d84b8`: lxmf-runtime `src/tests.rs` had reached 541 lines,
+over the 500-line budget `check-module-size.sh` applies to it. The two
+link delivery tests move verbatim into the new `src/tests_link_delivery.rs`,
+`include!`d at the end of `tests.rs`.
 
 ## 0.14.1 (upstream 0.14.0)
 

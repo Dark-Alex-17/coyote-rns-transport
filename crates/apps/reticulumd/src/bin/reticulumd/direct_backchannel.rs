@@ -154,7 +154,7 @@ mod tests {
             address_hash: delivery_destination_hash_for_identity(&remote_public),
             name: DestinationName::new("lxmf", "delivery"),
         };
-        let outbound = transport.link(destination).await;
+        let outbound = transport.link(destination).await.expect("link request sent");
         let request =
             tokio::time::timeout(std::time::Duration::from_millis(200), channel.tx_channel.recv())
                 .await

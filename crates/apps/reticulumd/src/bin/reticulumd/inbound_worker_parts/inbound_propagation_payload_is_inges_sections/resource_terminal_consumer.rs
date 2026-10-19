@@ -134,7 +134,7 @@ async fn start_daemon_resource_peer(
         .add_destination(peer_identity, DestinationName::new("lxmf", "delivery"))
         .await;
     let destination = peer_destination.lock().await.desc;
-    let link = transport.link(destination).await;
+    let link = transport.link(destination).await.expect("link request sent");
     timeout(Duration::from_secs(5), async {
         loop {
             if link.lock().await.status() == LinkStatus::Active {

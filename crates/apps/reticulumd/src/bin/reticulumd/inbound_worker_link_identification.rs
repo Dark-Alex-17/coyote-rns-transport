@@ -78,7 +78,7 @@ mod tests {
             address_hash: *delivery_peer.address_hash(),
             name: DestinationName::new("lxmf", "delivery"),
         };
-        let delivery_link = transport.link(delivery_destination).await;
+        let delivery_link = transport.link(delivery_destination).await.expect("link request sent");
         let delivery_link_id = *delivery_link.lock().await.id();
 
         let control_peer = PrivateIdentity::new_from_rand(OsRng);
@@ -87,7 +87,7 @@ mod tests {
             address_hash: *control_peer.address_hash(),
             name: DestinationName::new("lxmf", "propagation.control"),
         };
-        let control_link = transport.link(control_destination).await;
+        let control_link = transport.link(control_destination).await.expect("link request sent");
         let control_link_id = *control_link.lock().await.id();
 
         assert!(is_delivery_backchannel_link(&transport, &delivery_link_id).await);

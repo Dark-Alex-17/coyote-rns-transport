@@ -148,7 +148,13 @@ impl DeliveryTask {
             trace_stage,
             "opening or reusing link",
         );
-        let link = self.transport.link(destination_desc).await;
+        let link = match self.transport.link(destination_desc).await {
+            Ok(link) => link,
+            Err(error) => {
+                self.daemon.record_outbound_peer_activity(activity_peer, payload.len(), false);
+                return Err(std::io::Error::other(format!("link request not sent: {error}")));
+            }
+        };
         let link_id = *link.lock().await.id();
         self.direct_backchannel_links.record_outbound_local_source(link_id, self.source_hash);
         let result =

@@ -546,6 +546,21 @@ trailing clause of the bullet for the behaviour it pins.
   `destination/request/tests.rs`, `tests/request_frame_wire.rs` and
   `request_payload_tests.rs`.
 
+- `Transport::link` returns `Result<Arc<Mutex<Link>>, RnsError>` and fails
+  fast with the new `RnsError::NoPath` when the path table has no next hop
+  for the destination and the transport's `broadcast` is off. The request
+  used to be dropped as `DroppedNoRoute` on the way out and the caller
+  learned of it only when the link timed out after 12 s. With `broadcast`
+  on the request still goes out on every interface, as
+  `RNS/Transport.py:1443` floods a packet without a path entry. `RnsError`
+  is now `#[non_exhaustive]`. `delivery::send_via_link` and the
+  lxmf-runtime link delivery surface that failure immediately instead of
+  waiting out their activation timeout. Pinned by
+  `transport/tests_parts/link_no_path_fast_fail.rs`, `delivery.rs`
+  (`send_via_link_without_path_fails_before_the_activation_wait`) and the
+  lxmf-runtime test
+  `link_delivery_without_path_fails_before_the_first_activation_wait`.
+
 ## 0.14.1 - 2026-10-15
 
 ### Added

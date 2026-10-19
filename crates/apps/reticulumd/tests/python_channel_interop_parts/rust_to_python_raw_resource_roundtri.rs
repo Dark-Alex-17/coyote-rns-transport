@@ -31,7 +31,7 @@ async fn rust_to_python_raw_resource_roundtrip() {
 
     let destination = wait_for_announce(&transport, target_hash, Duration::from_secs(8)).await;
     let mut link_events = transport.out_link_events();
-    let link = transport.link(destination).await;
+    let link = transport.link(destination).await.expect("link request sent");
     let link_id = wait_for_out_link_active(&mut link_events, &link, Duration::from_secs(8)).await;
     sleep(Duration::from_millis(100)).await;
 
@@ -98,7 +98,7 @@ async fn rust_to_python_split_resource_first_segment_metadata_wire_matches_refer
 
     let destination = wait_for_announce(&transport, target_hash, Duration::from_secs(8)).await;
     let mut link_events = transport.out_link_events();
-    let link = transport.link(destination).await;
+    let link = transport.link(destination).await.expect("link request sent");
     let link_id = wait_for_out_link_active(&mut link_events, &link, Duration::from_secs(8)).await;
     sleep(Duration::from_millis(100)).await;
 
@@ -231,7 +231,7 @@ async fn rust_to_python_backbone_raw_resource_roundtrip() {
 
     let destination = wait_for_announce(&transport, target_hash, Duration::from_secs(8)).await;
     let mut link_events = transport.out_link_events();
-    let link = transport.link(destination).await;
+    let link = transport.link(destination).await.expect("link request sent");
     let link_id = wait_for_out_link_active(&mut link_events, &link, Duration::from_secs(8)).await;
     sleep(Duration::from_millis(100)).await;
 

@@ -4,14 +4,30 @@
 // come from the sibling `tests_parts` files.
 
 /// A link the connector opened toward a destination nobody serves: it stays `Pending`, its
-/// request repeated, for the whole establishment timeout.
+/// request repeated, for the whole establishment timeout. The connector does not
+/// broadcast, so the unserved destination is given a path over the interface the served
+/// one was learned on; without it `Transport::link` refuses the request outright.
 #[deny(clippy::await_holding_invalid_type)]
 async fn errors_pending_link(pair: &LoopbackRequestPair) -> (Arc<Mutex<Link>>, AddressHash) {
     let unserved = SingleInputDestination::new(
         PrivateIdentity::new_from_rand(OsRng),
         DestinationName::new("loopback", "request-errors-unserved"),
     );
-    let link = pair.handles.connector.transport.link(unserved.desc).await;
+    let connector = &pair.handles.connector.transport;
+    let served_iface = connector
+        .path_status(&pair.handles.desc.address_hash)
+        .await
+        .interface
+        .expect("the served destination was learned from its announce");
+    assert!(connector.get_handler().lock().await.path_table.restore_tunnel_path(
+        unserved.desc.address_hash,
+        unserved.desc.address_hash,
+        1,
+        served_iface,
+        Hash::new_from_slice(b"request-errors-unserved"),
+        std::time::Instant::now(),
+    ));
+    let link = connector.link(unserved.desc).await.expect("link request sent");
     let link_id = *link.lock().await.id();
     (link, link_id)
 }

@@ -90,20 +90,24 @@ pub(super) async fn propagation_link_for_node(
     state: &Arc<tokio::sync::Mutex<Option<CachedPropagationLink>>>,
     node_hex: &str,
     destination: DestinationDesc,
-) -> Arc<tokio::sync::Mutex<Link>> {
+) -> Result<Arc<tokio::sync::Mutex<Link>>, std::io::Error> {
     if let Some(link) = cached_propagation_link(state, node_hex).await {
-        return link;
+        return Ok(link);
     }
 
     transport.reset_out_link(&destination.address_hash).await;
-    let link = transport.link(destination).await;
+    let link = transport.link(destination).await.map_err(|error| {
+        std::io::Error::other(format!(
+            "link request to propagation node {node_hex} not sent: {error}"
+        ))
+    })?;
     let mut guard = state.lock().await;
     *guard = Some(CachedPropagationLink {
         node_hex: node_hex.to_string(),
         link: link.clone(),
         created_at: Instant::now(),
     });
-    link
+    Ok(link)
 }
 
 pub(crate) async fn wait_for_propagation_signal(

@@ -25,7 +25,7 @@ async fn closed_pending_out_link_expires_path_and_requests_rediscovery_like_pyth
         ));
     }
 
-    let link = transport.link(destination.desc).await;
+    let link = transport.link(destination.desc).await.expect("link request sent");
     let _initial_request = timeout(Duration::from_millis(200), iface_channel.tx_channel.recv())
         .await
         .expect("initial link request should be queued")
@@ -69,7 +69,7 @@ async fn shared_instance_closed_pending_out_link_expires_path_without_local_redi
         ));
     }
 
-    let link = transport.link(destination.desc).await;
+    let link = transport.link(destination.desc).await.expect("link request sent");
     let _initial_request = timeout(Duration::from_millis(200), iface_channel.tx_channel.recv())
         .await
         .expect("initial link request should be queued")
@@ -108,7 +108,7 @@ async fn transport_instance_closed_pending_out_link_keeps_path_without_rediscove
         ));
     }
 
-    let link = transport.link(destination.desc).await;
+    let link = transport.link(destination.desc).await.expect("link request sent");
     let _initial_request = timeout(Duration::from_millis(200), iface_channel.tx_channel.recv())
         .await
         .expect("initial link request should be queued")
@@ -147,7 +147,7 @@ async fn closed_pending_out_link_rediscovery_respects_recent_path_request_thrott
         guard.path_requests.record_outgoing_request(&destination_hash);
     }
 
-    let link = transport.link(destination.desc).await;
+    let link = transport.link(destination.desc).await.expect("link request sent");
     let _initial_request = timeout(Duration::from_millis(200), iface_channel.tx_channel.recv())
         .await
         .expect("initial link request should be queued")
@@ -185,7 +185,7 @@ async fn aged_pending_out_link_repeats_without_rediscovery_until_closed_like_pyt
         ));
     }
 
-    let link = transport.link(destination.desc).await;
+    let link = transport.link(destination.desc).await.expect("link request sent");
     let _initial_request = timeout(Duration::from_millis(200), iface_channel.tx_channel.recv())
         .await
         .expect("initial link request should be queued")

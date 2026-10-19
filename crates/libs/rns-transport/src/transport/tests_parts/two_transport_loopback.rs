@@ -170,7 +170,7 @@ async fn open_link(
     desc: DestinationDesc,
 ) -> (Arc<Mutex<Link>>, AddressHash) {
     let mut events = transport.out_link_events();
-    let link = transport.link(desc).await;
+    let link = transport.link(desc).await.expect("link request sent");
     let link_id = *link.lock().await.id();
     await_event(&mut events, |event| {
         event.id == link_id && matches!(event.event, LinkEvent::Activated)

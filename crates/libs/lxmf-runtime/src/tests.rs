@@ -18,9 +18,11 @@ use tokio::sync::broadcast;
 
 use crate::delivery::{
     forced_representation, request_link_attempts, request_link_timeout, request_resource_timeout,
-    requested_method, resolve_destination,
+    requested_method, resolve_destination, DeliveryMethod,
 };
-use crate::link_delivery::{await_resource_completion, await_resource_completion_with_cancel};
+use crate::link_delivery::{
+    await_resource_completion, await_resource_completion_with_cancel, send_link_payload,
+};
 use crate::{
     InProcessBackend, InProcessBackendConfig, EXT_ACCEPTED_RESULT_ACK,
     EXT_DIRECT_PACKET_MAX_WIRE_BYTES, EXT_LINK_CONNECT_TIMEOUT_MS,
@@ -170,6 +172,44 @@ async fn missing_destination_identity_requests_path_before_failing() {
     assert_eq!(
         &path_request.packet.data.as_slice()[..rns_transport::hash::ADDRESS_HASH_SIZE],
         unknown.as_slice()
+    );
+}
+
+#[tokio::test]
+async fn link_delivery_without_path_fails_before_the_first_activation_wait() {
+    let identity = rns_transport::identity::PrivateIdentity::new_from_rand(OsRng);
+    let transport =
+        Transport::new(TransportConfig::new("lxmf-runtime-link-no-path-test", &identity, false));
+    let _iface = transport.iface_manager().lock().await.new_channel(4);
+    let remote = *rns_transport::identity::PrivateIdentity::new_from_rand(OsRng).as_identity();
+    let destination = rns_transport::destination::DestinationDesc {
+        identity: remote,
+        address_hash: remote.address_hash,
+        name: DestinationName::new("lxmf", "delivery"),
+    };
+
+    let started = std::time::Instant::now();
+    let error = send_link_payload(
+        &transport,
+        destination,
+        b"payload",
+        MessageId("message-no-path".to_owned()),
+        DeliveryMethod::Direct,
+        MessageMethod::Packet,
+        Duration::from_secs(12),
+        3,
+        Duration::from_secs(1),
+        None,
+    )
+    .await
+    .expect_err("no path and no broadcast");
+
+    assert!(started.elapsed() < Duration::from_secs(1), "took {:?}", started.elapsed());
+    assert_eq!(error.category, lxmf_sdk::ErrorCategory::Transport);
+    assert!(
+        error.message.contains("link request not sent"),
+        "unexpected message: {}",
+        error.message
     );
 }
 

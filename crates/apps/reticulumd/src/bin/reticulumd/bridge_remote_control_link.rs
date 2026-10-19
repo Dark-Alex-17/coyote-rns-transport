@@ -27,14 +27,14 @@ pub(super) async fn open_refreshed_remote_link(
     destination: DestinationDesc,
     timeout: Duration,
 ) -> Result<Arc<tokio::sync::Mutex<Link>>, std::io::Error> {
-    let link = transport.link(destination).await;
+    let link = transport.link(destination).await.map_err(std::io::Error::other)?;
     match await_link_activation(transport, &link, timeout).await {
         Ok(()) => Ok(link),
         Err(err) if err.kind() == std::io::ErrorKind::TimedOut => {
             link.lock().await.close();
             transport.request_path(remote_hash, None, None).await;
             tokio::time::sleep(Duration::from_secs(1)).await;
-            let retry_link = transport.link(destination).await;
+            let retry_link = transport.link(destination).await.map_err(std::io::Error::other)?;
             await_link_activation(transport, &retry_link, timeout).await.map_err(|retry_err| {
                 std::io::Error::new(
                     retry_err.kind(),

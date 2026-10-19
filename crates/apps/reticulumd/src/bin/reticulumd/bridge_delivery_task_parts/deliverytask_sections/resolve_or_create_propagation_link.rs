@@ -76,13 +76,13 @@ impl DeliveryTask {
             DestinationName::new("lxmf", "propagation"),
         );
 
-        Ok(propagation::propagation_link_for_node(
+        propagation::propagation_link_for_node(
             self.transport.as_ref(),
             &self.outbound_propagation_link,
             propagation_node_hex,
             propagation_destination.desc,
         )
-        .await)
+        .await
     }
 
     async fn resolve_identity(

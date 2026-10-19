@@ -196,6 +196,7 @@ impl TransportBridge {
             destination,
         )
         .await
+        .expect("link request sent")
     }
 }
 

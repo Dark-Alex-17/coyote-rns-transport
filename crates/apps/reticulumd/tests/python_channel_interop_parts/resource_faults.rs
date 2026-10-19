@@ -61,7 +61,7 @@ async fn rust_sender_maps_pinned_python_receiver_cancel_to_rejection() {
 
     let destination = wait_for_announce(&transport, target_hash, Duration::from_secs(8)).await;
     let mut link_events = transport.out_link_events();
-    let link = transport.link(destination).await;
+    let link = transport.link(destination).await.expect("link request sent");
     let link_id = wait_for_out_link_active(&mut link_events, &link, Duration::from_secs(8)).await;
     let payload = cancellation_payload(MAX_EFFICIENT_SIZE * 2 + 257);
     let mut resource_events = transport.resource_events();
@@ -185,7 +185,7 @@ async fn rust_sender_reports_pinned_python_receiver_shutdown() {
 
     let destination = wait_for_announce(&transport, target_hash, Duration::from_secs(8)).await;
     let mut link_events = transport.out_link_events();
-    let link = transport.link(destination).await;
+    let link = transport.link(destination).await.expect("link request sent");
     let link_id = wait_for_out_link_active(&mut link_events, &link, Duration::from_secs(8)).await;
 
     let seen = Arc::new(StdMutex::new(Vec::<(String, String)>::new()));
@@ -257,7 +257,7 @@ async fn rust_reader_reports_pinned_python_reader_failure() {
 
     let destination = wait_for_announce(&transport, target_hash, Duration::from_secs(8)).await;
     let mut link_events = transport.out_link_events();
-    let link = transport.link(destination).await;
+    let link = transport.link(destination).await.expect("link request sent");
     let link_id = wait_for_out_link_active(&mut link_events, &link, Duration::from_secs(8)).await;
 
     let seen = Arc::new(StdMutex::new(Vec::<(String, String)>::new()));
@@ -330,7 +330,7 @@ async fn rust_file_reader_reports_pinned_python_file_truncation() {
 
     let destination = wait_for_announce(&transport, target_hash, Duration::from_secs(8)).await;
     let mut link_events = transport.out_link_events();
-    let link = transport.link(destination).await;
+    let link = transport.link(destination).await.expect("link request sent");
     let link_id = wait_for_out_link_active(&mut link_events, &link, Duration::from_secs(8)).await;
 
     let seen = Arc::new(StdMutex::new(Vec::<(String, String)>::new()));

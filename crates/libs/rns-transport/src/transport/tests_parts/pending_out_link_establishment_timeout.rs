@@ -29,7 +29,7 @@ async fn a_pending_out_link_that_outlives_its_establishment_timeout_is_closed_an
         ));
     }
 
-    let link = transport.link(destination.desc).await;
+    let link = transport.link(destination.desc).await.expect("link request sent");
     let _initial_request = timeout(Duration::from_millis(200), iface_channel.tx_channel.recv())
         .await
         .expect("initial link request should be queued")
@@ -84,7 +84,7 @@ async fn a_pending_out_link_inside_its_establishment_timeout_is_requested_again(
         ));
     }
 
-    let link = transport.link(destination.desc).await;
+    let link = transport.link(destination.desc).await.expect("link request sent");
     let _initial_request = timeout(Duration::from_millis(200), iface_channel.tx_channel.recv())
         .await
         .expect("initial link request should be queued")
@@ -174,7 +174,7 @@ async fn a_restarted_out_link_is_not_closed_for_the_attempt_it_replaced() {
         ));
     }
 
-    let link = transport.link(destination.desc).await;
+    let link = transport.link(destination.desc).await.expect("link request sent");
     let _initial_request = timeout(Duration::from_millis(200), iface_channel.tx_channel.recv())
         .await
         .expect("initial link request should be queued")

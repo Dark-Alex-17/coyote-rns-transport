@@ -38,7 +38,7 @@ async fn direct_send_uses_link_payloads() {
         name: DestinationName::new("lxmf", "delivery"),
     };
 
-    let link = transport.link(destination).await;
+    let link = transport.link(destination).await.expect("link request sent");
     let request = link.lock().await.request();
 
     let (event_tx, _) = tokio::sync::broadcast::channel(16);

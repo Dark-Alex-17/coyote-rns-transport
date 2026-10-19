@@ -58,7 +58,10 @@ pub async fn send_via_link(
     payload: &[u8],
     wait_timeout: Duration,
 ) -> io::Result<LinkSendResult> {
-    let link = transport.link(destination).await;
+    let link = transport
+        .link(destination)
+        .await
+        .map_err(|error| io::Error::other(format!("link request not sent: {error}")))?;
     await_link_activation(transport, &link, wait_timeout).await?;
     send_on_link(transport, &link, payload).await
 }
@@ -199,7 +202,7 @@ mod tests {
             address_hash: remote_identity.address_hash,
             name: DestinationName::new("lxmf", "delivery"),
         };
-        let link = transport.link(destination).await;
+        let link = transport.link(destination).await.expect("link request sent");
         let request = channel.tx_channel.recv().await.expect("link request");
         let (tx, _) = tokio::sync::broadcast::channel(4);
         let mut inbound = Link::new_from_request(
@@ -229,5 +232,28 @@ mod tests {
             panic!("small payload should use link packet representation");
         };
         assert_eq!(observed_hash, Some(packet.hash()));
+    }
+
+    #[tokio::test]
+    async fn send_via_link_without_path_fails_before_the_activation_wait() {
+        let local_identity = PrivateIdentity::new_from_rand(OsRng);
+        let transport =
+            Transport::new(TransportConfig::new("link-send-no-path", &local_identity, false));
+        let _channel =
+            transport.iface_manager().lock().await.new_channel_with_role(8, IfaceRole::Unicast);
+
+        let remote_identity = *PrivateIdentity::new_from_rand(OsRng).as_identity();
+        let destination = DestinationDesc {
+            identity: remote_identity,
+            address_hash: remote_identity.address_hash,
+            name: DestinationName::new("lxmf", "delivery"),
+        };
+
+        let started = std::time::Instant::now();
+        let error = send_via_link(&transport, destination, b"payload", Duration::from_secs(12))
+            .await
+            .expect_err("no path and no broadcast");
+        assert!(started.elapsed() < Duration::from_secs(1), "took {:?}", started.elapsed());
+        assert!(error.to_string().contains("link request not sent"), "unexpected error: {error}");
     }
 }

@@ -85,7 +85,7 @@ async fn daemon_observes_remote_cancel_of_partial_inbound_resource_without_false
         )
         .await;
     let destination = peer_destination.lock().await.desc;
-    let link = daemon_transport.link(destination).await;
+    let link = daemon_transport.link(destination).await.expect("link request sent");
     timeout(Duration::from_secs(5), async {
         loop {
             if link.lock().await.status() == LinkStatus::Active {

@@ -316,7 +316,7 @@ mod tests {
             address_hash: identity.address_hash,
             name: DestinationName::new("lxmf", "delivery"),
         };
-        let outbound = transport.link(destination).await;
+        let outbound = transport.link(destination).await.expect("link request sent");
         let request = outbound.lock().await.request();
         let (tx, _) = tokio::sync::broadcast::channel(8);
         let mut inbound =

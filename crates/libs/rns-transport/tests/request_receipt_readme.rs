@@ -152,7 +152,7 @@ async fn pair(aspect: &str) -> Pair {
     let learned = learn_announce(&mut announces, &desc.address_hash).await;
 
     let mut out_events = connector.out_link_events();
-    let link = connector.link(learned).await;
+    let link = connector.link(learned).await.expect("link request sent");
     let link_id = *link.lock().await.id();
     await_activated(&mut out_events, link_id).await;
 
@@ -181,7 +181,7 @@ async fn second_link(
     let learned = learn_announce(&mut announces, &desc.address_hash).await;
 
     let mut out_events = pair.connector.out_link_events();
-    let link = pair.connector.link(learned).await;
+    let link = pair.connector.link(learned).await.expect("link request sent");
     let link_id = *link.lock().await.id();
     await_activated(&mut out_events, link_id).await;
     assert_ne!(link_id, pair.link_id, "a distinct link");

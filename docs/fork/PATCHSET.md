@@ -46,8 +46,8 @@ commits `1ddd5273`, `a2a40de7`, `3805fe7f`, `3ed78582`, `415d67c8`,
 `link proof event and receipt link id` patch is fork commits `6499621f`,
 `d4127c6d`, `04de5d71`, `875edf92`, `8c262c9f` and `631203b5`; the
 `outbound outcomes, link fast fail and accept hook` patch is fork commits
-`50793515`, `4a4a91ae`, `3a5cd726`, `a0a88883`, `9eaafcc1`, `98718b4d`
-and `97bd6a91`.
+`50793515`, `4a4a91ae`, `3a5cd726`, `a0a88883`, `9eaafcc1`, `98718b4d`,
+`97bd6a91`, `85c20ef5`, `1bd387b4`, `5df575ec` and `873ef34f`.
 
 | File | Patch |
 | --- | --- |
@@ -155,7 +155,7 @@ and `97bd6a91`.
 | `crates/libs/rns-transport/src/transport/handler.rs` | request receipts and timeouts, link proof event and receipt link id |
 | `crates/libs/rns-transport/src/transport/jobs.rs` | request handlers and dispatch, request receipts and timeouts |
 | `crates/libs/rns-transport/src/transport/jobs_parts/link_maintenance.rs` | request receipts and timeouts |
-| `crates/libs/rns-transport/src/transport/lifecycle.rs` | request receipts and timeouts |
+| `crates/libs/rns-transport/src/transport/lifecycle.rs` | request receipts and timeouts, outbound outcomes, link fast fail and accept hook |
 | `crates/libs/rns-transport/src/transport/links_parts/transport.rs` | request receipts and timeouts, outbound outcomes, link fast fail and accept hook |
 | `crates/libs/rns-transport/src/transport/links_parts/transport_sections/close_channel.rs` | outbound outcomes, link fast fail and accept hook |
 | `crates/libs/rns-transport/src/transport/links_parts/transport_sections/link_fanout.rs` | request receipts and timeouts |
@@ -169,6 +169,7 @@ and `97bd6a91`.
 | `crates/libs/rns-transport/src/transport/request_dispatch.rs` | request handlers and dispatch, outbound outcomes, link fast fail and accept hook |
 | `crates/libs/rns-transport/src/transport/resource_accept_hook.rs` | outbound outcomes, link fast fail and accept hook |
 | `crates/libs/rns-transport/src/transport/resource_wire.rs` | request handlers and dispatch, request receipts and timeouts, outbound outcomes, link fast fail and accept hook |
+| `crates/libs/rns-transport/src/transport/resource_wire_parts/accept_hook.rs` | outbound outcomes, link fast fail and accept hook |
 | `crates/libs/rns-transport/src/transport/resource_wire_parts/cancel.rs` | request receipts and timeouts |
 | `crates/libs/rns-transport/src/transport/resource_wire_parts/proof.rs` | request receipts and timeouts |
 | `crates/libs/rns-transport/src/transport/test_bridge.rs` | request handlers and dispatch |
@@ -230,12 +231,15 @@ and `97bd6a91`.
 | `crates/libs/rns-transport/src/transport/tests_parts/two_transport_loopback_resources_directions.rs` | request receipts and timeouts, outbound outcomes, link fast fail and accept hook |
 | `crates/libs/rns-transport/src/transport/tests_parts/two_transport_loopback_resources_gone_link.rs` | outbound outcomes, link fast fail and accept hook |
 | `crates/libs/rns-transport/src/transport/tests_parts/two_transport_loopback_resources_outcome.rs` | outbound outcomes, link fast fail and accept hook |
+| `crates/libs/rns-transport/src/transport/tests_parts/two_transport_loopback_resources_outcome_probe.rs` | outbound outcomes, link fast fail and accept hook |
+| `crates/libs/rns-transport/src/transport/tests_parts/two_transport_loopback_resources_outcome_stop.rs` | outbound outcomes, link fast fail and accept hook |
 | `crates/libs/rns-transport/src/transport/tests_parts/two_transport_loopback_resources_receipt_less_receiving.rs` | request receipts and timeouts, outbound outcomes, link fast fail and accept hook |
 | `crates/libs/rns-transport/src/transport/tests_parts/two_transport_loopback_resources_reject.rs` | outbound outcomes, link fast fail and accept hook |
 | `crates/libs/rns-transport/src/transport/tests_parts/two_transport_loopback_resources_reject_response.rs` | request receipts and timeouts, outbound outcomes, link fast fail and accept hook |
 | `crates/libs/rns-transport/src/transport/tests_parts/two_transport_loopback_resources_retries.rs` | request receipts and timeouts, outbound outcomes, link fast fail and accept hook |
 | `crates/libs/rns-transport/src/transport/wire.rs` | request receipts and timeouts, link proof event and receipt link id |
 | `crates/libs/rns-transport/tests/link_event_packet_proven_api.rs` | link proof event and receipt link id |
+| `crates/libs/rns-transport/tests/outbound_outcome_api.rs` | outbound outcomes, link fast fail and accept hook |
 | `crates/libs/rns-transport/tests/request_frame_wire.rs` | request wire frames and fuzz |
 | `crates/libs/rns-transport/tests/request_handler_api.rs` | request handlers and dispatch |
 | `crates/libs/rns-transport/tests/request_receipt_api.rs` | request receipts and timeouts |
@@ -1925,9 +1929,12 @@ Fork commit `3a5cd726`: `Transport::link` returns
 `RnsError::NoPath` when the path table has no next hop for the destination
 and the transport does not broadcast; the request used to be dropped as
 `DroppedNoRoute` on the way out and the caller learned of it only when the
-link timed out after `DEFAULT_ESTABLISHMENT_TIMEOUT` (12 s). With
-`broadcast` on the request still goes out on every outgoing interface, as
-`RNS/Transport.py:1443` floods a packet without a path entry.
+pending link outlived its establishment timeout, 6 s + `PATHFINDER_M` (128)
+hops x 6 s = 774 s for a destination without a path entry (this commit's
+message and notes said `DEFAULT_ESTABLISHMENT_TIMEOUT`, 12 s; fork commit
+`873ef34f` corrects them). With `broadcast` on the request still goes out
+on every outgoing interface, as `RNS/Transport.py:1443` floods a packet
+without a path entry.
 Upstream sites: `link()` moves out of `transport_sections/close_channel.rs`
 into the new `transport_sections/link_open.rs` (an `include!` line in
 `links_parts/transport.rs`), which reads the next hop, the hop count and
@@ -2007,6 +2014,88 @@ admitting resources` section on `Transport::link` failing fast with
 and releases`. The `Request handlers` and `Sending requests` snippets,
 which `tests/request_receipt_readme.rs` drives verbatim, are untouched.
 Fork commit `97bd6a91` spells out the alias's `Send + Sync` bounds there.
+
+Fork commit `85c20ef5`: `Transport::stop()` concludes every outbound
+transfer and a panicking accept hook is isolated. Upstream sites:
+`transport/lifecycle.rs`, whose stop sweep failed the pending requests and
+cancelled the responses they were receiving but left every
+`OutboundOutcome` pending, now also calls `remove_link_state` for every
+link it could lock, after the receipt cancels so a cancelled response keeps
+its reason, and publishes the events that queues, so every outbound
+transfer on a stopped transport concludes `Failed(LinkClosed)`. The hook
+call moves out of `transport/resource_wire.rs` into `consult_accept_hook`
+in the new `transport/resource_wire_parts/accept_hook.rs` (an `include!`
+line in `resource_wire.rs`, keeping that file under the size limit),
+wrapped in `catch_unwind` as `channel.rs` wraps channel handlers: a panic
+is logged at error and the advertisement dropped unanswered, as
+`RNS/Link.py:1073-1074` logs the callback's exception and neither accepts
+nor rejects; the `ResourceAcceptHook` rustdoc in
+`transport/resource_accept_hook.rs` covers the panic path, once-per-segment
+consultation and the `ACCEPT_ALL` / `ACCEPT_NONE` parity.
+`resource/manager_segments.rs` has `confirm_outbound_dispatch(.., false)`
+conclude under the sender's original hash, the key of the outcome table;
+`resource/manager.rs` extends the test-only `has_no_outbound_state` to
+empty segment chains and an empty outcome table. Tests: new fixture
+`two_transport_loopback_resources_outcome_stop.rs` (one `include!` line in
+`transport/tests.rs`) stalls the listener, sends a two-segment resource,
+stops the connector and awaits `Failed(LinkClosed)`, which times out
+without the lifecycle change;
+`two_transport_loopback_resources_accept_hook.rs` gains
+`accept_hook_panic_drops_the_advertisement_and_the_transport_survives`;
+`resource/tests_outcome.rs` asserts `has_no_outbound_state` after each
+verdict and pins `Failed(Segmenting)` at the variant level.
+`#[deny(clippy::await_holding_invalid_type)]` lands on `Transport::link`
+(`link_open.rs`), the `delivery.rs` async tests and every async fn in
+`tests_outcome.rs`.
+
+Fork commit `1bd387b4`: lxmf-runtime's `activate_link`
+(`lxmf-runtime/src/link_delivery.rs`) propagated `RnsError::NoPath` with
+`?` on every attempt, so a retry that found no path, after the pending
+link's expiry removed it (`jobs_parts/link_maintenance.rs`), ended the
+whole retry budget and discarded the activation error before it. The
+first attempt still fails fast without a path; a later attempt that finds
+none folds the previous activation error into `last_error`, spends the
+attempt in `Transport::await_path` and continues, and other `RnsError`
+variants keep failing fast. Test: lxmf-runtime `tests.rs`
+`link_delivery_waits_for_a_path_that_vanished_between_attempts` seeds a
+path by announce, expires it by hand once the first `LinkRequest` has
+left and bounds its wait for the retry's path request; it fails on the
+previous code with `unexpected message: link request not sent: no path to
+destination`. The crate `CHANGELOG.md` extends the `Transport::link`
+bullet.
+
+Fork commit `5df575ec`: usage fixtures for the outcome and hook surface.
+New `two_transport_loopback_resources_outcome_probe.rs` (one `include!`
+line in `transport/tests.rs`, eight tests) pins a dropped outcome leaving
+the transfer running to `OutboundComplete`, a response Resource resolving
+`Complete` under the requester's `max_response_size`,
+`Rejected(PeerCancelled)` over it and `Failed(RetriesExhausted)` when no
+request solicited it, a stopped and dropped sender resolving
+`Failed(LinkClosed)`, and the hook seeing `None` before the peer
+identifies and `Some(identity)` after, consulted once for a split resource
+it refuses (one receiver cancel, one `Rejected`) and never for a response
+advertisement. New `tests/outbound_outcome_api.rs` (six tests) uses the
+surface from another crate: the `#[non_exhaustive]` enums and `RnsError`
+need a wildcard arm, the README snippet compiles as written, an unknown
+link id is `InvalidArgument` on all three `_with_outcome` entry points,
+the plain `send_*` signatures are unchanged, `link()` fails fast and
+repeatably without a path and is pending with `broadcast` on, and the
+`ResourceAcceptHook` alias installs. The crate `CHANGELOG.md` pin clauses
+name both files, the stop fixture and the hook panic-isolation test, and
+state `stop()`'s `Failed(LinkClosed)` verdict and the hook's
+once-per-segment and panic behaviour.
+
+Fork commit `873ef34f`: doc corrections in the `link()` rustdoc
+(`transport_sections/link_open.rs`), the crate `README.md` and
+`CHANGELOG.md`: the no-path wait was the path-sized establishment timeout
+(6 s + 128 x 6 s = 774 s), not 12 s; `NoPath` sends neither a link request
+nor a path request, discovery first being `request_path` plus
+`await_path`; `Failed(NotSent)` never reaches a caller of
+`send_*_with_outcome`, which return `Err(ConnectionError)` instead;
+`is_path_response` repeats the peer-set packet context and is not matched
+against a sent path request; an unknown link id is `Err(InvalidArgument)`;
+and the `OutboundRejected { reason }` enumeration of adapted matches lists
+every crate fork commit `50793515` touched.
 
 ## 0.14.1 (upstream 0.14.0)
 

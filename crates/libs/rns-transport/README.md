@@ -161,9 +161,11 @@ only when its destination's proof strategy is `PROVE_ALL` or `PROVE_APP`
 (`RNS/Link.py:961-968`); its default is `PROVE_NONE`, while this crate always
 proves. Requests, responses and Resource packets are never proved, and a
 Channel frame, though proved, posts no `PacketProven`. Every validly signed
-link proof, those included, reaches the transport's `ReceiptHandler` as a
-`DeliveryReceipt` whose `link_id()` names the link; the receipt is not
-filtered by the record. The request layer's own `RequestReceipt` is the delivery
+link proof, a Channel frame's proof included, reaches the transport's
+`ReceiptHandler` as a `DeliveryReceipt` whose `link_id()` names the link, and
+so does a replayed proof the ingress packet filter lets through (one the
+bounded duplicate cache has forgotten); the receipt is not filtered by the
+record. The request layer's own `RequestReceipt` is the delivery
 signal for a request, and only a resource-form request ever reports
 `Delivered`.
 

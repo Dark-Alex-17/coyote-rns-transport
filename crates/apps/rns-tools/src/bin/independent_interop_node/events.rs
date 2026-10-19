@@ -109,7 +109,13 @@ async fn record_link_event(
         LinkEvent::PeerIdentified(_) => "peer_identified",
         LinkEvent::PacketProven { .. } => "packet_proven",
         LinkEvent::Closed => "closed",
-        _ => "unknown",
+        _ => {
+            log::debug!(
+                "independent interop node: unnamed link event on {}",
+                address_hex(&event.id)
+            );
+            "unknown"
+        }
     };
     let snapshot = json!({
         "link_id": address_hex(&event.id),

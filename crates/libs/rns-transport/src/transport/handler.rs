@@ -44,7 +44,8 @@ impl TransportHandler {
                 link.note_request_sent(request_id.as_bytes());
             }
             // Every plain Data packet sent on a link is recorded for its proof
-            // (RNS/Transport.py:2748-2761); see Link::note_data_sent.
+            // (RNS/Transport.py:1359-1377 records the receipt, narrowed here to
+            // PacketContext::None; :2748-2761 consumes it); see Link::note_data_sent.
             if packet.header.packet_type == PacketType::Data
                 && packet.context == PacketContext::None
             {

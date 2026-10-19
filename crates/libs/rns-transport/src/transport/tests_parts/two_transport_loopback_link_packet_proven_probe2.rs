@@ -107,6 +107,9 @@ async fn two_transport_loopback_link_packet_proven_probe2_cap_drops_the_oldest_a
     );
     stall.await.expect("stall task finishes");
 
+    // The link event channel holds 1024 entries (`TRANSPORT_EVENT_CHANNEL_CAPACITY` in
+    // `transport/core.rs`), the same number as the cap: a burst of events for a larger cap
+    // would lag this receiver, and the collector treats a lag as a failure.
     let proven = packet_proven_probe2_collect_exact(
         &mut pair.out_events,
         link_id,

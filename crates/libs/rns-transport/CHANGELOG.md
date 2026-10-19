@@ -234,9 +234,10 @@ trailing clause of the bullet for the behaviour it pins.
   either side of it, when the peer's proof of it arrives. Every plain Data
   packet (`PacketContext::None`) sent on a link has its hash recorded on
   the link as it is sent (Python records a `PacketReceipt` for every Data
-  packet outside the link-control and Resource contexts, request, response
-  and Channel packets included, which expire unproved,
-  `RNS/Transport.py:1359-1377`; this side records plain Data only), and
+  packet outside the link-control and Resource contexts, request and
+  response packets included, which expire unproved, and Channel frames,
+  which the peer proves, `RNS/Transport.py:1359-1377`; this side records
+  plain Data only), and
   the first valid proof naming a recorded hash consumes it and posts the
   event, the way Python's proof removes the one `SENT` receipt it
   validates (`RNS/Transport.py:2748-2761`). The record keeps the latest
@@ -255,13 +256,18 @@ trailing clause of the bullet for the behaviour it pins.
   always proves. It is not a request-delivery signal: a packet-form
   `RequestReceipt` never reports `Delivered`. Every validly signed link
   proof also reaches the transport `ReceiptHandler` as a `DeliveryReceipt`
-  naming the link, a Channel-frame proof, a replayed proof or one for a
-  hash this side never sent included: the receipt is not filtered by the
-  record. Pinned by
+  naming the link, a Channel-frame proof, one for a hash this side never
+  sent, or a replayed proof the ingress packet filter lets through (one
+  the bounded duplicate cache has forgotten) included: the receipt is not
+  filtered by the record. Pinned by
   `transport/tests_parts/two_transport_loopback_link_packet_proven.rs`,
   `transport/tests_parts/two_transport_loopback_link_packet_proven_probe.rs`,
   `transport/tests_parts/two_transport_loopback_link_packet_proven_probe2.rs`
   (the cap and a Channel frame, through the transport send path),
+  `transport/tests_parts/two_transport_loopback_link_packet_proven_probe3.rs`
+  (a replayed proof: dropped by the ingress packet filter it adds neither
+  receipt nor event; delivered past the filter it adds a second receipt
+  naming the link and no event, and a fresh packet still earns its one),
   `destination/link_parts/link_sections/data_proof_tests.rs` and
   `tests/link_event_packet_proven_api.rs`.
 

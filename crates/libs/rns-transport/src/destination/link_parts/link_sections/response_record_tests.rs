@@ -1,7 +1,8 @@
 // The response record no receipt owns, across `response_packet.rs` and
 // `pending_requests.rs`. Kept separate from `pending_requests_tests.rs` so
-// each stays below the repository's 500-line limit. `include!`d into the
-// same module.
+// each stays below the repository's 500-line limit, and for the same reason
+// it also hosts the receipt-entry rows that file has no room for.
+// `include!`d into the same module.
 #[cfg(test)]
 mod response_record_tests {
     use super::identify_packet_tests::linked_pair;

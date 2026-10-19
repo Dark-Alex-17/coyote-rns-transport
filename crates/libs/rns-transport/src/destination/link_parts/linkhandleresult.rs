@@ -27,10 +27,9 @@ pub enum LinkEvent {
     /// side sent are recorded, so a Channel frame's proof, which the channel
     /// machinery consumes, a proof for a hash this side never sent and a
     /// replayed proof post nothing. Requests, responses and Resource packets
-    /// are never proved. A link remembers at most `UNPROVEN_DATA_HASHES_CAP`
-    /// unproved sent packets, oldest dropped first (Python's
-    /// `Transport.MAX_RECEIPTS`, `RNS/Transport.py:159`), so a proof for a
-    /// dropped record posts nothing.
+    /// are never proved. A link remembers at most 1024 unproved sent packets
+    /// (Python's `Transport.MAX_RECEIPTS`, `RNS/Transport.py:159`), oldest
+    /// dropped first, so a proof for a dropped record posts nothing.
     PacketProven {
         packet_hash: Hash,
     },

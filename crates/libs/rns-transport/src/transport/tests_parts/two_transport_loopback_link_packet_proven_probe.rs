@@ -102,8 +102,9 @@ async fn two_transport_loopback_link_packet_proven_probe_once_per_packet_in_a_bu
 
 /// A plain Resource sent on the link (connector to listener) and a request that goes out as
 /// a Resource (with its small packet response back) are proved by the Resource machinery,
-/// not by `PacketProven`: neither side's link stream posts one, and the only
-/// `DeliveryReceipt`s the connector sees still name the link.
+/// not by `PacketProven`: neither side's link stream posts one, and the connector's
+/// `ReceiptHandler` sees nothing at all, a Resource proof going to that machinery and the
+/// packet response never being proved.
 #[tokio::test]
 #[deny(clippy::await_holding_invalid_type)]
 async fn two_transport_loopback_link_packet_proven_probe_none_for_resources_either_side() {
@@ -168,8 +169,8 @@ async fn two_transport_loopback_link_packet_proven_probe_none_for_resources_eith
     );
     let receipts = receipts.lock().expect("recording lock");
     assert!(
-        receipts.iter().all(|receipt| receipt.link_id() == Some(link_id)),
-        "any receipt the connector got for link traffic names the link: {receipts:?}"
+        receipts.is_empty(),
+        "no DeliveryReceipt reaches the connector for Resource traffic: {receipts:?}"
     );
 }
 

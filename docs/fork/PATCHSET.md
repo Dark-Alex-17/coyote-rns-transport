@@ -48,7 +48,7 @@ commits `1ddd5273`, `a2a40de7`, `3805fe7f`, `3ed78582`, `415d67c8`,
 `outbound outcomes with link fast fail and accept hook` patch is fork commits
 `50793515`, `4a4a91ae`, `3a5cd726`, `a0a88883`, `9eaafcc1`, `98718b4d`,
 `97bd6a91`, `85c20ef5`, `1bd387b4`, `5df575ec`, `873ef34f`, `211d84b8`,
-`9a4e8735`, `a4cf4f4b` and `65fb8646`.
+`9a4e8735`, `a4cf4f4b`, `65fb8646`, `01e93fc3` and `17348ca6`.
 
 | File | Patch |
 | --- | --- |
@@ -235,6 +235,7 @@ commits `1ddd5273`, `a2a40de7`, `3805fe7f`, `3ed78582`, `415d67c8`,
 | `crates/libs/rns-transport/src/transport/tests_parts/two_transport_loopback_resources_outcome.rs` | outbound outcomes with link fast fail and accept hook |
 | `crates/libs/rns-transport/src/transport/tests_parts/two_transport_loopback_resources_outcome_probe.rs` | outbound outcomes with link fast fail and accept hook |
 | `crates/libs/rns-transport/src/transport/tests_parts/two_transport_loopback_resources_outcome_probe2.rs` | outbound outcomes with link fast fail and accept hook |
+| `crates/libs/rns-transport/src/transport/tests_parts/two_transport_loopback_resources_outcome_probe3.rs` | outbound outcomes with link fast fail and accept hook |
 | `crates/libs/rns-transport/src/transport/tests_parts/two_transport_loopback_resources_outcome_stop.rs` | outbound outcomes with link fast fail and accept hook |
 | `crates/libs/rns-transport/src/transport/tests_parts/two_transport_loopback_resources_receipt_less_receiving.rs` | request receipts and timeouts, outbound outcomes with link fast fail and accept hook |
 | `crates/libs/rns-transport/src/transport/tests_parts/two_transport_loopback_resources_reject.rs` | outbound outcomes with link fast fail and accept hook |
@@ -1979,7 +1980,7 @@ destination registered without announcing reading true. The crate
 `CHANGELOG.md` carries the `### Added` bullet.
 
 Fork commit `9eaafcc1`: `Transport::set_resource_accept_hook`, the
-`ACCEPT_APP` callback of `RNS/Link.py:1065-1074`. Upstream sites: new
+`ACCEPT_APP` callback of `RNS/Link.py:1066-1074`. Upstream sites: new
 `transport/resource_accept_hook.rs` (declared in `transport/mod.rs`, which
 re-exports the alias) carries `ResourceAcceptHook`, an
 `Arc<dyn Fn(&ResourceAdvertisement, &LinkId, Option<&Identity>) -> bool +
@@ -2111,7 +2112,7 @@ rustdoc states the attribute in place of the earlier catch-all advice, and
 the `is_path_response` rustdoc adds that Python drops a path response
 before the handler unless it sets `receive_path_responses`
 (`RNS/Transport.py:2500-2504`) while every announce reaches
-`announce_events()` here, the flag being peer-asserted. The three
+`Transport::recv_announces()` here, the flag being peer-asserted. The three
 out-of-crate exhaustive matches on the enum gain a wildcard arm:
 `reticulumd` `bridge_remote_control_link.rs` and
 `inbound_worker_parts/module_core.rs` log the unknown kind at debug under
@@ -2128,7 +2129,9 @@ either way; a second `NoPath` is final. The `ACCEPT_APP` cite is
 and the two `tests_parts` fixtures that quoted it (`:1065` is the
 `ACCEPT_NONE` line); the `Segmenting` rustdoc (`resource/outcome.rs`) says
 the sender-failed path is open to single-segment sends; the
-`link_no_path_fast_fail.rs` wall-clock bound is 500 ms.
+`link_no_path_fast_fail.rs` wall-clock bound is 500 ms (fork commit
+`01e93fc3` below mirrors it in `tests/outbound_outcome_api.rs`, which had
+kept 10 ms).
 
 Fork commit `a4cf4f4b`: new fixture
 `two_transport_loopback_resources_outcome_probe2.rs` (four tests, one
@@ -2142,7 +2145,7 @@ resolving `Failed(LinkClosed)`. `tests/outbound_outcome_api.rs` gains the
 README's shape; `bridge_remote_control_link_tests.rs` pins
 `open_refreshed_remote_link` without a path (one path request leaves the
 interface, the error names the missing path and the refresh, the call
-returns inside the timeout plus the grace); `resource/tests_outcome.rs`
+returns inside the timeout plus two seconds); `resource/tests_outcome.rs`
 pins `Failed(Segmenting)` from a reader failing while the next segment is
 built on the first segment's proof; lxmf-runtime `tests_link_delivery.rs`
 also checks that nothing left the interface. Every async fn carries
@@ -2158,6 +2161,43 @@ the `receive_path_responses` parity sentence, the README accept-hook
 section mirrors the panic path and once-per-segment consultation, the
 outcome pin list names the new fixture, and both documents cite
 `RNS/Link.py:1066-1074`.
+
+Fork commit `01e93fc3`: new fixture
+`two_transport_loopback_resources_outcome_probe3.rs` (three tests, one
+`include!` line in `transport/tests.rs`) covers an accepting hook
+consulted once per segment advertisement of a three-segment Resource,
+seeing the sender's hash as `original_hash` on each; a panicking hook
+that is never replaced resolving `Failed(RetriesExhausted)` on the sender
+with nothing assembled, the retries never re-running the hook because the
+sender re-sends the first advertisement packet and the receiver's
+duplicate filter drops it before admission, where Python builds a fresh
+packet per retry (`RNS/Resource.py:597-598`) and so re-runs its callback,
+a divergence the fixture's doc comment records; and `stop()` skipping a
+link whose lock it cannot take within the budget, that transfer's outcome
+resolving `Failed(LinkClosed)` only when the transport is dropped. Every
+async fn carries `#[deny(clippy::await_holding_invalid_type)]`.
+`tests/outbound_outcome_api.rs` bounds its no-path fast-fail at 500 ms,
+mirroring `link_no_path_fast_fail.rs`; `resource/tests_outcome.rs`'s
+header says one test per failure path plus the `Complete`, `Rejected`
+and `Cancelled` verdicts.
+
+Fork commit `17348ca6`: the `AnnounceEvent::is_path_response` rustdoc
+(`transport/mod.rs`), the crate `CHANGELOG.md` and `README.md` name the
+accessor every announce reaches as `Transport::recv_announces()` (the
+rustdoc as an intra-doc link); the name the three had used belonged to
+nothing in the crate. The `CHANGELOG.md` `Transport::link` pin clause
+adds `tests/outbound_outcome_api.rs`
+(`link_without_a_path_fails_fast_and_repeatably_when_broadcast_is_off`)
+and the reticulumd
+`open_refreshed_remote_link_without_a_path_refreshes_once_and_fails`, and
+states the 500 ms in-crate bound against `delivery.rs`'s 1 s; the outcome
+bullet says `PeerCancelled` follows a receiver cancel of the advertisement
+or a later segment, calls the dropped-sender pin the only loopback pin
+through the drop path alone, and gains the `..._outcome_probe3.rs` pin
+clause. `transport/lifecycle.rs`'s `stop()` rustdoc says the per-link
+sweep runs provided the handler itself can be re-locked within the budget,
+and the handler-locked warn line names the outbound outcome sweep beside
+the receipt sweep.
 
 ## 0.14.1 (upstream 0.14.0)
 

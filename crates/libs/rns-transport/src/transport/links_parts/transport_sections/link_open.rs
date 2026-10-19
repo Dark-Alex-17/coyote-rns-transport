@@ -12,6 +12,7 @@ impl Transport {
     /// `DEFAULT_ESTABLISHMENT_TIMEOUT` (12 s). With `broadcast` on the
     /// request is sent on every outgoing interface, as `RNS/Transport.py:1443`
     /// does for a destination without a path entry.
+    #[deny(clippy::await_holding_invalid_type)]
     pub async fn link(&self, destination: DestinationDesc) -> Result<Arc<Mutex<Link>>, RnsError> {
         let link = self.handler.lock().await.out_links.get(&destination.address_hash).cloned();
 

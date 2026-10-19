@@ -3,14 +3,22 @@ use crate::resource::ResourceAdvertisement;
 
 /// Decides whether an inbound plain resource advertisement, one that is
 /// neither a request nor a response, is accepted on the link. Once a hook
-/// is installed it is consulted for every such advertisement; `false`
-/// refuses the transfer with a receiver cancel (`RNS/Resource.py:155-165`,
-/// `Resource.reject`), exactly as the size caps do. Request and response
-/// advertisements are governed by `max_request_size` and
-/// `max_response_size` instead (`RNS/Link.py:1036-1064`); the hook is the
-/// `ACCEPT_APP` callback of `RNS/Link.py:1065-1074` for everything else.
-/// The identity is the peer's, when it has identified itself on the link.
-/// Without a hook every plain advertisement is accepted.
+/// is installed it is consulted once per such advertisement, so once per
+/// segment of a split resource, each segment advertising its own hash;
+/// `false` refuses the transfer with a receiver cancel
+/// (`RNS/Resource.py:155-165`, `Resource.reject`), exactly as the size caps
+/// do. A hook that panics is logged at error and the advertisement is
+/// dropped unanswered, neither accepted nor rejected, as
+/// `RNS/Link.py:1073-1074` does with a callback that raises; the transport
+/// and its workers carry on. Request and response advertisements are
+/// governed by `max_request_size` and `max_response_size` instead
+/// (`RNS/Link.py:1036-1064`); the hook is the `ACCEPT_APP` callback of
+/// `RNS/Link.py:1065-1074` for everything else. The identity is the peer's,
+/// when it has identified itself on the link. Without a hook every plain
+/// advertisement is accepted, which is Python's `ACCEPT_ALL`
+/// (`RNS/Link.py:1075-1076`); Python's default `ACCEPT_NONE`
+/// (`RNS/Link.py:239`, `:1065`), which ignores the advertisement, has no
+/// equivalent here, and a hook that always returns `false` is the closest.
 pub type ResourceAcceptHook =
     Arc<dyn Fn(&ResourceAdvertisement, &LinkId, Option<&Identity>) -> bool + Send + Sync>;
 

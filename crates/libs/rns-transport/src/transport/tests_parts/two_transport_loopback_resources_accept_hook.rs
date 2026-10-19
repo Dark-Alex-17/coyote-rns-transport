@@ -1,9 +1,13 @@
 // Loopback coverage for `Transport::set_resource_accept_hook`: a hook refusing a plain
 // advertisement draws the same receiver cancel the size caps do (`RNS/Link.py:1065-1074`,
 // `RNS/Resource.py:155-165`), the link survives it, and a replacement hook admits the next
-// transfer. Helpers come from the sibling `tests_parts` files included into this module.
+// transfer; a hook that panics takes neither the advertisement's answer nor the transport
+// down. Helpers come from the sibling `tests_parts` files included into this module.
 
 use std::sync::atomic::AtomicBool;
+
+/// How long the sender's event stream is watched for a receiver cancel that must not come.
+const HOOK_PANIC_SETTLE: Duration = Duration::from_secs(1);
 
 /// A hook returning `false` on the receiving side: the sender's outcome and event stream
 /// both read `Rejected(PeerCancelled)`, the hook saw the link the transfer arrived on, and
@@ -112,4 +116,58 @@ async fn accept_hook_is_not_consulted_for_a_request_advertisement() {
         await_complete_with_segments(&mut receiver_events, pair.link_id).await;
     assert_eq!(complete.hash, resource_hash, "the request Resource was assembled");
     assert_eq!(consulted.load(Ordering::SeqCst), 0, "the hook never saw the request");
+}
+
+/// A hook that panics is contained: the advertisement is dropped unanswered, so the sender
+/// sees no receiver cancel (`RNS/Link.py:1073-1074` logs the exception and neither accepts
+/// nor rejects), and the listener's workers survive to complete the next transfer once a
+/// well-behaved hook replaces it.
+#[tokio::test]
+#[deny(clippy::await_holding_invalid_type)]
+async fn accept_hook_panic_drops_the_advertisement_and_the_transport_survives() {
+    let pair = loopback_link_pair("accept-hook-panic").await;
+    let mut sender_events = pair.connector.transport.resource_events();
+
+    pair.listener
+        .transport
+        .set_resource_accept_hook(Arc::new(|_advertisement, _link_id, _identity| {
+            panic!("accept hook under test")
+        }))
+        .await;
+
+    let (resource_hash, _outcome) = pair
+        .connector
+        .transport
+        .send_resource_with_outcome(&pair.link_id, random_payload(4096), None, true)
+        .await
+        .expect("resource dispatched from the initiator side");
+
+    let deadline = Instant::now() + HOOK_PANIC_SETTLE;
+    loop {
+        let remaining = deadline.saturating_duration_since(Instant::now());
+        if remaining.is_zero() {
+            break;
+        }
+        let Ok(Ok(event)) = timeout(remaining, sender_events.recv()).await else {
+            break;
+        };
+        assert!(
+            !(event.hash == resource_hash
+                && matches!(event.kind, ResourceEventKind::OutboundRejected { .. })),
+            "a panicking hook must not answer with a receiver cancel"
+        );
+    }
+
+    pair.listener
+        .transport
+        .set_resource_accept_hook(Arc::new(|_advertisement, _link_id, _identity| true))
+        .await;
+    let (_resource_hash, outcome) = pair
+        .connector
+        .transport
+        .send_resource_with_outcome(&pair.link_id, random_payload(4096), None, true)
+        .await
+        .expect("second resource dispatched over the surviving link");
+    let verdict = timeout(RESOURCE_TIMEOUT, outcome).await.expect("outcome resolved");
+    assert_eq!(verdict, OutboundResult::Complete);
 }

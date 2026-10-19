@@ -199,7 +199,7 @@ impl ResourceManager {
         };
         self.outgoing_segment_chains.remove(&sender.original_hash);
         self.conclude_outbound(
-            resource_hash,
+            sender.original_hash,
             sender.link_id,
             OutboundResult::Failed(OutboundFailure::NotSent),
         );

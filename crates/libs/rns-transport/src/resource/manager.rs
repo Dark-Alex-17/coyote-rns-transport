@@ -55,6 +55,8 @@ impl ResourceManager {
     #[cfg(test)]
     pub(crate) fn has_no_outbound_state(&self) -> bool {
         self.outgoing.is_empty()
+            && self.outgoing_segment_chains.is_empty()
+            && self.outbound_outcomes.is_empty()
     }
 
     pub fn handle_packet(&mut self, packet: &Packet, link: &mut Link) -> Vec<Packet> {

@@ -1,5 +1,6 @@
 // The outcome future handed out by `track_prepared_with_outcome`: one test
-// per terminal path, each checking the verdict the future resolves to.
+// per terminal path, each checking the verdict the future resolves to and
+// that the verdict leaves no outbound state behind.
 
 const OUTCOME_WAIT: Duration = Duration::from_secs(1);
 
@@ -26,11 +27,13 @@ fn tracked_send_with_outcome(manager: &mut ResourceManager) -> (Link, Hash, Outb
     (link, hash, outcome)
 }
 
+#[deny(clippy::await_holding_invalid_type)]
 async fn settled(outcome: OutboundOutcome) -> OutboundResult {
     tokio::time::timeout(OUTCOME_WAIT, outcome).await.expect("outcome resolves")
 }
 
 #[tokio::test]
+#[deny(clippy::await_holding_invalid_type)]
 async fn outcome_resolves_not_sent_when_the_advertisement_write_fails() {
     let mut manager = ResourceManager::new_with_config(Duration::from_secs(1), 2);
     let (_link, hash, outcome) = tracked_send_with_outcome(&mut manager);
@@ -42,6 +45,7 @@ async fn outcome_resolves_not_sent_when_the_advertisement_write_fails() {
 }
 
 #[tokio::test]
+#[deny(clippy::await_holding_invalid_type)]
 async fn outcome_resolves_link_closed_when_the_link_state_is_removed() {
     let mut manager = ResourceManager::new_with_config(Duration::from_secs(1), 2);
     let (link, hash, outcome) = tracked_send_with_outcome(&mut manager);
@@ -50,9 +54,11 @@ async fn outcome_resolves_link_closed_when_the_link_state_is_removed() {
     manager.remove_link_state(*link.id());
 
     assert_eq!(settled(outcome).await, OutboundResult::Failed(OutboundFailure::LinkClosed));
+    assert!(manager.has_no_outbound_state());
 }
 
 #[tokio::test]
+#[deny(clippy::await_holding_invalid_type)]
 async fn outcome_resolves_rejected_on_a_receiver_cancel() {
     let mut manager = ResourceManager::new_with_config(Duration::from_secs(1), 2);
     let (mut link, hash, outcome) = tracked_send_with_outcome(&mut manager);
@@ -63,6 +69,7 @@ async fn outcome_resolves_rejected_on_a_receiver_cancel() {
     assert!(manager.handle_packet(&cancel, &mut link).is_empty());
 
     assert_eq!(settled(outcome).await, OutboundResult::Rejected(RejectReason::PeerCancelled));
+    assert!(manager.has_no_outbound_state());
     let events = manager.drain_events();
     assert_eq!(events.len(), 1);
     assert_eq!(events[0].hash, hash);
@@ -73,6 +80,7 @@ async fn outcome_resolves_rejected_on_a_receiver_cancel() {
 }
 
 #[tokio::test]
+#[deny(clippy::await_holding_invalid_type)]
 async fn outcome_resolves_cancelled_on_a_local_cancel() {
     let mut manager = ResourceManager::new_with_config(Duration::from_secs(1), 2);
     let (link, hash, outcome) = tracked_send_with_outcome(&mut manager);
@@ -82,9 +90,11 @@ async fn outcome_resolves_cancelled_on_a_local_cancel() {
     assert!(cancel.is_some());
 
     assert_eq!(settled(outcome).await, OutboundResult::Cancelled);
+    assert!(manager.has_no_outbound_state());
 }
 
 #[tokio::test]
+#[deny(clippy::await_holding_invalid_type)]
 async fn outcome_resolves_link_closed_when_the_manager_is_dropped_without_a_verdict() {
     let mut manager = ResourceManager::new_with_config(Duration::from_secs(1), 2);
     let (_link, hash, outcome) = tracked_send_with_outcome(&mut manager);
@@ -96,6 +106,7 @@ async fn outcome_resolves_link_closed_when_the_manager_is_dropped_without_a_verd
 }
 
 #[tokio::test]
+#[deny(clippy::await_holding_invalid_type)]
 async fn outcome_resolves_retries_exhausted_when_the_advertisement_is_never_answered() {
     let retry_interval = Duration::from_millis(10);
     let mut manager = ResourceManager::new_with_config(retry_interval, 1);
@@ -117,5 +128,26 @@ async fn outcome_resolves_retries_exhausted_when_the_advertisement_is_never_answ
     assert_eq!(settled(outcome).await, OutboundResult::Failed(OutboundFailure::RetriesExhausted));
     let events = manager.drain_events();
     assert_eq!(events.len(), 1);
+    assert!(matches!(events[0].kind, ResourceEventKind::OutboundFailed));
+}
+
+/// A sender that failed on its own, as one does when the next segment of a
+/// split transfer cannot be built, is reported by the retry poll as
+/// `Failed(Segmenting)`, distinct from a sender that ran out of retries.
+#[tokio::test]
+#[deny(clippy::await_holding_invalid_type)]
+async fn outcome_resolves_segmenting_when_the_sender_has_failed() {
+    let mut manager = ResourceManager::new_with_config(Duration::from_secs(1), 2);
+    let (_link, hash, outcome) = tracked_send_with_outcome(&mut manager);
+    manager.confirm_outbound_dispatch(hash, true);
+
+    manager.outgoing.get_mut(&hash).expect("sender").status = ResourceStatus::Failed;
+    assert!(manager.poll_outgoing(Instant::now()).is_empty());
+
+    assert_eq!(settled(outcome).await, OutboundResult::Failed(OutboundFailure::Segmenting));
+    assert!(manager.has_no_outbound_state());
+    let events = manager.drain_events();
+    assert_eq!(events.len(), 1);
+    assert_eq!(events[0].hash, hash);
     assert!(matches!(events[0].kind, ResourceEventKind::OutboundFailed));
 }

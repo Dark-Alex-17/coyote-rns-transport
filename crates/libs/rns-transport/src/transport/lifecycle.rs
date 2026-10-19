@@ -74,7 +74,12 @@ impl Transport {
     /// Fails every pending request `LinkClosed` and drops the response
     /// Resources their receipts were receiving; a record no receipt owns
     /// and a cancel still owed stay with the link state. No receiver cancel
-    /// can leave: the interfaces are detached by now. The handler and each
+    /// can leave: the interfaces are detached by now. Every other resource
+    /// transfer on a swept link then ends as it would on a closed link: an
+    /// outbound one concludes `Failed(LinkClosed)`, so an outcome the caller
+    /// still holds resolves, and an inbound assembly fails `link_closed`;
+    /// the response the receipt sweep cancelled keeps its `cancelled`
+    /// reason because the sweep runs first. The handler and each
     /// link are locked one after the other, never together, and each lock
     /// wait ends at `deadline`. `Timeout` polls the lock before it checks
     /// the deadline, so an uncontended lock is still taken after the budget
@@ -92,12 +97,14 @@ impl Transport {
                 return;
             }
         };
+        let mut swept = Vec::new();
         let mut receiving = Vec::new();
         let mut skipped = 0usize;
         for link in links {
             match time::timeout_at(deadline, link.lock()).await {
                 Ok(mut link) => {
                     let link_id = *link.id();
+                    swept.push(link_id);
                     receiving.extend(
                         link.fail_all_pending_requests(RequestError::LinkClosed)
                             .into_iter()
@@ -129,6 +136,10 @@ impl Transport {
             );
             events.extend(cancelled.event);
         }
+        for link_id in swept {
+            handler.resource_manager.remove_link_state(link_id);
+        }
+        events.extend(handler.resource_manager.drain_events());
         super::resource_wire::publish_resource_events(&handler, events);
     }
 }

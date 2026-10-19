@@ -187,6 +187,7 @@ mod tests {
     }
 
     #[tokio::test]
+    #[deny(clippy::await_holding_invalid_type)]
     async fn observed_link_packet_send_exposes_packet_hash_before_return() {
         let local_identity = PrivateIdentity::new_from_rand(OsRng);
         let transport =
@@ -235,6 +236,7 @@ mod tests {
     }
 
     #[tokio::test]
+    #[deny(clippy::await_holding_invalid_type)]
     async fn send_via_link_without_path_fails_before_the_activation_wait() {
         let local_identity = PrivateIdentity::new_from_rand(OsRng);
         let transport =

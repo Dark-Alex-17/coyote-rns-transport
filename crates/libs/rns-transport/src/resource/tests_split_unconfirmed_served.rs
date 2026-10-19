@@ -208,7 +208,7 @@ fn a_remote_cancel_after_served_parts_before_the_confirm_drops_the_sender() {
     assert!(!manager.outgoing_segment_chains.contains_key(&original_hash));
     let events = manager.drain_events();
     assert_eq!(events.len(), 1);
-    assert!(matches!(events[0].kind, ResourceEventKind::OutboundRejected));
+    assert!(matches!(events[0].kind, ResourceEventKind::OutboundRejected { .. }));
 
     manager.confirm_outbound_dispatch(first.hash, true);
     assert!(manager.has_no_outbound_state());

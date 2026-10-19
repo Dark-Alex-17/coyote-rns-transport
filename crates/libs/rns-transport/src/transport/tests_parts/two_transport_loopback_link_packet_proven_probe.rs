@@ -141,7 +141,7 @@ async fn two_transport_loopback_link_packet_proven_probe_none_for_resources_eith
                 event.kind,
                 ResourceEventKind::OutboundComplete
                     | ResourceEventKind::OutboundFailed
-                    | ResourceEventKind::OutboundRejected
+                    | ResourceEventKind::OutboundRejected { .. }
             )
     })
     .await;

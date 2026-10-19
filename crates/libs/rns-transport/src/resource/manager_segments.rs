@@ -198,11 +198,11 @@ impl ResourceManager {
             return;
         };
         self.outgoing_segment_chains.remove(&sender.original_hash);
-        self.events.push(ResourceEvent {
-            hash: resource_hash,
-            link_id: sender.link_id,
-            kind: ResourceEventKind::OutboundFailed,
-        });
+        self.conclude_outbound(
+            resource_hash,
+            sender.link_id,
+            OutboundResult::Failed(OutboundFailure::NotSent),
+        );
     }
 
     fn finish_inbound_payload(

@@ -65,7 +65,7 @@ async fn assert_transfer_completes(
                 event.kind,
                 ResourceEventKind::OutboundComplete
                     | ResourceEventKind::OutboundFailed
-                    | ResourceEventKind::OutboundRejected
+                    | ResourceEventKind::OutboundRejected { .. }
             )
     })
     .await;

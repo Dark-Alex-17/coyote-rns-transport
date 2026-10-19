@@ -386,14 +386,14 @@ async fn two_transport_loopback_request_resource_form_sizes_probe5_legacy_id_lim
         event.hash == rejected_hash
             && matches!(
                 event.kind,
-                ResourceEventKind::OutboundRejected
+                ResourceEventKind::OutboundRejected { .. }
                     | ResourceEventKind::OutboundComplete
                     | ResourceEventKind::OutboundFailed
             )
     })
     .await;
     assert!(
-        matches!(outcome.kind, ResourceEventKind::OutboundRejected),
+        matches!(outcome.kind, ResourceEventKind::OutboundRejected { .. }),
         "one byte over the limit is refused at the advertisement, got {:?}",
         outcome.kind
     );

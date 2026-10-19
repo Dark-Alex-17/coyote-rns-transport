@@ -80,7 +80,7 @@ async fn two_transport_loopback_request_resource_form_small_response_is_one_pack
         event.hash == hash
             && matches!(
                 event.kind,
-                ResourceEventKind::OutboundRejected
+                ResourceEventKind::OutboundRejected { .. }
                     | ResourceEventKind::OutboundComplete
                     | ResourceEventKind::OutboundFailed
             )

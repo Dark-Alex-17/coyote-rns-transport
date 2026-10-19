@@ -317,10 +317,10 @@ async fn two_transport_loopback_request_resource_form_sizes_oversize_is_measured
     assert!(!seen.contains(&RequestStatus::Receiving), "refused at the advertisement: {seen:?}");
 
     let rejected = await_resource_event(&mut listener_events, |event| {
-        event.link_id == link_id && matches!(event.kind, ResourceEventKind::OutboundRejected)
+        event.link_id == link_id && matches!(event.kind, ResourceEventKind::OutboundRejected { .. })
     })
     .await;
-    assert!(matches!(rejected.kind, ResourceEventKind::OutboundRejected));
+    assert!(matches!(rejected.kind, ResourceEventKind::OutboundRejected { .. }));
 
     let summary = drain_connector_tap(&mut pair).await;
     let [advertisement] = response_advertisements_for(&summary, receipt.request_id())[..] else {

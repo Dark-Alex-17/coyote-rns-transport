@@ -48,11 +48,11 @@ impl ResourceManager {
                         sender.total_segments
                     );
                     self.outgoing_segment_chains.remove(&sender.original_hash);
-                    self.events.push(ResourceEvent {
-                        hash: sender.original_hash,
-                        link_id: sender.link_id,
-                        kind: ResourceEventKind::OutboundFailed,
-                    });
+                    self.conclude_outbound(
+                        sender.original_hash,
+                        sender.link_id,
+                        OutboundResult::Failed(OutboundFailure::Segmenting),
+                    );
                     return;
                 }
                 None => {}
@@ -60,10 +60,6 @@ impl ResourceManager {
         }
 
         self.outgoing_segment_chains.remove(&sender.original_hash);
-        self.events.push(ResourceEvent {
-            hash: sender.original_hash,
-            link_id: packet.destination,
-            kind: ResourceEventKind::OutboundComplete,
-        });
+        self.conclude_outbound(sender.original_hash, packet.destination, OutboundResult::Complete);
     }
 }

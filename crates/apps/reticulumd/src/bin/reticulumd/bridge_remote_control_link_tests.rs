@@ -1,7 +1,7 @@
 use super::*;
 use rns_transport::hash::Hash;
 use rns_transport::packet::PacketDataBuffer;
-use rns_transport::resource::{ResourceEvent, ResourceEventKind};
+use rns_transport::resource::{RejectReason, ResourceEvent, ResourceEventKind};
 use rns_transport::transport::{ReceivedData, ReceivedPayloadMode};
 
 #[test]
@@ -71,7 +71,10 @@ async fn wait_for_link_request_response_fails_on_resource_cancel() {
 
 #[tokio::test]
 async fn wait_for_link_request_response_fails_on_resource_rejection() {
-    let err = resource_terminal_error(ResourceEventKind::OutboundRejected).await;
+    let err = resource_terminal_error(ResourceEventKind::OutboundRejected {
+        reason: RejectReason::PeerCancelled,
+    })
+    .await;
 
     assert_eq!(err.kind(), std::io::ErrorKind::BrokenPipe);
     assert_eq!(err.to_string(), "propagation control resource transfer rejected");

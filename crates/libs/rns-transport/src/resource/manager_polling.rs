@@ -47,21 +47,30 @@ impl ResourceManager {
                 OutboundResourcePoll::Send(packet) => {
                     packets.push((sender.link_id, (*packet).clone()));
                 }
+                OutboundResourcePoll::RetriesExhausted => {
+                    failed.push((
+                        *hash,
+                        sender.original_hash,
+                        sender.link_id,
+                        OutboundFailure::RetriesExhausted,
+                    ));
+                }
                 OutboundResourcePoll::Failed => {
-                    self.events.push(ResourceEvent {
-                        hash: sender.original_hash,
-                        link_id: sender.link_id,
-                        kind: ResourceEventKind::OutboundFailed,
-                    });
-                    failed.push((*hash, sender.original_hash));
+                    failed.push((
+                        *hash,
+                        sender.original_hash,
+                        sender.link_id,
+                        OutboundFailure::Segmenting,
+                    ));
                 }
                 OutboundResourcePoll::None => {}
             }
         }
 
-        for (hash, original_hash) in failed {
+        for (hash, original_hash, link_id, failure) in failed {
             self.outgoing.remove(&hash);
             self.outgoing_segment_chains.remove(&original_hash);
+            self.conclude_outbound(original_hash, link_id, OutboundResult::Failed(failure));
         }
 
         packets

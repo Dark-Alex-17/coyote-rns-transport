@@ -242,7 +242,10 @@ pub enum ResourceEventKind {
     /// The remote receiver rejected the outbound resource. Reticulum uses
     /// `RESOURCE_RCL` for this terminal outcome; it is distinct from a local
     /// cancellation and from a transfer that failed after starting.
-    OutboundRejected,
+    OutboundRejected {
+        /// Why the transfer was refused, as far as the sender can tell.
+        reason: RejectReason,
+    },
     OutboundCancelled,
 }
 
@@ -481,6 +484,7 @@ include!("resource/receiver_request.rs");
 include!("resource/manager_start.rs");
 include!("resource/manager_segments.rs");
 include!("resource/advertisement_limits.rs");
+include!("resource/outcome.rs");
 include!("resource/manager.rs");
 include!("resource/manager_cleanup.rs");
 include!("resource/manager_proof.rs");

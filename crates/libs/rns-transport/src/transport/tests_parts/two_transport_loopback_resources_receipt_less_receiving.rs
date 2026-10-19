@@ -99,7 +99,7 @@ async fn two_transport_loopback_resources_receipt_less_receiving_outlasts_the_de
                 event.kind,
                 ResourceEventKind::OutboundComplete
                     | ResourceEventKind::OutboundFailed
-                    | ResourceEventKind::OutboundRejected
+                    | ResourceEventKind::OutboundRejected { .. }
             )
     })
     .await;

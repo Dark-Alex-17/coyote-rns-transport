@@ -127,7 +127,7 @@ async fn await_outbound_terminal(
         event.hash == hash
             && matches!(
                 event.kind,
-                ResourceEventKind::OutboundRejected
+                ResourceEventKind::OutboundRejected { .. }
                     | ResourceEventKind::OutboundComplete
                     | ResourceEventKind::OutboundFailed
             )
@@ -192,7 +192,7 @@ async fn two_transport_loopback_request_resource_form_max_request_size_is_inclus
     let hash = send_packed_request_as_resource(&pair, id, request.packed.clone()).await;
     let outcome = await_outbound_terminal(&mut connector_events, hash).await;
     assert!(
-        matches!(outcome, ResourceEventKind::OutboundRejected),
+        matches!(outcome, ResourceEventKind::OutboundRejected { .. }),
         "d == limit + 1 is rejected, got {outcome:?}"
     );
     assert_eq!(calls.load(Ordering::SeqCst), 0, "rejected before any handler ran");

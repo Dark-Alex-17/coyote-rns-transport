@@ -164,7 +164,7 @@ pub(super) fn spawn_inbound_worker(
                             &event.hash,
                         );
                     }
-                    ResourceEventKind::OutboundRejected => {
+                    ResourceEventKind::OutboundRejected { .. } => {
                         handle_outbound_resource_rejection(
                             &outbound_resource_map,
                             &receipt_tx,

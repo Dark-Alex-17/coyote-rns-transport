@@ -10,6 +10,7 @@ mod response_record_tests {
     use super::*;
 
     use crate::destination::request::{RequestStatus, ResponseFrame};
+    use crate::resource::RejectReason;
 
     /// A re-send under an id whose record is receiving its response, or whose request
     /// Resource is still in flight, does not restart a clock the record does not run.
@@ -54,7 +55,7 @@ mod response_record_tests {
         assert_eq!(link.expect_response_to_resource(b"legacy", None, hash(0xA1)), None);
         link.mark_pending_request_receiving(b"legacy", &response_segment(hash(1), hash(3)));
 
-        let rejected = ResourceEventKind::OutboundRejected;
+        let rejected = ResourceEventKind::OutboundRejected { reason: RejectReason::PeerCancelled };
         assert_eq!(link.note_request_resource_outcome(hash(0xA1), &rejected), Some(hashes(1, 3)));
         assert_eq!(link.response_size_allowed(b"legacy", 1), None, "dropped with the request");
     }

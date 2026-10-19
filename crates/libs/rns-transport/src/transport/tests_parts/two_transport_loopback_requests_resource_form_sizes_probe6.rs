@@ -36,14 +36,14 @@ async fn sizes_probe6_assert_response_is_refused(
         event.hash == refused_hash
             && matches!(
                 event.kind,
-                ResourceEventKind::OutboundRejected
+                ResourceEventKind::OutboundRejected { .. }
                     | ResourceEventKind::OutboundComplete
                     | ResourceEventKind::OutboundFailed
             )
     })
     .await;
     assert!(
-        matches!(outcome.kind, ResourceEventKind::OutboundRejected),
+        matches!(outcome.kind, ResourceEventKind::OutboundRejected { .. }),
         "a response over the kept limit is refused at its advertisement, got {:?}",
         outcome.kind
     );
@@ -168,14 +168,14 @@ async fn two_transport_loopback_request_resource_form_sizes_probe6_limit_set_bef
         event.link_id == link_id
             && matches!(
                 event.kind,
-                ResourceEventKind::OutboundRejected
+                ResourceEventKind::OutboundRejected { .. }
                     | ResourceEventKind::OutboundComplete
                     | ResourceEventKind::OutboundFailed
             )
     })
     .await;
     assert!(
-        matches!(refused.kind, ResourceEventKind::OutboundRejected),
+        matches!(refused.kind, ResourceEventKind::OutboundRejected { .. }),
         "the response over the limit set before the send is refused, got {:?}",
         refused.kind
     );
@@ -249,7 +249,7 @@ async fn sizes_probe6_await_served(
                 event.kind,
                 ResourceEventKind::OutboundComplete
                     | ResourceEventKind::OutboundFailed
-                    | ResourceEventKind::OutboundRejected
+                    | ResourceEventKind::OutboundRejected { .. }
             )
     })
     .await

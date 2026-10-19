@@ -6,7 +6,7 @@ mod pending_requests_tests {
     use super::*;
 
     use crate::destination::request::{RequestStatus, ResponseFrame};
-    use crate::resource::{ResourceFailure, ResourceProgress, RANDOM_HASH_SIZE};
+    use crate::resource::{RejectReason, ResourceFailure, ResourceProgress, RANDOM_HASH_SIZE};
 
     const TIMEOUT: Duration = Duration::from_secs(5);
 
@@ -248,7 +248,7 @@ mod pending_requests_tests {
         assert_eq!(link.note_request_resource_outcome(hash(0xA1), &complete), None);
         let deadline = link.earliest_pending_request_deadline().expect("delivery arms the clock");
         assert!(deadline <= Instant::now() + marker_timeout);
-        let rejected = ResourceEventKind::OutboundRejected;
+        let rejected = ResourceEventKind::OutboundRejected { reason: RejectReason::PeerCancelled };
         assert_eq!(link.note_request_resource_outcome(hash(0xA2), &rejected), None);
         assert_eq!(link.response_size_allowed(b"refused", 1), None, "dropped with the request");
         let failed = ResourceEventKind::OutboundFailed;

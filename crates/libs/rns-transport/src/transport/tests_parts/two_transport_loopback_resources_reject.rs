@@ -83,14 +83,14 @@ async fn two_transport_loopback_resources_reject_then_recover_on_same_link() {
         event.hash == rejected_hash
             && matches!(
                 event.kind,
-                ResourceEventKind::OutboundRejected
+                ResourceEventKind::OutboundRejected { .. }
                     | ResourceEventKind::OutboundComplete
                     | ResourceEventKind::OutboundFailed
             )
     })
     .await;
     assert!(
-        matches!(rejected.kind, ResourceEventKind::OutboundRejected),
+        matches!(rejected.kind, ResourceEventKind::OutboundRejected { .. }),
         "the oversize request is rejected, got {:?}",
         rejected.kind
     );
@@ -118,7 +118,7 @@ async fn two_transport_loopback_resources_reject_then_recover_on_same_link() {
                 event.kind,
                 ResourceEventKind::OutboundComplete
                     | ResourceEventKind::OutboundFailed
-                    | ResourceEventKind::OutboundRejected
+                    | ResourceEventKind::OutboundRejected { .. }
             )
     })
     .await;

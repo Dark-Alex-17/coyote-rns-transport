@@ -17,11 +17,11 @@ impl ResourceManager {
         for (hash, sender) in outgoing {
             if sender.link_id == link_id {
                 if failed_outbound.insert(sender.original_hash) {
-                    self.events.push(ResourceEvent {
-                        hash: sender.original_hash,
+                    self.conclude_outbound(
+                        sender.original_hash,
                         link_id,
-                        kind: ResourceEventKind::OutboundFailed,
-                    });
+                        OutboundResult::Failed(OutboundFailure::LinkClosed),
+                    );
                 }
             } else {
                 self.outgoing.insert(hash, sender);
@@ -35,11 +35,11 @@ impl ResourceManager {
         for (hash, pending) in outgoing_segment_chains {
             if pending.link_id == link_id {
                 if failed_outbound.insert(pending.original_hash) {
-                    self.events.push(ResourceEvent {
-                        hash: pending.original_hash,
+                    self.conclude_outbound(
+                        pending.original_hash,
                         link_id,
-                        kind: ResourceEventKind::OutboundFailed,
-                    });
+                        OutboundResult::Failed(OutboundFailure::LinkClosed),
+                    );
                 }
             } else {
                 self.outgoing_segment_chains.insert(hash, pending);

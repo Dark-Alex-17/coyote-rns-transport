@@ -220,7 +220,7 @@ pub(super) async fn wait_for_outbound_resource_complete(
                 ResourceEventKind::OutboundFailed => {
                     panic!("outbound resource failed before completion: {expected_hash}")
                 }
-                ResourceEventKind::OutboundRejected => {
+                ResourceEventKind::OutboundRejected { .. } => {
                     panic!("outbound resource was rejected before completion: {expected_hash}")
                 }
                 ResourceEventKind::OutboundCancelled => {
@@ -243,7 +243,7 @@ pub(super) async fn wait_for_outbound_resource_rejected(
         loop {
             let event = events.recv().await.expect("resource event");
             if event.hash == expected_hash
-                && matches!(event.kind, ResourceEventKind::OutboundRejected)
+                && matches!(event.kind, ResourceEventKind::OutboundRejected { .. })
             {
                 return;
             }
@@ -264,7 +264,7 @@ pub(super) async fn wait_for_outbound_resource_failed(
             if event.hash == expected_hash {
                 match event.kind {
                     ResourceEventKind::OutboundFailed => return,
-                    ResourceEventKind::OutboundRejected => {
+                    ResourceEventKind::OutboundRejected { .. } => {
                         panic!("outbound resource was rejected instead of failed: {expected_hash}")
                     }
                     ResourceEventKind::OutboundCancelled => {
@@ -295,7 +295,7 @@ pub(super) async fn wait_for_outbound_resource_failed_rejected_or_cancelled(
                 && matches!(
                     event.kind,
                     ResourceEventKind::OutboundFailed
-                        | ResourceEventKind::OutboundRejected
+                        | ResourceEventKind::OutboundRejected { .. }
                         | ResourceEventKind::OutboundCancelled
                 )
             {

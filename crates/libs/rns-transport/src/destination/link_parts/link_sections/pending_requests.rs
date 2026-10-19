@@ -218,7 +218,7 @@ impl Link {
         }
         let outcome = match kind {
             ResourceEventKind::OutboundComplete => Ok(()),
-            ResourceEventKind::OutboundRejected => Err(RequestError::Rejected),
+            ResourceEventKind::OutboundRejected { .. } => Err(RequestError::Rejected),
             ResourceEventKind::OutboundFailed | ResourceEventKind::OutboundCancelled => {
                 Err(RequestError::Send)
             }

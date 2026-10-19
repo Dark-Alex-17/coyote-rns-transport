@@ -11,7 +11,7 @@ use lxmf_sdk::{
 use rand_core::OsRng;
 use rns_transport::destination::{DestinationName, SingleInputDestination};
 use rns_transport::hash::{AddressHash, Hash};
-use rns_transport::resource::{ResourceEvent, ResourceEventKind};
+use rns_transport::resource::{RejectReason, ResourceEvent, ResourceEventKind};
 use rns_transport::transport::{Transport, TransportConfig};
 use serde_json::json;
 use tokio::sync::broadcast;
@@ -267,7 +267,7 @@ async fn rejected_resource_is_reported_and_cleanup_is_attempted() {
         .send(ResourceEvent {
             hash: expected_hash,
             link_id: AddressHash::new_from_slice(b"link"),
-            kind: ResourceEventKind::OutboundRejected,
+            kind: ResourceEventKind::OutboundRejected { reason: RejectReason::PeerCancelled },
         })
         .expect("queue rejection");
     let cleanup_attempted = Arc::new(AtomicBool::new(false));

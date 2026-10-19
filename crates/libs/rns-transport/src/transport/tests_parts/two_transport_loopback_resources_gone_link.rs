@@ -90,7 +90,7 @@ async fn two_transport_loopback_resources_advertisement_retry_skips_gone_link() 
                 event.kind,
                 ResourceEventKind::OutboundComplete
                     | ResourceEventKind::OutboundFailed
-                    | ResourceEventKind::OutboundRejected
+                    | ResourceEventKind::OutboundRejected { .. }
             )
     })
     .await;

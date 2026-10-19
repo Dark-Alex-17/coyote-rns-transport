@@ -217,14 +217,14 @@ async fn two_transport_loopback_request_resource_form_over_max_request_size_is_r
         event.hash == hash
             && matches!(
                 event.kind,
-                ResourceEventKind::OutboundRejected
+                ResourceEventKind::OutboundRejected { .. }
                     | ResourceEventKind::OutboundComplete
                     | ResourceEventKind::OutboundFailed
             )
     })
     .await;
     assert!(
-        matches!(outcome.kind, ResourceEventKind::OutboundRejected),
+        matches!(outcome.kind, ResourceEventKind::OutboundRejected { .. }),
         "the oversize request is rejected, got {:?}",
         outcome.kind
     );

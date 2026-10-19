@@ -2,6 +2,7 @@
 pub struct ResourceManager {
     outgoing: HashMap<Hash, ResourceSender>,
     outgoing_segment_chains: HashMap<Hash, PendingSegments>,
+    outbound_outcomes: HashMap<Hash, tokio::sync::oneshot::Sender<OutboundResult>>,
     incoming: HashMap<Hash, ResourceReceiver>,
     incoming_segments: HashMap<Hash, InboundSegmentAssembly>,
     events: Vec<ResourceEvent>,
@@ -32,11 +33,7 @@ impl ResourceManager {
                 .remove(&active_hash)
                 .expect("outgoing sender existed before cancel packet");
             self.outgoing_segment_chains.remove(&sender.original_hash);
-            self.events.push(ResourceEvent {
-                hash: sender.original_hash,
-                link_id: sender.link_id,
-                kind: ResourceEventKind::OutboundCancelled,
-            });
+            self.conclude_outbound(sender.original_hash, sender.link_id, OutboundResult::Cancelled);
             return Ok(Some(packet));
         }
         Ok(None)
@@ -463,11 +460,11 @@ impl ResourceManager {
                 // local cancel and from ICL, which terminates an inbound one.
                 if let Some(sender) = self.outgoing.remove(&hash) {
                     self.outgoing_segment_chains.remove(&sender.original_hash);
-                    self.events.push(ResourceEvent {
-                        hash: sender.original_hash,
-                        link_id: sender.link_id,
-                        kind: ResourceEventKind::OutboundRejected,
-                    });
+                    self.conclude_outbound(
+                        sender.original_hash,
+                        sender.link_id,
+                        OutboundResult::Rejected(RejectReason::PeerCancelled),
+                    );
                 }
             }
             _ => {}

@@ -10,6 +10,7 @@ impl ResourceManager {
         Self {
             outgoing: HashMap::new(),
             outgoing_segment_chains: HashMap::new(),
+            outbound_outcomes: HashMap::new(),
             incoming: HashMap::new(),
             incoming_segments: HashMap::new(),
             events: Vec::new(),
@@ -363,6 +364,9 @@ impl ResourceManager {
     /// Cheap by construction (two map inserts and a clone of an
     /// already-built packet), so it is safe to call with the handler lock
     /// held.
+    ///
+    /// Callers that want the verdict too use
+    /// [`track_prepared_with_outcome`](ResourceManager::track_prepared_with_outcome).
     ///
     /// [`prepare_send`]: ResourceManager::prepare_send
     /// [`confirm_outbound_dispatch`]: ResourceManager::confirm_outbound_dispatch

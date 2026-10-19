@@ -42,12 +42,12 @@ async fn sizes_probe7_assert_refused(
         event.link_id == link_id
             && matches!(
                 event.kind,
-                ResourceEventKind::OutboundRejected | ResourceEventKind::OutboundFailed
+                ResourceEventKind::OutboundRejected { .. } | ResourceEventKind::OutboundFailed
             )
     })
     .await;
     assert!(
-        matches!(ended.kind, ResourceEventKind::OutboundRejected),
+        matches!(ended.kind, ResourceEventKind::OutboundRejected { .. }),
         "the response over the limit is refused at its advertisement, not failed: {:?}",
         ended.kind
     );

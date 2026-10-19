@@ -293,7 +293,7 @@ fn resource_manager_receiver_cancel_emits_outbound_rejected_event() {
     assert_eq!(events.len(), 1);
     assert_eq!(events[0].hash, resource_hash);
     assert_eq!(events[0].link_id, *link.id());
-    assert!(matches!(events[0].kind, ResourceEventKind::OutboundRejected));
+    assert!(matches!(events[0].kind, ResourceEventKind::OutboundRejected { .. }));
 }
 
 #[test]

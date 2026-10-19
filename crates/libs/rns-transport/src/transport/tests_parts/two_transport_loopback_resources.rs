@@ -160,7 +160,7 @@ async fn response_resource_round_trip(payload_len: usize, expected_segments: u32
                 event.kind,
                 ResourceEventKind::OutboundComplete
                     | ResourceEventKind::OutboundFailed
-                    | ResourceEventKind::OutboundRejected
+                    | ResourceEventKind::OutboundRejected { .. }
             )
     })
     .await;

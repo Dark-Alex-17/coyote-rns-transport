@@ -1,8 +1,9 @@
 #[test]
 fn resource_sender_emits_outbound_failed_when_status_is_failed() {
-    // Covers the new `ResourceStatus::Failed => OutboundResourcePoll::Failed` arm
-    // in poll().  The same path is exercised when handle_request_into() fails to
-    // build a packet and sets self.status = Failed.
+    // Covers the `ResourceStatus::Failed => OutboundResourcePoll::Failed` arm in
+    // poll(), as distinct from the retry-budget `RetriesExhausted` returns. The
+    // same path is exercised when handle_request_into() fails to build a packet
+    // and sets self.status = Failed.
     let signer = PrivateIdentity::new_from_rand(OsRng);
     let identity = *signer.as_identity();
     let destination = DestinationDesc {

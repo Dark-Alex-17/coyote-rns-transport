@@ -9,19 +9,28 @@ use std::sync::Once;
 /// through its effect on other requests.
 const SLOW_HANDLER_SLEEP: Duration = Duration::from_secs(30);
 
-/// Keeps the link's drop records. Tests share one process, so a record is attributed to a
-/// test by the link id it names, and only the drop records are kept so the store stays
-/// small for the rest of the run.
+/// Keeps the link's drop records and the shared-instance client's records. Tests share one
+/// process and `log::set_logger` installs once, so this is the only logger in the binary;
+/// a record is attributed to a test by the link id or the `tp(<name>)` it names, and only
+/// those two families are kept so the store stays small for the rest of the run.
 struct DroppedRequestLogger {
     records: StdMutex<Vec<String>>,
+    shared_instance: StdMutex<Vec<(log::Level, String)>>,
 }
 
-static DROPPED_REQUESTS: DroppedRequestLogger =
-    DroppedRequestLogger { records: StdMutex::new(Vec::new()) };
+static DROPPED_REQUESTS: DroppedRequestLogger = DroppedRequestLogger {
+    records: StdMutex::new(Vec::new()),
+    shared_instance: StdMutex::new(Vec::new()),
+};
+
+/// The target `attach_shared_instance` and `detach_shared_instance` log under: their
+/// section file is `include!`d into `transport/links.rs`.
+const SHARED_INSTANCE_LOG_TARGET: &str = "rns_transport::transport::links";
 
 impl log::Log for DroppedRequestLogger {
     fn enabled(&self, metadata: &log::Metadata) -> bool {
         metadata.target().starts_with("rns_transport::destination::link")
+            || metadata.target() == SHARED_INSTANCE_LOG_TARGET
     }
 
     fn log(&self, record: &log::Record) {
@@ -29,7 +38,14 @@ impl log::Log for DroppedRequestLogger {
             return;
         }
         let message = record.args().to_string();
-        if message.contains("dropped, dispatch") {
+        if record.target() == SHARED_INSTANCE_LOG_TARGET {
+            if message.contains("shared instance") {
+                self.shared_instance
+                    .lock()
+                    .expect("shared-instance record store")
+                    .push((record.level(), message));
+            }
+        } else if message.contains("dropped, dispatch") {
             self.records.lock().expect("record store").push(message);
         }
     }
@@ -37,6 +53,8 @@ impl log::Log for DroppedRequestLogger {
     fn flush(&self) {}
 }
 
+/// Installs the binary's one logger at `Debug`; every test that reads records calls this
+/// first, and the `Once` makes the order between them irrelevant.
 fn install_dropped_request_logger() {
     static INSTALL: Once = Once::new();
     INSTALL.call_once(|| {
@@ -54,6 +72,20 @@ fn dropped_request_records_for(link_id: AddressHash) -> Vec<String> {
         .expect("record store")
         .iter()
         .filter(|record| record.contains(&needle))
+        .cloned()
+        .collect()
+}
+
+/// The shared-instance records a transport named `transport_name` emitted so far, oldest
+/// first, with the level each was logged at.
+fn shared_instance_records_for(transport_name: &str) -> Vec<(log::Level, String)> {
+    let needle = format!("tp({transport_name})");
+    DROPPED_REQUESTS
+        .shared_instance
+        .lock()
+        .expect("shared-instance record store")
+        .iter()
+        .filter(|(_, record)| record.contains(&needle))
         .cloned()
         .collect()
 }
@@ -90,9 +122,7 @@ async fn two_transport_loopback_request_slow_or_panicking_handler_does_not_stall
     timeout(STOP_TIMEOUT, pair.handles.listener.transport.stop())
         .await
         .expect("listener stops while a handler is still sleeping");
-    timeout(STOP_TIMEOUT, pair.handles.connector.transport.stop())
-        .await
-        .expect("connector stops");
+    timeout(STOP_TIMEOUT, pair.handles.connector.transport.stop()).await.expect("connector stops");
 }
 
 #[tokio::test]

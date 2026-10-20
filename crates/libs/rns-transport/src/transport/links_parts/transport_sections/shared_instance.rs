@@ -44,10 +44,10 @@ impl Transport {
         endpoint: SharedInstanceEndpoint,
         options: SharedInstanceOptions,
     ) -> Result<AddressHash, RnsError> {
-        let (kind, reconnect_wait): (&'static str, Option<Duration>) = match &endpoint {
-            SharedInstanceEndpoint::Tcp(_) => ("tcp", None),
+        let kind: &'static str = match &endpoint {
+            SharedInstanceEndpoint::Tcp(_) => "tcp",
             #[cfg(unix)]
-            SharedInstanceEndpoint::Unix(_) => ("unix", Some(options.reconnect_wait())),
+            SharedInstanceEndpoint::Unix(_) => "unix",
         };
         // Lock order: the std slot is innermost, under the iface_manager here
         // and under the handler below as in detach and stop; the two tokio
@@ -62,7 +62,7 @@ impl Transport {
             }
             let iface = match endpoint {
                 SharedInstanceEndpoint::Tcp(addr) => manager.spawn_as_with_mode(
-                    TcpClient::new(addr.to_string()),
+                    TcpClient::new(addr.to_string()).with_reconnect_wait(options.reconnect_wait()),
                     TcpClient::spawn,
                     IfaceRole::Unicast,
                     InterfaceMode::Full,
@@ -94,22 +94,13 @@ impl Transport {
                 iface
             );
         }
-        match reconnect_wait {
-            Some(wait) => log::debug!(
-                "tp({}): attached shared instance iface={} endpoint={} reconnect_wait={:?}",
-                self.name,
-                iface,
-                kind,
-                wait
-            ),
-            None => log::debug!(
-                "tp({}): attached shared instance iface={} endpoint={} reconnect_wait={:?} (ignored by the tcp client)",
-                self.name,
-                iface,
-                kind,
-                options.reconnect_wait()
-            ),
-        }
+        log::debug!(
+            "tp({}): attached shared instance iface={} endpoint={} reconnect_wait={:?}",
+            self.name,
+            iface,
+            kind,
+            options.reconnect_wait()
+        );
         Ok(iface)
     }
 

@@ -1,14 +1,14 @@
 // Second usage-pattern probe for the shared-instance client API: the unix flavour carried
 // end to end (two clients on one `LocalUnixServer` learn each other at one hop and open links
-// both ways), the TCP client keeping its fixed retry when the caller shortens
+// both ways), the TCP client retrying at the caller's shortened
 // `reconnect_wait`, `stop()` forgetting the slot inside its budget while the handler is
 // wedged, and the slot surviving a `stop_interface` on the attached interface until
 // `detach_shared_instance` clears it. Helpers come from the sibling `tests_parts` files
 // included into this module.
 
-/// How long the TCP probe waits to be sure the client has NOT reconnected yet. Shorter than
-/// the client's fixed 5 s retry by a wide margin, so only a retry at the caller's 50 ms
-/// `reconnect_wait` could make the accept land inside it.
+/// How long the TCP probe gives the client to reconnect. Shorter than the `TcpClient`'s 5 s
+/// default wait by a wide margin, so only a retry at the caller's 50 ms `reconnect_wait`
+/// can make the accept land inside it.
 const SHARED_INSTANCE_TCP_EARLY_WINDOW: Duration = Duration::from_secs(2);
 
 /// The unix shared instance: a transport node with a `LocalUnixServer` bound on a socket
@@ -130,15 +130,15 @@ async fn shared_instance_unix_clients_exchange_announces_and_open_links_both_way
     timeout(STOP_TIMEOUT, owner.stop()).await.expect("unix shared instance stop completes");
 }
 
-/// `with_reconnect_wait` is documented as a unix-only knob: a TCP client given 50 ms still
-/// waits its fixed 5 s before reconnecting, so a shared instance that comes up right after
-/// the first refused connect is not reached inside two seconds, and is reached afterwards.
+/// A TCP client given a 50 ms `reconnect_wait` retries at that wait rather than the
+/// `TcpClient`'s 5 s default, so a shared instance that comes up right after the first
+/// refused connect is reached inside two seconds.
 #[tokio::test]
 #[deny(clippy::await_holding_invalid_type)]
-async fn shared_instance_tcp_client_keeps_its_fixed_retry_despite_a_short_reconnect_wait() {
+async fn shared_instance_tcp_client_honours_a_short_reconnect_wait() {
     let identity = PrivateIdentity::new_from_rand(OsRng);
     let transport =
-        Transport::new(TransportConfig::new("shared-instance-fixed-retry", &identity, false));
+        Transport::new(TransportConfig::new("shared-instance-short-wait", &identity, false));
     let port = free_loopback_port().await;
     let endpoint = SharedInstanceEndpoint::Tcp(std::net::SocketAddr::from(([127, 0, 0, 1], port)));
 
@@ -156,7 +156,7 @@ async fn shared_instance_tcp_client_keeps_its_fixed_retry_despite_a_short_reconn
 
     let server_identity = PrivateIdentity::new_from_rand(OsRng);
     let mut server_config =
-        TransportConfig::new("shared-instance-fixed-retry-owner", &server_identity, false);
+        TransportConfig::new("shared-instance-short-wait-owner", &server_identity, false);
     server_config.set_transport_enabled(true);
     let server = Transport::new(server_config);
     let listener = TcpServer::new(format!("127.0.0.1:{port}"), server.iface_manager())
@@ -164,23 +164,17 @@ async fn shared_instance_tcp_client_keeps_its_fixed_retry_despite_a_short_reconn
     let status = listener.runtime_status_handle();
     server.iface_manager().lock().await.spawn(listener, TcpServer::spawn);
 
-    let early = timeout(SHARED_INSTANCE_TCP_EARLY_WINDOW, async {
+    let accepted = timeout(SHARED_INSTANCE_TCP_EARLY_WINDOW, async {
         while status.to_json()["accepted_connections"].as_u64() != Some(1) {
             tokio::time::sleep(LOOPBACK_POLL).await;
         }
     })
     .await;
     assert!(
-        early.is_err(),
-        "the TCP client must keep its fixed 5 s retry, not the 50 ms reconnect_wait: {}",
+        accepted.is_ok(),
+        "the TCP client must retry at the 50 ms reconnect_wait, not its 5 s default: {}",
         status.to_json()
     );
-    wait_until(
-        "the shared instance to accept the client's fixed-interval retry",
-        || status.to_json()["accepted_connections"].as_u64() == Some(1),
-        || status.to_json().to_string(),
-    )
-    .await;
     shared_instance_assert_attached(&transport, iface).await;
 
     let detached = timeout(STOP_TIMEOUT, transport.detach_shared_instance())

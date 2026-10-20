@@ -28,7 +28,7 @@ bullet of its own, marked test-only.
   `SharedInstanceEndpoint::{Tcp, Unix}` is `#[non_exhaustive]`, with `Unix`
   present on unix targets only; `SharedInstanceOptions` has private fields
   and a `with_reconnect_wait` builder, default 8 s
-  (`RNS/Interfaces/LocalInterface.py:54`), honoured by the unix client only.
+  (`RNS/Interfaces/LocalInterface.py:54`), honoured by both clients.
   Pinned by `transport/tests_parts/two_transport_shared_instance.rs`: two
   clients on one TCP shared instance learn each other at one hop and open
   links both ways, the shared instance's tunnel table carries a path for
@@ -43,9 +43,9 @@ bullet of its own, marked test-only.
   one-hop paths, and a refused attach racing a detach leaves the slot and
   the posture in agreement. By
   `transport/tests_parts/two_transport_shared_instance_probe2.rs`: the unix
-  flavour end to end, a TCP client keeps its fixed retry under a short
-  reconnect wait, stop with a wedged handler still forgets the slot within
-  its budget, and `stop_interface` leaves the slot held until detach. And by
+  flavour end to end, a TCP client retries at a short reconnect wait, stop
+  with a wedged handler still forgets the slot within its budget, and
+  `stop_interface` leaves the slot held until detach. And by
   `transport/tests_parts/two_transport_shared_instance_probe3.rs`: a detach
   queued before the attach's posture write wins the slot and the posture
   stays off, stop racing an attach keeps the slot and the posture
@@ -59,6 +59,33 @@ bullet of its own, marked test-only.
   notes and the ledger section are held to
   `crates/apps/reticulumd/tests/fork_publish_contract.rs` (the Unreleased
   cite check and the Unreleased ledger checks).
+- `TcpClient::{with_reconnect_wait, reconnect_wait}` and
+  `TcpClient::DEFAULT_RECONNECT_WAIT`, 5 s: the wait slept before each
+  retry once a connect has failed or an established stream has dropped
+  twice in a row, the knob `LocalUnixClient::with_reconnect_wait` already
+  offered (`RNS/Interfaces/LocalInterface.py:54`, slept at `:159`).
+  `attach_shared_instance` now passes `SharedInstanceOptions::reconnect_wait`
+  to the `TcpClient` as it did to the `LocalUnixClient`, and its attach
+  debug line reports the wait as in force for both endpoints.
+  `TcpClient::with_disconnect_events` and
+  `LocalUnixClient::with_disconnect_events`, with
+  `TcpClient::disconnect_events_enabled`: a sender, sibling of
+  `with_reconnect_events`, that receives the interface address each time
+  an established stream ends while the client is neither cancelled nor
+  stopped, before it reconnects (`RNS/Interfaces/LocalInterface.py:255-261`);
+  connect failures and detach or stop send nothing, and `reconnect_events`
+  is unchanged. Pinned by `iface/tcp_client.rs` (a 50 ms wait makes a
+  reconnect storm back off for 50 ms rather than 5 s; a dropped stream
+  reports one disconnect event then the reconnect event, and a stop while
+  connected reports none), `iface/local.rs` (the same disconnect twin for
+  the unix client),
+  `transport/tests_parts/two_transport_shared_instance_probe2.rs` (a TCP
+  client attached with a 50 ms wait reaches a late-bound shared instance
+  within 2 s),
+  `transport/tests_parts/two_transport_shared_instance_probe5.rs` (the tcp
+  attach line reports the wait in force and never says ignored) and
+  `transport/tests_parts/two_transport_shared_instance_probe6.rs` (the tcp
+  attach line is three key=value tokens ending at the wait).
 
 ### Changed
 
@@ -88,12 +115,12 @@ bullet of its own, marked test-only.
   `transport/tests_parts/two_transport_shared_instance_probe5.rs`, through
   the record store in
   `transport/tests_parts/two_transport_loopback_requests_isolation.rs` (the
-  attach line never warns, the tcp line marks the reconnect wait as ignored
-  while the unix line reports it, a stale-slot detach and an attach whose
+  attach line never warns, both the tcp and the unix line report the
+  reconnect wait in force, a stale-slot detach and an attach whose
   interface vanished between its sections log at debug) and
   `transport/tests_parts/two_transport_shared_instance_probe6.rs` (the
-  attach line is space-separated key=value tokens and only the tcp arm
-  appends the ignored-wait parenthetical).
+  attach line is space-separated key=value tokens and both arms end at the
+  wait).
 - The proof-cap fixture
   `transport/tests_parts/two_transport_loopback_link_packet_proven_probe2.rs`
   holds its handler stall until the test releases it after the burst

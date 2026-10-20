@@ -1,8 +1,7 @@
 // Pins what the shared-instance client API says in the log, read through the binary's one
-// logger: an attach never warns, the TCP attach line says the reconnect wait is ignored
-// while the unix line reports it as in force, an attach whose interface was removed between
-// its two sections records the race at debug, and a detach that finds a stale slot says so
-// at debug.
+// logger: an attach never warns, both the TCP and the unix attach line report the reconnect
+// wait as in force, an attach whose interface was removed between its two sections records
+// the race at debug, and a detach that finds a stale slot says so at debug.
 // Helpers come from the sibling `tests_parts` files included into this module.
 
 /// No shared-instance record (the lines the test logger captures under its links target)
@@ -26,12 +25,11 @@ fn shared_instance_debug_records_containing(transport_name: &str, needle: &str) 
         .collect()
 }
 
-/// A TCP attach logs the attached interface at debug and says the configured reconnect wait
-/// is ignored by the TCP client, since that client keeps its fixed retry; nothing about the
-/// attach is logged at warn.
+/// A TCP attach logs the attached interface at debug with the configured reconnect wait in
+/// force, since the `TcpClient` honours it; nothing about the attach is logged at warn.
 #[tokio::test]
 #[deny(clippy::await_holding_invalid_type)]
-async fn shared_instance_tcp_attach_logs_the_reconnect_wait_as_ignored_and_never_warns() {
+async fn shared_instance_tcp_attach_logs_the_reconnect_wait_in_force_and_never_warns() {
     install_test_logger();
     let name = "shared-instance-log-tcp";
     let server = shared_instance_server().await;
@@ -52,10 +50,8 @@ async fn shared_instance_tcp_attach_logs_the_reconnect_wait_as_ignored_and_never
     let line = &attached[0];
     assert!(line.contains(&format!("iface={iface}")), "names the interface: {line}");
     assert!(line.contains("endpoint=tcp"), "names the endpoint kind: {line}");
-    assert!(
-        line.contains("reconnect_wait=250ms (ignored by the tcp client)"),
-        "the TCP line reports the configured wait as ignored: {line}"
-    );
+    assert!(line.contains("reconnect_wait=250ms"), "reports the configured wait: {line}");
+    assert!(!line.contains("ignored"), "the TCP client honours the wait: {line}");
     assert!(
         shared_instance_debug_records_containing(name, "tunnel not synthesized").is_empty(),
         "a plain attach synthesizes its tunnel and records no race"

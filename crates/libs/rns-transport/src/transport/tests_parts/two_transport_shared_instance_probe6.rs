@@ -1,7 +1,6 @@
 // Pins the shape of the attach debug line, not just its words: both arms write
 // space-separated `key=value` tokens (`iface=`, `endpoint=`, `reconnect_wait=`) with no
-// comma separators, and only the TCP arm appends the `(ignored by the tcp client)`
-// parenthetical, directly after the wait. A regression to the earlier
+// comma separators, and both end at the wait. A regression to the earlier
 // `endpoint={}, reconnect_wait={:?} ignored ...` form keeps every word and fails here.
 // Helpers come from the sibling `tests_parts` files included into this module.
 
@@ -42,13 +41,12 @@ fn shared_instance_attach_line_tokens(
     tokens
 }
 
-/// The TCP attach line is `iface=<hash> endpoint=tcp reconnect_wait=<wait> (ignored by the
-/// tcp client)`: three space-separated `key=value` tokens and the parenthetical right after
-/// the wait, nothing else.
+/// The TCP attach line is `iface=<hash> endpoint=tcp reconnect_wait=<wait>`: three
+/// space-separated `key=value` tokens ending at the wait, nothing else, since the
+/// `TcpClient` honours the wait.
 #[tokio::test]
 #[deny(clippy::await_holding_invalid_type)]
-async fn shared_instance_tcp_attach_line_is_space_separated_key_value_with_a_trailing_parenthetical(
-) {
+async fn shared_instance_tcp_attach_line_is_space_separated_key_value_and_ends_at_the_wait() {
     install_test_logger();
     let name = "shared-instance-log-shape-tcp";
     let server = shared_instance_server().await;
@@ -65,11 +63,7 @@ async fn shared_instance_tcp_attach_line_is_space_separated_key_value_with_a_tra
     shared_instance_assert_attached(&transport, iface).await;
 
     let tokens = shared_instance_attach_line_tokens(name, &iface.to_string(), "tcp");
-    assert_eq!(
-        tokens[3..].join(" "),
-        "(ignored by the tcp client)",
-        "the parenthetical follows the wait directly and closes the line: {tokens:?}"
-    );
+    assert_eq!(tokens.len(), 3, "the tcp line ends at the wait: {tokens:?}");
     shared_instance_assert_never_warned(name);
 
     assert!(timeout(STOP_TIMEOUT, transport.detach_shared_instance()).await.expect("detach"));

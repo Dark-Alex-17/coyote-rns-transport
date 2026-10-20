@@ -17,6 +17,18 @@ fn read_repo_file(relative: &str) -> String {
     fs::read_to_string(&path).unwrap_or_else(|err| panic!("read {}: {err}", path.display()))
 }
 
+/// The source files the fork added over the upstream baseline: every public
+/// item in them is fork-new.
+const FORK_NEW_FILES: [&str; 7] = [
+    "crates/libs/rns-transport/src/destination/request/allow.rs",
+    "crates/libs/rns-transport/src/destination/request/frame.rs",
+    "crates/libs/rns-transport/src/destination/request/handler.rs",
+    "crates/libs/rns-transport/src/destination/request/id.rs",
+    "crates/libs/rns-transport/src/destination/request/inbound.rs",
+    "crates/libs/rns-transport/src/destination/request/receipt.rs",
+    "crates/libs/rns-transport/src/resource/outcome.rs",
+];
+
 fn crate_version() -> String {
     read_repo_file("crates/libs/rns-transport/Cargo.toml")
         .lines()
@@ -46,20 +58,21 @@ fn doc_block_above(lines: &[&str], line: usize) -> String {
     docs.join(" ")
 }
 
-/// `RNS/<path>.py:<line>` somewhere in the doc (`RNS/Link.py:808`,
-/// `RNS/vendor/umsgpack.py:320-324,989`), or an explicit fork-only
-/// statement.
-fn doc_cites_python_or_fork_only(doc: &str) -> bool {
-    let lowered = doc.to_ascii_lowercase();
-    if lowered.contains("fork-only") || lowered.contains("fork only") {
-        return true;
-    }
-    doc.match_indices("`RNS/").any(|(at, _)| {
-        let rest = &doc[at + "`RNS/".len()..];
+/// A backticked `RNS/<path>.py:<line>` citation somewhere in `text`
+/// (`RNS/Link.py:808`, `RNS/vendor/umsgpack.py:320-324,989`).
+fn cites_python_line(text: &str) -> bool {
+    text.match_indices("`RNS/").any(|(at, _)| {
+        let rest = &text[at + "`RNS/".len()..];
         let Some(dot) = rest.find(".py:") else { return false };
         rest[..dot].chars().all(|c| c.is_ascii_alphanumeric() || c == '_' || c == '/')
             && rest[dot + ".py:".len()..].starts_with(|c: char| c.is_ascii_digit())
     })
+}
+
+/// A Python citation in the doc, or an explicit fork-only statement.
+fn doc_cites_python_or_fork_only(doc: &str) -> bool {
+    let lowered = doc.to_ascii_lowercase();
+    lowered.contains("fork-only") || lowered.contains("fork only") || cites_python_line(doc)
 }
 
 /// `pub <ident>:`, the field of a struct body.
@@ -135,6 +148,13 @@ fn locate_named_item(lines: &[&str], kind: &ItemKind, name: &str) -> Option<usiz
     }
 }
 
+/// The attribute lines above the item definition starting at byte
+/// `definition`: the text since the previous blank line.
+fn attribute_block_above(source: &str, definition: usize) -> &str {
+    let above = &source[..definition];
+    &above[above.rfind("\n\n").map_or(0, |at| at + 2)..]
+}
+
 #[derive(Clone, Copy)]
 enum Body {
     Enum,
@@ -151,15 +171,6 @@ enum Body {
 /// its declaration line.
 #[test]
 fn request_layer_public_items_cite_python_or_say_fork_only() {
-    let files = [
-        "crates/libs/rns-transport/src/destination/request/allow.rs",
-        "crates/libs/rns-transport/src/destination/request/frame.rs",
-        "crates/libs/rns-transport/src/destination/request/handler.rs",
-        "crates/libs/rns-transport/src/destination/request/id.rs",
-        "crates/libs/rns-transport/src/destination/request/inbound.rs",
-        "crates/libs/rns-transport/src/destination/request/receipt.rs",
-        "crates/libs/rns-transport/src/resource/outcome.rs",
-    ];
     let item_keywords =
         ["fn ", "async fn ", "const fn ", "struct ", "enum ", "trait ", "type ", "const "];
     let named_items: &[(&str, ItemKind, &str)] = &[
@@ -255,7 +266,7 @@ fn request_layer_public_items_cite_python_or_say_fork_only() {
         }
     };
 
-    for file in files {
+    for file in FORK_NEW_FILES {
         let source = read_repo_file(file);
         let lines: Vec<&str> = source.lines().collect();
         // The public enum or struct whose braces the walker is inside, and
@@ -325,6 +336,112 @@ fn request_layer_public_items_cite_python_or_say_fork_only() {
     );
 }
 
+/// Every `pub struct` the fork introduced keeps its fields private, so a
+/// consumer builds and reads it through methods alone: a brace body has no
+/// `pub <ident>:` member and a one-line tuple body has no `pub ` between its
+/// parentheses. The set of structs found is pinned to the expected names so a
+/// new or renamed public struct shows up here. Two fork-new fields in upstream
+/// structs are checked by name: `DeliveryReceipt::link_id` must be private.
+/// `AnnounceEvent` predates the fork and exposes every field, so its
+/// `is_path_response` follows that shape and is asserted public, together
+/// with the `#[non_exhaustive]` attribute that keeps the public field from
+/// breaking out-of-crate struct literals.
+#[test]
+fn fork_new_public_structs_keep_their_fields_private() {
+    let expected = [
+        "InboundRequest",
+        "OutboundOutcome",
+        "PathHash",
+        "RequestFrame",
+        "RequestId",
+        "RequestOptions",
+        "RequestReceipt",
+        "RequestResponseData",
+        "ResponseFrame",
+    ];
+    let mut found = Vec::new();
+    let mut exposed = Vec::new();
+    for file in FORK_NEW_FILES {
+        let source = read_repo_file(file);
+        let lines: Vec<&str> = source.lines().collect();
+        for (open, raw) in lines.iter().enumerate() {
+            let Some(rest) = raw.trim_start().strip_prefix("pub struct ") else { continue };
+            let name: String =
+                rest.chars().take_while(|c| c.is_alphanumeric() || *c == '_').collect();
+            let offenders: Vec<usize> = if rest.contains('{') {
+                direct_members(&lines, open)
+                    .into_iter()
+                    .filter(|&index| is_pub_field(lines[index].trim_start()))
+                    .collect()
+            } else {
+                let body = rest
+                    .split_once('(')
+                    .and_then(|(_, after)| after.rsplit_once(')'))
+                    .map(|(body, _)| body)
+                    .unwrap_or_else(|| {
+                        panic!(
+                            "{file}:{}: `{name}` should be a brace or one-line tuple struct",
+                            open + 1
+                        )
+                    });
+                if body.contains("pub ") {
+                    vec![open]
+                } else {
+                    Vec::new()
+                }
+            };
+            for index in offenders {
+                exposed.push(format!(
+                    "{file}:{}: `{name}` exposes `{}`",
+                    index + 1,
+                    lines[index].trim()
+                ));
+            }
+            found.push(name);
+        }
+    }
+    found.sort_unstable();
+    assert_eq!(
+        found, expected,
+        "the fork-new files should declare exactly the expected public structs"
+    );
+    assert!(
+        exposed.is_empty(),
+        "every public struct the fork introduced should keep its fields private:\n{}",
+        exposed.join("\n")
+    );
+
+    let file = "crates/libs/rns-transport/src/transport/mod.rs";
+    let source = read_repo_file(file);
+    let lines: Vec<&str> = source.lines().collect();
+    let field_line = |owner: &'static str, name: &str| {
+        locate_named_item(&lines, &ItemKind::Field { owner }, name)
+            .unwrap_or_else(|| panic!("{file} should declare the field `{owner}::{name}`"))
+    };
+    let link_id = field_line("DeliveryReceipt", "link_id");
+    assert!(
+        !is_pub_field(lines[link_id].trim_start()),
+        "{file}:{}: `DeliveryReceipt::link_id` should be private, got `{}`",
+        link_id + 1,
+        lines[link_id].trim()
+    );
+    let is_path_response = field_line("AnnounceEvent", "is_path_response");
+    assert!(
+        is_pub_field(lines[is_path_response].trim_start()),
+        "{file}:{}: `AnnounceEvent::is_path_response` should be public like the struct's upstream fields, got `{}`",
+        is_path_response + 1,
+        lines[is_path_response].trim()
+    );
+    let definition = source
+        .find("pub struct AnnounceEvent ")
+        .unwrap_or_else(|| panic!("{file} should define `AnnounceEvent`"));
+    let attributes = attribute_block_above(&source, definition);
+    assert!(
+        attributes.lines().any(|line| line.trim() == "#[non_exhaustive]"),
+        "{file}: `AnnounceEvent` exposes a public fork field, so it must be `#[non_exhaustive]`:\n{attributes}"
+    );
+}
+
 /// The crate README's `## Known divergences from Python RNS` register is the
 /// consumer's list of where this crate is known to depart from RNS 1.5.2.
 /// Every entry must point at Python with an `RNS/<file>.py:<line>` citation,
@@ -356,19 +473,8 @@ fn crate_readme_known_divergences_cite_python_lines() {
         entries.len()
     );
 
-    let rns_modules = ["Link", "Destination", "Transport", "Packet", "Resource", "Identity"];
-    let cites_python = |entry: &str| {
-        entry.match_indices("RNS/").any(|(at, _)| {
-            let rest = &entry[at + "RNS/".len()..];
-            rns_modules.iter().any(|module| {
-                rest.strip_prefix(module)
-                    .and_then(|r| r.strip_prefix(".py:"))
-                    .is_some_and(|r| r.starts_with(|c: char| c.is_ascii_digit()))
-            })
-        })
-    };
     let uncited: Vec<&str> =
-        entries.iter().map(String::as_str).filter(|entry| !cites_python(entry)).collect();
+        entries.iter().map(String::as_str).filter(|entry| !cites_python_line(entry)).collect();
     assert!(
         uncited.is_empty(),
         "every divergence entry should cite `RNS/<file>.py:<line>`:\n{}",
@@ -441,12 +547,19 @@ fn release_notes_list_breaking_changes_on_a_minor_bump() {
             .position(|line| line.starts_with("### "))
             .map_or(section.len(), |p| breaking_start + p);
         let breaking = &section[breaking_start..breaking_end];
-        let bullets: Vec<String> = breaking
-            .split(|line| line.trim().is_empty())
-            .filter(|para| !para.is_empty())
-            .map(|para| para.join(" "))
-            .filter(|para| para.starts_with("- "))
-            .collect();
+        // A bullet starts at a top-level `- ` line and runs through the
+        // indented lines that follow it.
+        let mut bullets: Vec<String> = Vec::new();
+        for line in breaking {
+            if line.starts_with("- ") {
+                bullets.push(line.to_string());
+            } else if let Some(bullet) = bullets.last_mut() {
+                if line.starts_with(' ') && !line.trim().is_empty() {
+                    bullet.push(' ');
+                    bullet.push_str(line.trim());
+                }
+            }
+        }
         assert!(!bullets.is_empty(), "`### Breaking` should list at least one change");
         for bullet in &bullets {
             assert!(
@@ -560,9 +673,7 @@ fn enums_the_docs_call_non_exhaustive_carry_the_attribute() {
             .find(&format!("pub enum {item} "))
             .or_else(|| source.find(&format!("pub struct {item} ")))
             .unwrap_or_else(|| panic!("{file} should define `{item}`"));
-        // The attribute block sits between the previous blank line and the definition.
-        let attributes = &source[..definition];
-        let attributes = &attributes[attributes.rfind("\n\n").map_or(0, |at| at + 2)..];
+        let attributes = attribute_block_above(&source, definition);
         assert!(
             attributes.lines().any(|line| line.trim() == "#[non_exhaustive]"),
             "{file}: `{item}` is documented as `#[non_exhaustive]` but its definition lacks the attribute:\n{attributes}"

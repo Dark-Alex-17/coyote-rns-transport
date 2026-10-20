@@ -15,7 +15,7 @@ jobs:
   codex:
     # Opt-in: set the repository variable CODEX_REVIEW_ENABLED to 'true' and add the
     # OPENAI_API_KEY secret. Secrets are not available in a job-level if, hence the variable.
-    if: github.event.pull_request.draft == false && vars.CODEX_REVIEW_ENABLED == 'true'
+    if: github.event.pull_request.draft == false && github.event.pull_request.head.repo.full_name == github.repository && vars.CODEX_REVIEW_ENABLED == 'true'
     runs-on: ubuntu-latest
     permissions:
       contents: read

@@ -233,5 +233,5 @@ jobs:
           cache-on-failure: false
       - name: Docs
         run: cargo xtask ci --stage doc
-      - name: Fork publish contract
+      - name: Fork publish and release-docs contracts
         run: cargo test -p reticulumd --test fork_publish_contract --test fork_release_docs_contract

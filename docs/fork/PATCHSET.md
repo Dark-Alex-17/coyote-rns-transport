@@ -51,8 +51,8 @@ commits `1ddd5273`, `a2a40de7`, `3805fe7f`, `3ed78582`, `415d67c8`,
 `9a4e8735`, `a4cf4f4b`, `65fb8646`, `01e93fc3` and `17348ca6`; the
 `Python-in-the-loop request and proof interop` patch carries no other id
 and is fork commits `60e74ffb`, `6e583b50`, `ea6edfaa`, `9223ef43`,
-`6e9eedf2`, `3f615a3b`, `28bacbbe`, `dbd4ff7e`, `a0ba6f4a`, `b5dd3255`
-and `e4eb444f`.
+`6e9eedf2`, `3f615a3b`, `28bacbbe`, `dbd4ff7e`, `a0ba6f4a`, `b5dd3255`,
+`e4eb444f` and `fdb20280`.
 
 | File | Patch |
 | --- | --- |
@@ -79,6 +79,7 @@ and `e4eb444f`.
 | `crates/apps/reticulumd/tests/python_channel_interop_parts/ifac_python_interop.rs` | outbound outcomes with link fast fail and accept hook |
 | `crates/apps/reticulumd/tests/python_channel_interop_parts/module_prelude.rs` | outbound outcomes with link fast fail and accept hook |
 | `crates/apps/reticulumd/tests/python_channel_interop_parts/multi_segment_python_interop.rs` | outbound outcomes with link fast fail and accept hook |
+| `crates/apps/reticulumd/tests/python_channel_interop_parts/python_request_edges.rs` | Python-in-the-loop request and proof interop |
 | `crates/apps/reticulumd/tests/python_channel_interop_parts/python_request_forms_matrix.rs` | Python-in-the-loop request and proof interop |
 | `crates/apps/reticulumd/tests/python_channel_interop_parts/python_request_late_reply.rs` | Python-in-the-loop request and proof interop |
 | `crates/apps/reticulumd/tests/python_channel_interop_parts/python_request_size_limits.rs` | Python-in-the-loop request and proof interop |
@@ -2525,8 +2526,8 @@ fresh id, and no Resource terminal form is observed.
 `rust_to_python_request_receipt_late_resource_response_after_timeout_is_dropped_unsolicited`
 is the same with a 48 KiB late reply: the response advertisements,
 counted on the interface tap, do reach Rust and are dropped as
-unsolicited, no `InboundResponse` terminal form is observed, and a
-following request still concludes `Ready`.
+unsolicited, so the reply is not received (no `InboundResponse`
+terminal form), and a following request still concludes `Ready`.
 `rust_to_python_request_receipt_under_prove_all_only_the_plain_data_packet_is_proven`
 runs a request round trip on a `--prove-all` link and observes no
 `PacketProven`, Python proving only context-`None` Data
@@ -2534,11 +2535,58 @@ runs a request round trip on a `--prove-all` link and observes no
 link is proven. The `serve_request` handler in
 `python_channel_request_forms.py` takes a `delay` key: a dict request
 carrying it sleeps that many seconds before answering, on the handler's
-own daemon thread (`RNS/Link.py:1004-1005`), so the link keeps receiving
-while the Rust timeout runs out. The fixture reuses
+own daemon thread (`RNS/Link.py:892-893`, `:1004-1005`), so the link
+keeps receiving while the Rust timeout runs out. The fixture reuses
 `RequestHandlerFixture`, `RequestHandlerRecord`,
 `RustRequestReceiptFixture` and the matrix, unknown-path and receipt
 helpers of its sibling fixtures. Every async fn but the lock-taking test
+fns carries `#[deny(clippy::await_holding_invalid_type)]`.
+
+Fork commit `fdb20280`: new fixture
+`python_channel_interop_parts/python_request_edges.rs` (373 lines, five
+ignored tests, one `include!` line in `python_channel_interop.rs`) pins
+the close path, the envelope types and the file response against Python,
+plus the packet-form request over `max_request_size`.
+`rust_to_python_request_receipt_python_teardown_fails_the_pending_request_link_closed`
+has the Python handler hold its answer and tear the link down a second
+later (`Link.teardown` on the inbound link from
+`Transport.active_links_map`, `RNS/Transport.py:2934-2937`): the status
+trail is exactly `[Sent, Failed]`, `response()` is
+`Err(RequestError::LinkClosed)` well inside a 30 s timeout,
+`LinkEvent::Closed` follows on the Rust link and Python reports the
+teardown.
+`rust_to_python_request_receipt_dict_reply_packet_is_read_as_a_map` and
+`..._dict_reply_resource_is_read_as_a_map` have Python answer a dict of
+one member per umsgpack type family (str, int, bool, list, bytes), bare
+and padded to 48 KiB: `value()` is a `Value::Map` in insertion order,
+`data()` and `metadata()` are `None`, the map re-packed through
+`rmpv::encode::write_value` hashes to the bytes Python packed, and the
+terminal forms are `[]` for the packet and `[InboundResponse]` for the
+Resource.
+`rust_to_python_request_receipt_file_reply_is_read_through_data_and_metadata`
+has Python answer a 64 byte `(BufferedReader, metadata)` tuple
+(`RNS/Link.py:835-845`): the reply is a response Resource even below the
+link MDU, `data()` is the file body, `metadata()` the string Python sent,
+`value()` and `into_value()` are `None`.
+`python_to_rust_request_handler_packet_request_over_max_request_size_is_dropped_silently`
+sends an 8000 byte packet-form request at a destination whose
+`max_request_size` is 1024: the handler never runs, nothing is answered,
+the Python receipt stays `SENT` with `request_no_response`, no Resource
+terminal form is observed and a fresh client is still served. The
+`serve_request` handler in `python_channel_request_forms.py` (200 lines)
+gains `response: map`, `response: file` (`file_size`) and
+`teardown_after` keys and now takes the link id from the endpoint's
+`_on_request`; it reports `request_received` before the `delay` sleep
+and a separate `request_answered` line after it, and the `delay` comment
+cites both daemon-thread sites (`RNS/Link.py:892-893`, `:1004-1005`).
+`DEFAULT_REQUEST_PATH` in the same module replaces the five
+`/test/request` literals in `python_channel_endpoint.py`. In
+`python_request_late_reply.rs` the two Rust-to-Python late tests wait on
+`request_answered` through a new `late_reply_wait_answered` helper
+before asserting that the late reply changed nothing, the Resource cell
+asserts `failed_after >= LATE_REPLY_RUST_TIMEOUT` as its packet twin
+does, and the `PROVE_ALL` comment names the in-crate loopback tests as
+the pin of the Rust record gate. Every async fn but the lock-taking test
 fns carries `#[deny(clippy::await_holding_invalid_type)]`.
 
 ## 0.14.1 (upstream 0.14.0)

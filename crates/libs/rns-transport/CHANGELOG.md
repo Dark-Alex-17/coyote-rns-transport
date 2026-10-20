@@ -89,20 +89,31 @@ trailing clause of the bullet for the behaviour it pins.
   the sibling fixture above, the form pinned through
   `Transport::resource_events()`; a Resource request from an unlisted
   peer is accepted on size alone and dropped before the handler, as
-  Python does, `RNS/Link.py:1036-1040`). The Python endpoint gains the
+  Python does, `RNS/Link.py:1036-1040`) and
+  `python_channel_interop_parts/python_request_edges.rs` (a packet-form
+  request over `max_request_size` ignored before any handler runs,
+  nothing answered, the Python receipt left `SENT`, and a fresh client
+  still served). The Python endpoint gains the
   `request-forms` payload kind, `--request-size`, `--identify`,
   `--request-timeout`, `--request-path` and `--prove-all` for them
-  (`python_channel_endpoint.py`, `python_channel_request_forms.py`); its
-  request-forms handler also takes a `delay` key that holds the answer
-  back that many seconds, and its client reports the wire form it used.
+  (`python_channel_endpoint.py`, `python_channel_request_forms.py`,
+  spawned and read on the Rust side by `python_channel_events.rs` and
+  `python_channel_process.rs`); its request-forms handler also takes a
+  `delay` key that holds the answer back that many seconds (reporting
+  `request_received` before the sleep and `request_answered` after it),
+  `response: map` and `response: file` keys for a dict and a
+  `(BufferedReader, metadata)` reply, and a `teardown_after` key that
+  closes the link from the Python side while the request is pending; its
+  client reports the wire form it used.
   `python_channel_interop_parts/python_request_unknown_path.rs` pins a
   request for a path no handler is registered on, in both wire forms on
-  either responder: dropped silently on the Rust responder with the
-  destination still serving (the Resource form accepted on size alone
-  first, then dropped on the path-hash miss, so the Python requester
-  fails from `DELIVERED`, `RNS/Link.py:1372`, `:1398`), and on the
-  Python responder left unanswered (`RNS/Link.py:810`, the request
-  Resource accepted on size alone first, `:1036-1040`).
+  either responder: dropped silently on the Rust responder (the packet
+  cell going on to show a second client still served; the Resource form
+  accepted on size alone first, then dropped on the path-hash miss, so
+  the Python requester fails from `DELIVERED`, `RNS/Link.py:1372`,
+  `:1398`), and on the Python responder left unanswered
+  (`RNS/Link.py:810`, the request Resource accepted on size alone first,
+  `:1036-1040`).
 
 - `LinkEvent::Data` with `PacketContext::Request` keeps posting for every
   inbound request; a request whose path has a registered handler is
@@ -274,7 +285,13 @@ trailing clause of the bullet for the behaviour it pins.
   after the Rust timeout, in packet or Resource form, revives nothing and
   the link keeps serving; a Resource request the Rust handler answers
   `None` fails on the Python side from `DELIVERED`, `RNS/Link.py:1372`,
-  `:1398`).
+  `:1398`), and `python_request_edges.rs` (a Python `Link.teardown`
+  under a pending request concluding `LinkClosed` about a second in,
+  well ahead of a 30 s timeout; a Python dict reply read as a
+  `Value::Map` with umsgpack's type mapping and key order intact and
+  re-packing to the bytes Python packed, as a packet and as a 48 KiB
+  Resource; a Python file reply, always a Resource even far below the
+  MDU, read through `data()` and `metadata()` with `value()` `None`).
 
 - `SendPacketOutcome::is_sent`: whether a send reached an interface,
   directly or by broadcast; the in-crate `matches!` twins use it.
@@ -460,8 +477,9 @@ trailing clause of the bullet for the behaviour it pins.
   `reticulumd` the remote-control link bridge, the inbound worker core and
   the Python channel interop test support. An out-of-tree
   `OutboundRejected` pattern needs `{ .. }` or `{ reason }`. The reticulumd
-  test `rust_sender_maps_pinned_python_receiver_cancel_to_rejection` pins a
-  Python receiver cancel to `PeerCancelled`.
+  test `rust_sender_maps_pinned_python_receiver_cancel_to_rejection`
+  (`python_channel_interop_parts/resource_faults.rs`) pins a Python
+  receiver cancel to `PeerCancelled`.
 
 - `ResourceEventKind` is `#[non_exhaustive]`: an out-of-tree exhaustive
   match on it no longer compiles without a wildcard arm. The enum was

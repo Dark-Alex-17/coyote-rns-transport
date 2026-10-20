@@ -26,7 +26,7 @@ belongs to. Patch ids: F4 is shared-instance client packaging. The
 `b306b2a1`, `17b41d6a`, `ff8a8e8a`, `ff67110d`, `e4494576`, `21e4dacc`,
 `a6036013`, `8a1c2d16`, `9247525e`, `afa72a00`, `c05832b9`, `013d0dd2`,
 `b7df209e`, `6baf2e34`, `2e62274d`, `eba27ade`, `a4fdb0bb`, `952d6ca9`,
-`18e2ccb5`, `52be26ad` and `428a699a`;
+`18e2ccb5`, `52be26ad`, `428a699a` and `4b67a5e9`;
 the `proof cap stall on signal` patch carries no other id and is fork
 commit `cccc40e4`.
 
@@ -57,8 +57,8 @@ commit `cccc40e4`.
 Fork commits `2a027a9d`, `b306b2a1`, `17b41d6a`, `ff8a8e8a`, `ff67110d`,
 `e4494576`, `21e4dacc`, `a6036013`, `8a1c2d16`, `9247525e`, `afa72a00`,
 `c05832b9`, `013d0dd2`, `b7df209e`, `6baf2e34`, `2e62274d`, `eba27ade`,
-`a4fdb0bb`, `952d6ca9`, `18e2ccb5`, `52be26ad` and `428a699a`: F4,
-shared-instance client packaging. The first
+`a4fdb0bb`, `952d6ca9`, `18e2ccb5`, `52be26ad`, `428a699a` and
+`4b67a5e9`: F4, shared-instance client packaging. The first
 lands `SharedInstanceEndpoint`
 and `SharedInstanceOptions`, the four `Transport` methods
 `attach_shared_instance`, `detach_shared_instance`,
@@ -152,8 +152,10 @@ attach whose interface vanished between its sections log at debug). The
 twenty-second admits the test-only fixture-hardening exception to the
 release-notes listing rule, attributes the release notes and the ledger
 section to the publish contract, and pins the fifth fixture and the
-record store on the `Transport::stop` bullet. The file sites below
-describe the combined result.
+record store on the `Transport::stop` bullet. The twenty-third renames
+that logger, its static and its install function for the two record
+families they now serve. The file sites below describe the combined
+result.
 Upstream sites:
 `crates/libs/rns-transport/src/transport/mod.rs` registers the
 `shared_instance` module, re-exports its two types and gains the

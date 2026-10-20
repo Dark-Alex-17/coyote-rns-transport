@@ -524,6 +524,92 @@ fn patch_set_ledger_rows_name_a_patch_from_the_legend() {
     );
 }
 
+/// The legend names the fork commits of the release patch; every one of them
+/// is a commit a rebase must re-apply, so each must also appear in a patch
+/// header of the section. Hashes added to the legend alone are the drift this
+/// catches.
+#[test]
+fn patch_set_ledger_release_legend_hashes_each_have_a_patch_header() {
+    let version = crate_version();
+    let ledger = read_repo_file("docs/fork/PATCHSET.md");
+    let section_heading = format!("\n## {version} (upstream ");
+    let start = ledger
+        .find(&section_heading)
+        .unwrap_or_else(|| panic!("docs/fork/PATCHSET.md should have a `## {version}` section"));
+    let section = &ledger[start + 1..];
+    let section = match section[section_heading.len() - 1..].find("\n## ") {
+        Some(end) => &section[..section_heading.len() - 1 + end],
+        None => section,
+    };
+
+    let table_start = section.find("\n| File | Patch |").unwrap_or_else(|| {
+        panic!("the {version} section should open with a `| File | Patch |` table")
+    });
+    // The legend wraps at 80 columns, so phrases are matched on one line.
+    let legend = section[..table_start].split_whitespace().collect::<Vec<_>>().join(" ");
+    let release_patch = format!("`release {version}` patch");
+    let release_at = legend.find(&release_patch).unwrap_or_else(|| {
+        panic!("the {version} legend should name the `release {version}` patch")
+    });
+    let commits = &legend[release_at + release_patch.len()..];
+    let commits_at = commits.find("fork commits").unwrap_or_else(|| {
+        panic!("the {version} legend should list the fork commits of the release patch")
+    });
+    let commits = &commits[commits_at + "fork commits".len()..];
+
+    /// A backticked eight-digit short hash, with any trailing sentence
+    /// punctuation.
+    fn commit_hash(token: &str) -> Option<&str> {
+        let hash =
+            token.trim_end_matches([',', '.', ';', ':']).strip_prefix('`')?.strip_suffix('`')?;
+        let is_hash = hash.len() == 8
+            && hash.chars().all(|c| c.is_ascii_hexdigit() && !c.is_ascii_uppercase());
+        is_hash.then_some(hash)
+    }
+
+    let mut legend_hashes = Vec::new();
+    for token in commits.split(' ') {
+        legend_hashes.extend(commit_hash(token));
+        if token.ends_with('.') {
+            break;
+        }
+    }
+    assert!(
+        !legend_hashes.is_empty(),
+        "the {version} legend should name at least one fork commit for the release patch"
+    );
+
+    // Headers wrap too: the hashes run from the `Fork commit` line through the
+    // first colon, which may sit on a later line.
+    let mut header_hashes = Vec::new();
+    let mut in_header = false;
+    for line in section.lines() {
+        if line.starts_with("Fork commit `") || line.starts_with("Fork commits `") {
+            in_header = true;
+        }
+        if !in_header {
+            continue;
+        }
+        let hashes = line.split_once(':').map_or(line, |(before, _)| before);
+        header_hashes.extend(hashes.split(' ').filter_map(commit_hash));
+        in_header = !line.contains(':');
+    }
+
+    let mut missing = Vec::new();
+    for hash in &legend_hashes {
+        if !header_hashes.contains(hash) {
+            missing.push(*hash);
+        }
+    }
+    assert!(
+        missing.is_empty(),
+        "every fork commit the {version} legend names for the release patch should head a patch \
+         in the section, since each patch header lists every commit a rebase must re-apply; \
+         missing: {}",
+        missing.join(", ")
+    );
+}
+
 /// The README rebase recipe runs the same `cargo publish` the workflow runs.
 /// Neither carries a `--registry` override: the publish workflow runs on a
 /// GitHub runner with the default crates.io source, and a developer whose

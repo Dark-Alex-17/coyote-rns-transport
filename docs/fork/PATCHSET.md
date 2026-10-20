@@ -59,7 +59,8 @@ and is fork commits `60e74ffb`, `6e583b50`, `ea6edfaa`, `9223ef43`,
 `e4eb444f` and `fdb20280`; the `release 0.15.0` patch carries no other id
 and is fork commits `d4a3b2d2`, `5075d765`, `eb0e19f2`, `06068516`,
 `ac9c49af`, `8b3ce9e1`, `23bdc1a8`, `ba92e2ba`, `8d70f3e1`, `ccfba204`,
-`af1b7e62`, `061141f9`, `0bbccb83`, `eb854ab6` and `c5048353`.
+`af1b7e62`, `061141f9`, `0bbccb83`, `eb854ab6`, `c5048353` and
+`93f417c6`.
 
 | File | Patch |
 | --- | --- |
@@ -2607,7 +2608,8 @@ the pin of the Rust record gate. Every async fn but the lock-taking test
 fns carries `#[deny(clippy::await_holding_invalid_type)]`.
 
 Fork commits `d4a3b2d2`, `5075d765`, `eb0e19f2`, `06068516`, `ac9c49af`,
-`8b3ce9e1`, `23bdc1a8`, `ba92e2ba`, `8d70f3e1`, `ccfba204` and `af1b7e62`:
+`8b3ce9e1`, `23bdc1a8`, `ba92e2ba`, `8d70f3e1`, `ccfba204`, `af1b7e62`,
+`061141f9`, `0bbccb83`, `eb854ab6`, `c5048353` and `93f417c6`:
 release 0.15.0. The first gates the inherited Codex review workflow
 (`.github/workflows/codex-review.yml`) on the repository variable
 `CODEX_REVIEW_ENABLED`, so the check is skipped until the variable and the
@@ -2672,10 +2674,40 @@ fuzz lock resolves the crate from its path dependency), adds
 `FrameDecodeError` to the `#[non_exhaustive]` sites, cites the RCL on the
 `OutboundRejected` variant doc in `crates/libs/rns-transport/src/resource.rs`,
 and names both contract files in the `CHANGELOG.md` version bullet. The
-ledger-only commits that complete this section are omitted by convention. The
-patches of the `## 0.14.1` section below are still carried; the patches
-above build on their files rather than replacing them, and the publish
-contract test they added is extended by the first and fourth commits above.
+twelfth adds `fork_new_public_structs_keep_their_fields_private` to
+`crates/apps/reticulumd/tests/fork_release_docs_contract.rs`: the nine
+public structs the fork introduced in the request and outcome files are
+pinned by name and keep their fields private, `DeliveryReceipt::link_id` is
+private, and `AnnounceEvent::is_path_response` is the one public fork field,
+on a struct that carries `#[non_exhaustive]`; in the same file the
+breaking-changes test reads each `- ` bullet with its indented continuation
+lines, and the divergence-register test reuses the rustdoc contract's
+`cites_python_line` predicate. The thirteenth scopes the README divergence
+register (`crates/libs/rns-transport/README.md`) to the divergences the fork
+introduced and registers the first inherited one a fork change surfaced: the
+sender spends its retry budget in `Transferring`, where Python waits a single
+RTT-scaled `max_wait` (`RNS/Resource.py:643-650`). The doc comments of
+`OutboundFailure::RetriesExhausted` and `OutboundOutcome` in
+`crates/libs/rns-transport/src/resource/outcome.rs`, of `MAX_DEPTH` in
+`request/frame.rs` and of `RequestError` and its `Timeout` variant in
+`request/receipt.rs` gain the matching cites; the 0.15.0 notes in the crate
+`CHANGELOG.md` drop their pre-release phrasing and name `FrameDecodeError` as
+`#[non_exhaustive]`, and the README Release hygiene bullet names
+`fork_release_docs_contract`. The fourteenth hoists the two release locks of
+`crates/apps/reticulumd/tests/fork_publish_contract.rs` into a
+`RELEASE_LOCKS` constant that the version pin, the recipe check and the
+file-table check all iterate, so the fuzz lock is a required row of the
+table above. The fifteenth renames the contracts step of
+`.github/workflows/ci.yml` to "Fork publish and release-docs contracts" and
+makes the `.github/workflows/codex-review.yml` job also require a pull
+request head from this repository, since a fork head cannot read the
+`OPENAI_API_KEY` secret. The sixteenth iterates the required rows of the
+file-table check in `fork_publish_contract.rs` by reference, so the
+workspace clippy run stays clean. The ledger-only commits that complete this
+section are omitted by convention. The patches of the `## 0.14.1` section
+below are still carried; the patches above build on their files rather than
+replacing them, and the publish contract test they added is extended by the
+first and fourth commits above.
 
 ## 0.14.1 (upstream 0.14.0)
 

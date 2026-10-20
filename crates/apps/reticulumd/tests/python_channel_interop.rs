@@ -40,3 +40,5 @@ include!("python_channel_interop_parts/python_multi_hop.rs");
 include!("python_channel_interop_parts/multi_segment_python_interop.rs");
 
 include!("python_channel_interop_parts/python_to_rust_request_handler.rs");
+
+include!("python_channel_interop_parts/rust_to_python_request_receipt.rs");

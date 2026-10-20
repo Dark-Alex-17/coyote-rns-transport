@@ -21,8 +21,8 @@ trailing clause of the bullet for the behaviour it pins.
   outbound packets on one-hop paths carry a transport header
   (`:1416-1427`); it returns the interface address. One shared instance is
   held at a time: a second call returns `RnsError::InvalidArgument` until
-  `detach_shared_instance`, which stops the interface and clears the flag
-  and returns `false` when none was attached.
+  `detach_shared_instance`, which stops the interface and clears the flag,
+  returning `false` when none was attached.
   `SharedInstanceEndpoint::{Tcp, Unix}` is `#[non_exhaustive]`, with `Unix`
   present on unix targets only; `SharedInstanceOptions` has private fields
   and a `with_reconnect_wait` builder, default 8 s
@@ -38,12 +38,16 @@ trailing clause of the bullet for the behaviour it pins.
   option default and builder, detach on a never-attached transport,
   concurrent attaches admit one, an attach before the server listens
   connects once it does, detach silences the relay while re-attach restores
-  one-hop paths, and an attach racing a detach leaves the slot and the
-  posture in agreement. And by
+  one-hop paths, and a refused attach racing a detach leaves the slot and
+  the posture in agreement. By
   `transport/tests_parts/two_transport_shared_instance_probe2.rs`: the unix
   flavour end to end, a TCP client keeps its fixed retry under a short
   reconnect wait, stop with a wedged handler still forgets the slot within
-  its budget, and `stop_interface` leaves the slot held until detach.
+  its budget, and `stop_interface` leaves the slot held until detach. And by
+  `transport/tests_parts/two_transport_shared_instance_probe3.rs`: a detach
+  queued before the attach's posture write wins the slot and the posture
+  stays off, stop racing an attach keeps the slot and the posture
+  consistent, and attach/detach cycles leave no interface behind.
 
 ### Changed
 
@@ -52,15 +56,22 @@ trailing clause of the bullet for the behaviour it pins.
   transport reports `shared_instance()` as `None`. The posture is now
   cleared after the management task has stopped, within stop's 5 s budget;
   when the handler stays locked past it the slot is still forgotten and a
-  warning says the posture was not cleared. `attach_shared_instance` sets
-  the posture only while the slot still holds the new interface, so a
-  concurrent detach or stop cannot leave the posture set with the slot
-  empty. Pinned by
+  warning naming the interface says the posture was not cleared; the
+  warning is emitted only when a slot was actually held.
+  `attach_shared_instance` sets the posture only while the slot still holds
+  the new interface, so a concurrent detach or stop cannot leave the
+  posture set with the slot empty. An interface spawned after stop's sweep
+  but before stop takes the slot stays registered with the slot empty; a
+  second stop detaches it. Pinned by
   `transport/tests_parts/two_transport_shared_instance.rs` (stop releases
   the interface and the posture) and
   `transport/tests_parts/two_transport_shared_instance_probe.rs` (detach
-  after stop reports `false`, an attach racing a detach keeps the slot and
-  the posture consistent).
+  after stop reports `false`, a refused attach racing a detach keeps the
+  slot and the posture consistent) and
+  `transport/tests_parts/two_transport_shared_instance_probe3.rs` (a detach
+  queued before the attach's posture write wins the slot and the posture
+  stays off, stop racing an attach keeps the slot and the posture
+  consistent).
 
 ## 0.15.0 - 2026-10-20
 

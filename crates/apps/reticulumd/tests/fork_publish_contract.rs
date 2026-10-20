@@ -365,12 +365,20 @@ fn fuzz_lock_resolves_the_crate_from_its_path_dependency() {
 
 /// The `## <label> (upstream <base>)` section of the patch-set ledger, up to
 /// the next `## ` heading. `label` is a release version or `Unreleased`.
+/// A `## <label>` heading without the `(upstream <base>)` suffix is a
+/// malformed ledger, not a missing section, so it panics rather than
+/// disabling the checks that key on the heading.
 fn ledger_section<'a>(ledger: &'a str, label: &str) -> Option<&'a str> {
-    let section_heading = format!("\n## {label} (upstream ");
-    let start = ledger.find(&section_heading)?;
+    let heading_anchor = format!("\n## {label}");
+    let start = ledger.find(&heading_anchor)?;
     let section = &ledger[start + 1..];
-    Some(match section[section_heading.len() - 1..].find("\n## ") {
-        Some(end) => &section[..section_heading.len() - 1 + end],
+    let heading = section.lines().next().unwrap_or_default();
+    assert!(
+        heading[heading_anchor.len() - 1..].starts_with(" (upstream "),
+        "the ledger heading for {label} should read `## {label} (upstream <base>)`, got {heading:?}"
+    );
+    Some(match section[heading.len()..].find("\n## ") {
+        Some(end) => &section[..heading.len() + end],
         None => section,
     })
 }

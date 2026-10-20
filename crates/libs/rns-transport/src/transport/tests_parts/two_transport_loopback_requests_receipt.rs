@@ -29,6 +29,25 @@ fn silent_handler(
     |_: InboundRequest| std::future::ready(None::<RequestResponse>)
 }
 
+/// A handler that holds its answer until `release` is notified, then answers with `response`.
+fn gated_handler(
+    release: Arc<tokio::sync::Notify>,
+    response: impl Fn(InboundRequest) -> RequestResponse + Send + Sync + Clone + 'static,
+) -> impl Fn(
+    InboundRequest,
+) -> std::pin::Pin<Box<dyn std::future::Future<Output = Option<RequestResponse>> + Send>>
+       + Send
+       + Sync {
+    move |request: InboundRequest| {
+        let release = release.clone();
+        let response = response.clone();
+        Box::pin(async move {
+            release.notified().await;
+            Some(response(request))
+        })
+    }
+}
+
 /// Sends `value` to `path` through `Transport::request` with `opts`.
 #[deny(clippy::await_holding_invalid_type)]
 async fn request_with(
@@ -75,12 +94,41 @@ async fn await_ready_on_two_clones(receipt: &RequestReceipt) -> RequestResponseD
 /// the full order.
 #[deny(clippy::await_holding_invalid_type)]
 async fn observe_statuses(receipt: &RequestReceipt) -> Vec<RequestStatus> {
+    observe_statuses_with(receipt, |_| {}).await
+}
+
+/// `observe_statuses`, notifying `release` once each time the status read is `at`, the one
+/// current at subscription included. A responder gated on `release` cannot answer before the
+/// subscriber has read `at`, so `at` and the response's statuses never coalesce. `notify_one`
+/// stores a permit when nobody waits yet, so either side may reach the gate first.
+#[deny(clippy::await_holding_invalid_type)]
+async fn observe_statuses_releasing_at(
+    receipt: &RequestReceipt,
+    at: RequestStatus,
+    release: &tokio::sync::Notify,
+) -> Vec<RequestStatus> {
+    observe_statuses_with(receipt, |status| {
+        if status == at {
+            release.notify_one();
+        }
+    })
+    .await
+}
+
+#[deny(clippy::await_holding_invalid_type)]
+async fn observe_statuses_with(
+    receipt: &RequestReceipt,
+    mut on_status: impl FnMut(RequestStatus),
+) -> Vec<RequestStatus> {
     let mut status_rx = receipt.subscribe();
     let mut seen = vec![*status_rx.borrow_and_update()];
+    on_status(seen[0]);
     timeout(RECEIPT_TIMEOUT, async {
         while !matches!(seen.last(), Some(RequestStatus::Ready | RequestStatus::Failed)) {
             status_rx.changed().await.expect("the pending entry outlives the subscription");
-            seen.push(*status_rx.borrow_and_update());
+            let status = *status_rx.borrow_and_update();
+            on_status(status);
+            seen.push(status);
         }
     })
     .await
@@ -274,21 +322,26 @@ async fn two_transport_loopback_request_receipt_resource_response_goes_through_r
     assert!(!seen.contains(&RequestStatus::Delivered), "nothing proves a request packet");
 }
 
-/// The echo waits before answering, so `Delivered` (the request Resource's proof) and
-/// `Receiving` (the response advertisement) cannot land on the `watch` as one change.
+/// The echo is held until the subscriber has read `Delivered` (the request Resource's proof),
+/// so `Receiving` (the response advertisement) cannot land on the `watch` as the same change.
 #[tokio::test]
 #[deny(clippy::await_holding_invalid_type)]
 async fn two_transport_loopback_request_receipt_resource_form_goes_through_delivered() {
     let pair = loopback_request_pair("receipt-order-resource-form").await;
-    register_handler(&pair, "/echo", RequestAllow::All, |request: InboundRequest| async move {
-        tokio::time::sleep(HANDLER_DELAY).await;
-        Some(RequestResponse::Value(request.into_data()))
-    })
+    let gate = Arc::new(tokio::sync::Notify::new());
+    register_handler(
+        &pair,
+        "/echo",
+        RequestAllow::All,
+        gated_handler(gate.clone(), |request: InboundRequest| {
+            RequestResponse::Value(request.into_data())
+        }),
+    )
     .await;
     let body = over_mdu_body(&pair).await;
 
     let receipt = request(&pair, "/echo", rmpv::Value::Binary(body)).await;
-    let seen = observe_statuses(&receipt).await;
+    let seen = observe_statuses_releasing_at(&receipt, RequestStatus::Delivered, &gate).await;
     assert!(
         is_subsequence_of(
             &seen,

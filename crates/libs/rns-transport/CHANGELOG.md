@@ -300,7 +300,11 @@ compiles.
   `two_transport_loopback_requests_errors.rs`,
   `two_transport_loopback_requests_receipt_orders.rs` (the four status
   orders pinned exactly, the responder delayed so no change is coalesced
-  on the watch),
+  on the watch; the `Delivered` presence pins of
+  `two_transport_loopback_requests_receipt.rs`,
+  `two_transport_loopback_requests_resource_form_sizes.rs` and
+  `two_transport_loopback_requests_resource_form_sizes_probe15.rs`
+  hold the responder until the subscriber has read `Delivered`),
   `tests/request_receipt_api.rs`, `tests/request_receipt_readme.rs`,
   `destination/request/receipt_tests.rs`,
   `destination/request/receipt_order_tests.rs`,

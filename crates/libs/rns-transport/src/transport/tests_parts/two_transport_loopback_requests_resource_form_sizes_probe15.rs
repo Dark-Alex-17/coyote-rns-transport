@@ -12,29 +12,17 @@
 /// How long the responder is kept from reading the request Resource's advertisement.
 const SIZES_PROBE15_RESPONDER_STALL: Duration = Duration::from_millis(300);
 
-/// A small answer after `HANDLER_DELAY`, so `Delivered` (the request Resource's proof) and
-/// `Ready` (the packet response) cannot coalesce on the receipt's `watch`.
-fn sizes_probe15_delayed_small_handler() -> impl Fn(
-    InboundRequest,
-) -> std::pin::Pin<Box<dyn std::future::Future<Output = Option<RequestResponse>> + Send>>
-       + Send
-       + Sync {
-    |_: InboundRequest| {
-        Box::pin(async {
-            tokio::time::sleep(HANDLER_DELAY).await;
-            Some(RequestResponse::Value(rmpv::Value::from("small")))
-        })
-    }
-}
-
 /// The resource-form request's statuses pass `Delivered`, so the responder's proof was
-/// handled on the pair's link, and end `Ready` on the small packet answer.
+/// handled on the pair's link, and end `Ready` on the small packet answer. The answer is held
+/// on `gate` until `Delivered` is read, so the two cannot coalesce on the receipt's `watch`;
+/// the subscription comes after the responder's stall, so `Delivered` may already be current.
 #[deny(clippy::await_holding_invalid_type)]
 async fn sizes_probe15_assert_proved_and_answered(
     pair: &LoopbackRequestPair,
     answered: &RequestReceipt,
+    gate: &tokio::sync::Notify,
 ) {
-    let seen = observe_statuses(answered).await;
+    let seen = observe_statuses_releasing_at(answered, RequestStatus::Delivered, gate).await;
     assert!(
         seen.contains(&RequestStatus::Delivered),
         "the request Resource's proof reached the pair's link: {seen:?}"
@@ -67,8 +55,14 @@ async fn two_transport_loopback_request_resource_form_sizes_probe15_part_request
     let link_id = pair.handles.link_id;
     register_handler(&pair, "/quiet", RequestAllow::All, silent_handler()).await;
     register_handler(&pair, "/echo", RequestAllow::All, echo_handler()).await;
-    register_handler(&pair, "/small", RequestAllow::All, sizes_probe15_delayed_small_handler())
-        .await;
+    let gate = Arc::new(tokio::sync::Notify::new());
+    register_handler(
+        &pair,
+        "/small",
+        RequestAllow::All,
+        gated_handler(gate.clone(), |_| RequestResponse::Value(rmpv::Value::from("small"))),
+    )
+    .await;
     let body = over_mdu_body(&pair).await;
     let (_sibling_link, sibling_link_id) = stop_open_sibling_link(&mut pair).await;
 
@@ -83,7 +77,7 @@ async fn two_transport_loopback_request_resource_form_sizes_probe15_part_request
     assert_eq!(dropped.status(), RequestStatus::Receiving, "the drop queues, it does not route");
     stall.await.expect("stall task finished");
 
-    sizes_probe15_assert_proved_and_answered(&pair, &answered).await;
+    sizes_probe15_assert_proved_and_answered(&pair, &answered, &gate).await;
 
     assert_eq!(
         await_receipt(&dropped).await,

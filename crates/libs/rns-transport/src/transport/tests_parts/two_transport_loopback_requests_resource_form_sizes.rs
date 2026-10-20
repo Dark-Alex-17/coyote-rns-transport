@@ -165,8 +165,8 @@ async fn two_transport_loopback_request_resource_form_sizes_packet_response_skip
 }
 
 /// Request Resource, response Resource: `Sent -> Delivered -> Receiving -> Ready`. Over the
-/// legacy MTU both transfers take hundreds of parts, so `Delivered` and `Receiving` land on
-/// the `watch` as separate changes.
+/// legacy MTU both transfers take hundreds of parts; the echo is held until the subscriber
+/// has read `Delivered`, so `Receiving` lands on the `watch` as a separate change.
 #[tokio::test]
 #[deny(clippy::await_holding_invalid_type)]
 async fn two_transport_loopback_request_resource_form_sizes_resource_response_is_delivered_then_received(
@@ -174,11 +174,20 @@ async fn two_transport_loopback_request_resource_form_sizes_resource_response_is
     let pair =
         loopback_request_pair_with_mtu("sizes-resource-request-resource-response", LEGACY_MTU)
             .await;
-    register_handler(&pair, "/echo", RequestAllow::All, echo_handler()).await;
+    let gate = Arc::new(tokio::sync::Notify::new());
+    register_handler(
+        &pair,
+        "/echo",
+        RequestAllow::All,
+        gated_handler(gate.clone(), |request: InboundRequest| {
+            RequestResponse::Value(request.into_data())
+        }),
+    )
+    .await;
 
     let body = random_payload(MANY_PARTS_LEN);
     let receipt = request(&pair, "/echo", rmpv::Value::Binary(body.clone())).await;
-    let seen = observe_statuses(&receipt).await;
+    let seen = observe_statuses_releasing_at(&receipt, RequestStatus::Delivered, &gate).await;
     assert!(
         is_subsequence_of(
             &seen,

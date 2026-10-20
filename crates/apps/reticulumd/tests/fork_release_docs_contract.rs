@@ -328,7 +328,7 @@ fn request_layer_public_items_cite_python_or_say_fork_only() {
     }
 
     assert!(
-        checked >= 91,
+        checked >= 131,
         "the request layer should expose the receipt, frame, handler and outcome surface; found only {checked} public items"
     );
     assert!(
@@ -504,10 +504,13 @@ fn crate_readme_known_divergences_cite_python_lines() {
 }
 
 /// The crate README's `## Attaching to a shared instance` section describes
-/// the shared-instance client API in prose only. A fenced snippet there would
-/// need a verbatim pin in the public-API tests, and the section carries none.
+/// the shared-instance client API in prose only. A `rust` fence there is
+/// allowed only once a public-API test pins its body verbatim, the way
+/// `crate_readme_rust_snippets_are_pinned_verbatim_by_the_api_tests` checks
+/// the other README snippets; no such pin exists yet, so today the section
+/// carries no fence at all.
 #[test]
-fn crate_readme_shared_instance_section_is_fence_free_prose() {
+fn crate_readme_shared_instance_section_has_no_unpinned_rust_fence() {
     let readme = read_repo_file("crates/libs/rns-transport/README.md");
     let heading = "\n## Attaching to a shared instance\n";
     let start = readme

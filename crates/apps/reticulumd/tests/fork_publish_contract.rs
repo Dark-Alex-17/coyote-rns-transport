@@ -363,23 +363,63 @@ fn fuzz_lock_resolves_the_crate_from_its_path_dependency() {
     );
 }
 
+/// The `## <label> (upstream <base>)` section of the patch-set ledger, up to
+/// the next `## ` heading. `label` is a release version or `Unreleased`.
+fn ledger_section<'a>(ledger: &'a str, label: &str) -> Option<&'a str> {
+    let section_heading = format!("\n## {label} (upstream ");
+    let start = ledger.find(&section_heading)?;
+    let section = &ledger[start + 1..];
+    Some(match section[section_heading.len() - 1..].find("\n## ") {
+        Some(end) => &section[..section_heading.len() - 1 + end],
+        None => section,
+    })
+}
+
+/// The ledger section of the current crate version, which every release
+/// must have.
+fn release_ledger_section(ledger: &str) -> (String, &str) {
+    let version = crate_version();
+    let section = ledger_section(ledger, &version).unwrap_or_else(|| {
+        panic!("docs/fork/PATCHSET.md should have a `## {version} (upstream <base>)` section")
+    });
+    (version, section)
+}
+
+/// The legend prose above a section's `| File | Patch |` table, joined onto
+/// one line because the ledger wraps at 80 columns and phrases are matched
+/// whole.
+fn ledger_legend(label: &str, section: &str) -> String {
+    let table_start = section.find("\n| File | Patch |").unwrap_or_else(|| {
+        panic!("the {label} section should open with a `| File | Patch |` table")
+    });
+    section[..table_start].split_whitespace().collect::<Vec<_>>().join(" ")
+}
+
 /// The patch-set ledger's section for the current release opens with a table
 /// of every file changed since the previous tag. Every path in it must exist,
 /// and the files that change on every release must be listed.
 #[test]
 fn patch_set_ledger_lists_existing_files_for_the_current_release() {
-    let version = crate_version();
     let ledger = read_repo_file("docs/fork/PATCHSET.md");
-    let section_heading = format!("\n## {version} (upstream ");
-    let start = ledger.find(&section_heading).unwrap_or_else(|| {
-        panic!("docs/fork/PATCHSET.md should have a `## {version} (upstream <base>)` section")
-    });
-    let section = &ledger[start + 1..];
-    let section = match section[section_heading.len() - 1..].find("\n## ") {
-        Some(end) => &section[..section_heading.len() - 1 + end],
-        None => section,
-    };
+    let (version, section) = release_ledger_section(&ledger);
+    check_ledger_section_lists_existing_files(&version, section, true);
+}
 
+/// The `## Unreleased` section, when present, is held to the same file table
+/// contract short of the rows only a release adds: one row is enough and the
+/// files that change on every release need not be there yet.
+#[test]
+fn patch_set_ledger_unreleased_section_lists_existing_files() {
+    let ledger = read_repo_file("docs/fork/PATCHSET.md");
+    let Some(section) = ledger_section(&ledger, "Unreleased") else { return };
+    check_ledger_section_lists_existing_files("Unreleased", section, false);
+}
+
+fn check_ledger_section_lists_existing_files(
+    label: &str,
+    section: &str,
+    require_release_rows: bool,
+) {
     let root = repo_root();
     let table_paths: Vec<&str> = section
         .lines()
@@ -389,9 +429,10 @@ fn patch_set_ledger_lists_existing_files_for_the_current_release() {
             rest.split('`').next()
         })
         .collect();
+    let floor = if require_release_rows { 10 } else { 1 };
     assert!(
-        table_paths.len() >= 10,
-        "the {version} section should open with a file table, found {} rows",
+        table_paths.len() >= floor,
+        "the {label} section should open with a file table, found {} rows",
         table_paths.len()
     );
 
@@ -399,9 +440,13 @@ fn patch_set_ledger_lists_existing_files_for_the_current_release() {
         table_paths.iter().copied().filter(|path| !root.join(path).exists()).collect();
     assert!(
         missing.is_empty(),
-        "every file in the {version} table should exist in the tree:\n{}",
+        "every file in the {label} table should exist in the tree:\n{}",
         missing.join("\n")
     );
+
+    if !require_release_rows {
+        return;
+    }
 
     let required_every_release = [
         "Cargo.toml",
@@ -417,7 +462,7 @@ fn patch_set_ledger_lists_existing_files_for_the_current_release() {
     for required in RELEASE_LOCKS.iter().chain(required_every_release.iter()) {
         assert!(
             table_paths.contains(required),
-            "the {version} table should list {required:?}, which changes on every release"
+            "the {label} table should list {required:?}, which changes on every release"
         );
     }
 }
@@ -463,30 +508,34 @@ fn root_version_stays_on_the_upstream_baseline() {
 /// letter-digit patch id used in a row is defined by the legend above the table.
 #[test]
 fn patch_set_ledger_rows_name_a_patch_from_the_legend() {
-    let version = crate_version();
     let ledger = read_repo_file("docs/fork/PATCHSET.md");
-    let section_heading = format!("\n## {version} (upstream ");
-    let start = ledger
-        .find(&section_heading)
-        .unwrap_or_else(|| panic!("docs/fork/PATCHSET.md should have a `## {version}` section"));
-    let section = &ledger[start + 1..];
-    let section = match section[section_heading.len() - 1..].find("\n## ") {
-        Some(end) => &section[..section_heading.len() - 1 + end],
-        None => section,
-    };
+    let (version, section) = release_ledger_section(&ledger);
+    check_ledger_rows_name_a_patch_from_the_legend(&version, section, true);
+}
 
-    let table_start = section.find("\n| File | Patch |").unwrap_or_else(|| {
-        panic!("the {version} section should open with a `| File | Patch |` table")
-    });
-    // The legend wraps at 80 columns, so phrases are matched on one line.
-    let legend = section[..table_start].split_whitespace().collect::<Vec<_>>().join(" ");
+/// Rows of the `## Unreleased` table, when present, name legend patches the
+/// same way; the Python-in-the-loop proof is owed by a release, not by work
+/// in progress.
+#[test]
+fn patch_set_ledger_unreleased_rows_name_a_patch_from_the_legend() {
+    let ledger = read_repo_file("docs/fork/PATCHSET.md");
+    let Some(section) = ledger_section(&ledger, "Unreleased") else { return };
+    check_ledger_rows_name_a_patch_from_the_legend("Unreleased", section, false);
+}
+
+fn check_ledger_rows_name_a_patch_from_the_legend(
+    label: &str,
+    section: &str,
+    require_python_proof: bool,
+) {
+    let legend = ledger_legend(label, section);
     let legend = legend.as_str();
     let defines_a_patch_id = legend
         .split(' ')
         .any(|token| is_patch_id(token) && legend.contains(&format!("{token} is ")));
     assert!(
         defines_a_patch_id,
-        "the {version} legend should define at least one patch id before the table"
+        "the {label} legend should define at least one patch id before the table"
     );
 
     let rows: Vec<(&str, &str)> = section
@@ -498,7 +547,7 @@ fn patch_set_ledger_rows_name_a_patch_from_the_legend() {
             (cells[0], cells[1])
         })
         .collect();
-    assert!(!rows.is_empty(), "the {version} table should have rows");
+    assert!(!rows.is_empty(), "the {label} table should have rows");
 
     for (file, patch) in &rows {
         assert!(!patch.is_empty(), "{file} row should name the patch it belongs to");
@@ -519,73 +568,33 @@ fn patch_set_ledger_rows_name_a_patch_from_the_legend() {
         }
     }
 
+    if !require_python_proof {
+        return;
+    }
+
     // Every release carries a Python-in-the-loop proof: at least one interop
     // fixture row is attributed to a patch named for it.
     let interop_rows: Vec<&(&str, &str)> =
         rows.iter().filter(|(file, _)| file.contains("/python_channel_interop_parts/")).collect();
     assert!(
         interop_rows.iter().any(|(_, patch)| patch.contains("Python-in-the-loop")),
-        "the {version} table should attribute an interop fixture to a Python-in-the-loop patch, got {interop_rows:?}"
+        "the {label} table should attribute an interop fixture to a Python-in-the-loop patch, got {interop_rows:?}"
     );
 }
 
-/// The legend names the fork commits of the release patch; every one of them
-/// is a commit a rebase must re-apply, so each must also appear in a patch
-/// header of the section. Hashes added to the legend alone are the drift this
-/// catches.
-#[test]
-fn patch_set_ledger_release_legend_hashes_each_have_a_patch_header() {
-    let version = crate_version();
-    let ledger = read_repo_file("docs/fork/PATCHSET.md");
-    let section_heading = format!("\n## {version} (upstream ");
-    let start = ledger
-        .find(&section_heading)
-        .unwrap_or_else(|| panic!("docs/fork/PATCHSET.md should have a `## {version}` section"));
-    let section = &ledger[start + 1..];
-    let section = match section[section_heading.len() - 1..].find("\n## ") {
-        Some(end) => &section[..section_heading.len() - 1 + end],
-        None => section,
-    };
+/// A backticked eight-digit short hash, with any trailing sentence
+/// punctuation.
+fn commit_hash(token: &str) -> Option<&str> {
+    let hash = token.trim_end_matches([',', '.', ';', ':']).strip_prefix('`')?.strip_suffix('`')?;
+    let is_hash =
+        hash.len() == 8 && hash.chars().all(|c| c.is_ascii_hexdigit() && !c.is_ascii_uppercase());
+    is_hash.then_some(hash)
+}
 
-    let table_start = section.find("\n| File | Patch |").unwrap_or_else(|| {
-        panic!("the {version} section should open with a `| File | Patch |` table")
-    });
-    // The legend wraps at 80 columns, so phrases are matched on one line.
-    let legend = section[..table_start].split_whitespace().collect::<Vec<_>>().join(" ");
-    let release_patch = format!("`release {version}` patch");
-    let release_at = legend.find(&release_patch).unwrap_or_else(|| {
-        panic!("the {version} legend should name the `release {version}` patch")
-    });
-    let commits = &legend[release_at + release_patch.len()..];
-    let commits_at = commits.find("fork commits").unwrap_or_else(|| {
-        panic!("the {version} legend should list the fork commits of the release patch")
-    });
-    let commits = &commits[commits_at + "fork commits".len()..];
-
-    /// A backticked eight-digit short hash, with any trailing sentence
-    /// punctuation.
-    fn commit_hash(token: &str) -> Option<&str> {
-        let hash =
-            token.trim_end_matches([',', '.', ';', ':']).strip_prefix('`')?.strip_suffix('`')?;
-        let is_hash = hash.len() == 8
-            && hash.chars().all(|c| c.is_ascii_hexdigit() && !c.is_ascii_uppercase());
-        is_hash.then_some(hash)
-    }
-
-    let mut legend_hashes = Vec::new();
-    for token in commits.split(' ') {
-        legend_hashes.extend(commit_hash(token));
-        if token.ends_with('.') {
-            break;
-        }
-    }
-    assert!(
-        !legend_hashes.is_empty(),
-        "the {version} legend should name at least one fork commit for the release patch"
-    );
-
-    // Headers wrap too: the hashes run from the `Fork commit` line through the
-    // first colon, which may sit on a later line.
+/// The hashes named by the section's `Fork commit(s) ...:` patch headers.
+/// Headers wrap: the hashes run from the `Fork commit` line through the
+/// first colon, which may sit on a later line.
+fn ledger_header_hashes(section: &str) -> Vec<&str> {
     let mut header_hashes = Vec::new();
     let mut in_header = false;
     for line in section.lines() {
@@ -599,18 +608,75 @@ fn patch_set_ledger_release_legend_hashes_each_have_a_patch_header() {
         header_hashes.extend(hashes.split(' ').filter_map(commit_hash));
         in_header = !line.contains(':');
     }
+    header_hashes
+}
 
-    let mut missing = Vec::new();
-    for hash in &legend_hashes {
-        if !header_hashes.contains(hash) {
-            missing.push(*hash);
+/// The legend hashes no patch header of the section names.
+fn legend_hashes_without_a_header<'a>(section: &str, legend_hashes: &[&'a str]) -> Vec<&'a str> {
+    let header_hashes = ledger_header_hashes(section);
+    legend_hashes.iter().copied().filter(|hash| !header_hashes.contains(hash)).collect()
+}
+
+/// The legend names the fork commits of the release patch; every one of them
+/// is a commit a rebase must re-apply, so each must also appear in a patch
+/// header of the section. Hashes added to the legend alone are the drift this
+/// catches.
+#[test]
+fn patch_set_ledger_release_legend_hashes_each_have_a_patch_header() {
+    let ledger = read_repo_file("docs/fork/PATCHSET.md");
+    let (version, section) = release_ledger_section(&ledger);
+    let legend = ledger_legend(&version, section);
+    let release_patch = format!("`release {version}` patch");
+    let release_at = legend.find(&release_patch).unwrap_or_else(|| {
+        panic!("the {version} legend should name the `release {version}` patch")
+    });
+    let commits = &legend[release_at + release_patch.len()..];
+    let commits_at = commits.find("fork commits").unwrap_or_else(|| {
+        panic!("the {version} legend should list the fork commits of the release patch")
+    });
+    let commits = &commits[commits_at + "fork commits".len()..];
+
+    let mut legend_hashes = Vec::new();
+    for token in commits.split(' ') {
+        legend_hashes.extend(commit_hash(token));
+        if token.ends_with('.') {
+            break;
         }
     }
+    assert!(
+        !legend_hashes.is_empty(),
+        "the {version} legend should name at least one fork commit for the release patch"
+    );
+
+    let missing = legend_hashes_without_a_header(section, &legend_hashes);
     assert!(
         missing.is_empty(),
         "every fork commit the {version} legend names for the release patch should head a patch \
          in the section, since each patch header lists every commit a rebase must re-apply; \
          missing: {}",
+        missing.join(", ")
+    );
+}
+
+/// The `## Unreleased` legend has no release patch to anchor on, so every
+/// backticked short hash it names, under any patch, must head a patch in the
+/// section.
+#[test]
+fn patch_set_ledger_unreleased_legend_hashes_each_have_a_patch_header() {
+    let ledger = read_repo_file("docs/fork/PATCHSET.md");
+    let Some(section) = ledger_section(&ledger, "Unreleased") else { return };
+    let legend = ledger_legend("Unreleased", section);
+    let legend_hashes: Vec<&str> = legend.split(' ').filter_map(commit_hash).collect();
+    assert!(
+        !legend_hashes.is_empty(),
+        "the Unreleased legend should name the fork commits of each patch"
+    );
+
+    let missing = legend_hashes_without_a_header(section, &legend_hashes);
+    assert!(
+        missing.is_empty(),
+        "every fork commit the Unreleased legend names should head a patch in the section, \
+         since each patch header lists every commit a rebase must re-apply; missing: {}",
         missing.join(", ")
     );
 }
@@ -729,19 +795,44 @@ fn release_notes_cite_files_that_exist_in_the_tree() {
 
 /// Bullets under `## Unreleased` cite their pinning files the same way the
 /// released sections do, and are the ones most likely to drift while a test
-/// file is still being renamed. When the section is present every cite must
-/// resolve under the same roots; a CHANGELOG without the section has nothing
-/// to check.
+/// file is still being renamed. When the section is present its heading
+/// carries no date, every top-level bullet ends in a test clause citing at
+/// least one file, and every cite must resolve under the same roots; a
+/// CHANGELOG without the section has nothing to check.
 #[test]
 fn unreleased_notes_cite_files_that_exist_in_the_tree() {
     let changelog = read_repo_file("crates/libs/rns-transport/CHANGELOG.md");
-    let heading = "\n## Unreleased\n";
-    let Some(start) = changelog.find(heading) else { return };
-    let section = &changelog[start + heading.len()..];
-    let section = match section.find("\n## ") {
-        Some(end) => &section[..end],
-        None => section,
+    let Some(start) = changelog.find("\n## Unreleased") else { return };
+    let (heading, body) = changelog[start + 1..].split_once('\n').unwrap_or_else(|| {
+        panic!("the `## Unreleased` heading should be followed by release notes")
+    });
+    assert_eq!(
+        heading, "## Unreleased",
+        "the Unreleased heading takes no date or suffix until it is released, got {heading:?}"
+    );
+    let section = match body.find("\n## ") {
+        Some(end) => &body[..end],
+        None => body,
     };
+
+    // Top-level bullets start at column 0; their continuation lines are indented.
+    let mut bullets: Vec<Vec<&str>> = Vec::new();
+    for line in section.lines() {
+        if line.starts_with("- ") {
+            bullets.push(vec![line]);
+        } else if line.starts_with("  ") {
+            bullets.last_mut().expect("indented line before the first bullet").push(line);
+        }
+    }
+    assert!(!bullets.is_empty(), "the Unreleased release notes should carry at least one bullet");
+    for bullet in &bullets {
+        let text = bullet.join("\n");
+        assert!(
+            !cited_source_files(&text).is_empty(),
+            "every Unreleased bullet should end in a test clause citing the file that pins it; \
+             this one cites none:\n{text}"
+        );
+    }
 
     let unresolved = unresolved_source_cites(&cited_source_files(section));
     assert!(

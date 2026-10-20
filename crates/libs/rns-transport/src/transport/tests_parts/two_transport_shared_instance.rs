@@ -269,7 +269,9 @@ async fn shared_instance_second_attach_is_refused_until_detached() {
         .expect("second detach completes");
     assert!(detached, "detach reports the fresh attach");
     assert!(
-        !client.transport.detach_shared_instance().await,
+        !timeout(STOP_TIMEOUT, client.transport.detach_shared_instance())
+            .await
+            .expect("empty detach completes"),
         "detach with nothing attached reports false"
     );
     timeout(STOP_TIMEOUT, server.transport.stop()).await.expect("shared instance stop completes");

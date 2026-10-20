@@ -45,6 +45,7 @@ async fn shared_instance_unix_owner(
 
 /// Polls `transport.interface_hashes()` until it holds `count` entries: the listener plus one
 /// accepted child per connected client.
+#[cfg(unix)]
 #[deny(clippy::await_holding_invalid_type)]
 async fn shared_instance_await_interface_count(transport: &Transport, count: usize) {
     let deadline = Instant::now() + LOOPBACK_TIMEOUT;
@@ -63,6 +64,7 @@ async fn shared_instance_await_interface_count(transport: &Transport, count: usi
 
 /// A client attached over `endpoint` with default options, its announce receiver subscribed
 /// before the attach.
+#[cfg(unix)]
 #[deny(clippy::await_holding_invalid_type)]
 async fn shared_instance_attach_client(
     name: &str,

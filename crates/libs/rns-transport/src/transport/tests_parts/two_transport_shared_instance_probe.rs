@@ -210,11 +210,12 @@ async fn shared_instance_detach_silences_the_relay_and_reattach_restores_one_hop
     timeout(STOP_TIMEOUT, server.transport.stop()).await.expect("shared instance stop completes");
 }
 
-/// An attach racing a detach on a held slot: the attach is refused if it runs before the
-/// detach empties the slot and wins otherwise, and a detach that lands between the attach's
-/// slot write and its posture write leaves the slot empty with the posture off. None of
-/// those outcomes is asserted; what must hold after every interleaving is that the slot and
-/// the posture agree and a held slot names a registered interface.
+/// A refused attach racing a detach on a held slot: the slot is held when the join starts,
+/// so the attach is refused on its first poll while the detach empties the slot and removes
+/// the interface. Neither outcome is asserted; what must hold after every interleaving is
+/// that the slot and the posture agree and a held slot names a registered interface. The
+/// window between the attach's slot write and its posture write is pinned by
+/// `shared_instance_detach_queued_before_the_attach_posture_write_wins_the_slot`.
 #[tokio::test]
 #[deny(clippy::await_holding_invalid_type)]
 async fn shared_instance_concurrent_attach_and_detach_keep_slot_and_posture_consistent() {

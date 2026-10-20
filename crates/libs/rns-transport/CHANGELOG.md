@@ -5,7 +5,41 @@ and versions follow the cargo semver rules described in the crate README.
 Test-only files are not listed as entries of their own; each is named in a
 trailing clause of the bullet for the behaviour it pins.
 
-## Unreleased
+## 0.15.0 - 2026-10-20
+
+### Breaking
+
+- `LinkEvent` is `#[non_exhaustive]` and gains `PacketProven { packet_hash }`.
+  Migration: an out-of-crate exhaustive match adds a `PacketProven` arm or a
+  wildcard arm; see Changed.
+
+- `ResourceEventKind` is `#[non_exhaustive]` and `OutboundRejected` is now
+  the struct variant `OutboundRejected { reason: RejectReason }`. Migration:
+  write `OutboundRejected { .. }` or `OutboundRejected { reason }` in
+  patterns, and add a wildcard arm; see Changed.
+
+- `RnsError` is `#[non_exhaustive]` and gains `NoPath`. Migration: add a
+  wildcard arm; see Changed.
+
+- `Transport::link` returns `Result<Arc<Mutex<Link>>, RnsError>`,
+  `Err(RnsError::NoPath)` when no next hop is known and `broadcast` is off.
+  Migration: use `?` or match the error; discover the destination first with
+  `Transport::request_path` and `Transport::await_path`; see Changed.
+
+- `AnnounceEvent` is `#[non_exhaustive]` and gains the public field
+  `is_path_response`. Migration: a struct literal outside the crate no longer
+  compiles; destructure with `..`; see Changed.
+
+- `DeliveryReceipt` has a private `link_id` field, so it is built with
+  `DeliveryReceipt::new(message_id)` and no longer with a struct literal;
+  `PartialEq` and `Eq` compare `link_id` too. Migration: compare hashes with
+  `matches_packet_hash`; see Changed.
+
+- `delivery::send_via_link` returns an `io::Error` immediately when the link
+  request cannot be sent for lack of a path, instead of waiting out link
+  activation. Migration: expect the error without the activation delay, and
+  discover the destination first with `Transport::request_path` and
+  `Transport::await_path` as for `Transport::link`; see Changed.
 
 ### Added
 
@@ -457,6 +491,10 @@ trailing clause of the bullet for the behaviour it pins.
   `Rejected`, and a response advertisement never reaches the hook).
 
 ### Changed
+
+- The crate version is `0.15.0`; the discovery announce carries it in the
+  `TRANSPORT_VERS` field (`discovery/announce.rs`), so peers observe the fork
+  release through discovery.
 
 - `LinkEvent` is `#[non_exhaustive]`. The two in-workspace exhaustive
   matches (`destination/link_parts/link_sections/next_watchdog_deadline.rs`

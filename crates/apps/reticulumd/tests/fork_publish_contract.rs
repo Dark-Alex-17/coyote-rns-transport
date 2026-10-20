@@ -19,6 +19,16 @@ fn crate_version() -> String {
         .to_string()
 }
 
+/// Patch ids in the ledger legend are one uppercase letter and one digit,
+/// such as `B3` or `F1`.
+fn is_patch_id(token: &str) -> bool {
+    let mut chars = token.chars();
+    matches!(
+        (chars.next(), chars.next(), chars.next()),
+        (Some(letter), Some(digit), None) if letter.is_ascii_uppercase() && digit.is_ascii_digit()
+    )
+}
+
 #[test]
 fn upstream_publish_workflow_is_disabled() {
     let workflow = read_repo_file(".github/workflows/crates-io-publish.yml");
@@ -126,7 +136,7 @@ fn crate_readme_pins_the_consumer_contract() {
 
     assert_eq!(
         crate_version(),
-        "0.14.1",
+        "0.15.0",
         "coyote-rns-transport should declare the published version; bump this pin with the crate"
     );
 
@@ -150,7 +160,7 @@ fn crate_readme_pins_the_consumer_contract() {
 
     for required in [
         "name = \"coyote-rns-transport\"",
-        "version = \"0.14.1\"",
+        "version = \"0.15.0\"",
         "description = \"Coyote's published fork of reticulum-rs-transport",
         "license.workspace = true",
         "rns-core.workspace = true",
@@ -338,7 +348,7 @@ fn root_version_stays_on_the_upstream_baseline() {
 }
 
 /// Every row of the patch-set table names the patch it belongs to, and every
-/// `B<n>` id used in a row is defined by the legend above the table.
+/// letter-digit patch id used in a row is defined by the legend above the table.
 #[test]
 fn patch_set_ledger_rows_name_a_patch_from_the_legend() {
     let version = crate_version();
@@ -359,14 +369,13 @@ fn patch_set_ledger_rows_name_a_patch_from_the_legend() {
     // The legend wraps at 80 columns, so phrases are matched on one line.
     let legend = section[..table_start].split_whitespace().collect::<Vec<_>>().join(" ");
     let legend = legend.as_str();
-    let legend_ids: Vec<String> = (1..=5).map(|n| format!("B{n} is ")).collect();
-    for id in &legend_ids {
-        assert!(
-            legend.contains(id.as_str()),
-            "the {version} legend should define {:?} before the table",
-            id.trim_end()
-        );
-    }
+    let defines_a_patch_id = legend
+        .split(' ')
+        .any(|token| is_patch_id(token) && legend.contains(&format!("{token} is ")));
+    assert!(
+        defines_a_patch_id,
+        "the {version} legend should define at least one patch id before the table"
+    );
 
     let rows: Vec<(&str, &str)> = section
         .lines()
@@ -388,7 +397,7 @@ fn patch_set_ledger_rows_name_a_patch_from_the_legend() {
             );
             for id in phrase
                 .split(|c: char| !c.is_ascii_alphanumeric())
-                .filter(|token| token.len() == 2 && token.starts_with('B'))
+                .filter(|token| is_patch_id(token))
             {
                 assert!(
                     legend.contains(&format!("{id} is ")),
@@ -398,16 +407,13 @@ fn patch_set_ledger_rows_name_a_patch_from_the_legend() {
         }
     }
 
-    let interop_row = rows
-        .iter()
-        .find(|(file, _)| file.contains("multi_segment_python_interop.rs"))
-        .unwrap_or_else(|| {
-            panic!("the {version} table should list the multi-segment interop test")
-        });
+    // Every release carries a Python-in-the-loop proof: at least one interop
+    // fixture row is attributed to a patch named for it.
+    let interop_rows: Vec<&(&str, &str)> =
+        rows.iter().filter(|(file, _)| file.contains("/python_channel_interop_parts/")).collect();
     assert!(
-        interop_row.1.contains("Python-in-the-loop"),
-        "the multi-segment interop row should be attributed to the Python-in-the-loop proof, got {:?}",
-        interop_row.1
+        interop_rows.iter().any(|(_, patch)| patch.contains("Python-in-the-loop")),
+        "the {version} table should attribute an interop fixture to a Python-in-the-loop patch, got {interop_rows:?}"
     );
 }
 
@@ -448,8 +454,9 @@ fn publish_recipe_mirrors_the_workflow_without_a_registry_override() {
 /// Release-note bullets under the current `## <version>` heading of the crate
 /// CHANGELOG end in a test clause that names the file pinning the behaviour.
 /// Every backticked `.rs` / `.py` path cited in that section must resolve to
-/// a file in the crate tree or the reticulumd interop tests, so a renamed or
-/// deleted test file cannot leave the release notes pointing at nothing.
+/// a file in the crate tree, the reticulumd interop tests or the rns-tools
+/// sources, so a renamed or deleted test file cannot leave the release notes
+/// pointing at nothing.
 #[test]
 fn release_notes_cite_files_that_exist_in_the_tree() {
     let version = crate_version();
@@ -485,7 +492,9 @@ fn release_notes_cite_files_that_exist_in_the_tree() {
 
     let root = repo_root();
     let mut tree: Vec<String> = Vec::new();
-    for subtree in ["crates/libs/rns-transport", "crates/apps/reticulumd/tests"] {
+    for subtree in
+        ["crates/libs/rns-transport", "crates/apps/reticulumd/tests", "crates/apps/rns-tools/src"]
+    {
         visit_text_files(&root, &root.join(subtree), &mut |path| {
             let relative = path.strip_prefix(&root).unwrap_or(path);
             tree.push(relative.to_string_lossy().replace('\\', "/"));
@@ -495,12 +504,14 @@ fn release_notes_cite_files_that_exist_in_the_tree() {
     let unresolved: Vec<&str> = cited
         .iter()
         .copied()
-        .filter(|token| !tree.iter().any(|path| path.ends_with(&format!("/{token}"))))
+        .filter(|token| {
+            !tree.iter().any(|path| path == token || path.ends_with(&format!("/{token}")))
+        })
         .collect();
     assert!(
         unresolved.is_empty(),
-        "every file cited in the {version} release notes should exist under the crate or the \
-         reticulumd tests:\n{}",
+        "every file cited in the {version} release notes should exist under the crate, the \
+         reticulumd tests or the rns-tools sources:\n{}",
         unresolved.join("\n")
     );
 }

@@ -120,7 +120,7 @@ Applications that need narrower features can depend on component crates:
 lxmf-sdk = "0.14.0"
 lxmf-wire = "0.14.0"
 reticulum-rs-core = "0.14.0"
-coyote-rns-transport = "0.14.1"
+coyote-rns-transport = "0.15.0"
 reticulum-rs-rpc = "0.14.0"
 ```
 

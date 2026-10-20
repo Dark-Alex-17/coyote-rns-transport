@@ -1,3 +1,5 @@
+use rns_transport::resource::RejectReason;
+
 fn cancellation_payload(size: usize) -> Vec<u8> {
     let mut state = 0x6051_5eed_u64;
     let mut data = vec![0u8; size];
@@ -75,8 +77,17 @@ async fn rust_sender_maps_pinned_python_receiver_cancel_to_rejection() {
         .await
         .expect("send cancellable reader-backed resource");
 
-    wait_for_outbound_resource_rejected(&mut resource_events, resource_hash, Duration::from_secs(15))
-        .await;
+    let reason = wait_for_outbound_resource_rejected(
+        &mut resource_events,
+        resource_hash,
+        Duration::from_secs(15),
+    )
+    .await;
+    assert_eq!(
+        reason,
+        RejectReason::PeerCancelled,
+        "python receiver cancel maps to the typed reason"
+    );
 }
 
 #[tokio::test]

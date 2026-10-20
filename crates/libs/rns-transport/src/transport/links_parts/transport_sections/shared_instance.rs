@@ -44,10 +44,10 @@ impl Transport {
         endpoint: SharedInstanceEndpoint,
         options: SharedInstanceOptions,
     ) -> Result<AddressHash, RnsError> {
-        let kind: &'static str = match &endpoint {
-            SharedInstanceEndpoint::Tcp(_) => "tcp",
+        let (kind, reconnect_wait): (&'static str, Option<Duration>) = match &endpoint {
+            SharedInstanceEndpoint::Tcp(_) => ("tcp", None),
             #[cfg(unix)]
-            SharedInstanceEndpoint::Unix(_) => "unix",
+            SharedInstanceEndpoint::Unix(_) => ("unix", Some(options.reconnect_wait())),
         };
         // Lock order: the std slot is innermost, under the iface_manager here
         // and under the handler below as in detach and stop; the two tokio
@@ -88,19 +88,27 @@ impl Transport {
             }
         }
         if !self.synthesize_tunnel_on_interface(iface).await {
-            log::warn!(
-                "tp({}): shared instance iface={} unknown to the interface manager, tunnel not synthesized",
+            log::debug!(
+                "tp({}): shared instance iface={} removed by a detach or stop that raced the attach, tunnel not synthesized",
                 self.name,
                 iface
             );
         }
-        log::debug!(
-            "tp({}): attached shared instance iface={} endpoint={} reconnect_wait={:?}",
-            self.name,
-            iface,
-            kind,
-            options.reconnect_wait()
-        );
+        match reconnect_wait {
+            Some(wait) => log::debug!(
+                "tp({}): attached shared instance iface={} endpoint={} reconnect_wait={:?}",
+                self.name,
+                iface,
+                kind,
+                wait
+            ),
+            None => log::debug!(
+                "tp({}): attached shared instance iface={} endpoint={}",
+                self.name,
+                iface,
+                kind
+            ),
+        }
         Ok(iface)
     }
 
@@ -122,10 +130,17 @@ impl Transport {
         let Some(iface) = iface else {
             return false;
         };
-        {
-            self.iface_manager.lock().await.set_shared_instance(iface, false);
+        let unflagged = { self.iface_manager.lock().await.set_shared_instance(iface, false) };
+        let stopped = self.stop_interface(iface).await;
+        if !(unflagged && stopped) {
+            log::debug!(
+                "tp({}): shared instance slot was stale, iface={} already removed (unflagged={} stopped={})",
+                self.name,
+                iface,
+                unflagged,
+                stopped
+            );
         }
-        self.stop_interface(iface).await;
         log::debug!("tp({}): detached shared instance iface={}", self.name, iface);
         true
     }

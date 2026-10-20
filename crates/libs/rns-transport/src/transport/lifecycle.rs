@@ -18,15 +18,15 @@ impl Transport {
     /// an outcome the caller still holds resolves. A receipt on a skipped
     /// link concludes `LinkClosed` once the link is dropped; an outcome on one
     /// resolves `Failed(LinkClosed)` once the transport is dropped. Calling it
-    /// again is a no-op. A shared instance attached with
-    /// [`Self::attach_shared_instance`] is forgotten once the management task
-    /// has stopped, and the transport is no longer marked connected to one,
-    /// since its interface is detached with the rest. The interfaces are
-    /// swept before the slot is taken, so an attach whose interface is
-    /// spawned between the two leaves that interface registered and connected
-    /// on the stopped transport with the slot empty and the posture off;
-    /// [`Self::detach_shared_instance`] then finds nothing, and calling
-    /// `stop()` again detaches it.
+    /// again is a no-op unless an attach raced the first call (below). A
+    /// shared instance attached with [`Self::attach_shared_instance`] is
+    /// forgotten once the management task has stopped, and the transport is
+    /// no longer marked connected to one, since its interface is detached
+    /// with the rest. The interfaces are swept before the slot is taken, so
+    /// an attach whose interface is spawned between the two leaves that
+    /// interface registered and connected on the stopped transport with the
+    /// slot empty and the posture off; [`Self::detach_shared_instance`] then
+    /// finds nothing, and calling `stop()` again detaches it.
     #[deny(clippy::await_holding_invalid_type)]
     pub async fn stop(&self) {
         let deadline = Instant::now() + STOP_BUDGET;

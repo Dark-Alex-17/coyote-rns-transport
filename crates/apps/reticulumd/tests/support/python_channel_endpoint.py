@@ -1,5 +1,7 @@
 #!/usr/bin/env python3
 
+from __future__ import annotations
+
 import argparse
 import hashlib
 import json
@@ -14,6 +16,8 @@ import RNS
 import RNS.Buffer
 from RNS.Channel import MessageBase
 from RNS.vendor import umsgpack
+
+import python_channel_request_forms as request_forms
 
 # A 4 MiB + 1 byte body (plus the msgpack response envelope) spans five
 # MAX_EFFICIENT_SIZE (1 MiB - 1) segments.
@@ -100,8 +104,9 @@ class MessageTest(MessageBase):
 
 
 class ChannelEndpoint:
-    def __init__(self, payload_kind: str):
+    def __init__(self, payload_kind: str, prove_all: bool = False):
         self.payload_kind = payload_kind
+        self.prove_all = prove_all
         self.lock = threading.Lock()
         self.links = []
         self.received = []
@@ -178,14 +183,17 @@ class ChannelEndpoint:
             "test",
             "channel",
         )
+        if self.prove_all:
+            destination.set_proof_strategy(RNS.Destination.PROVE_ALL)
         if self.payload_kind in (
             "request",
             "large-request",
             "file-response",
             "multi-segment-response",
+            "request-forms",
         ):
             destination.register_request_handler(
-                "/test/request",
+                request_forms.DEFAULT_REQUEST_PATH,
                 response_generator=self._on_request,
                 allow=RNS.Destination.ALLOW_ALL,
             )
@@ -216,6 +224,8 @@ class ChannelEndpoint:
             )
             sys.stdout.flush()
             return body
+        if self.payload_kind == "request-forms":
+            return request_forms.serve_request(path, data, request_id, link_id=link_id)
         return f"reply:{data}"
 
     def _on_link_established(self, link) -> None:
@@ -453,6 +463,10 @@ class ChannelClient:
         send_delay: float,
         timeout: float,
         hold_after_close: bool,
+        request_size: int = 0,
+        identify: bool = False,
+        request_timeout: float | None = None,
+        request_path: str = request_forms.DEFAULT_REQUEST_PATH,
     ) -> int:
         print("python_channel_client: starting Reticulum", file=sys.stderr, flush=True)
         RNS.Reticulum(configdir=config_dir, loglevel=7)
@@ -559,7 +573,7 @@ class ChannelClient:
                 done.set()
 
             receipt = active_link.request(
-                "/test/request",
+                request_forms.DEFAULT_REQUEST_PATH,
                 data=request_data,
                 response_callback=on_response,
                 failed_callback=on_failed,
@@ -591,6 +605,19 @@ class ChannelClient:
             print(f"python_channel_client: request failed: {result}", file=sys.stderr, flush=True)
             return 1
 
+        if self.payload_kind == "request-forms":
+            return request_forms.run_client(
+                self,
+                active_link,
+                message_data,
+                request_size=request_size,
+                identify=identify,
+                timeout=timeout,
+                request_timeout=request_timeout,
+                deadline=deadline,
+                request_path=request_path,
+            )
+
         if self.payload_kind == "multi-segment-response":
             done = threading.Event()
             result = {}
@@ -604,7 +631,7 @@ class ChannelClient:
                 done.set()
 
             receipt = active_link.request(
-                "/test/request",
+                request_forms.DEFAULT_REQUEST_PATH,
                 data=None,
                 response_callback=on_response,
                 failed_callback=on_failed,
@@ -990,6 +1017,7 @@ def main() -> int:
             "mdu-boundary",
             "file-response",
             "multi-segment-response",
+            "request-forms",
             "identify",
             "link-close",
             "channel-sequence",
@@ -1006,6 +1034,11 @@ def main() -> int:
     parser.add_argument("--timeout", type=float, default=8.0)
     parser.add_argument("--hold-after-close", action="store_true")
     parser.add_argument("--response-envelope-delta", type=int, default=0)
+    parser.add_argument("--request-size", type=int, default=0)
+    parser.add_argument("--identify", action="store_true")
+    parser.add_argument("--prove-all", action="store_true")
+    parser.add_argument("--request-timeout", type=float, default=None)
+    parser.add_argument("--request-path", default=request_forms.DEFAULT_REQUEST_PATH)
     args = parser.parse_args()
 
     if args.resource_boundary_probe:
@@ -1055,11 +1088,15 @@ def main() -> int:
             args.send_delay,
             args.timeout,
             args.hold_after_close,
+            request_size=args.request_size,
+            identify=args.identify,
+            request_timeout=args.request_timeout,
+            request_path=args.request_path,
         )
 
     if args.config_dir is None:
         parser.error("--config-dir is required outside boundary-probe mode")
-    endpoint = ChannelEndpoint(args.payload_kind)
+    endpoint = ChannelEndpoint(args.payload_kind, args.prove_all)
     destination = endpoint.start(args.config_dir)
     print(json.dumps({"ready": True, "destination_hash": destination.hash.hex()}), flush=True)
 

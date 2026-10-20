@@ -39,7 +39,7 @@ async fn run_rust_resource_fault(
 
     let destination = wait_for_announce(&transport, target_hash, Duration::from_secs(8)).await;
     let mut link_events = transport.out_link_events();
-    let link = transport.link(destination).await;
+    let link = transport.link(destination).await.expect("link request sent");
     let link_id = wait_for_out_link_active(&mut link_events, &link, Duration::from_secs(8)).await;
     let seen = Arc::new(StdMutex::new(Vec::<(String, String)>::new()));
     let seen_clone = seen.clone();
@@ -161,7 +161,7 @@ async fn pinned_python_link_timeout_and_reconnect_after_dropped_keepalives() {
 
     let destination = wait_for_announce(&transport, target_hash, Duration::from_secs(8)).await;
     let mut link_events = transport.out_link_events();
-    let link = transport.link(destination).await;
+    let link = transport.link(destination).await.expect("link request sent");
     let link_id = wait_for_out_link_active(&mut link_events, &link, Duration::from_secs(8)).await;
 
     let mut resource_events = transport.resource_events();
@@ -186,7 +186,7 @@ async fn pinned_python_link_timeout_and_reconnect_after_dropped_keepalives() {
 
     proxy.resume_traffic();
 
-    let reconnect_link = transport.link(destination).await;
+    let reconnect_link = transport.link(destination).await.expect("link request sent");
     let reconnect_id = wait_for_out_link_active(
         &mut link_events,
         &reconnect_link,
@@ -390,7 +390,7 @@ async fn pinned_python_link_establishment_timeout_after_dropped_request() {
         "Python announce did not produce a usable path before link timeout"
     );
     let mut link_events = transport.out_link_events();
-    let link = transport.link(destination).await;
+    let link = transport.link(destination).await.expect("link request sent");
     link.lock().await.set_establishment_timeout(Duration::from_secs(3));
     tokio::time::timeout(Duration::from_secs(10), async {
         loop {
@@ -408,7 +408,7 @@ async fn pinned_python_link_establishment_timeout_after_dropped_request() {
     // the same carrier after the fault is removed must replace that terminal
     // Link and permit an actual Resource exchange with the pinned peer.
     proxy.resume_traffic();
-    let recovered_link = transport.link(destination).await;
+    let recovered_link = transport.link(destination).await.expect("link request sent");
     let recovered_id = wait_for_out_link_active(
         &mut link_events,
         &recovered_link,

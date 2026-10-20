@@ -84,7 +84,7 @@ async fn daemon_reports_partial_inbound_resource_failure_after_gated_link_teardo
         .add_destination(peer_identity, DestinationName::new("lxmf", "delivery"))
         .await;
     let destination = peer_destination.lock().await.desc;
-    let link = daemon_transport.link(destination).await;
+    let link = daemon_transport.link(destination).await.expect("link request sent");
     timeout(Duration::from_secs(5), async {
         loop {
             if link.lock().await.status() == LinkStatus::Active {
@@ -205,7 +205,7 @@ async fn daemon_reports_partial_inbound_resource_failure_after_gated_link_teardo
     assert_eq!(messages[0]["id"], message_id);
     assert_eq!(messages[0]["content"], "");
 
-    let recovery_link = daemon_transport.link(destination).await;
+    let recovery_link = daemon_transport.link(destination).await.expect("link request sent");
     timeout(Duration::from_secs(5), async {
         loop {
             if recovery_link.lock().await.status() == LinkStatus::Active {

@@ -71,7 +71,7 @@ async fn rust_reader_to_python_50_mib_peak_memory() {
 
     let destination = wait_for_announce(&transport, target_hash, Duration::from_secs(8)).await;
     let mut link_events = transport.out_link_events();
-    let link = transport.link(destination).await;
+    let link = transport.link(destination).await.expect("link request sent");
     let link_id = wait_for_out_link_active(&mut link_events, &link, Duration::from_secs(8)).await;
     sleep(Duration::from_millis(100)).await;
 

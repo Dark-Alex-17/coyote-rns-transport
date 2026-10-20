@@ -274,7 +274,10 @@ async fn create_link(
         .get(&destination_hash)
         .copied()
         .ok_or_else(|| format!("destination {destination_hash} has not been announced"))?;
-    let link = transport.link(destination).await;
+    let link = transport
+        .link(destination)
+        .await
+        .map_err(|error| format!("link request not sent: {error}"))?;
     let link = link.lock().await;
     Ok(json!({"link_id": address_hex(link.id()), "state": link_status(link.status())}))
 }

@@ -38,3 +38,17 @@ include!("python_channel_interop_parts/python_to_rust_link_identify_roundtr.rs")
 include!("python_channel_interop_parts/python_multi_hop.rs");
 
 include!("python_channel_interop_parts/multi_segment_python_interop.rs");
+
+include!("python_channel_interop_parts/python_to_rust_request_handler.rs");
+
+include!("python_channel_interop_parts/rust_to_python_request_receipt.rs");
+
+include!("python_channel_interop_parts/python_request_forms_matrix.rs");
+
+include!("python_channel_interop_parts/python_request_unknown_path.rs");
+
+include!("python_channel_interop_parts/python_request_size_limits.rs");
+
+include!("python_channel_interop_parts/python_request_late_reply.rs");
+
+include!("python_channel_interop_parts/python_request_edges.rs");

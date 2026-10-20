@@ -27,6 +27,7 @@ struct PythonChannelClientConfig<'a> {
     timeout: f64,
     hold_after_close: bool,
     response_envelope_delta: Option<i8>,
+    extra_args: &'a [&'a str],
 }
 
 impl PythonChannelInteropPaths {
@@ -41,12 +42,22 @@ impl PythonChannelInteropPaths {
     }
 
     pub(super) fn spawn_endpoint(&self, config_dir: &Path, payload_kind: &str) -> Child {
+        self.spawn_endpoint_with_args(config_dir, payload_kind, &[])
+    }
+
+    pub(super) fn spawn_endpoint_with_args(
+        &self,
+        config_dir: &Path,
+        payload_kind: &str,
+        extra_args: &[&str],
+    ) -> Child {
         spawn_python_endpoint(
             &self.python_bin,
             &self.reticulum_py_repo,
             &self.helper,
             config_dir,
             payload_kind,
+            extra_args,
         )
     }
 
@@ -55,6 +66,17 @@ impl PythonChannelInteropPaths {
         config_dir: &Path,
         destination_hash: &str,
         payload_kind: &str,
+    ) -> Child {
+        self.spawn_channel_client_with_args(config_dir, destination_hash, payload_kind, 8.0, &[])
+    }
+
+    pub(super) fn spawn_channel_client_with_args(
+        &self,
+        config_dir: &Path,
+        destination_hash: &str,
+        payload_kind: &str,
+        timeout: f64,
+        extra_args: &[&str],
     ) -> Child {
         spawn_python_channel_client(
             &self.python_bin,
@@ -65,9 +87,10 @@ impl PythonChannelInteropPaths {
                 destination_hash,
                 payload_kind,
                 resource_size: None,
-                timeout: 8.0,
+                timeout,
                 hold_after_close: false,
                 response_envelope_delta: None,
+                extra_args,
             },
         )
     }
@@ -89,6 +112,7 @@ impl PythonChannelInteropPaths {
                 timeout: 8.0,
                 hold_after_close: true,
                 response_envelope_delta: None,
+                extra_args: &[],
             },
         )
     }
@@ -111,6 +135,7 @@ impl PythonChannelInteropPaths {
                 timeout: 20.0,
                 hold_after_close: false,
                 response_envelope_delta: Some(delta),
+                extra_args: &[],
             },
         )
     }
@@ -132,6 +157,7 @@ impl PythonChannelInteropPaths {
                 timeout: 180.0,
                 hold_after_close: false,
                 response_envelope_delta: None,
+                extra_args: &[],
             },
         )
     }
@@ -172,6 +198,7 @@ impl PythonChannelInteropPaths {
                 timeout,
                 hold_after_close: false,
                 response_envelope_delta: None,
+                extra_args: &[],
             },
         )
     }
@@ -195,6 +222,7 @@ impl PythonChannelInteropPaths {
                 timeout,
                 hold_after_close: false,
                 response_envelope_delta: None,
+                extra_args: &[],
             },
         )
     }
@@ -219,6 +247,7 @@ impl PythonChannelInteropPaths {
                 timeout,
                 hold_after_close: false,
                 response_envelope_delta: None,
+                extra_args: &[],
             },
         )
     }
@@ -242,6 +271,7 @@ impl PythonChannelInteropPaths {
                 timeout,
                 hold_after_close: false,
                 response_envelope_delta: None,
+                extra_args: &[],
             },
         )
     }
@@ -380,6 +410,7 @@ pub(super) fn spawn_python_endpoint(
     helper: &Path,
     config_dir: &Path,
     payload_kind: &str,
+    extra_args: &[&str],
 ) -> Child {
     Command::new(python_bin)
         .arg("-u")
@@ -388,6 +419,7 @@ pub(super) fn spawn_python_endpoint(
         .arg(payload_kind)
         .arg("--config-dir")
         .arg(config_dir)
+        .args(extra_args)
         .env("PYTHONPATH", reticulum_py_repo)
         .stdout(Stdio::piped())
         .stderr(Stdio::piped())
@@ -428,6 +460,7 @@ fn spawn_python_channel_client(
     if let Some(delta) = config.response_envelope_delta {
         command.arg("--response-envelope-delta").arg(delta.to_string());
     }
+    command.args(config.extra_args);
     command
         .env("PYTHONPATH", reticulum_py_repo)
         .stdin(if config.hold_after_close { Stdio::piped() } else { Stdio::null() })

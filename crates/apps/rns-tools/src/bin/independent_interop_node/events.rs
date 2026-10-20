@@ -107,7 +107,15 @@ async fn record_link_event(
         LinkEvent::Activated => "activated",
         LinkEvent::Data(_) => "data",
         LinkEvent::PeerIdentified(_) => "peer_identified",
+        LinkEvent::PacketProven { .. } => "packet_proven",
         LinkEvent::Closed => "closed",
+        _ => {
+            log::debug!(
+                "independent interop node: unnamed link event on {}",
+                address_hex(&event.id)
+            );
+            "unknown"
+        }
     };
     let snapshot = json!({
         "link_id": address_hex(&event.id),
@@ -192,8 +200,9 @@ async fn record_resource_event(state: &SharedState, event: ResourceEvent) {
         }),
         ResourceEventKind::OutboundComplete => json!({"state": "outbound_complete"}),
         ResourceEventKind::OutboundFailed => json!({"state": "outbound_failed"}),
-        ResourceEventKind::OutboundRejected => json!({"state": "outbound_rejected"}),
+        ResourceEventKind::OutboundRejected { .. } => json!({"state": "outbound_rejected"}),
         ResourceEventKind::OutboundCancelled => json!({"state": "outbound_cancelled"}),
+        _ => json!({"state": "unknown"}),
     };
     state
         .record(json!({

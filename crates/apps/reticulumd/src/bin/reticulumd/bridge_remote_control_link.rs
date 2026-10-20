@@ -21,32 +21,53 @@ pub(super) async fn resolve_remote_identity(
     Ok(remote_identity)
 }
 
+/// Opens a link to the propagation node with one path refresh in reserve: a
+/// link request that times out, or that cannot be sent for want of a path,
+/// refreshes the path once and tries again. The retry's error names the
+/// first error it was retrying.
 pub(super) async fn open_refreshed_remote_link(
     transport: &Transport,
     remote_hash: &AddressHash,
     destination: DestinationDesc,
     timeout: Duration,
 ) -> Result<Arc<tokio::sync::Mutex<Link>>, std::io::Error> {
-    let link = transport.link(destination).await;
-    match await_link_activation(transport, &link, timeout).await {
-        Ok(()) => Ok(link),
-        Err(err) if err.kind() == std::io::ErrorKind::TimedOut => {
-            link.lock().await.close();
-            transport.request_path(remote_hash, None, None).await;
-            tokio::time::sleep(Duration::from_secs(1)).await;
-            let retry_link = transport.link(destination).await;
-            await_link_activation(transport, &retry_link, timeout).await.map_err(|retry_err| {
-                std::io::Error::new(
-                    retry_err.kind(),
-                    format!(
-                        "{retry_err}; retried after refreshing propagation node path due to {err}"
-                    ),
-                )
-            })?;
-            Ok(retry_link)
-        }
-        Err(err) => Err(err),
-    }
+    let first_error = match transport.link(destination).await {
+        Ok(link) => match await_link_activation(transport, &link, timeout).await {
+            Ok(()) => return Ok(link),
+            Err(err) if err.kind() == std::io::ErrorKind::TimedOut => {
+                link.lock().await.close();
+                err
+            }
+            Err(err) => return Err(err),
+        },
+        Err(err @ rns_transport::error::RnsError::NoPath) => std::io::Error::other(err),
+        Err(err) => return Err(std::io::Error::other(err)),
+    };
+    refresh_remote_path(transport, remote_hash, timeout).await;
+    open_remote_link_once(transport, destination, timeout).await.map_err(|retry_err| {
+        std::io::Error::new(
+            retry_err.kind(),
+            format!(
+                "{retry_err}; retried after refreshing propagation node path due to {first_error}"
+            ),
+        )
+    })
+}
+
+async fn refresh_remote_path(transport: &Transport, remote_hash: &AddressHash, timeout: Duration) {
+    transport.request_path(remote_hash, None, None).await;
+    tokio::time::sleep(Duration::from_secs(1)).await;
+    transport.await_path(remote_hash, timeout, None).await;
+}
+
+async fn open_remote_link_once(
+    transport: &Transport,
+    destination: DestinationDesc,
+    timeout: Duration,
+) -> Result<Arc<tokio::sync::Mutex<Link>>, std::io::Error> {
+    let link = transport.link(destination).await.map_err(std::io::Error::other)?;
+    await_link_activation(transport, &link, timeout).await?;
+    Ok(link)
 }
 
 pub(super) fn build_link_identify_payload(
@@ -232,7 +253,7 @@ pub(super) async fn wait_for_link_request_response_with_terminal_policy(
                                     ));
                                 }
                             }
-                            rns_transport::resource::ResourceEventKind::OutboundRejected => {
+                            rns_transport::resource::ResourceEventKind::OutboundRejected { .. } => {
                                 if fail_on_terminal_resource_events {
                                     return Err(std::io::Error::new(
                                         std::io::ErrorKind::BrokenPipe,
@@ -260,6 +281,10 @@ pub(super) async fn wait_for_link_request_response_with_terminal_policy(
                             rns_transport::resource::ResourceEventKind::OutboundComplete
                             | rns_transport::resource::ResourceEventKind::SegmentComplete(_)
                             | rns_transport::resource::ResourceEventKind::Progress(_) => {}
+                            kind => log::debug!(
+                                "[daemon-control] unhandled resource event kind={kind:?} \
+                                 link={expected_link_id}"
+                            ),
                         }
                     }
                     Err(tokio::sync::broadcast::error::RecvError::Lagged(_)) => continue,

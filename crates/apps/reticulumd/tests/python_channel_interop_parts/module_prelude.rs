@@ -115,7 +115,7 @@ async fn rust_to_python_channel_roundtrip() {
 
     let destination = wait_for_announce(&transport, target_hash, Duration::from_secs(8)).await;
     let mut link_events = transport.out_link_events();
-    let link = transport.link(destination).await;
+    let link = transport.link(destination).await.expect("link request sent");
     let link_id = wait_for_out_link_active(&mut link_events, &link, Duration::from_secs(8)).await;
     sleep(Duration::from_millis(100)).await;
 
@@ -173,7 +173,7 @@ async fn rust_to_python_backbone_channel_roundtrip() {
 
     let destination = wait_for_announce(&transport, target_hash, Duration::from_secs(8)).await;
     let mut link_events = transport.out_link_events();
-    let link = transport.link(destination).await;
+    let link = transport.link(destination).await.expect("link request sent");
     let link_id = wait_for_out_link_active(&mut link_events, &link, Duration::from_secs(8)).await;
     sleep(Duration::from_millis(100)).await;
 
@@ -238,7 +238,7 @@ async fn rust_to_python_link_data_roundtrip() {
 
     let destination = wait_for_announce(&transport, target_hash, Duration::from_secs(8)).await;
     let mut link_events = transport.out_link_events();
-    let link = transport.link(destination).await;
+    let link = transport.link(destination).await.expect("link request sent");
     let link_id = wait_for_out_link_active(&mut link_events, &link, Duration::from_secs(8)).await;
     let mut received = transport.received_data_events();
     sleep(Duration::from_millis(100)).await;
@@ -280,7 +280,7 @@ async fn rust_to_python_backbone_link_data_roundtrip() {
 
     let destination = wait_for_announce(&transport, target_hash, Duration::from_secs(8)).await;
     let mut link_events = transport.out_link_events();
-    let link = transport.link(destination).await;
+    let link = transport.link(destination).await.expect("link request sent");
     let link_id = wait_for_out_link_active(&mut link_events, &link, Duration::from_secs(8)).await;
     let mut received = transport.received_data_events();
     sleep(Duration::from_millis(100)).await;
@@ -322,7 +322,7 @@ async fn rust_to_python_request_response_roundtrip() {
 
     let destination = wait_for_announce(&transport, target_hash, Duration::from_secs(8)).await;
     let mut link_events = transport.out_link_events();
-    let link = transport.link(destination).await;
+    let link = transport.link(destination).await.expect("link request sent");
     let link_id = wait_for_out_link_active(&mut link_events, &link, Duration::from_secs(8)).await;
     let mut received = transport.received_data_events();
     sleep(Duration::from_millis(100)).await;
@@ -373,7 +373,7 @@ async fn rust_to_python_backbone_request_response_roundtrip() {
 
     let destination = wait_for_announce(&transport, target_hash, Duration::from_secs(8)).await;
     let mut link_events = transport.out_link_events();
-    let link = transport.link(destination).await;
+    let link = transport.link(destination).await.expect("link request sent");
     let link_id = wait_for_out_link_active(&mut link_events, &link, Duration::from_secs(8)).await;
     let mut received = transport.received_data_events();
     sleep(Duration::from_millis(100)).await;
@@ -425,7 +425,7 @@ async fn rust_to_python_resource_backed_request_response_roundtrip() {
 
     let destination = wait_for_announce(&transport, target_hash, Duration::from_secs(8)).await;
     let mut link_events = transport.out_link_events();
-    let link = transport.link(destination).await;
+    let link = transport.link(destination).await.expect("link request sent");
     let link_id = wait_for_out_link_active(&mut link_events, &link, Duration::from_secs(8)).await;
     sleep(Duration::from_millis(100)).await;
 
@@ -491,7 +491,7 @@ async fn rust_to_python_file_response_resource_roundtrip() {
 
     let destination = wait_for_announce(&transport, target_hash, Duration::from_secs(8)).await;
     let mut link_events = transport.out_link_events();
-    let link = transport.link(destination).await;
+    let link = transport.link(destination).await.expect("link request sent");
     let link_id = wait_for_out_link_active(&mut link_events, &link, Duration::from_secs(8)).await;
     sleep(Duration::from_millis(100)).await;
 
@@ -548,7 +548,7 @@ async fn rust_to_python_link_identify_roundtrip() {
 
     let destination = wait_for_announce(&transport, target_hash, Duration::from_secs(8)).await;
     let mut link_events = transport.out_link_events();
-    let link = transport.link(destination).await;
+    let link = transport.link(destination).await.expect("link request sent");
     let link_id = wait_for_out_link_active(&mut link_events, &link, Duration::from_secs(8)).await;
     sleep(Duration::from_millis(100)).await;
 
@@ -605,7 +605,7 @@ async fn rust_to_python_channel_buffer_roundtrip() {
 
     let destination = wait_for_announce(&transport, target_hash, Duration::from_secs(8)).await;
     let mut link_events = transport.out_link_events();
-    let link = transport.link(destination).await;
+    let link = transport.link(destination).await.expect("link request sent");
     let link_id = wait_for_out_link_active(&mut link_events, &link, Duration::from_secs(8)).await;
     sleep(Duration::from_millis(100)).await;
 

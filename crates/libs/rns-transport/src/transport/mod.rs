@@ -30,6 +30,7 @@ use crate::destination::link::LinkEventData;
 use crate::destination::link::LinkHandleResult;
 use crate::destination::link::LinkId;
 use crate::destination::link::LinkStatus;
+use crate::destination::request::{DispatchItem, REQUEST_DISPATCH_CAPACITY};
 use crate::destination::DestinationAnnounce;
 use crate::destination::DestinationDesc;
 use crate::destination::DestinationHandleStatus;
@@ -102,52 +103,7 @@ pub use reticulum_path_store::{
 };
 
 #[cfg(feature = "storage")]
-pub mod test_bridge {
-    use std::cell::RefCell;
-    use std::collections::HashMap;
-    use std::rc::Rc;
-
-    use crate::storage::messages::MessageRecord;
-
-    pub trait InboundTestBridge: Send + Sync {
-        fn accept_inbound_for_test(&self, record: MessageRecord) -> std::io::Result<()>;
-    }
-
-    thread_local! {
-        static BRIDGE: RefCell<HashMap<String, Rc<dyn InboundTestBridge>>> =
-            RefCell::new(HashMap::new());
-    }
-
-    pub fn reset() {
-        BRIDGE.with(|bridge| bridge.borrow_mut().clear());
-    }
-
-    pub fn register(identity: impl Into<String>, daemon: Rc<dyn InboundTestBridge>) {
-        BRIDGE.with(|bridge| {
-            bridge.borrow_mut().insert(identity.into(), daemon);
-        });
-    }
-
-    pub fn deliver_outbound(record: &MessageRecord) -> bool {
-        let daemon = BRIDGE.with(|bridge| bridge.borrow().get(&record.destination).cloned());
-        let Some(daemon) = daemon else {
-            return false;
-        };
-
-        let inbound = MessageRecord {
-            id: record.id.clone(),
-            source: record.source.clone(),
-            destination: record.destination.clone(),
-            title: record.title.clone(),
-            content: record.content.clone(),
-            timestamp: record.timestamp,
-            direction: "in".into(),
-            fields: record.fields.clone(),
-            receipt_status: None,
-        };
-        daemon.accept_inbound_for_test(inbound).is_ok()
-    }
-}
+pub mod test_bridge;
 
 // Transport-wide packet tracing remains off by default to keep runtime noise low.
 const PACKET_TRACE: bool = false;
@@ -221,15 +177,33 @@ pub struct DeliveryReceipt {
     /// The field name is retained for API compatibility. Prefer
     /// [`DeliveryReceipt::packet_hash`] in new code.
     pub message_id: [u8; 32],
+    link_id: Option<AddressHash>,
 }
 
 impl DeliveryReceipt {
     pub fn new(message_id: [u8; 32]) -> Self {
-        Self { message_id }
+        Self { message_id, link_id: None }
+    }
+
+    /// The receipt for the validated proof packet `packet`; a proof addressed
+    /// to a link records that link.
+    pub(crate) fn for_proof(message_id: [u8; 32], packet: &Packet) -> Self {
+        let link_id =
+            (packet.header.destination_type == DestinationType::Link).then_some(packet.destination);
+        Self { message_id, link_id }
     }
 
     pub fn packet_hash(&self) -> Hash {
         Hash::new(self.message_id)
+    }
+
+    /// The link the proved packet travelled on, for a proof addressed to a
+    /// link; `None` for a destination proof (Python: `PacketReceipt.destination`,
+    /// `RNS/Packet.py:422`). Handed out for every validly signed link proof,
+    /// whether or not the link still remembers sending the packet;
+    /// `LinkEvent::PacketProven` is the gated signal.
+    pub fn link_id(&self) -> Option<AddressHash> {
+        self.link_id
     }
 
     pub fn matches_packet_hash(&self, packet_hash: &Hash) -> bool {
@@ -242,6 +216,7 @@ pub trait ReceiptHandler: Send + Sync {
 }
 
 #[derive(Clone)]
+#[non_exhaustive]
 pub struct AnnounceEvent {
     pub destination: Arc<Mutex<SingleOutputDestination>>,
     pub app_data: PacketDataBuffer,
@@ -249,6 +224,16 @@ pub struct AnnounceEvent {
     pub name_hash: [u8; crate::destination::NAME_HASH_LENGTH],
     pub hops: u8,
     pub interface: Vec<u8>,
+    /// True when the announce answered a path request: the responder files
+    /// it under `PacketContext::PathResponse` (`RNS/Destination.py:308`),
+    /// and Python hands its announce handlers the same flag
+    /// (`RNS/Transport.py:2524-2528`, `is_path_response`). False for an
+    /// unsolicited announce. Python drops a path response before the
+    /// handler unless it sets `receive_path_responses`
+    /// (`RNS/Transport.py:2500-2504`); here every announce reaches
+    /// [`Transport::recv_announces`] and carries the flag. The flag is
+    /// asserted by the peer that sent the announce, not verified locally.
+    pub is_path_response: bool,
 }
 
 pub(crate) struct TransportHandler {
@@ -279,6 +264,7 @@ pub(crate) struct TransportHandler {
 
     link_in_event_tx: broadcast::Sender<LinkEventData>,
     received_data_tx: broadcast::Sender<ReceivedData>,
+    request_dispatch_tx: tokio::sync::mpsc::Sender<DispatchItem>,
     ratchet_store: Option<RatchetStore>,
 
     resource_manager: ResourceManager,
@@ -310,6 +296,7 @@ pub(crate) struct TransportHandler {
 
     cancel: CancellationToken,
     receipt_handler: Option<Arc<dyn ReceiptHandler>>,
+    resource_accept_hook: Option<ResourceAcceptHook>,
 }
 
 #[derive(Debug, Clone)]
@@ -400,6 +387,15 @@ pub enum SendPacketOutcome {
     DroppedNoRoute,
 }
 
+impl SendPacketOutcome {
+    /// Whether the packet reached an interface, directly or by broadcast.
+    /// Fork-only; Python's `Packet.send` returns a receipt or `False` (`RNS/Packet.py:306-311`).
+    #[must_use]
+    pub fn is_sent(self) -> bool {
+        matches!(self, Self::SentDirect | Self::SentBroadcast)
+    }
+}
+
 /// Aggregate outcome for a best-effort send across active Reticulum links.
 ///
 /// Fan-out can partially succeed, so a single `Result` cannot represent the
@@ -483,6 +479,11 @@ mod links;
 // path: path request/response forwarding and intermediate handling.
 mod path;
 mod profiling;
+// request_dispatch: the request handler worker and the response transmit path.
+mod request_dispatch;
+// resource_accept_hook: the caller-installed callbacks, receipt handler and resource admission.
+mod resource_accept_hook;
+pub use resource_accept_hook::ResourceAcceptHook;
 // resource_wire: link-scoped resource packet handling on inbound wire paths.
 mod resource_wire;
 // wire_encryption: packet-context policy for transport-layer encryption.

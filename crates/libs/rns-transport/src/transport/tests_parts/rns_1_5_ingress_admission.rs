@@ -35,7 +35,7 @@ async fn rns_1_5_originated_link_request_signals_next_hop_interface_mtu() {
         ));
     }
 
-    let link = transport.link(destination_desc).await;
+    let link = transport.link(destination_desc).await.expect("link request sent");
     let request = timeout(Duration::from_millis(200), iface_channel.tx_channel.recv())
         .await
         .expect("link request should be queued")

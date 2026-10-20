@@ -16,6 +16,8 @@ impl Transport {
             tokio::sync::broadcast::channel(TRANSPORT_EVENT_CHANNEL_CAPACITY);
         let (resource_events_tx, _) =
             tokio::sync::broadcast::channel(TRANSPORT_EVENT_CHANNEL_CAPACITY);
+        let (request_dispatch_tx, request_dispatch_rx) =
+            tokio::sync::mpsc::channel(REQUEST_DISPATCH_CAPACITY);
 
         let iface_manager = InterfaceManager::new(128);
 
@@ -79,6 +81,7 @@ impl Transport {
             announce_tx,
             link_in_event_tx: link_in_event_tx.clone(),
             received_data_tx: received_data_tx.clone(),
+            request_dispatch_tx,
             ratchet_store,
             resource_manager: ResourceManager::new_with_config(
                 Duration::from_secs(resource_retry_interval_secs),
@@ -93,11 +96,17 @@ impl Transport {
             multicast_peer_routings: HashMap::new(),
             cancel: cancel.clone(),
             receipt_handler: None,
+            resource_accept_hook: None,
         }));
 
         let manage_task = {
             let handler = handler.clone();
-            tokio::spawn(manage_transport(handler, rx_receiver, iface_messages_tx.clone()))
+            tokio::spawn(manage_transport(
+                handler,
+                rx_receiver,
+                iface_messages_tx.clone(),
+                request_dispatch_rx,
+            ))
         };
         fn spawn_link_data_forwarder(
             mut link_rx: broadcast::Receiver<LinkEventData>,
@@ -421,33 +430,14 @@ impl Transport {
         }
     }
 
-    /// Installs the handler delivery proofs are reported to. Takes `&self`:
-    /// the handler lives behind the transport's own lock, and a `Transport`
-    /// is shared as an `Arc` by the time a client is ready to install one.
-    pub async fn set_receipt_handler(&self, handler: Box<dyn ReceiptHandler>) {
-        self.handler.lock().await.receipt_handler = Some(Arc::from(handler));
-    }
-
-    pub fn emit_receipt_for_test(&self, receipt: DeliveryReceipt) {
-        let receipt_handler = match self.handler.try_lock() {
-            Ok(handler) => handler.receipt_handler.clone(),
-            Err(err) => {
-                log::warn!("[transport] failed to read receipt handler for test receipt: {err}");
-                None
-            }
-        };
-
-        if let Some(handler) = receipt_handler {
-            handler.on_receipt(&receipt);
-        }
-    }
-
     pub async fn handle_inbound_for_test(&self, packet: Packet) {
         let (receipt, receipt_handler) = {
             let handler = self.handler.lock().await;
             let receipt = match super::wire_receipt::validated_receipt_hash(&packet, &handler).await
             {
-                Ok(receipt_hash) => receipt_hash.map(DeliveryReceipt::new),
+                Ok(receipt_hash) => {
+                    receipt_hash.map(|hash| DeliveryReceipt::for_proof(hash, &packet))
+                }
                 Err(err) => {
                     log::warn!("[transport] failed to validate inbound test receipt: {err:?}");
                     None
@@ -471,11 +461,7 @@ impl Transport {
     }
 
     pub async fn send_direct(&self, addr: AddressHash, packet: Packet) {
-        self.handler
-            .lock()
-            .await
-            .send(TxMessage { tx_type: TxMessageType::Direct(addr), packet })
-            .await;
+        super::request_dispatch::send_on_iface(&self.handler, addr, packet).await;
     }
 
     pub async fn synthesize_tunnel_on_interface(&self, iface: AddressHash) -> bool {

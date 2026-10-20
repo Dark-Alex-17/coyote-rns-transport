@@ -59,7 +59,6 @@ impl Transport {
         None
     }
 
-
     pub async fn reset_out_link(&self, destination: &AddressHash) {
         let removed = {
             let mut handler = self.handler.lock().await;
@@ -115,36 +114,11 @@ impl Transport {
     }
 
     async fn find_any_link(&self, link_id: &AddressHash) -> Option<Arc<Mutex<Link>>> {
-        let (out_links, in_link) = {
-            let handler = self.handler.lock().await;
-            (
-                handler.out_links.values().cloned().collect::<Vec<_>>(),
-                handler.in_links.get(link_id).cloned(),
-            )
-        };
-
-        if let Some(link) = in_link {
-            return Some(link);
-        }
-
-        for link in out_links {
-            if *link.lock().await.id() == *link_id {
-                return Some(link);
-            }
-        }
-
-        None
+        super::request_dispatch::find_any_link(&self.handler, link_id).await
     }
 
     async fn resource_mtu_for_iface(&self, iface: Option<AddressHash>) -> usize {
-        let Some(iface) = iface else {
-            return crate::resource::DEFAULT_RESOURCE_INTERFACE_MTU;
-        };
-        self.iface_manager
-            .lock()
-            .await
-            .mtu(&iface)
-            .unwrap_or(crate::resource::DEFAULT_RESOURCE_INTERFACE_MTU)
+        super::request_dispatch::resource_mtu_for_iface(&self.handler, iface).await
     }
 
     pub async fn send_resource(
@@ -169,14 +143,8 @@ impl Transport {
         metadata: Option<Vec<u8>>,
         auto_compress: bool,
     ) -> Result<Hash, RnsError> {
-        self.send_resource_observed_with_compression(
-            link_id,
-            data,
-            metadata,
-            |_| {},
-            auto_compress,
-        )
-        .await
+        self.send_resource_observed_with_compression(link_id, data, metadata, |_| {}, auto_compress)
+            .await
     }
 
     pub async fn send_resource_observed(
@@ -186,8 +154,14 @@ impl Transport {
         metadata: Option<Vec<u8>>,
         observe_resource: impl FnOnce(Hash),
     ) -> Result<Hash, RnsError> {
-        self.send_resource_observed_with_compression(link_id, data, metadata, observe_resource, true)
-            .await
+        self.send_resource_observed_with_compression(
+            link_id,
+            data,
+            metadata,
+            observe_resource,
+            true,
+        )
+        .await
     }
 
     pub async fn send_resource_observed_with_compression(
@@ -198,6 +172,20 @@ impl Transport {
         observe_resource: impl FnOnce(Hash),
         auto_compress: bool,
     ) -> Result<Hash, RnsError> {
+        self.send_resource_outcome_inner(link_id, data, metadata, observe_resource, auto_compress)
+            .await
+            .map(|(hash, _)| hash)
+    }
+
+    #[deny(clippy::await_holding_invalid_type)]
+    async fn send_resource_outcome_inner(
+        &self,
+        link_id: &AddressHash,
+        data: Vec<u8>,
+        metadata: Option<Vec<u8>>,
+        observe_resource: impl FnOnce(Hash),
+        auto_compress: bool,
+    ) -> Result<(Hash, OutboundOutcome), RnsError> {
         let link = self.find_any_link(link_id).await.ok_or(RnsError::InvalidArgument)?;
         let iface = {
             let link_guard = link.lock().await;
@@ -223,19 +211,21 @@ impl Transport {
                 auto_compress,
             )?
         };
+        let (resource_hash, packet, outcome) = {
+            let mut handler = self.handler.lock().await;
+            let (resource_hash, packet, outcome) =
+                handler.resource_manager.track_prepared_with_outcome(prepared);
+            observe_resource(resource_hash);
+            (resource_hash, packet, outcome)
+        };
+        let dispatch = self.send_link_packet_on_bound_iface(&link, packet).await;
         let mut handler = self.handler.lock().await;
-        let (resource_hash, packet) = handler.resource_manager.track_prepared(prepared);
-        observe_resource(resource_hash);
-        drop(handler);
-        let outcome = self.send_link_packet_on_bound_iface(&link, packet).await;
-        let mut handler = self.handler.lock().await;
-        let sent =
-            matches!(outcome, SendPacketOutcome::SentDirect | SendPacketOutcome::SentBroadcast);
+        let sent = dispatch.is_sent();
         handler.resource_manager.confirm_outbound_dispatch(resource_hash, sent);
         let events = handler.resource_manager.drain_events();
         super::resource_wire::publish_resource_events(&handler, events);
         if sent {
-            Ok(resource_hash)
+            Ok((resource_hash, outcome))
         } else {
             Err(RnsError::ConnectionError)
         }
@@ -264,43 +254,16 @@ impl Transport {
         metadata: Option<Vec<u8>>,
         auto_compress: bool,
     ) -> Result<Hash, RnsError> {
-        let link = self.find_any_link(link_id).await.ok_or(RnsError::InvalidArgument)?;
-        let iface = {
-            let link_guard = link.lock().await;
-            link_guard.ingress_iface()
-        };
-        let interface_mtu = self.resource_mtu_for_iface(iface).await;
-        // See `send_resource_observed`: prepared off the handler lock.
-        let prepared = {
-            let link_guard = link.lock().await;
-            // See `resource_wire.rs`: the negotiated link MTU, not the local
-            // interface alone, is what a fragment has to fit through.
-            let interface_mtu = interface_mtu.min(link_guard.link_mtu());
-            ResourceManager::prepare_send_with_compression(
-                &link_guard,
-                data,
-                metadata,
-                Some(request_id),
-                true,
-                interface_mtu,
-                auto_compress,
-            )?
-        };
-        let mut handler = self.handler.lock().await;
-        let (resource_hash, packet) = handler.resource_manager.track_prepared(prepared);
-        drop(handler);
-        let outcome = self.send_link_packet_on_bound_iface(&link, packet).await;
-        let mut handler = self.handler.lock().await;
-        let sent =
-            matches!(outcome, SendPacketOutcome::SentDirect | SendPacketOutcome::SentBroadcast);
-        handler.resource_manager.confirm_outbound_dispatch(resource_hash, sent);
-        let events = handler.resource_manager.drain_events();
-        super::resource_wire::publish_resource_events(&handler, events);
-        if sent {
-            Ok(resource_hash)
-        } else {
-            Err(RnsError::ConnectionError)
-        }
+        super::request_dispatch::send_response_resource(
+            &self.handler,
+            link_id,
+            request_id,
+            data,
+            metadata,
+            auto_compress,
+        )
+        .await
+        .map(|(hash, _)| hash)
     }
 
     pub async fn send_request_resource(
@@ -322,6 +285,26 @@ impl Transport {
         metadata: Option<Vec<u8>>,
         max_response_size: Option<usize>,
     ) -> Result<Hash, RnsError> {
+        self.send_request_resource_outcome_inner(
+            link_id,
+            request_id,
+            data,
+            metadata,
+            max_response_size,
+        )
+        .await
+        .map(|(hash, _)| hash)
+    }
+
+    #[deny(clippy::await_holding_invalid_type)]
+    async fn send_request_resource_outcome_inner(
+        &self,
+        link_id: &AddressHash,
+        request_id: Vec<u8>,
+        data: Vec<u8>,
+        metadata: Option<Vec<u8>>,
+        max_response_size: Option<usize>,
+    ) -> Result<(Hash, OutboundOutcome), RnsError> {
         let link = self.find_any_link(link_id).await.ok_or(RnsError::InvalidArgument)?;
         let response_request_id = request_id.clone();
         let iface = {
@@ -344,26 +327,32 @@ impl Transport {
                 interface_mtu,
             )?
         };
-        let mut handler = self.handler.lock().await;
-        let (resource_hash, packet) = handler.resource_manager.track_prepared(prepared);
-        drop(handler);
-        if let Some(max_response_size) = max_response_size {
-            link.lock().await.set_response_size_limit(&response_request_id, max_response_size);
-        }
-        let outcome = self.send_link_packet_on_bound_iface(&link, packet).await;
-        if !matches!(outcome, SendPacketOutcome::SentDirect | SendPacketOutcome::SentBroadcast)
-            && max_response_size.is_some()
-        {
+        let (resource_hash, packet, outcome) = {
+            let mut handler = self.handler.lock().await;
+            handler.resource_manager.track_prepared_with_outcome(prepared)
+        };
+        // Marked before the advertisement leaves: the response to it is
+        // solicited whether or not a size limit came with it, and the
+        // record's clock starts at the request Resource's delivery. A record
+        // under the id still receiving a response is displaced; that
+        // transfer is cancelled with the link guard released.
+        let displaced = link.lock().await.expect_response_to_resource(
+            &response_request_id,
+            max_response_size,
+            resource_hash,
+        );
+        self.cancel_inbound_responses(&link, displaced.into_iter().collect()).await;
+        let dispatch = self.send_link_packet_on_bound_iface(&link, packet).await;
+        let sent = dispatch.is_sent();
+        if !sent {
             link.lock().await.clear_response_size_limit(&response_request_id);
         }
         let mut handler = self.handler.lock().await;
-        let sent =
-            matches!(outcome, SendPacketOutcome::SentDirect | SendPacketOutcome::SentBroadcast);
         handler.resource_manager.confirm_outbound_dispatch(resource_hash, sent);
         let events = handler.resource_manager.drain_events();
         super::resource_wire::publish_resource_events(&handler, events);
         if sent {
-            Ok(resource_hash)
+            Ok((resource_hash, outcome))
         } else {
             Err(RnsError::ConnectionError)
         }
@@ -375,20 +364,31 @@ impl Transport {
         resource_hash: Hash,
     ) -> Result<bool, RnsError> {
         let link = self.find_any_link(link_id).await.ok_or(RnsError::InvalidArgument)?;
-        let packet = {
+        let (packet, receiving) = {
             let mut handler = self.handler.lock().await;
-            let link_guard = link.lock().await;
+            let mut link_guard = link.lock().await;
             let packet = handler.resource_manager.cancel_outgoing(resource_hash, &link_guard)?;
             let events = handler.resource_manager.drain_events();
+            // A request Resource stays cancellable until its proof arrives, so
+            // a response advertised ahead of a lost or late proof can already
+            // be inbound for the receipt this fails.
+            let mut receiving = Vec::new();
+            for event in &events {
+                if event.link_id == *link_guard.id() {
+                    receiving
+                        .extend(link_guard.note_request_resource_outcome(event.hash, &event.kind));
+                }
+            }
             super::resource_wire::publish_resource_events(&handler, events);
-            packet
+            (packet, receiving)
         };
+        self.cancel_inbound_responses(&link, receiving).await;
         let Some(packet) = packet else {
             return Ok(false);
         };
 
         let outcome = self.send_link_packet_on_bound_iface(&link, packet).await;
-        if matches!(outcome, SendPacketOutcome::SentDirect | SendPacketOutcome::SentBroadcast) {
+        if outcome.is_sent() {
             Ok(true)
         } else {
             Err(RnsError::ConnectionError)

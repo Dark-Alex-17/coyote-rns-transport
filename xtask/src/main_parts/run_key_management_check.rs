@@ -38,6 +38,7 @@ fn run_sdk_security_check() -> Result<()> {
 fn run_sdk_fuzz_check() -> Result<()> {
     run("cargo", &["check", "--manifest-path", "crates/libs/rns-rpc/fuzz/Cargo.toml"])?;
     run("cargo", &["check", "--manifest-path", "crates/libs/lxmf-sdk/fuzz/Cargo.toml"])?;
+    run("cargo", &["check", "--manifest-path", "crates/libs/rns-transport/fuzz/Cargo.toml"])?;
     run(
         "cargo",
         &[
@@ -56,6 +57,17 @@ fn run_sdk_fuzz_check() -> Result<()> {
             "-p",
             "lxmf-sdk",
             "fuzz_smoke_sdk_json_decoders_do_not_panic",
+            "--",
+            "--nocapture",
+        ],
+    )?;
+    run(
+        "cargo",
+        &[
+            "test",
+            "-p",
+            "coyote-rns-transport",
+            "fuzz_smoke_request_frames_and_advertisement_decoders_do_not_panic",
             "--",
             "--nocapture",
         ],

@@ -1,0 +1,36 @@
+[package]
+name = "rns-transport-fuzz"
+version = "0.0.0"
+publish = false
+edition = "2021"
+
+[package.metadata]
+cargo-fuzz = true
+
+[dependencies]
+libfuzzer-sys = "0.4"
+rns-transport = { package = "coyote-rns-transport", path = ".." }
+
+[[bin]]
+name = "request_frame_decode"
+path = "fuzz_targets/request_frame_decode.rs"
+test = false
+doc = false
+bench = false
+
+[[bin]]
+name = "response_frame_decode"
+path = "fuzz_targets/response_frame_decode.rs"
+test = false
+doc = false
+bench = false
+
+[[bin]]
+name = "resource_advertisement_decode"
+path = "fuzz_targets/resource_advertisement_decode.rs"
+test = false
+doc = false
+bench = false
+
+[workspace]
+members = ["."]

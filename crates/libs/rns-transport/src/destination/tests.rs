@@ -99,6 +99,43 @@ fn destination_request_size_limit_defaults_unbounded_and_can_be_cleared() {
 }
 
 #[test]
+fn request_handler_registry_refuses_empty_path_overwrites_and_deregisters() {
+    use super::request::{InboundRequest, PathHash, RequestAllow, RequestHandler, RequestResponse};
+    use std::sync::Arc;
+
+    let identity = PrivateIdentity::new_from_rand(OsRng);
+    let mut destination =
+        SingleInputDestination::new(identity, DestinationName::new("test", "request-handlers"));
+    let handler: Arc<dyn RequestHandler> =
+        Arc::new(|_: InboundRequest| async { None::<RequestResponse> });
+    let second: Arc<dyn RequestHandler> =
+        Arc::new(|_: InboundRequest| async { None::<RequestResponse> });
+
+    assert!(matches!(
+        destination.register_request_handler("", handler.clone(), RequestAllow::All, true),
+        Err(RnsError::InvalidArgument)
+    ));
+    assert!(destination.request_handler(&PathHash::of("")).is_none());
+
+    destination
+        .register_request_handler("/echo", handler, RequestAllow::All, true)
+        .expect("first registration");
+    destination
+        .register_request_handler("/echo", second.clone(), RequestAllow::None, false)
+        .expect("second registration replaces the first");
+    let registered =
+        destination.request_handler(&PathHash::of("/echo")).expect("handler is registered");
+    assert_eq!(registered.path, "/echo");
+    assert!(Arc::ptr_eq(&registered.handler, &second), "the second handler replaced the first");
+    assert!(matches!(registered.allow, RequestAllow::None));
+    assert!(!registered.auto_compress);
+
+    assert!(destination.deregister_request_handler("/echo"));
+    assert!(!destination.deregister_request_handler("/echo"));
+    assert!(destination.request_handler(&PathHash::of("/echo")).is_none());
+}
+
+#[test]
 fn compare_announce() {
     let priv_key: [u8; 32] = [
         0xf0, 0xec, 0xbb, 0xa4, 0x9e, 0x78, 0x3d, 0xee, 0x14, 0xff, 0xc6, 0xc9, 0xf1, 0xe1, 0x25,

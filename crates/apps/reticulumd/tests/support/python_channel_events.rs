@@ -7,7 +7,7 @@ use rns_transport::channel_buffer::RawChannelReader;
 use rns_transport::destination::link::{Link, LinkEvent, LinkEventData, LinkStatus};
 use rns_transport::destination::{DestinationDesc, SingleInputDestination};
 use rns_transport::hash::{AddressHash, Hash};
-use rns_transport::resource::{ResourceComplete, ResourceEvent, ResourceEventKind};
+use rns_transport::resource::{RejectReason, ResourceComplete, ResourceEvent, ResourceEventKind};
 use rns_transport::transport::{ReceivedData, Transport};
 use tokio::time::{sleep, timeout, Instant};
 
@@ -220,7 +220,7 @@ pub(super) async fn wait_for_outbound_resource_complete(
                 ResourceEventKind::OutboundFailed => {
                     panic!("outbound resource failed before completion: {expected_hash}")
                 }
-                ResourceEventKind::OutboundRejected => {
+                ResourceEventKind::OutboundRejected { .. } => {
                     panic!("outbound resource was rejected before completion: {expected_hash}")
                 }
                 ResourceEventKind::OutboundCancelled => {
@@ -238,19 +238,20 @@ pub(super) async fn wait_for_outbound_resource_rejected(
     events: &mut tokio::sync::broadcast::Receiver<ResourceEvent>,
     expected_hash: Hash,
     duration: Duration,
-) {
+) -> RejectReason {
     timeout(duration, async {
         loop {
             let event = events.recv().await.expect("resource event");
-            if event.hash == expected_hash
-                && matches!(event.kind, ResourceEventKind::OutboundRejected)
-            {
-                return;
+            if event.hash != expected_hash {
+                continue;
+            }
+            if let ResourceEventKind::OutboundRejected { reason } = event.kind {
+                return reason;
             }
         }
     })
     .await
-    .expect("timed out waiting for outbound resource rejection");
+    .expect("timed out waiting for outbound resource rejection")
 }
 
 pub(super) async fn wait_for_outbound_resource_failed(
@@ -264,7 +265,7 @@ pub(super) async fn wait_for_outbound_resource_failed(
             if event.hash == expected_hash {
                 match event.kind {
                     ResourceEventKind::OutboundFailed => return,
-                    ResourceEventKind::OutboundRejected => {
+                    ResourceEventKind::OutboundRejected { .. } => {
                         panic!("outbound resource was rejected instead of failed: {expected_hash}")
                     }
                     ResourceEventKind::OutboundCancelled => {
@@ -295,7 +296,7 @@ pub(super) async fn wait_for_outbound_resource_failed_rejected_or_cancelled(
                 && matches!(
                     event.kind,
                     ResourceEventKind::OutboundFailed
-                        | ResourceEventKind::OutboundRejected
+                        | ResourceEventKind::OutboundRejected { .. }
                         | ResourceEventKind::OutboundCancelled
                 )
             {

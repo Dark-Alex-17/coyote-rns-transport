@@ -83,7 +83,7 @@ async fn rust_to_python_resource_size_matrix_roundtrip() {
 
     let destination = wait_for_announce(&transport, target_hash, Duration::from_secs(8)).await;
     let mut link_events = transport.out_link_events();
-    let link = transport.link(destination).await;
+    let link = transport.link(destination).await.expect("link request sent");
     let link_id = wait_for_out_link_active(&mut link_events, &link, Duration::from_secs(8)).await;
     sleep(Duration::from_millis(100)).await;
 
@@ -157,7 +157,7 @@ async fn rust_resource_compression_defaults_match_pinned_python() {
         .spawn(TcpClient::new(format!("127.0.0.1:{server_port}")), TcpClient::spawn);
     let destination = wait_for_announce(&transport, target_hash, Duration::from_secs(8)).await;
     let mut link_events = transport.out_link_events();
-    let link = transport.link(destination).await;
+    let link = transport.link(destination).await.expect("link request sent");
     let link_id = wait_for_out_link_active(&mut link_events, &link, Duration::from_secs(8)).await;
     let seen = Arc::new(StdMutex::new(Vec::<(String, String)>::new()));
     let seen_clone = seen.clone();
@@ -386,7 +386,7 @@ async fn rust_resource_compression_threshold_matches_pinned_python() {
         .spawn(TcpClient::new(format!("127.0.0.1:{server_port}")), TcpClient::spawn);
     let destination = wait_for_announce(&transport, target_hash, Duration::from_secs(8)).await;
     let mut link_events = transport.out_link_events();
-    let link = transport.link(destination).await;
+    let link = transport.link(destination).await.expect("link request sent");
     let link_id = wait_for_out_link_active(&mut link_events, &link, Duration::from_secs(8)).await;
     let seen = Arc::new(StdMutex::new(Vec::<(String, String)>::new()));
     let seen_clone = seen.clone();

@@ -5,28 +5,28 @@
 // response end to end and the connector's interface can still be stopped. Helpers and the
 // reject-side constants come from the sibling `tests_parts` files included into this module.
 
-/// The bounded request carries 4 KiB of random bytes, so bz2 cannot bring the response's
-/// transfer size back under the limit the requester attached.
+/// The gate reads the advertised data size `d` (`RNS/Link.py:1049`), so 4 KiB of any bytes
+/// are over the limit the requester attached, however well they compress.
 const OVERSIZE_RESPONSE_LEN: usize = 4 * 1024;
 const ACCEPTED_RESPONSE_LEN: usize = 256;
 const BOUNDED_REQUEST_LEN: usize = 64;
 
 /// A requester bounds the response it is willing to accept. The responder's oversize
 /// response must be rejected with a receiver cancel that the connector sends from inside
-/// the link's inbound handler; the responder must learn of the rejection, the same link must
-/// then carry an accepted response Resource, and the connector's interface must still stop
-/// within a bounded time.
+/// the link's inbound handler; the responder must learn of the rejection, a second response
+/// under the rejected id must be dropped as unsolicited, the same link must then carry an
+/// accepted response Resource, and the connector's interface must still stop within a
+/// bounded time.
 #[tokio::test]
 #[deny(clippy::await_holding_invalid_type)]
-async fn two_transport_loopback_resources_reject_oversize_response_then_recover_on_same_link()
-{
+async fn two_transport_loopback_resources_reject_oversize_response_then_recover_on_same_link() {
     let pair = loopback_link_pair("reject-response").await;
     let mut requester_events = pair.connector.transport.resource_events();
     let mut responder_events = pair.listener.transport.resource_events();
     let mut connector_tap = pair.connector.transport.iface_rx();
 
     // The requester attaches a response limit to its request.
-    let bounded_request_id = b"loopback-bounded".to_vec();
+    let bounded_request_id = b"loopback-bounded-id".to_vec();
     let request_hash = pair
         .connector
         .transport
@@ -59,21 +59,43 @@ async fn two_transport_loopback_resources_reject_oversize_response_then_recover_
         event.hash == rejected_hash
             && matches!(
                 event.kind,
-                ResourceEventKind::OutboundRejected
+                ResourceEventKind::OutboundRejected { .. }
                     | ResourceEventKind::OutboundComplete
                     | ResourceEventKind::OutboundFailed
             )
     })
     .await;
     assert!(
-        matches!(rejected.kind, ResourceEventKind::OutboundRejected),
+        matches!(rejected.kind, ResourceEventKind::OutboundRejected { .. }),
         "the oversize response is rejected, got {:?}",
         rejected.kind
     );
 
-    // The same link still carries a response the requester did not bound.
+    // The reject cleared the requester's record under this id, so a second response to it
+    // is unsolicited: no `Complete` reaches the requester and no receiver cancel leaves for
+    // it. The listener's tap sees the packets the requester sends.
+    let mut listener_tap = pair.listener.transport.iface_rx();
+    pair.listener
+        .transport
+        .send_response_resource(
+            &pair.link_id,
+            bounded_request_id.clone(),
+            random_payload(ACCEPTED_RESPONSE_LEN),
+            None,
+        )
+        .await
+        .expect("second response resource dispatched");
+    assert_no_further_complete(&mut requester_events, pair.link_id).await;
+    assert_eq!(
+        count_link_packets(&mut listener_tap, pair.link_id, PacketContext::ResourceReceiverCancel),
+        0,
+        "an unsolicited response is dropped without a reject"
+    );
+
+    // The same link still carries a response the requester solicited without a bound.
     let payload = random_payload(ACCEPTED_RESPONSE_LEN);
     let accepted_request_id = b"loopback-unbounded".to_vec();
+    solicit_response(&pair.connector.transport, &pair.link_id, &accepted_request_id).await;
     let resource_hash = pair
         .listener
         .transport
@@ -95,7 +117,7 @@ async fn two_transport_loopback_resources_reject_oversize_response_then_recover_
                 event.kind,
                 ResourceEventKind::OutboundComplete
                     | ResourceEventKind::OutboundFailed
-                    | ResourceEventKind::OutboundRejected
+                    | ResourceEventKind::OutboundRejected { .. }
             )
     })
     .await;

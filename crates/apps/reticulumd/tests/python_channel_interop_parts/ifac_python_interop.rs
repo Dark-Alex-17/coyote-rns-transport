@@ -178,7 +178,7 @@ async fn python_rust_ifac_udp_channel_roundtrip() {
         AddressHash::new_from_hex_string(&ready.destination_hash).expect("destination hash");
     let destination = wait_for_announce(&transport, target_hash, Duration::from_secs(12)).await;
     let mut link_events = transport.out_link_events();
-    let link = transport.link(destination).await;
+    let link = transport.link(destination).await.expect("link request sent");
     let link_id = wait_for_out_link_active(&mut link_events, &link, Duration::from_secs(10)).await;
     let channel = transport.channel(link_id);
     let seen = Arc::new(StdMutex::new(Vec::<(String, String)>::new()));
@@ -251,7 +251,7 @@ async fn rust_to_python_ifac_udp_resource_roundtrip() {
         AddressHash::new_from_hex_string(&ready.destination_hash).expect("destination hash");
     let destination = wait_for_announce(&transport, target_hash, Duration::from_secs(12)).await;
     let mut link_events = transport.out_link_events();
-    let link = transport.link(destination).await;
+    let link = transport.link(destination).await.expect("link request sent");
     let link_id = wait_for_out_link_active(&mut link_events, &link, Duration::from_secs(10)).await;
     let channel = transport.channel(link_id);
     let seen = Arc::new(StdMutex::new(Vec::<(String, String)>::new()));
@@ -325,7 +325,7 @@ async fn rust_to_python_ifac_channel_roundtrip() {
 
     let destination = wait_for_announce(&transport, target_hash, Duration::from_secs(8)).await;
     let mut link_events = transport.out_link_events();
-    let link = transport.link(destination).await;
+    let link = transport.link(destination).await.expect("link request sent");
     let link_id = wait_for_out_link_active(&mut link_events, &link, Duration::from_secs(8)).await;
     sleep(Duration::from_millis(100)).await;
 
@@ -388,7 +388,7 @@ async fn rust_to_python_ifac_raw_resource_roundtrip() {
 
     let destination = wait_for_announce(&transport, target_hash, Duration::from_secs(8)).await;
     let mut link_events = transport.out_link_events();
-    let link = transport.link(destination).await;
+    let link = transport.link(destination).await.expect("link request sent");
     let link_id = wait_for_out_link_active(&mut link_events, &link, Duration::from_secs(8)).await;
     sleep(Duration::from_millis(100)).await;
 

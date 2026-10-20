@@ -27,6 +27,7 @@ struct ResourceSender {
 enum OutboundResourcePoll {
     None,
     Send(Box<Packet>),
+    RetriesExhausted,
     Failed,
 }
 
@@ -113,9 +114,8 @@ impl ResourceSender {
         // full_hash(data+self.random_hash)`, computed from the pre-
         // compression `data`, confirmed by reading `RNS/Resource.py`
         // directly). The receive side already understands `FLAG_COMPRESSED`
-        // and decompresses back to exactly this same `combined` before
-        // parsing metadata/data — this was the one half of that round trip
-        // never previously exercised on send.
+        // and decompresses back to exactly this same `combined` before parsing
+        // metadata/data.
         let compressed_candidate = if auto_compress
             && combined.len() as u64 <= AUTO_COMPRESS_MAX_SIZE as u64
         {
@@ -276,7 +276,7 @@ impl ResourceSender {
                     return OutboundResourcePoll::None;
                 }
                 if self.retries_left == 0 {
-                    return OutboundResourcePoll::Failed;
+                    return OutboundResourcePoll::RetriesExhausted;
                 }
                 self.retries_left -= 1;
                 self.last_activity = now;
@@ -288,7 +288,7 @@ impl ResourceSender {
                     return OutboundResourcePoll::None;
                 }
                 if self.retries_left == 0 {
-                    return OutboundResourcePoll::Failed;
+                    return OutboundResourcePoll::RetriesExhausted;
                 }
                 self.retries_left -= 1;
                 self.last_activity = now;
@@ -299,7 +299,7 @@ impl ResourceSender {
                     return OutboundResourcePoll::None;
                 }
                 if self.retries_left == 0 {
-                    return OutboundResourcePoll::Failed;
+                    return OutboundResourcePoll::RetriesExhausted;
                 }
                 self.retries_left -= 1;
                 self.last_part_sent = now;

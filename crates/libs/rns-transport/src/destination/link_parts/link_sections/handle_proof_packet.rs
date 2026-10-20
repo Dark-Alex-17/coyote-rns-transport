@@ -1,4 +1,21 @@
 impl Link {
+    /// Records a plain Data packet this side sent, so its proof can be told
+    /// from any other hash the peer signs.
+    pub(crate) fn note_data_sent(&mut self, packet_hash: Hash) {
+        self.unproven_data_hashes.push_back(packet_hash);
+        while self.unproven_data_hashes.len() > UNPROVEN_DATA_HASHES_CAP {
+            self.unproven_data_hashes.pop_front();
+        }
+    }
+
+    fn take_unproven_data_hash(&mut self, packet_hash: &Hash) -> bool {
+        let found = self.unproven_data_hashes.iter().position(|hash| hash == packet_hash);
+        if let Some(index) = found {
+            self.unproven_data_hashes.remove(index);
+        }
+        found.is_some()
+    }
+
     /// Handle an inbound `Proof` packet: either a per-packet delivery proof on
     /// an active link, or the `LinkRequestProof` that activates a pending one.
     fn handle_proof_packet(&mut self, packet: &Packet, iface: AddressHash) -> LinkHandleResult {
@@ -10,6 +27,13 @@ impl Link {
                 if let Some(pending) = self.channel_pending.remove(&hash) {
                     self.channel_states.insert(pending.sequence, ChannelMessageState::Delivered);
                     self.note_channel_delivery();
+                }
+                // A proof is matched against the packets this side sent and
+                // consumed by the first match (`RNS/Transport.py:2748-2761`),
+                // so a replayed proof, a proof for a hash this side never sent
+                // and a Channel frame's proof post nothing.
+                if self.take_unproven_data_hash(&hash) {
+                    self.post_event(LinkEvent::PacketProven { packet_hash: hash });
                 }
                 return LinkHandleResult::None;
             }

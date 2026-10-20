@@ -367,7 +367,7 @@ mod tests {
             }
         });
 
-        let out_link = sender_transport.link(own_desc).await;
+        let out_link = sender_transport.link(own_desc).await.expect("link request sent");
         let link_id = *out_link.lock().await.id();
         for _ in 0..200 {
             if out_link.lock().await.status()

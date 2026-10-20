@@ -10,6 +10,9 @@ mod primitives;
 #[path = "destination/ratchet.rs"]
 mod ratchet;
 
+#[path = "destination/request/mod.rs"]
+pub mod request;
+
 #[cfg(test)]
 #[path = "destination/tests.rs"]
 mod tests;

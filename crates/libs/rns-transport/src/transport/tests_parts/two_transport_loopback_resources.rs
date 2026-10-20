@@ -88,6 +88,18 @@ fn complete_payload(event: ResourceEvent) -> ResourceComplete {
     }
 }
 
+/// Sends a small request Resource under `request_id` from `requester` and returns its hash,
+/// so that a response the peer sends under that id is solicited: a response advertisement
+/// whose `q` matches no pending request is dropped (`RNS/Link.py:1046-1047`). The bytes are
+/// not a request frame, so nothing answers the request itself.
+#[deny(clippy::await_holding_invalid_type)]
+async fn solicit_response(requester: &Transport, link_id: &AddressHash, request_id: &[u8]) -> Hash {
+    requester
+        .send_request_resource(link_id, request_id.to_vec(), random_payload(64), None)
+        .await
+        .expect("request resource dispatched")
+}
+
 /// Sends a response Resource of `payload_len` random bytes from the listener (the link's
 /// destination side) to the connector over a broadcast-off loopback pair and checks both
 /// ends see it finish. Random bytes keep each segment's compressed transfer size and part
@@ -116,6 +128,7 @@ async fn response_resource_round_trip(payload_len: usize, expected_segments: u32
     let mut payload = vec![0u8; payload_len];
     OsRng.fill_bytes(&mut payload);
     let request_id = b"loopback-response".to_vec();
+    solicit_response(&connector.transport, &link_id, &request_id).await;
     let resource_hash = listener
         .transport
         .send_response_resource(&link_id, request_id.clone(), payload.clone(), None)
@@ -147,7 +160,7 @@ async fn response_resource_round_trip(payload_len: usize, expected_segments: u32
                 event.kind,
                 ResourceEventKind::OutboundComplete
                     | ResourceEventKind::OutboundFailed
-                    | ResourceEventKind::OutboundRejected
+                    | ResourceEventKind::OutboundRejected { .. }
             )
     })
     .await;

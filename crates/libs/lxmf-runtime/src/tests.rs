@@ -11,16 +11,20 @@ use lxmf_sdk::{
 use rand_core::OsRng;
 use rns_transport::destination::{DestinationName, SingleInputDestination};
 use rns_transport::hash::{AddressHash, Hash};
-use rns_transport::resource::{ResourceEvent, ResourceEventKind};
+use rns_transport::iface::{IfaceSource, RxMessage};
+use rns_transport::packet::PacketType;
+use rns_transport::resource::{RejectReason, ResourceEvent, ResourceEventKind};
 use rns_transport::transport::{Transport, TransportConfig};
 use serde_json::json;
 use tokio::sync::broadcast;
 
 use crate::delivery::{
     forced_representation, request_link_attempts, request_link_timeout, request_resource_timeout,
-    requested_method, resolve_destination,
+    requested_method, resolve_destination, DeliveryMethod,
 };
-use crate::link_delivery::{await_resource_completion, await_resource_completion_with_cancel};
+use crate::link_delivery::{
+    await_resource_completion, await_resource_completion_with_cancel, send_link_payload,
+};
 use crate::{
     InProcessBackend, InProcessBackendConfig, EXT_ACCEPTED_RESULT_ACK,
     EXT_DIRECT_PACKET_MAX_WIRE_BYTES, EXT_LINK_CONNECT_TIMEOUT_MS,
@@ -267,7 +271,7 @@ async fn rejected_resource_is_reported_and_cleanup_is_attempted() {
         .send(ResourceEvent {
             hash: expected_hash,
             link_id: AddressHash::new_from_slice(b"link"),
-            kind: ResourceEventKind::OutboundRejected,
+            kind: ResourceEventKind::OutboundRejected { reason: RejectReason::PeerCancelled },
         })
         .expect("queue rejection");
     let cleanup_attempted = Arc::new(AtomicBool::new(false));
@@ -415,3 +419,5 @@ fn an_opportunistic_packet_carries_the_wire_without_its_destination_prefix() {
         "a wire that does not start with the destination is left alone"
     );
 }
+
+include!("tests_link_delivery.rs");

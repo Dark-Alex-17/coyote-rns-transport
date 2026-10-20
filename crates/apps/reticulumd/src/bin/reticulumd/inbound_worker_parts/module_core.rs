@@ -164,7 +164,7 @@ pub(super) fn spawn_inbound_worker(
                             &event.hash,
                         );
                     }
-                    ResourceEventKind::OutboundRejected => {
+                    ResourceEventKind::OutboundRejected { .. } => {
                         handle_outbound_resource_rejection(
                             &outbound_resource_map,
                             &receipt_tx,
@@ -215,6 +215,11 @@ pub(super) fn spawn_inbound_worker(
                             )
                         );
                     }
+                    kind => log::debug!(
+                        "[daemon-rx] unhandled resource event kind={kind:?} link={} hash={}",
+                        event.link_id,
+                        event.hash
+                    ),
                 }
             }
         }

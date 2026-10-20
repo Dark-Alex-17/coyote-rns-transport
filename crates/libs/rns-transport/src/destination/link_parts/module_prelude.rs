@@ -12,6 +12,8 @@ use sha2::Digest;
 
 use x25519_dalek::StaticSecret;
 
+use tokio::sync::mpsc::error::TrySendError;
+
 use crate::{
     buffer::OutputBuffer,
     channel::{
@@ -19,12 +21,17 @@ use crate::{
         MessageState as ChannelMessageState,
     },
     crypt::fernet::{CachedFernet, PlainText, Token},
+    destination::request::{
+        DispatchForm, DispatchItem, InboundResponseHashes, PendingRequest, RequestError,
+        RequestId, RequestOptions, RequestReceipt, ResponseArrival,
+    },
     error::RnsError,
     hash::{AddressHash, Hash, ADDRESS_HASH_SIZE, HASH_SIZE},
     identity::{DecryptIdentity, DerivedKey, EncryptIdentity, Identity, PrivateIdentity},
     packet::{
         DestinationType, Header, Packet, PacketContext, PacketDataBuffer, PacketType, PACKET_MDU,
     },
+    resource::{ResourceAdvertisement, ResourceEventKind, ResourceProgress},
 };
 
 use super::DestinationDesc;
@@ -39,6 +46,10 @@ const LINK_MODE_MASK: u32 = 0xE0_0000;
 /// This is Reticulum's original fixed MTU and is a property of the *protocol's
 /// history*, not of this build — it must not move when the ceiling below does.
 pub(crate) const LEGACY_RETICULUM_MTU: usize = PACKET_MDU + 2 + 1 + ADDRESS_HASH_SIZE * 2 + 1;
+
+/// How many sent plain Data packets a link remembers for their proofs; see
+/// `Link::unproven_data_hashes`.
+pub(crate) const UNPROVEN_DATA_HASHES_CAP: usize = 1024;
 
 /// The largest MTU this build will advertise, or accept from a peer.
 ///

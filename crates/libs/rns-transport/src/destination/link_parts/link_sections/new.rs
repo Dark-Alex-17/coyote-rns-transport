@@ -37,7 +37,11 @@ impl Link {
             channel_pending: HashMap::new(),
             channel_states: HashMap::new(),
             channel_rx_ring: HashMap::new(),
+            unproven_data_hashes: VecDeque::new(),
             pending_response_limits: HashMap::new(),
+            pending_requests: HashMap::new(),
+            owed_response_cancels: Vec::new(),
+            request_dispatch: None,
             channel_window: CHANNEL_WINDOW_INIT,
             channel_window_max: CHANNEL_WINDOW_MAX_SLOW,
             channel_window_min: CHANNEL_WINDOW_MIN,
@@ -97,6 +101,9 @@ impl Link {
             context: PacketContext::None,
             data: packet_data,
         };
+        // Before the id changes below, so the failure logs name the link
+        // the requests were pending on.
+        self.abandon_pending_requests();
         self.status = LinkStatus::Pending;
         self.close_reason = None;
         self.id = LinkId::from(&packet);
@@ -119,7 +126,6 @@ impl Link {
         self.channel_pending.clear();
         self.channel_states.clear();
         self.channel_rx_ring.clear();
-        self.pending_response_limits.clear();
         self.reset_channel_flow_control();
 
         packet
@@ -250,17 +256,42 @@ impl Link {
                 if let Ok(plain_text) = self.decrypt(packet.data.as_slice(), &mut buffer[..]) {
                     self.note_inbound(packet.context);
                     log::trace!("link({}): data {}B", self.id, plain_text.len());
-                    let (request_id, response_accepted) = if packet.context == PacketContext::Request {
-                        let hash = packet.hash().to_bytes();
-                        let mut id = [0u8; ADDRESS_HASH_SIZE];
-                        id.copy_from_slice(&hash[..ADDRESS_HASH_SIZE]);
-                        (Some(id), true)
+                    let (request_id, response_accepted) = if packet.context
+                        == PacketContext::Request
+                    {
+                        let id = RequestId::from_packet_hash(&packet.hash());
+                        self.dispatch_request(DispatchForm::Packet { request_id: id }, plain_text);
+                        (Some(id.to_bytes()), true)
                     } else if packet.context == PacketContext::Response {
                         match response_envelope_metadata(plain_text) {
                             Some((id, response_size)) => {
-                                let accepted = id.as_ref().is_none_or(|id| {
-                                    self.take_response_limit_if_allowed(id, response_size)
-                                });
+                                let (accepted, refused_while_receiving) = match &id {
+                                    Some(id) => self.take_response_limit(id, response_size),
+                                    // A legacy-length id is not gated on the packet path:
+                                    // Python's response packet is keyed by the 16-byte receipt
+                                    // id alone (`RNS/Link.py:857-884`). Its response is measured
+                                    // only when it arrives as a Resource (`resource_wire.rs`).
+                                    None => (true, None),
+                                };
+                                self.owed_response_cancels.extend(refused_while_receiving);
+                                if let Some(id) = id {
+                                    let id = RequestId::new(id);
+                                    // A refused packet owes one cancel: the record's own, for
+                                    // a receipt-less id, or the receipt's, which is the only
+                                    // holder of the hashes when a receipt owns the id. An
+                                    // accepted packet owes none: the size recheck in
+                                    // `resolve_pending_request` is for a Resource, not a packet.
+                                    let receiving = if accepted {
+                                        let arrival = ResponseArrival::Packet {
+                                            envelope: plain_text,
+                                            response_size,
+                                        };
+                                        self.resolve_pending_request(id, arrival)
+                                    } else {
+                                        self.fail_pending_request(&id, RequestError::Oversize)
+                                    };
+                                    self.owed_response_cancels.extend(receiving);
+                                }
                                 (id, accepted)
                             }
                             None => {

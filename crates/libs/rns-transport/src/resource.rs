@@ -80,7 +80,7 @@ const FLAG_ENCRYPTED: u8 = 0x01;
 const FLAG_COMPRESSED: u8 = 0x02;
 const FLAG_SPLIT: u8 = 0x04;
 const FLAG_REQUEST: u8 = 0x08;
-const FLAG_RESPONSE: u8 = 0x10;
+pub(crate) const FLAG_RESPONSE: u8 = 0x10;
 const FLAG_METADATA: u8 = 0x20;
 
 const METADATA_MAX_SIZE: usize = 16 * 1024 * 1024 - 1;
@@ -221,10 +221,11 @@ pub struct ResourceEvent {
 
 /// Resource transfer event emitted by `ResourceManager`.
 ///
-/// Downstream consumers should include a catch-all match arm. New terminal
-/// variants may be added when previously silent failure classes become
-/// operator-visible.
+/// The enum is `#[non_exhaustive]`, so a downstream match keeps a wildcard
+/// arm. New terminal variants may be added when previously silent failure
+/// classes become operator-visible.
 #[derive(Debug, Clone)]
+#[non_exhaustive]
 pub enum ResourceEventKind {
     Progress(ResourceProgress),
     /// One segment of a split resource completed and was accepted into the
@@ -240,9 +241,12 @@ pub enum ResourceEventKind {
     /// split-segment construction can all terminate with this variant.
     OutboundFailed,
     /// The remote receiver rejected the outbound resource. Reticulum uses
-    /// `RESOURCE_RCL` for this terminal outcome; it is distinct from a local
-    /// cancellation and from a transfer that failed after starting.
-    OutboundRejected,
+    /// `RESOURCE_RCL` for this terminal outcome (`RNS/Resource.py:155-165`); it is
+    /// distinct from a local cancellation and from a transfer that failed after starting.
+    OutboundRejected {
+        /// Why the transfer was refused, as far as the sender knows (`RNS/Resource.py:155-165`).
+        reason: RejectReason,
+    },
     OutboundCancelled,
 }
 
@@ -481,6 +485,7 @@ include!("resource/receiver_request.rs");
 include!("resource/manager_start.rs");
 include!("resource/manager_segments.rs");
 include!("resource/advertisement_limits.rs");
+include!("resource/outcome.rs");
 include!("resource/manager.rs");
 include!("resource/manager_cleanup.rs");
 include!("resource/manager_proof.rs");

@@ -93,7 +93,7 @@ impl NativeRngitClient {
         description: rns_transport::destination::DestinationDesc,
     ) -> io::Result<(Arc<tokio::sync::Mutex<rns_transport::destination::link::Link>>, rns_transport::hash::AddressHash)> {
         let mut events = self.transport.out_link_events();
-        let link = self.transport.link(description).await;
+        let link = self.transport.link(description).await.map_err(io::Error::other)?;
         let link_id = *link.lock().await.id();
         timeout(self.timeout, async {
             loop {

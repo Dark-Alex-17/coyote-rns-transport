@@ -142,7 +142,7 @@ pub(crate) async fn establish_link(
     description: DestinationDesc,
 ) -> io::Result<(Arc<Mutex<rns_transport::destination::link::Link>>, AddressHash)> {
     let mut events = runtime.transport.out_link_events();
-    let link = runtime.transport.link(description).await;
+    let link = runtime.transport.link(description).await.map_err(io::Error::other)?;
     let link_id = *link.lock().await.id();
     timeout(runtime.timeout, async {
         loop {

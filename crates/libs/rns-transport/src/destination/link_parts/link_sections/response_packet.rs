@@ -31,36 +31,210 @@ impl Link {
         self.packet_with_context(data, PacketContext::Request)
     }
 
-    /// Build a request packet and associate the optional Python-compatible
-    /// `max_response_size` with the request id derived from its packet hash.
+    /// Build a request packet and record the optional Python-compatible
+    /// `max_response_size` under the request id derived from its packet
+    /// hash. Without a limit, [`Self::request_packet`] solicits the same
+    /// response once the transport sends it; see
+    /// the crate-private `Link::note_request_sent`.
     pub fn request_packet_with_max_response_size(
         &mut self,
         data: &[u8],
         max_response_size: Option<usize>,
     ) -> Result<Packet, RnsError> {
         let packet = self.packet_with_context(data, PacketContext::Request)?;
-        if let Some(max_response_size) = max_response_size {
-            let request_id = packet.hash().to_bytes()[..ADDRESS_HASH_SIZE].to_vec();
-            self.pending_response_limits.insert(request_id, max_response_size);
-        }
+        let request_id = RequestId::from_packet_hash(&packet.hash());
+        self.expect_response(request_id.as_bytes(), max_response_size);
         Ok(packet)
     }
 
-    /// Register a response-size limit for a resource-backed request.
+    /// Registers `max_response_size` for the response to `request_id`.
+    /// Works in either order with `send_request_resource*` and
+    /// `request_packet*`: on a record already made it changes the limit
+    /// alone, never the clock or the request Resource, and a record made
+    /// afterwards keeps the limit.
     pub fn set_response_size_limit(&mut self, request_id: &[u8], max_response_size: usize) {
-        self.pending_response_limits.insert(request_id.to_vec(), max_response_size);
+        let clock = self.pending_response_expiry();
+        self.pending_response_limits
+            .entry(request_id.to_vec())
+            .and_modify(|entry| entry.limit = Some(max_response_size))
+            .or_insert(PendingResponseLimit {
+                limit: Some(max_response_size),
+                clock,
+                request_resource: None,
+            });
     }
 
-    /// Remove a pending limit after the matching response is accepted or
-    /// rejected. A missing limit means the request was unbounded.
-    pub fn take_response_limit_if_allowed(&mut self, request_id: &[u8], response_size: usize) -> bool {
+    /// Records that a response to `request_id` is expected, bounded by
+    /// `max_response_size` when one is given. Python keeps this on the
+    /// `RequestReceipt` (`RNS/Link.py:1046-1049`); a request sent through
+    /// `send_request_resource*` has no receipt, so the entry here (the
+    /// crate-private `expect_response_to_resource` makes it for that form)
+    /// is what tells its response advertisement from an unsolicited one.
+    /// The entry lives for the default request timeout unless a receipt
+    /// owns the id. A limit already recorded under `request_id` stays when
+    /// none is given. A record already receiving a response Resource is
+    /// replaced, and that transfer is cancelled on the link's next inbound
+    /// packet; a record waiting on a request Resource is replaced too, and
+    /// no longer follows that Resource's outcome.
+    pub fn expect_response(&mut self, request_id: &[u8], max_response_size: Option<usize>) {
+        let limit = max_response_size.or_else(|| self.response_size_limit(request_id));
+        let displaced = self.replace_response_record(request_id, limit);
+        self.owed_response_cancels.extend(displaced);
+    }
+
+    /// [`Self::expect_response`] that replaces the record under `request_id`
+    /// whole, limit included. For `Transport::request`, whose receipt
+    /// displaces whatever was under the id: a request sent without a limit
+    /// under an id a displaced entry recorded one for does not inherit it.
+    /// The public builders keep a limit set beforehand instead. Returns the
+    /// response Resource the displaced record was receiving, for the caller
+    /// to cancel.
+    #[deny(clippy::await_holding_invalid_type)]
+    #[must_use = "the hashes are for the caller to cancel"]
+    pub(crate) fn replace_response_record(
+        &mut self,
+        request_id: &[u8],
+        max_response_size: Option<usize>,
+    ) -> Option<InboundResponseHashes> {
+        let clock = self.pending_response_expiry();
         self.pending_response_limits
-            .remove(request_id)
-            .is_none_or(|limit| response_size <= limit)
+            .insert(
+                request_id.to_vec(),
+                PendingResponseLimit { limit: max_response_size, clock, request_resource: None },
+            )
+            .and_then(PendingResponseLimit::into_receiving)
+    }
+
+    /// [`Self::expect_response`] for a request leaving as the Resource
+    /// `request_resource`: the entry's clock does not run until that
+    /// Resource is delivered (`RNS/Link.py:1370-1373`), and its rejection,
+    /// failure or cancel drops the entry. A limit already recorded under
+    /// `request_id` stays when none is given. Returns the response Resource
+    /// the displaced record was receiving, for the caller to cancel.
+    #[deny(clippy::await_holding_invalid_type)]
+    #[must_use = "the hashes are for the caller to cancel"]
+    pub(crate) fn expect_response_to_resource(
+        &mut self,
+        request_id: &[u8],
+        max_response_size: Option<usize>,
+        request_resource: Hash,
+    ) -> Option<InboundResponseHashes> {
+        let limit = max_response_size.or_else(|| self.response_size_limit(request_id));
+        self.pending_response_limits
+            .insert(
+                request_id.to_vec(),
+                PendingResponseLimit {
+                    limit,
+                    clock: RecordClock::Unarmed,
+                    request_resource: Some(request_resource),
+                },
+            )
+            .and_then(PendingResponseLimit::into_receiving)
+    }
+
+    /// Records that the link sent a request packet under `request_id`. Every
+    /// request packet solicits its response, as every `RNS.Link.request`
+    /// registers a `RequestReceipt` (`RNS/Link.py:473-510`, `:1365`), so a
+    /// packet built with [`Self::request_packet`] is admitted like any other.
+    /// A limit recorded before the send stays in force; the send anchors the
+    /// clock, and the entry lives for the default request timeout unless a
+    /// receipt owns the id. Only an `Expires` clock is re-armed, run out or
+    /// not: a re-send under the id of a record receiving its response, or of
+    /// a request Resource still in flight, leaves that record as it is.
+    #[deny(clippy::await_holding_invalid_type)]
+    pub(crate) fn note_request_sent(&mut self, request_id: &[u8]) {
+        let clock = self.pending_response_expiry();
+        self.pending_response_limits
+            .entry(request_id.to_vec())
+            .and_modify(|entry| {
+                if let RecordClock::Expires(_) = entry.clock {
+                    entry.clock = clock;
+                }
+            })
+            .or_insert(PendingResponseLimit { limit: None, clock, request_resource: None });
+    }
+
+    /// The clock of a response entry armed now, if no receipt owns it:
+    /// the default request timeout (`RNS/Link.py:491`) from now.
+    fn pending_response_expiry(&self) -> RecordClock {
+        Instant::now()
+            .checked_add(RequestOptions::default().timeout_for_rtt(self.rtt()))
+            .map_or(RecordClock::Unarmed, RecordClock::Expires)
+    }
+
+    /// Whether a response Resource advertising `data_size` bytes for
+    /// `request_id` may be received (`RNS/Link.py:1046-1049`, `read_size`
+    /// is `d`, `RNS/Resource.py:1285-1287`): `None` when nothing solicited
+    /// it, or when the entry's clock ran out ahead of the watchdog,
+    /// `Some(false)` when it is over the limit the request went out with.
+    /// Checked at every segment advertisement, so nothing is removed here;
+    /// the entry goes when the response concludes.
+    pub fn response_size_allowed(&self, request_id: &[u8], data_size: usize) -> Option<bool> {
+        let owned = owned_by_receipt(&self.pending_requests, request_id);
+        match self.pending_response_limits.get(request_id) {
+            Some(entry) if owned || !entry.clock.has_run_out(Instant::now()) => {
+                Some(entry.limit.is_none_or(|limit| data_size <= limit))
+            }
+            Some(_) => None,
+            None => owned.then_some(true),
+        }
+    }
+
+    /// The `max_response_size` the request `request_id` went out with.
+    #[deny(clippy::await_holding_invalid_type)]
+    pub(crate) fn response_size_limit(&self, request_id: &[u8]) -> Option<usize> {
+        self.pending_response_limits.get(request_id).and_then(|entry| entry.limit)
+    }
+
+    /// Removes the record under `request_id` for the response packet of
+    /// `response_size` bytes and tells whether the packet is admitted: a
+    /// missing or unbounded record admits it. A record refusing the packet
+    /// while receiving a response Resource has that transfer cancelled by
+    /// the transport once the packet is handled.
+    pub fn take_response_limit_if_allowed(
+        &mut self,
+        request_id: &[u8],
+        response_size: usize,
+    ) -> bool {
+        let (allowed, refused_while_receiving) =
+            self.take_response_limit(request_id, response_size);
+        self.owed_response_cancels.extend(refused_while_receiving);
+        allowed
+    }
+
+    /// [`Self::take_response_limit_if_allowed`] that hands the response
+    /// Resource a refusing record was receiving to the caller to cancel. An
+    /// admitted packet leaves that Resource to run, as it does for a
+    /// receipt.
+    #[deny(clippy::await_holding_invalid_type)]
+    #[must_use = "the hashes are for the caller to cancel"]
+    pub(crate) fn take_response_limit(
+        &mut self,
+        request_id: &[u8],
+        response_size: usize,
+    ) -> (bool, Option<InboundResponseHashes>) {
+        let Some(entry) = self.pending_response_limits.remove(request_id) else {
+            return (true, None);
+        };
+        let allowed = entry.limit.is_none_or(|limit| response_size <= limit);
+        (allowed, if allowed { None } else { entry.into_receiving() })
     }
 
     pub fn clear_response_size_limit(&mut self, request_id: &[u8]) {
         self.pending_response_limits.remove(request_id);
+    }
+
+    /// Removes the record under `request_id` and returns the response
+    /// Resource it was receiving, for the caller to cancel: a later segment
+    /// refused by the limit would otherwise leave the earlier segments'
+    /// partial assembly behind in the ResourceManager.
+    #[deny(clippy::await_holding_invalid_type)]
+    #[must_use = "the hashes are for the caller to cancel"]
+    pub(crate) fn take_response_record(
+        &mut self,
+        request_id: &[u8],
+    ) -> Option<InboundResponseHashes> {
+        self.pending_response_limits.remove(request_id)?.into_receiving()
     }
 
     /// Build a response packet (context = `Response`) carrying `data`.

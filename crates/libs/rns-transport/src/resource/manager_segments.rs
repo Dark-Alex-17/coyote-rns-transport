@@ -145,11 +145,24 @@ impl ResourceManager {
     /// its own timeout expires, with nothing on either side saying the transfer
     /// is already dead (issue #369).
     fn fail_inbound_segments(&mut self, original_hash: Hash, reason: &str) -> bool {
-        let Some(assembly) = self.incoming_segments.remove(&original_hash) else {
+        let Some(event) = self.take_inbound_segments(original_hash, reason) else {
             return false;
         };
+        self.events.push(event);
+        true
+    }
+
+    /// Removes the partial assembly under `original_hash` and builds its
+    /// `InboundFailed(reason)`, for the caller to queue or hand back.
+    /// `None` when there is no such assembly.
+    fn take_inbound_segments(
+        &mut self,
+        original_hash: Hash,
+        reason: &str,
+    ) -> Option<ResourceEvent> {
+        let assembly = self.incoming_segments.remove(&original_hash)?;
         log::warn!("split resource assembly failed hash={original_hash} reason={reason}");
-        self.events.push(ResourceEvent {
+        Some(ResourceEvent {
             hash: original_hash,
             link_id: assembly.link_id,
             kind: ResourceEventKind::InboundFailed(ResourceFailure {
@@ -161,8 +174,7 @@ impl ResourceManager {
                     total_parts: assembly.total_segments as usize,
                 },
             }),
-        });
-        true
+        })
     }
 
     /// Settles the advertisement write that followed `track_prepared`. A
@@ -186,11 +198,11 @@ impl ResourceManager {
             return;
         };
         self.outgoing_segment_chains.remove(&sender.original_hash);
-        self.events.push(ResourceEvent {
-            hash: resource_hash,
-            link_id: sender.link_id,
-            kind: ResourceEventKind::OutboundFailed,
-        });
+        self.conclude_outbound(
+            sender.original_hash,
+            sender.link_id,
+            OutboundResult::Failed(OutboundFailure::NotSent),
+        );
     }
 
     fn finish_inbound_payload(

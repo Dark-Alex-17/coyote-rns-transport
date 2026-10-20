@@ -25,7 +25,7 @@ pub fn send_outcome_label(outcome: SendPacketOutcome) -> &'static str {
 }
 
 pub fn send_outcome_is_sent(outcome: SendPacketOutcome) -> bool {
-    matches!(outcome, SendPacketOutcome::SentDirect | SendPacketOutcome::SentBroadcast)
+    outcome.is_sent()
 }
 
 pub fn send_outcome_status(method: &str, outcome: SendPacketOutcome) -> String {
@@ -58,7 +58,10 @@ pub async fn send_via_link(
     payload: &[u8],
     wait_timeout: Duration,
 ) -> io::Result<LinkSendResult> {
-    let link = transport.link(destination).await;
+    let link = transport
+        .link(destination)
+        .await
+        .map_err(|error| io::Error::other(format!("link request not sent: {error}")))?;
     await_link_activation(transport, &link, wait_timeout).await?;
     send_on_link(transport, &link, payload).await
 }
@@ -184,6 +187,7 @@ mod tests {
     }
 
     #[tokio::test]
+    #[deny(clippy::await_holding_invalid_type)]
     async fn observed_link_packet_send_exposes_packet_hash_before_return() {
         let local_identity = PrivateIdentity::new_from_rand(OsRng);
         let transport =
@@ -199,7 +203,7 @@ mod tests {
             address_hash: remote_identity.address_hash,
             name: DestinationName::new("lxmf", "delivery"),
         };
-        let link = transport.link(destination).await;
+        let link = transport.link(destination).await.expect("link request sent");
         let request = channel.tx_channel.recv().await.expect("link request");
         let (tx, _) = tokio::sync::broadcast::channel(4);
         let mut inbound = Link::new_from_request(
@@ -229,5 +233,29 @@ mod tests {
             panic!("small payload should use link packet representation");
         };
         assert_eq!(observed_hash, Some(packet.hash()));
+    }
+
+    #[tokio::test]
+    #[deny(clippy::await_holding_invalid_type)]
+    async fn send_via_link_without_path_fails_before_the_activation_wait() {
+        let local_identity = PrivateIdentity::new_from_rand(OsRng);
+        let transport =
+            Transport::new(TransportConfig::new("link-send-no-path", &local_identity, false));
+        let _channel =
+            transport.iface_manager().lock().await.new_channel_with_role(8, IfaceRole::Unicast);
+
+        let remote_identity = *PrivateIdentity::new_from_rand(OsRng).as_identity();
+        let destination = DestinationDesc {
+            identity: remote_identity,
+            address_hash: remote_identity.address_hash,
+            name: DestinationName::new("lxmf", "delivery"),
+        };
+
+        let started = std::time::Instant::now();
+        let error = send_via_link(&transport, destination, b"payload", Duration::from_secs(12))
+            .await
+            .expect_err("no path and no broadcast");
+        assert!(started.elapsed() < Duration::from_secs(1), "took {:?}", started.elapsed());
+        assert!(error.to_string().contains("link request not sent"), "unexpected error: {error}");
     }
 }

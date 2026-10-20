@@ -1,6 +1,10 @@
 use std::fs;
 use std::path::{Path, PathBuf};
 
+/// The lockfiles a release regenerates: the workspace lock and the fuzz crate's
+/// own lock, the fuzz crate not being a workspace member.
+const RELEASE_LOCKS: [&str; 2] = ["Cargo.lock", "crates/libs/rns-transport/fuzz/Cargo.lock"];
+
 fn repo_root() -> PathBuf {
     PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../..").canonicalize().expect("repo root")
 }
@@ -17,6 +21,16 @@ fn crate_version() -> String {
         .and_then(|rest| rest.strip_suffix('"'))
         .expect("coyote-rns-transport manifest should declare a package version")
         .to_string()
+}
+
+/// Patch ids in the ledger legend are one uppercase letter and one digit,
+/// such as `B3` or `F1`.
+fn is_patch_id(token: &str) -> bool {
+    let mut chars = token.chars();
+    matches!(
+        (chars.next(), chars.next(), chars.next()),
+        (Some(letter), Some(digit), None) if letter.is_ascii_uppercase() && digit.is_ascii_digit()
+    )
 }
 
 #[test]
@@ -126,7 +140,7 @@ fn crate_readme_pins_the_consumer_contract() {
 
     assert_eq!(
         crate_version(),
-        "0.14.1",
+        "0.15.0",
         "coyote-rns-transport should declare the published version; bump this pin with the crate"
     );
 
@@ -150,7 +164,7 @@ fn crate_readme_pins_the_consumer_contract() {
 
     for required in [
         "name = \"coyote-rns-transport\"",
-        "version = \"0.14.1\"",
+        "version = \"0.15.0\"",
         "description = \"Coyote's published fork of reticulum-rs-transport",
         "license.workspace = true",
         "rns-core.workspace = true",
@@ -177,10 +191,11 @@ fn crate_readme_pins_the_consumer_contract() {
 }
 
 /// Every site that names the published crate carries the same version, and
-/// both release ledgers have a section for it. Cargo cannot catch a stale
-/// dependent manifest on its own: a path dependency declared as
-/// `version = "0.14.0"` is a caret requirement that 0.14.1 satisfies, so the
-/// manifests, the consumer snippets and the lock file are pinned here.
+/// both release ledgers have a section for it. On a patch release Cargo
+/// cannot catch a stale dependent manifest on its own: a path dependency
+/// declared as `version = "0.14.0"` is a caret requirement that 0.14.1
+/// satisfies, so the manifests, the consumer snippets and the lock file are
+/// pinned here.
 #[test]
 fn release_sites_and_ledgers_track_the_crate_version() {
     let version = crate_version();
@@ -213,10 +228,16 @@ fn release_sites_and_ledgers_track_the_crate_version() {
     );
 
     let lock_entry = format!("name = \"coyote-rns-transport\"\n{version_token}\n");
-    assert!(
-        read_repo_file("Cargo.lock").contains(&lock_entry),
-        "Cargo.lock should carry the published crate at {version:?}; regenerate it with `cargo update -p coyote-rns-transport --offline`"
-    );
+    // The fuzz crate has a lock of its own (it is not a workspace member), and
+    // nothing but this pin notices when a release leaves it behind.
+    for lock in RELEASE_LOCKS {
+        assert!(
+            read_repo_file(lock).contains(&lock_entry),
+            "{lock} should carry the published crate at {version:?}; regenerate it with \
+             `cargo update -p coyote-rns-transport --offline` (add `--manifest-path \
+             crates/libs/rns-transport/fuzz/Cargo.toml` for the fuzz lock)"
+        );
+    }
 
     let changelog = read_repo_file("crates/libs/rns-transport/CHANGELOG.md");
     let release_heading = format!("\n## {version} - ");
@@ -244,6 +265,102 @@ fn release_sites_and_ledgers_track_the_crate_version() {
             "crate README should state the versioning policy and name both ledgers; missing {required:?}"
         );
     }
+}
+
+/// The fuzz crate is not a workspace member, so its `Cargo.lock` is the one
+/// release site the workspace `cargo update` never touches. The README's
+/// release recipe has to name every lock the version pin above checks, with
+/// the `--manifest-path` the fuzz lock needs, or the next release leaves it
+/// behind exactly the way 0.14.1 did.
+#[test]
+fn release_recipe_regenerates_every_lock_the_version_pin_checks() {
+    let readme = read_repo_file("crates/libs/rns-transport/README.md");
+    let regenerate = readme
+        .find("cargo update -p coyote-rns-transport --offline")
+        .expect("crate README should carry the lock-regeneration step of the release recipe");
+    // The numbered recipe step that carries the command: from its `N. ` opener
+    // to the next step's opener (or the end of the file).
+    let opens_a_step = |line: &str| {
+        let digits = line.chars().take_while(|c| c.is_ascii_digit()).count();
+        digits > 0 && line[digits..].starts_with(". ")
+    };
+    let step_start = readme[..regenerate]
+        .rmatch_indices('\n')
+        .map(|(at, _)| at + 1)
+        .find(|&at| opens_a_step(&readme[at..]))
+        .unwrap_or(0);
+    let step_end = readme[regenerate..]
+        .match_indices('\n')
+        .map(|(at, _)| regenerate + at + 1)
+        .find(|&at| opens_a_step(&readme[at..]))
+        .unwrap_or(readme.len());
+    let recipe = &readme[step_start..step_end];
+
+    for lock in RELEASE_LOCKS {
+        assert!(
+            recipe.contains(&format!("`{lock}`")),
+            "the README release recipe should name {lock:?} among the locks to regenerate:\n{recipe}"
+        );
+    }
+    assert!(
+        recipe.contains("--manifest-path crates/libs/rns-transport/fuzz/Cargo.toml"),
+        "the README release recipe should give the `--manifest-path` the fuzz lock needs:\n{recipe}"
+    );
+}
+
+/// The fuzz crate depends on the library by path, so its lock must resolve
+/// `coyote-rns-transport` to exactly one path package at the crate version:
+/// a second, registry-sourced entry would mean the fuzz targets exercise the
+/// published crate instead of the tree they sit in.
+#[test]
+fn fuzz_lock_resolves_the_crate_from_its_path_dependency() {
+    let manifest = read_repo_file("crates/libs/rns-transport/fuzz/Cargo.toml");
+    let path_dependency = manifest
+        .lines()
+        .find(|line| line.contains("package = \"coyote-rns-transport\""))
+        .expect("fuzz Cargo.toml should depend on coyote-rns-transport by package name");
+    assert!(
+        path_dependency.contains("path = \"..\""),
+        "fuzz Cargo.toml should take coyote-rns-transport from the parent directory, got {path_dependency:?}"
+    );
+
+    let lock = read_repo_file("crates/libs/rns-transport/fuzz/Cargo.lock");
+    let packages: Vec<&str> = lock.split("[[package]]").skip(1).collect();
+    let crate_entries: Vec<&str> = packages
+        .iter()
+        .copied()
+        .filter(|entry| entry.contains("name = \"coyote-rns-transport\"\n"))
+        .collect();
+    assert_eq!(
+        crate_entries.len(),
+        1,
+        "fuzz Cargo.lock should resolve coyote-rns-transport exactly once, got {}",
+        crate_entries.len()
+    );
+    let entry = crate_entries[0];
+    assert!(
+        !entry.contains("source = "),
+        "fuzz Cargo.lock should take coyote-rns-transport from the path dependency, not a registry:\n{entry}"
+    );
+    let version_token = format!("version = \"{}\"\n", crate_version());
+    assert!(
+        entry.contains(&version_token),
+        "fuzz Cargo.lock should carry coyote-rns-transport at {version_token:?}:\n{entry}"
+    );
+
+    let fuzz_entry = packages
+        .iter()
+        .copied()
+        .find(|entry| entry.contains("name = \"rns-transport-fuzz\"\n"))
+        .expect("fuzz Cargo.lock should carry the fuzz crate itself");
+    let depends_on_crate = fuzz_entry
+        .split("dependencies = [")
+        .nth(1)
+        .is_some_and(|deps| deps.lines().any(|line| line.trim() == "\"coyote-rns-transport\","));
+    assert!(
+        depends_on_crate,
+        "the fuzz crate's lock entry should list coyote-rns-transport as a dependency:\n{fuzz_entry}"
+    );
 }
 
 /// The patch-set ledger's section for the current release opens with a table
@@ -286,15 +403,20 @@ fn patch_set_ledger_lists_existing_files_for_the_current_release() {
         missing.join("\n")
     );
 
-    for required in [
-        "Cargo.lock",
+    let required_every_release = [
+        "Cargo.toml",
+        "crates/apps/rns-tools/Cargo.toml",
+        "crates/apps/reticulumd/Cargo.toml",
         "crates/libs/rns-transport/Cargo.toml",
         "crates/libs/rns-transport/CHANGELOG.md",
+        "crates/libs/rns-transport/README.md",
+        "docs/getting-started.md",
         "crates/apps/reticulumd/tests/fork_publish_contract.rs",
         "docs/fork/PATCHSET.md",
-    ] {
+    ];
+    for required in RELEASE_LOCKS.iter().chain(required_every_release.iter()) {
         assert!(
-            table_paths.contains(&required),
+            table_paths.contains(required),
             "the {version} table should list {required:?}, which changes on every release"
         );
     }
@@ -302,7 +424,7 @@ fn patch_set_ledger_lists_existing_files_for_the_current_release() {
 
 /// Root `VERSION` is the workspace number: the upstream baseline that
 /// `lxmf --version` prints and that HIL evidence records. The fork publishes
-/// only `coyote-rns-transport`, so a fork patch release must not move it; it
+/// only `coyote-rns-transport`, so a fork release must not move it; it
 /// stays equal to the unpublished workspace crates until the next upstream
 /// rebase.
 #[test]
@@ -338,7 +460,7 @@ fn root_version_stays_on_the_upstream_baseline() {
 }
 
 /// Every row of the patch-set table names the patch it belongs to, and every
-/// `B<n>` id used in a row is defined by the legend above the table.
+/// letter-digit patch id used in a row is defined by the legend above the table.
 #[test]
 fn patch_set_ledger_rows_name_a_patch_from_the_legend() {
     let version = crate_version();
@@ -359,14 +481,13 @@ fn patch_set_ledger_rows_name_a_patch_from_the_legend() {
     // The legend wraps at 80 columns, so phrases are matched on one line.
     let legend = section[..table_start].split_whitespace().collect::<Vec<_>>().join(" ");
     let legend = legend.as_str();
-    let legend_ids: Vec<String> = (1..=5).map(|n| format!("B{n} is ")).collect();
-    for id in &legend_ids {
-        assert!(
-            legend.contains(id.as_str()),
-            "the {version} legend should define {:?} before the table",
-            id.trim_end()
-        );
-    }
+    let defines_a_patch_id = legend
+        .split(' ')
+        .any(|token| is_patch_id(token) && legend.contains(&format!("{token} is ")));
+    assert!(
+        defines_a_patch_id,
+        "the {version} legend should define at least one patch id before the table"
+    );
 
     let rows: Vec<(&str, &str)> = section
         .lines()
@@ -388,7 +509,7 @@ fn patch_set_ledger_rows_name_a_patch_from_the_legend() {
             );
             for id in phrase
                 .split(|c: char| !c.is_ascii_alphanumeric())
-                .filter(|token| token.len() == 2 && token.starts_with('B'))
+                .filter(|token| is_patch_id(token))
             {
                 assert!(
                     legend.contains(&format!("{id} is ")),
@@ -398,16 +519,99 @@ fn patch_set_ledger_rows_name_a_patch_from_the_legend() {
         }
     }
 
-    let interop_row = rows
-        .iter()
-        .find(|(file, _)| file.contains("multi_segment_python_interop.rs"))
-        .unwrap_or_else(|| {
-            panic!("the {version} table should list the multi-segment interop test")
-        });
+    // Every release carries a Python-in-the-loop proof: at least one interop
+    // fixture row is attributed to a patch named for it.
+    let interop_rows: Vec<&(&str, &str)> =
+        rows.iter().filter(|(file, _)| file.contains("/python_channel_interop_parts/")).collect();
     assert!(
-        interop_row.1.contains("Python-in-the-loop"),
-        "the multi-segment interop row should be attributed to the Python-in-the-loop proof, got {:?}",
-        interop_row.1
+        interop_rows.iter().any(|(_, patch)| patch.contains("Python-in-the-loop")),
+        "the {version} table should attribute an interop fixture to a Python-in-the-loop patch, got {interop_rows:?}"
+    );
+}
+
+/// The legend names the fork commits of the release patch; every one of them
+/// is a commit a rebase must re-apply, so each must also appear in a patch
+/// header of the section. Hashes added to the legend alone are the drift this
+/// catches.
+#[test]
+fn patch_set_ledger_release_legend_hashes_each_have_a_patch_header() {
+    let version = crate_version();
+    let ledger = read_repo_file("docs/fork/PATCHSET.md");
+    let section_heading = format!("\n## {version} (upstream ");
+    let start = ledger
+        .find(&section_heading)
+        .unwrap_or_else(|| panic!("docs/fork/PATCHSET.md should have a `## {version}` section"));
+    let section = &ledger[start + 1..];
+    let section = match section[section_heading.len() - 1..].find("\n## ") {
+        Some(end) => &section[..section_heading.len() - 1 + end],
+        None => section,
+    };
+
+    let table_start = section.find("\n| File | Patch |").unwrap_or_else(|| {
+        panic!("the {version} section should open with a `| File | Patch |` table")
+    });
+    // The legend wraps at 80 columns, so phrases are matched on one line.
+    let legend = section[..table_start].split_whitespace().collect::<Vec<_>>().join(" ");
+    let release_patch = format!("`release {version}` patch");
+    let release_at = legend.find(&release_patch).unwrap_or_else(|| {
+        panic!("the {version} legend should name the `release {version}` patch")
+    });
+    let commits = &legend[release_at + release_patch.len()..];
+    let commits_at = commits.find("fork commits").unwrap_or_else(|| {
+        panic!("the {version} legend should list the fork commits of the release patch")
+    });
+    let commits = &commits[commits_at + "fork commits".len()..];
+
+    /// A backticked eight-digit short hash, with any trailing sentence
+    /// punctuation.
+    fn commit_hash(token: &str) -> Option<&str> {
+        let hash =
+            token.trim_end_matches([',', '.', ';', ':']).strip_prefix('`')?.strip_suffix('`')?;
+        let is_hash = hash.len() == 8
+            && hash.chars().all(|c| c.is_ascii_hexdigit() && !c.is_ascii_uppercase());
+        is_hash.then_some(hash)
+    }
+
+    let mut legend_hashes = Vec::new();
+    for token in commits.split(' ') {
+        legend_hashes.extend(commit_hash(token));
+        if token.ends_with('.') {
+            break;
+        }
+    }
+    assert!(
+        !legend_hashes.is_empty(),
+        "the {version} legend should name at least one fork commit for the release patch"
+    );
+
+    // Headers wrap too: the hashes run from the `Fork commit` line through the
+    // first colon, which may sit on a later line.
+    let mut header_hashes = Vec::new();
+    let mut in_header = false;
+    for line in section.lines() {
+        if line.starts_with("Fork commit `") || line.starts_with("Fork commits `") {
+            in_header = true;
+        }
+        if !in_header {
+            continue;
+        }
+        let hashes = line.split_once(':').map_or(line, |(before, _)| before);
+        header_hashes.extend(hashes.split(' ').filter_map(commit_hash));
+        in_header = !line.contains(':');
+    }
+
+    let mut missing = Vec::new();
+    for hash in &legend_hashes {
+        if !header_hashes.contains(hash) {
+            missing.push(*hash);
+        }
+    }
+    assert!(
+        missing.is_empty(),
+        "every fork commit the {version} legend names for the release patch should head a patch \
+         in the section, since each patch header lists every commit a rebase must re-apply; \
+         missing: {}",
+        missing.join(", ")
     );
 }
 
@@ -448,8 +652,9 @@ fn publish_recipe_mirrors_the_workflow_without_a_registry_override() {
 /// Release-note bullets under the current `## <version>` heading of the crate
 /// CHANGELOG end in a test clause that names the file pinning the behaviour.
 /// Every backticked `.rs` / `.py` path cited in that section must resolve to
-/// a file in the crate tree or the reticulumd interop tests, so a renamed or
-/// deleted test file cannot leave the release notes pointing at nothing.
+/// a file in the crate tree, the reticulumd interop tests or the rns-tools
+/// sources, so a renamed or deleted test file cannot leave the release notes
+/// pointing at nothing.
 #[test]
 fn release_notes_cite_files_that_exist_in_the_tree() {
     let version = crate_version();
@@ -485,7 +690,9 @@ fn release_notes_cite_files_that_exist_in_the_tree() {
 
     let root = repo_root();
     let mut tree: Vec<String> = Vec::new();
-    for subtree in ["crates/libs/rns-transport", "crates/apps/reticulumd/tests"] {
+    for subtree in
+        ["crates/libs/rns-transport", "crates/apps/reticulumd/tests", "crates/apps/rns-tools/src"]
+    {
         visit_text_files(&root, &root.join(subtree), &mut |path| {
             let relative = path.strip_prefix(&root).unwrap_or(path);
             tree.push(relative.to_string_lossy().replace('\\', "/"));
@@ -495,12 +702,14 @@ fn release_notes_cite_files_that_exist_in_the_tree() {
     let unresolved: Vec<&str> = cited
         .iter()
         .copied()
-        .filter(|token| !tree.iter().any(|path| path.ends_with(&format!("/{token}"))))
+        .filter(|token| {
+            !tree.iter().any(|path| path == token || path.ends_with(&format!("/{token}")))
+        })
         .collect();
     assert!(
         unresolved.is_empty(),
-        "every file cited in the {version} release notes should exist under the crate or the \
-         reticulumd tests:\n{}",
+        "every file cited in the {version} release notes should exist under the crate, the \
+         reticulumd tests or the rns-tools sources:\n{}",
         unresolved.join("\n")
     );
 }
@@ -595,7 +804,9 @@ fn visit_text_files(root: &Path, dir: &Path, f: &mut impl FnMut(&Path)) {
             continue;
         }
         if path.is_dir() {
-            if !SKIPPED_DIRECTORIES.contains(&name) {
+            // Dot-dirs like .coyote and .venv are local tool state; .github holds the publish workflow.
+            let local_tool_dir = name.starts_with('.') && name != ".github";
+            if !local_tool_dir && !SKIPPED_DIRECTORIES.contains(&name) {
                 visit_text_files(root, &path, f);
             }
             continue;
@@ -639,5 +850,48 @@ fn old_package_name_survives_only_as_prose() {
         offenders.is_empty(),
         "the upstream package name must not survive as a cargo target or manifest name:\n{}",
         offenders.join("\n")
+    );
+}
+
+/// Release hygiene the fork carries in CI: the publish contract runs on the
+/// pull-request path, not only on the tag workflow, and the upstream Codex
+/// review is opt-in through a repository variable, so a fork without the
+/// OpenAI secret does not fail every PR. The Codex job also skips pull
+/// requests from forks, whose heads cannot read the `OPENAI_API_KEY`
+/// secret.
+#[test]
+fn pull_request_ci_runs_the_publish_contract_and_codex_review_is_opt_in() {
+    let ci = read_repo_file(".github/workflows/ci.yml");
+    assert!(ci.contains("\non:\n  pull_request:"), "ci.yml should run on pull requests");
+    assert!(
+        ci.contains("run: cargo test -p reticulumd --test fork_publish_contract --test fork_release_docs_contract"),
+        "ci.yml should run the fork publish and release-docs contracts as one step"
+    );
+    // The step belongs to a job with no `if:` guard, so it runs on every PR.
+    let job_start = ci[..ci.find("--test fork_publish_contract").expect("step located")]
+        .rfind("\n  contracts:\n")
+        .expect("the publish contract step should sit in the `contracts` job");
+    let job = &ci[job_start..ci.find("--test fork_publish_contract").expect("step located")];
+    assert!(
+        !job.lines().any(|line| line.trim_start().starts_with("if:")),
+        "the `contracts` job must not be conditional, or the publish contract skips on PRs"
+    );
+
+    let codex = read_repo_file(".github/workflows/codex-review.yml");
+    let guard = codex
+        .lines()
+        .find(|line| line.trim_start().starts_with("if:"))
+        .expect("codex-review.yml should guard its job with an `if:`");
+    assert!(
+        guard.contains("vars.CODEX_REVIEW_ENABLED == 'true'"),
+        "the Codex review job should be opt-in through the CODEX_REVIEW_ENABLED variable, got {guard:?}"
+    );
+    assert!(
+        guard.contains("github.event.pull_request.head.repo.full_name == github.repository"),
+        "the Codex review job must skip pull requests from forks, whose heads cannot read the OPENAI_API_KEY secret, got {guard:?}"
+    );
+    assert!(
+        !guard.contains("secrets."),
+        "a job-level `if:` cannot read secrets; the gate must be a repository variable"
     );
 }

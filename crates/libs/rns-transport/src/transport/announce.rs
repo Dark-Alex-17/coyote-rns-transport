@@ -340,6 +340,7 @@ async fn process_announce<'a>(
                 name_hash,
                 hops: packet.header.hops,
                 interface,
+                is_path_response: packet.context == PacketContext::PathResponse,
             })
             .is_err()
     {

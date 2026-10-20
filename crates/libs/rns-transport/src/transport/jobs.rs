@@ -5,7 +5,6 @@ use super::inbound_processing::{
 use super::*;
 use crate::destination::link::{LinkCloseReason, LinkWatchdogAction};
 
-#[allow(dead_code)]
 const MIN_LINKS_CHECK_DELAY: Duration = Duration::from_millis(10);
 const PATH_REQUEST_MI: Duration = Duration::from_secs(20);
 
@@ -74,7 +73,6 @@ mod receive_hop_increment_tests {
 
 include!("jobs_parts/link_table_cleanup.rs");
 
-#[allow(dead_code)]
 fn link_check_delay_from_deadline(
     now: std::time::Instant,
     earliest_retry: Option<std::time::Instant>,
@@ -90,7 +88,6 @@ fn link_check_delay_from_deadline(
     std::cmp::min(deadline.duration_since(now), INTERVAL_LINKS_CHECK)
 }
 
-#[allow(dead_code)]
 async fn next_link_check_delay(handler_arc: &Arc<Mutex<TransportHandler>>) -> Duration {
     let (in_links, out_links) = {
         let handler = handler_arc.lock().await;
@@ -149,6 +146,7 @@ pub(super) async fn manage_transport(
     handler_arc: Arc<Mutex<TransportHandler>>,
     rx_receiver: Arc<Mutex<InterfaceRxReceiver>>,
     iface_messages_tx: broadcast::Sender<RxMessage>,
+    request_dispatch_rx: tokio::sync::mpsc::Receiver<DispatchItem>,
 ) {
     let cancel = handler_arc.lock().await.cancel.clone();
 
@@ -213,6 +211,13 @@ pub(super) async fn manage_transport(
             }
         });
     }
+
+    spawn_named_worker(
+        &mut workers,
+        &mut worker_names,
+        "request-dispatch",
+        super::request_dispatch::run(handler_arc.clone(), cancel.clone(), request_dispatch_rx),
+    );
 
     {
         let handler = handler_arc.clone();
@@ -377,7 +382,11 @@ pub(super) async fn manage_transport(
                                 send_resource_retry(&mut handler, iface, packet).await;
                             }
                         }
-                        let events = handler.resource_manager.drain_events();
+                        let mut events = handler.resource_manager.drain_events();
+                        let cancel_events =
+                            super::resource_wire::note_resource_events_on_links(&mut handler, &events)
+                                .await;
+                        events.extend(cancel_events);
                         super::resource_wire::publish_resource_events(&handler, events);
                     }
                 }

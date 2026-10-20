@@ -2,6 +2,7 @@ use super::diag;
 use super::diag::bytes_to_hex;
 use super::wire_encryption::should_encrypt_packet;
 use super::*;
+use crate::destination::request::RequestId;
 use crate::iface::InterfaceMode;
 
 impl TransportHandler {
@@ -34,7 +35,22 @@ impl TransportHandler {
         };
 
         if let Some(link) = link {
-            link.lock().await.note_outbound(packet.context);
+            let mut link = link.lock().await;
+            link.note_outbound(packet.context);
+            // Every request packet solicits its response (RNS/Link.py:473-510,
+            // :1046-1047); see Link::note_request_sent.
+            if packet.context == PacketContext::Request {
+                let request_id = RequestId::from_packet_hash(&packet.hash());
+                link.note_request_sent(request_id.as_bytes());
+            }
+            // Every plain Data packet sent on a link is recorded for its proof
+            // (RNS/Transport.py:1359-1377 records the receipt, narrowed here to
+            // PacketContext::None; :2748-2761 consumes it); see Link::note_data_sent.
+            if packet.header.packet_type == PacketType::Data
+                && packet.context == PacketContext::None
+            {
+                link.note_data_sent(packet.hash());
+            }
         }
     }
 

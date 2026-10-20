@@ -6,7 +6,8 @@
 
 /// Any request Resource larger than this is rejected by the listener's destination.
 const REJECT_REQUEST_LIMIT: usize = 1024;
-/// Random bytes, so bz2 cannot bring the transfer size back under the limit.
+/// The reject fires on the advertised `d` (uncompressed size); random bytes keep `d` and
+/// `t` close, so the advertisement reads the same whichever field is inspected.
 const OVERSIZE_REQUEST_LEN: usize = 4 * 1024;
 const ACCEPTED_REQUEST_LEN: usize = 256;
 /// `stop_interface` locks the handler first; a wedged handler never returns from it.
@@ -82,14 +83,14 @@ async fn two_transport_loopback_resources_reject_then_recover_on_same_link() {
         event.hash == rejected_hash
             && matches!(
                 event.kind,
-                ResourceEventKind::OutboundRejected
+                ResourceEventKind::OutboundRejected { .. }
                     | ResourceEventKind::OutboundComplete
                     | ResourceEventKind::OutboundFailed
             )
     })
     .await;
     assert!(
-        matches!(rejected.kind, ResourceEventKind::OutboundRejected),
+        matches!(rejected.kind, ResourceEventKind::OutboundRejected { .. }),
         "the oversize request is rejected, got {:?}",
         rejected.kind
     );
@@ -117,7 +118,7 @@ async fn two_transport_loopback_resources_reject_then_recover_on_same_link() {
                 event.kind,
                 ResourceEventKind::OutboundComplete
                     | ResourceEventKind::OutboundFailed
-                    | ResourceEventKind::OutboundRejected
+                    | ResourceEventKind::OutboundRejected { .. }
             )
     })
     .await;

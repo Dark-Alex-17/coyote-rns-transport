@@ -2,6 +2,7 @@
 pub struct ResourceManager {
     outgoing: HashMap<Hash, ResourceSender>,
     outgoing_segment_chains: HashMap<Hash, PendingSegments>,
+    outbound_outcomes: HashMap<Hash, tokio::sync::oneshot::Sender<OutboundResult>>,
     incoming: HashMap<Hash, ResourceReceiver>,
     incoming_segments: HashMap<Hash, InboundSegmentAssembly>,
     events: Vec<ResourceEvent>,
@@ -32,11 +33,7 @@ impl ResourceManager {
                 .remove(&active_hash)
                 .expect("outgoing sender existed before cancel packet");
             self.outgoing_segment_chains.remove(&sender.original_hash);
-            self.events.push(ResourceEvent {
-                hash: sender.original_hash,
-                link_id: sender.link_id,
-                kind: ResourceEventKind::OutboundCancelled,
-            });
+            self.conclude_outbound(sender.original_hash, sender.link_id, OutboundResult::Cancelled);
             return Ok(Some(packet));
         }
         Ok(None)
@@ -46,9 +43,20 @@ impl ResourceManager {
         std::mem::take(&mut self.events)
     }
 
+    /// Takes only the events queued for `link_id`, leaving every other
+    /// link's events for the periodic routed drain.
+    pub(crate) fn drain_events_for_link(&mut self, link_id: &AddressHash) -> Vec<ResourceEvent> {
+        let (for_link, others): (Vec<_>, Vec<_>) =
+            std::mem::take(&mut self.events).into_iter().partition(|event| event.link_id == *link_id);
+        self.events = others;
+        for_link
+    }
+
     #[cfg(test)]
     pub(crate) fn has_no_outbound_state(&self) -> bool {
         self.outgoing.is_empty()
+            && self.outgoing_segment_chains.is_empty()
+            && self.outbound_outcomes.is_empty()
     }
 
     pub fn handle_packet(&mut self, packet: &Packet, link: &mut Link) -> Vec<Packet> {
@@ -454,11 +462,11 @@ impl ResourceManager {
                 // local cancel and from ICL, which terminates an inbound one.
                 if let Some(sender) = self.outgoing.remove(&hash) {
                     self.outgoing_segment_chains.remove(&sender.original_hash);
-                    self.events.push(ResourceEvent {
-                        hash: sender.original_hash,
-                        link_id: sender.link_id,
-                        kind: ResourceEventKind::OutboundRejected,
-                    });
+                    self.conclude_outbound(
+                        sender.original_hash,
+                        sender.link_id,
+                        OutboundResult::Rejected(RejectReason::PeerCancelled),
+                    );
                 }
             }
             _ => {}

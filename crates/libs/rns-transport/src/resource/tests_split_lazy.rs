@@ -300,7 +300,7 @@ fn a_remote_cancel_drops_the_unbuilt_tail() {
     assert!(manager
         .drain_events()
         .iter()
-        .any(|event| matches!(event.kind, ResourceEventKind::OutboundRejected)));
+        .any(|event| matches!(event.kind, ResourceEventKind::OutboundRejected { .. })));
 }
 
 /// The same cancel, arriving before the first advertisement has been confirmed
@@ -338,5 +338,5 @@ fn a_remote_cancel_before_dispatch_drops_the_unbuilt_tail() {
     assert!(manager
         .drain_events()
         .iter()
-        .any(|event| matches!(event.kind, ResourceEventKind::OutboundRejected)));
+        .any(|event| matches!(event.kind, ResourceEventKind::OutboundRejected { .. })));
 }

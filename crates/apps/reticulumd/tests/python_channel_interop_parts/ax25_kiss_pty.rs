@@ -91,7 +91,7 @@ async fn python_rust_ax25_kiss_serial_channel_roundtrip_over_pty() {
     let exchange = tokio::time::timeout(Duration::from_secs(60), async {
         let destination = wait_for_announce(&transport, target_hash, Duration::from_secs(20)).await;
         let mut link_events = transport.out_link_events();
-        let link = transport.link(destination).await;
+        let link = transport.link(destination).await.expect("link request sent");
         let link_id = wait_for_out_link_active(&mut link_events, &link, Duration::from_secs(15)).await;
 
         let seen = Arc::new(StdMutex::new(Vec::<(String, String)>::new()));

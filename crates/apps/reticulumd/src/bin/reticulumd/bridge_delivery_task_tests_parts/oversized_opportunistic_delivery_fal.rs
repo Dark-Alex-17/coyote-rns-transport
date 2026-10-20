@@ -169,7 +169,8 @@ async fn propagated_link_send_tracks_resource_with_propagated_status() {
         address_hash: propagation_identity.address_hash,
         name: DestinationName::new("lxmf", "propagation"),
     };
-    let propagation_link = transport.link(propagation_destination).await;
+    let propagation_link =
+        transport.link(propagation_destination).await.expect("link request sent");
     let request_message =
         tokio::time::timeout(Duration::from_millis(200), channel.tx_channel.recv())
             .await

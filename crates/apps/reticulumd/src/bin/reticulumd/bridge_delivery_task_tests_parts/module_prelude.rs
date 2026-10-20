@@ -214,7 +214,7 @@ async fn tracked_outbound_resource_cancel_sends_resource_cancel_frame() {
         address_hash: remote_identity.address_hash,
         name: DestinationName::new("lxmf", "delivery"),
     };
-    let link = transport.link(destination).await;
+    let link = transport.link(destination).await.expect("link request sent");
     let request_message =
         tokio::time::timeout(Duration::from_millis(200), channel.tx_channel.recv())
             .await
@@ -318,7 +318,7 @@ async fn resource_cancel_monitor_aborts_resource_after_late_cancel() {
         address_hash: remote_identity.address_hash,
         name: DestinationName::new("lxmf", "delivery"),
     };
-    let link = transport.link(destination).await;
+    let link = transport.link(destination).await.expect("link request sent");
     let request_message =
         tokio::time::timeout(Duration::from_millis(200), channel.tx_channel.recv())
             .await

@@ -56,13 +56,27 @@ impl Transport {
                 }
             }
         }
-        let shared_instance = {
-            let mut slot =
-                self.shared_instance.lock().unwrap_or_else(|poisoned| poisoned.into_inner());
-            slot.take()
-        };
-        if shared_instance.is_some() {
-            self.set_connected_to_shared_instance(false).await;
+        match time::timeout_at(deadline, self.handler.lock()).await {
+            Ok(mut handler) => {
+                let attached = {
+                    let mut slot = self
+                        .shared_instance
+                        .lock()
+                        .unwrap_or_else(|poisoned| poisoned.into_inner());
+                    slot.take()
+                };
+                if attached.is_some() {
+                    handler.config.set_connected_to_shared_instance(false);
+                }
+            }
+            Err(_) => {
+                let mut slot =
+                    self.shared_instance.lock().unwrap_or_else(|poisoned| poisoned.into_inner());
+                slot.take();
+                log::warn!(
+                    "[tp] handler still locked after stop budget, shared-instance posture not cleared"
+                );
+            }
         }
         self.cancel.cancel();
         let manage_task = {

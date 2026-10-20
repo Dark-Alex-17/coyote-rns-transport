@@ -467,11 +467,11 @@ mod request_dispatch;
 // resource_accept_hook: the caller-installed callbacks, receipt handler and resource admission.
 mod resource_accept_hook;
 pub use resource_accept_hook::ResourceAcceptHook;
+// resource_wire: link-scoped resource packet handling on inbound wire paths.
+mod resource_wire;
 // shared_instance: endpoint and options for attaching as a shared-instance client.
 mod shared_instance;
 pub use shared_instance::{SharedInstanceEndpoint, SharedInstanceOptions};
-// resource_wire: link-scoped resource packet handling on inbound wire paths.
-mod resource_wire;
 // wire_encryption: packet-context policy for transport-layer encryption.
 mod wire_encryption;
 // wire_receipt: proof correlation and cryptographic receipt validation.

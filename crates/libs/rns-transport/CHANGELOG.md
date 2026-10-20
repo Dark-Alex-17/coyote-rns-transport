@@ -90,7 +90,10 @@ bullet of its own, marked test-only.
   `transport/tests_parts/two_transport_loopback_requests_isolation.rs` (the
   attach line never warns, the tcp line marks the reconnect wait as ignored
   while the unix line reports it, a stale-slot detach and an attach whose
-  interface vanished between its sections log at debug).
+  interface vanished between its sections log at debug) and
+  `transport/tests_parts/two_transport_shared_instance_probe6.rs` (the
+  attach line is space-separated key=value tokens and only the tcp arm
+  appends the ignored-wait parenthetical).
 - The proof-cap fixture
   `transport/tests_parts/two_transport_loopback_link_packet_proven_probe2.rs`
   holds its handler stall until the test releases it after the burst

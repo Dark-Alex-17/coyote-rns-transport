@@ -25,7 +25,8 @@ belongs to. Patch ids: F4 is shared-instance client packaging. The
 `shared-instance client packaging` patch is fork commits `2a027a9d`,
 `b306b2a1`, `17b41d6a`, `ff8a8e8a`, `ff67110d`, `e4494576`, `21e4dacc`,
 `a6036013`, `8a1c2d16`, `9247525e`, `afa72a00`, `c05832b9`, `013d0dd2`,
-`b7df209e`, `6baf2e34`, `2e62274d`, `eba27ade`, `a4fdb0bb` and `952d6ca9`;
+`b7df209e`, `6baf2e34`, `2e62274d`, `eba27ade`, `a4fdb0bb`, `952d6ca9`,
+`18e2ccb5`, `52be26ad` and `428a699a`;
 the `proof cap stall on signal` patch carries no other id and is fork
 commit `cccc40e4`.
 
@@ -43,18 +44,21 @@ commit `cccc40e4`.
 | `crates/libs/rns-transport/src/transport/mod.rs` | shared-instance client packaging |
 | `crates/libs/rns-transport/src/transport/shared_instance.rs` | shared-instance client packaging |
 | `crates/libs/rns-transport/src/transport/tests.rs` | shared-instance client packaging |
-| `crates/libs/rns-transport/src/transport/tests_parts/two_transport_loopback_link_packet_proven_probe2.rs` | proof cap stall on signal |
+| `crates/libs/rns-transport/src/transport/tests_parts/two_transport_loopback_link_packet_proven_probe2.rs` | proof cap stall on signal, shared-instance client packaging |
+| `crates/libs/rns-transport/src/transport/tests_parts/two_transport_loopback_requests_isolation.rs` | shared-instance client packaging |
 | `crates/libs/rns-transport/src/transport/tests_parts/two_transport_shared_instance.rs` | shared-instance client packaging |
 | `crates/libs/rns-transport/src/transport/tests_parts/two_transport_shared_instance_probe.rs` | shared-instance client packaging |
 | `crates/libs/rns-transport/src/transport/tests_parts/two_transport_shared_instance_probe2.rs` | shared-instance client packaging |
 | `crates/libs/rns-transport/src/transport/tests_parts/two_transport_shared_instance_probe3.rs` | shared-instance client packaging |
 | `crates/libs/rns-transport/src/transport/tests_parts/two_transport_shared_instance_probe4.rs` | shared-instance client packaging |
+| `crates/libs/rns-transport/src/transport/tests_parts/two_transport_shared_instance_probe5.rs` | shared-instance client packaging |
 | `docs/fork/PATCHSET.md` | shared-instance client packaging |
 
 Fork commits `2a027a9d`, `b306b2a1`, `17b41d6a`, `ff8a8e8a`, `ff67110d`,
 `e4494576`, `21e4dacc`, `a6036013`, `8a1c2d16`, `9247525e`, `afa72a00`,
 `c05832b9`, `013d0dd2`, `b7df209e`, `6baf2e34`, `2e62274d`, `eba27ade`,
-`a4fdb0bb` and `952d6ca9`: F4, shared-instance client packaging. The first
+`a4fdb0bb`, `952d6ca9`, `18e2ccb5`, `52be26ad` and `428a699a`: F4,
+shared-instance client packaging. The first
 lands `SharedInstanceEndpoint`
 and `SharedInstanceOptions`, the four `Transport` methods
 `attach_shared_instance`, `detach_shared_instance`,
@@ -115,22 +119,41 @@ and the stop-vs-attach window. The fourteenth adopts the fourth fixture
 (`remove_interface` leaves the slot held until detach, a second stop
 detaches an interface spawned inside the first stop's window), bounds
 every joined attach, detach or stop await in the earlier fixtures with the
-stop timeout and makes their stall releases consistent. The fifteenth
-rewords the `stop` rustdoc so the repeated-stop sentence names its
-exception, quiets the missing-interface warning at attach to a debug line
-naming the racing detach or stop, prints the reconnect wait in the attach
-line for unix endpoints only and says so when a detach finds a stale slot.
+stop timeout, makes their stall releases consistent, notes on the stall
+helper's rustdoc that the shared-instance fixtures hold the handler with
+it, and reuses the `LocalUnixEndpoint` import in the second fixture. The
+fifteenth rewords the `stop` rustdoc so the repeated-stop sentence names
+its exception, quiets the missing-interface warning at attach to a debug
+line naming the racing detach or stop, labels the reconnect wait as in
+force only for unix endpoints and says so when a detach finds a stale slot.
 The sixteenth keeps the TCP attach line reading the configured reconnect
 wait, which the TCP client ignores, so the options stay used when the
 unix arm is compiled out. The seventeenth holds the `## Unreleased` ledger
 section to the release-section contracts (files exist, rows name a legend
 patch, legend hashes head a patch), requires an undated heading and a pin
-clause per bullet in the Unreleased release notes, and pins the
-request-layer walker floor at its measured count. The eighteenth cites
+clause per bullet in the Unreleased release notes, pins the
+request-layer walker floor at its measured count and renames the README
+fence test. The eighteenth cites
 the fourth fixture, the two contract tests and the proof-cap stall in the
 release notes. The nineteenth makes the Unreleased ledger checks fail on
 a `## Unreleased` heading that lacks its `(upstream <base>)` suffix
-instead of skipping. The file sites below describe the combined result.
+instead of skipping. The twentieth writes the TCP attach line as
+space-separated key=value like the unix arm, marking the reconnect wait
+as ignored by the tcp client, names `stop_interface` among the racers in
+the tunnel-miss debug line, starts the ledger header-hash walk at the
+table so a legend sentence cannot vouch for its own hashes, and says on
+the third and fourth fixtures' stop guards why they outlast the stop
+timeout. The twenty-first extends the binary's one logger in
+`two_transport_loopback_requests_isolation.rs` with a shared-instance
+record store keyed by transport name and adopts the fifth fixture that
+reads it (the attach never warns, the tcp line marks the reconnect wait
+as ignored while the unix line reports it, a stale-slot detach and an
+attach whose interface vanished between its sections log at debug). The
+twenty-second admits the test-only fixture-hardening exception to the
+release-notes listing rule, attributes the release notes and the ledger
+section to the publish contract, and pins the fifth fixture and the
+record store on the `Transport::stop` bullet. The file sites below
+describe the combined result.
 Upstream sites:
 `crates/libs/rns-transport/src/transport/mod.rs` registers the
 `shared_instance` module, re-exports its two types and gains the
@@ -140,7 +163,10 @@ that slot; `transport/handler.rs` receives the moved
 and the connected flag in `stop` after the management task has joined and
 warns, naming the interface, only when a slot was held past the budget;
 `links_parts/transport.rs` includes the new method section;
-`transport/tests.rs` includes the five fixtures;
+`transport/tests.rs` includes the six fixtures;
+`transport/tests_parts/two_transport_loopback_requests_isolation.rs`
+keeps the shared-instance client's log records next to the link's drop
+records;
 `crates/apps/reticulumd/tests/fork_publish_contract.rs` scans the
 `## Unreleased` release notes for file cites and checks the
 `## Unreleased` ledger section. New files:
@@ -149,8 +175,9 @@ warns, naming the interface, only when a slot was held past the budget;
 `src/transport/tests_parts/two_transport_shared_instance.rs`,
 `src/transport/tests_parts/two_transport_shared_instance_probe.rs`,
 `src/transport/tests_parts/two_transport_shared_instance_probe2.rs`,
-`src/transport/tests_parts/two_transport_shared_instance_probe3.rs` and
-`src/transport/tests_parts/two_transport_shared_instance_probe4.rs`. The
+`src/transport/tests_parts/two_transport_shared_instance_probe3.rs`,
+`src/transport/tests_parts/two_transport_shared_instance_probe4.rs` and
+`src/transport/tests_parts/two_transport_shared_instance_probe5.rs`. The
 crate `CHANGELOG.md` carries the release notes.
 
 Fork commit `cccc40e4`: proof cap stall on signal. The cap fixture of
@@ -162,7 +189,7 @@ them, and the proven set no longer matched the newest 1024. The stall is
 now held on a blocking thread until the test releases it after the burst
 (`stall_handler_until_released` holds the guard, spawned by
 `stall_transport_until_released`, both defined in that file and reused by
-the third shared-instance probe), so its length
+the third, fourth and fifth shared-instance fixtures), so its length
 no longer depends on runner speed. The pinned counts and hashes are
 unchanged. Upstream site: that fixture file only.
 

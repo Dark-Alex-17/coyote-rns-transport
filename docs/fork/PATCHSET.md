@@ -60,7 +60,7 @@ and is fork commits `60e74ffb`, `6e583b50`, `ea6edfaa`, `9223ef43`,
 and is fork commits `d4a3b2d2`, `5075d765`, `eb0e19f2`, `06068516`,
 `ac9c49af`, `8b3ce9e1`, `23bdc1a8`, `ba92e2ba`, `8d70f3e1`, `ccfba204`,
 `af1b7e62`, `061141f9`, `0bbccb83`, `eb854ab6`, `c5048353`, `93f417c6`,
-`2d2d88e1`, `2432cff5`, `e2a1a28a`, `77024043` and `f326b062`.
+`2d2d88e1`, `2432cff5`, `e2a1a28a`, `77024043`, `f326b062` and `44c98d93`.
 
 | File | Patch |
 | --- | --- |
@@ -224,7 +224,7 @@ and is fork commits `d4a3b2d2`, `5075d765`, `eb0e19f2`, `06068516`,
 | `crates/libs/rns-transport/src/transport/tests_parts/two_transport_loopback_requests_isolation.rs` | request handlers and dispatch |
 | `crates/libs/rns-transport/src/transport/tests_parts/two_transport_loopback_requests_malformed.rs` | request handlers and dispatch |
 | `crates/libs/rns-transport/src/transport/tests_parts/two_transport_loopback_requests_probe.rs` | request handlers and dispatch, request receipts and timeouts |
-| `crates/libs/rns-transport/src/transport/tests_parts/two_transport_loopback_requests_receipt.rs` | request receipts and timeouts |
+| `crates/libs/rns-transport/src/transport/tests_parts/two_transport_loopback_requests_receipt.rs` | request receipts and timeouts, release 0.15.0 |
 | `crates/libs/rns-transport/src/transport/tests_parts/two_transport_loopback_requests_receipt_orders.rs` | link proof event and receipt link id |
 | `crates/libs/rns-transport/src/transport/tests_parts/two_transport_loopback_requests_receipt_probe.rs` | request receipts and timeouts |
 | `crates/libs/rns-transport/src/transport/tests_parts/two_transport_loopback_requests_receipt_probe2.rs` | request receipts and timeouts |
@@ -239,7 +239,7 @@ and is fork commits `d4a3b2d2`, `5075d765`, `eb0e19f2`, `06068516`,
 | `crates/libs/rns-transport/src/transport/tests_parts/two_transport_loopback_requests_resource_form_probe.rs` | request handlers and dispatch, outbound outcomes with link fast fail and accept hook |
 | `crates/libs/rns-transport/src/transport/tests_parts/two_transport_loopback_requests_resource_form_probe2.rs` | request handlers and dispatch |
 | `crates/libs/rns-transport/src/transport/tests_parts/two_transport_loopback_requests_resource_form_probe3.rs` | request handlers and dispatch, outbound outcomes with link fast fail and accept hook |
-| `crates/libs/rns-transport/src/transport/tests_parts/two_transport_loopback_requests_resource_form_sizes.rs` | request receipts and timeouts, outbound outcomes with link fast fail and accept hook |
+| `crates/libs/rns-transport/src/transport/tests_parts/two_transport_loopback_requests_resource_form_sizes.rs` | request receipts and timeouts, outbound outcomes with link fast fail and accept hook, release 0.15.0 |
 | `crates/libs/rns-transport/src/transport/tests_parts/two_transport_loopback_requests_resource_form_sizes_cancel.rs` | request receipts and timeouts |
 | `crates/libs/rns-transport/src/transport/tests_parts/two_transport_loopback_requests_resource_form_sizes_cancel2.rs` | request receipts and timeouts |
 | `crates/libs/rns-transport/src/transport/tests_parts/two_transport_loopback_requests_resource_form_sizes_cancel_probe.rs` | request receipts and timeouts |
@@ -257,7 +257,7 @@ and is fork commits `d4a3b2d2`, `5075d765`, `eb0e19f2`, `06068516`,
 | `crates/libs/rns-transport/src/transport/tests_parts/two_transport_loopback_requests_resource_form_sizes_probe12.rs` | request receipts and timeouts |
 | `crates/libs/rns-transport/src/transport/tests_parts/two_transport_loopback_requests_resource_form_sizes_probe13.rs` | request receipts and timeouts |
 | `crates/libs/rns-transport/src/transport/tests_parts/two_transport_loopback_requests_resource_form_sizes_probe14.rs` | request receipts and timeouts |
-| `crates/libs/rns-transport/src/transport/tests_parts/two_transport_loopback_requests_resource_form_sizes_probe15.rs` | request receipts and timeouts |
+| `crates/libs/rns-transport/src/transport/tests_parts/two_transport_loopback_requests_resource_form_sizes_probe15.rs` | request receipts and timeouts, release 0.15.0 |
 | `crates/libs/rns-transport/src/transport/tests_parts/two_transport_loopback_requests_resource_form_sizes_probe16.rs` | request receipts and timeouts |
 | `crates/libs/rns-transport/src/transport/tests_parts/two_transport_loopback_requests_routing.rs` | request handlers and dispatch, request receipts and timeouts |
 | `crates/libs/rns-transport/src/transport/tests_parts/two_transport_loopback_resources.rs` | request receipts and timeouts, outbound outcomes with link fast fail and accept hook |
@@ -2611,7 +2611,7 @@ fns carries `#[deny(clippy::await_holding_invalid_type)]`.
 Fork commits `d4a3b2d2`, `5075d765`, `eb0e19f2`, `06068516`, `ac9c49af`,
 `8b3ce9e1`, `23bdc1a8`, `ba92e2ba`, `8d70f3e1`, `ccfba204`, `af1b7e62`,
 `061141f9`, `0bbccb83`, `eb854ab6`, `c5048353`, `93f417c6`, `2d2d88e1`,
-`2432cff5`, `e2a1a28a`, `77024043` and `f326b062`:
+`2432cff5`, `e2a1a28a`, `77024043`, `f326b062` and `44c98d93`:
 release 0.15.0. The first gates the inherited Codex review workflow
 (`.github/workflows/codex-review.yml`) on the repository variable
 `CODEX_REVIEW_ENABLED`, so the check is skipped until the variable and the
@@ -2741,6 +2741,15 @@ when none lands within `LOOPBACK_TIMEOUT` of the previous one, after the
 ubuntu nextest lane of the release pull request delivered 854 proofs inside
 the fixed budget; the pinned counts are unchanged, and the crate
 `CHANGELOG.md` says so under the `PacketProven` pin clause. The
+twenty-second holds the responder of the three fixtures that assert a
+resource-form receipt passes `Delivered`
+(`two_transport_loopback_requests_receipt.rs`,
+`two_transport_loopback_requests_resource_form_sizes.rs` and
+`two_transport_loopback_requests_resource_form_sizes_probe15.rs`) on a
+`Notify` the status subscriber releases once it has read `Delivered`, in
+place of a 300 ms handler sleep, after the same lane read the response
+advertisement's `Receiving` in its place on the receipt's `watch`; no
+assertion is loosened, and the exact-order fixtures are unchanged. The
 ledger-only commits that complete this section are omitted by convention.
 The patches of the `## 0.14.1` section below are still carried; the patches
 above build on their files rather than replacing them, and the publish

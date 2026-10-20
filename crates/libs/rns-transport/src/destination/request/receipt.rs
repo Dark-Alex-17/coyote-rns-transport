@@ -41,7 +41,9 @@ impl RequestOptions {
         self
     }
 
-    /// Refuses a response larger than `max_response_size` bytes.
+    /// Refuses a response larger than `max_response_size` bytes, the check
+    /// Python runs on a response Resource's advertisement
+    /// (`RNS/Link.py:1048-1049`).
     pub fn with_max_response_size(mut self, max_response_size: usize) -> Self {
         self.max_response_size = Some(max_response_size);
         self
@@ -84,7 +86,10 @@ impl RequestStatus {
     }
 }
 
-/// Why a request failed.
+/// Why a request failed. Python has the single `RequestReceipt.FAILED`
+/// status (`RNS/Link.py:1318-1322`), reached from `request_timed_out`
+/// (`:1397-1405`) and `response_rejected` (`:1407-1411`); the variants here
+/// split that status by cause.
 #[non_exhaustive]
 #[derive(Debug, Clone, Copy, PartialEq, Eq, thiserror::Error)]
 pub enum RequestError {

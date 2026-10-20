@@ -21,7 +21,9 @@ pub enum RejectReason {
     Unknown,
 }
 
-/// How an outbound resource stopped short of being proven.
+/// How an outbound resource stopped short of being proven. Fork-only:
+/// Python's sender has the one `Resource.FAILED` status
+/// (`RNS/Resource.py:151`, set at `:1102`) for every one of these.
 #[non_exhaustive]
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum OutboundFailure {
@@ -41,7 +43,10 @@ pub enum OutboundFailure {
     LinkClosed,
 }
 
-/// The terminal verdict of one outbound resource.
+/// The terminal verdict of one outbound resource. Fork-only: Python reports
+/// a sender's fate only through the Resource's status
+/// (`RNS/Resource.py:144-153`) and its concluded callback (`:805-806`,
+/// `:1118-1121`, `:1130-1133`).
 #[non_exhaustive]
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum OutboundResult {
@@ -60,6 +65,9 @@ pub enum OutboundResult {
 /// Handed out by [`ResourceManager::track_prepared_with_outcome`]. If the
 /// manager is dropped before reaching a verdict the future resolves to
 /// `Failed(`[`OutboundFailure::LinkClosed`]`)` rather than hanging.
+///
+/// Fork-only: Python has no awaitable verdict, only the Resource callback
+/// (`RNS/Resource.py:805-806`, `:1118-1121`, `:1130-1133`).
 #[must_use = "the outcome resolves once; dropping it loses the verdict"]
 pub struct OutboundOutcome {
     rx: tokio::sync::oneshot::Receiver<OutboundResult>,
@@ -90,6 +98,9 @@ impl ResourceManager {
     ///
     /// The outcome is keyed by the original hash, so a split resource
     /// resolves once, when its final segment concludes, not per segment.
+    ///
+    /// Fork-only: Python's sender registers a callback on the Resource
+    /// instead (`RNS/Resource.py:388`, `:1139`).
     ///
     /// [`track_prepared`]: ResourceManager::track_prepared
     pub fn track_prepared_with_outcome(

@@ -19,10 +19,14 @@ impl PathHash {
         Self(address_hash(path.as_bytes()))
     }
 
+    /// The 16 truncated-hash bytes, as a request packs them at
+    /// `unpacked_request[1]` (`RNS/Link.py:486-487`).
     pub const fn as_bytes(&self) -> &[u8; ADDRESS_HASH_SIZE] {
         &self.0
     }
 
+    /// The 16 truncated-hash bytes by value; the owned twin of
+    /// [`as_bytes`](Self::as_bytes) (`RNS/Link.py:486-487`).
     pub const fn to_bytes(self) -> [u8; ADDRESS_HASH_SIZE] {
         self.0
     }
@@ -69,10 +73,14 @@ impl RequestId {
         Self(address_hash(packed))
     }
 
+    /// The 16 id bytes a response names at `unpacked_response[0]`
+    /// (`RNS/Link.py:490-504`, `:1014`).
     pub const fn as_bytes(&self) -> &[u8; ADDRESS_HASH_SIZE] {
         &self.0
     }
 
+    /// The 16 id bytes by value; the owned twin of
+    /// [`as_bytes`](Self::as_bytes) (`RNS/Link.py:490-504`).
     pub const fn to_bytes(self) -> [u8; ADDRESS_HASH_SIZE] {
         self.0
     }

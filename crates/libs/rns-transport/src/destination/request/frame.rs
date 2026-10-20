@@ -9,14 +9,17 @@ use crate::hash::ADDRESS_HASH_SIZE;
 use super::id::{PathHash, RequestId};
 
 /// Deepest container nesting a frame may carry. Arrays and maps count, the
-/// frame's own outer array is level one.
+/// frame's own outer array is level one. Fork-only: Python decodes with
+/// `umsgpack.unpackb` and sets no depth limit (`RNS/Link.py:1003`, `:1013`).
 pub const MAX_DEPTH: usize = 128;
 
 /// Why a byte string is not a request or response frame.
 ///
 /// Carries no heap data, so refusing an input allocates nothing. Converts
 /// into [`RnsError::PacketError`], the crate's decode failure at link
-/// boundaries.
+/// boundaries. Fork-only: Python hands the bytes straight to
+/// `umsgpack.unpackb` with no shape or depth pre-walk (`RNS/Link.py:1003`,
+/// `:888` request side; `:1013`, `:909` response side).
 #[non_exhaustive]
 #[derive(Debug, Clone, Copy, PartialEq, Eq, thiserror::Error)]
 pub enum FrameDecodeError {

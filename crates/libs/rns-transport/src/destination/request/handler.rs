@@ -30,7 +30,8 @@ pub enum RequestResponse {
     Resource { data: Vec<u8>, metadata: Option<rmpv::Value> },
 }
 
-/// The `response_generator` of `RNS.Destination.register_request_handler`.
+/// The `response_generator` of `RNS.Destination.register_request_handler`
+/// (`RNS/Destination.py:381-398`).
 ///
 /// Every `Fn(InboundRequest) -> impl Future<Output = Option<RequestResponse>>`
 /// whose future is `Send + 'static` is a handler through the blanket impl
@@ -41,6 +42,8 @@ pub enum RequestResponse {
 /// runs a thread per request; a handler that needs a bound holds its own
 /// `Semaphore`.
 pub trait RequestHandler: Send + Sync {
+    /// The `response_generator` call (`RNS/Link.py:831`); `None` sends no
+    /// response (`RNS/Link.py:844`).
     fn handle(
         &self,
         request: InboundRequest,

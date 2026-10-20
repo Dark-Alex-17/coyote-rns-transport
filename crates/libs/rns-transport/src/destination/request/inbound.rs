@@ -36,6 +36,8 @@ impl InboundRequest {
         &self.path
     }
 
+    /// The hash the request carried, which Python uses as the key into
+    /// `destination.request_handlers` (`RNS/Link.py:807`, `:810`).
     pub fn path_hash(&self) -> PathHash {
         self.path_hash
     }
@@ -45,14 +47,20 @@ impl InboundRequest {
         &self.data
     }
 
+    /// The `data` argument of `response_generator` (`RNS/Link.py:831`) by
+    /// value; the owned twin of [`data`](Self::data).
     pub fn into_data(self) -> rmpv::Value {
         self.data
     }
 
+    /// The `request_id` argument of `response_generator`
+    /// (`RNS/Link.py:831`).
     pub fn request_id(&self) -> RequestId {
         self.request_id
     }
 
+    /// The `link_id` argument of `response_generator`, Python's
+    /// `self.link_id` (`RNS/Link.py:831`).
     pub fn link_id(&self) -> AddressHash {
         self.link_id
     }

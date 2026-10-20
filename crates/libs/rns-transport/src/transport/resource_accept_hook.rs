@@ -47,7 +47,8 @@ impl Transport {
     /// Installs the [`ResourceAcceptHook`] consulted for every inbound plain
     /// resource advertisement from now on; a later call replaces it. The hook
     /// runs inside the inbound packet path with the link locked, so it must
-    /// return promptly and must not call back into the transport.
+    /// return promptly and must not call back into the transport. This is
+    /// the `ACCEPT_APP` callback `RNS/Link.py:1066-1074` consults.
     pub async fn set_resource_accept_hook(&self, hook: ResourceAcceptHook) {
         self.handler.lock().await.resource_accept_hook = Some(hook);
     }

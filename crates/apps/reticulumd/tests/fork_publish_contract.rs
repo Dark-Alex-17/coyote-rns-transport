@@ -409,9 +409,9 @@ fn patch_set_ledger_lists_existing_files_for_the_current_release() {
         "crates/apps/reticulumd/tests/fork_publish_contract.rs",
         "docs/fork/PATCHSET.md",
     ];
-    for required in RELEASE_LOCKS.iter().chain(required_every_release.iter()).copied() {
+    for required in RELEASE_LOCKS.iter().chain(required_every_release.iter()) {
         assert!(
-            table_paths.contains(&required),
+            table_paths.contains(required),
             "the {version} table should list {required:?}, which changes on every release"
         );
     }

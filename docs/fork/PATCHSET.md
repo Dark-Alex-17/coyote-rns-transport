@@ -20,7 +20,48 @@ sites, so a rebase can re-apply them one commit at a time.
 
 ## Unreleased (upstream 0.14.0)
 
-No file has changed since the `0.15.0` release.
+Every file changed since the `0.15.0` release and the patch each change
+belongs to. Patch ids: F13 is shared-instance client packaging. The
+`shared-instance client packaging` patch is fork commits `2a027a9d`,
+`b306b2a1` and `17b41d6a`.
+
+| File | Patch |
+| --- | --- |
+| `crates/apps/reticulumd/tests/fork_release_docs_contract.rs` | shared-instance client packaging |
+| `crates/libs/rns-transport/CHANGELOG.md` | shared-instance client packaging |
+| `crates/libs/rns-transport/README.md` | shared-instance client packaging |
+| `crates/libs/rns-transport/src/transport/core.rs` | shared-instance client packaging |
+| `crates/libs/rns-transport/src/transport/handler.rs` | shared-instance client packaging |
+| `crates/libs/rns-transport/src/transport/lifecycle.rs` | shared-instance client packaging |
+| `crates/libs/rns-transport/src/transport/links_parts/transport.rs` | shared-instance client packaging |
+| `crates/libs/rns-transport/src/transport/links_parts/transport_sections/shared_instance.rs` | shared-instance client packaging |
+| `crates/libs/rns-transport/src/transport/mod.rs` | shared-instance client packaging |
+| `crates/libs/rns-transport/src/transport/shared_instance.rs` | shared-instance client packaging |
+| `crates/libs/rns-transport/src/transport/tests.rs` | shared-instance client packaging |
+| `crates/libs/rns-transport/src/transport/tests_parts/two_transport_shared_instance.rs` | shared-instance client packaging |
+| `docs/fork/PATCHSET.md` | shared-instance client packaging |
+
+Fork commits `2a027a9d`, `b306b2a1` and `17b41d6a`: F13, shared-instance
+client packaging. The first lands `SharedInstanceEndpoint` and
+`SharedInstanceOptions`, the four `Transport` methods
+`attach_shared_instance`, `detach_shared_instance`, `shared_instance` and
+`connected_to_shared_instance`, the `Transport::stop` teardown of an
+attached shared instance, and moves `local_hops_delta_for_packet` from
+`transport/mod.rs` to `transport/handler.rs` to stay under the module-size
+cap; the second lands the two-transport fixture; the third lands the README
+section, the release notes and the contract-test registrations. The file
+sites below describe the combined result.
+Upstream sites:
+`crates/libs/rns-transport/src/transport/mod.rs` registers the
+`shared_instance` module, re-exports its two types and gains the
+`shared_instance` slot on `Transport`; `transport/core.rs` initialises
+that slot; `transport/handler.rs` receives the moved
+`local_hops_delta_for_packet`; `transport/lifecycle.rs` clears the slot
+and the connected flag in `stop`; `links_parts/transport.rs` includes the
+new method section. New files: `src/transport/shared_instance.rs`,
+`src/transport/links_parts/transport_sections/shared_instance.rs` and
+`src/transport/tests_parts/two_transport_shared_instance.rs`. The crate
+`CHANGELOG.md` carries the release notes.
 
 ## 0.15.0 (upstream 0.14.0)
 

@@ -24,9 +24,10 @@ Every file changed since the `0.15.0` release and the patch each change
 belongs to. Patch ids: F4 is shared-instance client packaging. The
 `shared-instance client packaging` patch is fork commits `2a027a9d`,
 `b306b2a1`, `17b41d6a`, `ff8a8e8a`, `ff67110d`, `e4494576`, `21e4dacc`,
-`a6036013`, `8a1c2d16`, `9247525e`, `afa72a00`, `c05832b9` and `013d0dd2`;
-the `proof cap stall on signal` patch carries no other id and is fork
-commit `cccc40e4`.
+`a6036013`, `8a1c2d16`, `9247525e`, `afa72a00`, `c05832b9`, `013d0dd2`,
+`b7df209e`, `6baf2e34`, `2e62274d`, `eba27ade` and `a4fdb0bb`; the
+`proof cap stall on signal` patch carries no other id and is fork commit
+`cccc40e4`.
 
 | File | Patch |
 | --- | --- |
@@ -47,12 +48,14 @@ commit `cccc40e4`.
 | `crates/libs/rns-transport/src/transport/tests_parts/two_transport_shared_instance_probe.rs` | shared-instance client packaging |
 | `crates/libs/rns-transport/src/transport/tests_parts/two_transport_shared_instance_probe2.rs` | shared-instance client packaging |
 | `crates/libs/rns-transport/src/transport/tests_parts/two_transport_shared_instance_probe3.rs` | shared-instance client packaging |
+| `crates/libs/rns-transport/src/transport/tests_parts/two_transport_shared_instance_probe4.rs` | shared-instance client packaging |
 | `docs/fork/PATCHSET.md` | shared-instance client packaging |
 
 Fork commits `2a027a9d`, `b306b2a1`, `17b41d6a`, `ff8a8e8a`, `ff67110d`,
 `e4494576`, `21e4dacc`, `a6036013`, `8a1c2d16`, `9247525e`, `afa72a00`,
-`c05832b9` and `013d0dd2`: F4, shared-instance client packaging. The first
-lands `SharedInstanceEndpoint`
+`c05832b9`, `013d0dd2`, `b7df209e`, `6baf2e34`, `2e62274d`, `eba27ade` and
+`a4fdb0bb`: F4, shared-instance client packaging. The first lands
+`SharedInstanceEndpoint`
 and `SharedInstanceOptions`, the four `Transport` methods
 `attach_shared_instance`, `detach_shared_instance`,
 `shared_instance` and `connected_to_shared_instance`, the `Transport::stop`
@@ -108,8 +111,24 @@ empty-detach await with the stop timeout, and rewords the first probe's
 race test as a refused attach racing a detach, since the slot is held
 when its join starts. The thirteenth rewords the detach sentence in the
 release notes, pins the third fixture there and records the gated warning
-and the stop-vs-attach window. The file sites below describe the combined
-result.
+and the stop-vs-attach window. The fourteenth adopts the fourth fixture
+(`remove_interface` leaves the slot held until detach, a second stop
+detaches an interface spawned inside the first stop's window), bounds
+every joined attach, detach or stop await in the earlier fixtures with the
+stop timeout and makes their stall releases consistent. The fifteenth
+rewords the `stop` rustdoc so the repeated-stop sentence names its
+exception, quiets the missing-interface warning at attach to a debug line
+naming the racing detach or stop, prints the reconnect wait in the attach
+line for unix endpoints only and says so when a detach finds a stale slot.
+The sixteenth keeps the TCP attach line reading the configured reconnect
+wait, which the TCP client ignores, so the options stay used when the
+unix arm is compiled out. The seventeenth holds the `## Unreleased` ledger
+section to the release-section contracts (files exist, rows name a legend
+patch, legend hashes head a patch), requires an undated heading and a pin
+clause per bullet in the Unreleased release notes, and pins the
+request-layer walker floor at its measured count. The eighteenth cites
+the fourth fixture, the two contract tests and the proof-cap stall in the
+release notes. The file sites below describe the combined result.
 Upstream sites:
 `crates/libs/rns-transport/src/transport/mod.rs` registers the
 `shared_instance` module, re-exports its two types and gains the
@@ -119,15 +138,17 @@ that slot; `transport/handler.rs` receives the moved
 and the connected flag in `stop` after the management task has joined and
 warns, naming the interface, only when a slot was held past the budget;
 `links_parts/transport.rs` includes the new method section;
-`transport/tests.rs` includes the four fixtures;
+`transport/tests.rs` includes the five fixtures;
 `crates/apps/reticulumd/tests/fork_publish_contract.rs` scans the
-`## Unreleased` release notes for file cites. New files:
+`## Unreleased` release notes for file cites and checks the
+`## Unreleased` ledger section. New files:
 `src/transport/shared_instance.rs`,
 `src/transport/links_parts/transport_sections/shared_instance.rs`,
 `src/transport/tests_parts/two_transport_shared_instance.rs`,
 `src/transport/tests_parts/two_transport_shared_instance_probe.rs`,
-`src/transport/tests_parts/two_transport_shared_instance_probe2.rs` and
-`src/transport/tests_parts/two_transport_shared_instance_probe3.rs`. The
+`src/transport/tests_parts/two_transport_shared_instance_probe2.rs`,
+`src/transport/tests_parts/two_transport_shared_instance_probe3.rs` and
+`src/transport/tests_parts/two_transport_shared_instance_probe4.rs`. The
 crate `CHANGELOG.md` carries the release notes.
 
 Fork commit `cccc40e4`: proof cap stall on signal. The cap fixture of

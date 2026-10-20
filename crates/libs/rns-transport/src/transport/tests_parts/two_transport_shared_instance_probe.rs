@@ -1,6 +1,5 @@
-// Usage-pattern probes for the shared-instance client API, derived from the documented
-// contract before the implementation was read: the option default, detach and stop on a
-// transport that never attached, two attaches racing for the single slot, an attach
+// Usage-pattern probes for the shared-instance client API: the option default, detach and
+// stop on a transport that never attached, two attaches racing for the single slot, an attach
 // issued before anything listens at the TCP endpoint, and the relay actually going quiet
 // after a detach and coming back at one hop after a re-attach. Helpers come from the
 // sibling `tests_parts` files included into this module.
@@ -128,7 +127,7 @@ async fn shared_instance_tcp_attach_before_the_server_listens_connects_once_it_d
 
     let detached = timeout(STOP_TIMEOUT, transport.detach_shared_instance())
         .await
-        .expect("detach completes while the client is retrying");
+        .expect("detach completes while the client is connected");
     assert!(detached);
     shared_instance_assert_released(&transport, iface).await;
     timeout(STOP_TIMEOUT, transport.stop()).await.expect("stop completes");

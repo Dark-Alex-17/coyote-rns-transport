@@ -57,8 +57,8 @@ commits `1ddd5273`, `a2a40de7`, `3805fe7f`, `3ed78582`, `415d67c8`,
 and is fork commits `60e74ffb`, `6e583b50`, `ea6edfaa`, `9223ef43`,
 `6e9eedf2`, `3f615a3b`, `28bacbbe`, `dbd4ff7e`, `a0ba6f4a`, `b5dd3255`,
 `e4eb444f` and `fdb20280`; the `release 0.15.0` patch carries no other id
-and is fork commits `d4a3b2d2`, `5075d765`, `eb0e19f2`, `06068516` and
-`ac9c49af`.
+and is fork commits `d4a3b2d2`, `5075d765`, `eb0e19f2`, `06068516`,
+`ac9c49af`, `8b3ce9e1`, `23bdc1a8` and `ba92e2ba`.
 
 | File | Patch |
 | --- | --- |
@@ -147,7 +147,7 @@ and is fork commits `d4a3b2d2`, `5075d765`, `eb0e19f2`, `06068516` and
 | `crates/libs/rns-transport/src/destination/link_parts/link_sections/response_record_tests.rs` | request receipts and timeouts, link proof event and receipt link id, outbound outcomes with link fast fail and accept hook |
 | `crates/libs/rns-transport/src/destination/link_parts/linkhandleresult.rs` | request handlers and dispatch, request receipts and timeouts, link proof event and receipt link id |
 | `crates/libs/rns-transport/src/destination/link_parts/module_prelude.rs` | request handlers and dispatch, request receipts and timeouts, link proof event and receipt link id |
-| `crates/libs/rns-transport/src/destination/request/allow.rs` | request handlers and dispatch |
+| `crates/libs/rns-transport/src/destination/request/allow.rs` | request handlers and dispatch, release 0.15.0 |
 | `crates/libs/rns-transport/src/destination/request/dispatch.rs` | request handlers and dispatch |
 | `crates/libs/rns-transport/src/destination/request/frame.rs` | request wire frames and fuzz, release 0.15.0 |
 | `crates/libs/rns-transport/src/destination/request/handler.rs` | request handlers and dispatch, release 0.15.0 |
@@ -275,7 +275,7 @@ and is fork commits `d4a3b2d2`, `5075d765`, `eb0e19f2`, `06068516` and
 | `crates/libs/rns-transport/tests/outbound_outcome_api.rs` | outbound outcomes with link fast fail and accept hook |
 | `crates/libs/rns-transport/tests/request_frame_wire.rs` | request wire frames and fuzz |
 | `crates/libs/rns-transport/tests/request_handler_api.rs` | request handlers and dispatch |
-| `crates/libs/rns-transport/tests/request_receipt_api.rs` | request receipts and timeouts |
+| `crates/libs/rns-transport/tests/request_receipt_api.rs` | request receipts and timeouts, release 0.15.0 |
 | `crates/libs/rns-transport/tests/request_receipt_readme.rs` | request receipts and timeouts, outbound outcomes with link fast fail and accept hook |
 | `docs/fork/PATCHSET.md` | request wire frames and fuzz, request handlers and dispatch, request receipts and timeouts, link proof event and receipt link id, outbound outcomes with link fast fail and accept hook, Python-in-the-loop request and proof interop, release 0.15.0 |
 | `docs/getting-started.md` | release 0.15.0 |
@@ -2604,8 +2604,9 @@ does, and the `PROVE_ALL` comment names the in-crate loopback tests as
 the pin of the Rust record gate. Every async fn but the lock-taking test
 fns carries `#[deny(clippy::await_holding_invalid_type)]`.
 
-Fork commits `d4a3b2d2`, `5075d765`, `eb0e19f2`, `06068516` and `ac9c49af`:
-release 0.15.0. The first gates the inherited Codex review workflow
+Fork commits `d4a3b2d2`, `5075d765`, `eb0e19f2`, `06068516`, `ac9c49af`,
+`8b3ce9e1`, `23bdc1a8` and `ba92e2ba`: release 0.15.0. The first gates the
+inherited Codex review workflow
 (`.github/workflows/codex-review.yml`) on the repository variable
 `CODEX_REVIEW_ENABLED`, so the check is skipped until the variable and the
 `OPENAI_API_KEY` secret exist, adds the `fork_publish_contract` test to the
@@ -2630,8 +2631,22 @@ instead of hard-coding `B1` to `B5`, accepts any interop fixture row
 attributed to a Python-in-the-loop patch, and resolves release-notes cites
 under `crates/apps/rns-tools/src` as well. The fifth refits the two doc
 comments the second added to `crates/libs/rns-transport/src/transport/mod.rs`
-so the file stays within the 500-line module budget. The ledger-only
-commits that complete this section are omitted here by convention. The
+so the file stays within the 500-line module budget. The sixth settles the
+README version policy after the first minor bump (the fork takes the first
+version above both the upstream number and its own last published one),
+qualifies the opener's upstream-compatibility promise with the `### Breaking`
+list, and aligns the `started_at()`, timeout and register wording. The
+seventh adopts the release-review probe tests: five in
+`crates/apps/reticulumd/tests/fork_publish_contract.rs` (the divergence
+register cites Python lines, a minor bump opens with `### Breaking`, PR CI
+runs the publish contract with the Codex review opt-in, README snippets are
+pinned verbatim, documented `#[non_exhaustive]` enums carry the attribute)
+and one in `crates/libs/rns-transport/tests/request_receipt_api.rs` (the
+request-layer enums and `AnnounceEvent` hold the wildcard-arm contract
+outside the crate). The eighth extends the doc-comment cites of the second
+to every public method and enum variant of the request layer (`allow.rs`,
+`frame.rs`, `handler.rs`, `id.rs`, `inbound.rs` and `receipt.rs`). The
+ledger-only commits that complete this section are omitted by convention. The
 patches of the `## 0.14.1` section below are still carried; the patches
 above build on their files rather than replacing them, and the publish
 contract test they added is extended by the first and fourth commits above.

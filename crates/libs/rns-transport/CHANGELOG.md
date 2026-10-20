@@ -77,7 +77,12 @@ trailing clause of the bullet for the behaviour it pins.
   `two_transport_loopback_requests_probe.rs`,
   `two_transport_loopback_requests_routing.rs`,
   `two_transport_loopback_requests_malformed.rs` and
-  `destination/link_parts/link_sections/request_dispatch_tests.rs`.
+  `destination/link_parts/link_sections/request_dispatch_tests.rs`, and
+  with Python RNS 1.5.2 on the requesting side by the reticulumd tests in
+  `python_channel_interop_parts/python_to_rust_request_handler.rs`
+  (ALLOW_ALL in packet and Resource form, ALLOW_LIST answering the
+  identified peer and silently dropping an unlisted one, the request id
+  compared as hex on both sides).
 
 - `LinkEvent::Data` with `PacketContext::Request` keeps posting for every
   inbound request; a request whose path has a registered handler is
@@ -103,8 +108,10 @@ trailing clause of the bullet for the behaviour it pins.
   not answer it. Pinned by
   `transport/tests_parts/two_transport_loopback_requests_resource_form.rs`,
   `two_transport_loopback_requests_resource_form_probe.rs`,
-  `two_transport_loopback_requests_resource_form_probe2.rs` and
-  `two_transport_loopback_requests_resource_form_probe3.rs`.
+  `two_transport_loopback_requests_resource_form_probe2.rs`,
+  `two_transport_loopback_requests_resource_form_probe3.rs` and the
+  reticulumd test
+  `python_to_rust_request_handler_answers_a_resource_request_with_a_resource_response`.
 
 - Response forms on the wire. A `Value` or `Bytes` response whose
   `[request_id, body]` envelope fits the link MDU goes out as one
@@ -222,9 +229,14 @@ trailing clause of the bullet for the behaviour it pins.
   `tests/request_receipt_api.rs`, `tests/request_receipt_readme.rs`,
   `destination/request/receipt_tests.rs`,
   `destination/request/receipt_order_tests.rs`,
-  `destination/link_parts/link_sections/pending_requests_tests.rs` and
+  `destination/link_parts/link_sections/pending_requests_tests.rs`,
   `destination/link_parts/link_sections/response_record_tests.rs` (a
-  request Resource outcome never marks a packet-form entry `Delivered`).
+  request Resource outcome never marks a packet-form entry `Delivered`)
+  and the reticulumd
+  `python_channel_interop_parts/rust_to_python_request_receipt.rs` (packet
+  and Resource forms against a Python `register_request_handler`, a `None`
+  return concluding `Failed(Timeout)` because Python then sends nothing,
+  `RNS/Link.py:844`; the request id compared as hex on both sides).
 
 - `SendPacketOutcome::is_sent`: whether a send reached an interface,
   directly or by broadcast; the in-crate `matches!` twins use it.
@@ -268,8 +280,12 @@ trailing clause of the bullet for the behaviour it pins.
   (a replayed proof: dropped by the ingress packet filter it adds neither
   receipt nor event; delivered past the filter it adds a second receipt
   naming the link and no event, and a fresh packet still earns its one),
-  `destination/link_parts/link_sections/data_proof_tests.rs` and
-  `tests/link_event_packet_proven_api.rs`.
+  `destination/link_parts/link_sections/data_proof_tests.rs`,
+  `tests/link_event_packet_proven_api.rs` and the reticulumd tests
+  `rust_to_python_plain_data_packet_is_proven_by_a_prove_all_destination` and
+  `rust_to_python_plain_data_packet_is_not_proven_by_a_default_destination`
+  (a Python destination on `PROVE_ALL` proves the plain Data packet; the
+  stock `PROVE_NONE` default does not).
 
 - `DeliveryReceipt::link_id()`: `Some(link id)` for a proof addressed to a
   link, `None` for a destination proof. Pinned by
@@ -402,7 +418,9 @@ trailing clause of the bullet for the behaviour it pins.
   client and server and the independent interop node's event feed, and in
   `reticulumd` the remote-control link bridge, the inbound worker core and
   the Python channel interop test support. An out-of-tree
-  `OutboundRejected` pattern needs `{ .. }` or `{ reason }`.
+  `OutboundRejected` pattern needs `{ .. }` or `{ reason }`. The reticulumd
+  test `rust_sender_maps_pinned_python_receiver_cancel_to_rejection` pins a
+  Python receiver cancel to `PeerCancelled`.
 
 - `ResourceEventKind` is `#[non_exhaustive]`: an out-of-tree exhaustive
   match on it no longer compiles without a wildcard arm. The enum was

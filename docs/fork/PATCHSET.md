@@ -48,7 +48,9 @@ commits `1ddd5273`, `a2a40de7`, `3805fe7f`, `3ed78582`, `415d67c8`,
 `outbound outcomes with link fast fail and accept hook` patch is fork commits
 `50793515`, `4a4a91ae`, `3a5cd726`, `a0a88883`, `9eaafcc1`, `98718b4d`,
 `97bd6a91`, `85c20ef5`, `1bd387b4`, `5df575ec`, `873ef34f`, `211d84b8`,
-`9a4e8735`, `a4cf4f4b`, `65fb8646`, `01e93fc3` and `17348ca6`.
+`9a4e8735`, `a4cf4f4b`, `65fb8646`, `01e93fc3` and `17348ca6`; the
+`Python-in-the-loop request and proof interop` patch is fork commits
+`60e74ffb`, `6e583b50`, `ea6edfaa` and `9223ef43`.
 
 | File | Patch |
 | --- | --- |
@@ -69,18 +71,23 @@ commits `1ddd5273`, `a2a40de7`, `3805fe7f`, `3ed78582`, `415d67c8`,
 | `crates/apps/reticulumd/src/bin/reticulumd/inbound_worker_parts/module_core.rs` | outbound outcomes with link fast fail and accept hook |
 | `crates/apps/reticulumd/tests/direct_link_delivery.rs` | outbound outcomes with link fast fail and accept hook |
 | `crates/apps/reticulumd/tests/fuzz_campaign_contract.rs` | request wire frames and fuzz |
+| `crates/apps/reticulumd/tests/python_channel_interop.rs` | Python-in-the-loop request and proof interop |
 | `crates/apps/reticulumd/tests/python_channel_interop_parts/ax25_kiss_pty.rs` | outbound outcomes with link fast fail and accept hook |
 | `crates/apps/reticulumd/tests/python_channel_interop_parts/ifac_kiss_pty.rs` | outbound outcomes with link fast fail and accept hook |
 | `crates/apps/reticulumd/tests/python_channel_interop_parts/ifac_python_interop.rs` | outbound outcomes with link fast fail and accept hook |
 | `crates/apps/reticulumd/tests/python_channel_interop_parts/module_prelude.rs` | outbound outcomes with link fast fail and accept hook |
 | `crates/apps/reticulumd/tests/python_channel_interop_parts/multi_segment_python_interop.rs` | outbound outcomes with link fast fail and accept hook |
 | `crates/apps/reticulumd/tests/python_channel_interop_parts/python_resource_fault_reverse.rs` | outbound outcomes with link fast fail and accept hook |
+| `crates/apps/reticulumd/tests/python_channel_interop_parts/python_to_rust_request_handler.rs` | Python-in-the-loop request and proof interop |
 | `crates/apps/reticulumd/tests/python_channel_interop_parts/reader_resource_interop.rs` | outbound outcomes with link fast fail and accept hook |
-| `crates/apps/reticulumd/tests/python_channel_interop_parts/resource_faults.rs` | outbound outcomes with link fast fail and accept hook |
+| `crates/apps/reticulumd/tests/python_channel_interop_parts/resource_faults.rs` | outbound outcomes with link fast fail and accept hook, Python-in-the-loop request and proof interop |
 | `crates/apps/reticulumd/tests/python_channel_interop_parts/resource_memory_profile.rs` | outbound outcomes with link fast fail and accept hook |
 | `crates/apps/reticulumd/tests/python_channel_interop_parts/resource_size_matrix.rs` | outbound outcomes with link fast fail and accept hook |
 | `crates/apps/reticulumd/tests/python_channel_interop_parts/rust_to_python_raw_resource_roundtri.rs` | outbound outcomes with link fast fail and accept hook |
-| `crates/apps/reticulumd/tests/support/python_channel_events.rs` | outbound outcomes with link fast fail and accept hook |
+| `crates/apps/reticulumd/tests/python_channel_interop_parts/rust_to_python_request_receipt.rs` | Python-in-the-loop request and proof interop |
+| `crates/apps/reticulumd/tests/support/python_channel_endpoint.py` | Python-in-the-loop request and proof interop |
+| `crates/apps/reticulumd/tests/support/python_channel_events.rs` | outbound outcomes with link fast fail and accept hook, Python-in-the-loop request and proof interop |
+| `crates/apps/reticulumd/tests/support/python_channel_process.rs` | Python-in-the-loop request and proof interop |
 | `crates/apps/rns-tools/src/bin/independent_interop_node/events.rs` | link proof event and receipt link id, outbound outcomes with link fast fail and accept hook |
 | `crates/apps/rns-tools/src/bin/independent_interop_node/node.rs` | outbound outcomes with link fast fail and accept hook |
 | `crates/apps/rns-tools/src/bin/rncp_parts/client.rs` | outbound outcomes with link fast fail and accept hook |
@@ -90,7 +97,7 @@ commits `1ddd5273`, `a2a40de7`, `3805fe7f`, `3ed78582`, `415d67c8`,
 | `crates/libs/lxmf-runtime/src/link_delivery.rs` | outbound outcomes with link fast fail and accept hook |
 | `crates/libs/lxmf-runtime/src/tests.rs` | outbound outcomes with link fast fail and accept hook |
 | `crates/libs/lxmf-runtime/src/tests_link_delivery.rs` | outbound outcomes with link fast fail and accept hook |
-| `crates/libs/rns-transport/CHANGELOG.md` | request wire frames and fuzz, request handlers and dispatch, request receipts and timeouts, link proof event and receipt link id, outbound outcomes with link fast fail and accept hook |
+| `crates/libs/rns-transport/CHANGELOG.md` | request wire frames and fuzz, request handlers and dispatch, request receipts and timeouts, link proof event and receipt link id, outbound outcomes with link fast fail and accept hook, Python-in-the-loop request and proof interop |
 | `crates/libs/rns-transport/README.md` | request handlers and dispatch, request receipts and timeouts, link proof event and receipt link id, outbound outcomes with link fast fail and accept hook |
 | `crates/libs/rns-transport/fuzz/.gitignore` | request wire frames and fuzz |
 | `crates/libs/rns-transport/fuzz/Cargo.lock` | request wire frames and fuzz |
@@ -2198,6 +2205,92 @@ clause. `transport/lifecycle.rs`'s `stop()` rustdoc says the per-link
 sweep runs provided the handler itself can be re-locked within the budget,
 and the handler-locked warn line names the outbound outcome sweep beside
 the receipt sweep.
+
+Fork commit `60e74ffb`: Python-in-the-loop request and proof interop. The
+test support gains the `request-forms` payload kind and the knobs the
+request and proof fixtures need. `tests/support/python_channel_endpoint.py`
+adds a module-level `request_forms_body(size)` (`bytes((i % 251) for i in
+range(size))`), a `prove_all` flag on `ChannelEndpoint` (the `--prove-all`
+argument) that sets the destination's proof strategy to
+`RNS.Destination.PROVE_ALL`, and the `request-forms` kind on both sides.
+The server registers it on `/test/request` under `ALLOW_ALL`; its handler
+writes one stdout JSON line (`request_received`, the `request_id` as hex,
+`path`, `response_kind`, `response_size`, `response_sha256`) and returns
+`None` for `{"response": "none"}`, `request_forms_body(n)` for
+`{"response_size": n}` and `reply:<data>` otherwise. The client takes
+`--request-size` (a run of `x` of that length in place of the message
+data) and `--identify` (identify on the link, print `identified`, then
+hold the request until a plain Data packet `go` arrives), prints
+`request_sent` with the `request_id`, and always exits 0 with one terminal
+line: `response_size` plus `response_sha256`, `request_failed`, or
+`request_no_response`; the last exists because a packet-form request the
+peer never answers never fires `failed_callback`: `RNS/Link.py:1398` needs
+`DELIVERED`, which only the Resource form sets (`:1372`).
+`tests/support/python_channel_process.rs` adds `extra_args` to
+`spawn_python_endpoint` and `PythonChannelClientConfig`, and the
+`spawn_endpoint_with_args` and `spawn_channel_client_with_args` helpers,
+the latter taking the client timeout as well; every existing caller passes
+an empty slice.
+
+Fork commit `6e583b50`: new fixture
+`python_channel_interop_parts/python_to_rust_request_handler.rs` (five
+ignored tests, one `include!` line in `python_channel_interop.rs`) has the
+Python RNS 1.5.2 client call `Link.request` against a handler registered
+through `SingleInputDestination::register_request_handler` on a Rust
+`Transport` built with broadcast off. Under `RequestAllow::All`:
+`python_to_rust_request_handler_allow_all_answers_a_packet_request`
+(`hello-rust` answered `reply:hello-rust`),
+`..._answers_a_resource_request_with_a_resource_response` (a 4096-byte
+request, so a request Resource, answered by a 4102-byte `reply:` Resource)
+and `..._answers_a_packet_request_with_a_resource_response` (an 8192-byte
+`RequestResponse::Bytes` body). Under `RequestAllow::List`:
+`..._allow_list_answers_the_identified_peer` builds the list from the
+identity `LinkEvent::PeerIdentified` delivers and releases the client with
+a plain `go` Data packet;
+`..._allow_list_denies_an_unlisted_peer_silently` lists a different
+identity, asserts the handler never ran and reads `request_no_response`
+from the client. Every answered test compares `InboundRequest::request_id()`
+as hex with the Python `RequestReceipt.request_id`, the truncated hash of
+the request packet for the packet form (`RNS/Link.py:996`) and of the
+packed request for the Resource form (`:504`), and checks the response
+size and SHA-256 the client reports. Every async fn but the lock-taking
+test fns carries `#[deny(clippy::await_holding_invalid_type)]`.
+
+Fork commit `ea6edfaa`: new fixture
+`python_channel_interop_parts/rust_to_python_request_receipt.rs` (six
+ignored tests, one `include!` line in `python_channel_interop.rs`) drives
+`Transport::request` from a Rust `Transport` built with broadcast off,
+connected by `TcpClient` to a Python `request-forms` server whose stdout is
+drained line by line after the ready line so RNS logging cannot stall it.
+`rust_to_python_request_receipt_packet_roundtrip_matches_request_id`
+(`hello-python` answered `reply:hello-python`, 18 bytes),
+`..._resource_request_gets_a_resource_response` (a 4096-byte request
+Resource, a 4102-byte response Resource) and
+`..._packet_request_gets_a_resource_response` (an 8192-byte binary body,
+its SHA-256 compared with the server's report) conclude `Ready`;
+`..._none_response_fails_with_timeout` has the Python handler return
+`None`, so RNS sends nothing (`RNS/Link.py:844`), and the receipt, under a
+3 s `RequestOptions::with_timeout`, concludes `Err(RequestError::Timeout)`
+with status `Failed`. Each compares `RequestReceipt::request_id()` as hex
+with the `request_id` the Python handler saw. Two proof tests send a plain
+Data packet through `send_link_packet_on_bound_iface` to a `link-data`
+server:
+`rust_to_python_plain_data_packet_is_proven_by_a_prove_all_destination`
+(started with `--prove-all`) waits for `LinkEvent::PacketProven` carrying
+the packet's hash on the link, and
+`..._is_not_proven_by_a_default_destination` reads link events until 3 s
+pass without one and asserts none was such a proof, the stock `PROVE_NONE`
+destination proving nothing (`RNS/Destination.py:161`,
+`RNS/Link.py:961-968`). Every async fn but the lock-taking test fns
+carries `#[deny(clippy::await_holding_invalid_type)]`.
+
+Fork commit `9223ef43`: `tests/support/python_channel_events.rs`'s
+`wait_for_outbound_resource_rejected` returns the `RejectReason` of the
+`OutboundRejected { reason }` event it waits for, and
+`python_channel_interop_parts/resource_faults.rs`'s
+`rust_sender_maps_pinned_python_receiver_cancel_to_rejection` asserts it is
+`RejectReason::PeerCancelled`, so a Python receiver cancel is pinned to the
+typed reason rather than to the variant alone.
 
 ## 0.14.1 (upstream 0.14.0)
 

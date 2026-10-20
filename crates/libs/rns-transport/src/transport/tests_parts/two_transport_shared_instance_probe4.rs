@@ -93,6 +93,8 @@ async fn shared_instance_second_stop_detaches_an_interface_spawned_inside_the_fi
 
     let ((), attached, slot_at_release) = tokio::join!(
         async {
+            // stop's own 5 s budget can be consumed by the handler wait; let it elapse before
+            // this guard fires.
             timeout(STOP_TIMEOUT + Duration::from_secs(3), transport.stop())
                 .await
                 .expect("the first stop returns within its budget")

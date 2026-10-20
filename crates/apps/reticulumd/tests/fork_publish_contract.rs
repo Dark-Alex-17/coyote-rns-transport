@@ -601,11 +601,14 @@ fn commit_hash(token: &str) -> Option<&str> {
 
 /// The hashes named by the section's `Fork commit(s) ...:` patch headers.
 /// Headers wrap: the hashes run from the `Fork commit` line through the
-/// first colon, which may sit on a later line.
+/// first colon, which may sit on a later line. The legend above the table
+/// is skipped so a legend sentence that happens to open with `Fork commits`
+/// cannot vouch for itself.
 fn ledger_header_hashes(section: &str) -> Vec<&str> {
+    let table_start = section.find("\n| File | Patch |").unwrap_or(section.len());
     let mut header_hashes = Vec::new();
     let mut in_header = false;
-    for line in section.lines() {
+    for line in section[table_start..].lines() {
         if line.starts_with("Fork commit `") || line.starts_with("Fork commits `") {
             in_header = true;
         }

@@ -106,6 +106,8 @@ async fn shared_instance_stop_racing_an_attach_keeps_slot_and_posture_consistent
 
     let ((), attached, slot_at_release) = tokio::join!(
         async {
+            // stop's own 5 s budget can be consumed by the handler wait; let it elapse before
+            // this guard fires.
             timeout(STOP_TIMEOUT + Duration::from_secs(3), transport.stop())
                 .await
                 .expect("stop returns within its budget")

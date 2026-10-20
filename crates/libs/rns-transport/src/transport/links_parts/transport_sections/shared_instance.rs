@@ -89,7 +89,7 @@ impl Transport {
         }
         if !self.synthesize_tunnel_on_interface(iface).await {
             log::debug!(
-                "tp({}): shared instance iface={} removed by a detach or stop that raced the attach, tunnel not synthesized",
+                "tp({}): shared instance iface={} removed by a detach, stop or stop_interface that raced the attach, tunnel not synthesized",
                 self.name,
                 iface
             );
@@ -103,7 +103,7 @@ impl Transport {
                 wait
             ),
             None => log::debug!(
-                "tp({}): attached shared instance iface={} endpoint={}, reconnect_wait={:?} ignored by the tcp client",
+                "tp({}): attached shared instance iface={} endpoint={} reconnect_wait={:?} (ignored by the tcp client)",
                 self.name,
                 iface,
                 kind,

@@ -59,8 +59,8 @@ and is fork commits `60e74ffb`, `6e583b50`, `ea6edfaa`, `9223ef43`,
 `e4eb444f` and `fdb20280`; the `release 0.15.0` patch carries no other id
 and is fork commits `d4a3b2d2`, `5075d765`, `eb0e19f2`, `06068516`,
 `ac9c49af`, `8b3ce9e1`, `23bdc1a8`, `ba92e2ba`, `8d70f3e1`, `ccfba204`,
-`af1b7e62`, `061141f9`, `0bbccb83`, `eb854ab6`, `c5048353` and
-`93f417c6`.
+`af1b7e62`, `061141f9`, `0bbccb83`, `eb854ab6`, `c5048353`, `93f417c6`,
+`2d2d88e1` and `2432cff5`.
 
 | File | Patch |
 | --- | --- |
@@ -2609,7 +2609,8 @@ fns carries `#[deny(clippy::await_holding_invalid_type)]`.
 
 Fork commits `d4a3b2d2`, `5075d765`, `eb0e19f2`, `06068516`, `ac9c49af`,
 `8b3ce9e1`, `23bdc1a8`, `ba92e2ba`, `8d70f3e1`, `ccfba204`, `af1b7e62`,
-`061141f9`, `0bbccb83`, `eb854ab6`, `c5048353` and `93f417c6`:
+`061141f9`, `0bbccb83`, `eb854ab6`, `c5048353`, `93f417c6`, `2d2d88e1` and
+`2432cff5`:
 release 0.15.0. The first gates the inherited Codex review workflow
 (`.github/workflows/codex-review.yml`) on the repository variable
 `CODEX_REVIEW_ENABLED`, so the check is skipped until the variable and the
@@ -2703,11 +2704,23 @@ makes the `.github/workflows/codex-review.yml` job also require a pull
 request head from this repository, since a fork head cannot read the
 `OPENAI_API_KEY` secret. The sixteenth iterates the required rows of the
 file-table check in `fork_publish_contract.rs` by reference, so the
-workspace clippy run stays clean. The ledger-only commits that complete this
-section are omitted by convention. The patches of the `## 0.14.1` section
-below are still carried; the patches above build on their files rather than
-replacing them, and the publish contract test they added is extended by the
-first and fourth commits above.
+workspace clippy run stays clean. The seventeenth adds
+`patch_set_ledger_release_legend_hashes_each_have_a_patch_header` to
+`fork_publish_contract.rs`: every commit the legend attributes to the
+release patch must appear in a patch header of the same section, which is
+the rule the twelfth to fifteenth commits above had slipped. The eighteenth
+holds the CI hygiene test to the same-repository head clause of
+`.github/workflows/codex-review.yml` (whose comment, and the README release
+hygiene bullet, now say fork-originated pull requests are skipped), requires
+every manifest, consumer snippet and README the version bump touches as a
+row of the table above, teaches the rustdoc cite walker in
+`fork_release_docs_contract.rs` to enter `pub trait` bodies and check their
+methods, and cites the whole file-response branch (`RNS/Link.py:837-846`)
+on the `RequestResponse` enum doc in `request/handler.rs`. The ledger-only
+commits that complete this section are omitted by convention. The patches
+of the `## 0.14.1` section below are still carried; the patches above build
+on their files rather than replacing them, and the publish contract test
+they added is extended by the first and fourth commits above.
 
 ## 0.14.1 (upstream 0.14.0)
 

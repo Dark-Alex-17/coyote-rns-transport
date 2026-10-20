@@ -3,7 +3,9 @@
 The section layout follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/)
 and versions follow the cargo semver rules described in the crate README.
 Test-only files are not listed as entries of their own; each is named in a
-trailing clause of the bullet for the behaviour it pins.
+trailing clause of the bullet for the behaviour it pins. A fixture hardening
+that changes no library behaviour is the one exception: it is a Changed
+bullet of its own, marked test-only.
 
 ## Unreleased
 
@@ -53,7 +55,8 @@ trailing clause of the bullet for the behaviour it pins.
   detaches an interface spawned inside the first stop's window. The
   `non_exhaustive` endpoint, the private option fields and the README
   claims are pinned by
-  `crates/apps/reticulumd/tests/fork_release_docs_contract.rs` and
+  `crates/apps/reticulumd/tests/fork_release_docs_contract.rs`; the release
+  notes and the ledger section are held to
   `crates/apps/reticulumd/tests/fork_publish_contract.rs` (the Unreleased
   cite check and the Unreleased ledger checks).
 
@@ -81,7 +84,13 @@ trailing clause of the bullet for the behaviour it pins.
   stays off, stop racing an attach keeps the slot and the posture
   consistent) and
   `transport/tests_parts/two_transport_shared_instance_probe4.rs` (a second
-  stop detaches the interface left behind by the first).
+  stop detaches the interface left behind by the first) and
+  `transport/tests_parts/two_transport_shared_instance_probe5.rs`, through
+  the record store in
+  `transport/tests_parts/two_transport_loopback_requests_isolation.rs` (the
+  attach line never warns, the tcp line marks the reconnect wait as ignored
+  while the unix line reports it, a stale-slot detach and an attach whose
+  interface vanished between its sections log at debug).
 - The proof-cap fixture
   `transport/tests_parts/two_transport_loopback_link_packet_proven_probe2.rs`
   holds its handler stall until the test releases it after the burst

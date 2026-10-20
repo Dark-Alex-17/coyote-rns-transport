@@ -235,3 +235,5 @@ jobs:
         run: cargo xtask ci --stage doc
       - name: Fork publish and release-docs contracts
         run: cargo test -p reticulumd --test fork_publish_contract --test fork_release_docs_contract
+      - name: Breaking-change compile-fail harness
+        run: cargo test -p coyote-rns-transport --test breaking_changes_compile_fail

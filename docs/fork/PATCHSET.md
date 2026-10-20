@@ -60,7 +60,7 @@ and is fork commits `60e74ffb`, `6e583b50`, `ea6edfaa`, `9223ef43`,
 and is fork commits `d4a3b2d2`, `5075d765`, `eb0e19f2`, `06068516`,
 `ac9c49af`, `8b3ce9e1`, `23bdc1a8`, `ba92e2ba`, `8d70f3e1`, `ccfba204`,
 `af1b7e62`, `061141f9`, `0bbccb83`, `eb854ab6`, `c5048353`, `93f417c6`,
-`2d2d88e1`, `2432cff5`, `e2a1a28a` and `77024043`.
+`2d2d88e1`, `2432cff5`, `e2a1a28a`, `77024043` and `f326b062`.
 
 | File | Patch |
 | --- | --- |
@@ -217,7 +217,7 @@ and is fork commits `d4a3b2d2`, `5075d765`, `eb0e19f2`, `06068516`,
 | `crates/libs/rns-transport/src/transport/tests_parts/two_transport_loopback_lifecycle.rs` | request handlers and dispatch, request receipts and timeouts |
 | `crates/libs/rns-transport/src/transport/tests_parts/two_transport_loopback_link_packet_proven.rs` | link proof event and receipt link id |
 | `crates/libs/rns-transport/src/transport/tests_parts/two_transport_loopback_link_packet_proven_probe.rs` | link proof event and receipt link id, outbound outcomes with link fast fail and accept hook |
-| `crates/libs/rns-transport/src/transport/tests_parts/two_transport_loopback_link_packet_proven_probe2.rs` | link proof event and receipt link id |
+| `crates/libs/rns-transport/src/transport/tests_parts/two_transport_loopback_link_packet_proven_probe2.rs` | link proof event and receipt link id, release 0.15.0 |
 | `crates/libs/rns-transport/src/transport/tests_parts/two_transport_loopback_link_packet_proven_probe3.rs` | link proof event and receipt link id |
 | `crates/libs/rns-transport/src/transport/tests_parts/two_transport_loopback_requests.rs` | request handlers and dispatch, request receipts and timeouts |
 | `crates/libs/rns-transport/src/transport/tests_parts/two_transport_loopback_requests_errors.rs` | request receipts and timeouts, outbound outcomes with link fast fail and accept hook |
@@ -2611,7 +2611,7 @@ fns carries `#[deny(clippy::await_holding_invalid_type)]`.
 Fork commits `d4a3b2d2`, `5075d765`, `eb0e19f2`, `06068516`, `ac9c49af`,
 `8b3ce9e1`, `23bdc1a8`, `ba92e2ba`, `8d70f3e1`, `ccfba204`, `af1b7e62`,
 `061141f9`, `0bbccb83`, `eb854ab6`, `c5048353`, `93f417c6`, `2d2d88e1`,
-`2432cff5`, `e2a1a28a` and `77024043`:
+`2432cff5`, `e2a1a28a`, `77024043` and `f326b062`:
 release 0.15.0. The first gates the inherited Codex review workflow
 (`.github/workflows/codex-review.yml`) on the repository variable
 `CODEX_REVIEW_ENABLED`, so the check is skipped until the variable and the
@@ -2733,6 +2733,14 @@ its cites resolve against, ends the `### Breaking` block of the crate
 `CHANGELOG.md` with a clause naming the compile-fail harness, starts the
 `RequestResponse` response-form cite there at `RNS/Link.py:837`, and points
 two doc comments in `tests/request_receipt_api.rs` at the harness. The
+twenty-first makes the cap fixture of
+`crates/libs/rns-transport/src/transport/tests_parts/two_transport_loopback_link_packet_proven_probe2.rs`
+collect its 1024 `PacketProven` events and 1027 receipts on progress: each
+wait resets its deadline when a new proof or receipt arrives and fails only
+when none lands within `LOOPBACK_TIMEOUT` of the previous one, after the
+ubuntu nextest lane of the release pull request delivered 854 proofs inside
+the fixed budget; the pinned counts are unchanged, and the crate
+`CHANGELOG.md` says so under the `PacketProven` pin clause. The
 ledger-only commits that complete this section are omitted by convention.
 The patches of the `## 0.14.1` section below are still carried; the patches
 above build on their files rather than replacing them, and the publish

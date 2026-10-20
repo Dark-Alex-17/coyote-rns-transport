@@ -46,3 +46,5 @@ include!("python_channel_interop_parts/rust_to_python_request_receipt.rs");
 include!("python_channel_interop_parts/python_request_forms_matrix.rs");
 
 include!("python_channel_interop_parts/python_request_unknown_path.rs");
+
+include!("python_channel_interop_parts/python_request_size_limits.rs");

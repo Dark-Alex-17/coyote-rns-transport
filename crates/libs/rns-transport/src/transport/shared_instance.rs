@@ -38,11 +38,12 @@ impl Default for SharedInstanceOptions {
 }
 
 impl SharedInstanceOptions {
-    /// Waits `wait` between reconnect attempts after the shared instance
-    /// drops the connection, instead of `LocalClientInterface.RECONNECT_WAIT`
-    /// (`RNS/Interfaces/LocalInterface.py:53-54`). Applies to the
-    /// unix-domain endpoint only; a [`SharedInstanceEndpoint::Tcp`] client
-    /// retries on its own fixed 5 s interval and ignores this option.
+    /// Waits `wait` after each failed connect to the unix-domain endpoint,
+    /// including the retries after the shared instance drops the connection,
+    /// instead of `LocalClientInterface.RECONNECT_WAIT`
+    /// (`RNS/Interfaces/LocalInterface.py:53-54`). A
+    /// [`SharedInstanceEndpoint::Tcp`] client retries on its own fixed 5 s
+    /// interval and ignores this option.
     #[must_use]
     pub fn with_reconnect_wait(mut self, wait: Duration) -> Self {
         self.reconnect_wait = wait;

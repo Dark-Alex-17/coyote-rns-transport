@@ -19,9 +19,9 @@ impl Transport {
     /// link concludes `LinkClosed` once the link is dropped; an outcome on one
     /// resolves `Failed(LinkClosed)` once the transport is dropped. Calling it
     /// again is a no-op. A shared instance attached with
-    /// [`Self::attach_shared_instance`] is forgotten and the transport is no
-    /// longer marked connected to one, since its interface is detached with the
-    /// rest.
+    /// [`Self::attach_shared_instance`] is forgotten once the management task
+    /// has stopped, and the transport is no longer marked connected to one,
+    /// since its interface is detached with the rest.
     #[deny(clippy::await_holding_invalid_type)]
     pub async fn stop(&self) {
         let deadline = Instant::now() + STOP_BUDGET;
@@ -56,6 +56,25 @@ impl Transport {
                 }
             }
         }
+        self.cancel.cancel();
+        let manage_task = {
+            let mut slot = self.manage_task.lock().unwrap_or_else(|poisoned| poisoned.into_inner());
+            slot.take()
+        };
+        if let Some(mut task) = manage_task {
+            match time::timeout_at(deadline, &mut task).await {
+                Ok(Ok(())) => {}
+                Ok(Err(err)) => log::warn!(
+                    "[tp] transport management task did not finish cleanly during stop: {err}"
+                ),
+                Err(_) => {
+                    task.abort();
+                    log::warn!(
+                        "[tp] transport management task still running after stop budget, aborted"
+                    );
+                }
+            }
+        }
         match time::timeout_at(deadline, self.handler.lock()).await {
             Ok(mut handler) => {
                 let attached = {
@@ -76,25 +95,6 @@ impl Transport {
                 log::warn!(
                     "[tp] handler still locked after stop budget, shared-instance posture not cleared"
                 );
-            }
-        }
-        self.cancel.cancel();
-        let manage_task = {
-            let mut slot = self.manage_task.lock().unwrap_or_else(|poisoned| poisoned.into_inner());
-            slot.take()
-        };
-        if let Some(mut task) = manage_task {
-            match time::timeout_at(deadline, &mut task).await {
-                Ok(Ok(())) => {}
-                Ok(Err(err)) => log::warn!(
-                    "[tp] transport management task did not finish cleanly during stop: {err}"
-                ),
-                Err(_) => {
-                    task.abort();
-                    log::warn!(
-                        "[tp] transport management task still running after stop budget, aborted"
-                    );
-                }
             }
         }
         self.fail_pending_requests_on_stop(deadline).await;

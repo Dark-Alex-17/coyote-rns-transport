@@ -29,13 +29,20 @@ impl Transport {
     /// [`Self::detach_shared_instance`] or [`Self::stop`]; removing the
     /// interface through [`Self::stop_interface`] or
     /// [`Self::remove_interface`] leaves it set and a later attach refused
-    /// until detach. Returns the interface address.
+    /// until detach. The connected posture is set only while the slot still
+    /// holds the new interface, so a detach or stop that runs concurrently
+    /// cannot leave the posture set with the slot empty. Returns the
+    /// interface address.
     #[deny(clippy::await_holding_invalid_type)]
     pub async fn attach_shared_instance(
         &self,
         endpoint: SharedInstanceEndpoint,
         options: SharedInstanceOptions,
     ) -> Result<AddressHash, RnsError> {
+        // Lock order: the std slot is innermost, under the iface_manager here
+        // and under the handler below as in detach and stop; the two tokio
+        // locks are never nested. The second section re-reads the slot since
+        // a detach or stop may have emptied it in between.
         let iface = {
             let mut manager = self.iface_manager.lock().await;
             let mut slot =
@@ -63,7 +70,13 @@ impl Transport {
             *slot = Some(iface);
             iface
         };
-        self.set_connected_to_shared_instance(true).await;
+        {
+            let mut handler = self.handler.lock().await;
+            let slot = self.shared_instance.lock().unwrap_or_else(|poisoned| poisoned.into_inner());
+            if *slot == Some(iface) {
+                handler.config.set_connected_to_shared_instance(true);
+            }
+        }
         if !self.synthesize_tunnel_on_interface(iface).await {
             log::warn!(
                 "tp({}): shared instance iface={} unknown to the interface manager, tunnel not synthesized",
@@ -107,10 +120,8 @@ impl Transport {
     }
 
     /// Fork-only: the interface attached with
-    /// [`Self::attach_shared_instance`], if any. Released only by
-    /// [`Self::detach_shared_instance`] or [`Self::stop`]; removing the
-    /// interface through [`Self::stop_interface`] or
-    /// [`Self::remove_interface`] leaves it set.
+    /// [`Self::attach_shared_instance`], if any; see
+    /// [`Self::attach_shared_instance`] for when the slot is released.
     pub fn shared_instance(&self) -> Option<AddressHash> {
         *self.shared_instance.lock().unwrap_or_else(|poisoned| poisoned.into_inner())
     }

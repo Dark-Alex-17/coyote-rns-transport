@@ -307,24 +307,6 @@ struct QueuedInbound {
     path_request: Option<PathRequest>,
 }
 
-impl TransportHandler {
-    fn local_hops_delta_for_packet(&self, packet: &Packet) -> Option<u8> {
-        let local_hops_delta = self.config.local_hops_delta;
-        if self.config.connected_to_shared_instance
-            || packet.header.hops != 0
-            || local_hops_delta == 0
-            || matches!(
-                packet.header.destination_type,
-                DestinationType::Plain | DestinationType::Group
-            )
-        {
-            None
-        } else {
-            Some(local_hops_delta)
-        }
-    }
-}
-
 pub struct Transport {
     name: String,
     link_in_event_tx: broadcast::Sender<LinkEventData>,
@@ -336,6 +318,7 @@ pub struct Transport {
     iface_manager: Arc<Mutex<InterfaceManager>>,
     cancel: CancellationToken,
     manage_task: std::sync::Mutex<Option<tokio::task::JoinHandle<()>>>,
+    shared_instance: std::sync::Mutex<Option<AddressHash>>,
 }
 
 #[derive(Debug, Clone, Copy, Default, PartialEq)]
@@ -484,6 +467,9 @@ mod request_dispatch;
 // resource_accept_hook: the caller-installed callbacks, receipt handler and resource admission.
 mod resource_accept_hook;
 pub use resource_accept_hook::ResourceAcceptHook;
+// shared_instance: endpoint and options for attaching as a shared-instance client.
+mod shared_instance;
+pub use shared_instance::{SharedInstanceEndpoint, SharedInstanceOptions};
 // resource_wire: link-scoped resource packet handling on inbound wire paths.
 mod resource_wire;
 // wire_encryption: packet-context policy for transport-layer encryption.

@@ -18,7 +18,10 @@ impl Transport {
     /// an outcome the caller still holds resolves. A receipt on a skipped
     /// link concludes `LinkClosed` once the link is dropped; an outcome on one
     /// resolves `Failed(LinkClosed)` once the transport is dropped. Calling it
-    /// again is a no-op.
+    /// again is a no-op. A shared instance attached with
+    /// [`Self::attach_shared_instance`] is forgotten and the transport is no
+    /// longer marked connected to one, since its interface is detached with the
+    /// rest.
     #[deny(clippy::await_holding_invalid_type)]
     pub async fn stop(&self) {
         let deadline = Instant::now() + STOP_BUDGET;
@@ -52,6 +55,14 @@ impl Transport {
                     );
                 }
             }
+        }
+        let shared_instance = {
+            let mut slot =
+                self.shared_instance.lock().unwrap_or_else(|poisoned| poisoned.into_inner());
+            slot.take()
+        };
+        if shared_instance.is_some() {
+            self.set_connected_to_shared_instance(false).await;
         }
         self.cancel.cancel();
         let manage_task = {

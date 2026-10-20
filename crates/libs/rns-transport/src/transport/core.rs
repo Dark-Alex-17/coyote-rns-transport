@@ -166,6 +166,7 @@ impl Transport {
             handler,
             cancel,
             manage_task: std::sync::Mutex::new(Some(manage_task)),
+            shared_instance: std::sync::Mutex::new(None),
         }
     }
 

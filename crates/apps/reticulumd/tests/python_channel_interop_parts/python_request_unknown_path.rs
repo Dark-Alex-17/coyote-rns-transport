@@ -94,7 +94,7 @@ async fn run_python_to_rust_request_handler_unregistered_path_is_dropped_and_des
     assert_eq!(sent["request_form"], "packet");
     let report = request_handler_line_with(&lines, "request_no_response");
     assert_eq!(report["request_no_response"], true);
-    assert_eq!(report["status"], REQUEST_FORMS_MATRIX_PY_SENT, "packet form never DELIVERED");
+    assert_eq!(report["status"], REQUEST_HANDLER_PY_SENT, "packet form never DELIVERED");
     assert_eq!(sent["request_id"], report["request_id"]);
     assert!(
         lines.iter().all(|line| line.get("response_size").is_none()),
@@ -191,8 +191,7 @@ async fn run_rust_to_python_request_receipt_unregistered_path_resource_request_i
     )
     .await;
     let mut resource_events = fixture.transport.resource_events();
-    let mdu = { fixture.link.lock().await.link_mdu() };
-    assert!(REQUEST_FORMS_MATRIX_LARGE > mdu, "probe payload must exceed the link MDU");
+    request_forms_matrix_assert_large_exceeds_mdu(&fixture).await;
 
     let timeout = Duration::from_secs(3);
     let started = tokio::time::Instant::now();

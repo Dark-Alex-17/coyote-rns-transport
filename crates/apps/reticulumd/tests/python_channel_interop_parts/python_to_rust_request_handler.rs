@@ -8,6 +8,9 @@ use rns_transport::destination::request::{
 use rns_transport::destination::SingleInputDestination;
 
 const REQUEST_HANDLER_PATH: &str = "/test/request";
+// Python `RequestReceipt` status codes (RNS/Link.py:1318-1319).
+const REQUEST_HANDLER_PY_FAILED: u64 = 0x00;
+const REQUEST_HANDLER_PY_SENT: u64 = 0x01;
 
 type RequestHandlerSeen = (RequestId, Option<AddressHash>, rmpv::Value);
 
@@ -277,7 +280,7 @@ async fn run_python_to_rust_request_handler_allow_list_denies_an_unlisted_peer_s
     request_handler_line_with(&lines, "request_sent");
     let report = request_handler_line_with(&lines, "request_no_response");
     assert_eq!(report["request_no_response"], true);
-    assert_eq!(report["status"], 1, "python receipt left SENT");
+    assert_eq!(report["status"], REQUEST_HANDLER_PY_SENT, "python receipt left SENT");
     assert_eq!(report["request_form"], "packet");
     assert_eq!(record.calls.load(Ordering::SeqCst), 0, "handler ran for an unlisted peer");
 }

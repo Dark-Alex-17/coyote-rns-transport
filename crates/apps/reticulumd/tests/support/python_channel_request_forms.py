@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 import hashlib
 import json
 import sys
@@ -86,8 +88,9 @@ def run_client(
         done.set()
 
     # Anchored here rather than at run() start so link setup and the identify
-    # handshake do not eat into the window a silently dropped request gets.
-    request_deadline = time.time() + timeout
+    # handshake do not eat into the window a silently dropped request gets,
+    # and never shorter than the RNS timeout so failed_callback can still fire.
+    request_deadline = time.time() + max(timeout, request_timeout or 0.0)
     receipt = active_link.request(
         request_path,
         data=request_data,

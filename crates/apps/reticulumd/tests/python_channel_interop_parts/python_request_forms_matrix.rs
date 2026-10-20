@@ -17,8 +17,6 @@ use rns_transport::resource::ResourceEvent;
 
 /// Above the ~16 KB TCP link MDU, well below the 64 MiB receiver cap.
 const REQUEST_FORMS_MATRIX_LARGE: usize = 48 * 1024;
-const REQUEST_FORMS_MATRIX_PY_SENT: u64 = 0x01;
-const REQUEST_FORMS_MATRIX_PY_FAILED: u64 = 0x00;
 
 /// Same generator as the endpoint's `request_forms_body`.
 fn request_forms_matrix_body(size: usize) -> Vec<u8> {
@@ -35,6 +33,15 @@ fn request_forms_matrix_no_reply(_data: &rmpv::Value) -> Option<RequestResponse>
 
 fn request_forms_matrix_large_bytes(_data: &rmpv::Value) -> Option<RequestResponse> {
     Some(RequestResponse::Bytes(request_forms_matrix_body(REQUEST_FORMS_MATRIX_LARGE)))
+}
+
+/// A Rust -> Python Resource-form cell only proves anything if the payload
+/// cannot fit a packet on the negotiated link.
+#[deny(clippy::await_holding_invalid_type)]
+async fn request_forms_matrix_assert_large_exceeds_mdu(fixture: &RustRequestReceiptFixture) {
+    let mdu = { fixture.link.lock().await.link_mdu() };
+    eprintln!("rust link mdu={mdu}");
+    assert!(REQUEST_FORMS_MATRIX_LARGE > mdu, "payload must exceed the link MDU");
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -113,13 +120,10 @@ async fn run_python_to_rust_request_handler_resource_request_over_mdu_gets_a_res
 
     let forms =
         request_forms_matrix_terminal_forms(&mut resource_events, Duration::from_secs(2)).await;
-    assert!(
-        forms.contains(&RequestFormsMatrixForm::InboundRequest),
-        "the request did not arrive as a Resource: {forms:?}"
-    );
-    assert!(
-        forms.contains(&RequestFormsMatrixForm::Outbound),
-        "the response did not leave as a Resource: {forms:?}"
+    assert_eq!(
+        forms,
+        vec![RequestFormsMatrixForm::InboundRequest, RequestFormsMatrixForm::Outbound],
+        "one inbound request Resource, then one outbound response Resource"
     );
 }
 
@@ -219,14 +223,14 @@ async fn run_python_to_rust_request_handler_none_response_leaves_the_packet_requ
     let sent = request_handler_line_with(&lines, "request_sent");
     let report = request_handler_line_with(&lines, "request_no_response");
     assert_eq!(report["request_no_response"], true);
-    assert_eq!(
-        report["status"], REQUEST_FORMS_MATRIX_PY_SENT,
-        "packet form never reaches DELIVERED"
-    );
+    assert_eq!(report["status"], REQUEST_HANDLER_PY_SENT, "packet form never reaches DELIVERED");
     assert_eq!(sent["request_id"], report["request_id"]);
     let (request_id, _, data) = record.single_request();
     assert_eq!(rmpv_to_string(&data).as_deref(), Some("hello-rust"));
-    assert_eq!(request_id.to_string(), report["request_id"].as_str().expect("python request id"));
+    let rust_hex = request_id.to_string();
+    let python_hex = report["request_id"].as_str().expect("python request id");
+    eprintln!("request id rust={rust_hex} python={python_hex}");
+    assert_eq!(rust_hex, python_hex);
 }
 
 // A denied Resource-form request. Python accepts an inbound request Resource
@@ -270,7 +274,7 @@ async fn run_python_to_rust_request_handler_allow_list_denied_resource_request_f
     let report = request_handler_line_with(&lines, "request_failed");
     assert_eq!(report["request_failed"], true);
     assert_eq!(report["request_form"], "resource");
-    assert_eq!(report["status"], REQUEST_FORMS_MATRIX_PY_FAILED);
+    assert_eq!(report["status"], REQUEST_HANDLER_PY_FAILED);
     assert_eq!(sent["request_id"], report["request_id"]);
     assert!(
         lines.iter().all(|line| line.get("response_size").is_none()),
@@ -308,9 +312,7 @@ async fn run_rust_to_python_request_receipt_resource_request_over_mdu_gets_a_res
     )
     .await;
     let mut resource_events = fixture.transport.resource_events();
-    let mdu = { fixture.link.lock().await.link_mdu() };
-    eprintln!("rust link mdu={mdu}");
-    assert!(REQUEST_FORMS_MATRIX_LARGE > mdu, "probe payload must exceed the link MDU");
+    request_forms_matrix_assert_large_exceeds_mdu(&fixture).await;
 
     let request_text = "x".repeat(REQUEST_FORMS_MATRIX_LARGE);
     let receipt = fixture
@@ -329,13 +331,10 @@ async fn run_rust_to_python_request_receipt_resource_request_over_mdu_gets_a_res
 
     let forms =
         request_forms_matrix_terminal_forms(&mut resource_events, Duration::from_secs(2)).await;
-    assert!(
-        forms.contains(&RequestFormsMatrixForm::Outbound),
-        "the request did not leave as a Resource: {forms:?}"
-    );
-    assert!(
-        forms.contains(&RequestFormsMatrixForm::InboundResponse),
-        "the response did not arrive as a Resource: {forms:?}"
+    assert_eq!(
+        forms,
+        vec![RequestFormsMatrixForm::Outbound, RequestFormsMatrixForm::InboundResponse],
+        "one outbound request Resource, then one inbound response Resource"
     );
 }
 
@@ -357,6 +356,7 @@ async fn run_rust_to_python_request_receipt_resource_request_over_mdu_gets_a_pac
     )
     .await;
     let mut resource_events = fixture.transport.resource_events();
+    request_forms_matrix_assert_large_exceeds_mdu(&fixture).await;
 
     let data = rmpv::Value::Map(vec![
         (rmpv::Value::String("response_size".into()), rmpv::Value::from(16)),
@@ -405,6 +405,7 @@ async fn run_rust_to_python_request_receipt_packet_request_gets_a_resource_respo
     )
     .await;
     let mut resource_events = fixture.transport.resource_events();
+    request_forms_matrix_assert_large_exceeds_mdu(&fixture).await;
 
     let data = rmpv::Value::Map(vec![(
         rmpv::Value::String("response_size".into()),
@@ -478,7 +479,8 @@ async fn run_rust_to_python_request_receipt_two_concurrent_requests_resolve_sepa
             .iter()
             .find(|report| report["request_id"].as_str() == Some(rust_hex.as_str()))
             .unwrap_or_else(|| panic!("no python report for request {rust_hex}: {reports:?}"));
-        eprintln!("request id rust={rust_hex} python={}", report["request_id"]);
+        let python_hex = report["request_id"].as_str().expect("python request id");
+        eprintln!("request id rust={rust_hex} python={python_hex}");
         assert_eq!(report["response_kind"], "text");
         assert_eq!(report["response_size"], size);
     }

@@ -496,7 +496,9 @@ trailing clause of the bullet for the behaviour it pins.
 
 - The crate version is `0.15.0`; the discovery announce carries it in the
   `TRANSPORT_VERS` field (`discovery/announce.rs`), so peers observe the fork
-  release through discovery.
+  release through discovery. The release contracts are pinned by
+  `crates/apps/reticulumd/tests/fork_publish_contract.rs` and
+  `fork_release_docs_contract.rs`.
 
 - `LinkEvent` is `#[non_exhaustive]`. The two in-workspace exhaustive
   matches (`destination/link_parts/link_sections/next_watchdog_deadline.rs`

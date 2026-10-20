@@ -509,7 +509,7 @@ unchanged and listed in the `0.14.1` section of `docs/fork/PATCHSET.md`.
    fuzz crate's own `crates/libs/rns-transport/fuzz/Cargo.lock` (the same
    command with `--manifest-path crates/libs/rns-transport/fuzz/Cargo.toml`),
    and add the release headings to `CHANGELOG.md` and `docs/fork/PATCHSET.md`.
-7. `cargo check --workspace && cargo test -p coyote-rns-transport && cargo test -p reticulumd --test fork_publish_contract && tools/scripts/check-boundaries.sh && cargo publish -p coyote-rns-transport --locked --dry-run`
+7. `cargo check --workspace && cargo test -p coyote-rns-transport && cargo test -p reticulumd --test fork_publish_contract --test fork_release_docs_contract && tools/scripts/check-boundaries.sh && cargo publish -p coyote-rns-transport --locked --dry-run`
 8. Commit, then either tag `coyote-rns-transport-vX.Y.Z` and push the tag, or
    run the `publish-coyote-rns-transport` workflow by hand from the Actions
    tab, setting the `ref` input to the tag; the dropdown choice alone does not

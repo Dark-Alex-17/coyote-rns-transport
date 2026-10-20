@@ -44,131 +44,6 @@ fn upstream_publish_workflow_is_disabled() {
     }
 }
 
-/// The crate's doc comments immediately above `line` (attributes between the
-/// two are skipped), joined into one string; empty when there is no doc.
-fn doc_block_above(lines: &[&str], line: usize) -> String {
-    let mut docs = Vec::new();
-    let mut at = line;
-    while at > 0 {
-        at -= 1;
-        let text = lines[at].trim_start();
-        if text.starts_with("#[") || text.starts_with("#![") {
-            continue;
-        }
-        match text.strip_prefix("///") {
-            Some(doc) => docs.push(doc.trim()),
-            None => break,
-        }
-    }
-    docs.reverse();
-    docs.join(" ")
-}
-
-/// `RNS/<path>.py:<line>` somewhere in the doc (`RNS/Link.py:808`,
-/// `RNS/vendor/umsgpack.py:320-324,989`), or an explicit fork-only
-/// statement.
-fn doc_cites_python_or_fork_only(doc: &str) -> bool {
-    let lowered = doc.to_ascii_lowercase();
-    if lowered.contains("fork-only") || lowered.contains("fork only") {
-        return true;
-    }
-    doc.match_indices("`RNS/").any(|(at, _)| {
-        let rest = &doc[at + "`RNS/".len()..];
-        let Some(dot) = rest.find(".py:") else { return false };
-        rest[..dot].chars().all(|c| c.is_ascii_alphanumeric() || c == '_' || c == '/')
-            && rest[dot + ".py:".len()..].starts_with(|c: char| c.is_ascii_digit())
-    })
-}
-
-/// Every public item the request layer and the outbound-outcome types added
-/// over the upstream baseline (types, free and associated functions, and the
-/// variants of public enums) carries a doc comment, and that doc, or for a
-/// variant the doc of its enum, either cites its Python counterpart as
-/// `RNS/<file>.py:<line>` or states that the item is fork-only.
-#[test]
-fn request_layer_public_items_cite_python_or_say_fork_only() {
-    let files = [
-        "crates/libs/rns-transport/src/destination/request/allow.rs",
-        "crates/libs/rns-transport/src/destination/request/frame.rs",
-        "crates/libs/rns-transport/src/destination/request/handler.rs",
-        "crates/libs/rns-transport/src/destination/request/id.rs",
-        "crates/libs/rns-transport/src/destination/request/inbound.rs",
-        "crates/libs/rns-transport/src/destination/request/receipt.rs",
-        "crates/libs/rns-transport/src/resource/outcome.rs",
-    ];
-    let item_keywords =
-        ["fn ", "async fn ", "const fn ", "struct ", "enum ", "trait ", "type ", "const "];
-
-    let mut checked = 0usize;
-    let mut undocumented = Vec::new();
-    let mut uncited = Vec::new();
-    for file in files {
-        let source = read_repo_file(file);
-        let lines: Vec<&str> = source.lines().collect();
-        let mut enum_doc: Option<String> = None;
-        let mut enum_depth = 0i32;
-        for (index, raw) in lines.iter().enumerate() {
-            let text = raw.trim_start();
-            let site = format!("{file}:{}: {}", index + 1, text.trim_end());
-
-            if let Some(enum_body) = enum_doc.as_ref() {
-                // A variant of a public enum: an identifier at depth one that
-                // is not a comment, an attribute or the closing brace.
-                let is_variant = enum_depth == 1
-                    && text.starts_with(|c: char| c.is_ascii_uppercase())
-                    && !text.starts_with("//");
-                if is_variant {
-                    checked += 1;
-                    let doc = doc_block_above(&lines, index);
-                    if doc.is_empty() {
-                        undocumented.push(site.clone());
-                    } else if !(doc_cites_python_or_fork_only(&doc)
-                        || doc_cites_python_or_fork_only(enum_body))
-                    {
-                        uncited.push(site.clone());
-                    }
-                }
-                enum_depth += text.matches('{').count() as i32;
-                enum_depth -= text.matches('}').count() as i32;
-                if enum_depth <= 0 && text.contains('}') {
-                    enum_doc = None;
-                }
-            }
-
-            let Some(after_pub) = text.strip_prefix("pub ") else { continue };
-            if !item_keywords.iter().any(|keyword| after_pub.starts_with(keyword)) {
-                continue; // `pub use` re-exports, `pub mod`, and struct fields in `pub(crate)` scope
-            }
-            checked += 1;
-            let doc = doc_block_above(&lines, index);
-            if doc.is_empty() {
-                undocumented.push(site.clone());
-            } else if !doc_cites_python_or_fork_only(&doc) {
-                uncited.push(site.clone());
-            }
-            if after_pub.starts_with("enum ") {
-                enum_doc = Some(doc);
-                enum_depth = text.matches('{').count() as i32 - text.matches('}').count() as i32;
-            }
-        }
-    }
-
-    assert!(
-        checked >= 90,
-        "the request layer should expose the receipt, frame, handler and outcome surface; found only {checked} public items"
-    );
-    assert!(
-        undocumented.is_empty(),
-        "every public request-layer item and enum variant should carry a doc comment:\n{}",
-        undocumented.join("\n")
-    );
-    assert!(
-        uncited.is_empty(),
-        "every public request-layer item should cite `RNS/<file>.py:<line>` or state it is fork-only (a variant may inherit its enum's cite):\n{}",
-        uncited.join("\n")
-    );
-}
-
 #[test]
 fn fork_publish_workflow_pins_its_contract() {
     let workflow = read_repo_file(".github/workflows/publish-coyote-rns-transport.yml");
@@ -386,6 +261,102 @@ fn release_sites_and_ledgers_track_the_crate_version() {
             "crate README should state the versioning policy and name both ledgers; missing {required:?}"
         );
     }
+}
+
+/// The fuzz crate is not a workspace member, so its `Cargo.lock` is the one
+/// release site the workspace `cargo update` never touches. The README's
+/// release recipe has to name every lock the version pin above checks, with
+/// the `--manifest-path` the fuzz lock needs, or the next release leaves it
+/// behind exactly the way 0.14.1 did.
+#[test]
+fn release_recipe_regenerates_every_lock_the_version_pin_checks() {
+    let readme = read_repo_file("crates/libs/rns-transport/README.md");
+    let regenerate = readme
+        .find("cargo update -p coyote-rns-transport --offline")
+        .expect("crate README should carry the lock-regeneration step of the release recipe");
+    // The numbered recipe step that carries the command: from its `N. ` opener
+    // to the next step's opener (or the end of the file).
+    let opens_a_step = |line: &str| {
+        let digits = line.chars().take_while(|c| c.is_ascii_digit()).count();
+        digits > 0 && line[digits..].starts_with(". ")
+    };
+    let step_start = readme[..regenerate]
+        .rmatch_indices('\n')
+        .map(|(at, _)| at + 1)
+        .find(|&at| opens_a_step(&readme[at..]))
+        .unwrap_or(0);
+    let step_end = readme[regenerate..]
+        .match_indices('\n')
+        .map(|(at, _)| regenerate + at + 1)
+        .find(|&at| opens_a_step(&readme[at..]))
+        .unwrap_or(readme.len());
+    let recipe = &readme[step_start..step_end];
+
+    for lock in ["Cargo.lock", "crates/libs/rns-transport/fuzz/Cargo.lock"] {
+        assert!(
+            recipe.contains(&format!("`{lock}`")),
+            "the README release recipe should name {lock:?} among the locks to regenerate:\n{recipe}"
+        );
+    }
+    assert!(
+        recipe.contains("--manifest-path crates/libs/rns-transport/fuzz/Cargo.toml"),
+        "the README release recipe should give the `--manifest-path` the fuzz lock needs:\n{recipe}"
+    );
+}
+
+/// The fuzz crate depends on the library by path, so its lock must resolve
+/// `coyote-rns-transport` to exactly one path package at the crate version:
+/// a second, registry-sourced entry would mean the fuzz targets exercise the
+/// published crate instead of the tree they sit in.
+#[test]
+fn fuzz_lock_resolves_the_crate_from_its_path_dependency() {
+    let manifest = read_repo_file("crates/libs/rns-transport/fuzz/Cargo.toml");
+    let path_dependency = manifest
+        .lines()
+        .find(|line| line.contains("package = \"coyote-rns-transport\""))
+        .expect("fuzz Cargo.toml should depend on coyote-rns-transport by package name");
+    assert!(
+        path_dependency.contains("path = \"..\""),
+        "fuzz Cargo.toml should take coyote-rns-transport from the parent directory, got {path_dependency:?}"
+    );
+
+    let lock = read_repo_file("crates/libs/rns-transport/fuzz/Cargo.lock");
+    let packages: Vec<&str> = lock.split("[[package]]").skip(1).collect();
+    let crate_entries: Vec<&str> = packages
+        .iter()
+        .copied()
+        .filter(|entry| entry.contains("name = \"coyote-rns-transport\"\n"))
+        .collect();
+    assert_eq!(
+        crate_entries.len(),
+        1,
+        "fuzz Cargo.lock should resolve coyote-rns-transport exactly once, got {}",
+        crate_entries.len()
+    );
+    let entry = crate_entries[0];
+    assert!(
+        !entry.contains("source = "),
+        "fuzz Cargo.lock should take coyote-rns-transport from the path dependency, not a registry:\n{entry}"
+    );
+    let version_token = format!("version = \"{}\"\n", crate_version());
+    assert!(
+        entry.contains(&version_token),
+        "fuzz Cargo.lock should carry coyote-rns-transport at {version_token:?}:\n{entry}"
+    );
+
+    let fuzz_entry = packages
+        .iter()
+        .copied()
+        .find(|entry| entry.contains("name = \"rns-transport-fuzz\"\n"))
+        .expect("fuzz Cargo.lock should carry the fuzz crate itself");
+    let depends_on_crate = fuzz_entry
+        .split("dependencies = [")
+        .nth(1)
+        .is_some_and(|deps| deps.lines().any(|line| line.trim() == "\"coyote-rns-transport\","));
+    assert!(
+        depends_on_crate,
+        "the fuzz crate's lock entry should list coyote-rns-transport as a dependency:\n{fuzz_entry}"
+    );
 }
 
 /// The patch-set ledger's section for the current release opens with a table
@@ -787,148 +758,6 @@ fn old_package_name_survives_only_as_prose() {
     );
 }
 
-/// The crate README's `## Known divergences from Python RNS` register is the
-/// consumer's list of where this crate is known to depart from RNS 1.5.2.
-/// Every entry must point at Python with an `RNS/<file>.py:<line>` citation,
-/// and the first entry is the request-timeout divergence the release notes
-/// lead with, cited at `RNS/Link.py:1398` (`request_timed_out`) and `:1408`
-/// (`response_rejected`).
-#[test]
-fn crate_readme_known_divergences_cite_python_lines() {
-    let readme = read_repo_file("crates/libs/rns-transport/README.md");
-    let heading = "\n## Known divergences from Python RNS\n";
-    let start = readme
-        .find(heading)
-        .expect("crate README should carry a `## Known divergences from Python RNS` section");
-    let section = &readme[start + heading.len()..];
-    let section = match section.find("\n## ") {
-        Some(end) => &section[..end],
-        None => section,
-    };
-
-    // Entries are top-level bullets; continuation lines are indented.
-    let entries: Vec<String> = section
-        .split("\n- ")
-        .skip(1)
-        .map(|entry| entry.split_whitespace().collect::<Vec<_>>().join(" "))
-        .collect();
-    assert!(
-        entries.len() >= 10,
-        "the divergence register should list the request-layer divergences, found {} entries",
-        entries.len()
-    );
-
-    let rns_modules = ["Link", "Destination", "Transport", "Packet", "Resource", "Identity"];
-    let cites_python = |entry: &str| {
-        entry.match_indices("RNS/").any(|(at, _)| {
-            let rest = &entry[at + "RNS/".len()..];
-            rns_modules.iter().any(|module| {
-                rest.strip_prefix(module)
-                    .and_then(|r| r.strip_prefix(".py:"))
-                    .is_some_and(|r| r.starts_with(|c: char| c.is_ascii_digit()))
-            })
-        })
-    };
-    let uncited: Vec<&str> =
-        entries.iter().map(String::as_str).filter(|entry| !cites_python(entry)).collect();
-    assert!(
-        uncited.is_empty(),
-        "every divergence entry should cite `RNS/<file>.py:<line>`:\n{}",
-        uncited.join("\n")
-    );
-
-    let timeout_entry = &entries[0];
-    for required in ["RequestError::Timeout", "`RNS/Link.py:1398`", "`:1408`", "DELIVERED"] {
-        assert!(
-            timeout_entry.contains(required),
-            "the first divergence should be the request-timeout-in-any-state entry citing {required:?}, got {timeout_entry:?}"
-        );
-    }
-
-    assert!(
-        section.contains("\nNot divergences:\n"),
-        "the register should separate API-shape facts under `Not divergences:`"
-    );
-}
-
-/// A release whose minor digit moved against the previous release heading
-/// carries breaking changes, and the README sends consumers to `### Breaking`
-/// in the CHANGELOG for them: that subsection must open the release section
-/// and every bullet in it must tell the consumer how to migrate. A release
-/// that only moved the patch digit must not claim breaking changes.
-#[test]
-fn release_notes_list_breaking_changes_on_a_minor_bump() {
-    let version = crate_version();
-    let changelog = read_repo_file("crates/libs/rns-transport/CHANGELOG.md");
-
-    fn minor(version: &str) -> (u64, u64) {
-        let mut parts = version.split('.').map(|part| part.parse::<u64>().expect("numeric"));
-        (parts.next().expect("major"), parts.next().expect("minor"))
-    }
-
-    // Release headings only: an `## Unreleased` stub above them is allowed.
-    let headings: Vec<(usize, &str)> = changelog
-        .lines()
-        .enumerate()
-        .filter_map(|(index, line)| {
-            line.strip_prefix("## ").map(|rest| (index, rest.split(' ').next().unwrap_or(rest)))
-        })
-        .filter(|(_, heading)| heading.starts_with(|c: char| c.is_ascii_digit()))
-        .collect();
-    let current = headings
-        .iter()
-        .position(|(_, heading)| *heading == version)
-        .unwrap_or_else(|| panic!("CHANGELOG should have a `## {version}` heading"));
-    assert_eq!(current, 0, "the current release should be the first release heading");
-    let previous = headings
-        .get(1)
-        .map(|(_, heading)| *heading)
-        .expect("a previous release heading follows the current one");
-
-    let lines: Vec<&str> = changelog.lines().collect();
-    let section = &lines[headings[0].0 + 1..headings[1].0];
-    let subsections: Vec<&str> =
-        section.iter().copied().filter(|line| line.starts_with("### ")).collect();
-
-    if minor(&version) > minor(previous) {
-        assert_eq!(
-            subsections.first().copied(),
-            Some("### Breaking"),
-            "{version} moved the minor digit against {previous}, so its release notes should open with `### Breaking`, got {subsections:?}"
-        );
-        let breaking_start =
-            section.iter().position(|line| *line == "### Breaking").expect("located above") + 1;
-        let breaking_end = section[breaking_start..]
-            .iter()
-            .position(|line| line.starts_with("### "))
-            .map_or(section.len(), |p| breaking_start + p);
-        let breaking = &section[breaking_start..breaking_end];
-        let bullets: Vec<String> = breaking
-            .split(|line| line.trim().is_empty())
-            .filter(|para| !para.is_empty())
-            .map(|para| para.join(" "))
-            .filter(|para| para.starts_with("- "))
-            .collect();
-        assert!(!bullets.is_empty(), "`### Breaking` should list at least one change");
-        for bullet in &bullets {
-            assert!(
-                bullet.contains("Migration:"),
-                "every breaking bullet should carry a `Migration:` clause, got {bullet:?}"
-            );
-        }
-        let readme = read_repo_file("crates/libs/rns-transport/README.md");
-        assert!(
-            readme.contains("`### Breaking` in `CHANGELOG.md`"),
-            "the README versioning policy should send consumers to `### Breaking` in `CHANGELOG.md`"
-        );
-    } else {
-        assert!(
-            !subsections.contains(&"### Breaking"),
-            "{version} only moved the patch digit against {previous}, so it must not list breaking changes"
-        );
-    }
-}
-
 /// Release hygiene the fork carries in CI: the publish contract runs on the
 /// pull-request path, not only on the tag workflow, and the upstream Codex
 /// review is opt-in through a repository variable, so a fork without the
@@ -938,8 +767,8 @@ fn pull_request_ci_runs_the_publish_contract_and_codex_review_is_opt_in() {
     let ci = read_repo_file(".github/workflows/ci.yml");
     assert!(ci.contains("\non:\n  pull_request:"), "ci.yml should run on pull requests");
     assert!(
-        ci.contains("run: cargo test -p reticulumd --test fork_publish_contract"),
-        "ci.yml should run the fork publish contract as a step"
+        ci.contains("run: cargo test -p reticulumd --test fork_publish_contract --test fork_release_docs_contract"),
+        "ci.yml should run the fork publish and release-docs contracts as one step"
     );
     // The step belongs to a job with no `if:` guard, so it runs on every PR.
     let job_start = ci[..ci.find("--test fork_publish_contract").expect("step located")]
@@ -964,106 +793,4 @@ fn pull_request_ci_runs_the_publish_contract_and_codex_review_is_opt_in() {
         !guard.contains("secrets."),
         "a job-level `if:` cannot read secrets; the gate must be a repository variable"
     );
-}
-
-/// Every `rust` snippet in the crate README is pinned verbatim by one of the
-/// public-API test files, so a README edit that drifts from what compiles and
-/// runs turns this test red. `use` lines are left to the compiler of those
-/// tests; every other line of a snippet must appear, whitespace aside, in a
-/// pin file, with a `match` arm compared up to its `=>` because the pins
-/// reduce the README's log calls to labels (and may bind an unused pattern
-/// variable with a leading underscore).
-#[test]
-fn crate_readme_rust_snippets_are_pinned_verbatim_by_the_api_tests() {
-    let readme = read_repo_file("crates/libs/rns-transport/README.md");
-    let pins: String = [
-        "crates/libs/rns-transport/tests/request_receipt_readme.rs",
-        "crates/libs/rns-transport/tests/request_handler_api.rs",
-        "crates/libs/rns-transport/tests/outbound_outcome_api.rs",
-        "crates/libs/rns-transport/tests/request_receipt_api.rs",
-    ]
-    .iter()
-    .map(|path| read_repo_file(path))
-    .collect::<Vec<_>>()
-    .join("\n");
-    let squash = |text: &str| {
-        text.chars().filter(|c| !c.is_whitespace()).collect::<String>().replace("(_", "(")
-    };
-    let pins = squash(&pins);
-
-    let mut snippets = Vec::new();
-    let mut current: Option<Vec<&str>> = None;
-    for line in readme.lines() {
-        match (&mut current, line.trim_start()) {
-            (None, "```rust") => current = Some(Vec::new()),
-            (Some(lines), "```") => snippets.push(lines.clone()),
-            (Some(lines), _) => lines.push(line),
-            _ => {}
-        }
-        if line.trim_start() == "```" {
-            current = None;
-        }
-    }
-    assert!(
-        snippets.len() >= 4,
-        "the README should carry the consumer, handler, request and outcome snippets, found {}",
-        snippets.len()
-    );
-
-    let mut unpinned = Vec::new();
-    for snippet in &snippets {
-        for line in snippet {
-            let trimmed = line.trim();
-            if trimmed.is_empty() || trimmed.starts_with("use ") || trimmed.starts_with("//") {
-                continue;
-            }
-            let needle = match trimmed.split_once(" => ") {
-                Some((pattern, _)) => squash(pattern),
-                None => squash(trimmed),
-            };
-            if !pins.contains(&needle) {
-                unpinned.push(trimmed.to_string());
-            }
-        }
-    }
-    assert!(
-        unpinned.is_empty(),
-        "every README snippet line should appear verbatim in a public-API pin test:\n{}",
-        unpinned.join("\n")
-    );
-}
-
-/// Every public enum the request layer and the outcome types added, and every
-/// enum the README or the release notes call `#[non_exhaustive]`, carries the
-/// attribute on its definition, so the "keep a wildcard arm" guidance the
-/// consumer reads is what the compiler enforces.
-#[test]
-fn enums_the_docs_call_non_exhaustive_carry_the_attribute() {
-    let sites = [
-        ("RequestError", "crates/libs/rns-transport/src/destination/request/receipt.rs"),
-        ("RequestStatus", "crates/libs/rns-transport/src/destination/request/receipt.rs"),
-        ("RequestAllow", "crates/libs/rns-transport/src/destination/request/allow.rs"),
-        ("RequestResponse", "crates/libs/rns-transport/src/destination/request/handler.rs"),
-        ("RnsError", "crates/libs/rns-transport/src/error.rs"),
-        ("OutboundResult", "crates/libs/rns-transport/src/resource/outcome.rs"),
-        ("OutboundFailure", "crates/libs/rns-transport/src/resource/outcome.rs"),
-        ("RejectReason", "crates/libs/rns-transport/src/resource/outcome.rs"),
-        ("LinkEvent", "crates/libs/rns-transport/src/destination/link_parts/linkhandleresult.rs"),
-        ("ResourceEventKind", "crates/libs/rns-transport/src/resource.rs"),
-        ("AnnounceEvent", "crates/libs/rns-transport/src/transport/mod.rs"),
-    ];
-    for (item, file) in sites {
-        let source = read_repo_file(file);
-        let definition = source
-            .find(&format!("pub enum {item} "))
-            .or_else(|| source.find(&format!("pub struct {item} ")))
-            .unwrap_or_else(|| panic!("{file} should define `{item}`"));
-        // The attribute block sits between the previous blank line and the definition.
-        let attributes = &source[..definition];
-        let attributes = &attributes[attributes.rfind("\n\n").map_or(0, |at| at + 2)..];
-        assert!(
-            attributes.lines().any(|line| line.trim() == "#[non_exhaustive]"),
-            "{file}: `{item}` is documented as `#[non_exhaustive]` but its definition lacks the attribute:\n{attributes}"
-        );
-    }
 }

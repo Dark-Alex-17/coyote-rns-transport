@@ -1,0 +1,571 @@
+//! Release-documentation contracts of the fork: every public item added over
+//! the upstream baseline cites its Python counterpart in rustdoc or says it is
+//! fork-only, the README divergence register cites Python line numbers, the
+//! release notes carry `### Breaking` with migrations on a minor bump, the
+//! README's Rust snippets are pinned verbatim by the public-API tests, and
+//! the enums the docs call `#[non_exhaustive]` carry the attribute.
+
+use std::fs;
+use std::path::PathBuf;
+
+fn repo_root() -> PathBuf {
+    PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../..").canonicalize().expect("repo root")
+}
+
+fn read_repo_file(relative: &str) -> String {
+    let path = repo_root().join(relative);
+    fs::read_to_string(&path).unwrap_or_else(|err| panic!("read {}: {err}", path.display()))
+}
+
+fn crate_version() -> String {
+    read_repo_file("crates/libs/rns-transport/Cargo.toml")
+        .lines()
+        .find_map(|line| line.strip_prefix("version = \""))
+        .and_then(|rest| rest.strip_suffix('"'))
+        .expect("coyote-rns-transport manifest should declare a package version")
+        .to_string()
+}
+
+/// The crate's doc comments immediately above `line` (attributes between the
+/// two are skipped), joined into one string; empty when there is no doc.
+fn doc_block_above(lines: &[&str], line: usize) -> String {
+    let mut docs = Vec::new();
+    let mut at = line;
+    while at > 0 {
+        at -= 1;
+        let text = lines[at].trim_start();
+        if text.starts_with("#[") || text.starts_with("#![") {
+            continue;
+        }
+        match text.strip_prefix("///") {
+            Some(doc) => docs.push(doc.trim()),
+            None => break,
+        }
+    }
+    docs.reverse();
+    docs.join(" ")
+}
+
+/// `RNS/<path>.py:<line>` somewhere in the doc (`RNS/Link.py:808`,
+/// `RNS/vendor/umsgpack.py:320-324,989`), or an explicit fork-only
+/// statement.
+fn doc_cites_python_or_fork_only(doc: &str) -> bool {
+    let lowered = doc.to_ascii_lowercase();
+    if lowered.contains("fork-only") || lowered.contains("fork only") {
+        return true;
+    }
+    doc.match_indices("`RNS/").any(|(at, _)| {
+        let rest = &doc[at + "`RNS/".len()..];
+        let Some(dot) = rest.find(".py:") else { return false };
+        rest[..dot].chars().all(|c| c.is_ascii_alphanumeric() || c == '_' || c == '/')
+            && rest[dot + ".py:".len()..].starts_with(|c: char| c.is_ascii_digit())
+    })
+}
+
+/// `pub <ident>:`, the field of a struct body.
+fn is_pub_field(text: &str) -> bool {
+    text.strip_prefix("pub ").is_some_and(|rest| {
+        let name_len = rest.chars().take_while(|c| c.is_alphanumeric() || *c == '_').count();
+        name_len > 0 && rest[name_len..].starts_with(':')
+    })
+}
+
+/// `text` starts with `prefix` and then `name` as a whole identifier.
+fn declares(text: &str, prefix: &str, name: &str) -> bool {
+    text.strip_prefix(prefix)
+        .and_then(|rest| rest.strip_prefix(name))
+        .is_some_and(|rest| !rest.starts_with(|c: char| c.is_alphanumeric() || c == '_'))
+}
+
+/// The lines one brace deep inside the body that opens on line `open`: an
+/// enum's variants or a struct's fields, not the fields of a struct variant.
+fn direct_members(lines: &[&str], open: usize) -> Vec<usize> {
+    let mut depth = 0i32;
+    let mut members = Vec::new();
+    for (index, line) in lines.iter().enumerate().skip(open) {
+        if index > open && depth == 1 {
+            members.push(index);
+        }
+        depth += line.matches('{').count() as i32 - line.matches('}').count() as i32;
+        if index > open && depth <= 0 {
+            break;
+        }
+    }
+    members
+}
+
+#[derive(Debug)]
+enum ItemKind {
+    Method,
+    TypeAlias,
+    Variant {
+        enum_name: &'static str,
+    },
+    /// A field of a `pub struct` or of a struct variant; the latter's fields
+    /// carry no `pub` of their own.
+    Field {
+        owner: &'static str,
+    },
+}
+
+fn locate_named_item(lines: &[&str], kind: &ItemKind, name: &str) -> Option<usize> {
+    let position =
+        |found: &dyn Fn(&str) -> bool| lines.iter().position(|line| found(line.trim_start()));
+    match kind {
+        ItemKind::Method => position(&|text| {
+            declares(text, "pub fn ", name) || declares(text, "pub async fn ", name)
+        }),
+        ItemKind::TypeAlias => position(&|text| declares(text, "pub type ", name)),
+        ItemKind::Variant { enum_name } => {
+            let open = position(&|text| declares(text, "pub enum ", enum_name))?;
+            direct_members(lines, open)
+                .into_iter()
+                .find(|&index| declares(lines[index].trim_start(), "", name))
+        }
+        ItemKind::Field { owner } => {
+            let open = position(&|text| {
+                (declares(text, "pub struct ", owner) || declares(text, "", owner))
+                    && text.contains('{')
+            })?;
+            direct_members(lines, open).into_iter().find(|&index| {
+                let text = lines[index].trim_start();
+                declares(text, "pub ", name) || declares(text, "", name)
+            })
+        }
+    }
+}
+
+#[derive(Clone, Copy)]
+enum Body {
+    Enum,
+    Struct,
+}
+
+/// Every public item the request layer and the outbound-outcome types added
+/// over the upstream baseline (types, free and associated functions, enum
+/// variants and `pub` fields) carries a doc comment that either cites its
+/// Python counterpart as `RNS/<file>.py:<line>` or states that the item is
+/// fork-only. Two passes: the request-layer and outcome files are new in the
+/// fork, so every public item in them is scanned; the files that mix upstream
+/// and fork items are checked at the named fork items alone, each located by
+/// its declaration line.
+#[test]
+fn request_layer_public_items_cite_python_or_say_fork_only() {
+    let files = [
+        "crates/libs/rns-transport/src/destination/request/allow.rs",
+        "crates/libs/rns-transport/src/destination/request/frame.rs",
+        "crates/libs/rns-transport/src/destination/request/handler.rs",
+        "crates/libs/rns-transport/src/destination/request/id.rs",
+        "crates/libs/rns-transport/src/destination/request/inbound.rs",
+        "crates/libs/rns-transport/src/destination/request/receipt.rs",
+        "crates/libs/rns-transport/src/resource/outcome.rs",
+    ];
+    let item_keywords =
+        ["fn ", "async fn ", "const fn ", "struct ", "enum ", "trait ", "type ", "const "];
+    let named_items: &[(&str, ItemKind, &str)] = &[
+        (
+            "crates/libs/rns-transport/src/destination/link_parts/linkhandleresult.rs",
+            ItemKind::Variant { enum_name: "LinkEvent" },
+            "PacketProven",
+        ),
+        (
+            "crates/libs/rns-transport/src/error.rs",
+            ItemKind::Variant { enum_name: "RnsError" },
+            "NoPath",
+        ),
+        (
+            "crates/libs/rns-transport/src/transport/mod.rs",
+            ItemKind::Field { owner: "AnnounceEvent" },
+            "is_path_response",
+        ),
+        ("crates/libs/rns-transport/src/transport/mod.rs", ItemKind::Method, "link_id"),
+        ("crates/libs/rns-transport/src/transport/mod.rs", ItemKind::Method, "is_sent"),
+        (
+            "crates/libs/rns-transport/src/resource.rs",
+            ItemKind::Field { owner: "OutboundRejected" },
+            "reason",
+        ),
+        (
+            "crates/libs/rns-transport/src/transport/resource_accept_hook.rs",
+            ItemKind::TypeAlias,
+            "ResourceAcceptHook",
+        ),
+        (
+            "crates/libs/rns-transport/src/transport/resource_accept_hook.rs",
+            ItemKind::Method,
+            "set_resource_accept_hook",
+        ),
+        (
+            "crates/libs/rns-transport/src/destination_parts/destination.rs",
+            ItemKind::Method,
+            "register_request_handler",
+        ),
+        (
+            "crates/libs/rns-transport/src/destination_parts/destination.rs",
+            ItemKind::Method,
+            "deregister_request_handler",
+        ),
+        (
+            "crates/libs/rns-transport/src/transport/links_parts/transport_sections/request.rs",
+            ItemKind::Method,
+            "request",
+        ),
+        (
+            "crates/libs/rns-transport/src/transport/links_parts/transport_sections/send_outcome.rs",
+            ItemKind::Method,
+            "send_resource_with_outcome",
+        ),
+        (
+            "crates/libs/rns-transport/src/transport/links_parts/transport_sections/send_outcome.rs",
+            ItemKind::Method,
+            "send_request_resource_with_outcome",
+        ),
+        (
+            "crates/libs/rns-transport/src/transport/links_parts/transport_sections/send_outcome.rs",
+            ItemKind::Method,
+            "send_response_resource_with_outcome",
+        ),
+        (
+            "crates/libs/rns-transport/src/destination/link_parts/link_sections/response_packet.rs",
+            ItemKind::Method,
+            "expect_response",
+        ),
+        (
+            "crates/libs/rns-transport/src/destination/link_parts/link_sections/response_packet.rs",
+            ItemKind::Method,
+            "response_size_allowed",
+        ),
+        (
+            "crates/libs/rns-transport/src/resource/outcome.rs",
+            ItemKind::Method,
+            "track_prepared_with_outcome",
+        ),
+    ];
+
+    let mut checked = 0usize;
+    let mut undocumented = Vec::new();
+    let mut uncited = Vec::new();
+    let mut check = |lines: &[&str], index: usize, site: String| {
+        checked += 1;
+        let doc = doc_block_above(lines, index);
+        if doc.is_empty() {
+            undocumented.push(site);
+        } else if !doc_cites_python_or_fork_only(&doc) {
+            uncited.push(site);
+        }
+    };
+
+    for file in files {
+        let source = read_repo_file(file);
+        let lines: Vec<&str> = source.lines().collect();
+        // The public enum or struct whose braces the walker is inside, and
+        // how deep the current line sits in it.
+        let mut body: Option<Body> = None;
+        let mut depth = 0i32;
+        for (index, raw) in lines.iter().enumerate() {
+            let text = raw.trim_start();
+            let site = format!("{file}:{}: {}", index + 1, text.trim_end());
+
+            if let Some(kind) = body {
+                let is_member = match (kind, depth) {
+                    (Body::Enum, 1) => text.starts_with(|c: char| c.is_ascii_uppercase()),
+                    (Body::Struct, 1) => is_pub_field(text),
+                    _ => false,
+                };
+                if is_member {
+                    check(&lines, index, site.clone());
+                }
+                depth += text.matches('{').count() as i32;
+                depth -= text.matches('}').count() as i32;
+                if depth <= 0 && text.contains('}') {
+                    body = None;
+                }
+            }
+
+            let Some(after_pub) = text.strip_prefix("pub ") else { continue };
+            if !item_keywords.iter().any(|keyword| after_pub.starts_with(keyword)) {
+                continue; // `pub use` re-exports, `pub mod`, and struct fields in `pub(crate)` scope
+            }
+            check(&lines, index, site);
+            let opened = if after_pub.starts_with("enum ") {
+                Body::Enum
+            } else if after_pub.starts_with("struct ") {
+                Body::Struct
+            } else {
+                continue;
+            };
+            depth = text.matches('{').count() as i32 - text.matches('}').count() as i32;
+            if depth > 0 {
+                body = Some(opened);
+            }
+        }
+    }
+
+    for (file, kind, name) in named_items {
+        let source = read_repo_file(file);
+        let lines: Vec<&str> = source.lines().collect();
+        let index = locate_named_item(&lines, kind, name)
+            .unwrap_or_else(|| panic!("{file} should declare `{name}` as a {kind:?}"));
+        check(&lines, index, format!("{file}:{}: {}", index + 1, lines[index].trim()));
+    }
+
+    assert!(
+        checked >= 90,
+        "the request layer should expose the receipt, frame, handler and outcome surface; found only {checked} public items"
+    );
+    assert!(
+        undocumented.is_empty(),
+        "every public request-layer item, enum variant and public field should carry a doc comment:\n{}",
+        undocumented.join("\n")
+    );
+    assert!(
+        uncited.is_empty(),
+        "every public request-layer item should cite `RNS/<file>.py:<line>` or state it is fork-only:\n{}",
+        uncited.join("\n")
+    );
+}
+
+/// The crate README's `## Known divergences from Python RNS` register is the
+/// consumer's list of where this crate is known to depart from RNS 1.5.2.
+/// Every entry must point at Python with an `RNS/<file>.py:<line>` citation,
+/// and the first entry is the request-timeout divergence the release notes
+/// lead with, cited at `RNS/Link.py:1398` (`request_timed_out`) and `:1408`
+/// (`response_rejected`).
+#[test]
+fn crate_readme_known_divergences_cite_python_lines() {
+    let readme = read_repo_file("crates/libs/rns-transport/README.md");
+    let heading = "\n## Known divergences from Python RNS\n";
+    let start = readme
+        .find(heading)
+        .expect("crate README should carry a `## Known divergences from Python RNS` section");
+    let section = &readme[start + heading.len()..];
+    let section = match section.find("\n## ") {
+        Some(end) => &section[..end],
+        None => section,
+    };
+
+    // Entries are top-level bullets; continuation lines are indented.
+    let entries: Vec<String> = section
+        .split("\n- ")
+        .skip(1)
+        .map(|entry| entry.split_whitespace().collect::<Vec<_>>().join(" "))
+        .collect();
+    assert!(
+        entries.len() >= 10,
+        "the divergence register should list the request-layer divergences, found {} entries",
+        entries.len()
+    );
+
+    let rns_modules = ["Link", "Destination", "Transport", "Packet", "Resource", "Identity"];
+    let cites_python = |entry: &str| {
+        entry.match_indices("RNS/").any(|(at, _)| {
+            let rest = &entry[at + "RNS/".len()..];
+            rns_modules.iter().any(|module| {
+                rest.strip_prefix(module)
+                    .and_then(|r| r.strip_prefix(".py:"))
+                    .is_some_and(|r| r.starts_with(|c: char| c.is_ascii_digit()))
+            })
+        })
+    };
+    let uncited: Vec<&str> =
+        entries.iter().map(String::as_str).filter(|entry| !cites_python(entry)).collect();
+    assert!(
+        uncited.is_empty(),
+        "every divergence entry should cite `RNS/<file>.py:<line>`:\n{}",
+        uncited.join("\n")
+    );
+
+    let timeout_entry = &entries[0];
+    for required in ["RequestError::Timeout", "`RNS/Link.py:1398`", "`:1408`", "DELIVERED"] {
+        assert!(
+            timeout_entry.contains(required),
+            "the first divergence should be the request-timeout-in-any-state entry citing {required:?}, got {timeout_entry:?}"
+        );
+    }
+
+    assert!(
+        section.contains("\nNot divergences:\n"),
+        "the register should separate API-shape facts under `Not divergences:`"
+    );
+}
+
+/// A release whose minor digit moved against the previous release heading
+/// carries breaking changes, and the README sends consumers to `### Breaking`
+/// in the CHANGELOG for them: that subsection must open the release section
+/// and every bullet in it must tell the consumer how to migrate. A release
+/// that only moved the patch digit must not claim breaking changes.
+#[test]
+fn release_notes_list_breaking_changes_on_a_minor_bump() {
+    let version = crate_version();
+    let changelog = read_repo_file("crates/libs/rns-transport/CHANGELOG.md");
+
+    fn minor(version: &str) -> (u64, u64) {
+        let mut parts = version.split('.').map(|part| part.parse::<u64>().expect("numeric"));
+        (parts.next().expect("major"), parts.next().expect("minor"))
+    }
+
+    // Release headings only: an `## Unreleased` stub above them is allowed.
+    let headings: Vec<(usize, &str)> = changelog
+        .lines()
+        .enumerate()
+        .filter_map(|(index, line)| {
+            line.strip_prefix("## ").map(|rest| (index, rest.split(' ').next().unwrap_or(rest)))
+        })
+        .filter(|(_, heading)| heading.starts_with(|c: char| c.is_ascii_digit()))
+        .collect();
+    let current = headings
+        .iter()
+        .position(|(_, heading)| *heading == version)
+        .unwrap_or_else(|| panic!("CHANGELOG should have a `## {version}` heading"));
+    assert_eq!(current, 0, "the current release should be the first release heading");
+    let previous = headings
+        .get(1)
+        .map(|(_, heading)| *heading)
+        .expect("a previous release heading follows the current one");
+
+    let lines: Vec<&str> = changelog.lines().collect();
+    let section = &lines[headings[0].0 + 1..headings[1].0];
+    let subsections: Vec<&str> =
+        section.iter().copied().filter(|line| line.starts_with("### ")).collect();
+
+    if minor(&version) > minor(previous) {
+        assert_eq!(
+            subsections.first().copied(),
+            Some("### Breaking"),
+            "{version} moved the minor digit against {previous}, so its release notes should open with `### Breaking`, got {subsections:?}"
+        );
+        let breaking_start =
+            section.iter().position(|line| *line == "### Breaking").expect("located above") + 1;
+        let breaking_end = section[breaking_start..]
+            .iter()
+            .position(|line| line.starts_with("### "))
+            .map_or(section.len(), |p| breaking_start + p);
+        let breaking = &section[breaking_start..breaking_end];
+        let bullets: Vec<String> = breaking
+            .split(|line| line.trim().is_empty())
+            .filter(|para| !para.is_empty())
+            .map(|para| para.join(" "))
+            .filter(|para| para.starts_with("- "))
+            .collect();
+        assert!(!bullets.is_empty(), "`### Breaking` should list at least one change");
+        for bullet in &bullets {
+            assert!(
+                bullet.contains("Migration:"),
+                "every breaking bullet should carry a `Migration:` clause, got {bullet:?}"
+            );
+        }
+        let readme = read_repo_file("crates/libs/rns-transport/README.md");
+        assert!(
+            readme.contains("`### Breaking` in `CHANGELOG.md`"),
+            "the README versioning policy should send consumers to `### Breaking` in `CHANGELOG.md`"
+        );
+    } else {
+        assert!(
+            !subsections.contains(&"### Breaking"),
+            "{version} only moved the patch digit against {previous}, so it must not list breaking changes"
+        );
+    }
+}
+
+/// Every `rust` snippet in the crate README is pinned verbatim by one of the
+/// public-API test files, so a README edit that drifts from what compiles and
+/// runs turns this test red. `use` lines are left to the compiler of those
+/// tests; every other line of a snippet must appear, whitespace aside, in a
+/// pin file, with a `match` arm compared up to its `=>` because the pins
+/// reduce the README's log calls to labels (and may bind an unused pattern
+/// variable with a leading underscore).
+#[test]
+fn crate_readme_rust_snippets_are_pinned_verbatim_by_the_api_tests() {
+    let readme = read_repo_file("crates/libs/rns-transport/README.md");
+    let pins: String = [
+        "crates/libs/rns-transport/tests/request_receipt_readme.rs",
+        "crates/libs/rns-transport/tests/request_handler_api.rs",
+        "crates/libs/rns-transport/tests/outbound_outcome_api.rs",
+        "crates/libs/rns-transport/tests/request_receipt_api.rs",
+    ]
+    .iter()
+    .map(|path| read_repo_file(path))
+    .collect::<Vec<_>>()
+    .join("\n");
+    let squash = |text: &str| {
+        text.chars().filter(|c| !c.is_whitespace()).collect::<String>().replace("(_", "(")
+    };
+    let pins = squash(&pins);
+
+    let mut snippets = Vec::new();
+    let mut current: Option<Vec<&str>> = None;
+    for line in readme.lines() {
+        match (&mut current, line.trim_start()) {
+            (None, "```rust") => current = Some(Vec::new()),
+            (Some(lines), "```") => snippets.push(lines.clone()),
+            (Some(lines), _) => lines.push(line),
+            _ => {}
+        }
+        if line.trim_start() == "```" {
+            current = None;
+        }
+    }
+    assert!(
+        snippets.len() >= 4,
+        "the README should carry the consumer, handler, request and outcome snippets, found {}",
+        snippets.len()
+    );
+
+    let mut unpinned = Vec::new();
+    for snippet in &snippets {
+        for line in snippet {
+            let trimmed = line.trim();
+            if trimmed.is_empty() || trimmed.starts_with("use ") || trimmed.starts_with("//") {
+                continue;
+            }
+            let needle = match trimmed.split_once(" => ") {
+                Some((pattern, _)) => squash(pattern),
+                None => squash(trimmed),
+            };
+            if !pins.contains(&needle) {
+                unpinned.push(trimmed.to_string());
+            }
+        }
+    }
+    assert!(
+        unpinned.is_empty(),
+        "every README snippet line should appear verbatim in a public-API pin test:\n{}",
+        unpinned.join("\n")
+    );
+}
+
+/// Every public enum the request layer and the outcome types added, and every
+/// enum the README or the release notes call `#[non_exhaustive]`, carries the
+/// attribute on its definition, so the "keep a wildcard arm" guidance the
+/// consumer reads is what the compiler enforces.
+#[test]
+fn enums_the_docs_call_non_exhaustive_carry_the_attribute() {
+    let sites = [
+        ("RequestError", "crates/libs/rns-transport/src/destination/request/receipt.rs"),
+        ("RequestStatus", "crates/libs/rns-transport/src/destination/request/receipt.rs"),
+        ("RequestAllow", "crates/libs/rns-transport/src/destination/request/allow.rs"),
+        ("RequestResponse", "crates/libs/rns-transport/src/destination/request/handler.rs"),
+        ("FrameDecodeError", "crates/libs/rns-transport/src/destination/request/frame.rs"),
+        ("RnsError", "crates/libs/rns-transport/src/error.rs"),
+        ("OutboundResult", "crates/libs/rns-transport/src/resource/outcome.rs"),
+        ("OutboundFailure", "crates/libs/rns-transport/src/resource/outcome.rs"),
+        ("RejectReason", "crates/libs/rns-transport/src/resource/outcome.rs"),
+        ("LinkEvent", "crates/libs/rns-transport/src/destination/link_parts/linkhandleresult.rs"),
+        ("ResourceEventKind", "crates/libs/rns-transport/src/resource.rs"),
+        ("AnnounceEvent", "crates/libs/rns-transport/src/transport/mod.rs"),
+    ];
+    for (item, file) in sites {
+        let source = read_repo_file(file);
+        let definition = source
+            .find(&format!("pub enum {item} "))
+            .or_else(|| source.find(&format!("pub struct {item} ")))
+            .unwrap_or_else(|| panic!("{file} should define `{item}`"));
+        // The attribute block sits between the previous blank line and the definition.
+        let attributes = &source[..definition];
+        let attributes = &attributes[attributes.rfind("\n\n").map_or(0, |at| at + 2)..];
+        assert!(
+            attributes.lines().any(|line| line.trim() == "#[non_exhaustive]"),
+            "{file}: `{item}` is documented as `#[non_exhaustive]` but its definition lacks the attribute:\n{attributes}"
+        );
+    }
+}

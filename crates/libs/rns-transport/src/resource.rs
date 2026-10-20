@@ -241,8 +241,8 @@ pub enum ResourceEventKind {
     /// split-segment construction can all terminate with this variant.
     OutboundFailed,
     /// The remote receiver rejected the outbound resource. Reticulum uses
-    /// `RESOURCE_RCL` for this terminal outcome; it is distinct from a local
-    /// cancellation and from a transfer that failed after starting.
+    /// `RESOURCE_RCL` for this terminal outcome (`RNS/Resource.py:155-165`); it is
+    /// distinct from a local cancellation and from a transfer that failed after starting.
     OutboundRejected {
         /// Why the transfer was refused, as far as the sender knows (`RNS/Resource.py:155-165`).
         reason: RejectReason,

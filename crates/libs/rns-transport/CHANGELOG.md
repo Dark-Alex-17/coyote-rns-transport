@@ -47,7 +47,15 @@ trailing clause of the bullet for the behaviour it pins.
   `transport/tests_parts/two_transport_shared_instance_probe3.rs`: a detach
   queued before the attach's posture write wins the slot and the posture
   stays off, stop racing an attach keeps the slot and the posture
-  consistent, and attach/detach cycles leave no interface behind.
+  consistent, and attach/detach cycles leave no interface behind. And by
+  `transport/tests_parts/two_transport_shared_instance_probe4.rs`:
+  `remove_interface` leaves the slot held until detach, and a second stop
+  detaches an interface spawned inside the first stop's window. The
+  `non_exhaustive` endpoint, the private option fields and the README
+  claims are pinned by
+  `crates/apps/reticulumd/tests/fork_release_docs_contract.rs` and
+  `crates/apps/reticulumd/tests/fork_publish_contract.rs` (the Unreleased
+  cite check and the Unreleased ledger checks).
 
 ### Changed
 
@@ -71,7 +79,15 @@ trailing clause of the bullet for the behaviour it pins.
   `transport/tests_parts/two_transport_shared_instance_probe3.rs` (a detach
   queued before the attach's posture write wins the slot and the posture
   stays off, stop racing an attach keeps the slot and the posture
-  consistent).
+  consistent) and
+  `transport/tests_parts/two_transport_shared_instance_probe4.rs` (a second
+  stop detaches the interface left behind by the first).
+- The proof-cap fixture
+  `transport/tests_parts/two_transport_loopback_link_packet_proven_probe2.rs`
+  holds its handler stall until the test releases it after the burst
+  instead of for a fixed 1500 ms, so the proven set no longer depends on
+  runner speed. Test-only; no library behaviour changes. Pinned by that
+  same file.
 
 ## 0.15.0 - 2026-10-20
 

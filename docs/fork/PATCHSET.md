@@ -58,7 +58,7 @@ and is fork commits `60e74ffb`, `6e583b50`, `ea6edfaa`, `9223ef43`,
 `6e9eedf2`, `3f615a3b`, `28bacbbe`, `dbd4ff7e`, `a0ba6f4a`, `b5dd3255`,
 `e4eb444f` and `fdb20280`; the `release 0.15.0` patch carries no other id
 and is fork commits `d4a3b2d2`, `5075d765`, `eb0e19f2`, `06068516`,
-`ac9c49af`, `8b3ce9e1`, `23bdc1a8` and `ba92e2ba`.
+`ac9c49af`, `8b3ce9e1`, `23bdc1a8`, `ba92e2ba`, `8d70f3e1` and `ccfba204`.
 
 | File | Patch |
 | --- | --- |
@@ -122,7 +122,7 @@ and is fork commits `d4a3b2d2`, `5075d765`, `eb0e19f2`, `06068516`,
 | `crates/libs/rns-transport/Cargo.toml` | release 0.15.0 |
 | `crates/libs/rns-transport/README.md` | request handlers and dispatch, request receipts and timeouts, link proof event and receipt link id, outbound outcomes with link fast fail and accept hook, release 0.15.0 |
 | `crates/libs/rns-transport/fuzz/.gitignore` | request wire frames and fuzz |
-| `crates/libs/rns-transport/fuzz/Cargo.lock` | request wire frames and fuzz |
+| `crates/libs/rns-transport/fuzz/Cargo.lock` | request wire frames and fuzz, release 0.15.0 |
 | `crates/libs/rns-transport/fuzz/Cargo.toml` | request wire frames and fuzz |
 | `crates/libs/rns-transport/fuzz/fuzz_targets/request_frame_decode.rs` | request wire frames and fuzz |
 | `crates/libs/rns-transport/fuzz/fuzz_targets/resource_advertisement_decode.rs` | request wire frames and fuzz |
@@ -164,7 +164,7 @@ and is fork commits `d4a3b2d2`, `5075d765`, `eb0e19f2`, `06068516`,
 | `crates/libs/rns-transport/src/destination_parts/module_core.rs` | request handlers and dispatch |
 | `crates/libs/rns-transport/src/destination_parts/module_prelude.rs` | request handlers and dispatch |
 | `crates/libs/rns-transport/src/error.rs` | outbound outcomes with link fast fail and accept hook |
-| `crates/libs/rns-transport/src/resource.rs` | request receipts and timeouts, outbound outcomes with link fast fail and accept hook |
+| `crates/libs/rns-transport/src/resource.rs` | request receipts and timeouts, outbound outcomes with link fast fail and accept hook, release 0.15.0 |
 | `crates/libs/rns-transport/src/resource/manager.rs` | request receipts and timeouts, outbound outcomes with link fast fail and accept hook |
 | `crates/libs/rns-transport/src/resource/manager_cleanup.rs` | request receipts and timeouts, outbound outcomes with link fast fail and accept hook |
 | `crates/libs/rns-transport/src/resource/manager_polling.rs` | outbound outcomes with link fast fail and accept hook |
@@ -2605,8 +2605,8 @@ the pin of the Rust record gate. Every async fn but the lock-taking test
 fns carries `#[deny(clippy::await_holding_invalid_type)]`.
 
 Fork commits `d4a3b2d2`, `5075d765`, `eb0e19f2`, `06068516`, `ac9c49af`,
-`8b3ce9e1`, `23bdc1a8` and `ba92e2ba`: release 0.15.0. The first gates the
-inherited Codex review workflow
+`8b3ce9e1`, `23bdc1a8`, `ba92e2ba`, `8d70f3e1` and `ccfba204`: release
+0.15.0. The first gates the inherited Codex review workflow
 (`.github/workflows/codex-review.yml`) on the repository variable
 `CODEX_REVIEW_ENABLED`, so the check is skipped until the variable and the
 `OPENAI_API_KEY` secret exist, adds the `fork_publish_contract` test to the
@@ -2645,7 +2645,19 @@ and one in `crates/libs/rns-transport/tests/request_receipt_api.rs` (the
 request-layer enums and `AnnounceEvent` hold the wildcard-arm contract
 outside the crate). The eighth extends the doc-comment cites of the second
 to every public method and enum variant of the request layer (`allow.rs`,
-`frame.rs`, `handler.rs`, `id.rs`, `inbound.rs` and `receipt.rs`). The
+`frame.rs`, `handler.rs`, `id.rs`, `inbound.rs` and `receipt.rs`); the
+ninth reaches the remaining variants and fields (`RequestError`,
+`FrameDecodeError`, `RejectReason`, `OutboundFailure`, `OutboundResult` in
+`receipt.rs`, `frame.rs` and `crates/libs/rns-transport/src/resource/outcome.rs`,
+the `OutboundRejected` reason field in `crates/libs/rns-transport/src/resource.rs`).
+The tenth regenerates `crates/libs/rns-transport/fuzz/Cargo.lock` to 0.15.0,
+which the release had left at 0.14.1, pins both locks in
+`release_sites_and_ledgers_track_the_crate_version`, names the second lock in
+the README rebase recipe, adopts the probe's
+`request_layer_public_items_cite_python_or_say_fork_only` contract test,
+lets the breaking-changes test skip a leading `## Unreleased` stub, widens
+the out-of-crate wildcard-arm test to `FrameDecodeError`, and names the
+request-layer enums as `#[non_exhaustive]` in the `CHANGELOG.md`. The
 ledger-only commits that complete this section are omitted by convention. The
 patches of the `## 0.14.1` section below are still carried; the patches
 above build on their files rather than replacing them, and the publish

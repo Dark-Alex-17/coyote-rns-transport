@@ -50,7 +50,8 @@ commits `1ddd5273`, `a2a40de7`, `3805fe7f`, `3ed78582`, `415d67c8`,
 `97bd6a91`, `85c20ef5`, `1bd387b4`, `5df575ec`, `873ef34f`, `211d84b8`,
 `9a4e8735`, `a4cf4f4b`, `65fb8646`, `01e93fc3` and `17348ca6`; the
 `Python-in-the-loop request and proof interop` patch is fork commits
-`60e74ffb`, `6e583b50`, `ea6edfaa` and `9223ef43`.
+`60e74ffb`, `6e583b50`, `ea6edfaa`, `9223ef43`, `6e9eedf2` and
+`3f615a3b`.
 
 | File | Patch |
 | --- | --- |
@@ -77,6 +78,7 @@ commits `1ddd5273`, `a2a40de7`, `3805fe7f`, `3ed78582`, `415d67c8`,
 | `crates/apps/reticulumd/tests/python_channel_interop_parts/ifac_python_interop.rs` | outbound outcomes with link fast fail and accept hook |
 | `crates/apps/reticulumd/tests/python_channel_interop_parts/module_prelude.rs` | outbound outcomes with link fast fail and accept hook |
 | `crates/apps/reticulumd/tests/python_channel_interop_parts/multi_segment_python_interop.rs` | outbound outcomes with link fast fail and accept hook |
+| `crates/apps/reticulumd/tests/python_channel_interop_parts/python_request_forms_matrix.rs` | Python-in-the-loop request and proof interop |
 | `crates/apps/reticulumd/tests/python_channel_interop_parts/python_resource_fault_reverse.rs` | outbound outcomes with link fast fail and accept hook |
 | `crates/apps/reticulumd/tests/python_channel_interop_parts/python_to_rust_request_handler.rs` | Python-in-the-loop request and proof interop |
 | `crates/apps/reticulumd/tests/python_channel_interop_parts/reader_resource_interop.rs` | outbound outcomes with link fast fail and accept hook |
@@ -88,6 +90,7 @@ commits `1ddd5273`, `a2a40de7`, `3805fe7f`, `3ed78582`, `415d67c8`,
 | `crates/apps/reticulumd/tests/support/python_channel_endpoint.py` | Python-in-the-loop request and proof interop |
 | `crates/apps/reticulumd/tests/support/python_channel_events.rs` | outbound outcomes with link fast fail and accept hook, Python-in-the-loop request and proof interop |
 | `crates/apps/reticulumd/tests/support/python_channel_process.rs` | Python-in-the-loop request and proof interop |
+| `crates/apps/reticulumd/tests/support/python_channel_request_forms.py` | Python-in-the-loop request and proof interop |
 | `crates/apps/rns-tools/src/bin/independent_interop_node/events.rs` | link proof event and receipt link id, outbound outcomes with link fast fail and accept hook |
 | `crates/apps/rns-tools/src/bin/independent_interop_node/node.rs` | outbound outcomes with link fast fail and accept hook |
 | `crates/apps/rns-tools/src/bin/rncp_parts/client.rs` | outbound outcomes with link fast fail and accept hook |
@@ -255,7 +258,7 @@ commits `1ddd5273`, `a2a40de7`, `3805fe7f`, `3ed78582`, `415d67c8`,
 | `crates/libs/rns-transport/tests/request_handler_api.rs` | request handlers and dispatch |
 | `crates/libs/rns-transport/tests/request_receipt_api.rs` | request receipts and timeouts |
 | `crates/libs/rns-transport/tests/request_receipt_readme.rs` | request receipts and timeouts, outbound outcomes with link fast fail and accept hook |
-| `docs/fork/PATCHSET.md` | request wire frames and fuzz, request handlers and dispatch, request receipts and timeouts, link proof event and receipt link id, outbound outcomes with link fast fail and accept hook |
+| `docs/fork/PATCHSET.md` | request wire frames and fuzz, request handlers and dispatch, request receipts and timeouts, link proof event and receipt link id, outbound outcomes with link fast fail and accept hook, Python-in-the-loop request and proof interop |
 | `docs/runbooks/fuzzing-campaign.md` | request wire frames and fuzz |
 | `tools/scripts/fuzz-campaign.sh` | request wire frames and fuzz |
 | `xtask/src/main_parts/run_key_management_check.rs` | request wire frames and fuzz |
@@ -2221,11 +2224,12 @@ writes one stdout JSON line (`request_received`, the `request_id` as hex,
 `--request-size` (a run of `x` of that length in place of the message
 data) and `--identify` (identify on the link, print `identified`, then
 hold the request until a plain Data packet `go` arrives), prints
-`request_sent` with the `request_id`, and always exits 0 with one terminal
-line: `response_size` plus `response_sha256`, `request_failed`, or
-`request_no_response`; the last exists because a packet-form request the
-peer never answers never fires `failed_callback`: `RNS/Link.py:1398` needs
-`DELIVERED`, which only the Resource form sets (`:1372`).
+`request_sent` with the `request_id`, and exits 0 after every request
+outcome with one terminal line: `response_size` plus `response_sha256`,
+`request_failed`, or `request_no_response`; the last exists because a
+packet-form request the peer never answers never fires `failed_callback`:
+`RNS/Link.py:1398` needs `DELIVERED`, which only the Resource form sets
+(`:1372`).
 `tests/support/python_channel_process.rs` adds `extra_args` to
 `spawn_python_endpoint` and `PythonChannelClientConfig`, and the
 `spawn_endpoint_with_args` and `spawn_channel_client_with_args` helpers,
@@ -2241,9 +2245,12 @@ through `SingleInputDestination::register_request_handler` on a Rust
 `python_to_rust_request_handler_allow_all_answers_a_packet_request`
 (`hello-rust` answered `reply:hello-rust`),
 `..._answers_a_resource_request_with_a_resource_response` (a 4096-byte
-request, so a request Resource, answered by a 4102-byte `reply:` Resource)
-and `..._answers_a_packet_request_with_a_resource_response` (an 8192-byte
-`RequestResponse::Bytes` body). Under `RequestAllow::List`:
+request answered by a 4102-byte `reply:`) and
+`..._answers_a_packet_request_with_a_resource_response` (an 8192-byte
+`RequestResponse::Bytes` body); the names of the last two claimed the
+Resource form, but both payloads sit below the 16 KiB link MDU the TCP
+link to Python negotiates, so each ran packet for packet, and `3f615a3b`
+removed them. Under `RequestAllow::List`:
 `..._allow_list_answers_the_identified_peer` builds the list from the
 identity `LinkEvent::PeerIdentified` delivers and releases the client with
 a plain `go` Data packet;
@@ -2251,7 +2258,7 @@ a plain `go` Data packet;
 identity, asserts the handler never ran and reads `request_no_response`
 from the client. Every answered test compares `InboundRequest::request_id()`
 as hex with the Python `RequestReceipt.request_id`, the truncated hash of
-the request packet for the packet form (`RNS/Link.py:996`) and of the
+the request packet for the packet form (`RNS/Link.py:1332`) and of the
 packed request for the Resource form (`:504`), and checks the response
 size and SHA-256 the client reports. Every async fn but the lock-taking
 test fns carries `#[deny(clippy::await_holding_invalid_type)]`.
@@ -2265,9 +2272,11 @@ drained line by line after the ready line so RNS logging cannot stall it.
 `rust_to_python_request_receipt_packet_roundtrip_matches_request_id`
 (`hello-python` answered `reply:hello-python`, 18 bytes),
 `..._resource_request_gets_a_resource_response` (a 4096-byte request
-Resource, a 4102-byte response Resource) and
+answered by a 4102-byte `reply:`) and
 `..._packet_request_gets_a_resource_response` (an 8192-byte binary body,
-its SHA-256 compared with the server's report) conclude `Ready`;
+its SHA-256 compared with the server's report) conclude `Ready`, the last
+two in packet form despite their names, their payloads sitting below the
+16 KiB link MDU, which is why `3f615a3b` removed them;
 `..._none_response_fails_with_timeout` has the Python handler return
 `None`, so RNS sends nothing (`RNS/Link.py:844`), and the receipt, under a
 3 s `RequestOptions::with_timeout`, concludes `Err(RequestError::Timeout)`
@@ -2291,6 +2300,75 @@ Fork commit `9223ef43`: `tests/support/python_channel_events.rs`'s
 `rust_sender_maps_pinned_python_receiver_cancel_to_rejection` asserts it is
 `RejectReason::PeerCancelled`, so a Python receiver cancel is pinned to the
 typed reason rather than to the variant alone.
+
+Fork commit `6e9eedf2`: the `request-forms` endpoint logic moves out of
+`tests/support/python_channel_endpoint.py` (1201 to 1096 lines) into the
+new sibling module `tests/support/python_channel_request_forms.py` (143
+lines): `request_forms_body`, an `emit` helper that writes each JSON
+report in one stdout write so RNS log lines from the transport thread
+cannot interleave with it, `serve_request` and `run_client`; the
+endpoint's `_on_request` and `ChannelClient.run` each dispatch to the
+module in one line. The client gains `--request-timeout` (a float,
+threaded to `Link.request(timeout=...)`), re-anchors its request wait
+deadline right before `Link.request` so link setup and the `--identify`
+go-wait no longer eat into the window a silently dropped request gets
+(the go-wait keeps the overall deadline), and reports the wire form it
+used, `"request_form": "resource"` or `"packet"` from
+`receipt.resource is not None` (`RNS/Link.py:1327-1337`), on the
+`request_sent` line and on every terminal line.
+
+Fork commit `3f615a3b`: the request wire-form matrix. The TCP link to
+Python negotiates a 16384-byte link MTU:
+`RNS/Interfaces/TCPInterface.py:76-78` sets `BITRATE_GUESS` to 10 Mbps
+with `AUTOCONFIGURE_MTU = True`, `RNS/Interfaces/Interface.py:257` turns
+that into an HW_MTU of 16384, the Rust side signals `min(interface MTU,
+262144)` and adopts the confirmed value, and the resulting
+`Link::link_mdu()` measures 16303. RNS picks the wire form by
+`len(packed) <= self.mdu` (`RNS/Link.py:493` for a request,
+`:849` for a response), so the 4096-, 4102- and 8192-byte payloads of the
+four tests `6e583b50` and `ea6edfaa` named for the Resource form travelled
+as single packets. This commit deletes those four
+(`python_to_rust_request_handler_answers_a_resource_request_with_a_resource_response`
+and `..._answers_a_packet_request_with_a_resource_response` with their
+`request_handler_bytes_body` and `request_handler_bytes` helpers from
+`python_to_rust_request_handler.rs`, 323 to 283 lines;
+`rust_to_python_request_receipt_resource_request_gets_a_resource_response`
+and `..._packet_request_gets_a_resource_response` from
+`rust_to_python_request_receipt.rs`, 319 to 254 lines) and adds the
+fixture `python_channel_interop_parts/python_request_forms_matrix.rs`
+(485 lines, nine ignored tests, one `include!` line in
+`python_channel_interop.rs`), which reuses the two sibling fixtures with
+a `REQUEST_FORMS_MATRIX_LARGE` payload of 48 KiB. Every Resource-form
+test pins the form through `Transport::resource_events()`, as `Complete {
+is_request }`, `Complete { is_response }` or `OutboundComplete`, and the
+first Rust-to-Python one also asserts the payload exceeds the measured
+`link_mdu()`. Python to Rust:
+`python_to_rust_request_handler_resource_request_over_mdu_gets_a_resource_response`,
+`..._resource_request_over_mdu_gets_a_packet_response`,
+`..._packet_request_gets_a_resource_response_over_mdu`,
+`..._none_response_leaves_the_packet_request_unanswered` (the Rust
+handler returns `None`, the Python receipt stays `SENT`, the Rust twin of
+`RNS/Link.py:844`) and
+`..._allow_list_denied_resource_request_fails_on_python` (Rust accepts
+the request Resource on size alone as Python does at
+`RNS/Link.py:1036-1040`, the handler never runs, Python's Resource-form
+receipt reaches `DELIVERED` (`:1372`) and `failed_callback` fires
+(`:1398`), so the client reports `request_failed` with status 0). Rust
+to Python:
+`rust_to_python_request_receipt_resource_request_over_mdu_gets_a_resource_response`,
+`..._resource_request_over_mdu_gets_a_packet_response`,
+`..._packet_request_gets_a_resource_response_over_mdu` and
+`..._two_concurrent_requests_resolve_separately` (two packet-form
+requests in flight on one link, each receipt resolving to its own reply
+and each Python report naming the matching Rust id). The surviving tests
+gain pins: `request_handler_assert_response` takes the expected form and
+checks `request_form` on the `request_sent` and terminal lines; the
+silent-denial test asserts status 1 (`SENT`, `RNS/Link.py:1319`) and
+`request_form == "packet"` under a 12 s setup budget;
+`RequestHandlerRecord` records the identity the handler saw
+(`InboundRequest::remote_identity`), `Some(peer)` in the allow-list test
+and `None` under `RequestAllow::All`. Every async fn but the lock-taking
+test fns carries `#[deny(clippy::await_holding_invalid_type)]`.
 
 ## 0.14.1 (upstream 0.14.0)
 

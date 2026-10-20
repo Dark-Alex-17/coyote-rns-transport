@@ -80,9 +80,19 @@ trailing clause of the bullet for the behaviour it pins.
   `destination/link_parts/link_sections/request_dispatch_tests.rs`, and
   with Python RNS 1.5.2 on the requesting side by the reticulumd tests in
   `python_channel_interop_parts/python_to_rust_request_handler.rs`
-  (ALLOW_ALL in packet and Resource form, ALLOW_LIST answering the
-  identified peer and silently dropping an unlisted one, the request id
-  compared as hex on both sides).
+  (ALLOW_ALL in packet form, ALLOW_LIST answering the identified peer and
+  silently dropping an unlisted one, the request id compared as hex on
+  both sides) and
+  `python_channel_interop_parts/python_request_forms_matrix.rs` (every
+  request and response wire-form cell above and below the 16 KiB TCP link
+  MDU in both directions, the form pinned through
+  `Transport::resource_events()`; a Resource request from an unlisted
+  peer is accepted on size alone and dropped before the handler, as
+  Python does, `RNS/Link.py:1036-1040`). The Python endpoint gains the
+  `request-forms` payload kind, `--request-size`, `--identify`,
+  `--request-timeout` and `--prove-all` for them
+  (`python_channel_endpoint.py`, `python_channel_request_forms.py`); its
+  client reports the wire form it used.
 
 - `LinkEvent::Data` with `PacketContext::Request` keeps posting for every
   inbound request; a request whose path has a registered handler is
@@ -110,8 +120,9 @@ trailing clause of the bullet for the behaviour it pins.
   `two_transport_loopback_requests_resource_form_probe.rs`,
   `two_transport_loopback_requests_resource_form_probe2.rs`,
   `two_transport_loopback_requests_resource_form_probe3.rs` and the
-  reticulumd test
-  `python_to_rust_request_handler_answers_a_resource_request_with_a_resource_response`.
+  reticulumd tests
+  `python_to_rust_request_handler_resource_request_over_mdu_gets_a_resource_response`
+  and `python_to_rust_request_handler_resource_request_over_mdu_gets_a_packet_response`.
 
 - Response forms on the wire. A `Value` or `Bytes` response whose
   `[request_id, body]` envelope fits the link MDU goes out as one
@@ -233,10 +244,14 @@ trailing clause of the bullet for the behaviour it pins.
   `destination/link_parts/link_sections/response_record_tests.rs` (a
   request Resource outcome never marks a packet-form entry `Delivered`)
   and the reticulumd
-  `python_channel_interop_parts/rust_to_python_request_receipt.rs` (packet
-  and Resource forms against a Python `register_request_handler`, a `None`
+  `python_channel_interop_parts/rust_to_python_request_receipt.rs` (the
+  packet form against a Python `register_request_handler`, and a `None`
   return concluding `Failed(Timeout)` because Python then sends nothing,
-  `RNS/Link.py:844`; the request id compared as hex on both sides).
+  `RNS/Link.py:844`) and `python_request_forms_matrix.rs` for the
+  Resource forms (a request Resource with a Resource and with a packet
+  response, a packet request with a Resource response, two concurrent
+  requests resolving separately), the request id compared as hex on both
+  sides for every cell.
 
 - `SendPacketOutcome::is_sent`: whether a send reached an interface,
   directly or by broadcast; the in-crate `matches!` twins use it.

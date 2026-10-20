@@ -595,7 +595,9 @@ fn visit_text_files(root: &Path, dir: &Path, f: &mut impl FnMut(&Path)) {
             continue;
         }
         if path.is_dir() {
-            if !SKIPPED_DIRECTORIES.contains(&name) {
+            // Dot-dirs like .coyote and .venv are local tool state; .github holds the publish workflow.
+            let local_tool_dir = name.starts_with('.') && name != ".github";
+            if !local_tool_dir && !SKIPPED_DIRECTORIES.contains(&name) {
                 visit_text_files(root, &path, f);
             }
             continue;

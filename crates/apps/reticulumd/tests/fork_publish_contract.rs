@@ -649,6 +649,48 @@ fn publish_recipe_mirrors_the_workflow_without_a_registry_override() {
     }
 }
 
+/// The distinct backticked `.rs` / `.py` paths in `section`, in order of
+/// first appearance.
+fn cited_source_files(section: &str) -> Vec<&str> {
+    let mut cited: Vec<&str> = Vec::new();
+    let mut rest = section;
+    while let Some(open) = rest.find('`') {
+        let after = &rest[open + 1..];
+        let Some(close) = after.find('`') else { break };
+        let token = &after[..close];
+        let is_path = (token.ends_with(".rs") || token.ends_with(".py"))
+            && token.chars().all(|c| c.is_ascii_alphanumeric() || "/_.-".contains(c));
+        if is_path && !cited.contains(&token) {
+            cited.push(token);
+        }
+        rest = &after[close + 1..];
+    }
+    cited
+}
+
+/// The cites that name no file under the crate tree, the reticulumd interop
+/// tests or the rns-tools sources, either as a repo-relative path or as a
+/// path suffix.
+fn unresolved_source_cites<'a>(cited: &[&'a str]) -> Vec<&'a str> {
+    let root = repo_root();
+    let mut tree: Vec<String> = Vec::new();
+    for subtree in
+        ["crates/libs/rns-transport", "crates/apps/reticulumd/tests", "crates/apps/rns-tools/src"]
+    {
+        visit_text_files(&root, &root.join(subtree), &mut |path| {
+            let relative = path.strip_prefix(&root).unwrap_or(path);
+            tree.push(relative.to_string_lossy().replace('\\', "/"));
+        });
+    }
+    cited
+        .iter()
+        .copied()
+        .filter(|token| {
+            !tree.iter().any(|path| path == token || path.ends_with(&format!("/{token}")))
+        })
+        .collect()
+}
+
 /// Release-note bullets under the current `## <version>` heading of the crate
 /// CHANGELOG end in a test clause that names the file pinning the behaviour.
 /// Every backticked `.rs` / `.py` path cited in that section must resolve to
@@ -669,46 +711,42 @@ fn release_notes_cite_files_that_exist_in_the_tree() {
         None => section,
     };
 
-    let mut cited: Vec<&str> = Vec::new();
-    let mut rest = section;
-    while let Some(open) = rest.find('`') {
-        let after = &rest[open + 1..];
-        let Some(close) = after.find('`') else { break };
-        let token = &after[..close];
-        let is_path = (token.ends_with(".rs") || token.ends_with(".py"))
-            && token.chars().all(|c| c.is_ascii_alphanumeric() || "/_.-".contains(c));
-        if is_path && !cited.contains(&token) {
-            cited.push(token);
-        }
-        rest = &after[close + 1..];
-    }
+    let cited = cited_source_files(section);
     assert!(
         cited.len() >= 5,
         "the {version} release notes should carry per-bullet test clauses, found {} file cites",
         cited.len()
     );
 
-    let root = repo_root();
-    let mut tree: Vec<String> = Vec::new();
-    for subtree in
-        ["crates/libs/rns-transport", "crates/apps/reticulumd/tests", "crates/apps/rns-tools/src"]
-    {
-        visit_text_files(&root, &root.join(subtree), &mut |path| {
-            let relative = path.strip_prefix(&root).unwrap_or(path);
-            tree.push(relative.to_string_lossy().replace('\\', "/"));
-        });
-    }
-
-    let unresolved: Vec<&str> = cited
-        .iter()
-        .copied()
-        .filter(|token| {
-            !tree.iter().any(|path| path == token || path.ends_with(&format!("/{token}")))
-        })
-        .collect();
+    let unresolved = unresolved_source_cites(&cited);
     assert!(
         unresolved.is_empty(),
         "every file cited in the {version} release notes should exist under the crate, the \
+         reticulumd tests or the rns-tools sources:\n{}",
+        unresolved.join("\n")
+    );
+}
+
+/// Bullets under `## Unreleased` cite their pinning files the same way the
+/// released sections do, and are the ones most likely to drift while a test
+/// file is still being renamed. When the section is present every cite must
+/// resolve under the same roots; a CHANGELOG without the section has nothing
+/// to check.
+#[test]
+fn unreleased_notes_cite_files_that_exist_in_the_tree() {
+    let changelog = read_repo_file("crates/libs/rns-transport/CHANGELOG.md");
+    let heading = "\n## Unreleased\n";
+    let Some(start) = changelog.find(heading) else { return };
+    let section = &changelog[start + heading.len()..];
+    let section = match section.find("\n## ") {
+        Some(end) => &section[..end],
+        None => section,
+    };
+
+    let unresolved = unresolved_source_cites(&cited_source_files(section));
+    assert!(
+        unresolved.is_empty(),
+        "every file cited in the Unreleased release notes should exist under the crate, the \
          reticulumd tests or the rns-tools sources:\n{}",
         unresolved.join("\n")
     );

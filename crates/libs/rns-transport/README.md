@@ -340,8 +340,8 @@ not Python's default (see Known divergences).
 ## Attaching to a shared instance
 
 `Transport::attach_shared_instance(SharedInstanceEndpoint, SharedInstanceOptions)`
-spawns a `TcpClient`, or on unix targets a `LocalUnixClient` for the
-`SharedInstanceEndpoint::Unix` endpoint, marks that interface as the shared
+spawns a `TcpClient` for a `SharedInstanceEndpoint::Tcp(SocketAddr)`, or on
+unix targets a `LocalUnixClient` for `Unix`, marks that interface as the shared
 instance, sets the transport's client posture, synthesizes a tunnel on it
 once and returns the interface address: the posture of a Python program
 attaching to the instance that owns `shared_instance_port`
@@ -351,7 +351,10 @@ on one-hop paths of `:1416-1427`. One shared instance is held at a time:
 `shared_instance()` reports the attached interface, a second call returns
 `RnsError::InvalidArgument` until `detach_shared_instance()` removes the
 first (it returns `bool`, `false` when nothing was attached), and
-`Transport::stop()` removes it too. `reconnect_wait` (default 8 s,
+`Transport::stop()` removes it too. Only those two release the held slot:
+stopping or removing the interface directly with `stop_interface` or
+`remove_interface` leaves it held, and a later attach is refused until
+detach. `reconnect_wait` (default 8 s,
 `RNS/Interfaces/LocalInterface.py:54`) is honoured by the unix client; the
 TCP client's retry is fixed at 5 s. The auto-announce on registration and on
 reconnect (`RNS/Transport.py:2911-2916`, `:3705-3709`) and the table flush

@@ -32,25 +32,35 @@ trailing clause of the bullet for the behaviour it pins.
   links both ways, the shared instance's tunnel table carries a path for
   each attached client, a second attach is refused, detach and stop release
   the interface, and a unix attach registers its client before the socket
-  exists and connects within the reconnect wait once a listener binds. And
-  by `transport/tests_parts/two_transport_shared_instance_probe.rs`: the
+  exists and connects once a listener binds, while retrying at the
+  configured reconnect wait. By
+  `transport/tests_parts/two_transport_shared_instance_probe.rs`: the
   option default and builder, detach on a never-attached transport,
   concurrent attaches admit one, an attach before the server listens
-  connects once it does, and detach silences the relay while re-attach
-  restores one-hop paths.
+  connects once it does, detach silences the relay while re-attach restores
+  one-hop paths, and an attach racing a detach leaves the slot and the
+  posture in agreement. And by
+  `transport/tests_parts/two_transport_shared_instance_probe2.rs`: the unix
+  flavour end to end, a TCP client keeps its fixed retry under a short
+  reconnect wait, stop with a wedged handler still forgets the slot within
+  its budget, and `stop_interface` leaves the slot held until detach.
 
 ### Changed
 
 - `Transport::stop` forgets an attached shared instance and clears the
   connected flag, since its interface is detached with the rest; a stopped
-  transport reports `shared_instance()` as `None`. The posture is cleared
-  within stop's 5 s budget; when the handler stays locked past it the slot
-  is still forgotten and a warning says the posture was not cleared.
-  Pinned by
+  transport reports `shared_instance()` as `None`. The posture is now
+  cleared after the management task has stopped, within stop's 5 s budget;
+  when the handler stays locked past it the slot is still forgotten and a
+  warning says the posture was not cleared. `attach_shared_instance` sets
+  the posture only while the slot still holds the new interface, so a
+  concurrent detach or stop cannot leave the posture set with the slot
+  empty. Pinned by
   `transport/tests_parts/two_transport_shared_instance.rs` (stop releases
   the interface and the posture) and
   `transport/tests_parts/two_transport_shared_instance_probe.rs` (detach
-  after stop reports `false`).
+  after stop reports `false`, an attach racing a detach keeps the slot and
+  the posture consistent).
 
 ## 0.15.0 - 2026-10-20
 

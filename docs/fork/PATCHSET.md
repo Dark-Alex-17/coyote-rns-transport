@@ -49,9 +49,9 @@ commits `1ddd5273`, `a2a40de7`, `3805fe7f`, `3ed78582`, `415d67c8`,
 `50793515`, `4a4a91ae`, `3a5cd726`, `a0a88883`, `9eaafcc1`, `98718b4d`,
 `97bd6a91`, `85c20ef5`, `1bd387b4`, `5df575ec`, `873ef34f`, `211d84b8`,
 `9a4e8735`, `a4cf4f4b`, `65fb8646`, `01e93fc3` and `17348ca6`; the
-`Python-in-the-loop request and proof interop` patch is fork commits
-`60e74ffb`, `6e583b50`, `ea6edfaa`, `9223ef43`, `6e9eedf2` and
-`3f615a3b`.
+`Python-in-the-loop request and proof interop` patch carries no other id
+and is fork commits `60e74ffb`, `6e583b50`, `ea6edfaa`, `9223ef43`,
+`6e9eedf2`, `3f615a3b`, `28bacbbe` and `dbd4ff7e`.
 
 | File | Patch |
 | --- | --- |
@@ -79,6 +79,7 @@ commits `1ddd5273`, `a2a40de7`, `3805fe7f`, `3ed78582`, `415d67c8`,
 | `crates/apps/reticulumd/tests/python_channel_interop_parts/module_prelude.rs` | outbound outcomes with link fast fail and accept hook |
 | `crates/apps/reticulumd/tests/python_channel_interop_parts/multi_segment_python_interop.rs` | outbound outcomes with link fast fail and accept hook |
 | `crates/apps/reticulumd/tests/python_channel_interop_parts/python_request_forms_matrix.rs` | Python-in-the-loop request and proof interop |
+| `crates/apps/reticulumd/tests/python_channel_interop_parts/python_request_unknown_path.rs` | Python-in-the-loop request and proof interop |
 | `crates/apps/reticulumd/tests/python_channel_interop_parts/python_resource_fault_reverse.rs` | outbound outcomes with link fast fail and accept hook |
 | `crates/apps/reticulumd/tests/python_channel_interop_parts/python_to_rust_request_handler.rs` | Python-in-the-loop request and proof interop |
 | `crates/apps/reticulumd/tests/python_channel_interop_parts/reader_resource_interop.rs` | outbound outcomes with link fast fail and accept hook |
@@ -2299,7 +2300,8 @@ Fork commit `9223ef43`: `tests/support/python_channel_events.rs`'s
 `python_channel_interop_parts/resource_faults.rs`'s
 `rust_sender_maps_pinned_python_receiver_cancel_to_rejection` asserts it is
 `RejectReason::PeerCancelled`, so a Python receiver cancel is pinned to the
-typed reason rather than to the variant alone.
+typed reason rather than to the variant alone; `resource_faults.rs` gains
+the top-of-file `use rns_transport::resource::RejectReason;` for it.
 
 Fork commit `6e9eedf2`: the `request-forms` endpoint logic moves out of
 `tests/support/python_channel_endpoint.py` (1201 to 1096 lines) into the
@@ -2369,6 +2371,65 @@ silent-denial test asserts status 1 (`SENT`, `RNS/Link.py:1319`) and
 (`InboundRequest::remote_identity`), `Some(peer)` in the allow-list test
 and `None` under `RequestAllow::All`. Every async fn but the lock-taking
 test fns carries `#[deny(clippy::await_holding_invalid_type)]`.
+
+Fork commit `28bacbbe`: new fixture
+`python_channel_interop_parts/python_request_unknown_path.rs` (237 lines,
+three ignored tests, one `include!` line in `python_channel_interop.rs`)
+requests a path the responder never registered, in both directions.
+Python's `Link.handle_request` does nothing when the path hash is not in
+`destination.request_handlers` (`RNS/Link.py:810`), not even a log line,
+and the Rust `request-dispatch` worker drops it with a debug log and no
+reply, so the requester observes only the absence of a response.
+`python_to_rust_request_handler_unregistered_path_is_dropped_and_destination_keeps_serving`
+has the Python client request `/test/missing` in packet form against a
+Rust destination serving `/test/request` under `RequestAllow::All`: the
+handler never runs, the client reports `request_no_response` with status
+`SENT`, no client line carries a `response_size`, and a second client on
+`/test/request` is still answered.
+`rust_to_python_request_receipt_unregistered_path_packet_request_times_out_undelivered`
+sends a packet-form request for `/test/missing` under a 3 s
+`RequestOptions::with_timeout`: the receipt's status trail is exactly
+`[Sent, Failed]`, `response()` is `Err(RequestError::Timeout)`, the
+Python endpoint prints no `request_received` and `resource_events()`
+reports nothing.
+`rust_to_python_request_receipt_unregistered_path_resource_request_is_delivered_then_times_out`
+sends a 48 KiB request Resource: Python accepts it on size alone because
+the destination has a handler registered (`RNS/Link.py:1036-1040`), so
+the receipt reaches `Delivered` first; the path-hash miss at `:810` then
+leaves it unanswered and the timeout fails it. The trail is exactly
+`[Sent, Delivered, Failed]`, the elapsed time is at least the timeout
+because the request clock starts at delivery, and exactly one
+`OutboundComplete` is observed. The fixture reuses
+`RequestHandlerFixture`, `RustRequestReceiptFixture` and the matrix
+helpers of its sibling fixtures. The Python endpoint gains
+`--request-path` (default `/test/request`), threaded from the
+`python_channel_endpoint.py` argparse through
+`ChannelClient.run(request_path=...)` into
+`python_channel_request_forms.run_client(..., request_path)` and used as
+the `Link.request` path. Every async fn but the lock-taking test fns
+carries `#[deny(clippy::await_holding_invalid_type)]`.
+
+Fork commit `dbd4ff7e`: the wire-form pins tightened. In
+`python_request_forms_matrix.rs` the two Resource-request with
+Resource-response cells assert the exact terminal-form order,
+`[InboundRequest, Outbound]` Python to Rust and `[Outbound,
+InboundResponse]` Rust to Python, where they checked `contains` before;
+the MDU guard moves into `request_forms_matrix_assert_large_exceeds_mdu`,
+called by all three Rust-to-Python Resource cells and by the Resource
+test of `python_request_unknown_path.rs`, each logging `rust link mdu=`;
+`..._none_response_leaves_the_packet_request_unanswered` logs its id
+pair before comparing, and the concurrent test logs the Python id
+unquoted. `python_to_rust_request_handler.rs` defines
+`REQUEST_HANDLER_PY_SENT = 0x01` and `REQUEST_HANDLER_PY_FAILED = 0x00`
+(`RNS/Link.py:1318-1319`), used by all three fixture files: the matrix
+file's own twins are removed and the silent-denial test's literal `1`
+replaced. Both `python_channel_endpoint.py` and
+`python_channel_request_forms.py` start with `from __future__ import
+annotations`, without which their `float | None` annotations need
+Python 3.10 or later; `run_client` computes `request_deadline =
+time.time() + max(timeout, request_timeout or 0.0)` so a
+`--request-timeout` longer than `--timeout` cannot cut the wait short of
+RNS's `failed_callback`.
 
 ## 0.14.1 (upstream 0.14.0)
 

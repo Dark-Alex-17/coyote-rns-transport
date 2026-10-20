@@ -84,15 +84,21 @@ trailing clause of the bullet for the behaviour it pins.
   silently dropping an unlisted one, the request id compared as hex on
   both sides) and
   `python_channel_interop_parts/python_request_forms_matrix.rs` (every
-  request and response wire-form cell above and below the 16 KiB TCP link
-  MDU in both directions, the form pinned through
+  request and response wire-form cell above the 16 KiB TCP link MDU in
+  both directions, the packet-for-packet Python-to-Rust cell living in
+  the sibling fixture above, the form pinned through
   `Transport::resource_events()`; a Resource request from an unlisted
   peer is accepted on size alone and dropped before the handler, as
   Python does, `RNS/Link.py:1036-1040`). The Python endpoint gains the
   `request-forms` payload kind, `--request-size`, `--identify`,
-  `--request-timeout` and `--prove-all` for them
+  `--request-timeout`, `--request-path` and `--prove-all` for them
   (`python_channel_endpoint.py`, `python_channel_request_forms.py`); its
   client reports the wire form it used.
+  `python_channel_interop_parts/python_request_unknown_path.rs` pins a
+  request for a path no handler is registered on: dropped silently on
+  the Rust responder with the destination still serving, and on the
+  Python responder left unanswered in both wire forms (`RNS/Link.py:810`,
+  the request Resource accepted on size alone first, `:1036-1040`).
 
 - `LinkEvent::Data` with `PacketContext::Request` keeps posting for every
   inbound request; a request whose path has a registered handler is
@@ -249,9 +255,14 @@ trailing clause of the bullet for the behaviour it pins.
   return concluding `Failed(Timeout)` because Python then sends nothing,
   `RNS/Link.py:844`) and `python_request_forms_matrix.rs` for the
   Resource forms (a request Resource with a Resource and with a packet
-  response, a packet request with a Resource response, two concurrent
-  requests resolving separately), the request id compared as hex on both
-  sides for every cell.
+  response, a packet request with a Resource response) and two
+  concurrent packet-form requests resolving separately, the request id
+  compared as hex on both sides for every cell, and
+  `python_request_unknown_path.rs` for a path Python has no handler on,
+  `rust_to_python_request_receipt_unregistered_path_packet_request_times_out_undelivered`
+  and `..._resource_request_is_delivered_then_times_out` (status trails
+  `[Sent, Failed]` and `[Sent, Delivered, Failed]`, the Resource form's
+  clock running from delivery).
 
 - `SendPacketOutcome::is_sent`: whether a send reached an interface,
   directly or by broadcast; the in-crate `matches!` twins use it.

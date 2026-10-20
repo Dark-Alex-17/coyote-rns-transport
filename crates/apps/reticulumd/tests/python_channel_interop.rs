@@ -38,3 +38,5 @@ include!("python_channel_interop_parts/python_to_rust_link_identify_roundtr.rs")
 include!("python_channel_interop_parts/python_multi_hop.rs");
 
 include!("python_channel_interop_parts/multi_segment_python_interop.rs");
+
+include!("python_channel_interop_parts/python_to_rust_request_handler.rs");

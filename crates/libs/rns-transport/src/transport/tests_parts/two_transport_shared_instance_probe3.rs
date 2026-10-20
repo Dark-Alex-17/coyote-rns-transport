@@ -40,18 +40,26 @@ async fn shared_instance_detach_queued_before_the_attach_posture_write_wins_the_
     let (stall, release) = stall_transport_until_released(&transport).await;
 
     let (detached, attached, slot_at_release) = tokio::join!(
-        transport.detach_shared_instance(),
+        async {
+            timeout(STOP_TIMEOUT, transport.detach_shared_instance())
+                .await
+                .expect("the detach returns within its budget")
+        },
         async {
             // Let the detach register as the first waiter on the handler before the attach
             // runs its first section.
             tokio::task::yield_now().await;
-            transport
-                .attach_shared_instance(server.endpoint(), SharedInstanceOptions::default())
-                .await
+            timeout(
+                STOP_TIMEOUT,
+                transport
+                    .attach_shared_instance(server.endpoint(), SharedInstanceOptions::default()),
+            )
+            .await
+            .expect("the attach returns within its budget")
         },
         async {
             let slot = shared_instance_await_slot(&transport, true).await;
-            let _ = release.send(());
+            release.send(()).expect("the stall thread is waiting for the release");
             slot
         },
     );
@@ -104,13 +112,17 @@ async fn shared_instance_stop_racing_an_attach_keeps_slot_and_posture_consistent
         },
         async {
             tokio::task::yield_now().await;
-            transport
-                .attach_shared_instance(server.endpoint(), SharedInstanceOptions::default())
-                .await
+            timeout(
+                STOP_TIMEOUT,
+                transport
+                    .attach_shared_instance(server.endpoint(), SharedInstanceOptions::default()),
+            )
+            .await
+            .expect("the attach returns within its budget")
         },
         async {
             let slot = shared_instance_await_slot(&transport, true).await;
-            let _ = release.send(());
+            release.send(()).expect("the stall thread is waiting for the release");
             slot
         },
     );

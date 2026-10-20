@@ -16,15 +16,13 @@ const SHARED_INSTANCE_TCP_EARLY_WINDOW: Duration = Duration::from_secs(2);
 /// the listening signal.
 #[cfg(unix)]
 #[deny(clippy::await_holding_invalid_type)]
-async fn shared_instance_unix_owner(
-    dir: &std::path::Path,
-) -> (Transport, crate::iface::local::LocalUnixEndpoint) {
+async fn shared_instance_unix_owner(dir: &std::path::Path) -> (Transport, LocalUnixEndpoint) {
     let identity = PrivateIdentity::new_from_rand(OsRng);
     let mut config = TransportConfig::new("shared-instance-unix-owner", &identity, false);
     config.set_transport_enabled(true);
     let transport = Transport::new(config);
     let socket = dir.join("shared.sock");
-    let endpoint = crate::iface::local::LocalUnixEndpoint::filesystem(socket.clone());
+    let endpoint = LocalUnixEndpoint::filesystem(socket.clone());
     let server = crate::iface::local::LocalUnixServer::new_endpoint(
         endpoint.clone(),
         transport.iface_manager(),

@@ -200,3 +200,5 @@ include!("tests_parts/two_transport_shared_instance_probe.rs");
 include!("tests_parts/two_transport_shared_instance_probe2.rs");
 
 include!("tests_parts/two_transport_shared_instance_probe3.rs");
+
+include!("tests_parts/two_transport_shared_instance_probe4.rs");

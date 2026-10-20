@@ -31,7 +31,9 @@ fn stall_handler_until_released(
 /// Spawns a stall against `transport` that lasts until the returned sender fires, and
 /// returns once the lock is held. The burst must be recorded in full before the first proof
 /// is matched; a fixed-length stall raced the sends on a loaded runner and the peer proved
-/// early hashes before the cap could drop them.
+/// early hashes before the cap could drop them. The shared-instance fixtures also use it to
+/// hold the handler while an attach or a stop is mid-flight, so the slot can be observed
+/// between the two sections of the call.
 #[deny(clippy::await_holding_invalid_type)]
 async fn stall_transport_until_released(
     transport: &Transport,

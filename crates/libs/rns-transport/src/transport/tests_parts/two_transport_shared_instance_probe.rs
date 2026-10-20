@@ -57,9 +57,17 @@ async fn shared_instance_concurrent_attaches_admit_exactly_one() {
     let before = transport.interface_hashes().await.len();
 
     let (first, second) = tokio::join!(
-        transport.attach_shared_instance(server.endpoint(), SharedInstanceOptions::default()),
-        transport.attach_shared_instance(server.endpoint(), SharedInstanceOptions::default()),
+        timeout(
+            STOP_TIMEOUT,
+            transport.attach_shared_instance(server.endpoint(), SharedInstanceOptions::default()),
+        ),
+        timeout(
+            STOP_TIMEOUT,
+            transport.attach_shared_instance(server.endpoint(), SharedInstanceOptions::default()),
+        ),
     );
+    let first = first.expect("the first attach returns within its budget");
+    let second = second.expect("the second attach returns within its budget");
     let (winner, refused) = match (first, second) {
         (Ok(winner), refused @ Err(_)) | (refused @ Err(_), Ok(winner)) => (winner, refused),
         other => panic!("exactly one concurrent attach must win: {other:?}"),
@@ -236,10 +244,16 @@ async fn shared_instance_concurrent_attach_and_detach_keep_slot_and_posture_cons
                 .await
                 .expect("re-attach into an empty slot succeeds");
         }
-        let (_attach, _detach) = tokio::join!(
-            transport.attach_shared_instance(server.endpoint(), SharedInstanceOptions::default()),
-            transport.detach_shared_instance(),
+        let (attach, detach) = tokio::join!(
+            timeout(
+                STOP_TIMEOUT,
+                transport
+                    .attach_shared_instance(server.endpoint(), SharedInstanceOptions::default()),
+            ),
+            timeout(STOP_TIMEOUT, transport.detach_shared_instance()),
         );
+        let _attach = attach.unwrap_or_else(|_| panic!("iteration {iteration}: attach completes"));
+        let _detach = detach.unwrap_or_else(|_| panic!("iteration {iteration}: detach completes"));
         let held = transport.shared_instance();
         assert_eq!(
             held.is_some(),

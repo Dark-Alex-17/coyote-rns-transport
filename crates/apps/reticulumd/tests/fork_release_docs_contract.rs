@@ -19,7 +19,7 @@ fn read_repo_file(relative: &str) -> String {
 
 /// The source files the fork added over the upstream baseline: every public
 /// item in them is fork-new.
-const FORK_NEW_FILES: [&str; 7] = [
+const FORK_NEW_FILES: [&str; 9] = [
     "crates/libs/rns-transport/src/destination/request/allow.rs",
     "crates/libs/rns-transport/src/destination/request/frame.rs",
     "crates/libs/rns-transport/src/destination/request/handler.rs",
@@ -27,6 +27,8 @@ const FORK_NEW_FILES: [&str; 7] = [
     "crates/libs/rns-transport/src/destination/request/inbound.rs",
     "crates/libs/rns-transport/src/destination/request/receipt.rs",
     "crates/libs/rns-transport/src/resource/outcome.rs",
+    "crates/libs/rns-transport/src/transport/links_parts/transport_sections/shared_instance.rs",
+    "crates/libs/rns-transport/src/transport/shared_instance.rs",
 ];
 
 fn crate_version() -> String {
@@ -363,6 +365,7 @@ fn fork_new_public_structs_keep_their_fields_private() {
         "RequestReceipt",
         "RequestResponseData",
         "ResponseFrame",
+        "SharedInstanceOptions",
     ];
     let mut found = Vec::new();
     let mut exposed = Vec::new();
@@ -671,6 +674,7 @@ fn enums_the_docs_call_non_exhaustive_carry_the_attribute() {
         ("LinkEvent", "crates/libs/rns-transport/src/destination/link_parts/linkhandleresult.rs"),
         ("ResourceEventKind", "crates/libs/rns-transport/src/resource.rs"),
         ("AnnounceEvent", "crates/libs/rns-transport/src/transport/mod.rs"),
+        ("SharedInstanceEndpoint", "crates/libs/rns-transport/src/transport/shared_instance.rs"),
     ];
     for (item, file) in sites {
         let source = read_repo_file(file);

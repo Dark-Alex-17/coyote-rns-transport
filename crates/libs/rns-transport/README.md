@@ -337,6 +337,23 @@ return promptly and must not call back into the transport. A later call
 replaces it; without one every plain advertisement is accepted, which is
 not Python's default (see Known divergences).
 
+## Attaching to a shared instance
+
+`Transport::attach_shared_instance(SharedInstanceEndpoint, SharedInstanceOptions)`
+spawns a `TcpClient` or a `LocalUnixClient`, marks that interface as the
+shared instance, sets the transport's client posture, synthesizes a tunnel
+on it once and returns the interface address: the posture of a Python
+program attaching to the instance that owns `shared_instance_port`
+(`RNS/Reticulum.py:295`), with the client-side hop count of
+`RNS/Transport.py:1940` and the transport header on one-hop paths of
+`:1416-1427`. One shared instance is held at a time; a second call returns
+`RnsError::InvalidArgument` until `detach_shared_instance()` removes the
+first, and `Transport::stop()` removes it too. `reconnect_wait` (default
+8 s, `RNS/Interfaces/LocalInterface.py:54`) is honoured by the Unix client;
+the TCP client retries every 5 s. The auto-announce on registration and on
+reconnect (`RNS/Transport.py:2911-2916`, `:3705-3709`) and the table flush
+on disconnect (`:3690-3702`) are not yet mirrored (see Known divergences).
+
 ## Known divergences from Python RNS
 
 Where this crate is known to behave differently from RNS 1.5.2. Each entry
@@ -432,6 +449,11 @@ except where a fork change made it visible, and such an entry says so.
   with no retries, then cancels (`RNS/Resource.py:643-650`); its
   `retries_left` budget applies while advertised (`:588-590`) and while
   awaiting the proof (`:659-661`).
+- A shared-instance client does not yet announce its `SINGLE` destinations
+  0.25 s after registration (`RNS/Transport.py:2911-2916`) nor on reconnect
+  (`:3705-3709`), does not flush its tables when the shared instance
+  disconnects (`:3690-3702`), and still records received packet hashes
+  locally (`:1618-1621`).
 
 Not divergences:
 

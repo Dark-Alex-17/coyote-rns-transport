@@ -5,6 +5,38 @@ and versions follow the cargo semver rules described in the crate README.
 Test-only files are not listed as entries of their own; each is named in a
 trailing clause of the bullet for the behaviour it pins.
 
+## Unreleased
+
+### Added
+
+- `transport::{SharedInstanceEndpoint, SharedInstanceOptions}` and
+  `Transport::{attach_shared_instance, detach_shared_instance,
+  shared_instance, connected_to_shared_instance}`: the client posture of a
+  Python program attaching to the instance that owns `shared_instance_port`
+  (`RNS/Reticulum.py:295`). `attach_shared_instance` spawns a `TcpClient`
+  or a `LocalUnixClient` at the endpoint, marks that interface as the
+  shared instance, sets the connected flag and synthesizes a tunnel on it
+  once, so inbound packets take the client-side hop
+  (`RNS/Transport.py:1940`) and outbound packets on one-hop paths carry a
+  transport header (`:1416-1427`); it returns the interface address. One
+  shared instance is held at a time: a second call returns
+  `RnsError::InvalidArgument` until `detach_shared_instance`, which stops
+  the interface and clears the flag and returns `false` when none was
+  attached. `SharedInstanceEndpoint::{Tcp, Unix}` is `#[non_exhaustive]`;
+  `SharedInstanceOptions` has private fields and a `with_reconnect_wait`
+  builder, default 8 s (`RNS/Interfaces/LocalInterface.py:54`), honoured by
+  the Unix client only. Pinned by
+  `transport/tests_parts/two_transport_shared_instance.rs`: two clients on
+  one TCP shared instance learn each other at one hop and open links both
+  ways, a second attach is refused, detach and stop release the interface,
+  and a unix attach registers its client before the socket exists.
+
+### Changed
+
+- `Transport::stop` forgets an attached shared instance and clears the
+  connected flag, since its interface is detached with the rest; a stopped
+  transport reports `shared_instance()` as `None`.
+
 ## 0.15.0 - 2026-10-20
 
 ### Breaking

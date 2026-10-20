@@ -57,7 +57,8 @@ commits `1ddd5273`, `a2a40de7`, `3805fe7f`, `3ed78582`, `415d67c8`,
 and is fork commits `60e74ffb`, `6e583b50`, `ea6edfaa`, `9223ef43`,
 `6e9eedf2`, `3f615a3b`, `28bacbbe`, `dbd4ff7e`, `a0ba6f4a`, `b5dd3255`,
 `e4eb444f` and `fdb20280`; the `release 0.15.0` patch carries no other id
-and is fork commits `d4a3b2d2`, `5075d765`, `eb0e19f2` and `06068516`.
+and is fork commits `d4a3b2d2`, `5075d765`, `eb0e19f2`, `06068516` and
+`ac9c49af`.
 
 | File | Patch |
 | --- | --- |
@@ -2603,8 +2604,8 @@ does, and the `PROVE_ALL` comment names the in-crate loopback tests as
 the pin of the Rust record gate. Every async fn but the lock-taking test
 fns carries `#[deny(clippy::await_holding_invalid_type)]`.
 
-Fork commits `d4a3b2d2`, `5075d765`, `eb0e19f2` and `06068516`: release
-0.15.0. The first gates the inherited Codex review workflow
+Fork commits `d4a3b2d2`, `5075d765`, `eb0e19f2`, `06068516` and `ac9c49af`:
+release 0.15.0. The first gates the inherited Codex review workflow
 (`.github/workflows/codex-review.yml`) on the repository variable
 `CODEX_REVIEW_ENABLED`, so the check is skipped until the variable and the
 `OPENAI_API_KEY` secret exist, adds the `fork_publish_contract` test to the
@@ -2627,11 +2628,13 @@ subsection, rewrites the README patch list for 0.15.0, and in
 `fork_publish_contract.rs` derives the legend patch ids from the legend
 instead of hard-coding `B1` to `B5`, accepts any interop fixture row
 attributed to a Python-in-the-loop patch, and resolves release-notes cites
-under `crates/apps/rns-tools/src` as well. The ledger-only commit that
-completes this section is omitted here by convention. The patches of the
-`## 0.14.1` section below are still carried; the patches above build on
-their files rather than replacing them, and the publish contract test they
-added is extended by the first and fourth commits above.
+under `crates/apps/rns-tools/src` as well. The fifth refits the two doc
+comments the second added to `crates/libs/rns-transport/src/transport/mod.rs`
+so the file stays within the 500-line module budget. The ledger-only
+commits that complete this section are omitted here by convention. The
+patches of the `## 0.14.1` section below are still carried; the patches
+above build on their files rather than replacing them, and the publish
+contract test they added is extended by the first and fourth commits above.
 
 ## 0.14.1 (upstream 0.14.0)
 

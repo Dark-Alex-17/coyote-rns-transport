@@ -58,8 +58,8 @@ and is fork commits `60e74ffb`, `6e583b50`, `ea6edfaa`, `9223ef43`,
 `6e9eedf2`, `3f615a3b`, `28bacbbe`, `dbd4ff7e`, `a0ba6f4a`, `b5dd3255`,
 `e4eb444f` and `fdb20280`; the `release 0.15.0` patch carries no other id
 and is fork commits `d4a3b2d2`, `5075d765`, `eb0e19f2`, `06068516`,
-`ac9c49af`, `8b3ce9e1`, `23bdc1a8`, `ba92e2ba`, `8d70f3e1`, `ccfba204` and
-`af1b7e62`.
+`ac9c49af`, `8b3ce9e1`, `23bdc1a8`, `ba92e2ba`, `8d70f3e1`, `ccfba204`,
+`af1b7e62`, `061141f9`, `0bbccb83`, `eb854ab6` and `c5048353`.
 
 | File | Patch |
 | --- | --- |

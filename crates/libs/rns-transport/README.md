@@ -482,10 +482,10 @@ of `0.14.1`:
 - The fuzz crate for the new decoders.
 - The Python-in-the-loop interop tests.
 - Release hygiene: the Codex review workflow gated on the repository
-  variable `CODEX_REVIEW_ENABLED`, `fork_publish_contract` and
-  `fork_release_docs_contract` run in PR CI, the old-name walk skipping
-  dot-directories, and RNS citations on every public request-layer and
-  outcome item.
+  variable `CODEX_REVIEW_ENABLED` and skipped for fork-originated pull
+  requests, `fork_publish_contract` and `fork_release_docs_contract` run in
+  PR CI, the old-name walk skipping dot-directories, and RNS citations on
+  every public request-layer and outcome item.
 
 The `0.14.1` patches (link-close stdout, bound-interface segment dispatch,
 reject outside the link lock, sender before advertisement, hex parsers,

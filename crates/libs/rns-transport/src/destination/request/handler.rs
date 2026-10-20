@@ -15,7 +15,7 @@ use super::{InboundRequest, RequestAllow};
 /// it (`RNS/Link.py:907-912`). Neither path compresses a packet; the
 /// resource honours the registration's `auto_compress`.
 ///
-/// `Resource` is the file-response form (`RNS/Link.py:839-846`): always a
+/// `Resource` is the file-response form (`RNS/Link.py:837-846`): always a
 /// resource, with `data` as the raw resource payload, not an envelope, and
 /// `metadata` packed as msgpack ahead of it. Python's requester reads a
 /// resource as a file response only when it carries metadata

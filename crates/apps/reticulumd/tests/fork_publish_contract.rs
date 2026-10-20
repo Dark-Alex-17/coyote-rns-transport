@@ -404,8 +404,13 @@ fn patch_set_ledger_lists_existing_files_for_the_current_release() {
     );
 
     let required_every_release = [
+        "Cargo.toml",
+        "crates/apps/rns-tools/Cargo.toml",
+        "crates/apps/reticulumd/Cargo.toml",
         "crates/libs/rns-transport/Cargo.toml",
         "crates/libs/rns-transport/CHANGELOG.md",
+        "crates/libs/rns-transport/README.md",
+        "docs/getting-started.md",
         "crates/apps/reticulumd/tests/fork_publish_contract.rs",
         "docs/fork/PATCHSET.md",
     ];
@@ -851,7 +856,9 @@ fn old_package_name_survives_only_as_prose() {
 /// Release hygiene the fork carries in CI: the publish contract runs on the
 /// pull-request path, not only on the tag workflow, and the upstream Codex
 /// review is opt-in through a repository variable, so a fork without the
-/// OpenAI secret does not fail every PR.
+/// OpenAI secret does not fail every PR. The Codex job also skips pull
+/// requests from forks, whose heads cannot read the `OPENAI_API_KEY`
+/// secret.
 #[test]
 fn pull_request_ci_runs_the_publish_contract_and_codex_review_is_opt_in() {
     let ci = read_repo_file(".github/workflows/ci.yml");
@@ -878,6 +885,10 @@ fn pull_request_ci_runs_the_publish_contract_and_codex_review_is_opt_in() {
     assert!(
         guard.contains("vars.CODEX_REVIEW_ENABLED == 'true'"),
         "the Codex review job should be opt-in through the CODEX_REVIEW_ENABLED variable, got {guard:?}"
+    );
+    assert!(
+        guard.contains("github.event.pull_request.head.repo.full_name == github.repository"),
+        "the Codex review job must skip pull requests from forks, whose heads cannot read the OPENAI_API_KEY secret, got {guard:?}"
     );
     assert!(
         !guard.contains("secrets."),

@@ -159,6 +159,7 @@ fn attribute_block_above(source: &str, definition: usize) -> &str {
 enum Body {
     Enum,
     Struct,
+    Trait,
 }
 
 /// Every public item the request layer and the outbound-outcome types added
@@ -269,8 +270,9 @@ fn request_layer_public_items_cite_python_or_say_fork_only() {
     for file in FORK_NEW_FILES {
         let source = read_repo_file(file);
         let lines: Vec<&str> = source.lines().collect();
-        // The public enum or struct whose braces the walker is inside, and
-        // how deep the current line sits in it.
+        // The public enum, struct or trait whose braces the walker is inside,
+        // and how deep the current line sits in it. Trait methods carry no
+        // `pub`, so they are recognised by the `fn` keyword alone.
         let mut body: Option<Body> = None;
         let mut depth = 0i32;
         for (index, raw) in lines.iter().enumerate() {
@@ -281,6 +283,7 @@ fn request_layer_public_items_cite_python_or_say_fork_only() {
                 let is_member = match (kind, depth) {
                     (Body::Enum, 1) => text.starts_with(|c: char| c.is_ascii_uppercase()),
                     (Body::Struct, 1) => is_pub_field(text),
+                    (Body::Trait, 1) => text.starts_with("fn ") || text.starts_with("async fn "),
                     _ => false,
                 };
                 if is_member {
@@ -302,6 +305,8 @@ fn request_layer_public_items_cite_python_or_say_fork_only() {
                 Body::Enum
             } else if after_pub.starts_with("struct ") {
                 Body::Struct
+            } else if after_pub.starts_with("trait ") {
+                Body::Trait
             } else {
                 continue;
             };
@@ -321,7 +326,7 @@ fn request_layer_public_items_cite_python_or_say_fork_only() {
     }
 
     assert!(
-        checked >= 90,
+        checked >= 91,
         "the request layer should expose the receipt, frame, handler and outcome surface; found only {checked} public items"
     );
     assert!(

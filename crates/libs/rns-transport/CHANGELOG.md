@@ -373,7 +373,9 @@ compiles.
   `transport/tests_parts/two_transport_loopback_link_packet_proven.rs`,
   `transport/tests_parts/two_transport_loopback_link_packet_proven_probe.rs`,
   `transport/tests_parts/two_transport_loopback_link_packet_proven_probe2.rs`
-  (the cap and a Channel frame, through the transport send path),
+  (the cap and a Channel frame, through the transport send path; the
+  cap burst's proofs and receipts are collected on progress, so a slow
+  runner stretches the wait and only a stall fails it),
   `transport/tests_parts/two_transport_loopback_link_packet_proven_probe3.rs`
   (a replayed proof: dropped by the ingress packet filter it adds neither
   receipt nor event; delivered past the filter it adds a second receipt

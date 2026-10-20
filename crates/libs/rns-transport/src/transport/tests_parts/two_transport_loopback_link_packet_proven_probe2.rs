@@ -13,9 +13,15 @@ const PACKET_PROVEN_PROBE2_OVER_CAP: usize = 3;
 /// Holds the listener's handler lock long enough for the whole burst to be sent before any
 /// proof can come back, so every hash is recorded before the first proof is matched.
 const PACKET_PROVEN_PROBE2_STALL: Duration = Duration::from_millis(1500);
+/// Longest gap allowed between two consecutive proofs (or receipts) of the burst. The
+/// collection waits on progress, not on a fixed budget: a slow runner stretches the run
+/// without weakening the count, and only a stall of this long fails the test. The whole
+/// burst took longer than `LOOPBACK_TIMEOUT` on a CI runner once.
+const PACKET_PROVEN_PROBE2_PROGRESS_WINDOW: Duration = LOOPBACK_TIMEOUT;
 
-/// Collects `PacketProven` hashes for `link_id` until `count` have arrived. A lagged event
-/// stream would make the count meaningless, so it fails the test instead.
+/// Collects `PacketProven` hashes for `link_id` until `count` have arrived, failing when no
+/// new proof lands within `PACKET_PROVEN_PROBE2_PROGRESS_WINDOW` of the previous one. A
+/// lagged event stream would make the count meaningless, so it fails the test instead.
 #[deny(clippy::await_holding_invalid_type)]
 async fn packet_proven_probe2_collect_exact(
     events: &mut broadcast::Receiver<LinkEventData>,
@@ -23,49 +29,58 @@ async fn packet_proven_probe2_collect_exact(
     count: usize,
 ) -> Vec<Hash> {
     let mut seen = Vec::with_capacity(count);
-    timeout(LOOPBACK_TIMEOUT, async {
-        while seen.len() < count {
-            match events.recv().await {
-                Ok(event) if event.id == link_id => {
-                    if let Some(hash) = packet_proven_hash(&event.event) {
-                        seen.push(hash);
-                    }
+    let mut deadline = Instant::now() + PACKET_PROVEN_PROBE2_PROGRESS_WINDOW;
+    while seen.len() < count {
+        let received =
+            tokio::time::timeout_at(deadline, events.recv()).await.unwrap_or_else(|_| {
+                panic!(
+                    "stalled: {} of {count} PacketProven arrived, none in the last {:?}",
+                    seen.len(),
+                    PACKET_PROVEN_PROBE2_PROGRESS_WINDOW
+                )
+            });
+        match received {
+            Ok(event) if event.id == link_id => {
+                if let Some(hash) = packet_proven_hash(&event.event) {
+                    seen.push(hash);
+                    deadline = Instant::now() + PACKET_PROVEN_PROBE2_PROGRESS_WINDOW;
                 }
-                Ok(_) => {}
-                Err(RecvError::Lagged(skipped)) => {
-                    panic!("link event stream lagged by {skipped}; counts are unreliable")
-                }
-                Err(RecvError::Closed) => panic!("link event channel closed"),
             }
+            Ok(_) => {}
+            Err(RecvError::Lagged(skipped)) => {
+                panic!("link event stream lagged by {skipped}; counts are unreliable")
+            }
+            Err(RecvError::Closed) => panic!("link event channel closed"),
         }
-    })
-    .await
-    .unwrap_or_else(|_| panic!("timed out: {} of {count} PacketProven arrived", seen.len()));
+    }
     seen
 }
 
-/// Waits until the recording receipt handler holds `count` receipts.
+/// Waits until the recording receipt handler holds `count` receipts, failing when the count
+/// does not grow within `PACKET_PROVEN_PROBE2_PROGRESS_WINDOW`.
 #[deny(clippy::await_holding_invalid_type)]
 async fn packet_proven_probe2_await_receipts(
     receipts: &Arc<StdMutex<Vec<DeliveryReceipt>>>,
     count: usize,
 ) -> Vec<DeliveryReceipt> {
-    timeout(LOOPBACK_TIMEOUT, async {
-        loop {
-            let seen = receipts.lock().expect("recording lock").clone();
-            if seen.len() >= count {
-                return seen;
-            }
-            tokio::time::sleep(Duration::from_millis(20)).await;
+    let mut last_len = 0;
+    let mut deadline = Instant::now() + PACKET_PROVEN_PROBE2_PROGRESS_WINDOW;
+    loop {
+        let seen = receipts.lock().expect("recording lock").clone();
+        if seen.len() >= count {
+            return seen;
         }
-    })
-    .await
-    .unwrap_or_else(|_| {
-        panic!(
-            "timed out: {} of {count} receipts arrived",
-            receipts.lock().expect("recording lock").len()
-        )
-    })
+        if seen.len() > last_len {
+            last_len = seen.len();
+            deadline = Instant::now() + PACKET_PROVEN_PROBE2_PROGRESS_WINDOW;
+        }
+        assert!(
+            Instant::now() < deadline,
+            "stalled: {last_len} of {count} receipts arrived, none in the last {:?}",
+            PACKET_PROVEN_PROBE2_PROGRESS_WINDOW
+        );
+        tokio::time::sleep(LOOPBACK_POLL).await;
+    }
 }
 
 /// A burst of `crate::destination::link::UNPROVEN_DATA_HASHES_CAP + 3` plain Data packets sent while the peer cannot

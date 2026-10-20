@@ -10,7 +10,9 @@ use super::id::{PathHash, RequestId};
 
 /// Deepest container nesting a frame may carry. Arrays and maps count, the
 /// frame's own outer array is level one. Fork-only: Python decodes with
-/// `umsgpack.unpackb` and sets no depth limit (`RNS/Link.py:1003`, `:1013`).
+/// `umsgpack.unpackb` and sets no depth limit (`RNS/Link.py:1003`, `:1013`);
+/// a frame deeper than the interpreter's recursion limit raises inside
+/// `unpackb` and is dropped at `RNS/Link.py:1007`.
 pub const MAX_DEPTH: usize = 128;
 
 /// Why a byte string is not a request or response frame.
@@ -23,30 +25,31 @@ pub const MAX_DEPTH: usize = 128;
 #[non_exhaustive]
 #[derive(Debug, Clone, Copy, PartialEq, Eq, thiserror::Error)]
 pub enum FrameDecodeError {
-    /// The input ends inside a value.
+    /// Fork-only: the input ends inside a value.
     #[error("input ends inside a msgpack value")]
     Truncated,
-    /// Bytes follow the frame.
+    /// Fork-only: bytes follow the frame.
     #[error("bytes follow the frame")]
     TrailingBytes,
-    /// Arrays and maps nest deeper than [`MAX_DEPTH`].
+    /// Fork-only: arrays and maps nest deeper than [`MAX_DEPTH`].
     #[error("containers nest deeper than {MAX_DEPTH} levels")]
     DepthExceeded,
-    /// A `bin`, `str` or `ext` length prefix claims more bytes than remain.
+    /// Fork-only: a `bin`, `str` or `ext` length prefix claims more bytes
+    /// than remain.
     #[error("length prefix larger than the remaining input")]
     LengthExceedsInput,
-    /// The reserved marker `0xc1` appears.
+    /// Fork-only: the reserved marker `0xc1` appears.
     #[error("reserved msgpack marker 0xc1")]
     ReservedMarker,
-    /// The value reader failed on an input the walk accepted. Unreachable
-    /// while the walk mirrors `rmpv`'s reader; kept so a future `rmpv`
-    /// change surfaces as an error instead of a panic.
+    /// Fork-only: the value reader failed on an input the walk accepted.
+    /// Unreachable while the walk mirrors `rmpv`'s reader; kept so a future
+    /// `rmpv` change surfaces as an error instead of a panic.
     #[error("msgpack value could not be read")]
     Malformed,
-    /// The frame is not an array.
+    /// Fork-only: the frame is not an array.
     #[error("frame is not an array")]
     NotAnArray,
-    /// The array has the wrong number of elements.
+    /// Fork-only: the array has the wrong number of elements.
     #[error("frame has {found} elements, expected {expected}")]
     WrongArity {
         /// Elements the frame shape requires.
@@ -54,10 +57,10 @@ pub enum FrameDecodeError {
         /// Elements the input carries.
         found: usize,
     },
-    /// `requested_at` is not a `float64` (marker `0xcb`).
+    /// Fork-only: `requested_at` is not a `float64` (marker `0xcb`).
     #[error("requested_at is not a float64")]
     RequestedAtNotF64,
-    /// The path hash or request id is not a 16-byte `bin`.
+    /// Fork-only: the path hash or request id is not a 16-byte `bin`.
     #[error("hash is not a 16-byte bin")]
     HashNotBin16,
 }
@@ -98,7 +101,7 @@ impl RequestFrame {
     }
 
     /// The request body in its own msgpack type: `handle_request` passes
-    /// `unpacked_request[2]` to the handler unchanged.
+    /// `unpacked_request[2]` (`RNS/Link.py:808`) to the handler unchanged.
     pub fn data(&self) -> &Value {
         &self.data
     }

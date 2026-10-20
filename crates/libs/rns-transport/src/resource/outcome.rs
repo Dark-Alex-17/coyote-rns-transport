@@ -8,16 +8,17 @@
 #[non_exhaustive]
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum RejectReason {
-    /// The peer answered the advertisement with a receiver cancel.
+    /// The peer answered the advertisement with a receiver cancel, the
+    /// `RESOURCE_RCL` that `Resource.reject` sends (`RNS/Resource.py:155-165`).
     PeerCancelled,
-    /// The resource exceeded a cap the sender knew about locally. No code
-    /// path produces this variant in 0.15.0; it is reserved.
+    /// The resource exceeded a cap the sender knew about locally. Fork-only,
+    /// reserved: no code path produces this variant yet.
     Oversize {
         /// The cap in bytes that the resource exceeded.
         limit: usize,
     },
-    /// No code path produces this variant in 0.15.0; it is reserved for an
-    /// unclassified refusal.
+    /// Fork-only, reserved for an unclassified refusal: no code path produces
+    /// this variant yet.
     Unknown,
 }
 
@@ -27,36 +28,43 @@ pub enum RejectReason {
 #[non_exhaustive]
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum OutboundFailure {
-    /// The advertisement was never dispatched, so the peer never heard of
-    /// the transfer.
+    /// Fork-only: the advertisement was never dispatched, so the peer never
+    /// heard of the transfer.
     NotSent,
-    /// The retry budget ran out while the resource was advertised,
-    /// transferring or awaiting its proof.
+    /// Fork-only: the retry budget ran out while the resource was advertised,
+    /// transferring or awaiting its proof. Python's watchdog calls `cancel()`
+    /// when `retries_left` hits zero (`RNS/Resource.py:588-590`, `:659-661`),
+    /// which sets `Resource.FAILED` (`:1102`).
     RetriesExhausted,
-    /// A later segment of a split resource could not be built, or the sender
-    /// failed while serving the peer's part requests: a part or hash-map
-    /// packet that would not build, or a request out of sequence. The second
-    /// path is open to a single-segment send as well.
+    /// Fork-only: a later segment of a split resource could not be built, or
+    /// the sender failed while serving the peer's part requests: a part or
+    /// hash-map packet that would not build, or a request out of sequence.
+    /// The second path is open to a single-segment send as well.
     Segmenting,
-    /// The link went away under the transfer. This is also what an outcome
-    /// resolves to when the transport is dropped before reaching a verdict.
+    /// Fork-only: the link went away under the transfer. This is also what an
+    /// outcome resolves to when the transport is dropped before reaching a
+    /// verdict.
     LinkClosed,
 }
 
 /// The terminal verdict of one outbound resource. Fork-only: Python reports
 /// a sender's fate only through the Resource's status
 /// (`RNS/Resource.py:144-153`) and its concluded callback (`:805-806`,
-/// `:1118-1121`, `:1130-1133`).
+/// `:1118-1121`, `:1130-1134`).
 #[non_exhaustive]
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum OutboundResult {
-    /// The peer proved the final segment.
+    /// The peer proved the final segment: `Resource.COMPLETE`
+    /// (`RNS/Resource.py:150`).
     Complete,
-    /// The transfer stopped without a proof; see [`OutboundFailure`].
+    /// The transfer stopped without a proof, `Resource.FAILED`
+    /// (`RNS/Resource.py:151`); see [`OutboundFailure`].
     Failed(OutboundFailure),
-    /// The peer refused the transfer; see [`RejectReason`].
+    /// The peer refused the transfer; see [`RejectReason`]. `Resource.REJECTED`
+    /// (`RNS/Resource.py:153`), set in `_rejected` (`:1128`).
     Rejected(RejectReason),
-    /// The local side cancelled the transfer.
+    /// The local side cancelled the transfer. Fork-only: Python's `cancel()`
+    /// sets `Resource.FAILED` (`RNS/Resource.py:1101-1102`).
     Cancelled,
 }
 

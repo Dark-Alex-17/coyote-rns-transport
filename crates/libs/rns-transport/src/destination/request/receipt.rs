@@ -43,7 +43,8 @@ impl RequestOptions {
 
     /// Refuses a response larger than `max_response_size` bytes, the check
     /// Python runs on a response Resource's advertisement
-    /// (`RNS/Link.py:1048-1049`).
+    /// (`RNS/Link.py:1048-1049`) and, through `handle_response(...,
+    /// check_size=True)` (`:1017`), on a response packet (`:862-863`).
     pub fn with_max_response_size(mut self, max_response_size: usize) -> Self {
         self.max_response_size = Some(max_response_size);
         self
@@ -99,13 +100,18 @@ impl RequestStatus {
 #[derive(Debug, Clone, Copy, PartialEq, Eq, thiserror::Error)]
 pub enum RequestError {
     /// No response within the request timeout: counted from the send for a
-    /// request packet, from `Delivered` for a request Resource.
+    /// request packet, from `Delivered` for a request Resource. Python's
+    /// `request_timed_out` (`RNS/Link.py:1397-1405`).
     #[error("no response before the request timeout")]
     Timeout,
-    /// The link closed while the request was pending.
+    /// The link closed while the request was pending. Fork-only: Python's
+    /// receipt has no link-closed arm; its `FAILED` covers every cause
+    /// (`RNS/Link.py:1318-1322`).
     #[error("the link closed before a response arrived")]
     LinkClosed,
-    /// The responder rejected the request Resource.
+    /// The responder rejected the request Resource. Python fails the receipt
+    /// from `request_resource_concluded` (`RNS/Link.py:1377-1381`); its
+    /// `response_rejected` (`:1407-1411`) is the oversize-response path.
     #[error("the responder rejected the request resource")]
     Rejected,
     /// The response is larger than the `max_response_size` asked for. For a
@@ -117,13 +123,17 @@ pub enum RequestError {
     Oversize,
     /// The response is not a `[request_id, body]` envelope, the envelope of
     /// a response Resource names another request, or the metadata is not
-    /// msgpack.
+    /// msgpack. Fork-only: Python indexes the envelope unchecked
+    /// (`RNS/Link.py:1014-1015`) and an exception there is logged and
+    /// dropped (`:1020`).
     #[error("the response could not be decoded")]
     Decode,
     /// The request Resource could not be sent: its retries ran out, its
     /// send failed, it was cancelled locally through
     /// `Transport::cancel_resource`, or the entry was displaced by a request
-    /// under the same id.
+    /// under the same id. Fork-only: Python folds every request Resource
+    /// failure into the one `request_resource_concluded` arm
+    /// (`RNS/Link.py:1377-1381`).
     #[error("the request could not be sent")]
     Send,
     /// The response Resource failed in transfer before it completed: a part

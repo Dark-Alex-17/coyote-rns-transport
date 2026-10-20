@@ -244,7 +244,7 @@ pub enum ResourceEventKind {
     /// `RESOURCE_RCL` for this terminal outcome; it is distinct from a local
     /// cancellation and from a transfer that failed after starting.
     OutboundRejected {
-        /// Why the transfer was refused, as far as the sender can tell.
+        /// Why the transfer was refused, as far as the sender knows (`RNS/Resource.py:155-165`).
         reason: RejectReason,
     },
     OutboundCancelled,

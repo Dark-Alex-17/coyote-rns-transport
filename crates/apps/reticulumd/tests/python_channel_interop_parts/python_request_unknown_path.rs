@@ -24,23 +24,24 @@
 const REQUEST_UNKNOWN_PATH: &str = "/test/missing";
 
 /// Follows a receipt's status watch until it concludes, returning every
-/// status observed in order (the initial one first).
+/// status observed in order (the initial one first) with the instant it was
+/// seen, so a test can measure the gap between two transitions.
 #[deny(clippy::await_holding_invalid_type)]
 async fn request_unknown_path_status_trail(
     receipt: &RequestReceipt,
     budget: Duration,
-) -> Vec<RequestStatus> {
+) -> Vec<(RequestStatus, tokio::time::Instant)> {
     let mut status = receipt.subscribe();
-    let mut trail = vec![*status.borrow_and_update()];
+    let mut trail = vec![(*status.borrow_and_update(), tokio::time::Instant::now())];
     let deadline = tokio::time::Instant::now() + budget;
-    while !matches!(trail.last(), Some(RequestStatus::Ready | RequestStatus::Failed)) {
+    while !matches!(trail.last(), Some((RequestStatus::Ready | RequestStatus::Failed, _))) {
         match tokio::time::timeout_at(deadline, status.changed()).await {
-            Ok(Ok(())) => trail.push(*status.borrow_and_update()),
+            Ok(Ok(())) => trail.push((*status.borrow_and_update(), tokio::time::Instant::now())),
             Ok(Err(_)) => {
                 // Sender dropped at conclusion; the terminal value is still readable.
                 let last = *status.borrow();
-                if trail.last() != Some(&last) {
-                    trail.push(last);
+                if trail.last().map(|(status, _)| *status) != Some(last) {
+                    trail.push((last, tokio::time::Instant::now()));
                 }
                 break;
             }
@@ -48,6 +49,21 @@ async fn request_unknown_path_status_trail(
         }
     }
     trail
+}
+
+fn request_unknown_path_statuses(
+    trail: &[(RequestStatus, tokio::time::Instant)],
+) -> Vec<RequestStatus> {
+    trail.iter().map(|(status, _)| *status).collect()
+}
+
+fn request_unknown_path_instant_of(
+    trail: &[(RequestStatus, tokio::time::Instant)],
+    wanted: RequestStatus,
+) -> tokio::time::Instant {
+    trail.iter().find(|(status, _)| *status == wanted).map(|(_, at)| *at).unwrap_or_else(|| {
+        panic!("{wanted:?} not observed in {:?}", request_unknown_path_statuses(trail))
+    })
 }
 
 /// Collects every JSON line the Python endpoint prints within `settle`.
@@ -110,6 +126,64 @@ async fn run_python_to_rust_request_handler_unregistered_path_is_dropped_and_des
     request_handler_assert_response(&lines, request_id, b"reply:hello-rust", "packet");
 }
 
+// Resource-form request for a path Rust never registered. Rust accepts the
+// request Resource on size alone as Python does (RNS/Link.py:1036-1040) and
+// assembles it; only then does the dispatch worker drop it on the path-hash
+// miss. Python's receipt therefore reaches DELIVERED (:1372) and, with no
+// response, `request_timed_out` fires failed_callback (:1398). The client
+// request timeout is shorter than its exit deadline so the callback lands
+// before it exits.
+#[tokio::test]
+#[ignore = "requires local Python Reticulum checkout"]
+async fn python_to_rust_request_handler_unregistered_path_resource_request_fails_on_python() {
+    let _interop_guard = python_interop_guard().await;
+    run_python_to_rust_request_handler_unregistered_path_resource_request_fails_on_python().await;
+}
+
+#[deny(clippy::await_holding_invalid_type)]
+async fn run_python_to_rust_request_handler_unregistered_path_resource_request_fails_on_python() {
+    let fixture = RequestHandlerFixture::start("python-rns-request-unknown-path-resource").await;
+    let record = RequestHandlerRecord::default();
+    fixture.register(record.handler(request_handler_echo), RequestAllow::All).await;
+    let mut resource_events = fixture.transport.resource_events();
+
+    let size = REQUEST_FORMS_MATRIX_LARGE.to_string();
+    let mut client = fixture
+        .connect(
+            30.0,
+            &[
+                "--request-path",
+                REQUEST_UNKNOWN_PATH,
+                "--request-size",
+                &size,
+                "--request-timeout",
+                "4",
+            ],
+        )
+        .await;
+    let lines = client.json_lines().await;
+
+    let sent = request_handler_line_with(&lines, "request_sent");
+    let report = request_handler_line_with(&lines, "request_failed");
+    assert_eq!(report["request_failed"], true);
+    assert_eq!(report["request_form"], "resource");
+    assert_eq!(report["status"], REQUEST_HANDLER_PY_FAILED);
+    assert_eq!(sent["request_id"], report["request_id"]);
+    assert!(
+        lines.iter().all(|line| line.get("response_size").is_none()),
+        "an unregistered path must not be answered: {lines:?}"
+    );
+    assert_eq!(record.calls.load(Ordering::SeqCst), 0, "handler ran for an unregistered path");
+
+    let forms =
+        request_forms_matrix_terminal_forms(&mut resource_events, Duration::from_secs(2)).await;
+    assert_eq!(
+        forms,
+        vec![RequestFormsMatrixForm::InboundRequest],
+        "the request Resource was still received and nothing went back"
+    );
+}
+
 // ---------------------------------------------------------------------------
 // Rust -> Python
 // ---------------------------------------------------------------------------
@@ -151,7 +225,7 @@ async fn run_rust_to_python_request_receipt_unregistered_path_packet_request_tim
 
     let trail = request_unknown_path_status_trail(&receipt, Duration::from_secs(20)).await;
     assert_eq!(
-        trail,
+        request_unknown_path_statuses(&trail),
         vec![RequestStatus::Sent, RequestStatus::Failed],
         "packet form is never Delivered"
     );
@@ -194,7 +268,6 @@ async fn run_rust_to_python_request_receipt_unregistered_path_resource_request_i
     request_forms_matrix_assert_large_exceeds_mdu(&fixture).await;
 
     let timeout = Duration::from_secs(3);
-    let started = tokio::time::Instant::now();
     let receipt = fixture
         .transport
         .request(
@@ -209,14 +282,16 @@ async fn run_rust_to_python_request_receipt_unregistered_path_resource_request_i
 
     let trail = request_unknown_path_status_trail(&receipt, Duration::from_secs(30)).await;
     assert_eq!(
-        trail,
+        request_unknown_path_statuses(&trail),
         vec![RequestStatus::Sent, RequestStatus::Delivered, RequestStatus::Failed],
         "the request Resource is accepted and proved before the timeout fails it"
     );
+    let delivered_at = request_unknown_path_instant_of(&trail, RequestStatus::Delivered);
+    let failed_at = request_unknown_path_instant_of(&trail, RequestStatus::Failed);
     assert!(
-        started.elapsed() >= timeout,
-        "the timeout is counted from Delivered, so at least {timeout:?} must pass: {:?}",
-        started.elapsed()
+        failed_at.duration_since(delivered_at) >= timeout,
+        "the request clock runs from delivery: {:?} between Delivered and Failed, timeout {timeout:?}",
+        failed_at.duration_since(delivered_at)
     );
     assert_eq!(receipt.response().await, Err(RequestError::Timeout));
 

@@ -209,7 +209,6 @@ async fn run_rust_to_python_request_receipt_resource_request_none_response_is_de
             rmpv::Value::String("x".repeat(REQUEST_FORMS_MATRIX_LARGE).into()),
         ),
     ]);
-    let started = tokio::time::Instant::now();
     let receipt = fixture.request(data, RequestOptions::default().with_timeout(timeout)).await;
 
     // Subscribe before the Resource can conclude so `Sent` is still the
@@ -220,14 +219,17 @@ async fn run_rust_to_python_request_receipt_resource_request_none_response_is_de
     );
     assert_eq!(report["response_kind"], "none", "the python handler ran and answered None");
     assert_eq!(
-        trail,
+        request_unknown_path_statuses(&trail),
         vec![RequestStatus::Sent, RequestStatus::Delivered, RequestStatus::Failed],
         "a request Resource is proved before the timeout clock starts"
     );
     assert_eq!(receipt.response().await, Err(RequestError::Timeout));
+    let delivered_at = request_unknown_path_instant_of(&trail, RequestStatus::Delivered);
+    let failed_at = request_unknown_path_instant_of(&trail, RequestStatus::Failed);
     assert!(
-        started.elapsed() >= timeout,
-        "the timeout is counted from Delivered, so it cannot fire early"
+        failed_at.duration_since(delivered_at) >= timeout,
+        "the request clock runs from delivery: {:?} between Delivered and Failed, timeout {timeout:?}",
+        failed_at.duration_since(delivered_at)
     );
 
     let forms =

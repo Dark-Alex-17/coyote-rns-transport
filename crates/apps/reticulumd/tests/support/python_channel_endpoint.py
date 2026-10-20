@@ -610,12 +610,12 @@ class ChannelClient:
                 self,
                 active_link,
                 message_data,
-                request_size,
-                identify,
-                timeout,
-                request_timeout,
-                deadline,
-                request_path,
+                request_size=request_size,
+                identify=identify,
+                timeout=timeout,
+                request_timeout=request_timeout,
+                deadline=deadline,
+                request_path=request_path,
             )
 
         if self.payload_kind == "multi-segment-response":
@@ -1088,10 +1088,10 @@ def main() -> int:
             args.send_delay,
             args.timeout,
             args.hold_after_close,
-            args.request_size,
-            args.identify,
-            args.request_timeout,
-            args.request_path,
+            request_size=args.request_size,
+            identify=args.identify,
+            request_timeout=args.request_timeout,
+            request_path=args.request_path,
         )
 
     if args.config_dir is None:

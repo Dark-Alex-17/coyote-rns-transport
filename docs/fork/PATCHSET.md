@@ -20,6 +20,10 @@ sites, so a rebase can re-apply them one commit at a time.
 
 ## Unreleased (upstream 0.14.0)
 
+No file has changed since the `0.15.0` release.
+
+## 0.15.0 (upstream 0.14.0)
+
 Every file changed since the `0.14.1` release and the patch each change
 belongs to. Patch ids: F1 is request wire frames and fuzz, F2 is link
 proof event and receipt link id, F3 is outbound outcomes with link fast
@@ -52,10 +56,16 @@ commits `1ddd5273`, `a2a40de7`, `3805fe7f`, `3ed78582`, `415d67c8`,
 `Python-in-the-loop request and proof interop` patch carries no other id
 and is fork commits `60e74ffb`, `6e583b50`, `ea6edfaa`, `9223ef43`,
 `6e9eedf2`, `3f615a3b`, `28bacbbe`, `dbd4ff7e`, `a0ba6f4a`, `b5dd3255`,
-`e4eb444f` and `fdb20280`.
+`e4eb444f` and `fdb20280`; the `release 0.15.0` patch carries no other id
+and is fork commits `d4a3b2d2`, `5075d765`, `eb0e19f2` and `06068516`.
 
 | File | Patch |
 | --- | --- |
+| `.github/workflows/ci.yml` | release 0.15.0 |
+| `.github/workflows/codex-review.yml` | release 0.15.0 |
+| `Cargo.lock` | release 0.15.0 |
+| `Cargo.toml` | release 0.15.0 |
+| `crates/apps/reticulumd/Cargo.toml` | release 0.15.0 |
 | `crates/apps/reticulumd/src/bin/reticulumd/bridge.rs` | outbound outcomes with link fast fail and accept hook |
 | `crates/apps/reticulumd/src/bin/reticulumd/bridge_delivery_task_parts/deliverytask_sections/resolve_or_create_propagation_link.rs` | outbound outcomes with link fast fail and accept hook |
 | `crates/apps/reticulumd/src/bin/reticulumd/bridge_delivery_task_tests_parts/module_prelude.rs` | outbound outcomes with link fast fail and accept hook |
@@ -72,6 +82,7 @@ and is fork commits `60e74ffb`, `6e583b50`, `ea6edfaa`, `9223ef43`,
 | `crates/apps/reticulumd/src/bin/reticulumd/inbound_worker_parts/inbound_propagation_payload_is_inges_sections/resource_terminal_consumer.rs` | outbound outcomes with link fast fail and accept hook |
 | `crates/apps/reticulumd/src/bin/reticulumd/inbound_worker_parts/module_core.rs` | outbound outcomes with link fast fail and accept hook |
 | `crates/apps/reticulumd/tests/direct_link_delivery.rs` | outbound outcomes with link fast fail and accept hook |
+| `crates/apps/reticulumd/tests/fork_publish_contract.rs` | release 0.15.0 |
 | `crates/apps/reticulumd/tests/fuzz_campaign_contract.rs` | request wire frames and fuzz |
 | `crates/apps/reticulumd/tests/python_channel_interop.rs` | Python-in-the-loop request and proof interop |
 | `crates/apps/reticulumd/tests/python_channel_interop_parts/ax25_kiss_pty.rs` | outbound outcomes with link fast fail and accept hook |
@@ -96,6 +107,7 @@ and is fork commits `60e74ffb`, `6e583b50`, `ea6edfaa`, `9223ef43`,
 | `crates/apps/reticulumd/tests/support/python_channel_events.rs` | outbound outcomes with link fast fail and accept hook, Python-in-the-loop request and proof interop |
 | `crates/apps/reticulumd/tests/support/python_channel_process.rs` | Python-in-the-loop request and proof interop |
 | `crates/apps/reticulumd/tests/support/python_channel_request_forms.py` | Python-in-the-loop request and proof interop |
+| `crates/apps/rns-tools/Cargo.toml` | release 0.15.0 |
 | `crates/apps/rns-tools/src/bin/independent_interop_node/events.rs` | link proof event and receipt link id, outbound outcomes with link fast fail and accept hook |
 | `crates/apps/rns-tools/src/bin/independent_interop_node/node.rs` | outbound outcomes with link fast fail and accept hook |
 | `crates/apps/rns-tools/src/bin/rncp_parts/client.rs` | outbound outcomes with link fast fail and accept hook |
@@ -105,8 +117,9 @@ and is fork commits `60e74ffb`, `6e583b50`, `ea6edfaa`, `9223ef43`,
 | `crates/libs/lxmf-runtime/src/link_delivery.rs` | outbound outcomes with link fast fail and accept hook |
 | `crates/libs/lxmf-runtime/src/tests.rs` | outbound outcomes with link fast fail and accept hook |
 | `crates/libs/lxmf-runtime/src/tests_link_delivery.rs` | outbound outcomes with link fast fail and accept hook |
-| `crates/libs/rns-transport/CHANGELOG.md` | request wire frames and fuzz, request handlers and dispatch, request receipts and timeouts, link proof event and receipt link id, outbound outcomes with link fast fail and accept hook, Python-in-the-loop request and proof interop |
-| `crates/libs/rns-transport/README.md` | request handlers and dispatch, request receipts and timeouts, link proof event and receipt link id, outbound outcomes with link fast fail and accept hook |
+| `crates/libs/rns-transport/CHANGELOG.md` | request wire frames and fuzz, request handlers and dispatch, request receipts and timeouts, link proof event and receipt link id, outbound outcomes with link fast fail and accept hook, Python-in-the-loop request and proof interop, release 0.15.0 |
+| `crates/libs/rns-transport/Cargo.toml` | release 0.15.0 |
+| `crates/libs/rns-transport/README.md` | request handlers and dispatch, request receipts and timeouts, link proof event and receipt link id, outbound outcomes with link fast fail and accept hook, release 0.15.0 |
 | `crates/libs/rns-transport/fuzz/.gitignore` | request wire frames and fuzz |
 | `crates/libs/rns-transport/fuzz/Cargo.lock` | request wire frames and fuzz |
 | `crates/libs/rns-transport/fuzz/Cargo.toml` | request wire frames and fuzz |
@@ -135,12 +148,12 @@ and is fork commits `60e74ffb`, `6e583b50`, `ea6edfaa`, `9223ef43`,
 | `crates/libs/rns-transport/src/destination/link_parts/module_prelude.rs` | request handlers and dispatch, request receipts and timeouts, link proof event and receipt link id |
 | `crates/libs/rns-transport/src/destination/request/allow.rs` | request handlers and dispatch |
 | `crates/libs/rns-transport/src/destination/request/dispatch.rs` | request handlers and dispatch |
-| `crates/libs/rns-transport/src/destination/request/frame.rs` | request wire frames and fuzz |
-| `crates/libs/rns-transport/src/destination/request/handler.rs` | request handlers and dispatch |
-| `crates/libs/rns-transport/src/destination/request/id.rs` | request wire frames and fuzz |
-| `crates/libs/rns-transport/src/destination/request/inbound.rs` | request handlers and dispatch |
+| `crates/libs/rns-transport/src/destination/request/frame.rs` | request wire frames and fuzz, release 0.15.0 |
+| `crates/libs/rns-transport/src/destination/request/handler.rs` | request handlers and dispatch, release 0.15.0 |
+| `crates/libs/rns-transport/src/destination/request/id.rs` | request wire frames and fuzz, release 0.15.0 |
+| `crates/libs/rns-transport/src/destination/request/inbound.rs` | request handlers and dispatch, release 0.15.0 |
 | `crates/libs/rns-transport/src/destination/request/mod.rs` | request wire frames and fuzz, request handlers and dispatch, request receipts and timeouts, link proof event and receipt link id |
-| `crates/libs/rns-transport/src/destination/request/receipt.rs` | request receipts and timeouts |
+| `crates/libs/rns-transport/src/destination/request/receipt.rs` | request receipts and timeouts, release 0.15.0 |
 | `crates/libs/rns-transport/src/destination/request/receipt_order_tests.rs` | link proof event and receipt link id |
 | `crates/libs/rns-transport/src/destination/request/receipt_pending.rs` | request receipts and timeouts |
 | `crates/libs/rns-transport/src/destination/request/receipt_tests.rs` | request receipts and timeouts, link proof event and receipt link id |
@@ -157,7 +170,7 @@ and is fork commits `60e74ffb`, `6e583b50`, `ea6edfaa`, `9223ef43`,
 | `crates/libs/rns-transport/src/resource/manager_proof.rs` | outbound outcomes with link fast fail and accept hook |
 | `crates/libs/rns-transport/src/resource/manager_segments.rs` | request receipts and timeouts, outbound outcomes with link fast fail and accept hook |
 | `crates/libs/rns-transport/src/resource/manager_start.rs` | outbound outcomes with link fast fail and accept hook |
-| `crates/libs/rns-transport/src/resource/outcome.rs` | outbound outcomes with link fast fail and accept hook |
+| `crates/libs/rns-transport/src/resource/outcome.rs` | outbound outcomes with link fast fail and accept hook, release 0.15.0 |
 | `crates/libs/rns-transport/src/resource/sender.rs` | outbound outcomes with link fast fail and accept hook |
 | `crates/libs/rns-transport/src/resource/tests.rs` | request wire frames and fuzz, outbound outcomes with link fast fail and accept hook |
 | `crates/libs/rns-transport/src/resource/tests_advert_kat.rs` | request wire frames and fuzz |
@@ -181,10 +194,10 @@ and is fork commits `60e74ffb`, `6e583b50`, `ea6edfaa`, `9223ef43`,
 | `crates/libs/rns-transport/src/transport/links_parts/transport_sections/reset_out_link.rs` | request handlers and dispatch, request receipts and timeouts, outbound outcomes with link fast fail and accept hook |
 | `crates/libs/rns-transport/src/transport/links_parts/transport_sections/resource_reader.rs` | request receipts and timeouts |
 | `crates/libs/rns-transport/src/transport/links_parts/transport_sections/send_outcome.rs` | outbound outcomes with link fast fail and accept hook |
-| `crates/libs/rns-transport/src/transport/mod.rs` | request handlers and dispatch, request receipts and timeouts, link proof event and receipt link id, outbound outcomes with link fast fail and accept hook |
+| `crates/libs/rns-transport/src/transport/mod.rs` | request handlers and dispatch, request receipts and timeouts, link proof event and receipt link id, outbound outcomes with link fast fail and accept hook, release 0.15.0 |
 | `crates/libs/rns-transport/src/transport/path.rs` | request handlers and dispatch |
 | `crates/libs/rns-transport/src/transport/request_dispatch.rs` | request handlers and dispatch, outbound outcomes with link fast fail and accept hook |
-| `crates/libs/rns-transport/src/transport/resource_accept_hook.rs` | outbound outcomes with link fast fail and accept hook |
+| `crates/libs/rns-transport/src/transport/resource_accept_hook.rs` | outbound outcomes with link fast fail and accept hook, release 0.15.0 |
 | `crates/libs/rns-transport/src/transport/resource_wire.rs` | request handlers and dispatch, request receipts and timeouts, outbound outcomes with link fast fail and accept hook |
 | `crates/libs/rns-transport/src/transport/resource_wire_parts/accept_hook.rs` | outbound outcomes with link fast fail and accept hook |
 | `crates/libs/rns-transport/src/transport/resource_wire_parts/cancel.rs` | request receipts and timeouts |
@@ -263,7 +276,8 @@ and is fork commits `60e74ffb`, `6e583b50`, `ea6edfaa`, `9223ef43`,
 | `crates/libs/rns-transport/tests/request_handler_api.rs` | request handlers and dispatch |
 | `crates/libs/rns-transport/tests/request_receipt_api.rs` | request receipts and timeouts |
 | `crates/libs/rns-transport/tests/request_receipt_readme.rs` | request receipts and timeouts, outbound outcomes with link fast fail and accept hook |
-| `docs/fork/PATCHSET.md` | request wire frames and fuzz, request handlers and dispatch, request receipts and timeouts, link proof event and receipt link id, outbound outcomes with link fast fail and accept hook, Python-in-the-loop request and proof interop |
+| `docs/fork/PATCHSET.md` | request wire frames and fuzz, request handlers and dispatch, request receipts and timeouts, link proof event and receipt link id, outbound outcomes with link fast fail and accept hook, Python-in-the-loop request and proof interop, release 0.15.0 |
+| `docs/getting-started.md` | release 0.15.0 |
 | `docs/runbooks/fuzzing-campaign.md` | request wire frames and fuzz |
 | `tools/scripts/fuzz-campaign.sh` | request wire frames and fuzz |
 | `xtask/src/main_parts/run_key_management_check.rs` | request wire frames and fuzz |
@@ -2588,6 +2602,36 @@ asserts `failed_after >= LATE_REPLY_RUST_TIMEOUT` as its packet twin
 does, and the `PROVE_ALL` comment names the in-crate loopback tests as
 the pin of the Rust record gate. Every async fn but the lock-taking test
 fns carries `#[deny(clippy::await_holding_invalid_type)]`.
+
+Fork commits `d4a3b2d2`, `5075d765`, `eb0e19f2` and `06068516`: release
+0.15.0. The first gates the inherited Codex review workflow
+(`.github/workflows/codex-review.yml`) on the repository variable
+`CODEX_REVIEW_ENABLED`, so the check is skipped until the variable and the
+`OPENAI_API_KEY` secret exist, adds the `fork_publish_contract` test to the
+contracts job of the PR-path CI (`.github/workflows/ci.yml`), and makes the
+old-name walk in `crates/apps/reticulumd/tests/fork_publish_contract.rs`
+skip dot-directories other than `.github`. The second adds or extends the
+doc comments on the public request-layer and outcome items so each cites
+its Python counterpart or states that it is fork-only: `frame.rs`,
+`handler.rs`, `id.rs`, `inbound.rs` and `receipt.rs` under
+`crates/libs/rns-transport/src/destination/request/`,
+`crates/libs/rns-transport/src/resource/outcome.rs`,
+`crates/libs/rns-transport/src/transport/mod.rs` and
+`crates/libs/rns-transport/src/transport/resource_accept_hook.rs`. The
+third consolidates the request-layer sections of the crate README into one
+guide and adds its "Known divergences from Python RNS" section. The fourth
+bumps the crate version at every manifest, consumer-snippet and
+contract-test site, regenerates `Cargo.lock`, promotes `## Unreleased` to
+`## 0.15.0 - 2026-10-20` in the crate `CHANGELOG.md` with a `### Breaking`
+subsection, rewrites the README patch list for 0.15.0, and in
+`fork_publish_contract.rs` derives the legend patch ids from the legend
+instead of hard-coding `B1` to `B5`, accepts any interop fixture row
+attributed to a Python-in-the-loop patch, and resolves release-notes cites
+under `crates/apps/rns-tools/src` as well. The ledger-only commit that
+completes this section is omitted here by convention. The patches of the
+`## 0.14.1` section below are still carried; the patches above build on
+their files rather than replacing them, and the publish contract test they
+added is extended by the first and fourth commits above.
 
 ## 0.14.1 (upstream 0.14.0)
 

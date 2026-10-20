@@ -23,12 +23,13 @@ sites, so a rebase can re-apply them one commit at a time.
 Every file changed since the `0.15.0` release and the patch each change
 belongs to. Patch ids: F4 is shared-instance client packaging. The
 `shared-instance client packaging` patch is fork commits `2a027a9d`,
-`b306b2a1`, `17b41d6a`, `ff8a8e8a`, `ff67110d`, `e4494576` and
-`21e4dacc`; the `proof cap stall on signal` patch carries no other id
-and is fork commit `cccc40e4`.
+`b306b2a1`, `17b41d6a`, `ff8a8e8a`, `ff67110d`, `e4494576`, `21e4dacc`,
+`a6036013`, `8a1c2d16` and `9247525e`; the `proof cap stall on signal`
+patch carries no other id and is fork commit `cccc40e4`.
 
 | File | Patch |
 | --- | --- |
+| `crates/apps/reticulumd/tests/fork_publish_contract.rs` | shared-instance client packaging |
 | `crates/apps/reticulumd/tests/fork_release_docs_contract.rs` | shared-instance client packaging |
 | `crates/libs/rns-transport/CHANGELOG.md` | shared-instance client packaging |
 | `crates/libs/rns-transport/README.md` | shared-instance client packaging |
@@ -43,12 +44,14 @@ and is fork commit `cccc40e4`.
 | `crates/libs/rns-transport/src/transport/tests_parts/two_transport_loopback_link_packet_proven_probe2.rs` | proof cap stall on signal |
 | `crates/libs/rns-transport/src/transport/tests_parts/two_transport_shared_instance.rs` | shared-instance client packaging |
 | `crates/libs/rns-transport/src/transport/tests_parts/two_transport_shared_instance_probe.rs` | shared-instance client packaging |
+| `crates/libs/rns-transport/src/transport/tests_parts/two_transport_shared_instance_probe2.rs` | shared-instance client packaging |
 | `docs/fork/PATCHSET.md` | shared-instance client packaging |
 
 Fork commits `2a027a9d`, `b306b2a1`, `17b41d6a`, `ff8a8e8a`, `ff67110d`,
-`e4494576` and `21e4dacc`: F4, shared-instance client packaging. The first lands
-`SharedInstanceEndpoint` and `SharedInstanceOptions`, the four `Transport`
-methods `attach_shared_instance`, `detach_shared_instance`,
+`e4494576`, `21e4dacc`, `a6036013`, `8a1c2d16` and `9247525e`: F4,
+shared-instance client packaging. The first lands `SharedInstanceEndpoint`
+and `SharedInstanceOptions`, the four `Transport` methods
+`attach_shared_instance`, `detach_shared_instance`,
 `shared_instance` and `connected_to_shared_instance`, the `Transport::stop`
 teardown of an attached shared instance, and moves
 `local_hops_delta_for_packet` from `transport/mod.rs` to
@@ -70,20 +73,39 @@ The sixth qualifies the README and release notes for unix targets, the
 fixed TCP retry, the posture cites, the bool detach and the forced-off
 flags and tunnel synthesis Python does not share, and pins the README
 section as fence-free prose. The seventh corrects the probe fixture's
-header and its late-server detach message. The file sites below describe
-the combined result.
+header and its late-server detach message. The eighth makes
+`attach_shared_instance` set the connected posture under the handler lock
+only while the slot still holds the new interface, so a detach or stop
+running between the slot write and the posture write cannot leave the
+posture set with the slot empty, and moves the posture clearing in
+`Transport::stop` after the management-task join so a handler the task
+still holds no longer eats the stop budget ahead of it. The ninth adopts
+the second probe fixture (unix flavour end to end, TCP client keeps its
+fixed retry under a short reconnect wait, stop with a wedged handler still
+forgets the slot within budget, `stop_interface` leaves the slot held
+until detach) and adds a probe that joins an attach with a detach on a
+held slot five times and asserts only that the slot and the posture agree
+afterwards. The tenth extends the release-notes cite check to the
+`## Unreleased` section through two shared helpers, names the
+`Tcp(SocketAddr)` endpoint and the slot-release rule in the README, and
+rewords the release notes for the reconnect wait, the new pins and the
+posture ordering. The file sites below describe the combined result.
 Upstream sites:
 `crates/libs/rns-transport/src/transport/mod.rs` registers the
 `shared_instance` module, re-exports its two types and gains the
 `shared_instance` slot on `Transport`; `transport/core.rs` initialises
 that slot; `transport/handler.rs` receives the moved
 `local_hops_delta_for_packet`; `transport/lifecycle.rs` clears the slot
-and the connected flag in `stop`; `links_parts/transport.rs` includes the
-new method section; `transport/tests.rs` includes both fixtures. New files:
+and the connected flag in `stop` after the management task has joined;
+`links_parts/transport.rs` includes the new method section;
+`transport/tests.rs` includes the three fixtures;
+`crates/apps/reticulumd/tests/fork_publish_contract.rs` scans the
+`## Unreleased` release notes for file cites. New files:
 `src/transport/shared_instance.rs`,
 `src/transport/links_parts/transport_sections/shared_instance.rs`,
-`src/transport/tests_parts/two_transport_shared_instance.rs` and
-`src/transport/tests_parts/two_transport_shared_instance_probe.rs`. The
+`src/transport/tests_parts/two_transport_shared_instance.rs`,
+`src/transport/tests_parts/two_transport_shared_instance_probe.rs` and
+`src/transport/tests_parts/two_transport_shared_instance_probe2.rs`. The
 crate `CHANGELOG.md` carries the release notes.
 
 Fork commit `cccc40e4`: proof cap stall on signal. The cap fixture of
@@ -93,8 +115,9 @@ sent its 1027 plain Data packets; under full-suite load the burst outran
 the stall, the listener proved early hashes before the cap could drop
 them, and the proven set no longer matched the newest 1024. The stall is
 now held on a blocking thread until the test releases it after the burst
-(`stall_transport_until_released`, local to that file), so its length no
-longer depends on runner speed. The pinned counts and hashes are
+(`stall_handler_until_released` holds the guard, spawned by
+`stall_transport_until_released`, both local to that file), so its length
+no longer depends on runner speed. The pinned counts and hashes are
 unchanged. Upstream site: that fixture file only.
 
 ## 0.15.0 (upstream 0.14.0)

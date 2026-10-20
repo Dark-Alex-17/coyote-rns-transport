@@ -911,6 +911,7 @@ pub struct TcpClient {
     forced_bitrate_bps: Option<u64>,
     reconnect_events: Option<tokio::sync::mpsc::Sender<crate::hash::AddressHash>>,
     connect_timeout: Duration,
+    reconnect_wait: Duration,
     max_reconnect_tries: Option<u64>,
     prefer_ipv6: bool,
     runtime_status: Arc<std::sync::Mutex<TcpRuntimeStatus>>,
@@ -922,6 +923,7 @@ pub struct TcpClient {
 impl TcpClient {
     pub const DEFAULT_MTU: usize = 262_144;
     pub const DEFAULT_CONNECT_TIMEOUT: Duration = Duration::from_secs(5);
+    pub const DEFAULT_RECONNECT_WAIT: Duration = Duration::from_secs(5);
 
     pub fn new<T: Into<String>>(addr: T) -> Self {
         let addr = addr.into();
@@ -938,6 +940,7 @@ impl TcpClient {
             forced_bitrate_bps: None,
             reconnect_events: None,
             connect_timeout: Self::DEFAULT_CONNECT_TIMEOUT,
+            reconnect_wait: Self::DEFAULT_RECONNECT_WAIT,
             max_reconnect_tries: None,
             prefer_ipv6: false,
             fast_flap_tracker: None,
@@ -961,6 +964,7 @@ impl TcpClient {
             forced_bitrate_bps: None,
             reconnect_events: None,
             connect_timeout: Self::DEFAULT_CONNECT_TIMEOUT,
+            reconnect_wait: Self::DEFAULT_RECONNECT_WAIT,
             max_reconnect_tries: None,
             prefer_ipv6: false,
             fast_flap_tracker: None,
@@ -1015,6 +1019,19 @@ impl TcpClient {
     #[must_use]
     pub fn with_connect_timeout(mut self, connect_timeout: Duration) -> Self {
         self.connect_timeout = connect_timeout.max(Duration::from_millis(1));
+        self
+    }
+
+    /// Sleeps `reconnect_wait` before each retry once a connect has failed or
+    /// an established stream has dropped twice in a row, instead of the 5 s
+    /// default. Python's shared-instance client sleeps
+    /// `LocalClientInterface.RECONNECT_WAIT`, 8 s
+    /// (`RNS/Interfaces/LocalInterface.py:54`), before every attempt
+    /// (`:159`); `TCPClientInterface` runs its own reconnect loop, so this
+    /// knob is the shared-instance client's wait. Clamped to at least 1 ms.
+    #[must_use]
+    pub fn with_reconnect_wait(mut self, reconnect_wait: Duration) -> Self {
+        self.reconnect_wait = reconnect_wait.max(Duration::from_millis(1));
         self
     }
 
@@ -1078,6 +1095,11 @@ impl TcpClient {
     }
 
     #[must_use]
+    pub fn reconnect_wait(&self) -> Duration {
+        self.reconnect_wait
+    }
+
+    #[must_use]
     pub fn max_reconnect_tries(&self) -> Option<u64> {
         self.max_reconnect_tries
     }
@@ -1113,6 +1135,7 @@ impl TcpClient {
             hdlc_watchdog,
             forced_bitrate_bps,
             connect_timeout,
+            reconnect_wait,
             max_reconnect_tries,
             prefer_ipv6,
             fast_flap_tracker,
@@ -1128,6 +1151,7 @@ impl TcpClient {
                 guard.hdlc_watchdog.clone(),
                 guard.forced_bitrate_bps,
                 guard.connect_timeout,
+                guard.reconnect_wait,
                 guard.max_reconnect_tries,
                 guard.prefer_ipv6,
                 guard.fast_flap_tracker.clone(),
@@ -1201,7 +1225,7 @@ impl TcpClient {
                 tokio::select! {
                     _ = context.cancel.cancelled() => break,
                     _ = iface_stop.cancelled() => break,
-                    _ = tokio::time::sleep(std::time::Duration::from_secs(5)) => {}
+                    _ = tokio::time::sleep(reconnect_wait) => {}
                 }
                 continue;
             }
@@ -1324,7 +1348,7 @@ impl TcpClient {
                     tokio::select! {
                         _ = context.cancel.cancelled() => break,
                         _ = iface_stop.cancelled() => break,
-                        _ = tokio::time::sleep(std::time::Duration::from_secs(5)) => {}
+                        _ = tokio::time::sleep(reconnect_wait) => {}
                     }
                 }
             } else {
@@ -1571,6 +1595,49 @@ mod tests {
             started_at.elapsed() >= Duration::from_secs(5),
             "expected at least one 5s backoff sleep once the storm was established, only took {:?}",
             started_at.elapsed()
+        );
+    }
+
+    // Same storm as above with the wait shortened to 50 ms: the one backoff
+    // sleep before the third attempt is now the configured wait, not the
+    // 5 s default.
+    #[tokio::test]
+    async fn tcp_client_reconnect_storm_backs_off_for_the_configured_reconnect_wait() {
+        let listener = TcpListener::bind("127.0.0.1:0").await.expect("bind listener");
+        let addr = listener.local_addr().expect("listener addr");
+
+        tokio::spawn(async move {
+            while let Ok((stream, _)) = listener.accept().await {
+                drop(stream);
+            }
+        });
+
+        let mut manager = InterfaceManager::new(8);
+        let client = TcpClient::new(addr.to_string())
+            .with_connect_timeout(Duration::from_millis(200))
+            .with_reconnect_wait(Duration::from_millis(50))
+            .with_max_reconnect_tries(Some(2));
+        assert_eq!(client.reconnect_wait(), Duration::from_millis(50));
+        let runtime_status = client.runtime_status_handle();
+        let context = manager.new_context(client);
+        let iface_stop = context.channel.stop.clone();
+        let started_at = Instant::now();
+        let task = tokio::spawn(TcpClient::spawn(context));
+
+        tokio::time::timeout(Duration::from_secs(8), task)
+            .await
+            .expect("tcp client should stop after reconnect budget")
+            .expect("tcp client task should not panic");
+        let elapsed = started_at.elapsed();
+        assert!(iface_stop.is_cancelled());
+        assert_eq!(runtime_status.to_json()["reconnect_attempts"].as_u64(), Some(3));
+        assert!(
+            elapsed >= Duration::from_millis(50),
+            "expected the 50 ms backoff sleep to happen, only took {elapsed:?}"
+        );
+        assert!(
+            elapsed < Duration::from_secs(2),
+            "expected the storm to back off for the configured 50 ms, not the 5 s default, took {elapsed:?}"
         );
     }
 

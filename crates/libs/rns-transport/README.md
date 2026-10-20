@@ -54,40 +54,61 @@ destination.lock().await.register_request_handler(
 )?;
 ```
 
-`RequestAllow::List` answers only a peer that identified itself over the link
-with one of the listed identity hashes; an unidentified peer is denied
-silently. `None` from the handler sends no response at all. A response that
-fits the link MDU goes out as one packet; a larger one travels as a response
-Resource and reaches the requester through `Transport::resource_events()` and
-resolves its `RequestReceipt`.
-Each handler runs on a task of its own with no concurrency cap, so a slow
-handler holds up only its own request; a handler that needs a bound holds its
-own `Semaphore`. A request larger than the destination's `max_request_size`
-is ignored before any handler runs; a request packet over the limit is dropped
-silently.
+Registering a path again replaces the earlier handler;
+`deregister_request_handler(path)` removes it and returns whether one was
+registered (`RNS/Destination.py:400-412`). `RequestAllow` carries the three
+policies of `RNS/Destination.py:74-77`: `None` answers nobody, `All` answers
+every peer, and `List(HashSet<AddressHash>)` answers only a peer that
+identified itself over the link with one of the listed identity hashes
+(`RNS/Link.py:821`); a request the policy denies, one from an unidentified
+peer included, is dropped with a debug log (`RNS/Link.py:855`). A handler
+that returns `None` sends no response at all. Each handler runs on a task of
+its own with no concurrency cap, so a slow handler holds up only its own
+request; a handler that needs a bound holds its own `Semaphore`. A handler
+that panics is caught and logged at warn, and its request goes unanswered.
 
-A request too large for one packet arrives as a request Resource; once it is
-assembled the same handler runs, with the request id recomputed from the
-assembled bytes. A `max_request_size` is enforced against the advertised data
-size before any part is accepted: an oversize request Resource is rejected at
-its advertisement, which the requester sees as
+`set_max_request_size`, `clear_max_request_size` and `max_request_size` on
+the destination bound the packed size of a request it answers
+(`RNS/Destination.py:369-379`); with no limit set every size is accepted. A
+request that fits the link MDU arrives as one packet and is measured against
+the limit before any handler runs (`RNS/Link.py:999-1001`). A larger request
+arrives as a request Resource, measured against the limit at its
+advertisement, before any part is accepted (`RNS/Link.py:1036-1042`): an
+oversize one is rejected there, which the requester sees as
 `ResourceEventKind::OutboundRejected` and as `RequestError::Rejected` on its
-receipt. On the response side, a `Value` or
-`Bytes` that outgrows the link MDU travels as a Resource whose data is the
-whole `[request_id, body]` envelope; a
+receipt. Once an accepted request Resource is assembled the same handler
+runs, with the request id recomputed from the assembled bytes.
+
+Between a link and the transport's request dispatch worker sits a bounded
+queue of 1024 requests; a full queue drops the request with a debug log
+rather than blocking the link. This is a resource limit, not a protocol
+difference: Python starts a thread per request and has no bound
+(`RNS/Link.py:1004-1005`). A request arriving on a link that is not
+`Active` is ignored at the link with a debug log (`RNS/Link.py:805`). The
+worker drops, each with a debug log and never a panic, a malformed request
+frame, a request naming a destination the transport does not hold, a request
+over the destination's `max_request_size`, a request whose path hash has no
+handler, and a request a `RequestAllow` policy denies.
+
+On the response side, a `Value` or `Bytes` that fits the link MDU goes out as
+one packet, never compressed; one that outgrows the MDU travels as a Resource
+whose data is the whole `[request_id, body]` envelope. A
 `RequestResponse::Resource { data, metadata }` always travels as a Resource
 whose data is the raw `data`, with the packed metadata ahead of it. A Python
 requester reads a response Resource as a file response only when it carries
 metadata (`RNS/Link.py:902-912`), so a `Resource { metadata: None }` answer is
 unpacked as an envelope there and is only for a peer that expects raw bytes.
 Both advertise the request id in `q` with the response flag `p` set, and both
-honour the registration's `auto_compress`; a response packet is never
-compressed.
+honour the registration's `auto_compress`. A response Resource reaches the
+requester through `Transport::resource_events()` and resolves its
+`RequestReceipt`.
 
 `LinkEvent::Data` with `PacketContext::Request` keeps posting for every
-inbound request packet, and `ResourceEventKind::Complete` with `is_request`
-for every assembled request Resource; a request whose path has a registered
-handler is answered by that handler, and broadcast consumers must not answer it.
+inbound request packet, its `LinkPayload` carrying the request id, and
+`ResourceEventKind::Complete` with `is_request` for every assembled request
+Resource; the same packet or Resource is handed to the dispatcher. A request
+whose path has a registered handler is answered by that handler, and
+broadcast consumers must not answer it.
 
 ## Sending requests
 
@@ -107,44 +128,78 @@ let response = receipt.response().await?;
 assert_eq!(response.value(), Some(&rmpv::Value::from("ping")));
 ```
 
-The receipt is `Clone`; `response()` resolves on any clone once the request
-is `Ready` or `Failed`, and `subscribe()` reports the status as it moves. A
+The receipt is `Clone`, and `response()` resolves on any clone once the
+request is `Ready` or `Failed`; a second call returns the same outcome. A
 packet-form request goes `Sent -> Ready`, or `Sent -> Receiving -> Ready`
 when the response is a Resource; a resource-form request reaches `Delivered`
-when its Resource completes. The timeout defaults to `rtt * 6 + 11.25 s` and
-`RequestOptions::with_timeout` overrides it; the clock runs from the send for
-a packet-form request and from `Delivered` for a resource-form one, and a
-receipt still waiting when it runs out fails with `RequestError::Timeout`.
-`RequestOptions::with_max_response_size` is measured against
-the uncompressed size of the response, the packed body of a response packet
-or the advertised data size of a response Resource; a response Resource over
-the limit is refused at its advertisement, a response packet over it is
-dropped, and a response Resource that assembles over it (the advertised size
-was the peer's claim) is failed after assembly; each of the three fails the
-receipt with `RequestError::Oversize`. Every request packet the link sends,
-however it was built, and every Resource sent through `send_request_resource*`
-solicits its response; a response Resource advertised for a request nothing on
-the link sent is dropped without a reject. The solicitation lasts the default
-request timeout, counted from the send for a request packet and from the
-request Resource's delivery for `send_request_resource*`, unless a response
-Resource is being received, in which case that Resource's own outcome ends it.
-An id a `Transport::request` receipt owns is solicited for the receipt's own
-timeout instead, default or not.
-No clock runs while a request Resource is in flight or a response Resource
-is being received: a request Resource that is refused fails `Rejected`, one
-that cannot be sent, exhausts its retries or is cancelled through
-`Transport::cancel_resource` fails `Send`, and a response Resource that
-fails in transfer fails `Receive`. A link that closes, from either side,
-fails every pending receipt with `RequestError::LinkClosed`, as does
-`Transport::stop()` within its budget; a request on a link that is not
-`Active` (`Stale` included) is refused. A response Resource with metadata is
-a file response, read through `RequestResponseData::data()` and `metadata()`;
-every other response is the envelope body, read through `value()`. Dropping
+when its Resource completes, and only a resource-form request ever reports
+`Delivered`. `status()` reads the current status and `subscribe()` returns a
+tokio `watch` receiver that reports each change from then on. A `watch`
+keeps only the latest value, so quick successive changes coalesce and a fast
+`Sent -> Ready` can skip `Receiving`; the sender is dropped when the request
+concludes, so `changed()` returns an error after the final status and
+`borrow()` keeps it. `request_id()` is the id the responder knows the request
+by. `progress()` is the share of the response received, `0.0` to `1.0`
+(`RNS/Link.py:1429`, `:1439`), counted across every segment of a split
+response; a packet response jumps straight to `1.0`. `response_size()` is
+`d` of the first response advertisement or the packed body length of a
+response packet (`RNS/Link.py:1057-1058`, `:1016`), and
+`response_transfer_size()` is `t` summed over the response segments or the
+same figure as `response_size()` for a packet (`:1059-1061`); both are
+`None` until a response arrives. `started_at()` is the send for a
+packet-form request (`RNS/Link.py:1331-1334`) and `None` for a resource-form
+one until it reaches `Delivered` (`:1370-1371`); `concluded_at()` is set
+once the receipt is `Ready` or `Failed`.
+
+The timeout defaults to `rtt * 6 + 11.25 s` (`RNS/Link.py:491`,
+`RNS/Resource.py:118`) and `RequestOptions::with_timeout` overrides it. Two
+clocks exist: a packet-form request counts from the send, a resource-form
+request from `Delivered`, when the request Resource has been proved
+(`RNS/Link.py:1370-1373`). No clock runs while the request Resource is in
+flight or while a response Resource is being received (`Receiving`,
+`RNS/Link.py:1389`); the Resource's own outcome decides those. A receipt
+still waiting when its clock runs out fails with `RequestError::Timeout`,
+whatever its status, the packet form in `Sent` included; Python fails only a
+`Delivered` receipt (see Known divergences). The other failures: a link
+that closes, from either side, fails every pending receipt with `LinkClosed`,
+as does `Transport::stop()` within its budget; a request Resource the
+responder refuses fails `Rejected`; one that cannot be sent, exhausts its
+retries or is cancelled through `Transport::cancel_resource` fails `Send`; a
+response Resource that fails in transfer fails `Receive`; a response that is
+not a `[request_id, body]` envelope, names another request, or carries
+metadata that is not msgpack fails `Decode`; and a response over the size
+limit fails `Oversize`. `RequestError` is `#[non_exhaustive]`.
+
+`RequestOptions::with_max_response_size` is measured against the uncompressed
+size of the response: the packed body of a response packet or the advertised
+data size of a response Resource. A response Resource over the limit is
+refused at its advertisement, a response packet over it is dropped, and a
+response Resource that assembles over it (the advertised size was the peer's
+claim) is failed after assembly; each of the three fails the receipt with
+`Oversize`; the packet case and the check after assembly are stricter than
+Python (see Known divergences). An over-limit packet Response is the one
+`LinkEvent::Data` the link withholds, and a response Resource that assembles
+over the limit has its `Complete` withheld.
+
+Every request packet the link sends, however it was built, and every
+Resource sent through `send_request_resource*` solicits its response; a
+response Resource advertised for a request nothing on the link sent is
+dropped without a reject. The solicitation lasts the default request timeout,
+counted from the send for a request packet and from the request Resource's
+delivery for `send_request_resource*`, unless a response Resource is being
+received, in which case that Resource's own outcome ends it. An id a
+`Transport::request` receipt owns is solicited for the receipt's own timeout
+instead, default or not. How this receipt-less record differs from Python's
+receipt-only bookkeeping is under Known divergences.
+
+A response Resource with metadata is a file response, read through
+`RequestResponseData::data()` and `metadata()`; every other response is the
+envelope body, read through `value()`, or `into_value()` to take it. Dropping
 every clone of a receipt does not cancel the request: the responder still
-serves it and the response still reaches the link's broadcasts, unless the
-receipt's `max_response_size` refuses it: an over-limit packet Response is
-not posted as `LinkEvent::Data`, and a response Resource that assembles over
-it has its `Complete` withheld.
+serves it and the response still reaches the link's broadcasts, less the two
+over-limit cases above. A request on a link that is not `Active` (`Stale`
+included) is refused with `RnsError::ConnectionError` before anything is
+sent (see Known divergences).
 
 ## Delivery proofs on a link
 
@@ -154,20 +209,17 @@ event stream, on whichever side sent the packet, once per packet: the hash is
 recorded when the packet is sent and the first valid proof naming it consumes
 the record, the way Python's proof removes the one outstanding receipt it
 validates (`RNS/Transport.py:2748-2761`). A link remembers at most 1024
-unproved sent packets, oldest dropped first (`Transport.MAX_RECEIPTS`,
-`RNS/Transport.py:159`), so a proof for a dropped record posts nothing. A
-Python peer proves link packets
-only when its destination's proof strategy is `PROVE_ALL` or `PROVE_APP`
-(`RNS/Link.py:961-968`); its default is `PROVE_NONE`, while this crate always
-proves. Requests, responses and Resource packets are never proved, and a
-Channel frame, though proved, posts no `PacketProven`. Every validly signed
-link proof, a Channel frame's proof included, reaches the transport's
-`ReceiptHandler` as a `DeliveryReceipt` whose `link_id()` names the link, and
-so does a replayed proof the ingress packet filter lets through (one the
-bounded duplicate cache has forgotten); the receipt is not filtered by the
-record. The request layer's own `RequestReceipt` is the delivery
-signal for a request, and only a resource-form request ever reports
-`Delivered`.
+unproved sent packets, oldest dropped first, so a proof for a dropped record
+posts nothing. Requests, responses and Resource packets are never recorded or
+proved, and a Channel frame, though proved, posts no `PacketProven`. Every
+validly signed link proof, a Channel frame's proof included, reaches the
+transport's `ReceiptHandler` as a `DeliveryReceipt` whose `link_id()` names
+the link, and so does a replayed proof the ingress packet filter lets
+through (one the bounded duplicate cache has forgotten); the receipt is not
+filtered by the record. The request layer's own `RequestReceipt` is the
+delivery signal for a request. A stock Python peer never proves a link
+packet, and Python records and culls its receipts differently (see Known
+divergences).
 
 ## Outbound resource outcomes
 
@@ -201,36 +253,34 @@ never hand out, since they return `Err(ConnectionError)` instead of the
 outcome when the advertisement does not leave; it reaches only a caller of
 `ResourceManager::track_prepared_with_outcome` that follows up with
 `confirm_outbound_dispatch(.., false)`. `RetriesExhausted` when the retry
-budget ran out while
-the resource was advertised, transferring or awaiting its proof,
-`Segmenting` when a later segment of a split resource could not be built or
-the peer's requests put the sender in a failed state, and `LinkClosed` when
-the link went away under the transfer. `Rejected(reason)` when the peer
-refused the transfer: a refusal arrives as a receiver cancel carrying only
-the resource hash (`RNS/Resource.py:155-165`), so the sender never learns
-the peer's motive and the reason is always `RejectReason::PeerCancelled` in
-this release; `Oversize { limit }` and `Unknown` are reserved and no code
-path produces them. `Cancelled` after `Transport::cancel_resource`. Every
-terminal path goes through one exit, so the outcome and the
-`ResourceEventKind` published for the hash cannot disagree. Dropping the
-outcome cancels nothing: the transfer runs on and `resource_events()` still
-carries its terminal event. A transport dropped before a verdict resolves
-the outcome `Failed(LinkClosed)` rather than leaving it pending;
-`Transport::stop()` does the same for every transfer on a link its sweep
-locks within the 5 s stop budget, and a transfer on a link it had to skip
-keeps its outcome until the transport is dropped. A link id the transport
-does not hold is
-refused with `Err(InvalidArgument)` before any advertisement exists, the
-answer the plain `send_*` entry points gave before, and `Err(ConnectionError)`
-from the send means the advertisement never left, so in neither case is
-there a transfer to follow. For a request Resource, a destination whose
-`max_request_size` the advertisement exceeds refuses it with a receiver
-cancel (`RNS/Link.py:1036-1042`), read as `Rejected(PeerCancelled)`; the
-outcome says nothing about the response, which arrives through
-`resource_events()` as before. For a response Resource, a requester whose
-`max_response_size` it exceeds refuses it the same way
-(`RNS/Link.py:1044-1051`), and one that no longer expects a response under
-the request id drops the advertisement without answering
+budget ran out while the resource was advertised, transferring or awaiting
+its proof, `Segmenting` when a later segment of a split resource could not
+be built or the peer's requests put the sender in a failed state, and
+`LinkClosed` when the link went away under the transfer. `Rejected(reason)`
+when the peer refused the transfer: a refusal arrives as a receiver cancel
+carrying only the resource hash (`RNS/Resource.py:155-165`), so the sender
+never learns the peer's motive and the reason is always
+`RejectReason::PeerCancelled` in this release; `Oversize { limit }` and
+`Unknown` are reserved and no code path produces them. `Cancelled` after
+`Transport::cancel_resource`. Every terminal path goes through one exit, so
+the outcome and the `ResourceEventKind` published for the hash cannot
+disagree. Dropping the outcome cancels nothing: the transfer runs on and
+`resource_events()` still carries its terminal event. A transport dropped
+before a verdict resolves the outcome `Failed(LinkClosed)` rather than
+leaving it pending; `Transport::stop()` does the same for every transfer on
+a link its sweep locks within the 5 s stop budget, and a transfer on a link
+it had to skip keeps its outcome until the transport is dropped. A link id
+the transport does not hold is refused with `Err(InvalidArgument)` before
+any advertisement exists, the answer the plain `send_*` entry points gave
+before, and `Err(ConnectionError)` from the send means the advertisement
+never left, so in neither case is there a transfer to follow. For a request
+Resource, a destination whose `max_request_size` the advertisement exceeds
+refuses it with a receiver cancel (`RNS/Link.py:1036-1042`), read as
+`Rejected(PeerCancelled)`; the outcome says nothing about the response,
+which arrives through `resource_events()` as before. For a response
+Resource, a requester whose `max_response_size` it exceeds refuses it the
+same way (`RNS/Link.py:1044-1051`), and one that no longer expects a
+response under the request id drops the advertisement without answering
 (`RNS/Link.py:1046-1047`), so that outcome ends in
 `Failed(RetriesExhausted)`.
 
@@ -251,17 +301,16 @@ and waits with `Transport::await_path`, then calls `link`. With `broadcast`
 on the request still goes out on every outgoing interface, as
 `RNS/Transport.py:1439-1443` floods a packet without a path entry.
 `RnsError` is `#[non_exhaustive]`, so a match on it keeps a wildcard arm.
+
 `AnnounceEvent::is_path_response` is true for an announce the destination
 sent in answer to a path request, which it files under
 `PacketContext::PathResponse` (`RNS/Destination.py:308`), and false for an
 unsolicited one; Python hands its announce handlers the same flag
 (`RNS/Transport.py:2524-2528`). The flag repeats the context the announcing
 peer put on the packet and is not matched against any path request this
-transport sent, so it is information about the announce, not a check.
-Python's announce handler path drops a path response unless the handler
-sets `receive_path_responses` (`RNS/Transport.py:2500-2504`); here every
-announce reaches `Transport::recv_announces()` and a consumer that wants
-Python's default filters on the flag itself.
+transport sent, so it is information about the announce, not a check. Every
+announce reaches `Transport::recv_announces()`; a consumer that wants
+Python's default filters on the flag itself (see Known divergences).
 
 `Transport::set_resource_accept_hook` installs a `ResourceAcceptHook`, an
 `Arc<dyn Fn(&ResourceAdvertisement, &LinkId, Option<&Identity>) -> bool +
@@ -279,10 +328,107 @@ advertisement, so a refusal is consulted once and later segments are never
 offered. A hook that panics is logged at error and the advertisement is
 dropped unanswered, neither accepted nor refused, as `RNS/Link.py:1073-1074`
 logs the callback's exception; the transport's workers survive it. The
-hook runs inside the inbound packet path with
-the link locked, so it must return promptly and must not call back into the
-transport. A later call replaces it; without one every plain advertisement
-is accepted.
+hook runs inside the inbound packet path with the link locked, so it must
+return promptly and must not call back into the transport. A later call
+replaces it; without one every plain advertisement is accepted, which is
+not Python's default (see Known divergences).
+
+## Known divergences from Python RNS
+
+Where this crate deliberately behaves differently from RNS 1.5.2. Each entry
+names what the crate does, what Python does, and where in Python to look.
+
+- A request timeout fails a receipt in any status except `Receiving`, the
+  packet form in `Sent` included, with `RequestError::Timeout`. Python only
+  fails a receipt that reached `DELIVERED` (`RNS/Link.py:1398`
+  `request_timed_out`, `:1408` `response_rejected`), so a never-answered
+  packet-form request stays pending forever there.
+- A packet-form response over `max_response_size` fails the receipt with
+  `RequestError::Oversize`. Python rejects the response
+  (`RNS/Link.py:874-876`) but the `DELIVERED` guard in `:1408` leaves that
+  receipt pending.
+- After an over-limit response packet the receipt's `response_size()` and
+  `response_transfer_size()` are left as they were. Python runs
+  `update_sizes` before rejecting (`RNS/Link.py:868-871`).
+- A packet-form `response_size()` is the exact packed body length. Python
+  records `len(packb(body)) - 2` (`RNS/Link.py:1016-1017`).
+- An in-limit response packet for a receipt already `Receiving` a response
+  Resource resolves the receipt `Ready` from the packet, as Python does
+  (`RNS/Link.py:873`, `:1437-1443`), and leaves that Resource to its
+  receiver's retry watchdog; when it completes, its size is not measured
+  against the limit and its `Complete` event is published. Python resolves
+  on the packet alone too, but never had a second transfer to account for.
+- A response record no receipt owns, for a request sent with
+  `Link::request_packet*` or `Transport::send_request_resource*`, parks in
+  `Receiving` between response segments with no clock; only the inbound
+  Resource's own outcome clears it. Python's marker is the `RequestReceipt`,
+  and a `RECEIVING` receipt is never timed out either (`RNS/Link.py:1389`),
+  but Python has no receipt-less form.
+- The next segment of a multi-segment response re-points the receipt, and
+  the receipt-less record, at the new segment's hashes without cancelling
+  an earlier segment's partial assembly. Python sets `receipt.resource` once
+  in the constructor (`RNS/Link.py:1328`) and never re-points it (`:1055`).
+- The receipt-less record follows the receipt clock. Python's solicitation
+  marker is the `RequestReceipt`: a `DELIVERED` one past its timeout leaves
+  `pending_requests` (`RNS/Link.py:1397-1405`), a `RECEIVING` one never does
+  (`:1389`), and one that never reached `DELIVERED` stays, so a packet-form
+  marker in Python can outlive the record here.
+- `mark_delivered` keeps a receipt that is already `Receiving`. Python sets
+  `DELIVERED` unconditionally (`RNS/Link.py:1372`).
+- A legacy-length request id, one that is not 16 bytes, is not size-gated
+  on the packet Response path. Python keys responses on the 16-byte receipt
+  id alone (`RNS/Link.py:857-884`).
+- An assembled response Resource is measured against `max_response_size`
+  once more on completion and withheld if over. Python trusts the advertised
+  size (`RNS/Link.py:1049`).
+- `Transport::request` on a link that is not `Active`, `Stale` included, is
+  refused with `RnsError::ConnectionError`. Python drops a packet only on a
+  `CLOSED` link (`RNS/Packet.py:294-297`).
+- `LinkEvent::PacketProven` is gated on the per-link record of sent plain
+  Data packet hashes; `DeliveryReceipt` is not gated and fires for every
+  validly signed link proof, replays and Channel frames included. Python
+  consumes the one `SENT` receipt the proof validates
+  (`RNS/Transport.py:2748-2761`).
+- The sent-hash record keeps the latest 1024 hashes per link, oldest
+  dropped, with no time-based cull. Python culls transport-wide at
+  `MAX_RECEIPTS` (`RNS/Transport.py:159`, `:745-748`) and also times a link
+  receipt out at `max(rtt * traffic_timeout_factor, TRAFFIC_TIMEOUT_MIN_MS)`
+  (`RNS/Packet.py:428`).
+- Only plain Data packets (`PacketContext::None`) are recorded and proved.
+  Python records a `PacketReceipt` for every `DATA` packet outside the
+  link-control and Resource contexts, request and response packets included
+  (`RNS/Transport.py:1359-1377`).
+- The link always proves plain Data packets. Python proves only under
+  `PROVE_ALL` or `PROVE_APP` (`RNS/Link.py:961-968`) and its default is
+  `PROVE_NONE` (`RNS/Destination.py:161`), so a stock Python peer never
+  sends `PacketProven` here.
+- A retried Resource advertisement re-sends the identical prepared packet,
+  so the receiver's duplicate filter drops it and the
+  `ResourceAcceptHook` runs once per advertisement. Python builds a fresh
+  packet per retry (`RNS/Resource.py:597-598`) and re-runs `ACCEPT_APP`.
+- Without a `ResourceAcceptHook` every plain advertisement is accepted,
+  Python's `ACCEPT_ALL` (`RNS/Link.py:1075-1076`). Python's default is
+  `ACCEPT_NONE` (`RNS/Link.py:239`, `:1065`), which has no equivalent here;
+  a hook that always returns `false` is the closest.
+- Every announce, path responses included, reaches
+  `Transport::recv_announces()` flagged with `is_path_response`. Python's
+  default announce handler drops path responses unless it sets
+  `receive_path_responses` (`RNS/Transport.py:2500-2504`).
+
+Not divergences:
+
+- `RejectReason::PeerCancelled` is the only reason produced: a receiver
+  cancel carries only the resource hash (`RNS/Resource.py:155-165`), so the
+  sender never learns the motive. API shape, not behaviour.
+- `is_path_response` repeats the peer's packet context
+  (`RNS/Transport.py:2524-2528`) and is not matched against any path request
+  this transport sent: information, not a check.
+- A Channel frame is proved (`RNS/Link.py:1147-1151`) but posts no
+  `PacketProven`: its hash is never recorded. A fact of this crate's API.
+- The 1024-slot request dispatch queue is a resource limit; Python has no
+  bound (`RNS/Link.py:1004-1005`).
+- The resource-form request clock anchored at `Delivered` and never
+  expiring while `Receiving` is parity (`RNS/Link.py:1373`, `:1389`).
 
 ## Versioning and releases
 

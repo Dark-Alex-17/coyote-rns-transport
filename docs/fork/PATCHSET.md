@@ -24,8 +24,9 @@ Every file changed since the `0.15.0` release and the patch each change
 belongs to. Patch ids: F4 is shared-instance client packaging. The
 `shared-instance client packaging` patch is fork commits `2a027a9d`,
 `b306b2a1`, `17b41d6a`, `ff8a8e8a`, `ff67110d`, `e4494576`, `21e4dacc`,
-`a6036013`, `8a1c2d16` and `9247525e`; the `proof cap stall on signal`
-patch carries no other id and is fork commit `cccc40e4`.
+`a6036013`, `8a1c2d16`, `9247525e`, `afa72a00`, `c05832b9` and `013d0dd2`;
+the `proof cap stall on signal` patch carries no other id and is fork
+commit `cccc40e4`.
 
 | File | Patch |
 | --- | --- |
@@ -45,11 +46,13 @@ patch carries no other id and is fork commit `cccc40e4`.
 | `crates/libs/rns-transport/src/transport/tests_parts/two_transport_shared_instance.rs` | shared-instance client packaging |
 | `crates/libs/rns-transport/src/transport/tests_parts/two_transport_shared_instance_probe.rs` | shared-instance client packaging |
 | `crates/libs/rns-transport/src/transport/tests_parts/two_transport_shared_instance_probe2.rs` | shared-instance client packaging |
+| `crates/libs/rns-transport/src/transport/tests_parts/two_transport_shared_instance_probe3.rs` | shared-instance client packaging |
 | `docs/fork/PATCHSET.md` | shared-instance client packaging |
 
 Fork commits `2a027a9d`, `b306b2a1`, `17b41d6a`, `ff8a8e8a`, `ff67110d`,
-`e4494576`, `21e4dacc`, `a6036013`, `8a1c2d16` and `9247525e`: F4,
-shared-instance client packaging. The first lands `SharedInstanceEndpoint`
+`e4494576`, `21e4dacc`, `a6036013`, `8a1c2d16`, `9247525e`, `afa72a00`,
+`c05832b9` and `013d0dd2`: F4, shared-instance client packaging. The first
+lands `SharedInstanceEndpoint`
 and `SharedInstanceOptions`, the four `Transport` methods
 `attach_shared_instance`, `detach_shared_instance`,
 `shared_instance` and `connected_to_shared_instance`, the `Transport::stop`
@@ -89,23 +92,42 @@ afterwards. The tenth extends the release-notes cite check to the
 `## Unreleased` section through two shared helpers, names the
 `Tcp(SocketAddr)` endpoint and the slot-release rule in the README, and
 rewords the release notes for the reconnect wait, the new pins and the
-posture ordering. The file sites below describe the combined result.
+posture ordering. The eleventh makes the stop-budget warning name the
+interface it left behind and fire only when a slot was actually held,
+carries the endpoint kind in the attach debug line so a TCP trace does not
+read as if the reconnect wait were in force, and documents on
+`attach_shared_instance` and `stop` that reticulumd also re-synthesizes
+the tunnel on reconnect and that an interface spawned after stop's sweep
+but before it takes the slot stays registered until a second stop. The
+twelfth adopts the third probe fixture (a detach queued on the handler
+before the attach's posture write wins the slot and the posture stays off,
+a stop racing an attach keeps the slot and the posture consistent,
+attach/detach cycles leave no interface behind), gates the two probe2
+helpers only the unix test calls behind `cfg(unix)`, guards the plain
+empty-detach await with the stop timeout, and rewords the first probe's
+race test as a refused attach racing a detach, since the slot is held
+when its join starts. The thirteenth rewords the detach sentence in the
+release notes, pins the third fixture there and records the gated warning
+and the stop-vs-attach window. The file sites below describe the combined
+result.
 Upstream sites:
 `crates/libs/rns-transport/src/transport/mod.rs` registers the
 `shared_instance` module, re-exports its two types and gains the
 `shared_instance` slot on `Transport`; `transport/core.rs` initialises
 that slot; `transport/handler.rs` receives the moved
 `local_hops_delta_for_packet`; `transport/lifecycle.rs` clears the slot
-and the connected flag in `stop` after the management task has joined;
+and the connected flag in `stop` after the management task has joined and
+warns, naming the interface, only when a slot was held past the budget;
 `links_parts/transport.rs` includes the new method section;
-`transport/tests.rs` includes the three fixtures;
+`transport/tests.rs` includes the four fixtures;
 `crates/apps/reticulumd/tests/fork_publish_contract.rs` scans the
 `## Unreleased` release notes for file cites. New files:
 `src/transport/shared_instance.rs`,
 `src/transport/links_parts/transport_sections/shared_instance.rs`,
 `src/transport/tests_parts/two_transport_shared_instance.rs`,
-`src/transport/tests_parts/two_transport_shared_instance_probe.rs` and
-`src/transport/tests_parts/two_transport_shared_instance_probe2.rs`. The
+`src/transport/tests_parts/two_transport_shared_instance_probe.rs`,
+`src/transport/tests_parts/two_transport_shared_instance_probe2.rs` and
+`src/transport/tests_parts/two_transport_shared_instance_probe3.rs`. The
 crate `CHANGELOG.md` carries the release notes.
 
 Fork commit `cccc40e4`: proof cap stall on signal. The cap fixture of
@@ -116,7 +138,8 @@ the stall, the listener proved early hashes before the cap could drop
 them, and the proven set no longer matched the newest 1024. The stall is
 now held on a blocking thread until the test releases it after the burst
 (`stall_handler_until_released` holds the guard, spawned by
-`stall_transport_until_released`, both local to that file), so its length
+`stall_transport_until_released`, both defined in that file and reused by
+the third shared-instance probe), so its length
 no longer depends on runner speed. The pinned counts and hashes are
 unchanged. Upstream site: that fixture file only.
 

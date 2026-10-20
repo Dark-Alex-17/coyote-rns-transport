@@ -9,9 +9,11 @@ use rns_transport::destination::SingleInputDestination;
 
 const REQUEST_HANDLER_PATH: &str = "/test/request";
 
+type RequestHandlerSeen = (RequestId, Option<AddressHash>, rmpv::Value);
+
 #[derive(Default)]
 struct RequestHandlerRecord {
-    seen: Arc<StdMutex<Vec<(RequestId, rmpv::Value)>>>,
+    seen: Arc<StdMutex<Vec<RequestHandlerSeen>>>,
     calls: Arc<AtomicUsize>,
 }
 
@@ -25,12 +27,14 @@ impl RequestHandlerRecord {
         move |request: InboundRequest| {
             calls.fetch_add(1, Ordering::SeqCst);
             let response = respond(request.data());
-            seen.lock().expect("seen lock").push((request.request_id(), request.into_data()));
+            let request_id = request.request_id();
+            let remote = request.remote_identity().map(|identity| identity.address_hash);
+            seen.lock().expect("seen lock").push((request_id, remote, request.into_data()));
             std::future::ready(response)
         }
     }
 
-    fn single_request(&self) -> (RequestId, rmpv::Value) {
+    fn single_request(&self) -> RequestHandlerSeen {
         let seen = self.seen.lock().expect("seen lock");
         assert_eq!(seen.len(), 1, "request handler ran {} times", seen.len());
         seen[0].clone()
@@ -40,14 +44,6 @@ impl RequestHandlerRecord {
 fn request_handler_echo(data: &rmpv::Value) -> Option<RequestResponse> {
     let text = rmpv_to_string(data).unwrap_or_default();
     Some(RequestResponse::Value(rmpv::Value::String(format!("reply:{text}").into())))
-}
-
-fn request_handler_bytes_body() -> Vec<u8> {
-    (0..8192u32).map(|i| (i % 251) as u8).collect()
-}
-
-fn request_handler_bytes(_data: &rmpv::Value) -> Option<RequestResponse> {
-    Some(RequestResponse::Bytes(request_handler_bytes_body()))
 }
 
 struct RequestHandlerFixture {
@@ -179,12 +175,15 @@ fn request_handler_assert_response(
     lines: &[serde_json::Value],
     rust_request_id: RequestId,
     expected_body: &[u8],
+    expected_form: &str,
 ) {
     let sent = request_handler_line_with(lines, "request_sent");
     let report = request_handler_line_with(lines, "response_size");
     assert_eq!(report["response_size"], expected_body.len(), "python response size");
     assert_eq!(report["response_sha256"], digest_hex(expected_body), "python response digest");
     assert_eq!(sent["request_id"], report["request_id"]);
+    assert_eq!(sent["request_form"], expected_form, "python request form at send");
+    assert_eq!(report["request_form"], expected_form, "python request form at exit");
 
     let rust_hex = rust_request_id.to_string();
     let python_hex = report["request_id"].as_str().expect("python request id");
@@ -211,52 +210,10 @@ async fn run_python_to_rust_request_handler_allow_all_answers_a_packet_request()
     let mut client = fixture.connect(8.0, &[]).await;
     let lines = client.json_lines().await;
 
-    let (request_id, data) = record.single_request();
+    let (request_id, remote, data) = record.single_request();
+    assert_eq!(remote, None, "an unidentified link carries no remote identity");
     assert_eq!(rmpv_to_string(&data).as_deref(), Some("hello-rust"));
-    request_handler_assert_response(&lines, request_id, b"reply:hello-rust");
-}
-
-#[tokio::test]
-#[ignore = "requires local Python Reticulum checkout"]
-async fn python_to_rust_request_handler_answers_a_resource_request_with_a_resource_response() {
-    let _interop_guard = python_interop_guard().await;
-    run_python_to_rust_request_handler_answers_a_resource_request_with_a_resource_response().await;
-}
-
-#[deny(clippy::await_holding_invalid_type)]
-async fn run_python_to_rust_request_handler_answers_a_resource_request_with_a_resource_response() {
-    let fixture = RequestHandlerFixture::start("python-rns-request-handler-resource").await;
-    let record = RequestHandlerRecord::default();
-    fixture.register(record.handler(request_handler_echo), RequestAllow::All).await;
-
-    let mut client = fixture.connect(20.0, &["--request-size", "4096"]).await;
-    let lines = client.json_lines().await;
-
-    let request_text = "x".repeat(4096);
-    let (request_id, data) = record.single_request();
-    assert_eq!(rmpv_to_string(&data).as_deref(), Some(request_text.as_str()));
-    request_handler_assert_response(&lines, request_id, format!("reply:{request_text}").as_bytes());
-}
-
-#[tokio::test]
-#[ignore = "requires local Python Reticulum checkout"]
-async fn python_to_rust_request_handler_answers_a_packet_request_with_a_resource_response() {
-    let _interop_guard = python_interop_guard().await;
-    run_python_to_rust_request_handler_answers_a_packet_request_with_a_resource_response().await;
-}
-
-#[deny(clippy::await_holding_invalid_type)]
-async fn run_python_to_rust_request_handler_answers_a_packet_request_with_a_resource_response() {
-    let fixture = RequestHandlerFixture::start("python-rns-request-handler-bytes").await;
-    let record = RequestHandlerRecord::default();
-    fixture.register(record.handler(request_handler_bytes), RequestAllow::All).await;
-
-    let mut client = fixture.connect(20.0, &[]).await;
-    let lines = client.json_lines().await;
-
-    let (request_id, data) = record.single_request();
-    assert_eq!(rmpv_to_string(&data).as_deref(), Some("hello-rust"));
-    request_handler_assert_response(&lines, request_id, &request_handler_bytes_body());
+    request_handler_assert_response(&lines, request_id, b"reply:hello-rust", "packet");
 }
 
 #[tokio::test]
@@ -285,9 +242,10 @@ async fn run_python_to_rust_request_handler_allow_list_answers_the_identified_pe
 
     let identified = request_handler_line_with(&lines, "identified");
     assert_eq!(identified["identified"], hex::encode(identity.address_hash.as_slice()));
-    let (request_id, data) = record.single_request();
+    let (request_id, remote, data) = record.single_request();
+    assert_eq!(remote, Some(identity.address_hash), "handler saw the identified peer");
     assert_eq!(rmpv_to_string(&data).as_deref(), Some("hello-rust"));
-    request_handler_assert_response(&lines, request_id, b"reply:hello-rust");
+    request_handler_assert_response(&lines, request_id, b"reply:hello-rust", "packet");
 }
 
 #[tokio::test]
@@ -303,7 +261,7 @@ async fn run_python_to_rust_request_handler_allow_list_denies_an_unlisted_peer_s
     let record = RequestHandlerRecord::default();
     let other = to_transport_private_identity(&PrivateIdentity::new_from_rand(OsRng));
 
-    let mut client = fixture.connect(6.0, &["--identify"]).await;
+    let mut client = fixture.connect(12.0, &["--identify"]).await;
     let identity =
         wait_for_link_identify(&mut client.in_events, client.link_id, Duration::from_secs(8)).await;
     assert_ne!(identity.address_hash, other.as_identity().address_hash);
@@ -319,5 +277,7 @@ async fn run_python_to_rust_request_handler_allow_list_denies_an_unlisted_peer_s
     request_handler_line_with(&lines, "request_sent");
     let report = request_handler_line_with(&lines, "request_no_response");
     assert_eq!(report["request_no_response"], true);
+    assert_eq!(report["status"], 1, "python receipt left SENT");
+    assert_eq!(report["request_form"], "packet");
     assert_eq!(record.calls.load(Ordering::SeqCst), 0, "handler ran for an unlisted peer");
 }

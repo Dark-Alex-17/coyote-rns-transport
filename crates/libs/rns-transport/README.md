@@ -6,19 +6,20 @@ Coyote's published fork of the upstream `reticulum-rs-transport` crate from
 [LXMF-rs](https://github.com/FreeTAKTeam/LXMF-rs): the transport, link,
 interface, receipt, and resource layers of the Reticulum network stack.
 
-Apart from the patch list below, only the package name changes: the library
-target stays `rns_transport`, so every `use rns_transport::...` path written
-against upstream compiles unchanged against this crate.
+Apart from the patch list below and the API breaks `CHANGELOG.md` lists under
+`### Breaking`, only the package name changes: the library target stays
+`rns_transport`, so every `use rns_transport::...` path written against
+upstream resolves unchanged against this crate.
 
 The version follows cargo semver relative to the upstream baseline. `0.14.0`
 is upstream `0.14.0` renamed, with the link-close patch applied. Fork patches
 that do not break the public API (additive API, internal fixes) bump the patch
-digit; a fork change that breaks the public API bumps the minor digit. When
-upstream ships its next release the fork is rebased onto it and takes that
-version; if upstream itself ships a `0.14.x` patch release, the fork rebases
-onto it and takes the next unused patch number.
+digit; a fork change that breaks the public API bumps the minor digit, and
 `0.15.0` is the first such minor bump; its breaking changes are listed under
-`### Breaking` in `CHANGELOG.md`.
+`### Breaking` in `CHANGELOG.md`. When upstream ships a release the fork is
+rebased onto it and takes the first version above both the upstream number
+and the fork's last published number: the next minor digit when the rebase
+breaks the fork's public API, the next patch digit otherwise.
 
 ## Consumer
 
@@ -150,7 +151,8 @@ response packet (`RNS/Link.py:1057-1058`, `:1016`), and
 same figure as `response_size()` for a packet (`:1059-1061`); both are
 `None` until a response arrives. `started_at()` is the send for a
 packet-form request (`RNS/Link.py:1331-1334`) and `None` for a resource-form
-one until it reaches `Delivered` (`:1370-1371`); `concluded_at()` is set
+one until it reaches `Delivered` or a response Resource is admitted,
+whichever comes first (`:1370-1371`, `:1062-1063`); `concluded_at()` is set
 once the receipt is `Ready` or `Failed`.
 
 The timeout defaults to `rtt * 6 + 11.25 s` (`RNS/Link.py:491`,
@@ -161,10 +163,10 @@ request from `Delivered`, when the request Resource has been proved
 flight or while a response Resource is being received (`Receiving`,
 `RNS/Link.py:1389`); the Resource's own outcome decides those. A receipt
 still waiting when its clock runs out fails with `RequestError::Timeout`,
-whatever its status, the packet form in `Sent` included; Python fails only a
-`Delivered` receipt (see Known divergences). The other failures: a link
-that closes, from either side, fails every pending receipt with `LinkClosed`,
-as does `Transport::stop()` within its budget; a request Resource the
+in any status except `Receiving`, the packet form in `Sent` included; Python
+fails only a `Delivered` receipt (see Known divergences). The other failures:
+a link that closes, from either side, fails every pending receipt with
+`LinkClosed`, as does `Transport::stop()` within its budget; a request Resource the
 responder refuses fails `Rejected`; one that cannot be sent, exhausts its
 retries or is cancelled through `Transport::cancel_resource` fails `Send`; a
 response Resource that fails in transfer fails `Receive`; a response that is
@@ -337,7 +339,7 @@ not Python's default (see Known divergences).
 
 ## Known divergences from Python RNS
 
-Where this crate deliberately behaves differently from RNS 1.5.2. Each entry
+Where this crate is known to behave differently from RNS 1.5.2. Each entry
 names what the crate does, what Python does, and where in Python to look.
 
 - A request timeout fails a receipt in any status except `Receiving`, the
@@ -375,8 +377,9 @@ names what the crate does, what Python does, and where in Python to look.
   `pending_requests` (`RNS/Link.py:1397-1405`), a `RECEIVING` one never does
   (`:1389`), and one that never reached `DELIVERED` stays, so a packet-form
   marker in Python can outlive the record here.
-- `mark_delivered` keeps a receipt that is already `Receiving`. Python sets
-  `DELIVERED` unconditionally (`RNS/Link.py:1372`).
+- A resource-form request whose Resource is proved while a response Resource
+  is already being received stays `Receiving`. Python sets `DELIVERED`
+  unconditionally (`RNS/Link.py:1372`).
 - A legacy-length request id, one that is not 16 bytes, is not size-gated
   on the packet Response path. Python keys responses on the 16-byte receipt
   id alone (`RNS/Link.py:857-884`).
@@ -394,8 +397,8 @@ names what the crate does, what Python does, and where in Python to look.
 - The sent-hash record keeps the latest 1024 hashes per link, oldest
   dropped, with no time-based cull. Python culls transport-wide at
   `MAX_RECEIPTS` (`RNS/Transport.py:159`, `:745-748`) and also times a link
-  receipt out at `max(rtt * traffic_timeout_factor, TRAFFIC_TIMEOUT_MIN_MS)`
-  (`RNS/Packet.py:428`).
+  receipt out at `max(rtt * traffic_timeout_factor, TRAFFIC_TIMEOUT_MIN_MS /
+  1000)` seconds (`RNS/Packet.py:428`).
 - Only plain Data packets (`PacketContext::None`) are recorded and proved.
   Python records a `PacketReceipt` for every `DATA` packet outside the
   link-control and Resource contexts, request and response packets included
@@ -468,6 +471,10 @@ of `0.14.1`:
 - The resource accept hook, `Transport::set_resource_accept_hook`.
 - The fuzz crate for the new decoders.
 - The Python-in-the-loop interop tests.
+- Release hygiene: the Codex review workflow gated on the repository
+  variable `CODEX_REVIEW_ENABLED`, `fork_publish_contract` run in PR CI, its
+  old-name walk skipping dot-directories, and RNS citations on every public
+  request-layer and outcome item.
 
 The `0.14.1` patches (link-close stdout, bound-interface segment dispatch,
 reject outside the link lock, sender before advertisement, hex parsers,

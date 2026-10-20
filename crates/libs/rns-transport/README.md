@@ -505,8 +505,10 @@ unchanged and listed in the `0.14.1` section of `docs/fork/PATCHSET.md`.
    (`package = "coyote-rns-transport", version = ...`), the consumer line in
    this README and in `docs/getting-started.md`, and the version pins in
    `crates/apps/reticulumd/tests/fork_publish_contract.rs`. Regenerate
-   `Cargo.lock` (`cargo update -p coyote-rns-transport --offline`) and add the
-   release headings to `CHANGELOG.md` and `docs/fork/PATCHSET.md`.
+   `Cargo.lock` (`cargo update -p coyote-rns-transport --offline`) and the
+   fuzz crate's own `crates/libs/rns-transport/fuzz/Cargo.lock` (the same
+   command with `--manifest-path crates/libs/rns-transport/fuzz/Cargo.toml`),
+   and add the release headings to `CHANGELOG.md` and `docs/fork/PATCHSET.md`.
 7. `cargo check --workspace && cargo test -p coyote-rns-transport && cargo test -p reticulumd --test fork_publish_contract && tools/scripts/check-boundaries.sh && cargo publish -p coyote-rns-transport --locked --dry-run`
 8. Commit, then either tag `coyote-rns-transport-vX.Y.Z` and push the tag, or
    run the `publish-coyote-rns-transport` workflow by hand from the Actions

@@ -44,6 +44,131 @@ fn upstream_publish_workflow_is_disabled() {
     }
 }
 
+/// The crate's doc comments immediately above `line` (attributes between the
+/// two are skipped), joined into one string; empty when there is no doc.
+fn doc_block_above(lines: &[&str], line: usize) -> String {
+    let mut docs = Vec::new();
+    let mut at = line;
+    while at > 0 {
+        at -= 1;
+        let text = lines[at].trim_start();
+        if text.starts_with("#[") || text.starts_with("#![") {
+            continue;
+        }
+        match text.strip_prefix("///") {
+            Some(doc) => docs.push(doc.trim()),
+            None => break,
+        }
+    }
+    docs.reverse();
+    docs.join(" ")
+}
+
+/// `RNS/<path>.py:<line>` somewhere in the doc (`RNS/Link.py:808`,
+/// `RNS/vendor/umsgpack.py:320-324,989`), or an explicit fork-only
+/// statement.
+fn doc_cites_python_or_fork_only(doc: &str) -> bool {
+    let lowered = doc.to_ascii_lowercase();
+    if lowered.contains("fork-only") || lowered.contains("fork only") {
+        return true;
+    }
+    doc.match_indices("`RNS/").any(|(at, _)| {
+        let rest = &doc[at + "`RNS/".len()..];
+        let Some(dot) = rest.find(".py:") else { return false };
+        rest[..dot].chars().all(|c| c.is_ascii_alphanumeric() || c == '_' || c == '/')
+            && rest[dot + ".py:".len()..].starts_with(|c: char| c.is_ascii_digit())
+    })
+}
+
+/// Every public item the request layer and the outbound-outcome types added
+/// over the upstream baseline (types, free and associated functions, and the
+/// variants of public enums) carries a doc comment, and that doc, or for a
+/// variant the doc of its enum, either cites its Python counterpart as
+/// `RNS/<file>.py:<line>` or states that the item is fork-only.
+#[test]
+fn request_layer_public_items_cite_python_or_say_fork_only() {
+    let files = [
+        "crates/libs/rns-transport/src/destination/request/allow.rs",
+        "crates/libs/rns-transport/src/destination/request/frame.rs",
+        "crates/libs/rns-transport/src/destination/request/handler.rs",
+        "crates/libs/rns-transport/src/destination/request/id.rs",
+        "crates/libs/rns-transport/src/destination/request/inbound.rs",
+        "crates/libs/rns-transport/src/destination/request/receipt.rs",
+        "crates/libs/rns-transport/src/resource/outcome.rs",
+    ];
+    let item_keywords =
+        ["fn ", "async fn ", "const fn ", "struct ", "enum ", "trait ", "type ", "const "];
+
+    let mut checked = 0usize;
+    let mut undocumented = Vec::new();
+    let mut uncited = Vec::new();
+    for file in files {
+        let source = read_repo_file(file);
+        let lines: Vec<&str> = source.lines().collect();
+        let mut enum_doc: Option<String> = None;
+        let mut enum_depth = 0i32;
+        for (index, raw) in lines.iter().enumerate() {
+            let text = raw.trim_start();
+            let site = format!("{file}:{}: {}", index + 1, text.trim_end());
+
+            if let Some(enum_body) = enum_doc.as_ref() {
+                // A variant of a public enum: an identifier at depth one that
+                // is not a comment, an attribute or the closing brace.
+                let is_variant = enum_depth == 1
+                    && text.starts_with(|c: char| c.is_ascii_uppercase())
+                    && !text.starts_with("//");
+                if is_variant {
+                    checked += 1;
+                    let doc = doc_block_above(&lines, index);
+                    if doc.is_empty() {
+                        undocumented.push(site.clone());
+                    } else if !(doc_cites_python_or_fork_only(&doc)
+                        || doc_cites_python_or_fork_only(enum_body))
+                    {
+                        uncited.push(site.clone());
+                    }
+                }
+                enum_depth += text.matches('{').count() as i32;
+                enum_depth -= text.matches('}').count() as i32;
+                if enum_depth <= 0 && text.contains('}') {
+                    enum_doc = None;
+                }
+            }
+
+            let Some(after_pub) = text.strip_prefix("pub ") else { continue };
+            if !item_keywords.iter().any(|keyword| after_pub.starts_with(keyword)) {
+                continue; // `pub use` re-exports, `pub mod`, and struct fields in `pub(crate)` scope
+            }
+            checked += 1;
+            let doc = doc_block_above(&lines, index);
+            if doc.is_empty() {
+                undocumented.push(site.clone());
+            } else if !doc_cites_python_or_fork_only(&doc) {
+                uncited.push(site.clone());
+            }
+            if after_pub.starts_with("enum ") {
+                enum_doc = Some(doc);
+                enum_depth = text.matches('{').count() as i32 - text.matches('}').count() as i32;
+            }
+        }
+    }
+
+    assert!(
+        checked >= 90,
+        "the request layer should expose the receipt, frame, handler and outcome surface; found only {checked} public items"
+    );
+    assert!(
+        undocumented.is_empty(),
+        "every public request-layer item and enum variant should carry a doc comment:\n{}",
+        undocumented.join("\n")
+    );
+    assert!(
+        uncited.is_empty(),
+        "every public request-layer item should cite `RNS/<file>.py:<line>` or state it is fork-only (a variant may inherit its enum's cite):\n{}",
+        uncited.join("\n")
+    );
+}
+
 #[test]
 fn fork_publish_workflow_pins_its_contract() {
     let workflow = read_repo_file(".github/workflows/publish-coyote-rns-transport.yml");
@@ -224,10 +349,16 @@ fn release_sites_and_ledgers_track_the_crate_version() {
     );
 
     let lock_entry = format!("name = \"coyote-rns-transport\"\n{version_token}\n");
-    assert!(
-        read_repo_file("Cargo.lock").contains(&lock_entry),
-        "Cargo.lock should carry the published crate at {version:?}; regenerate it with `cargo update -p coyote-rns-transport --offline`"
-    );
+    // The fuzz crate has a lock of its own (it is not a workspace member), and
+    // nothing but this pin notices when a release leaves it behind.
+    for lock in ["Cargo.lock", "crates/libs/rns-transport/fuzz/Cargo.lock"] {
+        assert!(
+            read_repo_file(lock).contains(&lock_entry),
+            "{lock} should carry the published crate at {version:?}; regenerate it with \
+             `cargo update -p coyote-rns-transport --offline` (add `--manifest-path \
+             crates/libs/rns-transport/fuzz/Cargo.toml` for the fuzz lock)"
+        );
+    }
 
     let changelog = read_repo_file("crates/libs/rns-transport/CHANGELOG.md");
     let release_heading = format!("\n## {version} - ");
@@ -735,18 +866,20 @@ fn release_notes_list_breaking_changes_on_a_minor_bump() {
         (parts.next().expect("major"), parts.next().expect("minor"))
     }
 
+    // Release headings only: an `## Unreleased` stub above them is allowed.
     let headings: Vec<(usize, &str)> = changelog
         .lines()
         .enumerate()
         .filter_map(|(index, line)| {
             line.strip_prefix("## ").map(|rest| (index, rest.split(' ').next().unwrap_or(rest)))
         })
+        .filter(|(_, heading)| heading.starts_with(|c: char| c.is_ascii_digit()))
         .collect();
     let current = headings
         .iter()
         .position(|(_, heading)| *heading == version)
         .unwrap_or_else(|| panic!("CHANGELOG should have a `## {version}` heading"));
-    assert_eq!(current, 0, "the current release should be the first `## ` heading");
+    assert_eq!(current, 0, "the current release should be the first release heading");
     let previous = headings
         .get(1)
         .map(|(_, heading)| *heading)
@@ -900,8 +1033,9 @@ fn crate_readme_rust_snippets_are_pinned_verbatim_by_the_api_tests() {
     );
 }
 
-/// Every enum the README or the release notes call `#[non_exhaustive]` carries
-/// the attribute on its definition, so the "keep a wildcard arm" guidance the
+/// Every public enum the request layer and the outcome types added, and every
+/// enum the README or the release notes call `#[non_exhaustive]`, carries the
+/// attribute on its definition, so the "keep a wildcard arm" guidance the
 /// consumer reads is what the compiler enforces.
 #[test]
 fn enums_the_docs_call_non_exhaustive_carry_the_attribute() {

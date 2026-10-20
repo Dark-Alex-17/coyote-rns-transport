@@ -81,7 +81,8 @@ trailing clause of the bullet for the behaviour it pins.
   `InboundRequest` carries the
   six arguments Python hands a `response_generator` (`RNS/Link.py:831`) and
   `RequestResponse::{Value, Bytes, Resource}` are the plain, `bytes` and
-  file-response forms (`RNS/Link.py:839-852`). The registry is pinned by
+  file-response forms (`RNS/Link.py:839-852`). `RequestAllow` and
+  `RequestResponse` are `#[non_exhaustive]`. The registry is pinned by
   `destination/tests.rs`, `tests/request_handler_api.rs` and
   `transport/tests_parts/two_transport_loopback_requests_routing.rs`; the
   response forms by `transport/tests_parts/two_transport_loopback_requests.rs`
@@ -206,7 +207,8 @@ trailing clause of the bullet for the behaviour it pins.
   (`RNS/Link.py:473-510`) and `RNS.RequestReceipt` (`RNS/Link.py:1311-1500`)
   without callbacks. The request packs as `Link::request_payload` does and
   goes out as one `Request` packet when it fits `Link::link_mdu()`, as a
-  request Resource otherwise (`:493-510`). `RequestReceipt` is `Clone`;
+  request Resource otherwise (`:493-510`). `RequestStatus` and `RequestError`
+  are `#[non_exhaustive]`. `RequestReceipt` is `Clone`;
   `response()` resolves on any clone once the request is `Ready` or
   `Failed`, and `subscribe()` hands out a `watch::Receiver<RequestStatus>`
   that reports the moves after the call and whose sender is dropped once

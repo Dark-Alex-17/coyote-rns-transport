@@ -1,5 +1,5 @@
-//! Black-box usage of the requester-side request types from outside the crate, in the shape
-//! the README's "Sending requests" section shows: the public paths resolve, `RequestOptions`
+//! Black-box usage of the public request-layer types from outside the crate, in the shape
+//! the README's request sections show: the public paths resolve, `RequestOptions`
 //! builds with the documented builders, the status and error enums carry
 //! the documented variants (`RNS/Link.py:1318-1322`), `RequestError` is an error type a `?`
 //! in the README snippet can convert, and the receipt is a `Clone + Send + Sync` handle a
@@ -10,7 +10,7 @@ use std::fmt::Debug;
 use std::time::Duration;
 
 use rns_transport::destination::request::{
-    RequestAllow, RequestError, RequestOptions, RequestReceipt, RequestResponse,
+    FrameDecodeError, RequestAllow, RequestError, RequestOptions, RequestReceipt, RequestResponse,
     RequestResponseData, RequestStatus,
 };
 use rns_transport::transport::AnnounceEvent;
@@ -70,10 +70,10 @@ fn receipt_and_response_are_handles_a_consumer_can_share() {
     assert_send_sync::<RequestStatus>();
 }
 
-/// The README says "`RequestError` is `#[non_exhaustive]`" and the CHANGELOG lists the other
-/// request-layer enums the same way: outside the crate, a match naming every documented
-/// variant still needs a wildcard arm, and `#[deny(unreachable_patterns)]` makes that arm a
-/// compile error the moment an enum stops being non-exhaustive.
+/// The README and the CHANGELOG say the request-layer enums are `#[non_exhaustive]`, and so
+/// are their definitions: outside the crate, a match naming every documented variant still
+/// needs a wildcard arm, and `#[deny(unreachable_patterns)]` makes that arm a compile error
+/// the moment an enum stops being non-exhaustive.
 #[deny(unreachable_patterns)]
 fn request_error_name(error: &RequestError) -> &'static str {
     match error {
@@ -115,15 +115,32 @@ fn request_response_name(response: &RequestResponse) -> &'static str {
     match response {
         RequestResponse::Value(_) => "value",
         RequestResponse::Bytes(_) => "bytes",
-        RequestResponse::Resource { data: _, metadata: _ } => "resource",
+        RequestResponse::Resource { .. } => "resource",
         _ => "a response form this match predates",
     }
 }
 
-/// `AnnounceEvent` is `#[non_exhaustive]`: a consumer destructures it with `..` and reads the
-/// documented `is_path_response` flag; a struct literal is no longer written outside the crate.
+#[deny(unreachable_patterns)]
+fn frame_decode_error_name(error: &FrameDecodeError) -> &'static str {
+    match error {
+        FrameDecodeError::Truncated => "truncated",
+        FrameDecodeError::TrailingBytes => "trailing bytes",
+        FrameDecodeError::DepthExceeded => "depth exceeded",
+        FrameDecodeError::LengthExceedsInput => "length exceeds input",
+        FrameDecodeError::ReservedMarker => "reserved marker",
+        FrameDecodeError::Malformed => "malformed",
+        FrameDecodeError::NotAnArray => "not an array",
+        FrameDecodeError::WrongArity { .. } => "wrong arity",
+        FrameDecodeError::RequestedAtNotF64 => "requested_at not f64",
+        FrameDecodeError::HashNotBin16 => "hash not bin16",
+        _ => "a decode error this match predates",
+    }
+}
+
+/// `AnnounceEvent` is `#[non_exhaustive]`: a consumer reads the documented `is_path_response`
+/// flag through a `..` destructure (the struct-literal ban itself needs a compile-fail harness).
 fn announce_is_path_response(event: &AnnounceEvent) -> bool {
-    let AnnounceEvent { is_path_response, hops: _, .. } = event;
+    let AnnounceEvent { is_path_response, .. } = event;
     *is_path_response
 }
 
@@ -133,5 +150,6 @@ fn request_layer_enums_are_non_exhaustive_outside_the_crate() {
     assert_eq!(request_status_name(&RequestStatus::Sent), "sent");
     assert_eq!(request_allow_name(&RequestAllow::All), "all");
     assert_eq!(request_response_name(&RequestResponse::Bytes(Vec::new())), "bytes");
+    assert_eq!(frame_decode_error_name(&FrameDecodeError::Truncated), "truncated");
     let _reads_the_flag: fn(&AnnounceEvent) -> bool = announce_is_path_response;
 }

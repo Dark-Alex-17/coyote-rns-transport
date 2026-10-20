@@ -26,7 +26,7 @@ belongs to. Patch ids: F4 is shared-instance client packaging. The
 `b306b2a1`, `17b41d6a`, `ff8a8e8a`, `ff67110d`, `e4494576`, `21e4dacc`,
 `a6036013`, `8a1c2d16`, `9247525e`, `afa72a00`, `c05832b9`, `013d0dd2`,
 `b7df209e`, `6baf2e34`, `2e62274d`, `eba27ade`, `a4fdb0bb`, `952d6ca9`,
-`18e2ccb5`, `52be26ad`, `428a699a` and `4b67a5e9`;
+`18e2ccb5`, `52be26ad`, `428a699a`, `4b67a5e9`, `5319bcde` and `114cd382`;
 the `proof cap stall on signal` patch carries no other id and is fork
 commit `cccc40e4`.
 
@@ -52,13 +52,14 @@ commit `cccc40e4`.
 | `crates/libs/rns-transport/src/transport/tests_parts/two_transport_shared_instance_probe3.rs` | shared-instance client packaging |
 | `crates/libs/rns-transport/src/transport/tests_parts/two_transport_shared_instance_probe4.rs` | shared-instance client packaging |
 | `crates/libs/rns-transport/src/transport/tests_parts/two_transport_shared_instance_probe5.rs` | shared-instance client packaging |
+| `crates/libs/rns-transport/src/transport/tests_parts/two_transport_shared_instance_probe6.rs` | shared-instance client packaging |
 | `docs/fork/PATCHSET.md` | shared-instance client packaging |
 
 Fork commits `2a027a9d`, `b306b2a1`, `17b41d6a`, `ff8a8e8a`, `ff67110d`,
 `e4494576`, `21e4dacc`, `a6036013`, `8a1c2d16`, `9247525e`, `afa72a00`,
 `c05832b9`, `013d0dd2`, `b7df209e`, `6baf2e34`, `2e62274d`, `eba27ade`,
-`a4fdb0bb`, `952d6ca9`, `18e2ccb5`, `52be26ad`, `428a699a` and
-`4b67a5e9`: F4, shared-instance client packaging. The first
+`a4fdb0bb`, `952d6ca9`, `18e2ccb5`, `52be26ad`, `428a699a`, `4b67a5e9`,
+`5319bcde` and `114cd382`: F4, shared-instance client packaging. The first
 lands `SharedInstanceEndpoint`
 and `SharedInstanceOptions`, the four `Transport` methods
 `attach_shared_instance`, `detach_shared_instance`,
@@ -154,7 +155,13 @@ release-notes listing rule, attributes the release notes and the ledger
 section to the publish contract, and pins the fifth fixture and the
 record store on the `Transport::stop` bullet. The twenty-third renames
 that logger, its static and its install function for the two record
-families they now serve. The file sites below describe the combined
+families they now serve. The twenty-fourth adopts the sixth fixture (the
+attach line is space-separated key=value tokens and only the tcp arm
+appends the ignored-wait parenthetical), scopes the never-warned oracle
+and test logger rustdocs to the records they read, sharpens the publish
+contract's cite message and the ledger header walk's missing-table
+panic. The twenty-fifth pins the sixth fixture on the `Transport::stop`
+bullet in the release notes. The file sites below describe the combined
 result.
 Upstream sites:
 `crates/libs/rns-transport/src/transport/mod.rs` registers the
@@ -165,7 +172,7 @@ that slot; `transport/handler.rs` receives the moved
 and the connected flag in `stop` after the management task has joined and
 warns, naming the interface, only when a slot was held past the budget;
 `links_parts/transport.rs` includes the new method section;
-`transport/tests.rs` includes the six fixtures;
+`transport/tests.rs` includes the seven fixtures;
 `transport/tests_parts/two_transport_loopback_requests_isolation.rs`
 keeps the shared-instance client's log records next to the link's drop
 records;
@@ -178,8 +185,9 @@ records;
 `src/transport/tests_parts/two_transport_shared_instance_probe.rs`,
 `src/transport/tests_parts/two_transport_shared_instance_probe2.rs`,
 `src/transport/tests_parts/two_transport_shared_instance_probe3.rs`,
-`src/transport/tests_parts/two_transport_shared_instance_probe4.rs` and
-`src/transport/tests_parts/two_transport_shared_instance_probe5.rs`. The
+`src/transport/tests_parts/two_transport_shared_instance_probe4.rs`,
+`src/transport/tests_parts/two_transport_shared_instance_probe5.rs` and
+`src/transport/tests_parts/two_transport_shared_instance_probe6.rs`. The
 crate `CHANGELOG.md` carries the release notes.
 
 Fork commit `cccc40e4`: proof cap stall on signal. The cap fixture of

@@ -1,8 +1,8 @@
 // Usage-pattern probes for the shared-instance client API: the option default, detach and
 // stop on a transport that never attached, two attaches racing for the single slot, an attach
-// issued before anything listens at the TCP endpoint, and the relay actually going quiet
-// after a detach and coming back at one hop after a re-attach. Helpers come from the
-// sibling `tests_parts` files included into this module.
+// issued before anything listens at the TCP endpoint, the relay actually going quiet after a
+// detach and coming back at one hop after a re-attach, and an attach racing a detach on a
+// held slot. Helpers come from the sibling `tests_parts` files included into this module.
 
 /// How long the probe waits to be sure a relayed announce does NOT arrive. Only a slow
 /// arrival could turn this into a false pass, never a false failure.
@@ -207,5 +207,55 @@ async fn shared_instance_detach_silences_the_relay_and_reattach_restores_one_hop
     timeout(STOP_TIMEOUT, a.transport.stop()).await.expect("a stop completes");
     shared_instance_assert_released(&a.transport, reattached).await;
     timeout(STOP_TIMEOUT, b.transport.stop()).await.expect("b stop completes");
+    timeout(STOP_TIMEOUT, server.transport.stop()).await.expect("shared instance stop completes");
+}
+
+/// An attach racing a detach on a held slot: the attach is refused if it runs before the
+/// detach empties the slot and wins otherwise, and a detach that lands between the attach's
+/// slot write and its posture write leaves the slot empty with the posture off. None of
+/// those outcomes is asserted; what must hold after every interleaving is that the slot and
+/// the posture agree and a held slot names a registered interface.
+#[tokio::test]
+#[deny(clippy::await_holding_invalid_type)]
+async fn shared_instance_concurrent_attach_and_detach_keep_slot_and_posture_consistent() {
+    let server = shared_instance_server().await;
+    let identity = PrivateIdentity::new_from_rand(OsRng);
+    let transport =
+        Transport::new(TransportConfig::new("shared-instance-attach-detach", &identity, false));
+    let first = transport
+        .attach_shared_instance(server.endpoint(), SharedInstanceOptions::default())
+        .await
+        .expect("the first attach succeeds");
+    shared_instance_assert_attached(&transport, first).await;
+
+    for iteration in 0..5 {
+        if transport.shared_instance().is_none() {
+            transport
+                .attach_shared_instance(server.endpoint(), SharedInstanceOptions::default())
+                .await
+                .expect("re-attach into an empty slot succeeds");
+        }
+        let (_attach, _detach) = tokio::join!(
+            transport.attach_shared_instance(server.endpoint(), SharedInstanceOptions::default()),
+            transport.detach_shared_instance(),
+        );
+        let held = transport.shared_instance();
+        assert_eq!(
+            held.is_some(),
+            transport.connected_to_shared_instance().await,
+            "iteration {iteration}: the slot and the posture disagree, slot={held:?}"
+        );
+        if let Some(iface) = held {
+            assert!(
+                transport.interface_hashes().await.contains(&iface),
+                "iteration {iteration}: the held slot names an interface that is gone"
+            );
+        }
+    }
+
+    timeout(STOP_TIMEOUT, transport.detach_shared_instance()).await.expect("detach completes");
+    assert_eq!(transport.shared_instance(), None, "the slot is cleared");
+    assert!(!transport.connected_to_shared_instance().await, "the client posture is cleared");
+    timeout(STOP_TIMEOUT, transport.stop()).await.expect("client stop completes");
     timeout(STOP_TIMEOUT, server.transport.stop()).await.expect("shared instance stop completes");
 }

@@ -10,14 +10,41 @@
 
 /// How many plain Data packets past the cap the burst sends.
 const PACKET_PROVEN_PROBE2_OVER_CAP: usize = 3;
-/// Holds the listener's handler lock long enough for the whole burst to be sent before any
-/// proof can come back, so every hash is recorded before the first proof is matched.
-const PACKET_PROVEN_PROBE2_STALL: Duration = Duration::from_millis(1500);
 /// Longest gap allowed between two consecutive proofs (or receipts) of the burst. The
 /// collection waits on progress, not on a fixed budget: a slow runner stretches the run
 /// without weakening the count, and only a stall of this long fails the test. The whole
 /// burst took longer than `LOOPBACK_TIMEOUT` on a CI runner once.
 const PACKET_PROVEN_PROBE2_PROGRESS_WINDOW: Duration = LOOPBACK_TIMEOUT;
+
+/// Holds `handler`'s lock until `release` fires or its sender drops, signalling `stalled`
+/// once the lock is held. Runs on a blocking thread so the guard never spans an await.
+fn stall_handler_until_released(
+    handler: Arc<Mutex<TransportHandler>>,
+    stalled: tokio::sync::oneshot::Sender<()>,
+    release: tokio::sync::oneshot::Receiver<()>,
+) {
+    let _guard = handler.blocking_lock();
+    let _ = stalled.send(());
+    let _ = release.blocking_recv();
+}
+
+/// Spawns a stall against `transport` that lasts until the returned sender fires, and
+/// returns once the lock is held. The burst must be recorded in full before the first proof
+/// is matched; a fixed-length stall raced the sends on a loaded runner and the peer proved
+/// early hashes before the cap could drop them.
+#[deny(clippy::await_holding_invalid_type)]
+async fn stall_transport_until_released(
+    transport: &Transport,
+) -> (tokio::task::JoinHandle<()>, tokio::sync::oneshot::Sender<()>) {
+    let (stalled_tx, stalled_rx) = tokio::sync::oneshot::channel();
+    let (release_tx, release_rx) = tokio::sync::oneshot::channel();
+    let handler = transport.get_handler();
+    let stall = tokio::task::spawn_blocking(move || {
+        stall_handler_until_released(handler, stalled_tx, release_rx)
+    });
+    stalled_rx.await.expect("stall task acquired the handler lock");
+    (stall, release_tx)
+}
 
 /// Collects `PacketProven` hashes for `link_id` until `count` have arrived, failing when no
 /// new proof lands within `PACKET_PROVEN_PROBE2_PROGRESS_WINDOW` of the previous one. A
@@ -101,8 +128,7 @@ async fn two_transport_loopback_link_packet_proven_probe2_cap_drops_the_oldest_a
         .await;
     let total = crate::destination::link::UNPROVEN_DATA_HASHES_CAP + PACKET_PROVEN_PROBE2_OVER_CAP;
 
-    let stall =
-        stall_transport_for(&pair.handles.listener.transport, PACKET_PROVEN_PROBE2_STALL).await;
+    let (stall, release) = stall_transport_until_released(&pair.handles.listener.transport).await;
     let mut sent = Vec::with_capacity(total);
     for i in 0..total {
         let payload = format!("cap-{i}");
@@ -120,6 +146,7 @@ async fn two_transport_loopback_link_packet_proven_probe2_cap_drops_the_oldest_a
         total,
         "every packet in the burst has its own hash"
     );
+    release.send(()).expect("stall task is waiting for the release");
     stall.await.expect("stall task finishes");
 
     // The link event channel holds 1024 entries (`TRANSPORT_EVENT_CHANNEL_CAPACITY` in

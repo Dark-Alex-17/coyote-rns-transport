@@ -21,7 +21,12 @@ impl Transport {
     /// again is a no-op. A shared instance attached with
     /// [`Self::attach_shared_instance`] is forgotten once the management task
     /// has stopped, and the transport is no longer marked connected to one,
-    /// since its interface is detached with the rest.
+    /// since its interface is detached with the rest. The interfaces are
+    /// swept before the slot is taken, so an attach whose interface is
+    /// spawned between the two leaves that interface registered and connected
+    /// on the stopped transport with the slot empty and the posture off;
+    /// [`Self::detach_shared_instance`] then finds nothing, and calling
+    /// `stop()` again detaches it.
     #[deny(clippy::await_holding_invalid_type)]
     pub async fn stop(&self) {
         let deadline = Instant::now() + STOP_BUDGET;
@@ -91,10 +96,12 @@ impl Transport {
             Err(_) => {
                 let mut slot =
                     self.shared_instance.lock().unwrap_or_else(|poisoned| poisoned.into_inner());
-                slot.take();
-                log::warn!(
-                    "[tp] handler still locked after stop budget, shared-instance posture not cleared"
-                );
+                if let Some(iface) = slot.take() {
+                    log::warn!(
+                        "[tp] handler still locked after stop budget, shared-instance iface={} posture not cleared",
+                        iface.short()
+                    );
+                }
             }
         }
         self.fail_pending_requests_on_stop(deadline).await;

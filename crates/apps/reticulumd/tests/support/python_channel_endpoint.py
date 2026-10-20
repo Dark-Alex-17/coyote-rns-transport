@@ -193,7 +193,7 @@ class ChannelEndpoint:
             "request-forms",
         ):
             destination.register_request_handler(
-                "/test/request",
+                request_forms.DEFAULT_REQUEST_PATH,
                 response_generator=self._on_request,
                 allow=RNS.Destination.ALLOW_ALL,
             )
@@ -225,7 +225,7 @@ class ChannelEndpoint:
             sys.stdout.flush()
             return body
         if self.payload_kind == "request-forms":
-            return request_forms.serve_request(path, data, request_id)
+            return request_forms.serve_request(path, data, request_id, link_id=link_id)
         return f"reply:{data}"
 
     def _on_link_established(self, link) -> None:
@@ -466,7 +466,7 @@ class ChannelClient:
         request_size: int = 0,
         identify: bool = False,
         request_timeout: float | None = None,
-        request_path: str = "/test/request",
+        request_path: str = request_forms.DEFAULT_REQUEST_PATH,
     ) -> int:
         print("python_channel_client: starting Reticulum", file=sys.stderr, flush=True)
         RNS.Reticulum(configdir=config_dir, loglevel=7)
@@ -573,7 +573,7 @@ class ChannelClient:
                 done.set()
 
             receipt = active_link.request(
-                "/test/request",
+                request_forms.DEFAULT_REQUEST_PATH,
                 data=request_data,
                 response_callback=on_response,
                 failed_callback=on_failed,
@@ -631,7 +631,7 @@ class ChannelClient:
                 done.set()
 
             receipt = active_link.request(
-                "/test/request",
+                request_forms.DEFAULT_REQUEST_PATH,
                 data=None,
                 response_callback=on_response,
                 failed_callback=on_failed,
@@ -1038,7 +1038,7 @@ def main() -> int:
     parser.add_argument("--identify", action="store_true")
     parser.add_argument("--prove-all", action="store_true")
     parser.add_argument("--request-timeout", type=float, default=None)
-    parser.add_argument("--request-path", default="/test/request")
+    parser.add_argument("--request-path", default=request_forms.DEFAULT_REQUEST_PATH)
     args = parser.parse_args()
 
     if args.resource_boundary_probe:

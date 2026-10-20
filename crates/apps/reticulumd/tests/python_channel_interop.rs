@@ -50,3 +50,5 @@ include!("python_channel_interop_parts/python_request_unknown_path.rs");
 include!("python_channel_interop_parts/python_request_size_limits.rs");
 
 include!("python_channel_interop_parts/python_request_late_reply.rs");
+
+include!("python_channel_interop_parts/python_request_edges.rs");

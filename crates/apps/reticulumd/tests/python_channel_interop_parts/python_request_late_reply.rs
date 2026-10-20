@@ -35,6 +35,30 @@ fn late_reply_request_data(extra: Vec<(rmpv::Value, rmpv::Value)>) -> rmpv::Valu
     rmpv::Value::Map(entries)
 }
 
+/// Blocks until the Python handler reports that its delayed answer for
+/// `receipt` has left (the `request_answered` line the endpoint emits after
+/// its sleep). The `request_received` report arrives at receive time, so on
+/// its own it says nothing about when the reply went out.
+#[deny(clippy::await_holding_invalid_type)]
+async fn late_reply_wait_answered(
+    fixture: &mut RustRequestReceiptFixture,
+    receipt: &RequestReceipt,
+) {
+    let request_hex = receipt.request_id().to_string();
+    tokio::time::timeout(Duration::from_secs(20), async {
+        loop {
+            let value = fixture.python_lines.recv().await.expect("python endpoint stdout closed");
+            if value.get("request_answered").is_some()
+                && value["request_id"].as_str() == Some(request_hex.as_str())
+            {
+                return;
+            }
+        }
+    })
+    .await
+    .expect("timed out waiting for the python handler to answer late");
+}
+
 /// Drains link events for `settle`, panicking on any `PacketProven` for
 /// `link_id` (any hash).
 #[deny(clippy::await_holding_invalid_type)]
@@ -191,6 +215,7 @@ async fn run_rust_to_python_request_receipt_late_packet_response_after_timeout_i
     // pending request for that id.
     let report = fixture.python_report(&receipt).await;
     assert_eq!(report["response_kind"], "text", "the python handler did answer, late");
+    late_reply_wait_answered(&mut fixture, &receipt).await;
     sleep(Duration::from_millis(1500)).await;
     assert_eq!(receipt.status(), RequestStatus::Failed, "a late reply cannot revive a receipt");
     assert_eq!(receipt.response().await, Err(RequestError::Timeout));
@@ -250,8 +275,9 @@ async fn run_rust_to_python_request_receipt_late_resource_response_after_timeout
         Err(&RequestError::Timeout)
     );
     assert!(
-        failed_after < Duration::from_secs(LATE_REPLY_DELAY_SECS),
-        "the timeout concluded the receipt before the python handler answered: {failed_after:?}"
+        failed_after >= LATE_REPLY_RUST_TIMEOUT
+            && failed_after < Duration::from_secs(LATE_REPLY_DELAY_SECS),
+        "the timeout, not the late reply, concluded the receipt: {failed_after:?}"
     );
 
     // Python now advertises a 48 KiB response Resource for an id Rust no
@@ -260,6 +286,7 @@ async fn run_rust_to_python_request_receipt_late_resource_response_after_timeout
     let report = fixture.python_report(&receipt).await;
     assert_eq!(report["response_kind"], "bytes");
     assert_eq!(report["response_size"], REQUEST_FORMS_MATRIX_LARGE as u64);
+    late_reply_wait_answered(&mut fixture, &receipt).await;
     let (adverts, forms) = tokio::join!(
         late_reply_count_inbound_adverts(&mut iface_rx, fixture.link_id, Duration::from_secs(3)),
         request_forms_matrix_terminal_forms(&mut resource_events, Duration::from_secs(3))
@@ -302,6 +329,8 @@ async fn run_rust_to_python_request_receipt_under_prove_all_only_the_plain_data_
     // A request packet carries PacketContext::Request: Python proves only
     // context-None Data (RNS/Link.py:950/:961), and Rust records only plain
     // Data for PacketProven, so the request round trip yields no proof event.
+    // The Rust record gate itself is pinned by the in-crate loopback tests;
+    // this test covers the Python side of the agreement.
     let receipt =
         fixture.request(rmpv::Value::String("prove-all".into()), RequestOptions::default()).await;
     let response = rust_request_receipt_response(&receipt).await;

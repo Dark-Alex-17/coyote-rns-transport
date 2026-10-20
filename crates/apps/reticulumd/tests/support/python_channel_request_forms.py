@@ -3,10 +3,16 @@ from __future__ import annotations
 import hashlib
 import json
 import sys
+import tempfile
 import threading
 import time
 
 import RNS
+from RNS.vendor import umsgpack
+
+
+FILE_RESPONSE_METADATA = "python-file-meta"
+DEFAULT_REQUEST_PATH = "/test/request"
 
 
 def request_forms_body(size: int) -> bytes:
@@ -20,16 +26,43 @@ def emit(payload: dict) -> None:
     sys.stdout.flush()
 
 
-def serve_request(path, data, request_id):
-    # A `delay` key holds the answer back for that many seconds. The handler
-    # runs on its own daemon thread (RNS/Link.py:1004-1005), so the link keeps
-    # receiving while a Rust requester's timeout runs out ahead of the reply.
-    if isinstance(data, dict) and data.get("delay") is not None:
-        time.sleep(float(data["delay"]))
+def teardown_link(link_id) -> None:
+    # Server side: the inbound link lives in Transport.active_links_map
+    # (RNS/Transport.py:2934-2937). teardown() sends LINKCLOSE to the peer.
+    link = RNS.Transport.active_links_map.get(link_id)
+    if link is not None:
+        link.teardown()
+    emit({"link_torn_down": link is not None, "link_id": link_id.hex()})
+
+
+def serve_request(path, data, request_id, link_id=None):
+    # A `teardown_after` key closes the link from this side that many seconds
+    # later, while the requester is still waiting for the answer.
+    if isinstance(data, dict) and data.get("teardown_after") is not None and link_id is not None:
+        threading.Timer(float(data["teardown_after"]), teardown_link, args=(link_id,)).start()
     if isinstance(data, dict) and data.get("response") == "none":
         response = None
     elif isinstance(data, dict) and "response_size" in data:
         response = request_forms_body(int(data["response_size"]))
+    elif isinstance(data, dict) and data.get("response") == "map":
+        # One member per umsgpack type family; insertion order is the wire
+        # order.
+        response = {
+            "echo": data.get("echo"),
+            "count": 7,
+            "ok": True,
+            "items": [1, 2, "three"],
+            "raw": b"\x00\x01\x02",
+            "pad": request_forms_body(int(data.get("pad_size", 0))),
+        }
+    elif isinstance(data, dict) and data.get("response") == "file":
+        body = request_forms_body(int(data.get("file_size", 64)))
+        with tempfile.NamedTemporaryFile(delete=False) as temp_file:
+            temp_file.write(body)
+            temp_file.flush()
+            file_path = temp_file.name
+        # A (BufferedReader, metadata) tuple is a file response (RNS/Link.py:835-845).
+        response = (open(file_path, "rb"), FILE_RESPONSE_METADATA)
     else:
         response = f"reply:{data}"
     if response is None:
@@ -38,6 +71,12 @@ def serve_request(path, data, request_id):
     elif isinstance(response, bytes):
         response_kind = "bytes"
         response_bytes = response
+    elif isinstance(response, dict):
+        response_kind = "map"
+        response_bytes = umsgpack.packb(response)
+    elif isinstance(response, tuple):
+        response_kind = "file"
+        response_bytes = body
     else:
         response_kind = "text"
         response_bytes = response.encode("utf-8")
@@ -51,6 +90,15 @@ def serve_request(path, data, request_id):
             "response_sha256": None if response is None else hashlib.sha256(response_bytes).hexdigest(),
         }
     )
+    # A `delay` key holds the answer back for that many seconds. The handler
+    # runs on its own daemon thread for both request forms (RNS/Link.py:892-893
+    # Resource, :1004-1005 packet), so the link keeps receiving while a Rust
+    # requester's timeout runs out ahead of the reply. The receipt report above
+    # goes out before the sleep; request_answered marks the reply leaving.
+    if isinstance(data, dict) and data.get("delay") is not None:
+        delay = float(data["delay"])
+        time.sleep(delay)
+        emit({"request_answered": True, "request_id": request_id.hex(), "delay": delay})
     return response
 
 
@@ -63,7 +111,7 @@ def run_client(
     timeout: float,
     request_timeout: float | None,
     deadline: float,
-    request_path: str = "/test/request",
+    request_path: str = DEFAULT_REQUEST_PATH,
 ) -> int:
     if identify:
         client.identity = RNS.Identity()

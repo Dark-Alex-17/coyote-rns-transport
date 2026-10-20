@@ -24,7 +24,8 @@ Every file changed since the `0.15.0` release and the patch each change
 belongs to. Patch ids: F4 is shared-instance client packaging. The
 `shared-instance client packaging` patch is fork commits `2a027a9d`,
 `b306b2a1`, `17b41d6a`, `ff8a8e8a`, `ff67110d` and
-`e4494576`.
+`e4494576`; the `proof cap stall on signal` patch carries no other id
+and is fork commit `cccc40e4`.
 
 | File | Patch |
 | --- | --- |
@@ -39,6 +40,7 @@ belongs to. Patch ids: F4 is shared-instance client packaging. The
 | `crates/libs/rns-transport/src/transport/mod.rs` | shared-instance client packaging |
 | `crates/libs/rns-transport/src/transport/shared_instance.rs` | shared-instance client packaging |
 | `crates/libs/rns-transport/src/transport/tests.rs` | shared-instance client packaging |
+| `crates/libs/rns-transport/src/transport/tests_parts/two_transport_loopback_link_packet_proven_probe2.rs` | proof cap stall on signal |
 | `crates/libs/rns-transport/src/transport/tests_parts/two_transport_shared_instance.rs` | shared-instance client packaging |
 | `crates/libs/rns-transport/src/transport/tests_parts/two_transport_shared_instance_probe.rs` | shared-instance client packaging |
 | `docs/fork/PATCHSET.md` | shared-instance client packaging |
@@ -82,6 +84,17 @@ new method section; `transport/tests.rs` includes both fixtures. New files:
 `src/transport/tests_parts/two_transport_shared_instance.rs` and
 `src/transport/tests_parts/two_transport_shared_instance_probe.rs`. The
 crate `CHANGELOG.md` carries the release notes.
+
+Fork commit `cccc40e4`: proof cap stall on signal. The cap fixture of
+`crates/libs/rns-transport/src/transport/tests_parts/two_transport_loopback_link_packet_proven_probe2.rs`
+stalled the listener's handler for a fixed 1500 ms while the connector
+sent its 1027 plain Data packets; under full-suite load the burst outran
+the stall, the listener proved early hashes before the cap could drop
+them, and the proven set no longer matched the newest 1024. The stall is
+now held on a blocking thread until the test releases it after the burst
+(`stall_transport_until_released`, local to that file), so its length no
+longer depends on runner speed. The pinned counts and hashes are
+unchanged. Upstream site: that fixture file only.
 
 ## 0.15.0 (upstream 0.14.0)
 

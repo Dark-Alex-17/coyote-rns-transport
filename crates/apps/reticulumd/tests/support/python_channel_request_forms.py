@@ -21,6 +21,11 @@ def emit(payload: dict) -> None:
 
 
 def serve_request(path, data, request_id):
+    # A `delay` key holds the answer back for that many seconds. The handler
+    # runs on its own daemon thread (RNS/Link.py:1004-1005), so the link keeps
+    # receiving while a Rust requester's timeout runs out ahead of the reply.
+    if isinstance(data, dict) and data.get("delay") is not None:
+        time.sleep(float(data["delay"]))
     if isinstance(data, dict) and data.get("response") == "none":
         response = None
     elif isinstance(data, dict) and "response_size" in data:

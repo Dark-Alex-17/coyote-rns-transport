@@ -103,10 +103,11 @@ impl Transport {
                 wait
             ),
             None => log::debug!(
-                "tp({}): attached shared instance iface={} endpoint={}",
+                "tp({}): attached shared instance iface={} endpoint={}, reconnect_wait={:?} ignored by the tcp client",
                 self.name,
                 iface,
-                kind
+                kind,
+                options.reconnect_wait()
             ),
         }
         Ok(iface)

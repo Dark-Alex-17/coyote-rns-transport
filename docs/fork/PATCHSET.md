@@ -60,7 +60,7 @@ and is fork commits `60e74ffb`, `6e583b50`, `ea6edfaa`, `9223ef43`,
 and is fork commits `d4a3b2d2`, `5075d765`, `eb0e19f2`, `06068516`,
 `ac9c49af`, `8b3ce9e1`, `23bdc1a8`, `ba92e2ba`, `8d70f3e1`, `ccfba204`,
 `af1b7e62`, `061141f9`, `0bbccb83`, `eb854ab6`, `c5048353`, `93f417c6`,
-`2d2d88e1` and `2432cff5`.
+`2d2d88e1`, `2432cff5`, `e2a1a28a` and `77024043`.
 
 | File | Patch |
 | --- | --- |
@@ -274,6 +274,7 @@ and is fork commits `d4a3b2d2`, `5075d765`, `eb0e19f2`, `06068516`,
 | `crates/libs/rns-transport/src/transport/tests_parts/two_transport_loopback_resources_reject_response.rs` | request receipts and timeouts, outbound outcomes with link fast fail and accept hook |
 | `crates/libs/rns-transport/src/transport/tests_parts/two_transport_loopback_resources_retries.rs` | request receipts and timeouts, outbound outcomes with link fast fail and accept hook |
 | `crates/libs/rns-transport/src/transport/wire.rs` | request receipts and timeouts, link proof event and receipt link id |
+| `crates/libs/rns-transport/tests/breaking_changes_compile_fail.rs` | release 0.15.0 |
 | `crates/libs/rns-transport/tests/link_event_packet_proven_api.rs` | link proof event and receipt link id |
 | `crates/libs/rns-transport/tests/outbound_outcome_api.rs` | outbound outcomes with link fast fail and accept hook |
 | `crates/libs/rns-transport/tests/request_frame_wire.rs` | request wire frames and fuzz |
@@ -2609,8 +2610,8 @@ fns carries `#[deny(clippy::await_holding_invalid_type)]`.
 
 Fork commits `d4a3b2d2`, `5075d765`, `eb0e19f2`, `06068516`, `ac9c49af`,
 `8b3ce9e1`, `23bdc1a8`, `ba92e2ba`, `8d70f3e1`, `ccfba204`, `af1b7e62`,
-`061141f9`, `0bbccb83`, `eb854ab6`, `c5048353`, `93f417c6`, `2d2d88e1` and
-`2432cff5`:
+`061141f9`, `0bbccb83`, `eb854ab6`, `c5048353`, `93f417c6`, `2d2d88e1`,
+`2432cff5`, `e2a1a28a` and `77024043`:
 release 0.15.0. The first gates the inherited Codex review workflow
 (`.github/workflows/codex-review.yml`) on the repository variable
 `CODEX_REVIEW_ENABLED`, so the check is skipped until the variable and the
@@ -2716,11 +2717,26 @@ every manifest, consumer snippet and README the version bump touches as a
 row of the table above, teaches the rustdoc cite walker in
 `fork_release_docs_contract.rs` to enter `pub trait` bodies and check their
 methods, and cites the whole file-response branch (`RNS/Link.py:837-846`)
-on the `RequestResponse` enum doc in `request/handler.rs`. The ledger-only
-commits that complete this section are omitted by convention. The patches
-of the `## 0.14.1` section below are still carried; the patches above build
-on their files rather than replacing them, and the publish contract test
-they added is extended by the first and fourth commits above.
+on the `RequestResponse` enum doc in `request/handler.rs`. The nineteenth
+adds `crates/libs/rns-transport/tests/breaking_changes_compile_fail.rs`,
+which drives `rustc` against the `librns_transport` rlib the test binary
+linked (no `trybuild`, no nested cargo): the migrated consumer the crate
+`CHANGELOG.md` `### Breaking` block describes compiles, and each shape it
+replaces (an `AnnounceEvent` struct literal, a `DeliveryReceipt`,
+`RequestOptions`, `RequestReceipt` or `RequestFrame` struct literal, an
+`OutboundRejected` unit pattern, a `PathHash` tuple literal) fails with
+rustc's diagnostic for that reason; the contracts job of
+`.github/workflows/ci.yml` runs it as its own step. The twentieth makes
+the README divergence register name the Python Reticulum repository and
+commit (`ea98db4f`, the ref `.github/workflows/verify.yml` checks out)
+its cites resolve against, ends the `### Breaking` block of the crate
+`CHANGELOG.md` with a clause naming the compile-fail harness, starts the
+`RequestResponse` response-form cite there at `RNS/Link.py:837`, and points
+two doc comments in `tests/request_receipt_api.rs` at the harness. The
+ledger-only commits that complete this section are omitted by convention.
+The patches of the `## 0.14.1` section below are still carried; the patches
+above build on their files rather than replacing them, and the publish
+contract test they added is extended by the first and fourth commits above.
 
 ## 0.14.1 (upstream 0.14.0)
 

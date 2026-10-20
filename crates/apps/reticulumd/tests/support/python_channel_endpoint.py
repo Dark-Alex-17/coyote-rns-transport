@@ -464,6 +464,7 @@ class ChannelClient:
         request_size: int = 0,
         identify: bool = False,
         request_timeout: float | None = None,
+        request_path: str = "/test/request",
     ) -> int:
         print("python_channel_client: starting Reticulum", file=sys.stderr, flush=True)
         RNS.Reticulum(configdir=config_dir, loglevel=7)
@@ -604,7 +605,15 @@ class ChannelClient:
 
         if self.payload_kind == "request-forms":
             return request_forms.run_client(
-                self, active_link, message_data, request_size, identify, timeout, request_timeout, deadline
+                self,
+                active_link,
+                message_data,
+                request_size,
+                identify,
+                timeout,
+                request_timeout,
+                deadline,
+                request_path,
             )
 
         if self.payload_kind == "multi-segment-response":
@@ -1027,6 +1036,7 @@ def main() -> int:
     parser.add_argument("--identify", action="store_true")
     parser.add_argument("--prove-all", action="store_true")
     parser.add_argument("--request-timeout", type=float, default=None)
+    parser.add_argument("--request-path", default="/test/request")
     args = parser.parse_args()
 
     if args.resource_boundary_probe:
@@ -1079,6 +1089,7 @@ def main() -> int:
             args.request_size,
             args.identify,
             args.request_timeout,
+            args.request_path,
         )
 
     if args.config_dir is None:

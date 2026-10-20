@@ -56,6 +56,7 @@ def run_client(
     timeout: float,
     request_timeout: float | None,
     deadline: float,
+    request_path: str = "/test/request",
 ) -> int:
     if identify:
         client.identity = RNS.Identity()
@@ -88,7 +89,7 @@ def run_client(
     # handshake do not eat into the window a silently dropped request gets.
     request_deadline = time.time() + timeout
     receipt = active_link.request(
-        "/test/request",
+        request_path,
         data=request_data,
         response_callback=on_response,
         failed_callback=on_failed,

@@ -73,10 +73,15 @@ impl RequestOptions {
 #[non_exhaustive]
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum RequestStatus {
+    /// `RequestReceipt.SENT` (`RNS/Link.py:1319`).
     Sent,
+    /// `RequestReceipt.DELIVERED` (`RNS/Link.py:1320`).
     Delivered,
+    /// `RequestReceipt.RECEIVING` (`RNS/Link.py:1321`).
     Receiving,
+    /// `RequestReceipt.READY` (`RNS/Link.py:1322`).
     Ready,
+    /// `RequestReceipt.FAILED` (`RNS/Link.py:1318`).
     Failed,
 }
 
@@ -150,7 +155,8 @@ enum ResponseBody {
 }
 
 impl RequestResponseData {
-    /// The envelope body; `None` for a file response.
+    /// The envelope body, `unpacked_response[1]` (`RNS/Link.py:1015`,
+    /// `:911`); `None` for a file response.
     pub fn value(&self) -> Option<&rmpv::Value> {
         match &*self.0 {
             ResponseBody::Value(value) => Some(value),
@@ -158,8 +164,8 @@ impl RequestResponseData {
         }
     }
 
-    /// The envelope body, moved out of the last handle or cloned out of a
-    /// shared one; `None` for a file response.
+    /// The envelope body (`RNS/Link.py:1015`, `:911`), moved out of the last
+    /// handle or cloned out of a shared one; `None` for a file response.
     pub fn into_value(self) -> Option<rmpv::Value> {
         if let ResponseBody::File { .. } = &*self.0 {
             return None;
@@ -170,7 +176,8 @@ impl RequestResponseData {
         }
     }
 
-    /// The raw bytes of a file response; `None` for an envelope.
+    /// The raw bytes of a file response, the `resource.data` of a Resource
+    /// with metadata (`RNS/Link.py:903`); `None` for an envelope.
     pub fn data(&self) -> Option<&[u8]> {
         match &*self.0 {
             ResponseBody::File { data, .. } => Some(data),
@@ -178,7 +185,8 @@ impl RequestResponseData {
         }
     }
 
-    /// The decoded metadata of a file response; `None` for an envelope.
+    /// The decoded metadata of a file response, `RequestReceipt.metadata`
+    /// (`RNS/Link.py:903`, `:1441`); `None` for an envelope.
     pub fn metadata(&self) -> Option<&rmpv::Value> {
         match &*self.0 {
             ResponseBody::File { metadata, .. } => Some(metadata),
@@ -291,14 +299,18 @@ impl RequestReceipt {
         Self { status_rx, state }
     }
 
-    /// The id the responder knows this request by.
+    /// The id the responder knows this request by: `RequestReceipt.request_id`
+    /// (`RNS/Link.py:1341`), the packet's truncated hash or the request
+    /// Resource's `request_id` (`:1332`, `:1337`).
     pub fn request_id(&self) -> RequestId {
         self.state.request_id
     }
 
-    /// Where the request stands now. A receipt whose link went away without
-    /// concluding it reads `Failed`, with [`RequestError::LinkClosed`] as
-    /// the outcome [`response`](Self::response) returns.
+    /// Where the request stands now: `RequestReceipt.status`
+    /// (`RNS/Link.py:1318-1322`, `:1348`). A receipt whose link went away
+    /// without concluding it reads `Failed`, with
+    /// [`RequestError::LinkClosed`] as the outcome
+    /// [`response`](Self::response) returns.
     pub fn status(&self) -> RequestStatus {
         match self.outcome() {
             Some(Ok(_)) => RequestStatus::Ready,
@@ -347,14 +359,18 @@ impl RequestReceipt {
         self.state.bookkeeping().started_at
     }
 
-    /// When the request reached `Ready` or `Failed`; a receipt whose link
-    /// went away without concluding it is concluded here.
+    /// When the request reached `Ready` or `Failed`. Python keeps two clocks,
+    /// `concluded_at` for a failure (`RNS/Link.py:1380`, `:1400`, `:1410`)
+    /// and `response_concluded_at` for a response (`:1443`); this is both. A
+    /// receipt whose link went away without concluding it is concluded here.
     pub fn concluded_at(&self) -> Option<Instant> {
         self.outcome();
         self.state.bookkeeping().concluded_at
     }
 
-    /// A receiver that reports every status change from now on; the status
+    /// A receiver that reports every status change from now on. Fork-only:
+    /// Python registers `response_callback`, `failed_callback` and
+    /// `progress_callback` instead (`RNS/Link.py:1360-1363`). The status
     /// current at the call is read with `borrow_and_update`, not reported
     /// as a change. A `watch` keeps only the latest value, so quick
     /// successive changes may be seen as one. Once the request concludes,
@@ -370,10 +386,12 @@ impl RequestReceipt {
     }
 
     /// Waits until the request is `Ready` or `Failed` and returns the
-    /// response or the failure. A link that disappears without concluding
-    /// the request concludes it here as [`RequestError::LinkClosed`], so
-    /// [`status`](Self::status) and [`concluded_at`](Self::concluded_at)
-    /// agree with what this returned.
+    /// response or the failure. Fork-only: the awaitable twin of
+    /// `RequestReceipt.get_response()` (`RNS/Link.py:1478-1483`) and the
+    /// `response_callback` (`:1456-1458`). A link that disappears without
+    /// concluding the request concludes it here as
+    /// [`RequestError::LinkClosed`], so [`status`](Self::status) and
+    /// [`concluded_at`](Self::concluded_at) agree with what this returned.
     #[deny(clippy::await_holding_invalid_type)]
     pub async fn response(&self) -> Result<RequestResponseData, RequestError> {
         let mut status_rx = self.status_rx.clone();

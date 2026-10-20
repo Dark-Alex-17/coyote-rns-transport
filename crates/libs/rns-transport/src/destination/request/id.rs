@@ -9,12 +9,15 @@ use crate::hash::{address_hash, Hash, ADDRESS_HASH_SIZE};
 pub struct PathHash([u8; ADDRESS_HASH_SIZE]);
 
 impl PathHash {
-    /// Wraps an already computed hash.
+    /// Wraps an already computed hash: the 16 truncated-hash bytes a request
+    /// carries (`RNS/Link.py:486`).
     pub const fn new(bytes: [u8; ADDRESS_HASH_SIZE]) -> Self {
         Self(bytes)
     }
 
-    /// The hash of `path`: SHA-256 over its UTF-8 bytes, truncated to 16.
+    /// The hash of `path`: SHA-256 over its UTF-8 bytes, truncated to 16,
+    /// `RNS.Identity.truncated_hash(path.encode("utf-8"))`
+    /// (`RNS/Link.py:486`, `RNS/Identity.py:362-369`).
     pub fn of(path: &str) -> Self {
         Self(address_hash(path.as_bytes()))
     }
@@ -52,7 +55,8 @@ impl fmt::Display for PathHash {
 pub struct RequestId([u8; ADDRESS_HASH_SIZE]);
 
 impl RequestId {
-    /// Wraps an already computed id.
+    /// Wraps an already computed id: the 16 bytes `RequestReceipt.hash`
+    /// holds (`RNS/Link.py:1332`, `:1337`).
     pub const fn new(bytes: [u8; ADDRESS_HASH_SIZE]) -> Self {
         Self(bytes)
     }

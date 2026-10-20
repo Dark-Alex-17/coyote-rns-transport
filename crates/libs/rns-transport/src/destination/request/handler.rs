@@ -25,8 +25,14 @@ use super::{InboundRequest, RequestAllow};
 #[non_exhaustive]
 #[derive(Debug, Clone, PartialEq)]
 pub enum RequestResponse {
+    /// A packed value, answered as a `RESPONSE` packet or an envelope
+    /// Resource (`RNS/Link.py:848-852`).
     Value(rmpv::Value),
+    /// Raw bytes in the same envelope, packed as msgpack `bin`
+    /// (`RNS/Link.py:848-852`).
     Bytes(Vec<u8>),
+    /// A file response with optional metadata, always a Resource
+    /// (`RNS/Link.py:837-846`).
     Resource { data: Vec<u8>, metadata: Option<rmpv::Value> },
 }
 

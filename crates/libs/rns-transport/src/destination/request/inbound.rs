@@ -31,7 +31,8 @@ impl InboundRequest {
         Self { path, path_hash, data, request_id, link_id, remote_identity, requested_at }
     }
 
-    /// The path the handler was registered under.
+    /// The path the handler was registered under, `request_handler[0]`
+    /// (`RNS/Link.py:812`).
     pub fn path(&self) -> &str {
         &self.path
     }
@@ -42,7 +43,8 @@ impl InboundRequest {
         self.path_hash
     }
 
-    /// The request body as the requester packed it.
+    /// The request body as the requester packed it, `unpacked_request[2]`
+    /// (`RNS/Link.py:808`).
     pub fn data(&self) -> &rmpv::Value {
         &self.data
     }
@@ -65,12 +67,15 @@ impl InboundRequest {
         self.link_id
     }
 
-    /// The identity the peer delivered with `LINKIDENTIFY`, if it did.
+    /// The identity the peer delivered with `LINKIDENTIFY`, if it did:
+    /// the `self.__remote_identity` argument of `response_generator`
+    /// (`RNS/Link.py:831`).
     pub fn remote_identity(&self) -> Option<&Identity> {
         self.remote_identity.as_ref()
     }
 
-    /// The requester's clock when it built the request, in seconds.
+    /// The requester's clock when it built the request, in seconds:
+    /// `unpacked_request[0]` (`RNS/Link.py:806`).
     pub fn requested_at(&self) -> f64 {
         self.requested_at
     }

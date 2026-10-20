@@ -79,12 +79,15 @@ pub struct RequestFrame {
 }
 
 impl RequestFrame {
-    /// A request for the path hashing to `path_hash`, carrying `data`.
+    /// A request for the path hashing to `path_hash`, carrying `data`: the
+    /// `[time.time(), request_path_hash, data]` list (`RNS/Link.py:487`).
     pub fn new(requested_at: f64, path_hash: PathHash, data: Value) -> Self {
         Self { requested_at, path_hash, data }
     }
 
-    /// `time.time()` on the requesting side, seconds since the epoch.
+    /// `time.time()` on the requesting side, seconds since the epoch
+    /// (`RNS/Link.py:487`); the responder reads it as `unpacked_request[0]`
+    /// (`:806`).
     pub fn requested_at(&self) -> f64 {
         self.requested_at
     }
@@ -100,7 +103,8 @@ impl RequestFrame {
         &self.data
     }
 
-    /// The request body, moved out of the frame.
+    /// The request body, `unpacked_request[2]` (`RNS/Link.py:808`), moved out
+    /// of the frame.
     pub fn into_data(self) -> Value {
         self.data
     }
@@ -119,7 +123,8 @@ impl RequestFrame {
 
     /// Reads a request frame. Exactly three elements; `requested_at` must be
     /// `float64` (a `float32` or an integer is refused) and the path hash a
-    /// 16-byte `bin`.
+    /// 16-byte `bin`. Fork-only: Python hands the bytes to
+    /// `umsgpack.unpackb` with no shape check (`RNS/Link.py:1003`).
     pub fn decode(input: &[u8]) -> Result<Self, FrameDecodeError> {
         let [requested_at, path_hash, data] = read_array(input)?;
         let Value::F64(requested_at) = requested_at else {
@@ -140,12 +145,14 @@ pub struct ResponseFrame {
 }
 
 impl ResponseFrame {
-    /// A response to the request identified by `request_id`, carrying `body`.
+    /// A response to the request identified by `request_id`, carrying `body`:
+    /// the `[request_id, response]` list (`RNS/Link.py:848`).
     pub fn new(request_id: RequestId, body: Value) -> Self {
         Self { request_id, body }
     }
 
-    /// The id of the request this frame answers.
+    /// The id of the request this frame answers, `unpacked_response[0]`
+    /// (`RNS/Link.py:1014`).
     pub fn request_id(&self) -> RequestId {
         self.request_id
     }
@@ -157,12 +164,14 @@ impl ResponseFrame {
         &self.body
     }
 
-    /// The handler's return value, moved out of the frame.
+    /// The handler's return value, `unpacked_response[1]` (`RNS/Link.py:1015`),
+    /// moved out of the frame.
     pub fn into_body(self) -> Value {
         self.body
     }
 
-    /// The bytes `umsgpack.packb([request_id, response])` produces.
+    /// The bytes `umsgpack.packb([request_id, response])` produces
+    /// (`RNS/Link.py:848`).
     pub fn encode(&self) -> Vec<u8> {
         write(&Value::Array(vec![
             Value::Binary(self.request_id.to_bytes().to_vec()),
@@ -171,7 +180,8 @@ impl ResponseFrame {
     }
 
     /// Reads a response frame. Exactly two elements; the request id must be
-    /// a 16-byte `bin`.
+    /// a 16-byte `bin`. Fork-only: Python hands the bytes to
+    /// `umsgpack.unpackb` with no shape check (`RNS/Link.py:1013`).
     pub fn decode(input: &[u8]) -> Result<Self, FrameDecodeError> {
         let [request_id, body] = read_array(input)?;
         let request_id = RequestId::new(bin16(&request_id)?);

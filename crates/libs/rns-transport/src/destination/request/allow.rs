@@ -11,7 +11,12 @@ use crate::hash::AddressHash;
 #[non_exhaustive]
 #[derive(Debug, Clone)]
 pub enum RequestAllow {
+    /// `ALLOW_NONE` (`RNS/Destination.py:74`).
     None,
+    /// `ALLOW_ALL` (`RNS/Destination.py:75`).
     All,
+    /// `ALLOW_LIST` (`RNS/Destination.py:76`): the identities that may ask,
+    /// matched against the one that identified on the link
+    /// (`RNS/Link.py:821`).
     List(HashSet<AddressHash>),
 }

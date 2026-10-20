@@ -93,7 +93,8 @@ trailing clause of the bullet for the behaviour it pins.
   `request-forms` payload kind, `--request-size`, `--identify`,
   `--request-timeout`, `--request-path` and `--prove-all` for them
   (`python_channel_endpoint.py`, `python_channel_request_forms.py`); its
-  client reports the wire form it used.
+  request-forms handler also takes a `delay` key that holds the answer
+  back that many seconds, and its client reports the wire form it used.
   `python_channel_interop_parts/python_request_unknown_path.rs` pins a
   request for a path no handler is registered on, in both wire forms on
   either responder: dropped silently on the Rust responder with the
@@ -269,7 +270,11 @@ trailing clause of the bullet for the behaviour it pins.
   interval covering the timeout), with
   `rust_to_python_request_receipt_resource_request_none_response_is_delivered_then_times_out`
   (`python_request_size_limits.rs`) as the `None`-reply twin of that
-  trail.
+  trail, and `python_request_late_reply.rs` (a Python reply arriving
+  after the Rust timeout, in packet or Resource form, revives nothing and
+  the link keeps serving; a Resource request the Rust handler answers
+  `None` fails on the Python side from `DELIVERED`, `RNS/Link.py:1372`,
+  `:1398`).
 
 - `SendPacketOutcome::is_sent`: whether a send reached an interface,
   directly or by broadcast; the in-crate `matches!` twins use it.
@@ -315,10 +320,13 @@ trailing clause of the bullet for the behaviour it pins.
   naming the link and no event, and a fresh packet still earns its one),
   `destination/link_parts/link_sections/data_proof_tests.rs`,
   `tests/link_event_packet_proven_api.rs` and the reticulumd tests
-  `rust_to_python_plain_data_packet_is_proven_by_a_prove_all_destination` and
+  `rust_to_python_plain_data_packet_is_proven_by_a_prove_all_destination`,
   `rust_to_python_plain_data_packet_is_not_proven_by_a_default_destination`
   (a Python destination on `PROVE_ALL` proves the plain Data packet; the
-  stock `PROVE_NONE` default does not).
+  stock `PROVE_NONE` default does not) and
+  `rust_to_python_request_receipt_under_prove_all_only_the_plain_data_packet_is_proven`
+  (a request packet on a `PROVE_ALL` link earns no proof, only plain Data
+  does, `RNS/Link.py:950`, `:961`).
 
 - `DeliveryReceipt::link_id()`: `Some(link id)` for a proof addressed to a
   link, `None` for a destination proof. Pinned by

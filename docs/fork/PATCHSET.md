@@ -51,8 +51,8 @@ commits `1ddd5273`, `a2a40de7`, `3805fe7f`, `3ed78582`, `415d67c8`,
 `9a4e8735`, `a4cf4f4b`, `65fb8646`, `01e93fc3` and `17348ca6`; the
 `Python-in-the-loop request and proof interop` patch carries no other id
 and is fork commits `60e74ffb`, `6e583b50`, `ea6edfaa`, `9223ef43`,
-`6e9eedf2`, `3f615a3b`, `28bacbbe`, `dbd4ff7e`, `a0ba6f4a` and
-`b5dd3255`.
+`6e9eedf2`, `3f615a3b`, `28bacbbe`, `dbd4ff7e`, `a0ba6f4a`, `b5dd3255`
+and `e4eb444f`.
 
 | File | Patch |
 | --- | --- |
@@ -80,6 +80,7 @@ and is fork commits `60e74ffb`, `6e583b50`, `ea6edfaa`, `9223ef43`,
 | `crates/apps/reticulumd/tests/python_channel_interop_parts/module_prelude.rs` | outbound outcomes with link fast fail and accept hook |
 | `crates/apps/reticulumd/tests/python_channel_interop_parts/multi_segment_python_interop.rs` | outbound outcomes with link fast fail and accept hook |
 | `crates/apps/reticulumd/tests/python_channel_interop_parts/python_request_forms_matrix.rs` | Python-in-the-loop request and proof interop |
+| `crates/apps/reticulumd/tests/python_channel_interop_parts/python_request_late_reply.rs` | Python-in-the-loop request and proof interop |
 | `crates/apps/reticulumd/tests/python_channel_interop_parts/python_request_size_limits.rs` | Python-in-the-loop request and proof interop |
 | `crates/apps/reticulumd/tests/python_channel_interop_parts/python_request_unknown_path.rs` | Python-in-the-loop request and proof interop |
 | `crates/apps/reticulumd/tests/python_channel_interop_parts/python_resource_fault_reverse.rs` | outbound outcomes with link fast fail and accept hook |
@@ -2497,6 +2498,48 @@ In `python_channel_endpoint.py` the two `request-forms` call sites
 `request_timeout` and `request_path` (the first also `timeout` and
 `deadline`) as keyword arguments. Every async fn but the lock-taking
 test fns carries `#[deny(clippy::await_holding_invalid_type)]`.
+
+Fork commit `e4eb444f`: new fixture
+`python_channel_interop_parts/python_request_late_reply.rs` (325 lines,
+four ignored tests, one `include!` line in `python_channel_interop.rs`)
+pins a reply that arrives after the requester gave up, the Resource-form
+`None` answer on the Rust responder, and `PROVE_ALL` beside a request on
+one link.
+`python_to_rust_request_handler_none_response_leaves_the_resource_request_delivered_then_failed`
+has the Python client send a 48 KiB request Resource to a Rust
+destination whose `RequestAllow::All` handler returns `None`: Rust
+accepts the Resource on size alone (`RNS/Link.py:1036-1040`), runs the
+handler exactly once with the full body and sends nothing (the `:844`
+twin), so Python's receipt reaches `DELIVERED` (`:1372`) and
+`request_timed_out` fails it (`:1398`); the client reports
+`request_failed` with status 0 and no `response_size`, the terminal
+forms are exactly `[InboundRequest]`, and the id the handler saw equals
+the id Python logged.
+`rust_to_python_request_receipt_late_packet_response_after_timeout_is_ignored_and_link_serves_next`
+sends a packet-form request under a 2 s `RequestOptions::with_timeout`
+that the Python handler answers after 5 s: the status trail is exactly
+`[Sent, Failed]` and `response()` is `Err(RequestError::Timeout)` before
+the reply arrives, the late packet reply revives nothing, a following
+request on the same link concludes `Ready` with its own body under a
+fresh id, and no Resource terminal form is observed.
+`rust_to_python_request_receipt_late_resource_response_after_timeout_is_dropped_unsolicited`
+is the same with a 48 KiB late reply: the response advertisements,
+counted on the interface tap, do reach Rust and are dropped as
+unsolicited, no `InboundResponse` terminal form is observed, and a
+following request still concludes `Ready`.
+`rust_to_python_request_receipt_under_prove_all_only_the_plain_data_packet_is_proven`
+runs a request round trip on a `--prove-all` link and observes no
+`PacketProven`, Python proving only context-`None` Data
+(`RNS/Link.py:950`, `:961`), while a plain Data packet sent on the same
+link is proven. The `serve_request` handler in
+`python_channel_request_forms.py` takes a `delay` key: a dict request
+carrying it sleeps that many seconds before answering, on the handler's
+own daemon thread (`RNS/Link.py:1004-1005`), so the link keeps receiving
+while the Rust timeout runs out. The fixture reuses
+`RequestHandlerFixture`, `RequestHandlerRecord`,
+`RustRequestReceiptFixture` and the matrix, unknown-path and receipt
+helpers of its sibling fixtures. Every async fn but the lock-taking test
+fns carries `#[deny(clippy::await_holding_invalid_type)]`.
 
 ## 0.14.1 (upstream 0.14.0)
 

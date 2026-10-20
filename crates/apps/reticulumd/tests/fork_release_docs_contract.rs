@@ -503,6 +503,28 @@ fn crate_readme_known_divergences_cite_python_lines() {
     );
 }
 
+/// The crate README's `## Attaching to a shared instance` section describes
+/// the shared-instance client API in prose only. A fenced snippet there would
+/// need a verbatim pin in the public-API tests, and the section carries none.
+#[test]
+fn crate_readme_shared_instance_section_is_fence_free_prose() {
+    let readme = read_repo_file("crates/libs/rns-transport/README.md");
+    let heading = "\n## Attaching to a shared instance\n";
+    let start = readme
+        .find(heading)
+        .expect("crate README should carry an `## Attaching to a shared instance` section");
+    let section = &readme[start + heading.len()..];
+    let section = match section.find("\n## ") {
+        Some(end) => &section[..end],
+        None => section,
+    };
+    assert!(!section.trim().is_empty(), "the shared-instance section should not be empty");
+    assert!(
+        !section.contains("```"),
+        "the shared-instance section is prose only; found a code fence:\n{section}"
+    );
+}
+
 /// A release whose minor digit moved against the previous release heading
 /// carries breaking changes, and the README sends consumers to `### Breaking`
 /// in the CHANGELOG for them: that subsection must open the release section

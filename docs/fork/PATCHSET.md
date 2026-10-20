@@ -25,9 +25,9 @@ belongs to. Patch ids: F4 is shared-instance client packaging. The
 `shared-instance client packaging` patch is fork commits `2a027a9d`,
 `b306b2a1`, `17b41d6a`, `ff8a8e8a`, `ff67110d`, `e4494576`, `21e4dacc`,
 `a6036013`, `8a1c2d16`, `9247525e`, `afa72a00`, `c05832b9`, `013d0dd2`,
-`b7df209e`, `6baf2e34`, `2e62274d`, `eba27ade` and `a4fdb0bb`; the
-`proof cap stall on signal` patch carries no other id and is fork commit
-`cccc40e4`.
+`b7df209e`, `6baf2e34`, `2e62274d`, `eba27ade`, `a4fdb0bb` and `952d6ca9`;
+the `proof cap stall on signal` patch carries no other id and is fork
+commit `cccc40e4`.
 
 | File | Patch |
 | --- | --- |
@@ -53,9 +53,9 @@ belongs to. Patch ids: F4 is shared-instance client packaging. The
 
 Fork commits `2a027a9d`, `b306b2a1`, `17b41d6a`, `ff8a8e8a`, `ff67110d`,
 `e4494576`, `21e4dacc`, `a6036013`, `8a1c2d16`, `9247525e`, `afa72a00`,
-`c05832b9`, `013d0dd2`, `b7df209e`, `6baf2e34`, `2e62274d`, `eba27ade` and
-`a4fdb0bb`: F4, shared-instance client packaging. The first lands
-`SharedInstanceEndpoint`
+`c05832b9`, `013d0dd2`, `b7df209e`, `6baf2e34`, `2e62274d`, `eba27ade`,
+`a4fdb0bb` and `952d6ca9`: F4, shared-instance client packaging. The first
+lands `SharedInstanceEndpoint`
 and `SharedInstanceOptions`, the four `Transport` methods
 `attach_shared_instance`, `detach_shared_instance`,
 `shared_instance` and `connected_to_shared_instance`, the `Transport::stop`
@@ -128,7 +128,9 @@ patch, legend hashes head a patch), requires an undated heading and a pin
 clause per bullet in the Unreleased release notes, and pins the
 request-layer walker floor at its measured count. The eighteenth cites
 the fourth fixture, the two contract tests and the proof-cap stall in the
-release notes. The file sites below describe the combined result.
+release notes. The nineteenth makes the Unreleased ledger checks fail on
+a `## Unreleased` heading that lacks its `(upstream <base>)` suffix
+instead of skipping. The file sites below describe the combined result.
 Upstream sites:
 `crates/libs/rns-transport/src/transport/mod.rs` registers the
 `shared_instance` module, re-exports its two types and gains the

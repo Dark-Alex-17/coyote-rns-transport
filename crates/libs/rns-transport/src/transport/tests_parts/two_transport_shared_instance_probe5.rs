@@ -5,8 +5,10 @@
 // at debug.
 // Helpers come from the sibling `tests_parts` files included into this module.
 
-/// No record at `Warn` or above may carry the transport's name across the scenario: the
-/// attach-time missing-interface line and the stale-slot detach line are debug lines.
+/// No shared-instance record (the lines the test logger captures under its links target)
+/// at `Warn` or above may carry the transport's name across the scenario: the attach-time
+/// missing-interface line and the stale-slot detach line are debug lines. Stop's own budget
+/// warning lives in `lifecycle.rs` under another target and is outside this oracle.
 fn shared_instance_assert_never_warned(transport_name: &str) {
     let loud: Vec<_> = shared_instance_records_for(transport_name)
         .into_iter()

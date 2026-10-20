@@ -605,7 +605,9 @@ fn commit_hash(token: &str) -> Option<&str> {
 /// is skipped so a legend sentence that happens to open with `Fork commits`
 /// cannot vouch for itself.
 fn ledger_header_hashes(section: &str) -> Vec<&str> {
-    let table_start = section.find("\n| File | Patch |").unwrap_or(section.len());
+    let table_start = section
+        .find("\n| File | Patch |")
+        .expect("the section should open with a `| File | Patch |` table");
     let mut header_hashes = Vec::new();
     let mut in_header = false;
     for line in section[table_start..].lines() {
@@ -807,9 +809,9 @@ fn release_notes_cite_files_that_exist_in_the_tree() {
 /// Bullets under `## Unreleased` cite their pinning files the same way the
 /// released sections do, and are the ones most likely to drift while a test
 /// file is still being renamed. When the section is present its heading
-/// carries no date, every top-level bullet ends in a test clause citing at
-/// least one file, and every cite must resolve under the same roots; a
-/// CHANGELOG without the section has nothing to check.
+/// carries no date, every top-level bullet cites at least one pinning file,
+/// and every cite must resolve under the same roots; a CHANGELOG without the
+/// section has nothing to check.
 #[test]
 fn unreleased_notes_cite_files_that_exist_in_the_tree() {
     let changelog = read_repo_file("crates/libs/rns-transport/CHANGELOG.md");
@@ -840,7 +842,7 @@ fn unreleased_notes_cite_files_that_exist_in_the_tree() {
         let text = bullet.join("\n");
         assert!(
             !cited_source_files(&text).is_empty(),
-            "every Unreleased bullet should end in a test clause citing the file that pins it; \
+            "every Unreleased bullet should cite at least one file that pins it; \
              this one cites none:\n{text}"
         );
     }

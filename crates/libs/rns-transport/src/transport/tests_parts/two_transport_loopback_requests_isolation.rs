@@ -9,10 +9,11 @@ use std::sync::Once;
 /// through its effect on other requests.
 const SLOW_HANDLER_SLEEP: Duration = Duration::from_secs(30);
 
-/// Keeps the link's drop records and the shared-instance client's records. Tests share one
-/// process and `log::set_logger` installs once, so this is the only logger in the binary;
-/// a record is attributed to a test by the link id or the `tp(<name>)` it names, and only
-/// those two families are kept so the store stays small for the rest of the run.
+/// Keeps the link's drop records and the attach/detach lines of the shared-instance client.
+/// Tests share one process and `log::set_logger` installs once, so there must be exactly
+/// one logger in the binary and this is it; a record is attributed to a test by the link id
+/// or the `tp(<name>)` it names, and only those two families are kept so the store stays
+/// small for the rest of the run.
 struct TestLogger {
     dropped_requests: StdMutex<Vec<String>>,
     shared_instance: StdMutex<Vec<(log::Level, String)>>,
@@ -24,7 +25,7 @@ static TEST_LOG: TestLogger = TestLogger {
 };
 
 /// The target `attach_shared_instance` and `detach_shared_instance` log under: their
-/// section file is `include!`d into `transport/links.rs`.
+/// section file is `include!`d, via `links_parts/transport.rs`, into the links module.
 const SHARED_INSTANCE_LOG_TARGET: &str = "rns_transport::transport::links";
 
 impl log::Log for TestLogger {

@@ -95,10 +95,13 @@ trailing clause of the bullet for the behaviour it pins.
   (`python_channel_endpoint.py`, `python_channel_request_forms.py`); its
   client reports the wire form it used.
   `python_channel_interop_parts/python_request_unknown_path.rs` pins a
-  request for a path no handler is registered on: dropped silently on
-  the Rust responder with the destination still serving, and on the
-  Python responder left unanswered in both wire forms (`RNS/Link.py:810`,
-  the request Resource accepted on size alone first, `:1036-1040`).
+  request for a path no handler is registered on, in both wire forms on
+  either responder: dropped silently on the Rust responder with the
+  destination still serving (the Resource form accepted on size alone
+  first, then dropped on the path-hash miss, so the Python requester
+  fails from `DELIVERED`, `RNS/Link.py:1372`, `:1398`), and on the
+  Python responder left unanswered (`RNS/Link.py:810`, the request
+  Resource accepted on size alone first, `:1036-1040`).
 
 - `LinkEvent::Data` with `PacketContext::Request` keeps posting for every
   inbound request; a request whose path has a registered handler is
@@ -262,7 +265,11 @@ trailing clause of the bullet for the behaviour it pins.
   `rust_to_python_request_receipt_unregistered_path_packet_request_times_out_undelivered`
   and `..._resource_request_is_delivered_then_times_out` (status trails
   `[Sent, Failed]` and `[Sent, Delivered, Failed]`, the Resource form's
-  clock running from delivery).
+  clock running from delivery, asserted as the Delivered-to-Failed
+  interval covering the timeout), with
+  `rust_to_python_request_receipt_resource_request_none_response_is_delivered_then_times_out`
+  (`python_request_size_limits.rs`) as the `None`-reply twin of that
+  trail.
 
 - `SendPacketOutcome::is_sent`: whether a send reached an interface,
   directly or by broadcast; the in-crate `matches!` twins use it.
@@ -532,7 +539,12 @@ trailing clause of the bullet for the behaviour it pins.
   and the link goes on carrying request Resources afterwards. Pinned by
   `two_transport_loopback_requests_resource_form.rs`,
   `two_transport_loopback_requests_resource_form_probe.rs` and
-  `two_transport_loopback_resources_reject.rs`.
+  `two_transport_loopback_resources_reject.rs`, and with Python RNS 1.5.2
+  on the requesting side by the reticulumd test
+  `python_to_rust_request_handler_resource_request_over_max_request_size_is_rejected_promptly`
+  (`python_request_size_limits.rs`: a Python request Resource above the
+  limit fails on the Python side through its receiver-cancel path in well
+  under the request timeout, the handler never running).
 
 - The `max_response_size` gate on a response Resource reads the advertised
   data size `d` (`RNS/Link.py:1049`, `RNS/Resource.py:1285-1287`) instead
@@ -605,8 +617,12 @@ trailing clause of the bullet for the behaviour it pins.
   `two_transport_loopback_resources_reject_response.rs` (whose bare
   response fixtures now send the soliciting request Resource first, and
   whose reject test sends a second response under the rejected id and
-  sees it dropped without a reject) and
-  `destination/link_parts/link_sections/pending_requests_tests.rs`.
+  sees it dropped without a reject),
+  `destination/link_parts/link_sections/pending_requests_tests.rs`, and
+  with Python RNS 1.5.2 on the responding side by the reticulumd test
+  `rust_to_python_request_receipt_resource_response_over_max_response_size_fails_oversize`
+  (`python_request_size_limits.rs`: `Oversize` from the advertisement
+  gate against a Python Resource reply, the link still serving afterwards).
 
 - `Link::set_response_size_limit` composes with the request record in
   either order: called before `send_request_resource*` or `request_packet*`

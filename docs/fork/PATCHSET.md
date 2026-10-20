@@ -51,7 +51,8 @@ commits `1ddd5273`, `a2a40de7`, `3805fe7f`, `3ed78582`, `415d67c8`,
 `9a4e8735`, `a4cf4f4b`, `65fb8646`, `01e93fc3` and `17348ca6`; the
 `Python-in-the-loop request and proof interop` patch carries no other id
 and is fork commits `60e74ffb`, `6e583b50`, `ea6edfaa`, `9223ef43`,
-`6e9eedf2`, `3f615a3b`, `28bacbbe` and `dbd4ff7e`.
+`6e9eedf2`, `3f615a3b`, `28bacbbe`, `dbd4ff7e`, `a0ba6f4a` and
+`b5dd3255`.
 
 | File | Patch |
 | --- | --- |
@@ -79,6 +80,7 @@ and is fork commits `60e74ffb`, `6e583b50`, `ea6edfaa`, `9223ef43`,
 | `crates/apps/reticulumd/tests/python_channel_interop_parts/module_prelude.rs` | outbound outcomes with link fast fail and accept hook |
 | `crates/apps/reticulumd/tests/python_channel_interop_parts/multi_segment_python_interop.rs` | outbound outcomes with link fast fail and accept hook |
 | `crates/apps/reticulumd/tests/python_channel_interop_parts/python_request_forms_matrix.rs` | Python-in-the-loop request and proof interop |
+| `crates/apps/reticulumd/tests/python_channel_interop_parts/python_request_size_limits.rs` | Python-in-the-loop request and proof interop |
 | `crates/apps/reticulumd/tests/python_channel_interop_parts/python_request_unknown_path.rs` | Python-in-the-loop request and proof interop |
 | `crates/apps/reticulumd/tests/python_channel_interop_parts/python_resource_fault_reverse.rs` | outbound outcomes with link fast fail and accept hook |
 | `crates/apps/reticulumd/tests/python_channel_interop_parts/python_to_rust_request_handler.rs` | Python-in-the-loop request and proof interop |
@@ -2430,6 +2432,71 @@ Python 3.10 or later; `run_client` computes `request_deadline =
 time.time() + max(timeout, request_timeout or 0.0)` so a
 `--request-timeout` longer than `--timeout` cannot cut the wait short of
 RNS's `failed_callback`.
+
+Fork commit `a0ba6f4a`: new fixture
+`python_channel_interop_parts/python_request_size_limits.rs` (240 lines,
+three ignored tests, one `include!` line in `python_channel_interop.rs`)
+pins what a consumer sees when one side's size policy refuses the other
+side's Resource, and the Resource-form `None` answer.
+`python_to_rust_request_handler_resource_request_over_max_request_size_is_rejected_promptly`
+sets `SingleInputDestination::set_max_request_size(1024)` on the Rust
+destination, below a 48 KiB Python request Resource: Rust refuses the
+advertisement with a receiver cancel, so the Python sender's Resource
+ends `REJECTED` and `request_resource_concluded` fails the receipt at
+once through `failed_callback` (`RNS/Link.py:1367-1385`), the client
+reporting `request_failed` with status 0 in well under its 25 s request
+timeout; the handler never runs, no `InboundRequest` or `Outbound`
+terminal form is observed, and a second in-limit packet-form client is
+still answered.
+`rust_to_python_request_receipt_resource_response_over_max_response_size_fails_oversize`
+sends `RequestOptions::with_max_response_size(1024)`, below the Python
+handler's 48 KiB Resource reply: the receipt fails `Oversize` from the
+advertisement size gate well before its 15 s timeout, Python's
+`Resource.reject` path is benign, no `InboundResponse` terminal form is
+observed, and a following in-limit request on the same link concludes
+`Ready`.
+`rust_to_python_request_receipt_resource_request_none_response_is_delivered_then_times_out`
+sends a 48 KiB request Resource the Python handler answers with `None`
+(`RNS/Link.py:844` sends nothing): the status trail is exactly `[Sent,
+Delivered, Failed]`, `response()` is `Err(RequestError::Timeout)`,
+exactly one `OutboundComplete` is observed, and the Python report shows
+the handler ran once. The fixture reuses `RequestHandlerFixture`,
+`RequestHandlerRecord`, `RustRequestReceiptFixture`,
+`request_unknown_path_status_trail` and the matrix helpers of its
+sibling fixtures. Every async fn but the lock-taking test fns carries
+`#[deny(clippy::await_holding_invalid_type)]`.
+
+Fork commit `b5dd3255`: the Resource-form timeout anchored at delivery,
+and the Resource-form unknown path pinned on the Rust responder. In
+`python_request_unknown_path.rs` (236 to 311 lines)
+`request_unknown_path_status_trail` records a `tokio::time::Instant`
+beside every status it observes, projected by
+`request_unknown_path_statuses` and `request_unknown_path_instant_of`;
+the two Resource-form timeout cells,
+`rust_to_python_request_receipt_unregistered_path_resource_request_is_delivered_then_times_out`
+and the size-limit fixture's
+`..._resource_request_none_response_is_delivered_then_times_out`
+(`python_request_size_limits.rs`, 240 to 242 lines), assert
+`failed_at.duration_since(delivered_at) >= timeout` for their 3 s
+timeout in place of an elapsed-since-send check, which a clock anchored
+at the send would also have passed; the Delivered-to-Failed interval
+only covers the timeout when the clock starts at delivery. New test
+`python_to_rust_request_handler_unregistered_path_resource_request_fails_on_python`
+has the Python client request `/test/missing` as a 48 KiB Resource
+against a Rust destination serving `/test/request` under
+`RequestAllow::All`: Rust accepts the request Resource on size alone as
+Python does at `RNS/Link.py:1036-1040` and assembles it, the
+`request-dispatch` worker drops it on the path-hash miss, the handler
+never runs, the terminal forms from `resource_events()` are exactly
+`[InboundRequest]`, and Python's Resource-form receipt reaches
+`DELIVERED` (`:1372`) so `failed_callback` fires (`:1398`): the client
+reports `request_failed` with status 0 and `request_form` `resource`.
+In `python_channel_endpoint.py` the two `request-forms` call sites
+(`ChannelClient.run` into `python_channel_request_forms.run_client`, and
+`main` into `ChannelClient.run`) pass `request_size`, `identify`,
+`request_timeout` and `request_path` (the first also `timeout` and
+`deadline`) as keyword arguments. Every async fn but the lock-taking
+test fns carries `#[deny(clippy::await_holding_invalid_type)]`.
 
 ## 0.14.1 (upstream 0.14.0)
 

@@ -58,7 +58,8 @@ and is fork commits `60e74ffb`, `6e583b50`, `ea6edfaa`, `9223ef43`,
 `6e9eedf2`, `3f615a3b`, `28bacbbe`, `dbd4ff7e`, `a0ba6f4a`, `b5dd3255`,
 `e4eb444f` and `fdb20280`; the `release 0.15.0` patch carries no other id
 and is fork commits `d4a3b2d2`, `5075d765`, `eb0e19f2`, `06068516`,
-`ac9c49af`, `8b3ce9e1`, `23bdc1a8`, `ba92e2ba`, `8d70f3e1` and `ccfba204`.
+`ac9c49af`, `8b3ce9e1`, `23bdc1a8`, `ba92e2ba`, `8d70f3e1`, `ccfba204` and
+`af1b7e62`.
 
 | File | Patch |
 | --- | --- |
@@ -84,6 +85,7 @@ and is fork commits `d4a3b2d2`, `5075d765`, `eb0e19f2`, `06068516`,
 | `crates/apps/reticulumd/src/bin/reticulumd/inbound_worker_parts/module_core.rs` | outbound outcomes with link fast fail and accept hook |
 | `crates/apps/reticulumd/tests/direct_link_delivery.rs` | outbound outcomes with link fast fail and accept hook |
 | `crates/apps/reticulumd/tests/fork_publish_contract.rs` | release 0.15.0 |
+| `crates/apps/reticulumd/tests/fork_release_docs_contract.rs` | release 0.15.0 |
 | `crates/apps/reticulumd/tests/fuzz_campaign_contract.rs` | request wire frames and fuzz |
 | `crates/apps/reticulumd/tests/python_channel_interop.rs` | Python-in-the-loop request and proof interop |
 | `crates/apps/reticulumd/tests/python_channel_interop_parts/ax25_kiss_pty.rs` | outbound outcomes with link fast fail and accept hook |
@@ -2605,8 +2607,8 @@ the pin of the Rust record gate. Every async fn but the lock-taking test
 fns carries `#[deny(clippy::await_holding_invalid_type)]`.
 
 Fork commits `d4a3b2d2`, `5075d765`, `eb0e19f2`, `06068516`, `ac9c49af`,
-`8b3ce9e1`, `23bdc1a8`, `ba92e2ba`, `8d70f3e1` and `ccfba204`: release
-0.15.0. The first gates the inherited Codex review workflow
+`8b3ce9e1`, `23bdc1a8`, `ba92e2ba`, `8d70f3e1`, `ccfba204` and `af1b7e62`:
+release 0.15.0. The first gates the inherited Codex review workflow
 (`.github/workflows/codex-review.yml`) on the repository variable
 `CODEX_REVIEW_ENABLED`, so the check is skipped until the variable and the
 `OPENAI_API_KEY` secret exist, adds the `fork_publish_contract` test to the
@@ -2658,6 +2660,18 @@ the README rebase recipe, adopts the probe's
 lets the breaking-changes test skip a leading `## Unreleased` stub, widens
 the out-of-crate wildcard-arm test to `FrameDecodeError`, and names the
 request-layer enums as `#[non_exhaustive]` in the `CHANGELOG.md`. The
+eleventh moves the release-documentation contracts (rustdoc cites, the
+divergence register, the release-notes shape, the README snippet pins and the
+`#[non_exhaustive]` sites) out of the full `fork_publish_contract.rs` into
+`crates/apps/reticulumd/tests/fork_release_docs_contract.rs`, run by the same
+CI step (`.github/workflows/ci.yml`) and README recipe line; the cite
+contract now walks public fields, holds every variant to its own cite, and
+checks by name the new items that share a file with upstream code. It also
+adopts the probe's two lock tests (the recipe regenerates both locks; the
+fuzz lock resolves the crate from its path dependency), adds
+`FrameDecodeError` to the `#[non_exhaustive]` sites, cites the RCL on the
+`OutboundRejected` variant doc in `crates/libs/rns-transport/src/resource.rs`,
+and names both contract files in the `CHANGELOG.md` version bullet. The
 ledger-only commits that complete this section are omitted by convention. The
 patches of the `## 0.14.1` section below are still carried; the patches
 above build on their files rather than replacing them, and the publish

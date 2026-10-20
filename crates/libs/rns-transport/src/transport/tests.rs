@@ -194,3 +194,5 @@ include!("tests_parts/two_transport_loopback_resources_outcome_probe2.rs");
 include!("tests_parts/two_transport_loopback_resources_outcome_probe3.rs");
 
 include!("tests_parts/two_transport_shared_instance.rs");
+
+include!("tests_parts/two_transport_shared_instance_probe.rs");

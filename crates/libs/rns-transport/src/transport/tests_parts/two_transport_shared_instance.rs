@@ -1,7 +1,8 @@
 // Coverage for the shared-instance client API: two client transports attached to one TCP
 // shared instance learn each other's announces at one hop and open links both ways, a
-// second attach is refused until the first is detached, and a unix attach registers its
-// client interface before anything listens on the socket. Helpers come from the sibling
+// second attach is refused until the first is detached, each attach lands a tunnel in the
+// shared instance's table, and a unix attach registers its client interface before anything
+// listens on the socket and connects once something does. Helpers come from the sibling
 // `tests_parts` files included into this module.
 
 #[cfg(unix)]
@@ -29,6 +30,38 @@ impl SharedInstanceServer {
             || self.status.to_json().to_string(),
         )
         .await;
+    }
+
+    /// Polls the shared instance's tunnel table until the destinations with a path through
+    /// a tunnel are exactly `expected`. Each attached client synthesizes one tunnel at
+    /// attach and the shared instance files the client's announce under it; the export
+    /// skips path-less tunnels, so this is polled only once the clients have announced.
+    /// The handler guard is taken per poll, never across the sleep.
+    #[deny(clippy::await_holding_invalid_type)]
+    async fn await_tunneled_destinations(&self, mut expected: Vec<AddressHash>) {
+        expected.sort();
+        let handler = self.transport.get_handler();
+        let deadline = Instant::now() + LOOPBACK_TIMEOUT;
+        loop {
+            let mut tunneled = {
+                let handler = handler.lock().await;
+                handler
+                    .tunnel_table
+                    .export_python_entries(std::time::Instant::now(), 0.0, |_| None)
+                    .iter()
+                    .flat_map(|tunnel| tunnel.paths.iter().map(|path| path.destination))
+                    .collect::<Vec<_>>()
+            };
+            tunneled.sort();
+            if tunneled == expected {
+                break;
+            }
+            assert!(
+                Instant::now() < deadline,
+                "timed out waiting for the shared instance to tunnel {expected:?}: {tunneled:?}"
+            );
+            tokio::time::sleep(LOOPBACK_POLL).await;
+        }
     }
 }
 
@@ -150,6 +183,7 @@ async fn shared_instance_clients_exchange_announces_and_open_links_both_ways() {
     let (b_learned, hops) =
         shared_instance_learn_announce(&mut a.announces, &b_desc.address_hash).await;
     assert_eq!(hops, 1, "a learns b's destination at one hop");
+    server.await_tunneled_destinations(vec![a_desc.address_hash, b_desc.address_hash]).await;
 
     let mut b_out_events = b.transport.out_link_events();
     let (_link_to_a, link_id) = open_link(&b.transport, a_learned).await;
@@ -241,29 +275,40 @@ async fn shared_instance_second_attach_is_refused_until_detached() {
     timeout(STOP_TIMEOUT, server.transport.stop()).await.expect("shared instance stop completes");
 }
 
-/// The unix client worker keeps retrying an absent socket, so the attach succeeds and the
-/// interface stays registered until detach cancels it.
+/// The unix client worker keeps retrying an absent socket at the configured 50 ms wait, so
+/// the attach succeeds, the interface stays registered, and a listener bound afterwards on
+/// the same path accepts the retrying client well inside two seconds.
 #[cfg(unix)]
 #[tokio::test]
 #[deny(clippy::await_holding_invalid_type)]
 async fn shared_instance_unix_attach_registers_a_local_unix_client() {
     let identity = PrivateIdentity::new_from_rand(OsRng);
     let transport = Transport::new(TransportConfig::new("shared-instance-unix", &identity, false));
-    let socket =
-        std::env::temp_dir().join(format!("rns-shared-{}", std::process::id())).join("absent.sock");
+    let temp = tempfile::tempdir().expect("tempdir");
+    let socket = temp.path().join("late.sock");
 
     let iface = transport
         .attach_shared_instance(
-            SharedInstanceEndpoint::Unix(LocalUnixEndpoint::filesystem(socket)),
+            SharedInstanceEndpoint::Unix(LocalUnixEndpoint::filesystem(socket.clone())),
             SharedInstanceOptions::default().with_reconnect_wait(Duration::from_millis(50)),
         )
         .await
         .expect("attach succeeds before the socket exists");
     shared_instance_assert_attached(&transport, iface).await;
 
+    // The worker's first connect must fail before the socket exists, or the accept below
+    // says nothing about the reconnect wait. On the current-thread test runtime one yield
+    // runs the worker through that failure and into its 50 ms sleep.
+    tokio::task::yield_now().await;
+    let listener = tokio::net::UnixListener::bind(&socket).expect("bind the late socket");
+    timeout(Duration::from_secs(2), listener.accept())
+        .await
+        .expect("the retrying client connects within the window")
+        .expect("accept succeeds");
+
     let detached = timeout(STOP_TIMEOUT, transport.detach_shared_instance())
         .await
-        .expect("detach completes while the worker is retrying");
+        .expect("detach completes while the client is connected");
     assert!(detached, "detach reports the attached shared instance");
     shared_instance_assert_released(&transport, iface).await;
 }

@@ -1,6 +1,10 @@
 use std::fs;
 use std::path::{Path, PathBuf};
 
+/// The lockfiles a release regenerates: the workspace lock and the fuzz crate's
+/// own lock, the fuzz crate not being a workspace member.
+const RELEASE_LOCKS: [&str; 2] = ["Cargo.lock", "crates/libs/rns-transport/fuzz/Cargo.lock"];
+
 fn repo_root() -> PathBuf {
     PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../..").canonicalize().expect("repo root")
 }
@@ -226,7 +230,7 @@ fn release_sites_and_ledgers_track_the_crate_version() {
     let lock_entry = format!("name = \"coyote-rns-transport\"\n{version_token}\n");
     // The fuzz crate has a lock of its own (it is not a workspace member), and
     // nothing but this pin notices when a release leaves it behind.
-    for lock in ["Cargo.lock", "crates/libs/rns-transport/fuzz/Cargo.lock"] {
+    for lock in RELEASE_LOCKS {
         assert!(
             read_repo_file(lock).contains(&lock_entry),
             "{lock} should carry the published crate at {version:?}; regenerate it with \
@@ -292,7 +296,7 @@ fn release_recipe_regenerates_every_lock_the_version_pin_checks() {
         .unwrap_or(readme.len());
     let recipe = &readme[step_start..step_end];
 
-    for lock in ["Cargo.lock", "crates/libs/rns-transport/fuzz/Cargo.lock"] {
+    for lock in RELEASE_LOCKS {
         assert!(
             recipe.contains(&format!("`{lock}`")),
             "the README release recipe should name {lock:?} among the locks to regenerate:\n{recipe}"
@@ -399,13 +403,13 @@ fn patch_set_ledger_lists_existing_files_for_the_current_release() {
         missing.join("\n")
     );
 
-    for required in [
-        "Cargo.lock",
+    let required_every_release = [
         "crates/libs/rns-transport/Cargo.toml",
         "crates/libs/rns-transport/CHANGELOG.md",
         "crates/apps/reticulumd/tests/fork_publish_contract.rs",
         "docs/fork/PATCHSET.md",
-    ] {
+    ];
+    for required in RELEASE_LOCKS.iter().chain(required_every_release.iter()).copied() {
         assert!(
             table_paths.contains(&required),
             "the {version} table should list {required:?}, which changes on every release"

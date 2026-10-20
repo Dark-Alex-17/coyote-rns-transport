@@ -33,8 +33,10 @@ pub enum OutboundFailure {
     NotSent,
     /// Fork-only: the retry budget ran out while the resource was advertised,
     /// transferring or awaiting its proof. Python's watchdog calls `cancel()`
-    /// when `retries_left` hits zero (`RNS/Resource.py:588-590`, `:659-661`),
-    /// which sets `Resource.FAILED` (`:1102`).
+    /// when `retries_left` hits zero while advertised (`RNS/Resource.py:588-590`)
+    /// or awaiting the proof (`:659-661`), which sets `Resource.FAILED`
+    /// (`:1102`); while transferring it waits a single RTT-scaled `max_wait`
+    /// with no retries (`:643-650`), a divergence the crate README registers.
     RetriesExhausted,
     /// Fork-only: a later segment of a split resource could not be built, or
     /// the sender failed while serving the peer's part requests: a part or
@@ -75,7 +77,7 @@ pub enum OutboundResult {
 /// `Failed(`[`OutboundFailure::LinkClosed`]`)` rather than hanging.
 ///
 /// Fork-only: Python has no awaitable verdict, only the Resource callback
-/// (`RNS/Resource.py:805-806`, `:1118-1121`, `:1130-1133`).
+/// (`RNS/Resource.py:805-806`, `:1118-1121`, `:1130-1134`).
 #[must_use = "the outcome resolves once; dropping it loses the verdict"]
 pub struct OutboundOutcome {
     rx: tokio::sync::oneshot::Receiver<OutboundResult>,

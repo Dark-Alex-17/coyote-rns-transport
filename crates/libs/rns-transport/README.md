@@ -341,6 +341,9 @@ not Python's default (see Known divergences).
 
 Where this crate is known to behave differently from RNS 1.5.2. Each entry
 names what the crate does, what Python does, and where in Python to look.
+The register covers the divergences the fork introduced; behaviour
+inherited from upstream `reticulum-rs-transport` is not catalogued here,
+except where a fork change made it visible, and such an entry says so.
 
 - A request timeout fails a receipt in any status except `Receiving`, the
   packet form in `Sent` included, with `RequestError::Timeout`. Python only
@@ -419,6 +422,13 @@ names what the crate does, what Python does, and where in Python to look.
   `Transport::recv_announces()` flagged with `is_path_response`. Python's
   default announce handler drops path responses unless it sets
   `receive_path_responses` (`RNS/Transport.py:2500-2504`).
+- Inherited from upstream, surfaced by `OutboundFailure::RetriesExhausted`:
+  the sender counts its retry budget in `Transferring` too, one retry per
+  retry interval without a part request, and fails with `RetriesExhausted`
+  when it runs out. Python's sender waits one RTT-scaled `max_wait` there
+  with no retries, then cancels (`RNS/Resource.py:643-650`); its
+  `retries_left` budget applies while advertised (`:588-590`) and while
+  awaiting the proof (`:659-661`).
 
 Not divergences:
 
@@ -472,9 +482,10 @@ of `0.14.1`:
 - The fuzz crate for the new decoders.
 - The Python-in-the-loop interop tests.
 - Release hygiene: the Codex review workflow gated on the repository
-  variable `CODEX_REVIEW_ENABLED`, `fork_publish_contract` run in PR CI, its
-  old-name walk skipping dot-directories, and RNS citations on every public
-  request-layer and outcome item.
+  variable `CODEX_REVIEW_ENABLED`, `fork_publish_contract` and
+  `fork_release_docs_contract` run in PR CI, the old-name walk skipping
+  dot-directories, and RNS citations on every public request-layer and
+  outcome item.
 
 The `0.14.1` patches (link-close stdout, bound-interface segment dispatch,
 reject outside the link lock, sender before advertisement, hex parsers,

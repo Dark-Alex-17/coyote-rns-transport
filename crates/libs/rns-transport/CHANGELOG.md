@@ -61,7 +61,8 @@ trailing clause of the bullet for the behaviour it pins.
   field values, key order `t d n h r o i l q f m`
   (`RNS/Resource.py:1337-1347`) and flag layout (`RNS/Resource.py:1318`)
   are pinned against three Python-generated advertisements by
-  `resource/tests_advert_kat.rs`.
+  `resource/tests_advert_kat.rs`. `FrameDecodeError` is
+  `#[non_exhaustive]`.
 
 - The fuzz crate `crates/libs/rns-transport/fuzz/` with the targets
   `request_frame_decode`, `response_frame_decode` and
@@ -505,8 +506,8 @@ trailing clause of the bullet for the behaviour it pins.
   and `crates/apps/rns-tools/src/bin/independent_interop_node/events.rs`)
   gained a `PacketProven` arm, and the latter, being in another crate, a
   wildcard arm as well; every out-of-tree exhaustive match needs one. This
-  is a breaking change, so the next release is `0.15.0`. The attribute is
-  pinned by `tests/link_event_packet_proven_api.rs`.
+  is a breaking change and is listed under `### Breaking` above. The
+  attribute is pinned by `tests/link_event_packet_proven_api.rs`.
 
 - `ResourceEventKind::OutboundRejected` is now
   `OutboundRejected { reason: RejectReason }`, carrying why the transfer was
@@ -526,7 +527,7 @@ trailing clause of the bullet for the behaviour it pins.
 - `ResourceEventKind` is `#[non_exhaustive]`: an out-of-tree exhaustive
   match on it no longer compiles without a wildcard arm. The enum was
   already broken for such a match this release by `OutboundRejected {
-  reason }`, so the attribute lands in the same major bump rather than
+  reason }`, so the attribute lands in the same minor bump rather than
   costing another one. The in-workspace matches in `reticulumd` (the
   remote-control link bridge and the inbound worker core, which log an
   unknown kind at debug) and in the independent interop node (recorded as

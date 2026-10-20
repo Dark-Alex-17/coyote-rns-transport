@@ -94,14 +94,17 @@ impl RequestStatus {
 
 /// Why a request failed. Python has the single `RequestReceipt.FAILED`
 /// status (`RNS/Link.py:1318-1322`), reached from `request_timed_out`
-/// (`:1397-1405`) and `response_rejected` (`:1407-1411`); the variants here
-/// split that status by cause.
+/// (`:1397-1405`), `response_rejected` (`:1407-1411`) and
+/// `request_resource_concluded` (`:1377-1381`); the variants here split that
+/// status by cause.
 #[non_exhaustive]
 #[derive(Debug, Clone, Copy, PartialEq, Eq, thiserror::Error)]
 pub enum RequestError {
     /// No response within the request timeout: counted from the send for a
     /// request packet, from `Delivered` for a request Resource. Python's
-    /// `request_timed_out` (`RNS/Link.py:1397-1405`).
+    /// `request_timed_out` (`RNS/Link.py:1397-1405`) only fails a receipt
+    /// that is `DELIVERED` (`:1398`), which the receipt of a request packet
+    /// never is, so it leaves that receipt pending; here it fails.
     #[error("no response before the request timeout")]
     Timeout,
     /// The link closed while the request was pending. Fork-only: Python's

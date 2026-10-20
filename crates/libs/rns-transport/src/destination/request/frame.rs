@@ -12,7 +12,8 @@ use super::id::{PathHash, RequestId};
 /// frame's own outer array is level one. Fork-only: Python decodes with
 /// `umsgpack.unpackb` and sets no depth limit (`RNS/Link.py:1003`, `:1013`);
 /// a frame deeper than the interpreter's recursion limit raises inside
-/// `unpackb` and is dropped at `RNS/Link.py:1007`.
+/// `unpackb` and is dropped, a request at `RNS/Link.py:1007` and a response
+/// at `:1020`.
 pub const MAX_DEPTH: usize = 128;
 
 /// Why a byte string is not a request or response frame.

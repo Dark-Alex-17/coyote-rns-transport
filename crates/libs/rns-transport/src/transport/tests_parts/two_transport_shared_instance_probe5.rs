@@ -30,7 +30,7 @@ fn shared_instance_debug_records_containing(transport_name: &str, needle: &str) 
 #[tokio::test]
 #[deny(clippy::await_holding_invalid_type)]
 async fn shared_instance_tcp_attach_logs_the_reconnect_wait_as_ignored_and_never_warns() {
-    install_dropped_request_logger();
+    install_test_logger();
     let name = "shared-instance-log-tcp";
     let server = shared_instance_server().await;
     let identity = PrivateIdentity::new_from_rand(OsRng);
@@ -78,7 +78,7 @@ async fn shared_instance_tcp_attach_logs_the_reconnect_wait_as_ignored_and_never
 #[tokio::test]
 #[deny(clippy::await_holding_invalid_type)]
 async fn shared_instance_unix_attach_logs_the_reconnect_wait_in_force() {
-    install_dropped_request_logger();
+    install_test_logger();
     let name = "shared-instance-log-unix";
     let temp = tempfile::tempdir().expect("tempdir");
     let (owner, unix_endpoint) = shared_instance_unix_owner(temp.path()).await;
@@ -111,7 +111,7 @@ async fn shared_instance_unix_attach_logs_the_reconnect_wait_in_force() {
 #[tokio::test]
 #[deny(clippy::await_holding_invalid_type)]
 async fn shared_instance_detach_of_a_stale_slot_logs_at_debug_and_never_warns() {
-    install_dropped_request_logger();
+    install_test_logger();
     let name = "shared-instance-log-stale";
     let server = shared_instance_server().await;
     let client = shared_instance_client(name, &server).await;
@@ -159,7 +159,7 @@ async fn shared_instance_detach_of_a_stale_slot_logs_at_debug_and_never_warns() 
 #[tokio::test]
 #[deny(clippy::await_holding_invalid_type)]
 async fn shared_instance_attach_whose_interface_is_removed_in_the_window_logs_the_race_at_debug() {
-    install_dropped_request_logger();
+    install_test_logger();
     let name = "shared-instance-log-race";
     let server = shared_instance_server().await;
     let identity = PrivateIdentity::new_from_rand(OsRng);

@@ -198,12 +198,10 @@ impl DeliveryReceipt {
     }
 
     /// The link the proved packet travelled on, for a proof addressed to a
-    /// link; `None` for a destination proof. A receipt is handed out for
-    /// every validly signed link proof, whether or not the link still
-    /// remembers sending the packet; `LinkEvent::PacketProven` is the gated
-    /// signal. Python's receipt keeps the destination the packet went to,
-    /// `PacketReceipt.destination` (`RNS/Packet.py:422`); this is the link
-    /// form of it.
+    /// link; `None` for a destination proof (Python: `PacketReceipt.destination`,
+    /// `RNS/Packet.py:422`). Handed out for every validly signed link proof,
+    /// whether or not the link still remembers sending the packet;
+    /// `LinkEvent::PacketProven` is the gated signal.
     pub fn link_id(&self) -> Option<AddressHash> {
         self.link_id
     }
@@ -391,8 +389,7 @@ pub enum SendPacketOutcome {
 
 impl SendPacketOutcome {
     /// Whether the packet reached an interface, directly or by broadcast.
-    /// Fork-only convenience: Python's `Packet.send` returns the receipt or
-    /// `False` (`RNS/Packet.py:306-311`) and has no outcome enum.
+    /// Fork-only; Python's `Packet.send` returns a receipt or `False` (`RNS/Packet.py:306-311`).
     #[must_use]
     pub fn is_sent(self) -> bool {
         matches!(self, Self::SentDirect | Self::SentBroadcast)

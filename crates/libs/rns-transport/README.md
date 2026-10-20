@@ -340,7 +340,10 @@ not Python's default (see Known divergences).
 ## Known divergences from Python RNS
 
 Where this crate is known to behave differently from RNS 1.5.2. Each entry
-names what the crate does, what Python does, and where in Python to look.
+names what the crate does, what Python does, and where in Python to look:
+the `RNS/<file>.py:line` cites resolve against the Python Reticulum
+repository (<https://github.com/markqvist/Reticulum>) at commit `ea98db4f`,
+the ref the `verify.yml` interop workflow checks out.
 The register covers the divergences the fork introduced; behaviour
 inherited from upstream `reticulum-rs-transport` is not catalogued here,
 except where a fork change made it visible, and such an entry says so.

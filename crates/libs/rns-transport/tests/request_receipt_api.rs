@@ -70,10 +70,10 @@ fn receipt_and_response_are_handles_a_consumer_can_share() {
     assert_send_sync::<RequestStatus>();
 }
 
-/// The README and the CHANGELOG say the request-layer enums are `#[non_exhaustive]`, and so
-/// are their definitions: outside the crate, a match naming every documented variant still
-/// needs a wildcard arm, and `#[deny(unreachable_patterns)]` makes that arm a compile error
-/// the moment an enum stops being non-exhaustive.
+/// The CHANGELOG says the request-layer enums are `#[non_exhaustive]` (the README says so of
+/// `RequestError`), and so are their definitions: outside the crate, a match naming every
+/// documented variant still needs a wildcard arm, and `#[deny(unreachable_patterns)]` makes
+/// that arm a compile error the moment an enum stops being non-exhaustive.
 #[deny(unreachable_patterns)]
 fn request_error_name(error: &RequestError) -> &'static str {
     match error {
@@ -138,7 +138,8 @@ fn frame_decode_error_name(error: &FrameDecodeError) -> &'static str {
 }
 
 /// `AnnounceEvent` is `#[non_exhaustive]`: a consumer reads the documented `is_path_response`
-/// flag through a `..` destructure (the struct-literal ban itself needs a compile-fail harness).
+/// flag through a `..` destructure; the struct-literal ban itself is pinned by
+/// `tests/breaking_changes_compile_fail.rs`.
 fn announce_is_path_response(event: &AnnounceEvent) -> bool {
     let AnnounceEvent { is_path_response, .. } = event;
     *is_path_response

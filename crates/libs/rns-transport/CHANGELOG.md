@@ -41,6 +41,12 @@ trailing clause of the bullet for the behaviour it pins.
   discover the destination first with `Transport::request_path` and
   `Transport::await_path` as for `Transport::link`; see Changed.
 
+The shapes these migrations replace are pinned by
+`tests/breaking_changes_compile_fail.rs`, which drives `rustc` against the
+crate's rlib: each replaced shape fails to compile outside the crate, with
+rustc's diagnostic for the reason its bullet gives, and each migrated shape
+compiles.
+
 ### Added
 
 - `destination::request::{RequestFrame, ResponseFrame, RequestId, PathHash,
@@ -82,7 +88,7 @@ trailing clause of the bullet for the behaviour it pins.
   `InboundRequest` carries the
   six arguments Python hands a `response_generator` (`RNS/Link.py:831`) and
   `RequestResponse::{Value, Bytes, Resource}` are the plain, `bytes` and
-  file-response forms (`RNS/Link.py:839-852`). `RequestAllow` and
+  file-response forms (`RNS/Link.py:837-852`). `RequestAllow` and
   `RequestResponse` are `#[non_exhaustive]`. The registry is pinned by
   `destination/tests.rs`, `tests/request_handler_api.rs` and
   `transport/tests_parts/two_transport_loopback_requests_routing.rs`; the

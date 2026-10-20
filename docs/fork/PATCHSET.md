@@ -23,8 +23,8 @@ sites, so a rebase can re-apply them one commit at a time.
 Every file changed since the `0.15.0` release and the patch each change
 belongs to. Patch ids: F4 is shared-instance client packaging. The
 `shared-instance client packaging` patch is fork commits `2a027a9d`,
-`b306b2a1`, `17b41d6a`, `ff8a8e8a`, `ff67110d` and
-`e4494576`; the `proof cap stall on signal` patch carries no other id
+`b306b2a1`, `17b41d6a`, `ff8a8e8a`, `ff67110d`, `e4494576` and
+`21e4dacc`; the `proof cap stall on signal` patch carries no other id
 and is fork commit `cccc40e4`.
 
 | File | Patch |
@@ -45,8 +45,8 @@ and is fork commit `cccc40e4`.
 | `crates/libs/rns-transport/src/transport/tests_parts/two_transport_shared_instance_probe.rs` | shared-instance client packaging |
 | `docs/fork/PATCHSET.md` | shared-instance client packaging |
 
-Fork commits `2a027a9d`, `b306b2a1`, `17b41d6a`, `ff8a8e8a`, `ff67110d`
-and `e4494576`: F4, shared-instance client packaging. The first lands
+Fork commits `2a027a9d`, `b306b2a1`, `17b41d6a`, `ff8a8e8a`, `ff67110d`,
+`e4494576` and `21e4dacc`: F4, shared-instance client packaging. The first lands
 `SharedInstanceEndpoint` and `SharedInstanceOptions`, the four `Transport`
 methods `attach_shared_instance`, `detach_shared_instance`,
 `shared_instance` and `connected_to_shared_instance`, the `Transport::stop`
@@ -69,8 +69,9 @@ table and the unix client's connect within the configured reconnect wait.
 The sixth qualifies the README and release notes for unix targets, the
 fixed TCP retry, the posture cites, the bool detach and the forced-off
 flags and tunnel synthesis Python does not share, and pins the README
-section as fence-free prose. The file sites below describe the combined
-result.
+section as fence-free prose. The seventh corrects the probe fixture's
+header and its late-server detach message. The file sites below describe
+the combined result.
 Upstream sites:
 `crates/libs/rns-transport/src/transport/mod.rs` registers the
 `shared_instance` module, re-exports its two types and gains the

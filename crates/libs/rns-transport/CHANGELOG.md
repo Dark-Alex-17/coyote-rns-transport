@@ -61,9 +61,10 @@ bullet of its own, marked test-only.
   `crates/apps/reticulumd/tests/fork_publish_contract.rs` (the Unreleased
   cite check and the Unreleased ledger checks).
 - `TcpClient::{with_reconnect_wait, reconnect_wait}` and
-  `TcpClient::DEFAULT_RECONNECT_WAIT`, 5 s: the wait slept before each
-  retry once a connect has failed or an established stream has dropped
-  twice in a row, the knob `LocalUnixClient::with_reconnect_wait` already
+  `TcpClient::DEFAULT_RECONNECT_WAIT`, 5 s: the wait slept after a failed
+  connect and before each redial from the second consecutive short-lived
+  connection on, one that lasted under `MIN_STABLE_CONNECTION` (2 s), the
+  knob `LocalUnixClient::with_reconnect_wait` already
   offered (`RNS/Interfaces/LocalInterface.py:54`, slept at `:160`).
   `attach_shared_instance` now passes `SharedInstanceOptions::reconnect_wait`
   to the `TcpClient` as it did to the `LocalUnixClient`, and its attach
@@ -71,8 +72,9 @@ bullet of its own, marked test-only.
   clamp the wait to at least 1 ms. The 5 s default is pinned by
   `transport/tests_parts/two_transport_shared_instance_probe7.rs`
   (`shared_instance_probe7_tcp_client_reconnect_wait_defaults_to_five_seconds`),
-  the TCP clamp and the TCP client's redial policy (at once after the
-  first drop, the wait from the second consecutive failure on) by
+  the TCP clamp and the TCP client's redial policy (at once after a drop,
+  the wait from the second consecutive short-lived connection on; a
+  connection that outlived `MIN_STABLE_CONNECTION` resets the streak) by
   `transport/tests_parts/two_transport_shared_instance_probe10.rs`
   (`TcpClient::reconnect_wait` reads 1 ms for a zero wait, and the
   re-accept after the second consecutive drop lands no sooner than the wait).
@@ -179,11 +181,16 @@ bullet of its own, marked test-only.
   interface, observed from the consumer side, and drops the path), by
   `transport/tests_parts/two_transport_shared_instance_probe9.rs` (a
   posture set directly, with nothing attached, neither flushes nor
-  re-announces when the shared instance restarts) and by
+  re-announces when the shared instance restarts), by
   `transport/tests_parts/two_transport_shared_instance_probe10.rs` (the
   drop's debug line counts the link table entries it clears next to the
   links torn down, and a posture dropped before the restart still
-  re-synthesizes the tunnel on the reconnect while re-announcing nothing).
+  re-synthesizes the tunnel on the reconnect while re-announcing nothing),
+  and by `transport/tests_parts/two_transport_shared_instance_probe11.rs`
+  (a third transport that initiated a link to a destination on the client,
+  over plain TCP, sees `Closed` with `DestinationClosed` when the client's
+  shared instance drops: the LINKCLOSE goes to the peer of an accepted
+  link too).
 - `filter_duplicate_packet` (`transport/inbound_processing.rs`) returns
   early while attached to a shared instance: the duplicate filter inserts
   nothing and consults nothing while attached, and nothing is rolled back,
@@ -267,7 +274,11 @@ bullet of its own, marked test-only.
   unchanged. Pinned by
   `transport/tests_parts/two_transport_shared_instance_probe10.rs` (with
   the listener kept up, the unix client's re-accept after a drop lands no
-  sooner than the wait).
+  sooner than the wait) and by
+  `transport/tests_parts/two_transport_shared_instance_probe11.rs` (a
+  `stop` issued inside a 30 s redial wait completes at once, and a client
+  built from a pre-supplied stream ends at once when the stream drops,
+  sleeping no wait).
 - The `TestLogger` in
   `transport/tests_parts/two_transport_loopback_requests_isolation.rs`
   keeps every record at `Warn` or above on the links target

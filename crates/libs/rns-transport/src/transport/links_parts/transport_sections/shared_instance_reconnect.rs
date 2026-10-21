@@ -213,7 +213,12 @@ impl SharedInstanceReconnectConsumer {
     /// afterwards, so a link opened on the `Closed` event is not evicted by
     /// the clears that follow. A link riding the dropped interface itself
     /// can at best queue its teardown on that interface; a close packet
-    /// that does not go out is recorded at debug.
+    /// that does not go out is recorded at debug. Every link that reaches
+    /// `Active` or `Stale` has its ingress interface set by its producer,
+    /// the accept at `transport/path.rs` (`set_ingress_iface`) or the proof
+    /// at `destination/link_parts/link_sections/handle_proof_packet.rs`
+    /// (`get_or_insert`), so a teardown packet with no interface to ride is
+    /// a defensive no-op.
     #[deny(clippy::await_holding_invalid_type)]
     async fn on_disconnected(&self) {
         if !self.attached().await {
@@ -262,7 +267,7 @@ impl SharedInstanceReconnectConsumer {
                 close_packets_sent += 1;
             } else {
                 log::debug!(
-                    "tp({}): shared instance iface={} dropped; close packet for link={} not sent on iface={}",
+                    "tp({}): shared instance iface={} disconnected, close packet for link={} not sent on iface={}",
                     self.name,
                     self.iface,
                     link_id,

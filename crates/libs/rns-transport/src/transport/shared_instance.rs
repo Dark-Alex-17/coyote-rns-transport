@@ -44,9 +44,11 @@ impl SharedInstanceOptions {
     /// (`RNS/Interfaces/LocalInterface.py:53-54`). The
     /// [`SharedInstanceEndpoint::Tcp`] client and the unix-domain client
     /// both honour it, and both clamp it to at least 1 ms. The TCP client
-    /// redials at once the first time an established stream drops and
-    /// waits `wait` from the second consecutive failure on; the unix client
-    /// waits `wait` before every retry, as Python does (`:160`).
+    /// redials at once after a drop and waits `wait` from the second
+    /// consecutive short-lived connection on, one that lasted under
+    /// `MIN_STABLE_CONNECTION` (2 s); a connection that outlived the window
+    /// resets the streak. The unix client waits `wait` before every retry,
+    /// as Python does (`:160`).
     #[must_use]
     pub fn with_reconnect_wait(mut self, wait: Duration) -> Self {
         self.reconnect_wait = wait;

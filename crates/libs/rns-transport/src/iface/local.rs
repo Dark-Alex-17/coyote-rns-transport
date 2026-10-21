@@ -362,10 +362,13 @@ impl LocalUnixClient {
         self
     }
 
-    /// The wait slept before each connect retry, Python's
+    /// The wait slept before each connect retry and before each redial after
+    /// an established stream drops, Python's
     /// `LocalClientInterface.RECONNECT_WAIT`
-    /// (`RNS/Interfaces/LocalInterface.py:54`, slept at `:160`). Clamped to
-    /// at least 1 ms, as `TcpClient::with_reconnect_wait` is.
+    /// (`RNS/Interfaces/LocalInterface.py:54`, slept at `:159-160` before
+    /// every connect attempt of a reconnect). Only the first connect of the
+    /// client's life goes out at once. Clamped to at least 1 ms, as
+    /// `TcpClient::with_reconnect_wait` is.
     #[must_use]
     pub fn with_reconnect_wait(mut self, reconnect_wait: Duration) -> Self {
         self.reconnect_wait = reconnect_wait.max(Duration::from_millis(1));
@@ -522,6 +525,14 @@ impl LocalUnixClient {
                         addr,
                         err
                     );
+                }
+            }
+            // A client built from a stream has nothing to redial and must finish at once.
+            if running {
+                tokio::select! {
+                    _ = context.cancel.cancelled() => break,
+                    _ = iface_stop.cancelled() => break,
+                    _ = tokio::time::sleep(reconnect_wait) => {}
                 }
             }
         }

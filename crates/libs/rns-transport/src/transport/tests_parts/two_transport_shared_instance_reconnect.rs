@@ -300,6 +300,46 @@ async fn shared_instance_reconnect_unflagged_iface_does_not_flush() {
         .expect("restarted shared instance stop completes");
 }
 
+/// With a disconnect and the reconnect that follows it both waiting when the consumer
+/// polls, the disconnect is served first: the drop's flush must not land after the tunnel
+/// re-synthesis of the same cycle. The consumer is driven directly with nothing attached,
+/// so each event leaves only its debug record and the order is read off those.
+#[tokio::test]
+#[deny(clippy::await_holding_invalid_type)]
+async fn shared_instance_reconnect_consumer_serves_the_disconnect_before_the_reconnect() {
+    install_test_logger();
+    let name = "shared-instance-reconnect-order";
+    let identity = PrivateIdentity::new_from_rand(OsRng);
+    let transport = Transport::new(TransportConfig::new(name, &identity, false));
+    let iface = AddressHash::new_from_rand(OsRng);
+    let (reconnects_tx, reconnects) = tokio::sync::mpsc::channel(1);
+    let (disconnects_tx, disconnects) = tokio::sync::mpsc::channel(1);
+    reconnects_tx.send(iface).await.expect("queue the reconnect");
+    disconnects_tx.send(iface).await.expect("queue the disconnect");
+    drop(reconnects_tx);
+
+    let consumer = super::links::SharedInstanceReconnectConsumer {
+        handler: transport.get_handler(),
+        iface_manager: transport.iface_manager(),
+        cancel: tokio_util::sync::CancellationToken::new(),
+        name: name.to_string(),
+        iface,
+        reconnect_wait: Duration::ZERO,
+    };
+    let cancel = consumer.cancel.clone();
+    timeout(STOP_TIMEOUT, consumer.run(reconnects, disconnects))
+        .await
+        .expect("the consumer exits once the reconnect channel is drained and closed");
+    cancel.cancel();
+    drop(disconnects_tx);
+
+    let records: Vec<String> =
+        shared_instance_records_for(name).into_iter().map(|(_, record)| record).collect();
+    assert_eq!(records.len(), 2, "one record per event: {records:?}");
+    assert!(records[0].contains("stream ended"), "the disconnect is served first: {records:?}");
+    assert!(records[1].contains("reconnected"), "the reconnect is served second: {records:?}");
+}
+
 /// Each table's `clear` empties every collection it holds and reports how many entries
 /// went, leaving the table usable.
 #[test]

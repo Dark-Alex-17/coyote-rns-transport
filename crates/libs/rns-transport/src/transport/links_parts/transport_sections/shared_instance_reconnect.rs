@@ -51,40 +51,45 @@ pub(crate) async fn synthesize_tunnel_on_iface(
 /// What one attach's consumer task carries: the task outlives the attach
 /// call, so it holds clones of the transport's parts rather than a borrow.
 #[derive(Clone)]
-struct SharedInstanceReconnectConsumer {
-    handler: Arc<Mutex<TransportHandler>>,
-    iface_manager: Arc<Mutex<InterfaceManager>>,
-    cancel: CancellationToken,
-    name: String,
-    iface: AddressHash,
-    reconnect_wait: Duration,
+pub(super) struct SharedInstanceReconnectConsumer {
+    pub(super) handler: Arc<Mutex<TransportHandler>>,
+    pub(super) iface_manager: Arc<Mutex<InterfaceManager>>,
+    pub(super) cancel: CancellationToken,
+    pub(super) name: String,
+    pub(super) iface: AddressHash,
+    pub(super) reconnect_wait: Duration,
 }
 
 impl SharedInstanceReconnectConsumer {
     /// Serves the client's events until the transport is cancelled or the
     /// client worker exits. Both senders belong to that one worker and drop
     /// with it, after a detach, `stop_interface` or `stop`, so the first
-    /// closed channel ends the task.
+    /// closed channel ends the task. A disconnect queued together with the
+    /// reconnect that follows it is served first, so the flush of one drop
+    /// cycle always precedes that cycle's tunnel re-synthesis.
     #[deny(clippy::await_holding_invalid_type)]
-    async fn run(
+    pub(super) async fn run(
         self,
         mut reconnects: mpsc::Receiver<AddressHash>,
         mut disconnects: mpsc::Receiver<AddressHash>,
     ) {
         loop {
+            // Biased so a disconnect is never overtaken by the reconnect
+            // queued right behind it.
             tokio::select! {
+                biased;
                 _ = self.cancel.cancelled() => break,
-                reconnected = reconnects.recv() => {
-                    if reconnected.is_none() {
-                        break;
-                    }
-                    self.on_reconnected().await;
-                }
                 disconnected = disconnects.recv() => {
                     if disconnected.is_none() {
                         break;
                     }
                     self.on_disconnected().await;
+                }
+                reconnected = reconnects.recv() => {
+                    if reconnected.is_none() {
+                        break;
+                    }
+                    self.on_reconnected().await;
                 }
             }
         }

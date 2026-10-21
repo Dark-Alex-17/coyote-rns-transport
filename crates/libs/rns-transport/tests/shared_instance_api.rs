@@ -1,9 +1,11 @@
 //! The README's "Attaching to a shared instance" snippet, verbatim, run from outside the
 //! crate against an in-process shared instance: a transport-enabled node with a `TcpServer`
-//! on 127.0.0.1, the posture reticulumd takes for its own clients. Around the snippet, the
-//! claims a first-time consumer reads next: the attach is reported by `shared_instance()`
-//! and `connected_to_shared_instance()`, the on-demand announce reaches the shared instance
-//! as a path response at one hop, and the detach releases the interface and the posture.
+//! on 127.0.0.1. Around the snippet, the claims a first-time consumer reads next: the attach
+//! is reported by `shared_instance()` and `connected_to_shared_instance()`, the on-demand
+//! announce reaches the shared instance as a path response, and the detach releases the
+//! interface and the posture. The plain server here reads the announce at one hop; rnsd and
+//! reticulumd flag their listener as the shared instance and read a local client's announce
+//! at zero (`RNS/Transport.py:1938`), which the live test against rnsd pins.
 
 use std::error::Error;
 use std::net::SocketAddr;
@@ -145,7 +147,10 @@ async fn readme_snippet_attaches_announces_and_detaches() {
         event.is_path_response,
         "the shared instance learns the destination as a path response"
     );
-    assert_eq!(event.hops, 1, "at one hop");
+    assert_eq!(
+        event.hops, 1,
+        "at one hop: this server does not flag its listener as the shared instance"
+    );
 
     assert!(transport.detach_shared_instance().await);
     assert_eq!(transport.shared_instance(), None, "the slot is cleared");

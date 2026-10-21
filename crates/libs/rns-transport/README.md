@@ -437,11 +437,13 @@ assert!(transport.detach_shared_instance().await);
 
 `crates/libs/rns-transport/tests/shared_instance_api.rs` runs this snippet
 verbatim against an in-process shared instance, a transport-enabled node with
-a `TcpServer` on 127.0.0.1, and reads the announce back as a path response at
-one hop. `crates/apps/reticulumd/tests/python_channel_interop_parts/python_shared_instance_live.rs`
+a `TcpServer` on 127.0.0.1, and reads the announce back as a path response.
+That plain server reads it at one hop; rnsd and reticulumd flag their
+listener as the shared instance and read a local client's announce at zero
+(`RNS/Transport.py:1938`). `crates/apps/reticulumd/tests/python_channel_interop_parts/python_shared_instance_live.rs`
 attaches this crate to a Python `rnsd` (RNS 1.5.2) shared instance on a free
-port next to a Python local client and proves announce and `Link.request`
-both ways, over TCP everywhere and over an abstract unix socket on Linux.
+port next to a Python local client and proves the zero-hop path, announce and
+`Link.request` both ways, over TCP everywhere and over an abstract unix socket on Linux.
 
 ## Known divergences from Python RNS
 

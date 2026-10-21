@@ -65,8 +65,9 @@ impl LinkTable {
     }
 
     /// Drops every entry, validated or not, and returns how many there were.
-    /// The reverse-path bookkeeping Python keeps in its separate
-    /// `reverse_table` lives on these entries, so this empties that too.
+    /// This covers Python's `link_table` alone; its `reverse_table`, the
+    /// proof-routing index, is the packet cache's
+    /// `clear_reverse_routes` (`RNS/Transport.py:2104-2109`).
     pub fn clear(&mut self) -> usize {
         let cleared = self.entries.len();
         self.entries.clear();

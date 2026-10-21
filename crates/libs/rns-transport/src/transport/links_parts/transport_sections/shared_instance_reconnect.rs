@@ -25,7 +25,10 @@ impl Transport {
             iface,
             reconnect_wait,
         };
-        spawn_shared_instance_task(&self.shared_instance_tasks, consumer.run(reconnects, disconnects));
+        spawn_shared_instance_task(
+            &self.shared_instance_tasks,
+            consumer.run(reconnects, disconnects),
+        );
     }
 }
 
@@ -187,14 +190,20 @@ impl SharedInstanceReconnectConsumer {
     /// emptied. Python's tables map to the fork's as follows:
     /// `active_links` and `pending_links` are `in_links` and `out_links`
     /// (both hold links in every status); `announce_table`, `path_table`
-    /// and `tunnels` are the fields of the same name; `reverse_table` is
-    /// kept on the `link_table` entries, so clearing that table covers it;
+    /// and `tunnels` are the fields of the same name; `link_table` is the
+    /// field of that name alone, and `reverse_table`, the proof-routing
+    /// index, is the source notes and proof-destination index of the packet
+    /// cache, emptied by `clear_reverse_routes` while the duplicate-filter
+    /// hashes stay, as Python's `packet_hashlist` does;
     /// `held_announces` are the held announces of `announce_limits`. The
     /// resource state of each closed link goes with it, as the link
     /// maintenance job does. Lock discipline follows
     /// `fail_pending_requests_on_stop`: the handler and each link are
-    /// locked one after the other, never together, so the link set is
-    /// snapshotted first and only those links are removed afterwards.
+    /// locked one after the other, never together, and the packet cache is
+    /// locked after the handler guard has been released. The links are
+    /// taken out of both maps under the first handler guard and closed
+    /// afterwards, so a link opened on the `Closed` event is not evicted by
+    /// the clears that follow.
     #[deny(clippy::await_holding_invalid_type)]
     async fn on_disconnected(&self) {
         if !self.attached().await {
@@ -206,23 +215,17 @@ impl SharedInstanceReconnectConsumer {
             return;
         }
         let (in_links, out_links) = {
-            let handler = self.handler.lock().await;
-            (snapshot_links(&handler.in_links), snapshot_links(&handler.out_links))
+            let mut handler = self.handler.lock().await;
+            (drain_links(&mut handler.in_links), drain_links(&mut handler.out_links))
         };
         let mut closed = Vec::with_capacity(in_links.len() + out_links.len());
-        for (_, link) in in_links.iter().chain(&out_links) {
+        for link in in_links.iter().chain(&out_links) {
             let mut link = link.lock().await;
             link.close();
             closed.push(*link.id());
         }
-        let (paths, announces, tunnels, held) = {
+        let (paths, announces, tunnels, held, packet_cache) = {
             let mut handler = self.handler.lock().await;
-            for (link_id, _) in &in_links {
-                handler.in_links.remove(link_id);
-            }
-            for (destination, _) in &out_links {
-                handler.out_links.remove(destination);
-            }
             for link_id in &closed {
                 handler.resource_manager.remove_link_state(*link_id);
             }
@@ -233,23 +236,23 @@ impl SharedInstanceReconnectConsumer {
             handler.link_table.clear();
             let tunnels = handler.tunnel_table.clear();
             let held = handler.announce_limits.clear_held_announces();
-            (paths, announces, tunnels, held)
+            (paths, announces, tunnels, held, handler.packet_cache.clone())
         };
+        let reverse_routes = packet_cache.lock().await.clear_reverse_routes();
         log::debug!(
-            "tp({}): shared instance iface={} disconnected, {} link(s) torn down, {} path(s), {} announce(s), {} tunnel(s), {} held announce(s) cleared",
+            "tp({}): shared instance iface={} disconnected, {} link(s) torn down, {} path(s), {} announce(s), {} tunnel(s), {} held announce(s), {} reverse route(s) cleared",
             self.name,
             self.iface,
             closed.len(),
             paths,
             announces,
             tunnels,
-            held
+            held,
+            reverse_routes
         );
     }
 }
 
-fn snapshot_links(
-    links: &HashMap<AddressHash, Arc<Mutex<Link>>>,
-) -> Vec<(AddressHash, Arc<Mutex<Link>>)> {
-    links.iter().map(|(key, link)| (*key, link.clone())).collect()
+fn drain_links(links: &mut HashMap<AddressHash, Arc<Mutex<Link>>>) -> Vec<Arc<Mutex<Link>>> {
+    links.drain().map(|(_, link)| link).collect()
 }

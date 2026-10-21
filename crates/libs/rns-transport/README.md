@@ -397,6 +397,9 @@ posture alone, but not the reconnect re-announce and the drop flush, which
 live in the attach's consumer task. `Transport::stop` joins the tasks the
 client spawns (the delayed announces and the reconnect consumer) within its
 budget, so none runs on a stopped transport.
+A `Tcp` endpoint whose address is not loopback is accepted and warned about
+once at attach, since Python's `LocalClientInterface` connects to `127.0.0.1`
+only (`RNS/Interfaces/LocalInterface.py:109`).
 
 A client that attaches, registers a destination with a request handler,
 announces it to the owner on demand and detaches, with `endpoint` the owner's
@@ -542,6 +545,10 @@ except where a fork change made it visible, and such an entry says so.
   never does (`RNS/Interfaces/LocalInterface.py` has no tunnel code;
   `wants_tunnel` is set by network-facing clients such as
   `RNS/Interfaces/TCPInterface.py:179`).
+- `attach_shared_instance` accepts any `SocketAddr` for a `Tcp` endpoint and
+  warns once at attach when the address is not loopback. Python's
+  `LocalClientInterface` connects to `127.0.0.1` only
+  (`RNS/Interfaces/LocalInterface.py:109`).
 - The reverse-routing source notes live in the same cache as the duplicate
   filter, so a Data packet received while attached to a shared instance is
   treated as seen after a detach. Python's `add_packet_hash` guard

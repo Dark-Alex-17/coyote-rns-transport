@@ -25,7 +25,11 @@ impl Transport {
     /// attaches (`RNS/Reticulum.py:438-440`); this method leaves
     /// `transport_enabled` as configured, since the crate supports a
     /// transport-enabled node attached to a shared instance (see
-    /// `path_parts/unknown_owner_local_link_request.rs`).
+    /// `path_parts/unknown_owner_local_link_request.rs`). A `Tcp` endpoint
+    /// whose address is not loopback is accepted and warned about once at
+    /// attach, since Python's `LocalClientInterface` connects to `127.0.0.1`
+    /// only (`RNS/Interfaces/LocalInterface.py:109`) and a remote shared
+    /// instance is rarely what the caller meant.
     ///
     /// Only one shared instance is held at a time: a second call while one is
     /// attached returns [`RnsError::InvalidArgument`], as does a call after
@@ -55,6 +59,15 @@ impl Transport {
             #[cfg(unix)]
             SharedInstanceEndpoint::Unix(_) => "unix",
         };
+        if let SharedInstanceEndpoint::Tcp(addr) = &endpoint {
+            if !addr.ip().is_loopback() {
+                log::warn!(
+                    "tp({}): shared instance endpoint {} is not a loopback address; Python's LocalClientInterface connects to 127.0.0.1 only (RNS/Interfaces/LocalInterface.py:109), the attach proceeds",
+                    self.name,
+                    addr
+                );
+            }
+        }
         let (reconnect_tx, reconnect_rx) = tokio::sync::mpsc::channel(8);
         let (disconnect_tx, disconnect_rx) = tokio::sync::mpsc::channel(8);
         // Lock order: the std slot is innermost, under the iface_manager here

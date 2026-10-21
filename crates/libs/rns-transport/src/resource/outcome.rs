@@ -142,8 +142,13 @@ impl ResourceManager {
         };
         self.events.push(ResourceEvent { hash: original_hash, link_id, kind });
         if let Some(tx) = self.outbound_outcomes.remove(&original_hash) {
-            // The receiver may already be gone; nobody is left to tell.
-            let _ = tx.send(result);
+            if tx.send(result).is_err() {
+                log::debug!(
+                    "resource outbound: outcome receiver dropped before the verdict hash={} link={}",
+                    original_hash,
+                    link_id
+                );
+            }
         }
     }
 }

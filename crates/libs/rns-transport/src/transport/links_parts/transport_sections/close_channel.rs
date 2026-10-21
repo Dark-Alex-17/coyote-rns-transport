@@ -150,7 +150,14 @@ impl Transport {
 
         let destination = Arc::new(Mutex::new(destination));
 
-        self.handler.lock().await.single_in_destinations.insert(address_hash, destination.clone());
+        let connected_to_shared_instance = {
+            let mut handler = self.handler.lock().await;
+            handler.single_in_destinations.insert(address_hash, destination.clone());
+            handler.config.connected_to_shared_instance
+        };
+        if connected_to_shared_instance {
+            self.spawn_shared_instance_registration_announce(destination.clone(), address_hash);
+        }
 
         destination
     }

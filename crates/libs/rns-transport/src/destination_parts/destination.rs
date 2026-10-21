@@ -143,6 +143,31 @@ impl Destination<PrivateIdentity, Input, Single> {
         rng: R,
         app_data: Option<&[u8]>,
     ) -> Result<Packet, RnsError> {
+        self.build_announce(rng, app_data, PacketContext::None)
+    }
+
+    /// The announce of [`Self::announce`] with the packet context set to
+    /// `PacketContext::PathResponse` when `path_response` is true, as
+    /// Python's `Destination.announce(path_response=True)` does
+    /// (`RNS/Destination.py:309-315`). Every other field is built the same
+    /// way.
+    pub fn announce_with_context<R: CryptoRngCore + Copy>(
+        &mut self,
+        rng: R,
+        app_data: Option<&[u8]>,
+        path_response: bool,
+    ) -> Result<Packet, RnsError> {
+        let context =
+            if path_response { PacketContext::PathResponse } else { PacketContext::None };
+        self.build_announce(rng, app_data, context)
+    }
+
+    fn build_announce<R: CryptoRngCore + Copy>(
+        &mut self,
+        rng: R,
+        app_data: Option<&[u8]>,
+        context: PacketContext,
+    ) -> Result<Packet, RnsError> {
         let mut packet_data = PacketDataBuffer::new();
 
         // Python Reticulum encodes announce randomness as 5 random bytes
@@ -216,7 +241,7 @@ impl Destination<PrivateIdentity, Input, Single> {
             ifac: None,
             destination: self.desc.address_hash,
             transport: None,
-            context: PacketContext::None,
+            context,
             data: packet_data,
         })
     }
@@ -254,8 +279,7 @@ impl Destination<PrivateIdentity, Input, Single> {
             }
         }
 
-        let mut announce = self.announce(rng, app_data)?;
-        announce.context = PacketContext::PathResponse;
+        let announce = self.announce_with_context(rng, app_data, true)?;
 
         if let Some(tag) = tag {
             let expires_at = now + std::time::Duration::from_secs(PATH_RESPONSE_TAG_WINDOW);

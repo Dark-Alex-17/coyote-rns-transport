@@ -9,3 +9,4 @@ include!("transport_sections/close_channel.rs");
 include!("transport_sections/link_establishment.rs");
 include!("transport_sections/link_open.rs");
 include!("transport_sections/shared_instance.rs");
+include!("transport_sections/shared_instance_announce.rs");

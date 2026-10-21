@@ -359,8 +359,11 @@ detach; an attach after `stop()` has cancelled the transport is refused with
 `RnsError::InvalidArgument` too. `reconnect_wait` (default 8 s,
 `RNS/Interfaces/LocalInterface.py:54`) is honoured by both the unix and the
 TCP client (`TcpClient::with_reconnect_wait`; the client's own default stays
-5 s) and clamped to at least 1 ms by both. While attached, a `SINGLE`
-destination is announced as a path
+5 s) and clamped to at least 1 ms by both: the unix client sleeps it before
+every redial, a dropped stream's first included, as Python's reconnect loop
+does (`RNS/Interfaces/LocalInterface.py:159-160`); the TCP client redials at
+once after a drop and sleeps it from the second consecutive failure on. While
+attached, a `SINGLE` destination is announced as a path
 response 0.25 s after `register_destination` (`RNS/Transport.py:2911-2916`,
 the context of `RNS/Destination.py:308-315`), and
 `Transport::announce_destinations_to_shared_instance` sends that announce
@@ -369,7 +372,10 @@ re-synthesized at once and every registered single destination is
 re-announced as a path response `reconnect_wait` plus 2 s later, if the
 transport is still attached then (`RNS/Transport.py:3705-3709`,
 `RNS/Interfaces/LocalInterface.py:178-181`). A dropped connection, as
-opposed to a detach or a stop, tears down every active and pending link and
+opposed to a detach or a stop, tears down every active and pending link as
+Python's `Link.teardown` does, sending a LINKCLOSE packet to the peer of each
+active link on the interface it rides (`RNS/Link.py:657-668`), so a peer
+reached over another interface learns the close from the wire, and
 clears the path, announce, link and tunnel tables, the held announces and
 the packet cache's reverse routes, Python's `reverse_table`
 (`RNS/Transport.py:3690-3702`, `RNS/Interfaces/LocalInterface.py:255-261`),

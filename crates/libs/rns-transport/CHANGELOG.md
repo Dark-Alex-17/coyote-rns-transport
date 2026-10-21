@@ -70,7 +70,12 @@ bullet of its own, marked test-only.
   debug line reports the wait as in force for both endpoints. Both knobs
   clamp the wait to at least 1 ms. The 5 s default is pinned by
   `transport/tests_parts/two_transport_shared_instance_probe7.rs`
-  (`shared_instance_probe7_tcp_client_reconnect_wait_defaults_to_five_seconds`).
+  (`shared_instance_probe7_tcp_client_reconnect_wait_defaults_to_five_seconds`),
+  the TCP clamp and the TCP client's redial policy (at once after the
+  first drop, the wait from the second consecutive failure on) by
+  `transport/tests_parts/two_transport_shared_instance_probe10.rs`
+  (`TcpClient::reconnect_wait` reads 1 ms for a zero wait, and the
+  re-accept after the second consecutive drop lands no sooner than the wait).
   `TcpClient::with_disconnect_events` and
   `LocalUnixClient::with_disconnect_events`, with
   `TcpClient::disconnect_events_enabled`: a sender, sibling of
@@ -125,8 +130,13 @@ bullet of its own, marked test-only.
   response if the transport is still attached then
   (`RNS/Transport.py:3705-3709`, `RNS/Interfaces/LocalInterface.py:178-181`).
   A dropped connection while attached, with the interface still flagged as
-  the shared instance, closes every in and out link with its own side's
-  `LinkCloseReason`, drops their resource state and clears the path,
+  the shared instance, tears every in and out link down as Python's
+  `Link.teardown` does (`RNS/Transport.py:3692`, `:3695`,
+  `RNS/Link.py:657-668`): a LINKCLOSE packet goes to the peer of each
+  active link on the interface the link rides, once every guard is
+  released, so a peer reached over another interface learns the close
+  from the wire, and each link is closed with its own side's
+  `LinkCloseReason` (`:670-671`); it drops their resource state and clears the path,
   announce, link and tunnel tables, the held announces and the packet
   cache's reverse routes, Python's `reverse_table`, through
   `PacketCache::clear_reverse_routes` (`transport/packet_cache.rs`), which
@@ -141,7 +151,8 @@ bullet of its own, marked test-only.
   task per attach that reads the clients' reconnect and disconnect events,
   serving a queued disconnect before the reconnect behind it. The warning
   for a re-announce whose packet fails to build names the transport as
-  `tp(<name>)`, like the registration announce's. Pinned by
+  `tp(<name>)`, like the registration announce's; the drop's debug line
+  counts the close packets sent next to the links torn down. Pinned by
   `transport/tests_parts/two_transport_shared_instance_reconnect.rs` (a
   restart of the shared instance flushes the path, closes the link with
   `InitiatorClosed`, keeps the attach and re-announces both destinations
@@ -154,7 +165,9 @@ bullet of its own, marked test-only.
   the drop the path, announce, link and tunnel tables, the held announces
   and the reverse route of a Data packet the shared instance sent over a
   link each hold something, after it each is empty and the cached hashes
-  are kept), by
+  are kept; and a peer linked to the client over another interface sees
+  `Closed` with the initiator-side reason when the shared instance drops,
+  the close learned from the client's LINKCLOSE), by
   `transport/tests_parts/two_transport_shared_instance_probe7.rs` (the
   re-announce fires no sooner than `reconnect_wait` plus 2 s after the
   re-accept, a posture dropped after the reconnect re-announces nothing,
@@ -163,10 +176,14 @@ bullet of its own, marked test-only.
   the drop like an active one), by
   `transport/tests_parts/two_transport_shared_instance_probe8.rs` (a
   restart flush keeps the delivery receipt of a packet sent on another
-  interface, observed from the consumer side, and drops the path) and by
+  interface, observed from the consumer side, and drops the path), by
   `transport/tests_parts/two_transport_shared_instance_probe9.rs` (a
   posture set directly, with nothing attached, neither flushes nor
-  re-announces when the shared instance restarts).
+  re-announces when the shared instance restarts) and by
+  `transport/tests_parts/two_transport_shared_instance_probe10.rs` (the
+  drop's debug line counts the link table entries it clears next to the
+  links torn down, and a posture dropped before the restart still
+  re-synthesizes the tunnel on the reconnect while re-announcing nothing).
 - `filter_duplicate_packet` (`transport/inbound_processing.rs`) returns
   early while attached to a shared instance: the duplicate filter inserts
   nothing and consults nothing while attached, and nothing is rolled back,
@@ -232,13 +249,25 @@ bullet of its own, marked test-only.
   `transport/tests_parts/two_transport_shared_instance_tasks.rs` (a stop
   inside the registration delay joins the announce task, which sends
   nothing, and a stop after an attach joins the consumer; the set is empty
-  after both) and
+  after both, and a task that ended by panic is warned about once as
+  `tp(<name>)` on the links target while the stop still completes) and
   `transport/tests_parts/two_transport_shared_instance_probe9.rs` (a stop
   that runs out of budget on a pending announce warns as `tp(<name>)` on
   the links target).
 - `LocalUnixClient::with_reconnect_wait` (`iface/local.rs`) clamps the wait
   to at least 1 ms, as `TcpClient::with_reconnect_wait` does; it previously
   took a zero wait as given.
+- `LocalUnixClient` (`iface/local.rs`) sleeps `reconnect_wait` before every
+  redial after an established stream drops, not only after a failed
+  connect, as Python's reconnect loop sleeps `RECONNECT_WAIT` before every
+  attempt (`RNS/Interfaces/LocalInterface.py:159-160`); it previously
+  redialed at once after a drop. The first connect of the client's life
+  stays immediate, and a client built from a pre-supplied stream still
+  finishes at once when that stream ends. The TCP client's policy is
+  unchanged. Pinned by
+  `transport/tests_parts/two_transport_shared_instance_probe10.rs` (with
+  the listener kept up, the unix client's re-accept after a drop lands no
+  sooner than the wait).
 - The `TestLogger` in
   `transport/tests_parts/two_transport_loopback_requests_isolation.rs`
   keeps every record at `Warn` or above on the links target

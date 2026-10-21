@@ -7,8 +7,8 @@
 /// No record the test logger captures under its links target at `Warn` or above may carry
 /// the transport's name across the scenario, whatever the line is about, since the logger
 /// keeps every such record: the attach-time missing-interface line and the stale-slot
-/// detach line are debug lines. Stop's own budget warning lives in `lifecycle.rs` under
-/// another target and is outside this oracle.
+/// detach line are debug lines, and the task warnings of the stop's join loop are logged
+/// on this target under the transport's name, so an abort at stop is caught here.
 fn shared_instance_assert_never_warned(transport_name: &str) {
     let loud: Vec<_> = shared_instance_records_for(transport_name)
         .into_iter()

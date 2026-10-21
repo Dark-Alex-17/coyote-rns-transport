@@ -166,6 +166,25 @@ impl Transport {
         );
     }
 
+    /// A shared-instance task [`Self::stop`] joined ended by panic or abort;
+    /// logged from here so the line shares the attach and detach lines'
+    /// target.
+    pub(super) fn log_shared_instance_task_join_failed(&self, err: &tokio::task::JoinError) {
+        log::warn!(
+            "tp({}): shared instance task did not finish cleanly during stop: {err}",
+            self.name
+        );
+    }
+
+    /// [`Self::stop`] ran out of budget with `running` shared-instance tasks
+    /// still going and aborted them; logged from here for the same reason.
+    pub(super) fn log_shared_instance_tasks_aborted_by_stop(&self, running: usize) {
+        log::warn!(
+            "tp({}): {running} shared instance task(s) still running after stop budget, aborted",
+            self.name
+        );
+    }
+
     /// Fork-only: the interface attached with
     /// [`Self::attach_shared_instance`], if any; see
     /// [`Self::attach_shared_instance`] for when the slot is released.

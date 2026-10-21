@@ -44,7 +44,7 @@ impl Transport {
                 }
             }
         };
-        spawn_shared_instance_task(&self.shared_instance_tasks, announce);
+        spawn_shared_instance_task(&self.shared_instance_tasks, &self.name, announce);
     }
 }
 

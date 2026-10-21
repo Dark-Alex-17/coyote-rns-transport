@@ -27,6 +27,7 @@ impl Transport {
         };
         spawn_shared_instance_task(
             &self.shared_instance_tasks,
+            &self.name,
             consumer.run(reconnects, disconnects),
         );
     }
@@ -35,16 +36,16 @@ impl Transport {
 /// Spawns `future` into the transport's shared-instance task set, the set
 /// [`Transport::stop`] joins. The tasks already finished are reaped first so
 /// the set holds only live ones; a task that ended by panic is reported
-/// here, since nothing else joins it. The std guard is released before the
-/// caller awaits anything.
-fn spawn_shared_instance_task<F>(tasks: &std::sync::Mutex<JoinSet<()>>, future: F)
+/// here under the transport's `name`, since nothing else joins it. The std
+/// guard is released before the caller awaits anything.
+fn spawn_shared_instance_task<F>(tasks: &std::sync::Mutex<JoinSet<()>>, name: &str, future: F)
 where
     F: std::future::Future<Output = ()> + Send + 'static,
 {
     let mut tasks = tasks.lock().unwrap_or_else(|poisoned| poisoned.into_inner());
     while let Some(finished) = tasks.try_join_next() {
         if let Err(err) = finished {
-            log::warn!("[tp] shared-instance task did not finish cleanly: {err}");
+            log::warn!("tp({name}): shared instance task did not finish cleanly: {err}");
         }
     }
     tasks.spawn(future);
@@ -157,7 +158,7 @@ impl SharedInstanceReconnectConsumer {
                 ) => consumer.announce_reappeared().await,
             }
         };
-        spawn_shared_instance_task(&self.tasks, reannounce);
+        spawn_shared_instance_task(&self.tasks, &self.name, reannounce);
     }
 
     /// `shared_connection_reappeared` (`RNS/Transport.py:3705-3709`): every

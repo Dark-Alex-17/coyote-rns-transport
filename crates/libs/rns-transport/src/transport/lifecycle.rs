@@ -128,15 +128,11 @@ impl Transport {
             match time::timeout_at(deadline, tasks.join_next()).await {
                 Ok(None) => break,
                 Ok(Some(Ok(()))) => {}
-                Ok(Some(Err(err))) => log::warn!(
-                    "[tp] shared-instance task did not finish cleanly during stop: {err}"
-                ),
+                Ok(Some(Err(err))) => self.log_shared_instance_task_join_failed(&err),
                 Err(_) => {
                     let running = tasks.len();
                     tasks.abort_all();
-                    log::warn!(
-                        "[tp] {running} shared-instance task(s) still running after stop budget, aborted"
-                    );
+                    self.log_shared_instance_tasks_aborted_by_stop(running);
                     break;
                 }
             }

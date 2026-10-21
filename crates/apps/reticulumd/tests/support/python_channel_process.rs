@@ -64,11 +64,16 @@ impl PythonChannelInteropPaths {
     }
 
     // The client holds its destination up until stdin closes, so the caller
-    // keeps the stdin handle for as long as the Rust side needs the peer.
+    // keeps the stdin handle for as long as the Rust side needs the peer. The
+    // destination name and the request literals are passed rather than
+    // defaulted so the Rust test's constants are the only copy.
     pub(super) fn spawn_shared_instance_client(
         &self,
         config_dir: &Path,
         rust_destination_hash: &str,
+        (app_name, aspect): (&str, &str),
+        request_path: &str,
+        request_data: &str,
         timeout: f64,
     ) -> Child {
         Command::new(&self.python_bin)
@@ -78,6 +83,14 @@ impl PythonChannelInteropPaths {
             .arg(config_dir)
             .arg("--rust-destination-hash")
             .arg(rust_destination_hash)
+            .arg("--app-name")
+            .arg(app_name)
+            .arg("--aspect")
+            .arg(aspect)
+            .arg("--request-path")
+            .arg(request_path)
+            .arg("--request-data")
+            .arg(request_data)
             .arg("--timeout")
             .arg(timeout.to_string())
             .env("PYTHONPATH", &self.reticulum_py_repo)

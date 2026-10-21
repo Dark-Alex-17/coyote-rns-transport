@@ -1,11 +1,20 @@
 #!/usr/bin/env python3
 """Second local client of a Python rnsd shared instance.
 
-Registers an echoing request handler, reports the Rust announce when it
-arrives, sends one Link.request to the Rust destination, and then keeps
-announcing its own destination until stdin closes so the Rust side can run
-the reverse direction. stdout carries one JSON object per line; everything
-else goes to stderr.
+Registers an echoing request handler, reports the Rust announce when rnsd
+rebroadcasts it to this client, sends one Link.request to the Rust
+destination, and then keeps announcing its own destination (once a second)
+until stdin closes so the Rust side can run the reverse direction. While
+waiting for the path it announces every --announce-interval seconds, 0.25 by
+default, so the Rust side learns this destination early.
+
+The announce handler takes no path responses: rnsd answers this client's
+path request by replaying the cached Rust announce as a PATH_RESPONSE, which
+Python drops before the handler (RNS/Transport.py:2501-2504); only an
+announce rnsd re-sends live to its other local clients (RNS/Transport.py:
+2398-2430) reaches it. stdout carries one JSON object per line; the RNS log
+lines the transport thread prints to the same stdout are skipped by the
+Rust reader. Everything else goes to stderr.
 """
 
 from __future__ import annotations
@@ -19,6 +28,7 @@ import time
 import RNS
 
 PATH_REQUEST_INTERVAL = 2.0
+HOLD_ANNOUNCE_INTERVAL = 1.0
 
 
 def emit(payload: dict) -> None:
@@ -38,10 +48,6 @@ def echo_request(path, data, request_id, link_id, remote_identity, requested_at)
 
 class RustAnnounceHandler:
     aspect_filter = None
-    # rnsd answers this client's path request with a path response
-    # (RNS/Transport.py:3459-3520); without this flag Python drops it before
-    # the handler (RNS/Transport.py:2500-2504).
-    receive_path_responses = True
 
     def __init__(self, rust_hash: bytes) -> None:
         self.rust_hash = rust_hash
@@ -94,7 +100,7 @@ def response_text(response) -> str:
     return str(response)
 
 
-def hold_until_stdin_closes(destination, announce_interval: float) -> None:
+def hold_until_stdin_closes(destination) -> None:
     closed = threading.Event()
 
     def watch_stdin() -> None:
@@ -102,7 +108,7 @@ def hold_until_stdin_closes(destination, announce_interval: float) -> None:
         closed.set()
 
     threading.Thread(target=watch_stdin, daemon=True).start()
-    while not closed.wait(announce_interval):
+    while not closed.wait(HOLD_ANNOUNCE_INTERVAL):
         destination.announce()
 
 
@@ -110,6 +116,8 @@ def main() -> int:
     parser = argparse.ArgumentParser()
     parser.add_argument("--config-dir", required=True)
     parser.add_argument("--rust-destination-hash", required=True)
+    parser.add_argument("--app-name", default="test")
+    parser.add_argument("--aspect", default="shared")
     parser.add_argument("--request-path", default="/test/request")
     parser.add_argument("--request-data", default="hello-rust")
     parser.add_argument("--timeout", type=float, default=30.0)
@@ -128,8 +136,8 @@ def main() -> int:
         identity,
         RNS.Destination.IN,
         RNS.Destination.SINGLE,
-        "test",
-        "shared",
+        args.app_name,
+        args.aspect,
     )
     destination.register_request_handler(
         args.request_path,
@@ -151,9 +159,18 @@ def main() -> int:
         recalled,
         RNS.Destination.OUT,
         RNS.Destination.SINGLE,
-        "test",
-        "shared",
+        args.app_name,
+        args.aspect,
     )
+    if rust_destination.hash != rust_hash:
+        emit(
+            {
+                "request_failed": True,
+                "reason": "destination name mismatch",
+                "expected": rust_destination.hash.hex(),
+            }
+        )
+        return 1
     link = RNS.Link(rust_destination)
     if not wait_for_link(link, deadline):
         return 1
@@ -187,7 +204,7 @@ def main() -> int:
         return 1
     emit({"response": response_text(result["response"])})
 
-    hold_until_stdin_closes(destination, args.announce_interval)
+    hold_until_stdin_closes(destination)
     return 0
 
 

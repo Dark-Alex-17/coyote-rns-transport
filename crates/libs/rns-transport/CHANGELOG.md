@@ -69,7 +69,9 @@ bullet of its own, marked test-only.
   to the `TcpClient` as it did to the `LocalUnixClient`, and its attach
   debug line reports the wait as in force for both endpoints. Both knobs
   clamp the wait to at least 1 ms; `LocalUnixClient::with_reconnect_wait`
-  previously took a zero wait as given.
+  previously took a zero wait as given. The 5 s default is pinned by
+  `transport/tests_parts/two_transport_shared_instance_probe7.rs`
+  (`shared_instance_probe7_tcp_client_reconnect_wait_defaults_to_five_seconds`).
   `TcpClient::with_disconnect_events` and
   `LocalUnixClient::with_disconnect_events`, with
   `TcpClient::disconnect_events_enabled`: a sender, sibling of
@@ -105,7 +107,9 @@ bullet of its own, marked test-only.
   from the test, an unattached transport announces nothing on
   registration, the path-response announce differs from a plain one only
   in its context, and the re-announce sends every destination with its
-  app data and reports the count).
+  app data and reports the count) and by
+  `transport/tests_parts/two_transport_shared_instance_probe7.rs` (the
+  registration announce waits its 0.25 s rather than going out at once).
 
 ### Changed
 
@@ -117,12 +121,19 @@ bullet of its own, marked test-only.
   A dropped connection while attached, with the interface still flagged as
   the shared instance, closes every in and out link with its own side's
   `LinkCloseReason`, drops their resource state and clears the path,
-  announce, link and tunnel tables and the held announces
+  announce, link and tunnel tables, the held announces and the packet
+  cache's reverse routes, Python's `reverse_table`, through
+  `PacketCache::clear_reverse_routes` (`transport/packet_cache.rs`), which
+  leaves the duplicate-filter hashes in place
   (`RNS/Transport.py:3690-3702`, `RNS/Interfaces/LocalInterface.py:255-261`);
   a detach, a stop, a dropped connected posture or an interface no longer
-  flagged as the shared instance flushes nothing. Both are served by one
+  flagged as the shared instance flushes nothing. The links are taken out
+  of both maps before they are closed, so a link an application opens on
+  the `Closed` event is not evicted by the clears. Both are served by one
   task per attach that reads the clients' reconnect and disconnect events,
-  serving a queued disconnect before the reconnect behind it. Pinned by
+  serving a queued disconnect before the reconnect behind it. The warning
+  for a re-announce whose packet fails to build names the transport as
+  `tp(<name>)`, like the registration announce's. Pinned by
   `transport/tests_parts/two_transport_shared_instance_reconnect.rs` (a
   restart of the shared instance flushes the path, closes the link with
   `InitiatorClosed`, keeps the attach and re-announces both destinations
@@ -130,7 +141,17 @@ bullet of its own, marked test-only.
   a detach, a dropped posture and an unflagged interface each keep the
   path and the link across the restart; the consumer serves a queued
   disconnect before the reconnect behind it; and each table's `clear`
-  empties every collection it holds and reports the count).
+  empties every collection it holds and reports the count), by
+  `transport/tests_parts/two_transport_shared_instance_flush.rs` (before
+  the drop the path, announce, link and tunnel tables, the held announces
+  and the reverse route of a Data packet the shared instance sent over a
+  link each hold something, after it each is empty and the cached hashes
+  are kept) and by
+  `transport/tests_parts/two_transport_shared_instance_probe7.rs` (the
+  re-announce fires no sooner than `reconnect_wait` plus 2 s after the
+  re-accept, a posture dropped after the reconnect re-announces nothing,
+  every further restart re-announces again, and a pending link is torn
+  down by the drop like an active one).
 - `filter_duplicate_packet` (`transport/inbound_processing.rs`) returns
   early while attached to a shared instance, so nothing is inserted into
   the local duplicate-filter hashlist and nothing is rolled back: Python's
@@ -156,7 +177,13 @@ bullet of its own, marked test-only.
   the new interface, so a concurrent detach or stop cannot leave the
   posture set with the slot empty. An interface spawned after stop's sweep
   but before stop cancels the transport stays registered with the slot
-  empty; a second stop detaches it. Pinned by
+  empty; a second stop detaches it. `stop` also joins the tasks the
+  shared-instance client spawns (each attach's reconnect consumer, the
+  delayed registration announces and the delayed re-announces, which
+  Python runs as threads it never joins) within its budget, right after
+  the cancel, aborting and warning only on expiry, so none of them
+  announces on a stopped transport; the set they live in is reaped of
+  finished tasks before every spawn. Pinned by
   `transport/tests_parts/two_transport_shared_instance.rs` (stop releases
   the interface and the posture) and
   `transport/tests_parts/two_transport_shared_instance_probe.rs` (detach
@@ -179,7 +206,11 @@ bullet of its own, marked test-only.
   attach line is space-separated key=value tokens and both arms end at the
   wait) and `transport/tests_parts/two_transport_shared_instance_stop.rs`
   (`shared_instance_stop_refuses_a_later_attach_and_spawns_nothing`,
-  `shared_instance_stop_logs_the_slot_it_clears_at_debug`).
+  `shared_instance_stop_logs_the_slot_it_clears_at_debug`) and
+  `transport/tests_parts/two_transport_shared_instance_tasks.rs` (a stop
+  inside the registration delay joins the announce task, which sends
+  nothing, and a stop after an attach joins the consumer; the set is empty
+  after both).
 - The `TestLogger` in
   `transport/tests_parts/two_transport_loopback_requests_isolation.rs`
   keeps every record at `Warn` or above on the links target
@@ -187,9 +218,12 @@ bullet of its own, marked test-only.
   instance" needle. `shared_instance_assert_never_warned` in
   `transport/tests_parts/two_transport_shared_instance_probe5.rs` so
   covers any warning naming the transport, not only the shared-instance
-  lines. The reconnect-order test in
+  lines; `shared_instance_test_logger_keeps_a_needle_less_warning` in
+  `transport/tests_parts/two_transport_shared_instance_tasks.rs` pins that
+  a needle-less warning is stored and a needle-less debug record is not.
+  The reconnect-order test in
   `transport/tests_parts/two_transport_shared_instance_reconnect.rs` runs
-  twelve rounds, each on its own transport name, channels and consumer,
+  twenty rounds, each on its own transport name, channels and consumer,
   since an unbiased select would pass a single round by luck. Test-only;
   no library behaviour changes. Pinned by those same files.
 - The proof-cap fixture

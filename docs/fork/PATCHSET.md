@@ -30,13 +30,14 @@ shared-instance client parity. The
 `18e2ccb5`, `52be26ad`, `428a699a`, `4b67a5e9`, `5319bcde` and `114cd382`;
 the `shared-instance client parity` patch is fork commits `5af0c425`,
 `c8a296f3`, `60656cdb`, `54035599`, `9dfc446e`, `8e20e0d4`, `4f41b2f2`,
-`c972552f`, `867264ef` and `cce0a328`; the `proof cap stall on signal`
+`c972552f`, `867264ef`, `cce0a328`, `0f581ef3`, `41064bcb`, `6089ea85` and
+`a9ce646f`; the `proof cap stall on signal`
 patch carries no other id and is fork commit `cccc40e4`.
 
 | File | Patch |
 | --- | --- |
 | `crates/apps/reticulumd/tests/fork_publish_contract.rs` | shared-instance client packaging |
-| `crates/apps/reticulumd/tests/fork_release_docs_contract.rs` | shared-instance client packaging |
+| `crates/apps/reticulumd/tests/fork_release_docs_contract.rs` | shared-instance client packaging, shared-instance client parity |
 | `crates/libs/rns-transport/CHANGELOG.md` | shared-instance client packaging, shared-instance client parity |
 | `crates/libs/rns-transport/README.md` | shared-instance client packaging, shared-instance client parity |
 | `crates/libs/rns-transport/src/destination_parts/destination.rs` | shared-instance client parity |
@@ -54,7 +55,8 @@ patch carries no other id and is fork commit `cccc40e4`.
 | `crates/libs/rns-transport/src/transport/links_parts/transport_sections/shared_instance.rs` | shared-instance client packaging, shared-instance client parity |
 | `crates/libs/rns-transport/src/transport/links_parts/transport_sections/shared_instance_announce.rs` | shared-instance client parity |
 | `crates/libs/rns-transport/src/transport/links_parts/transport_sections/shared_instance_reconnect.rs` | shared-instance client parity |
-| `crates/libs/rns-transport/src/transport/mod.rs` | shared-instance client packaging |
+| `crates/libs/rns-transport/src/transport/mod.rs` | shared-instance client packaging, shared-instance client parity |
+| `crates/libs/rns-transport/src/transport/packet_cache.rs` | shared-instance client parity |
 | `crates/libs/rns-transport/src/transport/path_table.rs` | shared-instance client parity |
 | `crates/libs/rns-transport/src/transport/path_table_codec.rs` | shared-instance client parity |
 | `crates/libs/rns-transport/src/transport/shared_instance.rs` | shared-instance client packaging, shared-instance client parity |
@@ -62,6 +64,7 @@ patch carries no other id and is fork commit `cccc40e4`.
 | `crates/libs/rns-transport/src/transport/tests_parts/two_transport_loopback_link_packet_proven_probe2.rs` | proof cap stall on signal, shared-instance client packaging |
 | `crates/libs/rns-transport/src/transport/tests_parts/two_transport_loopback_requests_isolation.rs` | shared-instance client packaging, shared-instance client parity |
 | `crates/libs/rns-transport/src/transport/tests_parts/two_transport_shared_instance.rs` | shared-instance client packaging, shared-instance client parity |
+| `crates/libs/rns-transport/src/transport/tests_parts/two_transport_shared_instance_flush.rs` | shared-instance client parity |
 | `crates/libs/rns-transport/src/transport/tests_parts/two_transport_shared_instance_parity.rs` | shared-instance client parity |
 | `crates/libs/rns-transport/src/transport/tests_parts/two_transport_shared_instance_probe.rs` | shared-instance client packaging |
 | `crates/libs/rns-transport/src/transport/tests_parts/two_transport_shared_instance_probe2.rs` | shared-instance client packaging, shared-instance client parity |
@@ -69,8 +72,10 @@ patch carries no other id and is fork commit `cccc40e4`.
 | `crates/libs/rns-transport/src/transport/tests_parts/two_transport_shared_instance_probe4.rs` | shared-instance client packaging, shared-instance client parity |
 | `crates/libs/rns-transport/src/transport/tests_parts/two_transport_shared_instance_probe5.rs` | shared-instance client packaging, shared-instance client parity |
 | `crates/libs/rns-transport/src/transport/tests_parts/two_transport_shared_instance_probe6.rs` | shared-instance client packaging, shared-instance client parity |
+| `crates/libs/rns-transport/src/transport/tests_parts/two_transport_shared_instance_probe7.rs` | shared-instance client parity |
 | `crates/libs/rns-transport/src/transport/tests_parts/two_transport_shared_instance_reconnect.rs` | shared-instance client parity |
 | `crates/libs/rns-transport/src/transport/tests_parts/two_transport_shared_instance_stop.rs` | shared-instance client parity |
+| `crates/libs/rns-transport/src/transport/tests_parts/two_transport_shared_instance_tasks.rs` | shared-instance client parity |
 | `crates/libs/rns-transport/src/transport/tunnels.rs` | shared-instance client parity |
 | `docs/fork/PATCHSET.md` | shared-instance client packaging, shared-instance client parity |
 
@@ -210,8 +215,9 @@ records;
 crate `CHANGELOG.md` carries the release notes.
 
 Fork commits `5af0c425`, `c8a296f3`, `60656cdb`, `54035599`, `9dfc446e`,
-`8e20e0d4`, `4f41b2f2`, `c972552f`, `867264ef` and `cce0a328`: F5,
-shared-instance client parity. The first gives `TcpClient` a configurable
+`8e20e0d4`, `4f41b2f2`, `c972552f`, `867264ef`, `cce0a328`, `0f581ef3`,
+`41064bcb`, `6089ea85` and `a9ce646f`: F5, shared-instance client parity.
+The first gives `TcpClient` a configurable
 reconnect wait, `with_reconnect_wait` and `reconnect_wait` with the default
 kept at 5 s, used at both backoff sleeps of its spawn loop, and pins it
 with a fast-retry twin of the reconnect-storm test. The second adds the
@@ -259,18 +265,54 @@ the order. The ninth refuses `attach_shared_instance` once `stop` has
 cancelled the transport, logs the slot `stop` clears at debug under the
 links target, parks the stop of the fourth probe fixture on a held worker
 so the attach lands inside the sweep-to-cancel window for certain, pins
-the refused racing attach in the third, and makes the test logger keep
-every Warn-or-above record on the links target so the never-warned oracle
-covers any warning naming the transport. The tenth rewrites the README's
+the refused racing attach in the third, adds
+`two_transport_shared_instance_stop.rs` for the refused attach and the
+cleared-slot line, and makes the test logger keep every Warn-or-above
+record on the links target so the never-warned oracle covers any warning
+naming the transport. The tenth rewrites the README's
 attach section for the behaviour above, trims the divergence register to
 the two claims that still hold, and loops the reconnect-order test over
-twelve rounds. The file sites below describe the combined result.
+twelve rounds. The eleventh gives `Transport` a private `JoinSet` that the
+registration announce, the per-attach reconnect consumer and the delayed
+re-announce are spawned through, reaped of finished tasks before each
+spawn, and makes `stop` take the set out of its std guard right after the
+cancel and join it under the existing budget, aborting and warning only on
+expiry, pinned by `two_transport_shared_instance_tasks.rs`. The twelfth
+adds `PacketCache::clear_reverse_routes`, the twin of Python's
+`reverse_table` flush that empties the proof-destination index and the
+source notes while keeping the duplicate-filter hashes, calls it from the
+drop handler in its own scoped lock after the handler block, takes the
+links out of both maps under the first handler guard before closing them
+so a link opened on the `Closed` event survives the clears, corrects the
+two docstrings that placed `reverse_table` on the link-table entries, and
+adds `two_transport_shared_instance_flush.rs`, which seeds every table and
+asserts each empty on its own after the drop. The thirteenth pins the
+widened logger with a needle-less warning, adds a release-docs contract
+test that the README's shared-instance section cites the five Python
+ranges and calls nothing pending, puts `await_holding_invalid_type` on
+every async test the parity commits added, runs the reconnect-order test
+over twenty rounds and adopts the seventh probe fixture (the registration
+announce waits its quarter second, the re-announce waits `reconnect_wait`
+plus two seconds, a posture dropped after the reconnect re-announces
+nothing, every restart re-announces again, a pending link is torn down,
+and the `TcpClient` wait defaults to five seconds). The fourteenth moves
+the cites to `LocalInterface.py:160`, `:178-181` and
+`Destination.py:308-315` as checked at ea98db4f, narrows the hashlist
+claim in the README, the duplicate-filter comment and the release notes to
+the duplicate filter alone, says the tunnel is synthesized at attach and
+on every reconnect, names the transport in the re-announce warning,
+clamps `LocalUnixClient::with_reconnect_wait` to 1 ms like the TCP knob,
+and refreshes two fixture comments. The file sites below describe the
+combined result.
 Upstream sites: `src/iface/tcp_client.rs` and `src/iface/local.rs` carry
-the reconnect wait and the disconnect seam; `src/destination_parts/destination.rs`
-gains `announce_with_context`; `transport/core.rs` delegates its tunnel
-synthesis to the free function; `transport/inbound_processing.rs` returns early while
+the reconnect wait, its 1 ms clamp and the disconnect seam;
+`src/destination_parts/destination.rs` gains `announce_with_context`;
+`transport/mod.rs` gains the shared-instance task set on `Transport` and
+`transport/core.rs` initialises it and delegates its tunnel synthesis to
+the free function; `transport/inbound_processing.rs` returns early while
 attached and `transport/inbound_processing_tests.rs` pins it;
-`transport/lifecycle.rs` logs the slot `stop` clears;
+`transport/lifecycle.rs` logs the slot `stop` clears and joins the task
+set; `transport/packet_cache.rs` gains `clear_reverse_routes`;
 `transport/announce_table.rs`, `transport/link_table.rs`,
 `transport/path_table.rs` and `transport/tunnels.rs` gain `clear`, with
 `transport/path_table_codec.rs` exposing the shared decoders;
@@ -279,16 +321,21 @@ attached and `transport/inbound_processing_tests.rs` pins it;
 announce from `register_destination`;
 `links_parts/transport_sections/shared_instance.rs` wires the seams and
 refuses the post-stop attach; `transport/shared_instance.rs` drops the
-unix-only wording; `transport/tests.rs` includes the three new fixtures;
+unix-only wording; `transport/tests.rs` includes the six new fixtures;
 `transport/tests_parts/two_transport_loopback_requests_isolation.rs`
 keeps every links-target warning; the shared-instance fixture and probe
-fixtures two to six follow the new attach line, stop window and oracle.
+fixtures two to six follow the new attach line, stop window and oracle;
+`crates/apps/reticulumd/tests/fork_release_docs_contract.rs` holds the
+README's shared-instance section to its parity cites.
 New files:
 `src/transport/links_parts/transport_sections/shared_instance_announce.rs`,
 `src/transport/links_parts/transport_sections/shared_instance_reconnect.rs`,
 `src/transport/tests_parts/two_transport_shared_instance_parity.rs`,
-`src/transport/tests_parts/two_transport_shared_instance_reconnect.rs`
-and `src/transport/tests_parts/two_transport_shared_instance_stop.rs`.
+`src/transport/tests_parts/two_transport_shared_instance_reconnect.rs`,
+`src/transport/tests_parts/two_transport_shared_instance_stop.rs`,
+`src/transport/tests_parts/two_transport_shared_instance_tasks.rs`,
+`src/transport/tests_parts/two_transport_shared_instance_flush.rs` and
+`src/transport/tests_parts/two_transport_shared_instance_probe7.rs`.
 The README and the crate `CHANGELOG.md` carry the prose.
 
 Fork commit `cccc40e4`: proof cap stall on signal. The cap fixture of

@@ -466,16 +466,6 @@ impl Transport {
     }
 
     pub async fn synthesize_tunnel_on_interface(&self, iface: AddressHash) -> bool {
-        let packet = {
-            let handler = self.handler.lock().await;
-            let iface_manager = handler.iface_manager.lock().await;
-            let Some(interface_hash) = iface_manager.full_hash(&iface) else {
-                return false;
-            };
-            super::tunnels::synthesize_tunnel_packet(&handler.config.identity, interface_hash)
-        };
-
-        self.send_direct(iface, packet).await;
-        true
+        super::links::synthesize_tunnel_on_iface(&self.handler, iface).await
     }
 }

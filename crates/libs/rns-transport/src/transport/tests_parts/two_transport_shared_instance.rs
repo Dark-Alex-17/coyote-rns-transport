@@ -75,11 +75,17 @@ struct SharedInstanceClient {
 
 #[deny(clippy::await_holding_invalid_type)]
 async fn shared_instance_server() -> SharedInstanceServer {
+    shared_instance_server_on(free_loopback_port().await).await
+}
+
+/// Binds on `port`; a port a stopped shared instance just released can be taken again,
+/// since `TcpServer` binds its listener with `SO_REUSEADDR`.
+#[deny(clippy::await_holding_invalid_type)]
+async fn shared_instance_server_on(port: u16) -> SharedInstanceServer {
     let identity = PrivateIdentity::new_from_rand(OsRng);
     let mut config = TransportConfig::new("shared-instance", &identity, false);
     config.set_transport_enabled(true);
     let transport = Transport::new(config);
-    let port = free_loopback_port().await;
     let server = TcpServer::new(format!("127.0.0.1:{port}"), transport.iface_manager())
         .with_client_mtu(TcpClient::DEFAULT_MTU);
     let status = server.runtime_status_handle();

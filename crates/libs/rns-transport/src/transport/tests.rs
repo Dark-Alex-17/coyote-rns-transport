@@ -208,3 +208,5 @@ include!("tests_parts/two_transport_shared_instance_probe5.rs");
 include!("tests_parts/two_transport_shared_instance_probe6.rs");
 
 include!("tests_parts/two_transport_shared_instance_parity.rs");
+
+include!("tests_parts/two_transport_shared_instance_reconnect.rs");

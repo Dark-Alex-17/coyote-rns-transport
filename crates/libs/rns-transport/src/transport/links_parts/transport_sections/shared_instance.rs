@@ -9,14 +9,17 @@ impl Transport {
     /// already owns the configured `shared_instance_port`
     /// (`RNS/Reticulum.py:422-441`, `:437` marks it connected): the interface
     /// is marked as the shared instance, the transport is marked connected to
-    /// one, and a tunnel is synthesized on it once, at attach; reticulumd
-    /// does the same at startup and additionally re-synthesizes it on every
-    /// reconnect, which this method does not. Python's shared-instance client
-    /// synthesizes no tunnel at all (`RNS/Interfaces/LocalInterface.py` has no
-    /// tunnel code; `wants_tunnel` is set by the network-facing clients such as
-    /// `RNS/Interfaces/TCPInterface.py:179`); its reconnect hooks re-announce
-    /// and flush the tables instead
-    /// (`RNS/Transport.py:3690-3709`), which this crate does not yet mirror.
+    /// one, and a tunnel is synthesized on it at attach and again on every
+    /// reconnect, as reticulumd does for its own clients. Python's
+    /// shared-instance client synthesizes no tunnel at all
+    /// (`RNS/Interfaces/LocalInterface.py` has no tunnel code; `wants_tunnel`
+    /// is set by the network-facing clients such as
+    /// `RNS/Interfaces/TCPInterface.py:179`); its reconnect hook
+    /// (`RNS/Transport.py:3705-3709`) is mirrored by a task spawned here: a
+    /// reconnect re-announces every registered destination as a path
+    /// response `reconnect_wait` plus two seconds later
+    /// (`RNS/Interfaces/LocalInterface.py:177-180`). Python's flush of the
+    /// tables when the connection drops (`:3690-3702`) is not mirrored yet.
     /// Python also forces transport, remote management and probes off when it
     /// attaches (`RNS/Reticulum.py:438-440`); this method leaves
     /// `transport_enabled` as configured, since the crate supports a
@@ -49,6 +52,7 @@ impl Transport {
             #[cfg(unix)]
             SharedInstanceEndpoint::Unix(_) => "unix",
         };
+        let (reconnect_tx, reconnect_rx) = tokio::sync::mpsc::channel(8);
         // Lock order: the std slot is innermost, under the iface_manager here
         // and under the handler below as in detach and stop; the two tokio
         // locks are never nested. The second section re-reads the slot since
@@ -62,7 +66,9 @@ impl Transport {
             }
             let iface = match endpoint {
                 SharedInstanceEndpoint::Tcp(addr) => manager.spawn_as_with_mode(
-                    TcpClient::new(addr.to_string()).with_reconnect_wait(options.reconnect_wait()),
+                    TcpClient::new(addr.to_string())
+                        .with_reconnect_wait(options.reconnect_wait())
+                        .with_reconnect_events(reconnect_tx),
                     TcpClient::spawn,
                     IfaceRole::Unicast,
                     InterfaceMode::Full,
@@ -70,7 +76,8 @@ impl Transport {
                 #[cfg(unix)]
                 SharedInstanceEndpoint::Unix(endpoint) => manager.spawn_as_with_mode(
                     LocalUnixClient::new_connect(endpoint)
-                        .with_reconnect_wait(options.reconnect_wait()),
+                        .with_reconnect_wait(options.reconnect_wait())
+                        .with_reconnect_events(reconnect_tx),
                     LocalUnixClient::spawn,
                     IfaceRole::Unicast,
                     InterfaceMode::Full,
@@ -80,6 +87,11 @@ impl Transport {
             *slot = Some(iface);
             iface
         };
+        self.spawn_shared_instance_reconnect_consumer(
+            iface,
+            options.reconnect_wait(),
+            reconnect_rx,
+        );
         {
             let mut handler = self.handler.lock().await;
             let slot = self.shared_instance.lock().unwrap_or_else(|poisoned| poisoned.into_inner());

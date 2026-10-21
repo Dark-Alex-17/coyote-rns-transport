@@ -256,3 +256,70 @@ async fn shared_instance_flush_empties_every_table_and_keeps_the_hashlist() {
         .await
         .expect("restarted shared instance stop completes");
 }
+
+/// `shared_connection_disappeared` tears each link down with `Link.teardown`
+/// (`RNS/Transport.py:3692`), which sends a LINKCLOSE packet to the peer of every active
+/// link (`RNS/Link.py:657-668`). A link the client holds over a plain TCP interface to a
+/// third transport is still reachable when the shared instance drops, so that peer learns
+/// the close from the wire, with the initiator-side reason; without the packet its own
+/// watchdog is what eventually closes the link, with a timeout reason.
+#[tokio::test]
+#[deny(clippy::await_holding_invalid_type)]
+async fn shared_instance_flush_sends_link_close_to_peers_on_other_interfaces() {
+    install_test_logger();
+    let name = "shared-instance-flush-teardown";
+    let server = shared_instance_server().await;
+    let mut client = shared_instance_reconnect_client(name, &server).await;
+    server.await_accepted_connections(1).await;
+    shared_instance_assert_attached(&client.transport, client.iface).await;
+
+    let third = listener("shared-instance-flush-third", TcpClient::DEFAULT_MTU).await;
+    let tcp = TcpClient::new(format!("127.0.0.1:{}", third.port)).with_mtu(TcpClient::DEFAULT_MTU);
+    let status = tcp.runtime_status_handle();
+    let context = client.transport.iface_manager().lock().await.new_context(tcp);
+    tokio::spawn(TcpClient::spawn(context));
+    wait_until(
+        "client to reach the third transport",
+        || status.to_json()["stream_state"].as_str() == Some("connected"),
+        || status.to_json().to_string(),
+    )
+    .await;
+    third.await_accepted_connections(1).await;
+
+    let mut third_in_events = third.transport.in_link_events();
+    let (_destination, desc) =
+        register_in_destination(&third.transport, "shared-instance-flush", "third").await;
+    let (learned, _) =
+        shared_instance_learn_announce(&mut client.announces, &desc.address_hash).await;
+    let (_link, link_id) = open_link(&client.transport, learned).await;
+    let activated = await_event(&mut third_in_events, |event| {
+        event.id == link_id && matches!(event.event, LinkEvent::Activated)
+    })
+    .await;
+    assert_eq!(activated.id, link_id, "both ends share one link id");
+
+    let (restarted, _restarted_announces, _) = shared_instance_reconnect_restart(server).await;
+    wait_until(
+        "the drop to be recorded",
+        || !shared_instance_debug_records_containing(name, "disconnected,").is_empty(),
+        || format!("{:?}", shared_instance_records_for(name)),
+    )
+    .await;
+
+    let closed = await_event(&mut third_in_events, |event| {
+        event.id == link_id && matches!(event.event, LinkEvent::Closed)
+    })
+    .await;
+    assert_eq!(
+        closed.close_reason,
+        Some(LinkCloseReason::InitiatorClosed),
+        "the peer learned the close from the client's LINKCLOSE, not from a timeout"
+    );
+    shared_instance_assert_never_warned(name);
+
+    timeout(STOP_TIMEOUT, client.transport.stop()).await.expect("client stop completes");
+    timeout(STOP_TIMEOUT, third.transport.stop()).await.expect("third transport stop completes");
+    timeout(STOP_TIMEOUT, restarted.transport.stop())
+        .await
+        .expect("restarted shared instance stop completes");
+}

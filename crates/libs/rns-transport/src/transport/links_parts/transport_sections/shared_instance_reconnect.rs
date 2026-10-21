@@ -189,9 +189,12 @@ impl SharedInstanceReconnectConsumer {
     /// `shared_connection_disappeared` (`RNS/Transport.py:3690-3702`), run
     /// only while attached as Python's `receive` does
     /// (`RNS/Interfaces/LocalInterface.py:255-261`): every active and
-    /// pending link is closed with the reason of its own side, as
-    /// `Link.teardown` sets it (`RNS/Link.py:670-671`), and the tables are
-    /// emptied. Python's tables map to the fork's as follows:
+    /// pending link is torn down as `Link.teardown` does
+    /// (`RNS/Transport.py:3692`, `:3695`, `RNS/Link.py:657-668`): a
+    /// LINKCLOSE packet goes to the peer of each active link on the
+    /// interface the link rides, after every guard is released, and each
+    /// link is closed with the reason of its own side (`:670-671`); the
+    /// tables are emptied. Python's tables map to the fork's as follows:
     /// `active_links` and `pending_links` are `in_links` and `out_links`
     /// (both hold links in every status); `announce_table`, `path_table`
     /// and `tunnels` are the fields of the same name; `link_table` is the
@@ -204,10 +207,13 @@ impl SharedInstanceReconnectConsumer {
     /// maintenance job does. Lock discipline follows
     /// `fail_pending_requests_on_stop`: the handler and each link are
     /// locked one after the other, never together, and the packet cache is
-    /// locked after the handler guard has been released. The links are
+    /// locked after the handler guard has been released; the teardown
+    /// packets are sent last, after the packet cache guard. The links are
     /// taken out of both maps under the first handler guard and closed
     /// afterwards, so a link opened on the `Closed` event is not evicted by
-    /// the clears that follow.
+    /// the clears that follow. A link riding the dropped interface itself
+    /// can at best queue its teardown on that interface; a close packet
+    /// that does not go out is recorded at debug.
     #[deny(clippy::await_holding_invalid_type)]
     async fn on_disconnected(&self) {
         if !self.attached().await {
@@ -223,10 +229,15 @@ impl SharedInstanceReconnectConsumer {
             (drain_links(&mut handler.in_links), drain_links(&mut handler.out_links))
         };
         let mut closed = Vec::with_capacity(in_links.len() + out_links.len());
+        let mut teardowns: Vec<(AddressHash, Packet)> = Vec::new();
         for link in in_links.iter().chain(&out_links) {
             let mut link = link.lock().await;
-            link.close();
+            let iface = link.ingress_iface();
+            let packet = link.teardown();
             closed.push(*link.id());
+            if let (Some(iface), Some(packet)) = (iface, packet) {
+                teardowns.push((iface, packet));
+            }
         }
         let (paths, announces, links, tunnels, held, packet_cache) = {
             let mut handler = self.handler.lock().await;
@@ -243,11 +254,28 @@ impl SharedInstanceReconnectConsumer {
             (paths, announces, links, tunnels, held, handler.packet_cache.clone())
         };
         let reverse_routes = packet_cache.lock().await.clear_reverse_routes();
+        let mut close_packets_sent = 0usize;
+        for (iface, packet) in teardowns {
+            let link_id = packet.destination;
+            let trace = super::request_dispatch::send_on_iface(&self.handler, iface, packet).await;
+            if trace.sent_ifaces > 0 {
+                close_packets_sent += 1;
+            } else {
+                log::debug!(
+                    "tp({}): shared instance iface={} dropped; close packet for link={} not sent on iface={}",
+                    self.name,
+                    self.iface,
+                    link_id,
+                    iface
+                );
+            }
+        }
         log::debug!(
-            "tp({}): shared instance iface={} disconnected, {} link(s) torn down, {} path(s), {} announce(s), {} link table entr(ies), {} tunnel(s), {} held announce(s), {} reverse route(s) cleared",
+            "tp({}): shared instance iface={} disconnected, {} link(s) torn down ({} close packet(s) sent), {} path(s), {} announce(s), {} link table entr(ies), {} tunnel(s), {} held announce(s), {} reverse route(s) cleared",
             self.name,
             self.iface,
             closed.len(),
+            close_packets_sent,
             paths,
             announces,
             links,

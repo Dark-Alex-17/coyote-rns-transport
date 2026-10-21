@@ -330,7 +330,7 @@ fn request_layer_public_items_cite_python_or_say_fork_only() {
     }
 
     assert!(
-        checked >= 131,
+        checked >= 132,
         "the request layer should expose the receipt, frame, handler and outcome surface; found only {checked} public items"
     );
     assert!(
@@ -461,15 +461,7 @@ fn fork_new_public_structs_keep_their_fields_private() {
 #[test]
 fn crate_readme_known_divergences_cite_python_lines() {
     let readme = read_repo_file("crates/libs/rns-transport/README.md");
-    let heading = "\n## Known divergences from Python RNS\n";
-    let start = readme
-        .find(heading)
-        .expect("crate README should carry a `## Known divergences from Python RNS` section");
-    let section = &readme[start + heading.len()..];
-    let section = match section.find("\n## ") {
-        Some(end) => &section[..end],
-        None => section,
-    };
+    let section = crate_readme_section(&readme, "Known divergences from Python RNS");
 
     // Entries are top-level bullets; continuation lines are indented.
     let entries: Vec<String> = section
@@ -514,15 +506,7 @@ fn crate_readme_known_divergences_cite_python_lines() {
 #[test]
 fn crate_readme_shared_instance_section_has_no_unpinned_rust_fence() {
     let readme = read_repo_file("crates/libs/rns-transport/README.md");
-    let heading = "\n## Attaching to a shared instance\n";
-    let start = readme
-        .find(heading)
-        .expect("crate README should carry an `## Attaching to a shared instance` section");
-    let section = &readme[start + heading.len()..];
-    let section = match section.find("\n## ") {
-        Some(end) => &section[..end],
-        None => section,
-    };
+    let section = crate_readme_section(&readme, "Attaching to a shared instance");
     assert!(!section.trim().is_empty(), "the shared-instance section should not be empty");
     assert!(
         !section.contains("```"),
@@ -546,9 +530,11 @@ fn crate_readme_section<'a>(readme: &'a str, heading: &str) -> &'a str {
 
 /// The shared-instance section's parity claims each point at the Python
 /// they mirror: the delayed registration announce, the reappearance
-/// re-announce and its delay, the disappearance flush, and the hashlist the
-/// owner keeps. Neither it nor the divergence register may describe any of
-/// it as still pending: everything the section claims is mirrored.
+/// re-announce and its delay, the disappearance flush and the guard that
+/// runs it only while attached, the drop teardown's LINKCLOSE, the redial
+/// wait, and the hashlist the owner keeps. Neither it nor the divergence
+/// register may describe any of it as still pending: everything the section
+/// claims is mirrored.
 #[test]
 fn crate_readme_shared_instance_section_cites_the_parity_lines() {
     let readme = read_repo_file("crates/libs/rns-transport/README.md");
@@ -559,6 +545,9 @@ fn crate_readme_shared_instance_section_cites_the_parity_lines() {
         "`RNS/Transport.py:3690-3702`",
         "`RNS/Transport.py:1618-1627`",
         "`RNS/Interfaces/LocalInterface.py:178-181`",
+        "`RNS/Link.py:657-668`",
+        "`RNS/Interfaces/LocalInterface.py:159-160`",
+        "`RNS/Interfaces/LocalInterface.py:255-261`",
     ] {
         assert!(
             section.contains(cite),

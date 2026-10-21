@@ -318,9 +318,11 @@ the other sanctioned guard-holding transmit seam, and puts the
 `await_holding_invalid_type` deny on the registration announce spawn. The
 seventeenth moves the two task warnings of stop's join loop into helpers
 on the links target and threads the transport's name into
-`spawn_shared_instance_task`, so every shared-instance warning reads
-`tp(<name>)` and the never-warned oracle of the tasks fixture catches a
-join that regresses to an abort. The eighteenth narrows the
+`spawn_shared_instance_task`, so every shared-instance task warning reads
+`tp(<name>)` on the links target (stop's own budget warning for a handler
+that stays locked keeps its `[tp]` prefix on the lifecycle target) and the
+never-warned oracle of the tasks fixture catches a join that regresses to
+an abort. The eighteenth narrows the
 duplicate-filter claim: the filter neither inserts nor consults while
 attached, but the source notes `handle_data` leaves share the cache and
 count as seen once detached, now a divergence entry against Python's

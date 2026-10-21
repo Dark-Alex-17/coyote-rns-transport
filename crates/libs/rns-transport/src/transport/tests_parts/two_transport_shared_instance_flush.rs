@@ -62,11 +62,13 @@ async fn shared_instance_flush_await_reverse_route(
 }
 
 /// The shared instance sends data over the link before it goes away, so the client's
-/// packet cache routes a proof for that packet back over the shared-instance interface;
-/// the other tables are seeded. The drop's debug record is the gate: it is written after
-/// the last clear. Each table is then asserted empty on its own, and the cached hashes,
-/// Python's `packet_hashlist`, are still there (the reconnect's tunnel packet adds to
-/// them, so what was cached before the drop is asserted kept, not the exact set).
+/// packet cache routes a proof for that packet back over the shared-instance interface,
+/// and the client sends data of its own, whose proof index entry is its receipt guard; the
+/// other tables are seeded. The drop's debug record is the gate: it is written after the
+/// last clear. Each table is then asserted empty on its own, the receipt guard is still in
+/// place, and the cached hashes, Python's `packet_hashlist`, are still there (the
+/// reconnect's tunnel packet adds to them, so what was cached before the drop is asserted
+/// kept, not the exact set).
 #[tokio::test]
 #[deny(clippy::await_holding_invalid_type)]
 async fn shared_instance_flush_empties_every_table_and_keeps_the_hashlist() {
@@ -76,6 +78,7 @@ async fn shared_instance_flush_empties_every_table_and_keeps_the_hashlist() {
     let mut client = shared_instance_reconnect_client(name, &server).await;
     server.await_accepted_connections(1).await;
     shared_instance_assert_attached(&client.transport, client.iface).await;
+    let mut server_in_events = server.transport.in_link_events();
     let (server_destination, link_id) =
         shared_instance_reconnect_open_link(&server, &mut client).await;
     let mut client_out_events = client.transport.out_link_events();
@@ -93,6 +96,16 @@ async fn shared_instance_flush_empties_every_table_and_keeps_the_hashlist() {
     let noted = shared_instance_flush_await_reverse_route(&client.transport, client.iface).await;
     let proof_destinations: Vec<AddressHash> =
         noted.iter().map(AddressHash::new_from_hash).collect();
+    let report = client
+        .transport
+        .send_to_out_links_with_report(&server_destination, b"data from the client")
+        .await;
+    assert_sent_on_one_link(report, "outbound");
+    let outbound = await_event(&mut server_in_events, |event| {
+        event.id == link_id && matches!(event.event, LinkEvent::Data(_))
+    })
+    .await;
+    assert_eq!(data_bytes(outbound), b"data from the client");
 
     let announced = AddressHash::new_from_rand(OsRng);
     let linked = AddressHash::new_from_rand(OsRng);
@@ -154,7 +167,7 @@ async fn shared_instance_flush_empties_every_table_and_keeps_the_hashlist() {
         assert!(held, "an announce is held");
         handler.packet_cache.clone()
     };
-    let hashes_before = {
+    let (hashes_before, receipt_guards) = {
         let cache = packet_cache.lock().await;
         for proof_destination in &proof_destinations {
             assert_eq!(
@@ -163,7 +176,17 @@ async fn shared_instance_flush_empties_every_table_and_keeps_the_hashlist() {
                 "a proof for the received data routes back over the shared instance"
             );
         }
-        cache.hashes()
+        let hashes = cache.hashes();
+        let receipt_guards: Vec<AddressHash> = hashes
+            .iter()
+            .filter(|hash| cache.source_iface_for_hash(hash).is_none())
+            .map(AddressHash::new_from_hash)
+            .filter(|proof_destination| {
+                cache.proof_context_for_destination(proof_destination).is_some()
+            })
+            .collect();
+        assert!(!receipt_guards.is_empty(), "the client's own data packet is indexed");
+        (hashes, receipt_guards)
     };
     assert!(client.transport.has_path(&server_destination).await, "the path is learned");
 
@@ -208,6 +231,12 @@ async fn shared_instance_flush_empties_every_table_and_keeps_the_hashlist() {
                 cache.proof_context_for_destination(proof_destination),
                 None,
                 "the proof context is flushed"
+            );
+        }
+        for proof_destination in &receipt_guards {
+            assert!(
+                cache.proof_context_for_destination(proof_destination).is_some(),
+                "the receipt guard of a packet this client sent is kept"
             );
         }
         let hashes_after = cache.hashes();

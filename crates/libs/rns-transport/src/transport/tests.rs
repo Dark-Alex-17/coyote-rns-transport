@@ -212,3 +212,5 @@ include!("tests_parts/two_transport_shared_instance_parity.rs");
 include!("tests_parts/two_transport_shared_instance_reconnect.rs");
 
 include!("tests_parts/two_transport_shared_instance_stop.rs");
+
+include!("tests_parts/two_transport_shared_instance_tasks.rs");

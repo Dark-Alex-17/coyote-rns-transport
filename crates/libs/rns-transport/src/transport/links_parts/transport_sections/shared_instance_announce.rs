@@ -15,9 +15,9 @@ impl Transport {
 
     /// Python announces a single destination with `path_response=True` from
     /// a thread that sleeps 0.25 s after the registration when the node is a
-    /// shared-instance client (`RNS/Transport.py:2911-2916`). The task is
-    /// detached and ends with [`Self::stop`]; a destination deregistered
-    /// before the delay elapses is still announced, as in Python.
+    /// shared-instance client (`RNS/Transport.py:2911-2916`). The task ends
+    /// with [`Self::stop`], which joins it; a destination deregistered before
+    /// the delay elapses is still announced, as in Python.
     fn spawn_shared_instance_registration_announce(
         &self,
         destination: Arc<Mutex<SingleInputDestination>>,
@@ -26,7 +26,7 @@ impl Transport {
         let handler = self.handler.clone();
         let cancel = self.cancel.clone();
         let name = self.name.clone();
-        tokio::spawn(async move {
+        let announce = async move {
             tokio::select! {
                 _ = cancel.cancelled() => {}
                 _ = tokio::time::sleep(SHARED_INSTANCE_REGISTRATION_ANNOUNCE_DELAY) => {
@@ -42,7 +42,8 @@ impl Transport {
                     }
                 }
             }
-        });
+        };
+        spawn_shared_instance_task(&self.shared_instance_tasks, announce);
     }
 }
 

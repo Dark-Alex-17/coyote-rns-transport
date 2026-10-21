@@ -326,6 +326,7 @@ async fn shared_instance_reconnect_consumer_serves_the_disconnect_before_the_rec
             iface_manager: transport.iface_manager(),
             cancel: tokio_util::sync::CancellationToken::new(),
             name: name.clone(),
+            tasks: transport.shared_instance_tasks.clone(),
             iface,
             reconnect_wait: Duration::ZERO,
         };

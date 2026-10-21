@@ -167,6 +167,7 @@ impl Transport {
             cancel,
             manage_task: std::sync::Mutex::new(Some(manage_task)),
             shared_instance: std::sync::Mutex::new(None),
+            shared_instance_tasks: Arc::new(std::sync::Mutex::new(tokio::task::JoinSet::new())),
         }
     }
 

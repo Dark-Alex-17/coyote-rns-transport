@@ -5,12 +5,13 @@ pub(super) const STOP_BUDGET: Duration = Duration::from_secs(5);
 
 impl Transport {
     /// Shuts the transport down: detaches every interface and waits for their
-    /// workers, then cancels the transport and waits for the management task.
-    /// Interface workers go first because they may be blocked handing a packet
-    /// to the management task, which has to stay alive to receive it. The
-    /// interface wait, the management wait and the receipt sweep that follows
-    /// share one 5 s budget; whatever is still running or still locked when it
-    /// runs out is aborted or skipped and logged. On every link it can lock,
+    /// workers, then cancels the transport and waits for the shared-instance
+    /// tasks and the management task. Interface workers go first because they
+    /// may be blocked handing a packet to the management task, which has to
+    /// stay alive to receive it. The interface wait, the shared-instance task
+    /// wait, the management wait and the receipt sweep that follows share one
+    /// 5 s budget; whatever is still running or still locked when it runs out
+    /// is aborted or skipped and logged. On every link it can lock,
     /// provided the handler itself can be re-locked within the budget, the
     /// sweep fails every pending request `LinkClosed`, so a receipt the caller
     /// still holds concludes instead of waiting for a watchdog that no longer
@@ -63,6 +64,7 @@ impl Transport {
             }
         }
         self.cancel.cancel();
+        self.join_shared_instance_tasks(deadline).await;
         let manage_task = {
             let mut slot = self.manage_task.lock().unwrap_or_else(|poisoned| poisoned.into_inner());
             slot.take()
@@ -107,6 +109,38 @@ impl Transport {
             }
         }
         self.fail_pending_requests_on_stop(deadline).await;
+    }
+
+    /// Fork-only: waits for the shared-instance tasks, which have seen the
+    /// cancel by now and finish their current step; Python never joins the
+    /// threads these mirror. The set is taken out of its std guard first,
+    /// so a spawn that races the stop lands in a fresh set, and the guard is
+    /// never held across the joins. What is still running at `deadline` is
+    /// aborted and logged.
+    #[deny(clippy::await_holding_invalid_type)]
+    async fn join_shared_instance_tasks(&self, deadline: Instant) {
+        let mut tasks = {
+            let mut set =
+                self.shared_instance_tasks.lock().unwrap_or_else(|poisoned| poisoned.into_inner());
+            std::mem::take(&mut *set)
+        };
+        loop {
+            match time::timeout_at(deadline, tasks.join_next()).await {
+                Ok(None) => break,
+                Ok(Some(Ok(()))) => {}
+                Ok(Some(Err(err))) => log::warn!(
+                    "[tp] shared-instance task did not finish cleanly during stop: {err}"
+                ),
+                Err(_) => {
+                    let running = tasks.len();
+                    tasks.abort_all();
+                    log::warn!(
+                        "[tp] {running} shared-instance task(s) still running after stop budget, aborted"
+                    );
+                    break;
+                }
+            }
+        }
     }
 
     /// Fails every pending request `LinkClosed` and drops the response

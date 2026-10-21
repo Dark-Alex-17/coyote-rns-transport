@@ -1,4 +1,5 @@
 use tokio::sync::mpsc;
+use tokio::task::JoinSet;
 
 /// Python's shared-instance client re-announces `RECONNECT_WAIT + 2` seconds
 /// after it reconnects (`RNS/Interfaces/LocalInterface.py:177-180`); this
@@ -20,11 +21,30 @@ impl Transport {
             iface_manager: self.iface_manager.clone(),
             cancel: self.cancel.clone(),
             name: self.name.clone(),
+            tasks: self.shared_instance_tasks.clone(),
             iface,
             reconnect_wait,
         };
-        tokio::spawn(consumer.run(reconnects, disconnects));
+        spawn_shared_instance_task(&self.shared_instance_tasks, consumer.run(reconnects, disconnects));
     }
+}
+
+/// Spawns `future` into the transport's shared-instance task set, the set
+/// [`Transport::stop`] joins. The tasks already finished are reaped first so
+/// the set holds only live ones; a task that ended by panic is reported
+/// here, since nothing else joins it. The std guard is released before the
+/// caller awaits anything.
+fn spawn_shared_instance_task<F>(tasks: &std::sync::Mutex<JoinSet<()>>, future: F)
+where
+    F: std::future::Future<Output = ()> + Send + 'static,
+{
+    let mut tasks = tasks.lock().unwrap_or_else(|poisoned| poisoned.into_inner());
+    while let Some(finished) = tasks.try_join_next() {
+        if let Err(err) = finished {
+            log::warn!("[tp] shared-instance task did not finish cleanly: {err}");
+        }
+    }
+    tasks.spawn(future);
 }
 
 /// Resynthesizes the tunnel on `iface` and returns whether the interface
@@ -56,6 +76,7 @@ pub(super) struct SharedInstanceReconnectConsumer {
     pub(super) iface_manager: Arc<Mutex<InterfaceManager>>,
     pub(super) cancel: CancellationToken,
     pub(super) name: String,
+    pub(super) tasks: Arc<std::sync::Mutex<JoinSet<()>>>,
     pub(super) iface: AddressHash,
     pub(super) reconnect_wait: Duration,
 }
@@ -125,14 +146,15 @@ impl SharedInstanceReconnectConsumer {
             );
         }
         let consumer = self.clone();
-        tokio::spawn(async move {
+        let reannounce = async move {
             tokio::select! {
                 _ = consumer.cancel.cancelled() => {}
                 _ = tokio::time::sleep(
                     consumer.reconnect_wait + SHARED_INSTANCE_REAPPEARED_ANNOUNCE_GRACE
                 ) => consumer.announce_reappeared().await,
             }
-        });
+        };
+        spawn_shared_instance_task(&self.tasks, reannounce);
     }
 
     /// `shared_connection_reappeared` (`RNS/Transport.py:3705-3709`): every

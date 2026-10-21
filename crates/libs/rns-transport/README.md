@@ -354,11 +354,26 @@ first (it returns `bool`, `false` when nothing was attached), and
 `Transport::stop()` removes it too. Only those two release the held slot:
 stopping or removing the interface directly with `stop_interface` or
 `remove_interface` leaves it held, and a later attach is refused until
-detach. `reconnect_wait` (default 8 s,
-`RNS/Interfaces/LocalInterface.py:54`) is honoured by the unix client; the
-TCP client's retry is fixed at 5 s. The auto-announce on registration and on
-reconnect (`RNS/Transport.py:2911-2916`, `:3705-3709`) and the table flush
-on disconnect (`:3690-3702`) are not yet mirrored (see Known divergences).
+detach; an attach after `stop()` has cancelled the transport is refused with
+`RnsError::InvalidArgument` too. `reconnect_wait` (default 8 s,
+`RNS/Interfaces/LocalInterface.py:54`) is honoured by both the unix and the
+TCP client (`TcpClient::with_reconnect_wait`; the client's own default stays
+5 s). While attached, a `SINGLE` destination is announced as a path
+response 0.25 s after `register_destination` (`RNS/Transport.py:2911-2916`,
+the context of `RNS/Destination.py:309-315`), and
+`Transport::announce_destinations_to_shared_instance` sends that announce
+for every registered destination on demand. On every reconnect the tunnel is
+re-synthesized at once and every registered single destination is
+re-announced as a path response `reconnect_wait` plus 2 s later, if the
+transport is still attached then (`RNS/Transport.py:3705-3709`,
+`RNS/Interfaces/LocalInterface.py:177-180`). A dropped connection, as
+opposed to a detach or a stop, tears down every active and pending link and
+clears the path, announce, link and tunnel tables and the held announces
+(`RNS/Transport.py:3690-3702`, `RNS/Interfaces/LocalInterface.py:255-261`);
+a queued disconnect is served before the reconnect behind it, so the flush
+never lands after that cycle's tunnel. Received packet hashes are not
+recorded locally while attached (`RNS/Transport.py:1618-1627`): the owner
+deduplicates.
 
 ## Known divergences from Python RNS
 
@@ -455,15 +470,10 @@ except where a fork change made it visible, and such an entry says so.
   with no retries, then cancels (`RNS/Resource.py:643-650`); its
   `retries_left` budget applies while advertised (`:588-590`) and while
   awaiting the proof (`:659-661`).
-- Inherited from upstream, made reachable by `attach_shared_instance`: a
-  shared-instance client does not yet announce its `SINGLE` destinations
-  0.25 s after registration (`RNS/Transport.py:2911-2916`) nor on reconnect
-  (`:3705-3709`), does not flush its tables when the shared instance
-  disconnects (`:3690-3702`), and still records received packet hashes
-  locally (`:1618-1621`). Attaching also does not force transport, remote
-  management or probes off as Python does (`RNS/Reticulum.py:438-440`): the
-  caller keeps `transport_enabled` as configured. And the client
-  synthesizes a tunnel once at attach, which Python's `LocalClientInterface`
+- `attach_shared_instance` does not force transport, remote management or
+  probes off as Python does (`RNS/Reticulum.py:438-440`): the caller keeps
+  `transport_enabled` as configured. And the client synthesizes a tunnel at
+  attach and again on every reconnect, which Python's `LocalClientInterface`
   never does (`RNS/Interfaces/LocalInterface.py` has no tunnel code;
   `wants_tunnel` is set by network-facing clients such as
   `RNS/Interfaces/TCPInterface.py:179`).

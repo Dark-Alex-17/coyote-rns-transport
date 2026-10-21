@@ -528,6 +528,52 @@ fn crate_readme_shared_instance_section_has_no_unpinned_rust_fence() {
     );
 }
 
+/// The body of the crate README section under `## <heading>`, up to the next
+/// `## ` heading.
+fn crate_readme_section<'a>(readme: &'a str, heading: &str) -> &'a str {
+    let marker = format!("\n## {heading}\n");
+    let start = readme
+        .find(&marker)
+        .unwrap_or_else(|| panic!("crate README should carry a `## {heading}` section"));
+    let section = &readme[start + marker.len()..];
+    match section.find("\n## ") {
+        Some(end) => &section[..end],
+        None => section,
+    }
+}
+
+/// The shared-instance section's parity claims each point at the Python
+/// they mirror: the delayed registration announce, the reappearance
+/// re-announce and its delay, the disappearance flush, and the hashlist the
+/// owner keeps. Neither it nor the divergence register may describe any of
+/// it as still pending: everything the section claims is mirrored.
+#[test]
+fn crate_readme_shared_instance_section_cites_the_parity_lines() {
+    let readme = read_repo_file("crates/libs/rns-transport/README.md");
+    let section = crate_readme_section(&readme, "Attaching to a shared instance");
+    for cite in [
+        "`RNS/Transport.py:2911-2916`",
+        "`RNS/Transport.py:3705-3709`",
+        "`RNS/Transport.py:3690-3702`",
+        "`RNS/Transport.py:1618-1627`",
+        "`RNS/Interfaces/LocalInterface.py:178-181`",
+    ] {
+        assert!(
+            section.contains(cite),
+            "the shared-instance section should cite {cite}:\n{section}"
+        );
+    }
+    let divergences = crate_readme_section(&readme, "Known divergences from Python RNS");
+    for (name, text) in [("shared-instance", section), ("divergence", divergences)] {
+        for pending in ["not yet mirrored", "does not yet"] {
+            assert!(
+                !text.contains(pending),
+                "the {name} section should not call anything pending ({pending:?}):\n{text}"
+            );
+        }
+    }
+}
+
 /// A release whose minor digit moved against the previous release heading
 /// carries breaking changes, and the README sends consumers to `### Breaking`
 /// in the CHANGELOG for them: that subsection must open the release section

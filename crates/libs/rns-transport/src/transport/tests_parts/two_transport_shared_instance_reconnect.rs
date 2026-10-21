@@ -310,7 +310,7 @@ async fn shared_instance_reconnect_unflagged_iface_does_not_flush() {
 #[deny(clippy::await_holding_invalid_type)]
 async fn shared_instance_reconnect_consumer_serves_the_disconnect_before_the_reconnect() {
     install_test_logger();
-    for round in 0..12 {
+    for round in 0..20 {
         let name = format!("shared-instance-reconnect-order-{round}");
         let identity = PrivateIdentity::new_from_rand(OsRng);
         let transport = Transport::new(TransportConfig::new(&name, &identity, false));

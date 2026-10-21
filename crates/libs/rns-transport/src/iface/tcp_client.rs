@@ -1635,6 +1635,7 @@ mod tests {
     // sleep before the third attempt is now the configured wait, not the
     // 5 s default.
     #[tokio::test]
+    #[deny(clippy::await_holding_invalid_type)]
     async fn tcp_client_reconnect_storm_backs_off_for_the_configured_reconnect_wait() {
         let listener = TcpListener::bind("127.0.0.1:0").await.expect("bind listener");
         let addr = listener.local_addr().expect("listener addr");
@@ -2279,6 +2280,7 @@ mod tests {
     }
 
     #[tokio::test]
+    #[deny(clippy::await_holding_invalid_type)]
     async fn tcp_client_reports_disconnect_events_when_the_stream_ends_but_not_on_stop() {
         let listener = TcpListener::bind("127.0.0.1:0").await.expect("bind listener");
         let addr = listener.local_addr().expect("listener addr");

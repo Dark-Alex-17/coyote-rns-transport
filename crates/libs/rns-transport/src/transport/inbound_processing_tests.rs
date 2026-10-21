@@ -118,6 +118,7 @@ async fn shared_instance_parent_does_not_remove_child_boundary_hop() {
     assert_eq!(processed_hops(&transport, child, 0).await, 0);
 }
 
+#[deny(clippy::await_holding_invalid_type)]
 async fn filter_twice(
     connected_to_shared_instance: bool,
 ) -> (Arc<Mutex<PacketCache>>, (bool, bool), (bool, bool)) {
@@ -142,6 +143,7 @@ async fn filter_twice(
 }
 
 #[tokio::test]
+#[deny(clippy::await_holding_invalid_type)]
 async fn shared_instance_client_leaves_the_packet_cache_untouched() {
     let (packet_cache, first, second) = filter_twice(true).await;
 
@@ -151,6 +153,7 @@ async fn shared_instance_client_leaves_the_packet_cache_untouched() {
 }
 
 #[tokio::test]
+#[deny(clippy::await_holding_invalid_type)]
 async fn standalone_transport_still_populates_the_packet_cache() {
     let (packet_cache, first, second) = filter_twice(false).await;
 
@@ -160,6 +163,7 @@ async fn standalone_transport_still_populates_the_packet_cache() {
 }
 
 #[tokio::test]
+#[deny(clippy::await_holding_invalid_type)]
 async fn shared_instance_client_accepts_the_same_packet_twice() {
     let mut config = TransportConfig::default();
     config.set_connected_to_shared_instance(true);

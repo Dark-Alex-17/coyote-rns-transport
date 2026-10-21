@@ -816,6 +816,7 @@ mod tests {
     }
 
     #[tokio::test]
+    #[deny(clippy::await_holding_invalid_type)]
     async fn local_unix_connect_client_reports_disconnect_events_when_the_stream_ends_but_not_on_stop(
     ) {
         let temp = tempfile::tempdir().expect("tempdir");

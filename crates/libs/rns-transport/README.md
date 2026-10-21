@@ -366,7 +366,7 @@ for every registered destination on demand. On every reconnect the tunnel is
 re-synthesized at once and every registered single destination is
 re-announced as a path response `reconnect_wait` plus 2 s later, if the
 transport is still attached then (`RNS/Transport.py:3705-3709`,
-`RNS/Interfaces/LocalInterface.py:177-180`). A dropped connection, as
+`RNS/Interfaces/LocalInterface.py:178-181`). A dropped connection, as
 opposed to a detach or a stop, tears down every active and pending link and
 clears the path, announce, link and tunnel tables and the held announces
 (`RNS/Transport.py:3690-3702`, `RNS/Interfaces/LocalInterface.py:255-261`);

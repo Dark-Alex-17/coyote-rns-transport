@@ -1,8 +1,9 @@
 // Pins that `stop` joins the tasks the shared-instance client spawns: the registration
 // announce still waiting out its quarter second when the stop runs sees the cancel and
 // never reaches the shared instance, and the reconnect consumer of an attach ends with the
-// stop; the task set is empty either way. Helpers come from the sibling `tests_parts`
-// files included into this module.
+// stop; the task set is empty either way. Also pins the test logger's shared-instance
+// store: a warning on the links target is kept whether or not it names the shared
+// instance. Helpers come from the sibling `tests_parts` files included into this module.
 
 /// Longer than the registration announce delay, so an announce the stop failed to cancel
 /// would have reached the shared instance by the time the receiver is drained.
@@ -68,6 +69,32 @@ async fn shared_instance_stop_joins_the_pending_registration_announce() {
     shared_instance_tasks_assert_not_announced(&mut server_announces, &address_hash).await;
     shared_instance_assert_never_warned(name);
     timeout(STOP_TIMEOUT, server.transport.stop()).await.expect("shared instance stop completes");
+}
+
+/// The never-warn oracle rests on the logger keeping every record at `Warn` or above from
+/// the links target, needle or not; a warning without the words `shared instance` is
+/// stored at `Warn`, while a debug record without them is not stored at all.
+#[test]
+fn shared_instance_test_logger_keeps_a_needle_less_warning() {
+    install_test_logger();
+    let name = "shared-instance-tasks-logger";
+    log::warn!(
+        target: "rns_transport::transport::links",
+        "tp({name}): synthetic warning without the needle"
+    );
+    log::debug!(
+        target: "rns_transport::transport::links",
+        "tp({name}): synthetic debug record without the needle"
+    );
+    let records = shared_instance_records_for(name);
+    assert_eq!(
+        records,
+        vec![(
+            log::Level::Warn,
+            format!("tp({name}): synthetic warning without the needle")
+        )],
+        "the warning is kept and the debug record is not"
+    );
 }
 
 /// Fork-only: the consumer spawned by an attach ends with the stop that cancels the

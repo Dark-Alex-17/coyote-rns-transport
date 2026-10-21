@@ -9,11 +9,12 @@ use std::sync::Once;
 /// through its effect on other requests.
 const SLOW_HANDLER_SLEEP: Duration = Duration::from_secs(30);
 
-/// Keeps the link's drop records and the attach/detach lines of the shared-instance client.
-/// Tests share one process and `log::set_logger` installs once, so there must be exactly
-/// one logger in the binary and this is it; a record is attributed to a test by the link id
-/// or the `tp(<name>)` it names, and only those two families are kept so the store stays
-/// small for the rest of the run.
+/// Keeps the link's drop records and, from the links target, every record at `Warn` or
+/// above plus the debug lines of the shared-instance client. Tests share one process and
+/// `log::set_logger` installs once, so there must be exactly one logger in the binary and
+/// this is it; a record is attributed to a test by the link id or the `tp(<name>)` it
+/// names, and the quieter levels are kept only for the shared-instance lines so the store
+/// stays small for the rest of the run.
 struct TestLogger {
     dropped_requests: StdMutex<Vec<String>>,
     shared_instance: StdMutex<Vec<(log::Level, String)>>,
@@ -40,7 +41,7 @@ impl log::Log for TestLogger {
         }
         let message = record.args().to_string();
         if record.target() == SHARED_INSTANCE_LOG_TARGET {
-            if message.contains("shared instance") {
+            if record.level() <= log::Level::Warn || message.contains("shared instance") {
                 self.shared_instance
                     .lock()
                     .expect("shared-instance record store")

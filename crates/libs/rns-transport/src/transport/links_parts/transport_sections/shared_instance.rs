@@ -28,20 +28,22 @@ impl Transport {
     /// `path_parts/unknown_owner_local_link_request.rs`).
     ///
     /// Only one shared instance is held at a time: a second call while one is
-    /// attached returns [`RnsError::InvalidArgument`]; call
-    /// [`Self::detach_shared_instance`] first. The slot is released only by
+    /// attached returns [`RnsError::InvalidArgument`], as does a call after
+    /// [`Self::stop`] has cancelled the transport (the crate has no closer
+    /// error variant); call [`Self::detach_shared_instance`] first in the
+    /// former case. The slot is released only by
     /// [`Self::detach_shared_instance`] or [`Self::stop`]; removing the
     /// interface through [`Self::stop_interface`] or
     /// [`Self::remove_interface`] leaves it set and a later attach refused
     /// until detach. The connected posture is set only while the slot still
     /// holds the new interface, so a detach or stop that runs concurrently
     /// cannot leave the posture set with the slot empty. [`Self::stop`]
-    /// sweeps the interfaces before it takes the slot, so an attach whose
-    /// interface is spawned between the two leaves that interface registered
-    /// and connected on the stopped transport with the slot empty and the
-    /// posture off; [`Self::detach_shared_instance`] then finds nothing, and
-    /// calling [`Self::stop`] again detaches it. Returns the interface
-    /// address.
+    /// sweeps the interfaces before it cancels the transport and takes the
+    /// slot, so an attach whose interface is spawned between the sweep and
+    /// the cancel leaves that interface registered and connected on the
+    /// stopped transport with the slot empty and the posture off;
+    /// [`Self::detach_shared_instance`] then finds nothing, and calling
+    /// [`Self::stop`] again detaches it. Returns the interface address.
     #[deny(clippy::await_holding_invalid_type)]
     pub async fn attach_shared_instance(
         &self,
@@ -63,7 +65,7 @@ impl Transport {
             let mut manager = self.iface_manager.lock().await;
             let mut slot =
                 self.shared_instance.lock().unwrap_or_else(|poisoned| poisoned.into_inner());
-            if slot.is_some() {
+            if slot.is_some() || self.cancel.is_cancelled() {
                 return Err(RnsError::InvalidArgument);
             }
             let iface = match endpoint {
@@ -152,6 +154,16 @@ impl Transport {
         }
         log::debug!("tp({}): detached shared instance iface={}", self.name, iface);
         true
+    }
+
+    /// [`Self::stop`] took the slot with `iface` still in it; logged from
+    /// here so the line shares the attach and detach lines' target.
+    pub(super) fn log_shared_instance_cleared_by_stop(&self, iface: AddressHash) {
+        log::debug!(
+            "tp({}): stopped with shared instance iface={} attached, slot cleared",
+            self.name,
+            iface
+        );
     }
 
     /// Fork-only: the interface attached with

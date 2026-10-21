@@ -1,9 +1,10 @@
 // Usage-pattern probes for the shared-instance client API, third set: the window between
 // the two sections of `attach_shared_instance` hit deterministically rather than by a
-// scheduler race (a detach, then a stop, already queued on the handler when the attach
-// writes its slot), and a run of attach/detach cycles that must leave the client transport
-// with exactly the interfaces it started with. Helpers come from the sibling `tests_parts`
-// files included into this module.
+// scheduler race (a detach already queued on the handler when the attach writes its slot),
+// an attach that starts while a stop is parked on the handler and is refused, and a run of
+// attach/detach cycles that must leave the client transport with exactly the interfaces it
+// started with. Helpers come from the sibling `tests_parts` files included into this
+// module.
 
 /// How many attach/detach rounds the cycle probe runs.
 const SHARED_INSTANCE_PROBE3_CYCLES: u64 = 3;
@@ -91,20 +92,22 @@ async fn shared_instance_detach_queued_before_the_attach_posture_write_wins_the_
     timeout(STOP_TIMEOUT, server.transport.stop()).await.expect("shared instance stop completes");
 }
 
-/// A stop that is already under way when an attach writes its slot: whatever the stop
-/// manages to tear down, the slot and the posture must agree afterwards and a held slot must
-/// name a registered interface. The handler is held on a blocking thread until the attach's
-/// first section has filled the slot, so the stop's slot take runs against the fresh slot.
+/// A stop that is already under way when an attach starts: the stop has cancelled the
+/// transport and is parked on the handler, so the attach is refused before it spawns
+/// anything, the slot is never written, and once the stop finishes the posture is off and
+/// no interface is left behind. The handler is held on a blocking thread until the attach
+/// has returned, so the attach runs while the stop is mid-flight for certain.
 #[tokio::test]
 #[deny(clippy::await_holding_invalid_type)]
-async fn shared_instance_stop_racing_an_attach_keeps_slot_and_posture_consistent() {
+async fn shared_instance_stop_racing_an_attach_refuses_it_and_keeps_the_slot_empty() {
     let server = shared_instance_server().await;
     let identity = PrivateIdentity::new_from_rand(OsRng);
     let transport =
         Transport::new(TransportConfig::new("shared-instance-stop-window", &identity, false));
+    let before = transport.interface_hashes().await.len();
     let (stall, release) = stall_transport_until_released(&transport).await;
 
-    let ((), attached, slot_at_release) = tokio::join!(
+    let ((), (refused, slot_at_release)) = tokio::join!(
         async {
             // stop's own 5 s budget can be consumed by the handler wait; let it elapse before
             // this guard fires.
@@ -113,37 +116,39 @@ async fn shared_instance_stop_racing_an_attach_keeps_slot_and_posture_consistent
                 .expect("stop returns within its budget")
         },
         async {
+            // Let the stop run its sweep and cancel the transport before the attach starts.
             tokio::task::yield_now().await;
-            timeout(
+            let refused = timeout(
                 STOP_TIMEOUT,
                 transport
                     .attach_shared_instance(server.endpoint(), SharedInstanceOptions::default()),
             )
             .await
-            .expect("the attach returns within its budget")
-        },
-        async {
-            let slot = shared_instance_await_slot(&transport, true).await;
+            .expect("the attach returns within its budget");
+            let slot = transport.shared_instance();
             release.send(()).expect("the stall thread is waiting for the release");
-            slot
+            (refused, slot)
         },
     );
     stall.await.expect("the stall thread finishes once released");
 
-    let iface = attached.expect("the attach spawned its interface and filled the slot");
-    assert_eq!(slot_at_release, Some(iface), "the attach's first section filled the slot");
-    let held = transport.shared_instance();
-    assert_eq!(
-        held.is_some(),
-        transport.connected_to_shared_instance().await,
-        "the slot and the posture disagree after stop raced the attach, slot={held:?}"
+    assert!(
+        matches!(refused, Err(RnsError::InvalidArgument)),
+        "an attach that starts once stop has cancelled the transport is refused: {refused:?}"
     );
-    if let Some(held) = held {
-        assert!(
-            transport.interface_hashes().await.contains(&held),
-            "a held slot names an interface that is gone"
-        );
-    }
+    assert_eq!(slot_at_release, None, "the refused attach never filled the slot");
+    assert_eq!(transport.shared_instance(), None, "the slot stays empty after the stop");
+    assert!(!transport.connected_to_shared_instance().await, "the posture stays off");
+    assert_eq!(
+        transport.interface_hashes().await.len(),
+        before,
+        "the refused attach spawned nothing"
+    );
+    assert_eq!(
+        server.status.to_json()["accepted_connections"].as_u64(),
+        Some(0),
+        "the shared instance saw no client"
+    );
     timeout(STOP_TIMEOUT, server.transport.stop()).await.expect("shared instance stop completes");
 }
 

@@ -1,8 +1,18 @@
 // Pins the two release claims about the shared-instance client API that no other fixture
 // covers: `remove_interface` is named beside `stop_interface` as a call that leaves the slot
 // held until `detach_shared_instance`, and an interface spawned after a stop's interface
-// sweep but before that stop takes the slot is detached by a second stop. Helpers come from
-// the sibling `tests_parts` files included into this module.
+// sweep but before that stop cancels the transport is detached by a second stop. Helpers
+// come from the sibling `tests_parts` files included into this module.
+
+/// An interface whose worker runs until the test releases it, so a stop's interface sweep
+/// can be parked on the worker wait deterministically.
+struct SharedInstanceHeldWorkerInterface;
+
+impl crate::iface::Interface for SharedInstanceHeldWorkerInterface {
+    fn mtu() -> usize {
+        TcpClient::DEFAULT_MTU
+    }
+}
 
 /// Removing the attached interface through the generic `remove_interface` leaves the slot
 /// and the posture set, exactly like `stop_interface`: a new attach is refused until
@@ -75,12 +85,13 @@ async fn shared_instance_removed_through_remove_interface_keeps_the_slot_until_d
 }
 
 /// The documented stop window, then the documented remedy. A stop sweeps the interfaces
-/// first and takes the slot last; an attach whose first section runs in between leaves its
-/// interface registered while the stop empties the slot and clears the posture. The handler
-/// is held on a blocking thread until the attach has filled the slot, so the stop's slot
-/// take runs against the fresh slot and the sweep has already passed. A second stop must
-/// then detach that interface: afterwards the slot is empty, the posture is off, the
-/// interface is gone and no longer flagged, and the shared instance saw exactly one client.
+/// first, waits for their workers, then cancels the transport and takes the slot last; an
+/// attach that runs while the stop waits for a worker is not yet refused and leaves its
+/// interface registered while the stop empties the slot and clears the posture. The stop
+/// is parked on a worker the test holds until the attach has returned, so the attach runs
+/// in the window for certain. A second stop must then detach that interface: afterwards
+/// the slot is empty, the posture is off, the interface is gone and no longer flagged, and
+/// the shared instance saw exactly one client.
 #[tokio::test]
 #[deny(clippy::await_holding_invalid_type)]
 async fn shared_instance_second_stop_detaches_an_interface_spawned_inside_the_first_stop_window() {
@@ -89,37 +100,48 @@ async fn shared_instance_second_stop_detaches_an_interface_spawned_inside_the_fi
     let transport =
         Transport::new(TransportConfig::new("shared-instance-second-stop", &identity, false));
     let before = transport.interface_hashes().await.len();
-    let (stall, release) = stall_transport_until_released(&transport).await;
+    let (release, held) = tokio::sync::oneshot::channel::<()>();
+    let held_worker = {
+        transport.iface_manager().lock().await.spawn(
+            SharedInstanceHeldWorkerInterface,
+            |context| async move {
+                held.await.expect("the test releases the held worker");
+                drop(context);
+            },
+        )
+    };
 
-    let ((), attached, slot_at_release) = tokio::join!(
+    let ((), (attached, slot_at_release)) = tokio::join!(
         async {
-            // stop's own 5 s budget can be consumed by the handler wait; let it elapse before
+            // stop's own 5 s budget can be consumed by the worker wait; let it elapse before
             // this guard fires.
             timeout(STOP_TIMEOUT + Duration::from_secs(3), transport.stop())
                 .await
                 .expect("the first stop returns within its budget")
         },
         async {
-            // Let the stop run its interface sweep before the attach spawns anything.
+            // Let the stop run its interface sweep and park on the held worker before the
+            // attach spawns anything.
             tokio::task::yield_now().await;
-            timeout(
+            let attached = timeout(
                 STOP_TIMEOUT,
                 transport
                     .attach_shared_instance(server.endpoint(), SharedInstanceOptions::default()),
             )
             .await
-            .expect("the attach returns within its budget")
-        },
-        async {
-            let slot = shared_instance_await_slot(&transport, true).await;
-            release.send(()).expect("the stall thread is waiting for the release");
-            slot
+            .expect("the attach returns within its budget");
+            let slot = transport.shared_instance();
+            release.send(()).expect("the held worker is waiting for the release");
+            (attached, slot)
         },
     );
-    stall.await.expect("the stall thread finishes once released");
 
-    let iface = attached.expect("the attach spawned its interface and filled the slot");
-    assert_eq!(slot_at_release, Some(iface), "the attach's first section filled the slot");
+    let iface = attached.expect("the attach inside the window spawned its interface");
+    assert_eq!(slot_at_release, Some(iface), "the attach filled the slot before the stop took it");
+    assert!(
+        !transport.interface_hashes().await.contains(&held_worker),
+        "the first stop's sweep detached the held worker's interface"
+    );
     assert_eq!(transport.shared_instance(), None, "the first stop emptied the slot");
     assert!(!transport.connected_to_shared_instance().await, "the first stop cleared the posture");
     assert!(

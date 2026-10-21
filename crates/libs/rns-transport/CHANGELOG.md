@@ -18,8 +18,9 @@ bullet of its own, marked test-only.
   (`RNS/Reticulum.py:422-441`; the port is `:295`, `:491-493`).
   `attach_shared_instance` spawns a `TcpClient`, or on unix targets a
   `LocalUnixClient`, at the endpoint, marks that interface as the shared
-  instance, sets the connected flag and synthesizes a tunnel on it once, so
-  inbound packets take the client-side hop (`RNS/Transport.py:1940`) and
+  instance, sets the connected flag and synthesizes a tunnel on it at
+  attach (and again on every reconnect, see Changed), so inbound packets
+  take the client-side hop (`RNS/Transport.py:1940`) and
   outbound packets on one-hop paths carry a transport header
   (`:1416-1427`); it returns the interface address. One shared instance is
   held at a time: a second call returns `RnsError::InvalidArgument` until
@@ -48,8 +49,8 @@ bullet of its own, marked test-only.
   `stop_interface` leaves the slot held until detach. And by
   `transport/tests_parts/two_transport_shared_instance_probe3.rs`: a detach
   queued before the attach's posture write wins the slot and the posture
-  stays off, stop racing an attach keeps the slot and the posture
-  consistent, and attach/detach cycles leave no interface behind. And by
+  stays off, an attach that starts once stop has cancelled is refused and
+  spawns nothing, and attach/detach cycles leave no interface behind. And by
   `transport/tests_parts/two_transport_shared_instance_probe4.rs`:
   `remove_interface` leaves the slot held until detach, and a second stop
   detaches an interface spawned inside the first stop's window. The
@@ -86,21 +87,71 @@ bullet of its own, marked test-only.
   attach line reports the wait in force and never says ignored) and
   `transport/tests_parts/two_transport_shared_instance_probe6.rs` (the tcp
   attach line is three key=value tokens ending at the wait).
+- `SingleInputDestination::announce_with_context`, the announce of
+  `announce` with the packet context set to `PathResponse` when asked, as
+  Python's `Destination.announce(path_response=True)` does
+  (`RNS/Destination.py:309-315`), and
+  `Transport::announce_destinations_to_shared_instance`, which announces
+  every registered single destination as a path response
+  with its registered app data and returns how many announces were handed
+  to the transport. While attached to a shared instance, a `SINGLE`
+  destination is announced that way 0.25 s after `register_destination`,
+  as Python's client does from a thread (`RNS/Transport.py:2911-2916`);
+  an unattached transport announces nothing on registration. Pinned by
+  `transport/tests_parts/two_transport_shared_instance_parity.rs` (a
+  registered destination is announced as a path response with no announce
+  from the test, an unattached transport announces nothing on
+  registration, the path-response announce differs from a plain one only
+  in its context, and the re-announce sends every destination with its
+  app data and reports the count).
 
 ### Changed
 
+- On every shared-instance reconnect the attached client re-synthesizes
+  the tunnel on the interface at once and, `reconnect_wait` plus 2 s
+  later, re-announces every registered single destination as a path
+  response if the transport is still attached then
+  (`RNS/Transport.py:3705-3709`, `RNS/Interfaces/LocalInterface.py:177-180`).
+  A dropped connection while attached, with the interface still flagged as
+  the shared instance, closes every in and out link with its own side's
+  `LinkCloseReason`, drops their resource state and clears the path,
+  announce, link and tunnel tables and the held announces
+  (`RNS/Transport.py:3690-3702`, `RNS/Interfaces/LocalInterface.py:255-261`);
+  a detach, a stop, a dropped connected posture or an interface no longer
+  flagged as the shared instance flushes nothing. Both are served by one
+  task per attach that reads the clients' reconnect and disconnect events,
+  serving a queued disconnect before the reconnect behind it. Pinned by
+  `transport/tests_parts/two_transport_shared_instance_reconnect.rs` (a
+  restart of the shared instance flushes the path, closes the link with
+  `InitiatorClosed`, keeps the attach and re-announces both destinations
+  as path responses within the bound into the new instance's tunnel table;
+  a detach, a dropped posture and an unflagged interface each keep the
+  path and the link across the restart; the consumer serves a queued
+  disconnect before the reconnect behind it; and each table's `clear`
+  empties every collection it holds and reports the count).
+- `filter_duplicate_packet` (`transport/inbound_processing.rs`) returns
+  early while attached to a shared instance, so nothing is inserted into
+  the local packet cache and nothing is rolled back: Python's
+  `add_packet_hash` skips the hashlist and `packet_filter` accepts every
+  packet in that mode (`RNS/Transport.py:1618-1627`), the owner
+  deduplicates. Pinned by `transport/inbound_processing_tests.rs`
+  (`shared_instance_client_leaves_the_packet_cache_untouched`,
+  `shared_instance_client_accepts_the_same_packet_twice`).
 - `Transport::stop` forgets an attached shared instance and clears the
   connected flag, since its interface is detached with the rest; a stopped
   transport reports `shared_instance()` as `None`. The posture is now
   cleared after the management task has stopped, within stop's 5 s budget;
   when the handler stays locked past it the slot is still forgotten and a
   warning naming the interface says the posture was not cleared; the
-  warning is emitted only when a slot was actually held.
+  warning is emitted only when a slot was actually held. A slot that stop
+  does clear is logged at debug under the links target, naming the
+  interface. `attach_shared_instance` after `stop()` has cancelled the
+  transport returns `RnsError::InvalidArgument` and spawns nothing.
   `attach_shared_instance` sets the posture only while the slot still holds
   the new interface, so a concurrent detach or stop cannot leave the
   posture set with the slot empty. An interface spawned after stop's sweep
-  but before stop takes the slot stays registered with the slot empty; a
-  second stop detaches it. Pinned by
+  but before stop cancels the transport stays registered with the slot
+  empty; a second stop detaches it. Pinned by
   `transport/tests_parts/two_transport_shared_instance.rs` (stop releases
   the interface and the posture) and
   `transport/tests_parts/two_transport_shared_instance_probe.rs` (detach
@@ -108,10 +159,11 @@ bullet of its own, marked test-only.
   slot and the posture consistent) and
   `transport/tests_parts/two_transport_shared_instance_probe3.rs` (a detach
   queued before the attach's posture write wins the slot and the posture
-  stays off, stop racing an attach keeps the slot and the posture
-  consistent) and
+  stays off, an attach that starts once stop has cancelled is refused and
+  spawns nothing) and
   `transport/tests_parts/two_transport_shared_instance_probe4.rs` (a second
-  stop detaches the interface left behind by the first) and
+  stop detaches an interface spawned inside the first stop's window, the
+  stop parked on a held worker so the attach lands in it for certain) and
   `transport/tests_parts/two_transport_shared_instance_probe5.rs`, through
   the record store in
   `transport/tests_parts/two_transport_loopback_requests_isolation.rs` (the
@@ -120,7 +172,21 @@ bullet of its own, marked test-only.
   interface vanished between its sections log at debug) and
   `transport/tests_parts/two_transport_shared_instance_probe6.rs` (the
   attach line is space-separated key=value tokens and both arms end at the
-  wait).
+  wait) and `transport/tests_parts/two_transport_shared_instance_stop.rs`
+  (`shared_instance_stop_refuses_a_later_attach_and_spawns_nothing`,
+  `shared_instance_stop_logs_the_slot_it_clears_at_debug`).
+- The `TestLogger` in
+  `transport/tests_parts/two_transport_loopback_requests_isolation.rs`
+  keeps every record at `Warn` or above on the links target
+  unconditionally; Debug, Info and Trace records still need the "shared
+  instance" needle. `shared_instance_assert_never_warned` in
+  `transport/tests_parts/two_transport_shared_instance_probe5.rs` so
+  covers any warning naming the transport, not only the shared-instance
+  lines. The reconnect-order test in
+  `transport/tests_parts/two_transport_shared_instance_reconnect.rs` runs
+  twelve rounds, each on its own transport name, channels and consumer,
+  since an unbiased select would pass a single round by luck. Test-only;
+  no library behaviour changes. Pinned by those same files.
 - The proof-cap fixture
   `transport/tests_parts/two_transport_loopback_link_packet_proven_probe2.rs`
   holds its handler stall until the test releases it after the burst

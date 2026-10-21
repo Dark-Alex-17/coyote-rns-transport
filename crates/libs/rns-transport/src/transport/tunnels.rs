@@ -177,7 +177,7 @@ impl TunnelTable {
     }
 
     /// Drops every tunnel with its paths and returns how many tunnels there
-    /// were.
+    /// were: Python's `Transport.tunnels = {}` (`RNS/Transport.py:3702`).
     pub fn clear(&mut self) -> usize {
         let cleared = self.tunnels.len();
         self.tunnels.clear();

@@ -125,7 +125,8 @@ impl PathTable {
         self.map.get(destination).map(|entry| entry.iface)
     }
 
-    /// Drops every path and returns how many there were.
+    /// Drops every path and returns how many there were: Python's
+    /// `Transport.path_table = {}` (`RNS/Transport.py:3698`).
     pub fn clear(&mut self) -> usize {
         let cleared = self.map.len();
         self.map.clear();

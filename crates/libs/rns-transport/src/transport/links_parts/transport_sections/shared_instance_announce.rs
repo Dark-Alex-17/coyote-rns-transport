@@ -18,6 +18,7 @@ impl Transport {
     /// shared-instance client (`RNS/Transport.py:2911-2916`). The task ends
     /// with [`Self::stop`], which joins it; a destination deregistered before
     /// the delay elapses is still announced, as in Python.
+    #[deny(clippy::await_holding_invalid_type)]
     fn spawn_shared_instance_registration_announce(
         &self,
         destination: Arc<Mutex<SingleInputDestination>>,

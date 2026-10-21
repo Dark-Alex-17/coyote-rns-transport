@@ -184,7 +184,9 @@ impl AnnounceTable {
 
     /// Drops the retransmission queue, the pending path responses and the
     /// bounded cache, keeping the capacity and retry limit, and returns how
-    /// many entries the three held together.
+    /// many entries the three held together: Python's
+    /// `Transport.announce_table = {}` (`RNS/Transport.py:3697`). The
+    /// in-memory cache tier is the fork's own and has no Python twin.
     pub fn clear(&mut self) -> usize {
         let queued = self.map.len() + self.responses.len();
         self.map.clear();

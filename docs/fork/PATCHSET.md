@@ -16,9 +16,12 @@ Commits that only update this ledger are omitted. The crate README
 (`crates/libs/rns-transport/README.md`) carries the versioning policy, the
 rebase recipe and a prose summary of the current patch list; this file is
 the per-release ledger of the same patches, with commit hashes and file
-sites, so a rebase can re-apply them one commit at a time.
+sites, so a rebase can re-apply them one commit at a time. For fork-only
+parity rows this file plus the crate README `## Known divergences from
+Python RNS` are the parity ledger; `docs/status/*` matrices are not updated
+per fork task.
 
-## Unreleased (upstream 0.14.0)
+## 0.15.1 (upstream 0.14.0)
 
 Every file changed since the `0.15.0` release and the patch each change
 belongs to. Patch ids: F4 is shared-instance client packaging, F5 is
@@ -35,17 +38,33 @@ the `shared-instance client parity` patch is fork commits `5af0c425`,
 `1bb9b2cc`, `47cf9313`, `05337466`, `3239bf09`, `ef3827a6`, `f38a8b81`,
 `abf09730`, `7eeaafb0`, `e790cb55` and `6ca33e3f`; the
 `proof cap stall on signal`
-patch carries no other id and is fork commit `cccc40e4`.
+patch carries no other id and is fork commit `cccc40e4`; the
+`Python-in-the-loop shared-instance interop` patch carries no other id and
+is fork commit `eceeb9ad`; the `release 0.15.1` patch carries no other id
+and is fork commits `e529730c`, `84d90f75`, `9b2e20a6`, `0df584b1`,
+`b4a941d8`, `59b66d8e` and `257c180d`.
 
 | File | Patch |
 | --- | --- |
-| `crates/apps/reticulumd/tests/fork_publish_contract.rs` | shared-instance client packaging |
-| `crates/apps/reticulumd/tests/fork_release_docs_contract.rs` | shared-instance client packaging, shared-instance client parity |
-| `crates/libs/rns-transport/CHANGELOG.md` | shared-instance client packaging, shared-instance client parity |
-| `crates/libs/rns-transport/README.md` | shared-instance client packaging, shared-instance client parity |
+| `.github/workflows/ci-full.yml` | release 0.15.1 |
+| `Cargo.lock` | release 0.15.1 |
+| `Cargo.toml` | release 0.15.1 |
+| `crates/apps/reticulumd/Cargo.toml` | release 0.15.1 |
+| `crates/apps/reticulumd/tests/fork_publish_contract.rs` | shared-instance client packaging, release 0.15.1 |
+| `crates/apps/reticulumd/tests/fork_release_docs_contract.rs` | shared-instance client packaging, shared-instance client parity, release 0.15.1 |
+| `crates/apps/reticulumd/tests/python_channel_interop.rs` | Python-in-the-loop shared-instance interop |
+| `crates/apps/reticulumd/tests/python_channel_interop_parts/python_shared_instance_live.rs` | Python-in-the-loop shared-instance interop |
+| `crates/apps/reticulumd/tests/support/python_channel_process.rs` | Python-in-the-loop shared-instance interop |
+| `crates/apps/reticulumd/tests/support/python_shared_instance_client.py` | Python-in-the-loop shared-instance interop |
+| `crates/apps/rns-tools/Cargo.toml` | release 0.15.1 |
+| `crates/libs/rns-transport/CHANGELOG.md` | shared-instance client packaging, shared-instance client parity, release 0.15.1 |
+| `crates/libs/rns-transport/Cargo.toml` | release 0.15.1 |
+| `crates/libs/rns-transport/README.md` | shared-instance client packaging, shared-instance client parity, release 0.15.1 |
+| `crates/libs/rns-transport/fuzz/Cargo.lock` | release 0.15.1 |
 | `crates/libs/rns-transport/src/destination_parts/destination.rs` | shared-instance client parity |
 | `crates/libs/rns-transport/src/iface/local.rs` | shared-instance client parity |
 | `crates/libs/rns-transport/src/iface/tcp_client.rs` | shared-instance client parity |
+| `crates/libs/rns-transport/src/resource/outcome.rs` | release 0.15.1 |
 | `crates/libs/rns-transport/src/transport/announce_table.rs` | shared-instance client parity |
 | `crates/libs/rns-transport/src/transport/core.rs` | shared-instance client packaging, shared-instance client parity |
 | `crates/libs/rns-transport/src/transport/handler.rs` | shared-instance client packaging, shared-instance client parity |
@@ -56,7 +75,7 @@ patch carries no other id and is fork commit `cccc40e4`.
 | `crates/libs/rns-transport/src/transport/link_table.rs` | shared-instance client parity |
 | `crates/libs/rns-transport/src/transport/links_parts/transport.rs` | shared-instance client packaging, shared-instance client parity |
 | `crates/libs/rns-transport/src/transport/links_parts/transport_sections/close_channel.rs` | shared-instance client parity |
-| `crates/libs/rns-transport/src/transport/links_parts/transport_sections/shared_instance.rs` | shared-instance client packaging, shared-instance client parity |
+| `crates/libs/rns-transport/src/transport/links_parts/transport_sections/shared_instance.rs` | shared-instance client packaging, shared-instance client parity, release 0.15.1 |
 | `crates/libs/rns-transport/src/transport/links_parts/transport_sections/shared_instance_announce.rs` | shared-instance client parity |
 | `crates/libs/rns-transport/src/transport/links_parts/transport_sections/shared_instance_reconnect.rs` | shared-instance client parity |
 | `crates/libs/rns-transport/src/transport/mod.rs` | shared-instance client packaging, shared-instance client parity |
@@ -65,10 +84,11 @@ patch carries no other id and is fork commit `cccc40e4`.
 | `crates/libs/rns-transport/src/transport/path_table_codec.rs` | shared-instance client parity |
 | `crates/libs/rns-transport/src/transport/request_dispatch.rs` | shared-instance client parity |
 | `crates/libs/rns-transport/src/transport/shared_instance.rs` | shared-instance client packaging, shared-instance client parity |
-| `crates/libs/rns-transport/src/transport/tests.rs` | shared-instance client packaging, shared-instance client parity |
+| `crates/libs/rns-transport/src/transport/tests.rs` | shared-instance client packaging, shared-instance client parity, release 0.15.1 |
 | `crates/libs/rns-transport/src/transport/tests_parts/two_transport_loopback_link_packet_proven_probe2.rs` | proof cap stall on signal, shared-instance client packaging |
 | `crates/libs/rns-transport/src/transport/tests_parts/two_transport_loopback_requests_isolation.rs` | shared-instance client packaging, shared-instance client parity |
 | `crates/libs/rns-transport/src/transport/tests_parts/two_transport_shared_instance.rs` | shared-instance client packaging, shared-instance client parity |
+| `crates/libs/rns-transport/src/transport/tests_parts/two_transport_shared_instance_endpoint_warn.rs` | release 0.15.1 |
 | `crates/libs/rns-transport/src/transport/tests_parts/two_transport_shared_instance_flush.rs` | shared-instance client parity |
 | `crates/libs/rns-transport/src/transport/tests_parts/two_transport_shared_instance_parity.rs` | shared-instance client parity |
 | `crates/libs/rns-transport/src/transport/tests_parts/two_transport_shared_instance_probe.rs` | shared-instance client packaging |
@@ -86,7 +106,10 @@ patch carries no other id and is fork commit `cccc40e4`.
 | `crates/libs/rns-transport/src/transport/tests_parts/two_transport_shared_instance_stop.rs` | shared-instance client parity |
 | `crates/libs/rns-transport/src/transport/tests_parts/two_transport_shared_instance_tasks.rs` | shared-instance client parity |
 | `crates/libs/rns-transport/src/transport/tunnels.rs` | shared-instance client parity |
-| `docs/fork/PATCHSET.md` | shared-instance client packaging, shared-instance client parity |
+| `crates/libs/rns-transport/tests/shared_instance_api.rs` | release 0.15.1 |
+| `docs/fork/PATCHSET.md` | shared-instance client packaging, shared-instance client parity, release 0.15.1 |
+| `docs/getting-started.md` | release 0.15.1 |
+| `tools/scripts/check-publish-tag-version.sh` | release 0.15.1 |
 
 Fork commits `2a027a9d`, `b306b2a1`, `17b41d6a`, `ff8a8e8a`, `ff67110d`,
 `e4494576`, `21e4dacc`, `a6036013`, `8a1c2d16`, `9247525e`, `afa72a00`,
@@ -447,6 +470,71 @@ now held on a blocking thread until the test releases it after the burst
 the third, fourth and fifth shared-instance fixtures), so its length
 no longer depends on runner speed. The pinned counts and hashes are
 unchanged. Upstream site: that fixture file only.
+
+Fork commit `eceeb9ad`: Python-in-the-loop shared-instance interop. A
+Python `rnsd` (RNS 1.5.2) runs as the shared instance on free ports, the
+library attaches through `Transport::attach_shared_instance`, and a second
+Python local client of the same `rnsd` exchanges announces and
+`Link.request` calls with the Rust transport in both directions. The new
+fixture
+`crates/apps/reticulumd/tests/python_channel_interop_parts/python_shared_instance_live.rs`,
+included from `crates/apps/reticulumd/tests/python_channel_interop.rs`,
+drains the `rnsd` log on background threads so it gates on the readiness
+line and on the line that files the Rust announce under a
+`LocalInterface`, and dumps both child logs on failure; the abstract
+AF_UNIX variant is Linux only, since Python's `use_af_unix()` is false
+elsewhere. The new
+`crates/apps/reticulumd/tests/support/python_shared_instance_client.py`
+registers an echoing request handler, reports the Rust announce, sends one
+`Link.request` to the Rust destination and then keeps announcing its own
+destination until stdin closes so the Rust side can run the reverse
+direction, one JSON object per stdout line.
+`crates/apps/reticulumd/tests/support/python_channel_process.rs` gains
+`spawn_rnsd` and `spawn_shared_instance_client`. Upstream site: test
+files only.
+
+Fork commits `e529730c`, `84d90f75`, `9b2e20a6`, `0df584b1`, `b4a941d8`,
+`59b66d8e` and `257c180d`: release 0.15.1. The first pins a shared-instance
+usage example in the crate README (`crates/libs/rns-transport/README.md`):
+the `## Attaching to a shared instance` section gains one rust fence
+showing attach, destination plus request handler, the on-demand announce
+and detach, which the new `crates/libs/rns-transport/tests/shared_instance_api.rs`
+runs verbatim against an in-process loopback `TcpServer` shared instance
+and reads the announce back as a path response at one hop;
+`crates/apps/reticulumd/tests/fork_release_docs_contract.rs` adds that
+file to the pin list, raises the snippet floor to five and requires
+exactly one rust fence in the section, pinned by that test. The second
+makes `attach_shared_instance`
+(`crates/libs/rns-transport/src/transport/links_parts/transport_sections/shared_instance.rs`)
+warn once under the links target, naming the transport and the address,
+when a `Tcp` endpoint's address is not loopback, before any lock is taken;
+the attach proceeds unchanged, the rustdoc, the README section and the
+divergence register say so, and the fixture
+`crates/libs/rns-transport/src/transport/tests_parts/two_transport_shared_instance_endpoint_warn.rs`,
+included from `crates/libs/rns-transport/src/transport/tests.rs`, pins
+one warning for `10.255.255.1:1` and a quiet detach and stop. The third
+makes `ResourceManager::conclude_outbound`
+(`crates/libs/rns-transport/src/resource/outcome.rs`) log a debug line
+naming the resource hash and the link when the `OutboundOutcome` receiver
+was dropped before the verdict, in place of an ignored send. The fourth
+adds the fork publish and release-docs contract tests and the
+breaking-change compile-fail harness to the contracts job of
+`.github/workflows/ci-full.yml`, as the pull-request lane already ran
+them. The fifth makes `tools/scripts/check-publish-tag-version.sh` strip
+a leading `refs/tags/` from `PUBLISH_REF` before the prefix test, so a
+caller passing `github.ref` is checked rather than let through; the
+mismatched-tag test in
+`crates/apps/reticulumd/tests/fork_publish_contract.rs` covers the
+full-ref accept and reject cases and the README release section names
+the accepted form. The sixth adds the release notes for the endpoint
+warning and the outcome fix to the crate `CHANGELOG.md`. The seventh
+bumps the crate version to 0.15.1 at every manifest, consumer-snippet and
+contract-test site, regenerates `Cargo.lock` and
+`crates/libs/rns-transport/fuzz/Cargo.lock`, promotes `## Unreleased` to
+`## 0.15.1 - 2026-10-21` in the crate `CHANGELOG.md` with a version bullet
+and no `### Breaking` subsection, and adds the 0.15.1 paragraph to the
+README patch list. The ledger-only commit that completes this section is
+omitted by convention.
 
 ## 0.15.0 (upstream 0.14.0)
 

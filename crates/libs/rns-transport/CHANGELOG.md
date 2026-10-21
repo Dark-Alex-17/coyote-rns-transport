@@ -81,8 +81,10 @@ bullet of its own, marked test-only.
   is unchanged. Pinned by `iface/tcp_client.rs` (a 50 ms wait makes a
   reconnect storm back off for 50 ms rather than 5 s; a dropped stream
   reports one disconnect event then the reconnect event, and a stop while
-  connected reports none), `iface/local.rs` (the same disconnect twin for
-  the unix client),
+  connected reports none; a client built from a pre-supplied stream
+  reports its disconnect once and finishes without reconnecting),
+  `iface/local.rs` (the same disconnect twin and the same pre-supplied
+  stream pin for the unix client),
   `transport/tests_parts/two_transport_shared_instance_probe2.rs` (a TCP
   client attached with a 50 ms wait reaches a late-bound shared instance
   within 2 s),
@@ -108,7 +110,12 @@ bullet of its own, marked test-only.
   in its context, and the re-announce sends every destination with its
   app data and reports the count) and by
   `transport/tests_parts/two_transport_shared_instance_probe7.rs` (the
-  registration announce waits its 0.25 s rather than going out at once).
+  registration announce waits its 0.25 s rather than going out at once and
+  arrives within 2 s of it) and by
+  `transport/tests_parts/two_transport_shared_instance_probe9.rs` (a
+  posture set directly, with nothing attached, still announces on
+  registration, and a posture switched off before the registration
+  announces nothing).
 
 ### Changed
 
@@ -151,11 +158,15 @@ bullet of its own, marked test-only.
   `transport/tests_parts/two_transport_shared_instance_probe7.rs` (the
   re-announce fires no sooner than `reconnect_wait` plus 2 s after the
   re-accept, a posture dropped after the reconnect re-announces nothing,
-  every further restart re-announces again, and a pending link is torn
-  down by the drop like an active one) and by
+  an interface unflagged after the reconnect re-announces nothing, every
+  further restart re-announces again, and a pending link is torn down by
+  the drop like an active one), by
   `transport/tests_parts/two_transport_shared_instance_probe8.rs` (a
   restart flush keeps the delivery receipt of a packet sent on another
-  interface, observed from the consumer side, and drops the path).
+  interface, observed from the consumer side, and drops the path) and by
+  `transport/tests_parts/two_transport_shared_instance_probe9.rs` (a
+  posture set directly, with nothing attached, neither flushes nor
+  re-announces when the shared instance restarts).
 - `filter_duplicate_packet` (`transport/inbound_processing.rs`) returns
   early while attached to a shared instance: the duplicate filter inserts
   nothing and consults nothing while attached, and nothing is rolled back,
@@ -167,7 +178,9 @@ bullet of its own, marked test-only.
   duplicates once the transport detaches, and the hash of each packet sent
   is the receipt guard. Pinned by `transport/inbound_processing_tests.rs`
   (`shared_instance_client_filter_inserts_nothing_into_the_packet_cache`,
-  `shared_instance_client_accepts_the_same_packet_twice`).
+  `shared_instance_client_accepts_the_same_packet_twice`,
+  `shared_instance_client_data_received_while_attached_is_seen_after_detach`:
+  a Data packet received while attached counts as seen once detached).
 - `Transport::stop` forgets an attached shared instance and clears the
   connected flag, since its interface is detached with the rest; a stopped
   transport reports `shared_instance()` as `None`. The posture is now
@@ -186,10 +199,11 @@ bullet of its own, marked test-only.
   shared-instance client spawns (each attach's reconnect consumer, the
   delayed registration announces and the delayed re-announces, which
   Python runs as threads it never joins) within its budget, right after
-  the cancel, aborting and warning only on expiry, so none of them
-  announces on a stopped transport; the set they live in is reaped of
-  finished tasks before every spawn. The warnings of that join and reap
-  (a task that ended by panic, tasks aborted at the budget) are logged
+  the cancel, aborting on expiry and warning on expiry or on a task that
+  ended by panic, so none of them announces on a stopped transport; the
+  set they live in is reaped of finished tasks before every spawn. The
+  warnings of that join and reap (a task that ended by panic, tasks
+  aborted at the budget) are logged
   under the links target as `tp(<name>): shared instance task ...`, so
   the never-warned oracle below sees them. Pinned by
   `transport/tests_parts/two_transport_shared_instance.rs` (stop releases
@@ -218,7 +232,10 @@ bullet of its own, marked test-only.
   `transport/tests_parts/two_transport_shared_instance_tasks.rs` (a stop
   inside the registration delay joins the announce task, which sends
   nothing, and a stop after an attach joins the consumer; the set is empty
-  after both).
+  after both) and
+  `transport/tests_parts/two_transport_shared_instance_probe9.rs` (a stop
+  that runs out of budget on a pending announce warns as `tp(<name>)` on
+  the links target).
 - `LocalUnixClient::with_reconnect_wait` (`iface/local.rs`) clamps the wait
   to at least 1 ms, as `TcpClient::with_reconnect_wait` does; it previously
   took a zero wait as given.

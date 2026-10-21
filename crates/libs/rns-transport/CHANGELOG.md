@@ -59,7 +59,14 @@ bullet of its own, marked test-only.
   `crates/apps/reticulumd/tests/fork_release_docs_contract.rs`; the release
   notes and the ledger section are held to
   `crates/apps/reticulumd/tests/fork_publish_contract.rs` (the Unreleased
-  cite check and the Unreleased ledger checks).
+  cite check and the Unreleased ledger checks). The README's attach,
+  handler, announce and detach snippet is run verbatim from outside the
+  crate by `crates/libs/rns-transport/tests/shared_instance_api.rs` against
+  an in-process TCP shared instance, and
+  `crates/apps/reticulumd/tests/python_channel_interop_parts/python_shared_instance_live.rs`
+  attaches the crate to a Python `rnsd` shared instance next to a Python
+  local client and proves announce and `Link.request` both ways, over TCP
+  everywhere and over an abstract unix socket on Linux.
 - `TcpClient::{with_reconnect_wait, reconnect_wait}` and
   `TcpClient::DEFAULT_RECONNECT_WAIT`, 5 s: the wait slept after a failed
   connect and before each redial from the second consecutive short-lived
@@ -279,6 +286,19 @@ bullet of its own, marked test-only.
   `stop` issued inside a 30 s redial wait completes at once, and a client
   built from a pre-supplied stream ends at once when the stream drops,
   sleeping no wait).
+- `attach_shared_instance` (`transport_sections/shared_instance.rs`) warns
+  once, before it spawns the client, when a `Tcp` endpoint's address is not
+  loopback, naming the transport as `tp(<name>)` and the address; the
+  attach proceeds unchanged. Python's `LocalClientInterface` connects to
+  `127.0.0.1` only (`RNS/Interfaces/LocalInterface.py:109`), so a remote
+  shared instance is rarely what the caller meant. A loopback endpoint
+  still never warns. Pinned by
+  `transport/tests_parts/two_transport_shared_instance_endpoint_warn.rs`
+  (an attach to 10.255.255.1:1 warns exactly once with the address in the
+  text, and the detach and stop of the never-connected client complete
+  within their budgets without a further warning) and by
+  `transport/tests_parts/two_transport_shared_instance_probe5.rs` (the
+  loopback attach never warns).
 - The `TestLogger` in
   `transport/tests_parts/two_transport_loopback_requests_isolation.rs`
   keeps every record at `Warn` or above on the links target
@@ -300,6 +320,16 @@ bullet of its own, marked test-only.
   instead of for a fixed 1500 ms, so the proven set no longer depends on
   runner speed. Test-only; no library behaviour changes. Pinned by that
   same file.
+
+### Fixed
+
+- `ResourceManager::conclude_outbound` (`resource/outcome.rs`) no longer
+  discards the result of handing the verdict to the `OutboundOutcome`
+  future: when that future was dropped before the transfer concluded, the
+  send fails and a debug line names the resource hash and the link. The
+  verdict itself is unchanged. Pinned by
+  `crates/apps/reticulumd/tests/code_quality_issue_369.rs`, which flags an
+  ignored channel send in production code.
 
 ## 0.15.0 - 2026-10-20
 

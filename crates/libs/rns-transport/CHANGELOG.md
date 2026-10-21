@@ -65,8 +65,12 @@ bullet of its own, marked test-only.
   an in-process TCP shared instance, and
   `crates/apps/reticulumd/tests/python_channel_interop_parts/python_shared_instance_live.rs`
   attaches the crate to a Python `rnsd` shared instance next to a Python
-  local client and proves announce and `Link.request` both ways, over TCP
-  everywhere and over an abstract unix socket on Linux.
+  local client and proves the zero-hop path (`RNS/Transport.py:1938`),
+  the Rust announce reaching the Python client through rnsd's live
+  rebroadcast to its other local clients (`RNS/Transport.py:2398-2430`;
+  the client's handler takes no path responses, so rnsd's replay of the
+  cached announce cannot stand in for it) and `Link.request` both ways,
+  over TCP everywhere and over an abstract unix socket on Linux.
 - `TcpClient::{with_reconnect_wait, reconnect_wait}` and
   `TcpClient::DEFAULT_RECONNECT_WAIT`, 5 s: the wait slept after a failed
   connect and before each redial from the second consecutive short-lived
@@ -141,6 +145,12 @@ bullet of its own, marked test-only.
   debug line), with no public item removed or changed. The release
   contracts are pinned by `crates/apps/reticulumd/tests/fork_publish_contract.rs`
   and `fork_release_docs_contract.rs`.
+
+- Test only: `crates/apps/reticulumd/tests/fork_publish_contract.rs` pins
+  that the `contracts` job of `ci-full.yml` carries every `cargo test` step
+  the one in `ci.yml` runs (the fork publish and release-docs contracts,
+  the breaking-change compile-fail harness), so the dispatch workflow
+  cannot pass on a tree the pull-request workflow would reject.
 
 - On every shared-instance reconnect the attached client re-synthesizes
   the tunnel on the interface at once and, `reconnect_wait` plus 2 s
@@ -296,16 +306,23 @@ bullet of its own, marked test-only.
   built from a pre-supplied stream ends at once when the stream drops,
   sleeping no wait).
 - `attach_shared_instance` (`transport_sections/shared_instance.rs`) warns
-  once, before it spawns the client, when a `Tcp` endpoint's address is not
+  once per accepted attach when a `Tcp` endpoint's address is not
   loopback, naming the transport as `tp(<name>)` and the address; the
-  attach proceeds unchanged. Python's `LocalClientInterface` connects to
+  attach proceeds unchanged, and an attach refused because the slot is
+  held or the transport is stopped warns nothing. The address is read
+  through `IpAddr::to_canonical`, so `[::ffff:127.0.0.1]` is as quiet as
+  `127.0.0.1` and `[::1]`. Python's `LocalClientInterface` connects to
   `127.0.0.1` only (`RNS/Interfaces/LocalInterface.py:109`), so a remote
   shared instance is rarely what the caller meant. A loopback endpoint
   still never warns. Pinned by
   `transport/tests_parts/two_transport_shared_instance_endpoint_warn.rs`
   (an attach to 10.255.255.1:1 warns exactly once with the address in the
   text, and the detach and stop of the never-connected client complete
-  within their budgets without a further warning) and by
+  within their budgets without a further warning; a second attach refused
+  while the first holds the slot adds none), by
+  `transport/tests_parts/two_transport_shared_instance_probe12.rs` (`[::1]`
+  never warns, `[::ffff:10.255.255.1]` warns once, and an attach after a
+  detach warns once per attach) and by
   `transport/tests_parts/two_transport_shared_instance_probe5.rs` (the
   loopback attach never warns).
 - The `TestLogger` in
@@ -335,8 +352,8 @@ bullet of its own, marked test-only.
 - `ResourceManager::conclude_outbound` (`resource/outcome.rs`) no longer
   discards the result of handing the verdict to the `OutboundOutcome`
   future: when that future was dropped before the transfer concluded, the
-  send fails and a debug line names the resource hash and the link. The
-  verdict itself is unchanged. Pinned by
+  send fails and a debug line names the resource hash, the link and the
+  undelivered verdict. The verdict itself is unchanged. Pinned by
   `crates/apps/reticulumd/tests/code_quality_issue_369.rs`, which flags an
   ignored channel send in production code.
 

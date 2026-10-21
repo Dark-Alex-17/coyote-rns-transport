@@ -28,7 +28,9 @@ impl Transport {
         let cancel = self.cancel.clone();
         let name = self.name.clone();
         let announce = async move {
+            // Biased so a cancel that lands with the delay is served first.
             tokio::select! {
+                biased;
                 _ = cancel.cancelled() => {}
                 _ = tokio::time::sleep(SHARED_INSTANCE_REGISTRATION_ANNOUNCE_DELAY) => {
                     if let Err(error) =

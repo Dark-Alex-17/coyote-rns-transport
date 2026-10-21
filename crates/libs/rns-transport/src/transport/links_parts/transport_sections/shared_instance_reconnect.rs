@@ -133,7 +133,10 @@ impl SharedInstanceReconnectConsumer {
 
     /// The tunnel goes out at once, as reticulumd does for its own clients;
     /// the re-announce waits like Python's reconnect job
-    /// (`RNS/Interfaces/LocalInterface.py:178-181`).
+    /// (`RNS/Interfaces/LocalInterface.py:178-181`). Unlike the re-announce,
+    /// the tunnel re-synthesis is not posture-gated: it goes out for any
+    /// interface that is still registered, as reticulumd's own reconnect
+    /// does.
     #[deny(clippy::await_holding_invalid_type)]
     async fn on_reconnected(&self) {
         if synthesize_tunnel_on_iface(&self.handler, self.iface).await {
@@ -225,7 +228,7 @@ impl SharedInstanceReconnectConsumer {
             link.close();
             closed.push(*link.id());
         }
-        let (paths, announces, tunnels, held, packet_cache) = {
+        let (paths, announces, links, tunnels, held, packet_cache) = {
             let mut handler = self.handler.lock().await;
             for link_id in &closed {
                 handler.resource_manager.remove_link_state(*link_id);
@@ -234,19 +237,20 @@ impl SharedInstanceReconnectConsumer {
             super::resource_wire::publish_resource_events(&handler, events);
             let paths = handler.path_table.clear();
             let announces = handler.announce_table.clear();
-            handler.link_table.clear();
+            let links = handler.link_table.clear();
             let tunnels = handler.tunnel_table.clear();
             let held = handler.announce_limits.clear_held_announces();
-            (paths, announces, tunnels, held, handler.packet_cache.clone())
+            (paths, announces, links, tunnels, held, handler.packet_cache.clone())
         };
         let reverse_routes = packet_cache.lock().await.clear_reverse_routes();
         log::debug!(
-            "tp({}): shared instance iface={} disconnected, {} link(s) torn down, {} path(s), {} announce(s), {} tunnel(s), {} held announce(s), {} reverse route(s) cleared",
+            "tp({}): shared instance iface={} disconnected, {} link(s) torn down, {} path(s), {} announce(s), {} link table entr(ies), {} tunnel(s), {} held announce(s), {} reverse route(s) cleared",
             self.name,
             self.iface,
             closed.len(),
             paths,
             announces,
+            links,
             tunnels,
             held,
             reverse_routes

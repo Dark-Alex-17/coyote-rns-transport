@@ -1020,10 +1020,12 @@ impl TcpClient {
     }
 
     /// Sends the interface address on `events` each time an established
-    /// stream ends while the client is neither cancelled nor stopped, before
-    /// the reconnect loop runs again; a full channel drops the event at
-    /// debug. Python's shared-instance client treats a socket closed while
-    /// connected and not detached as the shared connection disappearing and
+    /// stream ends while the client is neither cancelled nor stopped; a
+    /// client built from a pre-supplied stream ([`Self::new_from_stream`])
+    /// sends it once, when that stream ends, since it has no endpoint to
+    /// reconnect to. A full channel drops the event at debug. Python's
+    /// shared-instance client treats a socket closed while connected and
+    /// not detached as the shared connection disappearing and
     /// then reconnects (`RNS/Interfaces/LocalInterface.py:255-261`).
     #[must_use]
     pub fn with_disconnect_events(

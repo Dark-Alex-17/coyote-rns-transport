@@ -9,10 +9,11 @@ use crate::destination::link::LinkCloseReason;
 
 const SHARED_INSTANCE_RECONNECT_WAIT: Duration = Duration::from_millis(100);
 
-/// The re-announce is due `reconnect_wait + 2 s` after the reconnect; the rest is
+/// The re-announce is due `reconnect_wait + 2 s` after the reconnect; the 3 s is
 /// scheduling margin. Only this upper bound is asserted.
-const SHARED_INSTANCE_RECONNECT_REANNOUNCE_BOUND: Duration =
-    Duration::from_millis(100 + 2_000 + 3_000);
+const SHARED_INSTANCE_RECONNECT_REANNOUNCE_BOUND: Duration = SHARED_INSTANCE_RECONNECT_WAIT
+    .saturating_add(Duration::from_secs(2))
+    .saturating_add(Duration::from_secs(3));
 
 /// Attaches with the short reconnect wait so the restart below is observed quickly.
 #[deny(clippy::await_holding_invalid_type)]

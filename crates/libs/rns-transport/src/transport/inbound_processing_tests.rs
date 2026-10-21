@@ -144,7 +144,7 @@ async fn filter_twice(
 
 #[tokio::test]
 #[deny(clippy::await_holding_invalid_type)]
-async fn shared_instance_client_leaves_the_packet_cache_untouched() {
+async fn shared_instance_client_filter_inserts_nothing_into_the_packet_cache() {
     let (packet_cache, first, second) = filter_twice(true).await;
 
     assert_eq!(first, (true, false), "first packet must be accepted without a cache insert");

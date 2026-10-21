@@ -68,8 +68,7 @@ bullet of its own, marked test-only.
   `attach_shared_instance` now passes `SharedInstanceOptions::reconnect_wait`
   to the `TcpClient` as it did to the `LocalUnixClient`, and its attach
   debug line reports the wait as in force for both endpoints. Both knobs
-  clamp the wait to at least 1 ms; `LocalUnixClient::with_reconnect_wait`
-  previously took a zero wait as given. The 5 s default is pinned by
+  clamp the wait to at least 1 ms. The 5 s default is pinned by
   `transport/tests_parts/two_transport_shared_instance_probe7.rs`
   (`shared_instance_probe7_tcp_client_reconnect_wait_defaults_to_five_seconds`).
   `TcpClient::with_disconnect_events` and
@@ -148,22 +147,26 @@ bullet of its own, marked test-only.
   the drop the path, announce, link and tunnel tables, the held announces
   and the reverse route of a Data packet the shared instance sent over a
   link each hold something, after it each is empty and the cached hashes
-  are kept) and by
+  are kept), by
   `transport/tests_parts/two_transport_shared_instance_probe7.rs` (the
   re-announce fires no sooner than `reconnect_wait` plus 2 s after the
   re-accept, a posture dropped after the reconnect re-announces nothing,
   every further restart re-announces again, and a pending link is torn
-  down by the drop like an active one).
+  down by the drop like an active one) and by
+  `transport/tests_parts/two_transport_shared_instance_probe8.rs` (a
+  restart flush keeps the delivery receipt of a packet sent on another
+  interface, observed from the consumer side, and drops the path).
 - `filter_duplicate_packet` (`transport/inbound_processing.rs`) returns
-  early while attached to a shared instance, so nothing is inserted into
-  the local duplicate-filter hashlist and nothing is rolled back: Python's
-  `add_packet_hash` skips the hashlist and `packet_filter` accepts every
-  packet in that mode (`RNS/Transport.py:1618-1627`), the owner
-  deduplicates. The packet cache's other halves are still written while
-  attached: the reverse-routing note `handle_data` leaves for each received
-  Data packet (Python's `reverse_table`) and the hash of each packet sent,
-  the receipt guard. Pinned by `transport/inbound_processing_tests.rs`
-  (`shared_instance_client_leaves_the_packet_cache_untouched`,
+  early while attached to a shared instance: the duplicate filter inserts
+  nothing and consults nothing while attached, and nothing is rolled back,
+  as Python's `add_packet_hash` skips the hashlist and `packet_filter`
+  accepts every packet in that mode (`RNS/Transport.py:1618-1627`), the
+  owner deduplicates. The packet cache's other halves are still written
+  while attached: the source notes `handle_data` records for received Data
+  packets (Python's `reverse_table`) share the cache and are seen as
+  duplicates once the transport detaches, and the hash of each packet sent
+  is the receipt guard. Pinned by `transport/inbound_processing_tests.rs`
+  (`shared_instance_client_filter_inserts_nothing_into_the_packet_cache`,
   `shared_instance_client_accepts_the_same_packet_twice`).
 - `Transport::stop` forgets an attached shared instance and clears the
   connected flag, since its interface is detached with the rest; a stopped
@@ -213,6 +216,9 @@ bullet of its own, marked test-only.
   inside the registration delay joins the announce task, which sends
   nothing, and a stop after an attach joins the consumer; the set is empty
   after both).
+- `LocalUnixClient::with_reconnect_wait` (`iface/local.rs`) clamps the wait
+  to at least 1 ms, as `TcpClient::with_reconnect_wait` does; it previously
+  took a zero wait as given.
 - The `TestLogger` in
   `transport/tests_parts/two_transport_loopback_requests_isolation.rs`
   keeps every record at `Warn` or above on the links target

@@ -22,13 +22,15 @@ pub(super) async fn filter_duplicate_packet(
     // An attached client leaves duplicate filtering to the shared-instance
     // owner: Python's packet_filter accepts every packet in this mode and
     // add_packet_hash skips the hashlist (RNS/Transport.py:1618-1627), so
-    // nothing is inserted here and there is nothing to roll back later. The
-    // cache's other halves are still written while attached: the source
-    // notes handle_data leaves for received Data packets, Python's
-    // reverse_table, and the outbound hashes send records. The latter stay
-    // unguarded by design: they are the receipt guard, the role Python's
-    // separate receipts list plays (RNS/Transport.py:174), so a proof for
-    // a packet of our own still finds it.
+    // the filter neither reads nor writes the cache while attached and there
+    // is nothing to roll back later. The cache's other halves are still
+    // written: the source notes handle_data leaves for received Data
+    // packets, Python's reverse_table, share the cache with this filter and
+    // so count as seen once the transport detaches, a deliberate
+    // simplification over Python's separate packet_hashlist; the outbound
+    // hashes send records stay unguarded by design: they are the receipt
+    // guard, the role Python's separate receipts list plays
+    // (RNS/Transport.py:174), so a proof for a packet of our own still finds it.
     if connected_to_shared_instance {
         return (true, false);
     }

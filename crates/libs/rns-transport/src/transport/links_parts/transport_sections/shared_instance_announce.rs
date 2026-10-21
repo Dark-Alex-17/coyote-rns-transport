@@ -1,4 +1,4 @@
-const SHARED_INSTANCE_REGISTRATION_ANNOUNCE_DELAY: Duration = Duration::from_millis(250);
+pub(super) const SHARED_INSTANCE_REGISTRATION_ANNOUNCE_DELAY: Duration = Duration::from_millis(250);
 
 impl Transport {
     /// Announces every registered single destination to the shared instance

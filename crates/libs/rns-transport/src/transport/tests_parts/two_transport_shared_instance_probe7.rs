@@ -22,7 +22,7 @@ const SHARED_INSTANCE_PROBE7_REANNOUNCE_FLOOR: Duration = Duration::from_millis(
 /// Long enough for a re-announce that should not be sent to have arrived if it were going
 /// to: the bound the reconnect fixture asserts, plus a margin.
 const SHARED_INSTANCE_PROBE7_REANNOUNCE_SILENCE: Duration =
-    Duration::from_millis(100 + 2_000 + 3_000 + 1_000);
+    SHARED_INSTANCE_RECONNECT_REANNOUNCE_BOUND.saturating_add(Duration::from_secs(1));
 
 /// Drains `announces` for `window`, returning every path-response announce seen for one of
 /// `watched` in that time.

@@ -373,13 +373,18 @@ clears the path, announce, link and tunnel tables, the held announces and
 the packet cache's reverse routes, Python's `reverse_table`
 (`RNS/Transport.py:3690-3702`, `RNS/Interfaces/LocalInterface.py:255-261`);
 a queued disconnect is served before the reconnect behind it, so the flush
-never lands after that cycle's tunnel. While attached, received packets are
-not added to the local duplicate-filter hashlist (`RNS/Transport.py:1618-1627`):
-the owner deduplicates. The packet cache's other halves are still written:
-the reverse-routing note of each received Data packet and the hash of each
-packet sent, which is the receipt guard. `Transport::stop` joins the tasks
-the client spawns (the delayed announces and the reconnect consumer) within
-its budget, so none runs on a stopped transport.
+never lands after that cycle's tunnel. While attached, the duplicate filter
+inserts nothing and consults nothing (`RNS/Transport.py:1618-1627`): the
+owner deduplicates. The packet cache's other halves are still written: the
+source notes `handle_data` records for received Data packets share the cache
+and are seen as duplicates once the transport detaches, and the hash of each
+packet sent is the receipt guard. A transport whose connected posture is set
+directly, as reticulumd's own bootstrap does, rather than through
+`attach_shared_instance` gets the registration announce, whose trigger is the
+posture alone, but not the reconnect re-announce and the drop flush, which
+live in the attach's consumer task. `Transport::stop` joins the tasks the
+client spawns (the delayed announces and the reconnect consumer) within its
+budget, so none runs on a stopped transport.
 
 ## Known divergences from Python RNS
 
@@ -483,6 +488,12 @@ except where a fork change made it visible, and such an entry says so.
   never does (`RNS/Interfaces/LocalInterface.py` has no tunnel code;
   `wants_tunnel` is set by network-facing clients such as
   `RNS/Interfaces/TCPInterface.py:179`).
+- The reverse-routing source notes live in the same cache as the duplicate
+  filter, so a Data packet received while attached to a shared instance is
+  treated as seen after a detach. Python's `add_packet_hash` guard
+  (`RNS/Transport.py:1618-1627`) keeps `packet_hashlist` empty of it, since
+  `reverse_table` is a separate dict there, and the shared-instance drop
+  flush keeps those notes' hashes in the cache too.
 
 Not divergences:
 

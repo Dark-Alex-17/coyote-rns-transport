@@ -5,9 +5,10 @@
 // store: a warning on the links target is kept whether or not it names the shared
 // instance. Helpers come from the sibling `tests_parts` files included into this module.
 
-/// Longer than the registration announce delay, so an announce the stop failed to cancel
+/// Three times the registration announce delay, so an announce the stop failed to cancel
 /// would have reached the shared instance by the time the receiver is drained.
-const SHARED_INSTANCE_TASKS_ANNOUNCE_SILENCE: Duration = Duration::from_millis(750);
+const SHARED_INSTANCE_TASKS_ANNOUNCE_SILENCE: Duration =
+    super::links::SHARED_INSTANCE_REGISTRATION_ANNOUNCE_DELAY.saturating_mul(3);
 
 /// How many shared-instance tasks `transport` tracks right now.
 fn shared_instance_task_count(transport: &Transport) -> usize {

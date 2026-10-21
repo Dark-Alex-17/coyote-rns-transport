@@ -1,9 +1,11 @@
 // Pins that `stop` joins the tasks the shared-instance client spawns: the registration
 // announce still waiting out its quarter second when the stop runs sees the cancel and
 // never reaches the shared instance, and the reconnect consumer of an attach ends with the
-// stop; the task set is empty either way. Also pins the test logger's shared-instance
-// store: a warning on the links target is kept whether or not it names the shared
-// instance. Helpers come from the sibling `tests_parts` files included into this module.
+// stop; the task set is empty either way. A task that ended by panic is reported once at
+// warn under the transport's name and the stop still completes. Also pins the test
+// logger's shared-instance store: a warning on the links target is kept whether or not it
+// names the shared instance. Helpers come from the sibling `tests_parts` files included
+// into this module.
 
 /// Three times the registration announce delay, so an announce the stop failed to cancel
 /// would have reached the shared instance by the time the receiver is drained.
@@ -118,4 +120,43 @@ async fn shared_instance_stop_joins_the_reconnect_consumer() {
     shared_instance_assert_released(&transport, iface).await;
     shared_instance_assert_never_warned(name);
     timeout(STOP_TIMEOUT, server.transport.stop()).await.expect("shared instance stop completes");
+}
+
+/// Best-effort tasks never block the shutdown: a shared-instance task that ended by panic
+/// is reported once at warn under the transport's name when `stop` joins it, and the stop
+/// still completes inside its budget. Spawned straight into the set, with no attach, so no
+/// later spawn reaps the finished task first.
+#[tokio::test]
+#[deny(clippy::await_holding_invalid_type)]
+async fn shared_instance_stop_warns_once_for_a_task_that_ended_by_panic_and_still_completes() {
+    install_test_logger();
+    let name = "shared-instance-tasks-panic";
+    let identity = PrivateIdentity::new_from_rand(OsRng);
+    let transport = Transport::new(TransportConfig::new(name, &identity, false));
+    transport
+        .shared_instance_tasks
+        .lock()
+        .expect("shared-instance task set")
+        .spawn(async { panic!("synthetic shared-instance task panic") });
+    tokio::time::sleep(LOOPBACK_POLL).await;
+    assert_eq!(shared_instance_task_count(&transport), 1, "the panicked task is still tracked");
+
+    timeout(STOP_TIMEOUT, transport.stop())
+        .await
+        .expect("stop completes with a panicked task in the set");
+    assert_eq!(shared_instance_task_count(&transport), 0, "stop drained the set");
+
+    let warned: Vec<_> = shared_instance_records_for(name)
+        .into_iter()
+        .filter(|(level, record)| {
+            *level == log::Level::Warn
+                && record.contains("shared instance task did not finish cleanly during stop")
+        })
+        .collect();
+    assert_eq!(warned.len(), 1, "one warning per panicked task, under tp({name}): {warned:?}");
+    assert!(
+        warned[0].1.starts_with(&format!("tp({name}): ")),
+        "the warning opens with the transport's name: {}",
+        warned[0].1
+    );
 }

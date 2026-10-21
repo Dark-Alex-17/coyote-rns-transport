@@ -114,7 +114,7 @@ pub(in crate::transport) fn bounded_random_blobs(
     random_blobs
 }
 
-fn decode_address_hash(value: &RmpValue) -> Result<AddressHash, RnsError> {
+pub(in crate::transport) fn decode_address_hash(value: &RmpValue) -> Result<AddressHash, RnsError> {
     let bytes = decode_bytes(value)?;
     if bytes.len() != ADDRESS_HASH_SIZE {
         return Err(RnsError::IncorrectHash);
@@ -124,7 +124,7 @@ fn decode_address_hash(value: &RmpValue) -> Result<AddressHash, RnsError> {
     Ok(AddressHash::new(out))
 }
 
-fn decode_hash(value: &RmpValue) -> Result<Hash, RnsError> {
+pub(in crate::transport) fn decode_hash(value: &RmpValue) -> Result<Hash, RnsError> {
     let bytes = decode_bytes(value)?;
     if bytes.len() != HASH_SIZE {
         return Err(RnsError::IncorrectHash);
@@ -164,7 +164,7 @@ fn decode_bytes(value: &RmpValue) -> Result<&[u8], RnsError> {
     }
 }
 
-fn decode_u8(value: &RmpValue) -> Result<u8, RnsError> {
+pub(in crate::transport) fn decode_u8(value: &RmpValue) -> Result<u8, RnsError> {
     match value {
         RmpValue::Integer(value) => value.as_u64().and_then(|value| u8::try_from(value).ok()),
         _ => None,
@@ -172,7 +172,7 @@ fn decode_u8(value: &RmpValue) -> Result<u8, RnsError> {
     .ok_or(RnsError::InvalidArgument)
 }
 
-fn decode_f64(value: &RmpValue) -> Result<f64, RnsError> {
+pub(in crate::transport) fn decode_f64(value: &RmpValue) -> Result<f64, RnsError> {
     match value {
         RmpValue::F64(value) => Some(*value),
         RmpValue::F32(value) => Some(f64::from(*value)),

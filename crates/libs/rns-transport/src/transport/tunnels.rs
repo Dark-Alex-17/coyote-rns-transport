@@ -1,4 +1,7 @@
-use super::path_table::{bounded_random_blobs, decode_random_blobs, RandomBlob, TunnelPathRestore};
+use super::path_table::{
+    bounded_random_blobs, decode_address_hash, decode_f64, decode_hash, decode_random_blobs,
+    decode_u8, RandomBlob, TunnelPathRestore,
+};
 use super::*;
 use crate::destination::PlainInputDestination;
 use crate::hash::ADDRESS_HASH_SIZE;
@@ -171,6 +174,15 @@ impl TunnelTable {
                 packet_hash,
             },
         );
+    }
+
+    /// Drops every tunnel with its paths and returns how many tunnels there
+    /// were.
+    pub fn clear(&mut self) -> usize {
+        let cleared = self.tunnels.len();
+        self.tunnels.clear();
+        self.iface_tunnels.clear();
+        cleared
     }
 
     pub fn remove_stale(&mut self, now: Instant) -> usize {
@@ -449,52 +461,6 @@ fn decode_optional_hash(value: &RmpValue) -> Result<Option<Hash>, RnsError> {
         RmpValue::Nil => Ok(None),
         _ => decode_hash(value).map(Some),
     }
-}
-
-fn decode_address_hash(value: &RmpValue) -> Result<AddressHash, RnsError> {
-    let bytes = decode_bytes(value)?;
-    if bytes.len() != ADDRESS_HASH_SIZE {
-        return Err(RnsError::IncorrectHash);
-    }
-    let mut out = [0u8; ADDRESS_HASH_SIZE];
-    out.copy_from_slice(bytes);
-    Ok(AddressHash::new(out))
-}
-
-fn decode_hash(value: &RmpValue) -> Result<Hash, RnsError> {
-    let bytes = decode_bytes(value)?;
-    if bytes.len() != HASH_SIZE {
-        return Err(RnsError::IncorrectHash);
-    }
-    let mut out = [0u8; HASH_SIZE];
-    out.copy_from_slice(bytes);
-    Ok(Hash::new(out))
-}
-
-fn decode_bytes(value: &RmpValue) -> Result<&[u8], RnsError> {
-    match value {
-        RmpValue::Binary(bytes) => Ok(bytes),
-        RmpValue::String(text) => text.as_str().map(str::as_bytes).ok_or(RnsError::InvalidArgument),
-        _ => Err(RnsError::InvalidArgument),
-    }
-}
-
-fn decode_u8(value: &RmpValue) -> Result<u8, RnsError> {
-    match value {
-        RmpValue::Integer(value) => value.as_u64().and_then(|value| u8::try_from(value).ok()),
-        _ => None,
-    }
-    .ok_or(RnsError::InvalidArgument)
-}
-
-fn decode_f64(value: &RmpValue) -> Result<f64, RnsError> {
-    match value {
-        RmpValue::F64(value) => Some(*value),
-        RmpValue::F32(value) => Some(f64::from(*value)),
-        RmpValue::Integer(value) => value.as_i64().map(|value| value as f64),
-        _ => None,
-    }
-    .ok_or(RnsError::InvalidArgument)
 }
 
 include!("tunnels_tests.rs");

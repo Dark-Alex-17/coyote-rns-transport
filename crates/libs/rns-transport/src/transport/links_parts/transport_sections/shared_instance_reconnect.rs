@@ -6,13 +6,14 @@ use tokio::sync::mpsc;
 const SHARED_INSTANCE_REAPPEARED_ANNOUNCE_GRACE: Duration = Duration::from_secs(2);
 
 impl Transport {
-    /// Spawns the task that reacts to the attached client's reconnect
-    /// events; see [`SharedInstanceReconnectConsumer::run`].
+    /// Spawns the task that reacts to the attached client's reconnect and
+    /// disconnect events; see [`SharedInstanceReconnectConsumer::run`].
     fn spawn_shared_instance_reconnect_consumer(
         &self,
         iface: AddressHash,
         reconnect_wait: Duration,
         reconnects: mpsc::Receiver<AddressHash>,
+        disconnects: mpsc::Receiver<AddressHash>,
     ) {
         let consumer = SharedInstanceReconnectConsumer {
             handler: self.handler.clone(),
@@ -22,7 +23,7 @@ impl Transport {
             iface,
             reconnect_wait,
         };
-        tokio::spawn(consumer.run(reconnects));
+        tokio::spawn(consumer.run(reconnects, disconnects));
     }
 }
 
@@ -61,11 +62,15 @@ struct SharedInstanceReconnectConsumer {
 
 impl SharedInstanceReconnectConsumer {
     /// Serves the client's events until the transport is cancelled or the
-    /// client worker exits. The sender belongs to that one worker and drops
-    /// with it, after a detach, `stop_interface` or `stop`, which closes the
-    /// channel and ends the task.
+    /// client worker exits. Both senders belong to that one worker and drop
+    /// with it, after a detach, `stop_interface` or `stop`, so the first
+    /// closed channel ends the task.
     #[deny(clippy::await_holding_invalid_type)]
-    async fn run(self, mut reconnects: mpsc::Receiver<AddressHash>) {
+    async fn run(
+        self,
+        mut reconnects: mpsc::Receiver<AddressHash>,
+        mut disconnects: mpsc::Receiver<AddressHash>,
+    ) {
         loop {
             tokio::select! {
                 _ = self.cancel.cancelled() => break,
@@ -74,6 +79,12 @@ impl SharedInstanceReconnectConsumer {
                         break;
                     }
                     self.on_reconnected().await;
+                }
+                disconnected = disconnects.recv() => {
+                    if disconnected.is_none() {
+                        break;
+                    }
+                    self.on_disconnected().await;
                 }
             }
         }
@@ -140,4 +151,78 @@ impl SharedInstanceReconnectConsumer {
             announced
         );
     }
+
+    /// `shared_connection_disappeared` (`RNS/Transport.py:3690-3702`), run
+    /// only while attached as Python's `receive` does
+    /// (`RNS/Interfaces/LocalInterface.py:255-261`): every active and
+    /// pending link is closed with the reason of its own side, as
+    /// `Link.teardown` sets it (`RNS/Link.py:670-671`), and the tables are
+    /// emptied. Python's tables map to the fork's as follows:
+    /// `active_links` and `pending_links` are `in_links` and `out_links`
+    /// (both hold links in every status); `announce_table`, `path_table`
+    /// and `tunnels` are the fields of the same name; `reverse_table` is
+    /// kept on the `link_table` entries, so clearing that table covers it;
+    /// `held_announces` are the held announces of `announce_limits`. The
+    /// resource state of each closed link goes with it, as the link
+    /// maintenance job does. Lock discipline follows
+    /// `fail_pending_requests_on_stop`: the handler and each link are
+    /// locked one after the other, never together, so the link set is
+    /// snapshotted first and only those links are removed afterwards.
+    #[deny(clippy::await_holding_invalid_type)]
+    async fn on_disconnected(&self) {
+        if !self.attached().await {
+            log::debug!(
+                "tp({}): shared instance iface={} stream ended after detach, tables kept",
+                self.name,
+                self.iface
+            );
+            return;
+        }
+        let (in_links, out_links) = {
+            let handler = self.handler.lock().await;
+            (snapshot_links(&handler.in_links), snapshot_links(&handler.out_links))
+        };
+        let mut closed = Vec::with_capacity(in_links.len() + out_links.len());
+        for (_, link) in in_links.iter().chain(&out_links) {
+            let mut link = link.lock().await;
+            link.close();
+            closed.push(*link.id());
+        }
+        let (paths, announces, tunnels, held) = {
+            let mut handler = self.handler.lock().await;
+            for (link_id, _) in &in_links {
+                handler.in_links.remove(link_id);
+            }
+            for (destination, _) in &out_links {
+                handler.out_links.remove(destination);
+            }
+            for link_id in &closed {
+                handler.resource_manager.remove_link_state(*link_id);
+            }
+            let events = handler.resource_manager.drain_events();
+            super::resource_wire::publish_resource_events(&handler, events);
+            let paths = handler.path_table.clear();
+            let announces = handler.announce_table.clear();
+            handler.link_table.clear();
+            let tunnels = handler.tunnel_table.clear();
+            let held = handler.announce_limits.clear_held_announces();
+            (paths, announces, tunnels, held)
+        };
+        log::debug!(
+            "tp({}): shared instance iface={} disconnected, {} link(s) torn down, {} path(s), {} announce(s), {} tunnel(s), {} held announce(s) cleared",
+            self.name,
+            self.iface,
+            closed.len(),
+            paths,
+            announces,
+            tunnels,
+            held
+        );
+    }
+}
+
+fn snapshot_links(
+    links: &HashMap<AddressHash, Arc<Mutex<Link>>>,
+) -> Vec<(AddressHash, Arc<Mutex<Link>>)> {
+    links.iter().map(|(key, link)| (*key, link.clone())).collect()
 }

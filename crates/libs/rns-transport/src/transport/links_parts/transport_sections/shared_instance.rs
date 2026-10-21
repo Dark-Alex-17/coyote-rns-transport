@@ -14,12 +14,13 @@ impl Transport {
     /// shared-instance client synthesizes no tunnel at all
     /// (`RNS/Interfaces/LocalInterface.py` has no tunnel code; `wants_tunnel`
     /// is set by the network-facing clients such as
-    /// `RNS/Interfaces/TCPInterface.py:179`); its reconnect hook
-    /// (`RNS/Transport.py:3705-3709`) is mirrored by a task spawned here: a
-    /// reconnect re-announces every registered destination as a path
-    /// response `reconnect_wait` plus two seconds later
-    /// (`RNS/Interfaces/LocalInterface.py:177-180`). Python's flush of the
-    /// tables when the connection drops (`:3690-3702`) is not mirrored yet.
+    /// `RNS/Interfaces/TCPInterface.py:179`); its reconnect hooks
+    /// (`RNS/Transport.py:3690-3709`) are mirrored by a task spawned here:
+    /// a dropped connection tears down every link and flushes the tables
+    /// while this transport is still attached, and a reconnect re-announces
+    /// every registered destination as a path response `reconnect_wait`
+    /// plus two seconds later (`RNS/Interfaces/LocalInterface.py:177-180`).
+    /// A detach or stop flushes nothing.
     /// Python also forces transport, remote management and probes off when it
     /// attaches (`RNS/Reticulum.py:438-440`); this method leaves
     /// `transport_enabled` as configured, since the crate supports a
@@ -53,6 +54,7 @@ impl Transport {
             SharedInstanceEndpoint::Unix(_) => "unix",
         };
         let (reconnect_tx, reconnect_rx) = tokio::sync::mpsc::channel(8);
+        let (disconnect_tx, disconnect_rx) = tokio::sync::mpsc::channel(8);
         // Lock order: the std slot is innermost, under the iface_manager here
         // and under the handler below as in detach and stop; the two tokio
         // locks are never nested. The second section re-reads the slot since
@@ -68,7 +70,8 @@ impl Transport {
                 SharedInstanceEndpoint::Tcp(addr) => manager.spawn_as_with_mode(
                     TcpClient::new(addr.to_string())
                         .with_reconnect_wait(options.reconnect_wait())
-                        .with_reconnect_events(reconnect_tx),
+                        .with_reconnect_events(reconnect_tx)
+                        .with_disconnect_events(disconnect_tx),
                     TcpClient::spawn,
                     IfaceRole::Unicast,
                     InterfaceMode::Full,
@@ -77,7 +80,8 @@ impl Transport {
                 SharedInstanceEndpoint::Unix(endpoint) => manager.spawn_as_with_mode(
                     LocalUnixClient::new_connect(endpoint)
                         .with_reconnect_wait(options.reconnect_wait())
-                        .with_reconnect_events(reconnect_tx),
+                        .with_reconnect_events(reconnect_tx)
+                        .with_disconnect_events(disconnect_tx),
                     LocalUnixClient::spawn,
                     IfaceRole::Unicast,
                     InterfaceMode::Full,
@@ -91,6 +95,7 @@ impl Transport {
             iface,
             options.reconnect_wait(),
             reconnect_rx,
+            disconnect_rx,
         );
         {
             let mut handler = self.handler.lock().await;

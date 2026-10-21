@@ -64,6 +64,15 @@ impl LinkTable {
         self.entries.values().filter(|entry| entry.validated).count()
     }
 
+    /// Drops every entry, validated or not, and returns how many there were.
+    /// The reverse-path bookkeeping Python keeps in its separate
+    /// `reverse_table` lives on these entries, so this empties that too.
+    pub fn clear(&mut self) -> usize {
+        let cleared = self.entries.len();
+        self.entries.clear();
+        cleared
+    }
+
     pub fn add(
         &mut self,
         link_request: &Packet,

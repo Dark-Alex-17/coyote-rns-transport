@@ -1,3 +1,5 @@
+use std::net::SocketAddr;
+
 #[cfg(unix)]
 use crate::iface::local::LocalUnixClient;
 use crate::iface::tcp_client::TcpClient;
@@ -26,10 +28,11 @@ impl Transport {
     /// `transport_enabled` as configured, since the crate supports a
     /// transport-enabled node attached to a shared instance (see
     /// `path_parts/unknown_owner_local_link_request.rs`). A `Tcp` endpoint
-    /// whose address is not loopback is accepted and warned about once at
+    /// whose address is not loopback (in either notation: `[::ffff:127.0.0.1]`
+    /// counts as loopback) is accepted and warned about once per accepted
     /// attach, since Python's `LocalClientInterface` connects to `127.0.0.1`
     /// only (`RNS/Interfaces/LocalInterface.py:109`) and a remote shared
-    /// instance is rarely what the caller meant.
+    /// instance is rarely what the caller meant; a refused attach warns nothing.
     ///
     /// Only one shared instance is held at a time: a second call while one is
     /// attached returns [`RnsError::InvalidArgument`], as does a call after
@@ -59,15 +62,12 @@ impl Transport {
             #[cfg(unix)]
             SharedInstanceEndpoint::Unix(_) => "unix",
         };
-        if let SharedInstanceEndpoint::Tcp(addr) = &endpoint {
-            if !addr.ip().is_loopback() {
-                log::warn!(
-                    "tp({}): shared instance endpoint {} is not a loopback address; Python's LocalClientInterface connects to 127.0.0.1 only (RNS/Interfaces/LocalInterface.py:109), the attach proceeds",
-                    self.name,
-                    addr
-                );
+        let remote: Option<SocketAddr> = match &endpoint {
+            SharedInstanceEndpoint::Tcp(addr) if !addr.ip().to_canonical().is_loopback() => {
+                Some(*addr)
             }
-        }
+            _ => None,
+        };
         let (reconnect_tx, reconnect_rx) = tokio::sync::mpsc::channel(8);
         let (disconnect_tx, disconnect_rx) = tokio::sync::mpsc::channel(8);
         // Lock order: the std slot is innermost, under the iface_manager here
@@ -106,6 +106,13 @@ impl Transport {
             *slot = Some(iface);
             iface
         };
+        if let Some(addr) = remote {
+            log::warn!(
+                "tp({}): shared instance endpoint {} is not a loopback address; Python's LocalClientInterface connects to 127.0.0.1 only (RNS/Interfaces/LocalInterface.py:109), the attach proceeds",
+                self.name,
+                addr
+            );
+        }
         self.spawn_shared_instance_reconnect_consumer(
             iface,
             options.reconnect_wait(),

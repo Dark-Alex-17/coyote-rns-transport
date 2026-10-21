@@ -7,7 +7,7 @@ trailing clause of the bullet for the behaviour it pins. A fixture hardening
 that changes no library behaviour is the one exception: it is a Changed
 bullet of its own, marked test-only.
 
-## Unreleased
+## 0.15.1 - 2026-10-21
 
 ### Added
 
@@ -132,6 +132,15 @@ bullet of its own, marked test-only.
   announces nothing).
 
 ### Changed
+
+- The crate version is `0.15.1`; the discovery announce carries it in the
+  `TRANSPORT_VERS` field (`discovery/announce.rs`), so peers observe the fork
+  patch release through discovery. The bump is a patch one under the README
+  policy: every change since `0.15.0` is additive (the shared-instance
+  client API and its fixtures, the reconnect-wait knobs, a warning and a
+  debug line), with no public item removed or changed. The release
+  contracts are pinned by `crates/apps/reticulumd/tests/fork_publish_contract.rs`
+  and `fork_release_docs_contract.rs`.
 
 - On every shared-instance reconnect the attached client re-synthesizes
   the tunnel on the interface at once and, `reconnect_wait` plus 2 s

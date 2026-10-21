@@ -25,7 +25,7 @@ breaks the fork's public API, the next patch digit otherwise.
 
 ```toml
 [dependencies]
-coyote-rns-transport = "0.15.0"
+coyote-rns-transport = "0.15.1"
 ```
 
 ```rust
@@ -599,8 +599,33 @@ full `refs/tags/coyote-rns-transport-v<version>` ref, and
 
 `docs/fork/PATCHSET.md` is the single per-release ledger of every file changed
 since the previous release, with the commit that changed it and the upstream
-site; earlier sections carry the earlier patches. What `0.15.0` carries on top
-of `0.14.1`:
+site; earlier sections carry the earlier patches. What `0.15.1` carries on top
+of `0.15.0`:
+
+- The shared-instance client: `Transport::attach_shared_instance` and
+  `detach_shared_instance`, `SharedInstanceEndpoint` and
+  `SharedInstanceOptions`, `announce_destinations_to_shared_instance`, the
+  path-response announce of a destination registered while attached, the
+  re-announce after a reconnect, and the LINKCLOSE teardown and table flush
+  when the connection drops.
+- `TcpClient::with_reconnect_wait` and the matching redial wait in
+  `LocalUnixClient`, both honoured by `attach_shared_instance`.
+- The duplicate filter inserts nothing and consults nothing while attached,
+  as Python's `add_packet_hash` guard keeps `packet_hashlist` empty in that
+  mode; the `## Known divergences from Python RNS` entry on the reverse-routing
+  source notes describes what the cache still records.
+- A warning, once per attach, when a `Tcp` shared-instance endpoint is not
+  loopback.
+- The live interop test that attaches to a Python `rnsd` shared instance and
+  exchanges requests both ways.
+- The usage example under `## Attaching to a shared instance`, pinned
+  verbatim by `tests/shared_instance_api.rs`.
+- Release hygiene: ci-full runs the fork contracts and the compile-fail
+  harness as PR CI does, the publish tag guard takes the full `refs/tags/`
+  form, and `ResourceManager::conclude_outbound` logs a dropped outcome
+  receiver instead of discarding the send.
+
+What `0.15.0` carries on top of `0.14.1`:
 
 - The link request layer: the `RequestFrame` and `ResponseFrame` wire frames,
   request handlers with allow policies and size caps, `Transport::request`

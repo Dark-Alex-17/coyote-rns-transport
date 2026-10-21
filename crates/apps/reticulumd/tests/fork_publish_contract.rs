@@ -151,7 +151,7 @@ fn crate_readme_pins_the_consumer_contract() {
 
     assert_eq!(
         crate_version(),
-        "0.15.0",
+        "0.15.1",
         "coyote-rns-transport should declare the published version; bump this pin with the crate"
     );
 
@@ -175,7 +175,7 @@ fn crate_readme_pins_the_consumer_contract() {
 
     for required in [
         "name = \"coyote-rns-transport\"",
-        "version = \"0.15.0\"",
+        "version = \"0.15.1\"",
         "description = \"Coyote's published fork of reticulum-rs-transport",
         "license.workspace = true",
         "rns-core.workspace = true",

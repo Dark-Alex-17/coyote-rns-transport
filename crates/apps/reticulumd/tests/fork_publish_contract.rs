@@ -83,6 +83,7 @@ fn publish_tag_version_guard_pins_its_contract() {
 
     for required in [
         "cargo pkgid --locked -p coyote-rns-transport",
+        "PUBLISH_REF=\"${PUBLISH_REF#refs/tags/}\"",
         "[ \"$crate_version\" != \"$tag_version\" ]",
         "exit 1",
     ] {
@@ -124,6 +125,10 @@ fn publish_tag_version_guard_rejects_a_mismatched_tag() {
     let full_ref = format!("refs/tags/{matching_tag}");
     let (code, stdout) = run(Some(&full_ref));
     assert_eq!(code, Some(0), "full ref {full_ref:?} should pass the guard, got {stdout:?}");
+    assert!(
+        !stdout.contains("is not a coyote-rns-transport-v* release tag"),
+        "full ref {full_ref:?} should be checked as a release tag, not skipped, got {stdout:?}"
+    );
 
     let (code, stdout) = run(Some("refs/tags/coyote-rns-transport-v9.9.9"));
     assert_ne!(code, Some(0), "a mismatched release tag given as a full ref must fail the guard");

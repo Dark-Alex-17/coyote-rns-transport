@@ -398,6 +398,48 @@ live in the attach's consumer task. `Transport::stop` joins the tasks the
 client spawns (the delayed announces and the reconnect consumer) within its
 budget, so none runs on a stopped transport.
 
+A client that attaches, registers a destination with a request handler,
+announces it to the owner on demand and detaches, with `endpoint` the owner's
+`SocketAddr`:
+
+```rust
+use std::sync::Arc;
+use rns_transport::destination::request::{InboundRequest, RequestAllow, RequestResponse};
+use rns_transport::destination::DestinationName;
+use rns_transport::identity::PrivateIdentity;
+use rns_transport::rand_core::OsRng;
+use rns_transport::transport::{SharedInstanceEndpoint, SharedInstanceOptions};
+
+let iface = transport
+    .attach_shared_instance(
+        SharedInstanceEndpoint::Tcp(endpoint),
+        SharedInstanceOptions::default(),
+    )
+    .await?;
+let identity = PrivateIdentity::new_from_rand(OsRng);
+let destination =
+    transport.add_destination(identity, DestinationName::new("example", "echo")).await;
+destination.lock().await.register_request_handler(
+    "/echo",
+    Arc::new(|request: InboundRequest| async move {
+        Some(RequestResponse::Value(request.into_data()))
+    }),
+    RequestAllow::All,
+    true,
+)?;
+let announced = transport.announce_destinations_to_shared_instance().await;
+assert_eq!(announced, 1);
+assert!(transport.detach_shared_instance().await);
+```
+
+`crates/libs/rns-transport/tests/shared_instance_api.rs` runs this snippet
+verbatim against an in-process shared instance, a transport-enabled node with
+a `TcpServer` on 127.0.0.1, and reads the announce back as a path response at
+one hop. `crates/apps/reticulumd/tests/python_channel_interop_parts/python_shared_instance_live.rs`
+attaches this crate to a Python `rnsd` (RNS 1.5.2) shared instance on a free
+port next to a Python local client and proves announce and `Link.request`
+both ways, over TCP everywhere and over an abstract unix socket on Linux.
+
 ## Known divergences from Python RNS
 
 Where this crate is known to behave differently from RNS 1.5.2. Each entry

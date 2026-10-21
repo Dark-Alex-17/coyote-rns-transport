@@ -497,21 +497,56 @@ fn crate_readme_known_divergences_cite_python_lines() {
     );
 }
 
-/// The crate README's `## Attaching to a shared instance` section describes
-/// the shared-instance client API in prose only. A `rust` fence there is
-/// allowed only once a public-API test pins its body verbatim, the way
-/// `crate_readme_rust_snippets_are_pinned_verbatim_by_the_api_tests` checks
-/// the other README snippets; no such pin exists yet, so today the section
-/// carries no fence at all.
+/// The crate README's `## Attaching to a shared instance` section carries
+/// exactly one `rust` fence, the attach, handler, announce and detach
+/// snippet, and no fence of any other kind; every line of that snippet is
+/// run verbatim by `crates/libs/rns-transport/tests/shared_instance_api.rs`
+/// against an in-process shared instance, under the same squash and skip
+/// rules as `crate_readme_rust_snippets_are_pinned_verbatim_by_the_api_tests`.
 #[test]
-fn crate_readme_shared_instance_section_has_no_unpinned_rust_fence() {
+fn crate_readme_shared_instance_section_fence_is_pinned_by_the_api_test() {
     let readme = read_repo_file("crates/libs/rns-transport/README.md");
     let section = crate_readme_section(&readme, "Attaching to a shared instance");
-    assert!(!section.trim().is_empty(), "the shared-instance section should not be empty");
-    assert!(
-        !section.contains("```"),
-        "the shared-instance section is prose only; found a code fence:\n{section}"
+    let fences: Vec<&str> =
+        section.lines().map(str::trim_start).filter(|line| line.starts_with("```")).collect();
+    assert_eq!(
+        fences,
+        vec!["```rust", "```"],
+        "the shared-instance section should carry exactly one rust fence and no other"
     );
+    let snippet: Vec<&str> = section
+        .lines()
+        .skip_while(|line| line.trim_start() != "```rust")
+        .skip(1)
+        .take_while(|line| line.trim_start() != "```")
+        .collect();
+    assert!(!snippet.is_empty(), "the shared-instance snippet should not be empty");
+
+    let pin = squash(&read_repo_file("crates/libs/rns-transport/tests/shared_instance_api.rs"));
+    let unpinned: Vec<&str> = snippet
+        .iter()
+        .map(|line| line.trim())
+        .filter(|line| !line.is_empty() && !line.starts_with("use ") && !line.starts_with("//"))
+        .filter(|line| {
+            let needle = match line.split_once(" => ") {
+                Some((pattern, _)) => squash(pattern),
+                None => squash(line),
+            };
+            !pin.contains(&needle)
+        })
+        .collect();
+    assert!(
+        unpinned.is_empty(),
+        "every line of the shared-instance snippet should appear verbatim in tests/shared_instance_api.rs:\n{}",
+        unpinned.join("\n")
+    );
+}
+
+/// Snippet text with every whitespace character removed and a pin's leading
+/// underscore on an unused pattern binding dropped, the form the README
+/// snippet lines are matched against the public-API pin files in.
+fn squash(text: &str) -> String {
+    text.chars().filter(|c| !c.is_whitespace()).collect::<String>().replace("(_", "(")
 }
 
 /// The body of the crate README section under `## <heading>`, up to the next
@@ -665,14 +700,12 @@ fn crate_readme_rust_snippets_are_pinned_verbatim_by_the_api_tests() {
         "crates/libs/rns-transport/tests/request_handler_api.rs",
         "crates/libs/rns-transport/tests/outbound_outcome_api.rs",
         "crates/libs/rns-transport/tests/request_receipt_api.rs",
+        "crates/libs/rns-transport/tests/shared_instance_api.rs",
     ]
     .iter()
     .map(|path| read_repo_file(path))
     .collect::<Vec<_>>()
     .join("\n");
-    let squash = |text: &str| {
-        text.chars().filter(|c| !c.is_whitespace()).collect::<String>().replace("(_", "(")
-    };
     let pins = squash(&pins);
 
     let mut snippets = Vec::new();
@@ -689,8 +722,8 @@ fn crate_readme_rust_snippets_are_pinned_verbatim_by_the_api_tests() {
         }
     }
     assert!(
-        snippets.len() >= 4,
-        "the README should carry the consumer, handler, request and outcome snippets, found {}",
+        snippets.len() >= 5,
+        "the README should carry the consumer, handler, request, outcome and shared-instance snippets, found {}",
         snippets.len()
     );
 

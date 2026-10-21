@@ -19,7 +19,7 @@ impl Transport {
     /// a dropped connection tears down every link and flushes the tables
     /// while this transport is still attached, and a reconnect re-announces
     /// every registered destination as a path response `reconnect_wait`
-    /// plus two seconds later (`RNS/Interfaces/LocalInterface.py:177-180`).
+    /// plus two seconds later (`RNS/Interfaces/LocalInterface.py:178-181`).
     /// A detach or stop flushes nothing.
     /// Python also forces transport, remote management and probes off when it
     /// attaches (`RNS/Reticulum.py:438-440`); this method leaves

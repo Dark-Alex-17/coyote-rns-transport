@@ -149,7 +149,7 @@ impl Destination<PrivateIdentity, Input, Single> {
     /// The announce of [`Self::announce`] with the packet context set to
     /// `PacketContext::PathResponse` when `path_response` is true, as
     /// Python's `Destination.announce(path_response=True)` does
-    /// (`RNS/Destination.py:309-315`). Every other field is built the same
+    /// (`RNS/Destination.py:308-315`). Every other field is built the same
     /// way.
     pub fn announce_with_context<R: CryptoRngCore + Copy>(
         &mut self,

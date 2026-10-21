@@ -342,8 +342,9 @@ not Python's default (see Known divergences).
 `Transport::attach_shared_instance(SharedInstanceEndpoint, SharedInstanceOptions)`
 spawns a `TcpClient` for a `SharedInstanceEndpoint::Tcp(SocketAddr)`, or on
 unix targets a `LocalUnixClient` for `Unix`, marks that interface as the shared
-instance, sets the transport's client posture, synthesizes a tunnel on it
-once and returns the interface address: the posture of a Python program
+instance, sets the transport's client posture, synthesizes a tunnel on it (at
+attach and again on every reconnect) and returns the interface address: the
+posture of a Python program
 attaching to the instance that owns `shared_instance_port`
 (`RNS/Reticulum.py:422-441`; the default port is `:295`), with the
 client-side hop count of `RNS/Transport.py:1940` and the transport header
@@ -360,7 +361,7 @@ detach; an attach after `stop()` has cancelled the transport is refused with
 TCP client (`TcpClient::with_reconnect_wait`; the client's own default stays
 5 s). While attached, a `SINGLE` destination is announced as a path
 response 0.25 s after `register_destination` (`RNS/Transport.py:2911-2916`,
-the context of `RNS/Destination.py:309-315`), and
+the context of `RNS/Destination.py:308-315`), and
 `Transport::announce_destinations_to_shared_instance` sends that announce
 for every registered destination on demand. On every reconnect the tunnel is
 re-synthesized at once and every registered single destination is
@@ -368,12 +369,17 @@ re-announced as a path response `reconnect_wait` plus 2 s later, if the
 transport is still attached then (`RNS/Transport.py:3705-3709`,
 `RNS/Interfaces/LocalInterface.py:178-181`). A dropped connection, as
 opposed to a detach or a stop, tears down every active and pending link and
-clears the path, announce, link and tunnel tables and the held announces
+clears the path, announce, link and tunnel tables, the held announces and
+the packet cache's reverse routes, Python's `reverse_table`
 (`RNS/Transport.py:3690-3702`, `RNS/Interfaces/LocalInterface.py:255-261`);
 a queued disconnect is served before the reconnect behind it, so the flush
-never lands after that cycle's tunnel. Received packet hashes are not
-recorded locally while attached (`RNS/Transport.py:1618-1627`): the owner
-deduplicates.
+never lands after that cycle's tunnel. While attached, received packets are
+not added to the local duplicate-filter hashlist (`RNS/Transport.py:1618-1627`):
+the owner deduplicates. The packet cache's other halves are still written:
+the reverse-routing note of each received Data packet and the hash of each
+packet sent, which is the receipt guard. `Transport::stop` joins the tasks
+the client spawns (the delayed announces and the reconnect consumer) within
+its budget, so none runs on a stopped transport.
 
 ## Known divergences from Python RNS
 

@@ -1045,7 +1045,7 @@ impl TcpClient {
     /// default. Python's shared-instance client sleeps
     /// `LocalClientInterface.RECONNECT_WAIT`, 8 s
     /// (`RNS/Interfaces/LocalInterface.py:54`), before every attempt
-    /// (`:159`); `TCPClientInterface` runs its own reconnect loop, so this
+    /// (`:160`); `TCPClientInterface` runs its own reconnect loop, so this
     /// knob is the shared-instance client's wait. Clamped to at least 1 ms.
     #[must_use]
     pub fn with_reconnect_wait(mut self, reconnect_wait: Duration) -> Self {

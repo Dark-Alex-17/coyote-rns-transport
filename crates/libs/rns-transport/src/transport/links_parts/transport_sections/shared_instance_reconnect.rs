@@ -2,7 +2,7 @@ use tokio::sync::mpsc;
 use tokio::task::JoinSet;
 
 /// Python's shared-instance client re-announces `RECONNECT_WAIT + 2` seconds
-/// after it reconnects (`RNS/Interfaces/LocalInterface.py:177-180`); this
+/// after it reconnects (`RNS/Interfaces/LocalInterface.py:178-181`); this
 /// is the 2, added to the attach's `reconnect_wait`.
 const SHARED_INSTANCE_REAPPEARED_ANNOUNCE_GRACE: Duration = Duration::from_secs(2);
 
@@ -132,7 +132,7 @@ impl SharedInstanceReconnectConsumer {
 
     /// The tunnel goes out at once, as reticulumd does for its own clients;
     /// the re-announce waits like Python's reconnect job
-    /// (`RNS/Interfaces/LocalInterface.py:177-180`).
+    /// (`RNS/Interfaces/LocalInterface.py:178-181`).
     #[deny(clippy::await_holding_invalid_type)]
     async fn on_reconnected(&self) {
         if synthesize_tunnel_on_iface(&self.handler, self.iface).await {
@@ -173,7 +173,7 @@ impl SharedInstanceReconnectConsumer {
             );
             return;
         }
-        let announced = announce_all_destinations_as_path_response(&self.handler).await;
+        let announced = announce_all_destinations_as_path_response(&self.handler, &self.name).await;
         log::debug!(
             "tp({}): shared instance iface={} reappeared, {} destination(s) re-announced as path responses",
             self.name,

@@ -229,14 +229,14 @@ instance within 2 s). The fourth announces a destination registered on an
 attached client as a path response 0.25 s later
 (`RNS/Transport.py:2911-2916`), adds
 `SingleInputDestination::announce_with_context` for the path-response
-context (`RNS/Destination.py:309-315`) and
+context (`RNS/Destination.py:308-315`) and
 `Transport::announce_destinations_to_shared_instance`, which re-announces
 every registered destination the same way, and adopts the parity fixture.
 The fifth wires both clients' reconnect events into a per-attach consumer
 task that re-synthesizes the tunnel at once and, `reconnect_wait` plus two
 seconds later, announces every registered single destination as a path
 response while the transport is still attached
-(`RNS/Interfaces/LocalInterface.py:177-180`, `RNS/Transport.py:3705-3709`);
+(`RNS/Interfaces/LocalInterface.py:178-181`, `RNS/Transport.py:3705-3709`);
 `Transport::synthesize_tunnel_on_interface` now delegates to a free
 function that takes the handler and the iface_manager guards one after
 the other, and the reconnect fixture restarts the shared instance on the

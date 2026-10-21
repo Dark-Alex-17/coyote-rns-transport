@@ -64,10 +64,12 @@ bullet of its own, marked test-only.
   `TcpClient::DEFAULT_RECONNECT_WAIT`, 5 s: the wait slept before each
   retry once a connect has failed or an established stream has dropped
   twice in a row, the knob `LocalUnixClient::with_reconnect_wait` already
-  offered (`RNS/Interfaces/LocalInterface.py:54`, slept at `:159`).
+  offered (`RNS/Interfaces/LocalInterface.py:54`, slept at `:160`).
   `attach_shared_instance` now passes `SharedInstanceOptions::reconnect_wait`
   to the `TcpClient` as it did to the `LocalUnixClient`, and its attach
-  debug line reports the wait as in force for both endpoints.
+  debug line reports the wait as in force for both endpoints. Both knobs
+  clamp the wait to at least 1 ms; `LocalUnixClient::with_reconnect_wait`
+  previously took a zero wait as given.
   `TcpClient::with_disconnect_events` and
   `LocalUnixClient::with_disconnect_events`, with
   `TcpClient::disconnect_events_enabled`: a sender, sibling of
@@ -90,7 +92,7 @@ bullet of its own, marked test-only.
 - `SingleInputDestination::announce_with_context`, the announce of
   `announce` with the packet context set to `PathResponse` when asked, as
   Python's `Destination.announce(path_response=True)` does
-  (`RNS/Destination.py:309-315`), and
+  (`RNS/Destination.py:308-315`), and
   `Transport::announce_destinations_to_shared_instance`, which announces
   every registered single destination as a path response
   with its registered app data and returns how many announces were handed
@@ -111,7 +113,7 @@ bullet of its own, marked test-only.
   the tunnel on the interface at once and, `reconnect_wait` plus 2 s
   later, re-announces every registered single destination as a path
   response if the transport is still attached then
-  (`RNS/Transport.py:3705-3709`, `RNS/Interfaces/LocalInterface.py:177-180`).
+  (`RNS/Transport.py:3705-3709`, `RNS/Interfaces/LocalInterface.py:178-181`).
   A dropped connection while attached, with the interface still flagged as
   the shared instance, closes every in and out link with its own side's
   `LinkCloseReason`, drops their resource state and clears the path,
@@ -131,10 +133,13 @@ bullet of its own, marked test-only.
   empties every collection it holds and reports the count).
 - `filter_duplicate_packet` (`transport/inbound_processing.rs`) returns
   early while attached to a shared instance, so nothing is inserted into
-  the local packet cache and nothing is rolled back: Python's
+  the local duplicate-filter hashlist and nothing is rolled back: Python's
   `add_packet_hash` skips the hashlist and `packet_filter` accepts every
   packet in that mode (`RNS/Transport.py:1618-1627`), the owner
-  deduplicates. Pinned by `transport/inbound_processing_tests.rs`
+  deduplicates. The packet cache's other halves are still written while
+  attached: the reverse-routing note `handle_data` leaves for each received
+  Data packet (Python's `reverse_table`) and the hash of each packet sent,
+  the receipt guard. Pinned by `transport/inbound_processing_tests.rs`
   (`shared_instance_client_leaves_the_packet_cache_untouched`,
   `shared_instance_client_accepts_the_same_packet_twice`).
 - `Transport::stop` forgets an attached shared instance and clears the

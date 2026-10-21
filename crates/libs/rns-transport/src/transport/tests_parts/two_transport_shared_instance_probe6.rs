@@ -1,6 +1,6 @@
-// Pins the shape of the attach debug line, not just its words: both arms write
-// space-separated `key=value` tokens (`iface=`, `endpoint=`, `reconnect_wait=`) with no
-// comma separators, and both end at the wait. A regression to the earlier
+// Pins the shape of the attach debug line, not just its words: for a tcp and a unix
+// endpoint alike it is space-separated `key=value` tokens (`iface=`, `endpoint=`,
+// `reconnect_wait=`) with no comma separators, ending at the wait. A regression to the earlier
 // `endpoint={}, reconnect_wait={:?} ignored ...` form keeps every word and fails here.
 // Helpers come from the sibling `tests_parts` files included into this module.
 

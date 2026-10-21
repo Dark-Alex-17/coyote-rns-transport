@@ -89,10 +89,7 @@ fn shared_instance_test_logger_keeps_a_needle_less_warning() {
     let records = shared_instance_records_for(name);
     assert_eq!(
         records,
-        vec![(
-            log::Level::Warn,
-            format!("tp({name}): synthetic warning without the needle")
-        )],
+        vec![(log::Level::Warn, format!("tp({name}): synthetic warning without the needle"))],
         "the warning is kept and the debug record is not"
     );
 }

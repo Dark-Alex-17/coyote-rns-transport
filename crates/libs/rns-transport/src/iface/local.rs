@@ -362,9 +362,13 @@ impl LocalUnixClient {
         self
     }
 
+    /// The wait slept before each connect retry, Python's
+    /// `LocalClientInterface.RECONNECT_WAIT`
+    /// (`RNS/Interfaces/LocalInterface.py:54`, slept at `:160`). Clamped to
+    /// at least 1 ms, as `TcpClient::with_reconnect_wait` is.
     #[must_use]
     pub fn with_reconnect_wait(mut self, reconnect_wait: Duration) -> Self {
-        self.reconnect_wait = reconnect_wait;
+        self.reconnect_wait = reconnect_wait.max(Duration::from_millis(1));
         self
     }
 

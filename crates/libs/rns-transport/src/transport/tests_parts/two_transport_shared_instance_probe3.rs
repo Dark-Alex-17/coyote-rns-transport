@@ -109,8 +109,9 @@ async fn shared_instance_stop_racing_an_attach_refuses_it_and_keeps_the_slot_emp
 
     let ((), (refused, slot_at_release)) = tokio::join!(
         async {
-            // stop's own 5 s budget can be consumed by the handler wait; let it elapse before
-            // this guard fires.
+            // The handler is held until the attach has returned, so stop's handler wait is
+            // normally short; should it run stop's whole 5 s budget out on a loaded host, stop
+            // still returns on the budget, and this guard sits above it.
             timeout(STOP_TIMEOUT + Duration::from_secs(3), transport.stop())
                 .await
                 .expect("stop returns within its budget")

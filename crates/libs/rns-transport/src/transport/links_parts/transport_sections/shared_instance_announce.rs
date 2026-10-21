@@ -10,7 +10,7 @@ impl Transport {
     /// attached; this method announces regardless.
     #[deny(clippy::await_holding_invalid_type)]
     pub async fn announce_destinations_to_shared_instance(&self) -> usize {
-        announce_all_destinations_as_path_response(&self.handler).await
+        announce_all_destinations_as_path_response(&self.handler, &self.name).await
     }
 
     /// Python announces a single destination with `path_response=True` from
@@ -75,12 +75,14 @@ pub(crate) async fn announce_destination_as_path_response(
 }
 
 /// Announces every entry of `single_in_destinations` as a path response and
-/// returns how many announces were handed to the transport. The entries are
-/// copied out under one short handler lock, so a destination registered
-/// while the loop runs is left to its own registration announce.
+/// returns how many announces were handed to the transport; `name` is the
+/// transport's, for the warning a packet that fails to build leaves. The
+/// entries are copied out under one short handler lock, so a destination
+/// registered while the loop runs is left to its own registration announce.
 #[deny(clippy::await_holding_invalid_type)]
 pub(crate) async fn announce_all_destinations_as_path_response(
     handler: &Arc<Mutex<TransportHandler>>,
+    name: &str,
 ) -> usize {
     let destinations = {
         let handler = handler.lock().await;
@@ -95,7 +97,8 @@ pub(crate) async fn announce_all_destinations_as_path_response(
         match announce_destination_as_path_response(handler, &destination).await {
             Ok(()) => announced += 1,
             Err(error) => log::warn!(
-                "[tp] path-response announce not sent: packet build failed dst={} error={:?}",
+                "tp({}): path-response announce not sent: packet build failed dst={} error={:?}",
+                name,
                 address_hash.short(),
                 error
             ),

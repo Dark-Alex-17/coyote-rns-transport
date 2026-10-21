@@ -111,9 +111,10 @@ impl Transport {
         self.fail_pending_requests_on_stop(deadline).await;
     }
 
-    /// Fork-only: waits for the shared-instance tasks, which have seen the
-    /// cancel by now and finish their current step; Python never joins the
-    /// threads these mirror. The set is taken out of its std guard first,
+    /// Fork-only: waits for the shared-instance tasks, which by now have
+    /// seen the cancel or fired into the already-detached interfaces and
+    /// finish their current step; Python never joins the threads these
+    /// mirror. The set is taken out of its std guard first,
     /// so a spawn that races the stop lands in a fresh set, and the guard is
     /// never held across the joins. What is still running at `deadline` is
     /// aborted and logged.

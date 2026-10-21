@@ -166,9 +166,11 @@ impl Transport {
         );
     }
 
-    /// A shared-instance task [`Self::stop`] joined ended by panic or abort;
-    /// logged from here so the line shares the attach and detach lines'
-    /// target.
+    /// A shared-instance task [`Self::stop`] joined ended by panic, the only
+    /// `JoinError` a join can observe here: the tasks still running at the
+    /// budget are aborted and dropped, never joined again, so stop stays
+    /// inside its budget. Logged from here so the line shares the attach
+    /// and detach lines' target.
     pub(super) fn log_shared_instance_task_join_failed(&self, err: &tokio::task::JoinError) {
         log::warn!(
             "tp({}): shared instance task did not finish cleanly during stop: {err}",

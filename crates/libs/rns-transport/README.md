@@ -359,7 +359,8 @@ detach; an attach after `stop()` has cancelled the transport is refused with
 `RnsError::InvalidArgument` too. `reconnect_wait` (default 8 s,
 `RNS/Interfaces/LocalInterface.py:54`) is honoured by both the unix and the
 TCP client (`TcpClient::with_reconnect_wait`; the client's own default stays
-5 s). While attached, a `SINGLE` destination is announced as a path
+5 s) and clamped to at least 1 ms by both. While attached, a `SINGLE`
+destination is announced as a path
 response 0.25 s after `register_destination` (`RNS/Transport.py:2911-2916`,
 the context of `RNS/Destination.py:308-315`), and
 `Transport::announce_destinations_to_shared_instance` sends that announce
@@ -371,7 +372,9 @@ transport is still attached then (`RNS/Transport.py:3705-3709`,
 opposed to a detach or a stop, tears down every active and pending link and
 clears the path, announce, link and tunnel tables, the held announces and
 the packet cache's reverse routes, Python's `reverse_table`
-(`RNS/Transport.py:3690-3702`, `RNS/Interfaces/LocalInterface.py:255-261`);
+(`RNS/Transport.py:3690-3702`, `RNS/Interfaces/LocalInterface.py:255-261`),
+and with them the fork's own announce cache tier and its interface-tunnel
+index, which have no Python twin;
 a queued disconnect is served before the reconnect behind it, so the flush
 never lands after that cycle's tunnel. While attached, the duplicate filter
 inserts nothing and consults nothing (`RNS/Transport.py:1618-1627`): the

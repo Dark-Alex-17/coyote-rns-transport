@@ -64,8 +64,9 @@ impl LinkTable {
         self.entries.values().filter(|entry| entry.validated).count()
     }
 
-    /// Drops every entry, validated or not, and returns how many there were.
-    /// This covers Python's `link_table` alone; its `reverse_table`, the
+    /// Drops every entry, validated or not, and returns how many there were:
+    /// Python's `Transport.link_table = {}` (`RNS/Transport.py:3700`). This
+    /// covers Python's `link_table` alone; its `reverse_table`, the
     /// proof-routing index, is the packet cache's
     /// `clear_reverse_routes` (`RNS/Transport.py:2104-2109`).
     pub fn clear(&mut self) -> usize {

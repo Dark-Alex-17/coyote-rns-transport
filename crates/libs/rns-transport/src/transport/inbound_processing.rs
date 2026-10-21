@@ -27,8 +27,8 @@ pub(super) async fn filter_duplicate_packet(
     // written: the source notes handle_data leaves for received Data
     // packets, Python's reverse_table, share the cache with this filter and
     // so count as seen once the transport detaches, a deliberate
-    // simplification over Python's separate packet_hashlist; the outbound
-    // hashes send records stay unguarded by design: they are the receipt
+    // simplification over Python's separate packet_hashlist. The outbound
+    // hashes send records stay unguarded by design. They are the receipt
     // guard, the role Python's separate receipts list plays
     // (RNS/Transport.py:174), so a proof for a packet of our own still finds it.
     if connected_to_shared_instance {

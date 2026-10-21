@@ -34,8 +34,8 @@ async fn shared_instance_tasks_assert_not_announced(
 }
 
 /// Fork-only: a destination registered while attached schedules its announce a quarter
-/// second out; a stop inside that delay joins the task, which sees the cancel and sends
-/// nothing, so the shared instance never learns the destination and the set is empty.
+/// second out; a stop inside that delay joins the task and leaves the set empty, and the
+/// announce never reaches the shared instance.
 #[tokio::test]
 #[deny(clippy::await_holding_invalid_type)]
 async fn shared_instance_stop_joins_the_pending_registration_announce() {

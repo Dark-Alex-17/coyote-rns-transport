@@ -591,7 +591,8 @@ Release notes live in this crate's `CHANGELOG.md`. The per-release ledger of
 every file changed since the previous release, with the commit that changed
 it, is `docs/fork/PATCHSET.md`. A release is published by pushing the tag
 `coyote-rns-transport-v<version>`: `tools/scripts/check-publish-tag-version.sh`
-checks that the tag matches the crate version and
+checks that the tag matches the crate version, taking the tag bare or as the
+full `refs/tags/coyote-rns-transport-v<version>` ref, and
 `.github/workflows/publish-coyote-rns-transport.yml` runs the publish.
 
 ## Patch list

@@ -121,6 +121,17 @@ fn publish_tag_version_guard_rejects_a_mismatched_tag() {
     let (code, stdout) = run(Some(&matching_tag));
     assert_eq!(code, Some(0), "tag {matching_tag:?} should pass the guard, got {stdout:?}");
 
+    let full_ref = format!("refs/tags/{matching_tag}");
+    let (code, stdout) = run(Some(&full_ref));
+    assert_eq!(code, Some(0), "full ref {full_ref:?} should pass the guard, got {stdout:?}");
+
+    let (code, stdout) = run(Some("refs/tags/coyote-rns-transport-v9.9.9"));
+    assert_ne!(code, Some(0), "a mismatched release tag given as a full ref must fail the guard");
+    assert!(
+        stdout.contains("::error::Tag coyote-rns-transport-v9.9.9 names version 9.9.9"),
+        "full-ref mismatch output should name the tag version, got {stdout:?}"
+    );
+
     let (code, stdout) = run(Some("main"));
     assert_eq!(code, Some(0), "a non-tag ref should pass the guard, got {stdout:?}");
     assert!(

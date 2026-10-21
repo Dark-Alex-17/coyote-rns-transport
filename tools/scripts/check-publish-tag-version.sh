@@ -3,6 +3,7 @@ set -euo pipefail
 
 # Publish guard: when PUBLISH_REF is a coyote-rns-transport-v* release tag,
 # the version it names must equal the version in crates/libs/rns-transport/Cargo.toml.
+# The tag may be given bare or as the full refs/tags/ ref github.ref carries.
 # Any other ref passes through unchecked.
 
 if [ -z "${PUBLISH_REF:-}" ]; then
@@ -10,6 +11,7 @@ if [ -z "${PUBLISH_REF:-}" ]; then
   exit 2
 fi
 
+PUBLISH_REF="${PUBLISH_REF#refs/tags/}"
 tag_prefix="coyote-rns-transport-v"
 if [[ "$PUBLISH_REF" != "$tag_prefix"* ]]; then
   echo "Ref ${PUBLISH_REF} is not a ${tag_prefix}* release tag; skipping the version check and publishing the version it carries."

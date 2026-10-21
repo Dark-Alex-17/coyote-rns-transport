@@ -58,8 +58,8 @@ bullet of its own, marked test-only.
   claims are pinned by
   `crates/apps/reticulumd/tests/fork_release_docs_contract.rs`; the release
   notes and the ledger section are held to
-  `crates/apps/reticulumd/tests/fork_publish_contract.rs` (the Unreleased
-  cite check and the Unreleased ledger checks). The README's attach,
+  `crates/apps/reticulumd/tests/fork_publish_contract.rs` (the cite and
+  ledger checks for the current release). The README's attach,
   handler, announce and detach snippet is run verbatim from outside the
   crate by `crates/libs/rns-transport/tests/shared_instance_api.rs` against
   an in-process TCP shared instance, and

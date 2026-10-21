@@ -397,6 +397,7 @@ posture alone, but not the reconnect re-announce and the drop flush, which
 live in the attach's consumer task. `Transport::stop` joins the tasks the
 client spawns (the delayed announces and the reconnect consumer) within its
 budget, so none runs on a stopped transport.
+
 A `Tcp` endpoint whose address is not loopback is accepted and warned about
 once at attach, since Python's `LocalClientInterface` connects to `127.0.0.1`
 only (`RNS/Interfaces/LocalInterface.py:109`).
@@ -455,6 +456,8 @@ the ref the `verify.yml` interop workflow checks out.
 The register covers the divergences the fork introduced; behaviour
 inherited from upstream `reticulum-rs-transport` is not catalogued here,
 except where a fork change made it visible, and such an entry says so.
+For fork-only parity rows this register plus `docs/fork/PATCHSET.md` are the
+parity ledger; the `docs/status/*` matrices are not updated per fork task.
 
 - A request timeout fails a receipt in any status except `Receiving`, the
   packet form in `Sent` included, with `RequestError::Timeout`. Python only

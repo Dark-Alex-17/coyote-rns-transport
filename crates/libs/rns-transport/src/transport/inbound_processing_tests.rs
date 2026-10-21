@@ -118,6 +118,66 @@ async fn shared_instance_parent_does_not_remove_child_boundary_hop() {
     assert_eq!(processed_hops(&transport, child, 0).await, 0);
 }
 
+async fn filter_twice(
+    connected_to_shared_instance: bool,
+) -> (Arc<Mutex<PacketCache>>, (bool, bool), (bool, bool)) {
+    let packet_cache = Arc::new(Mutex::new(PacketCache::new()));
+    let packet = message(PacketType::Data, AddressHash::new_from_rand(OsRng)).packet;
+    let transport_identity = AddressHash::new_from_rand(OsRng);
+    let mut results = Vec::new();
+    for _ in 0..2 {
+        results.push(
+            filter_duplicate_packet(
+                packet_cache.clone(),
+                None,
+                "test",
+                &packet,
+                connected_to_shared_instance,
+                transport_identity,
+            )
+            .await,
+        );
+    }
+    (packet_cache, results[0], results[1])
+}
+
+#[tokio::test]
+async fn shared_instance_client_leaves_the_packet_cache_untouched() {
+    let (packet_cache, first, second) = filter_twice(true).await;
+
+    assert_eq!(first, (true, false), "first packet must be accepted without a cache insert");
+    assert_eq!(second, (true, false), "repeat must be accepted without a cache insert");
+    assert!(packet_cache.lock().await.hashes().is_empty(), "owner dedups; local cache stays empty");
+}
+
+#[tokio::test]
+async fn standalone_transport_still_populates_the_packet_cache() {
+    let (packet_cache, first, second) = filter_twice(false).await;
+
+    assert_eq!(first, (true, true), "first packet must be accepted and inserted");
+    assert_eq!(second, (false, false), "repeat must be dropped as a duplicate");
+    assert_eq!(packet_cache.lock().await.hashes().len(), 1);
+}
+
+#[tokio::test]
+async fn shared_instance_client_accepts_the_same_packet_twice() {
+    let mut config = TransportConfig::default();
+    config.set_connected_to_shared_instance(true);
+    let transport = Transport::new(config);
+    let handler = transport.get_handler();
+    let iface = *transport.iface_manager().lock().await.new_channel(8).address();
+    let mut inbound = message(PacketType::Data, AddressHash::new_from_rand(OsRng));
+    inbound.address = iface;
+
+    for attempt in 1..=2 {
+        let (_, queued) =
+            preprocess_inbound_message(&handler, &transport.iface_messages_tx, inbound.clone())
+                .await
+                .unwrap_or_else(|| panic!("attempt {attempt} must be accepted"));
+        assert!(!queued.packet_cache_inserted, "attempt {attempt} must not insert into the cache");
+    }
+}
+
 #[tokio::test]
 async fn rns_1_5_ingress_full_queue_does_not_poison_packet_retry() {
     let transport = Transport::new(TransportConfig::default());

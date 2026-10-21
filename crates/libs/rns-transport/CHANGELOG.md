@@ -188,7 +188,10 @@ bullet of its own, marked test-only.
   Python runs as threads it never joins) within its budget, right after
   the cancel, aborting and warning only on expiry, so none of them
   announces on a stopped transport; the set they live in is reaped of
-  finished tasks before every spawn. Pinned by
+  finished tasks before every spawn. The warnings of that join and reap
+  (a task that ended by panic, tasks aborted at the budget) are logged
+  under the links target as `tp(<name>): shared instance task ...`, so
+  the never-warned oracle below sees them. Pinned by
   `transport/tests_parts/two_transport_shared_instance.rs` (stop releases
   the interface and the posture) and
   `transport/tests_parts/two_transport_shared_instance_probe.rs` (detach

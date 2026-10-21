@@ -2332,6 +2332,50 @@ mod tests {
         );
     }
 
+    /// `with_disconnect_events` rustdoc: a client built from a pre-supplied
+    /// stream has no endpoint to reconnect to, so when that stream ends it
+    /// reports the disconnect once and its task finishes on its own, neither
+    /// reconnecting nor reporting again.
+    #[tokio::test]
+    #[deny(clippy::await_holding_invalid_type)]
+    async fn tcp_client_from_stream_reports_one_disconnect_when_the_stream_ends_and_finishes() {
+        let listener = TcpListener::bind("127.0.0.1:0").await.expect("bind listener");
+        let addr = listener.local_addr().expect("listener addr");
+        let peer = TcpStream::connect(addr).await.expect("connect peer");
+        let (server_stream, _) = listener.accept().await.expect("accept stream");
+        let (disconnect_tx, mut disconnect_rx) = tokio::sync::mpsc::channel(32);
+        let client = TcpClient::new_from_stream(addr.to_string(), server_stream)
+            .with_disconnect_events(disconnect_tx);
+        assert!(client.disconnect_events_enabled());
+        let mut manager = InterfaceManager::new(8);
+        let context = manager.new_context(client);
+        let iface_address = context.channel.address;
+        let task = tokio::spawn(TcpClient::spawn(context));
+
+        drop(peer);
+
+        let disconnected_iface = tokio::time::timeout(Duration::from_secs(2), disconnect_rx.recv())
+            .await
+            .expect("disconnect event timed out")
+            .expect("disconnect event");
+        assert_eq!(disconnected_iface, iface_address);
+
+        // Nothing is cancelled here: a stream client that ran out of stream
+        // has nowhere to reconnect to and must end by itself.
+        tokio::time::timeout(Duration::from_secs(2), task)
+            .await
+            .expect("a client built from a stream must finish once that stream ends")
+            .expect("client task");
+        assert!(
+            disconnect_rx.try_recv().is_err(),
+            "the end of the pre-supplied stream is reported exactly once"
+        );
+        assert!(
+            tokio::time::timeout(Duration::from_millis(200), listener.accept()).await.is_err(),
+            "a client built from a stream does not reconnect"
+        );
+    }
+
     /// Returns `Err` (a TCP reset, not a graceful FIN) on its very first
     /// poll — the case the existing reconnect tests above don't cover,
     /// since dropping one end of a real/duplex stream surfaces as `Ok(0)`.

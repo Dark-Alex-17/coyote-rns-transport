@@ -182,6 +182,47 @@ async fn shared_instance_client_accepts_the_same_packet_twice() {
     }
 }
 
+/// README `## Attaching to a shared instance` and its "Known divergences" entry: the
+/// reverse-routing source note `handle_data` leaves for a Data packet received while
+/// attached shares the cache with the duplicate filter, so the same packet is treated as
+/// seen once the transport detaches, while a packet never received is still accepted.
+#[tokio::test]
+#[deny(clippy::await_holding_invalid_type)]
+async fn shared_instance_client_data_received_while_attached_is_seen_after_detach() {
+    let mut config = TransportConfig::default();
+    config.set_connected_to_shared_instance(true);
+    let transport = Transport::new(config);
+    let handler = transport.get_handler();
+    let iface = *transport.iface_manager().lock().await.new_channel(8).address();
+    let mut received = message(PacketType::Data, AddressHash::new_from_rand(OsRng));
+    received.address = iface;
+    let mut unseen = message(PacketType::Data, AddressHash::new_from_rand(OsRng));
+    unseen.address = iface;
+
+    let (_, queued) =
+        preprocess_inbound_message(&handler, &transport.iface_messages_tx, received.clone())
+            .await
+            .expect("the packet is accepted while attached");
+    assert!(!queued.packet_cache_inserted, "the filter inserts nothing while attached");
+    process_inbound_message(handler.clone(), queued).await;
+    let packet_cache = handler.lock().await.packet_cache.clone();
+    let noted = packet_cache.lock().await.hashes().len();
+    assert_eq!(noted, 1, "handle_data leaves the source note in the shared cache");
+
+    transport.set_connected_to_shared_instance(false).await;
+
+    assert!(
+        preprocess_inbound_message(&handler, &transport.iface_messages_tx, received)
+            .await
+            .is_none(),
+        "a Data packet received while attached counts as seen once detached"
+    );
+    let (_, fresh) = preprocess_inbound_message(&handler, &transport.iface_messages_tx, unseen)
+        .await
+        .expect("a packet never received is still accepted after the detach");
+    assert!(fresh.packet_cache_inserted, "the detached filter is back to inserting");
+}
+
 #[tokio::test]
 async fn rns_1_5_ingress_full_queue_does_not_poison_packet_retry() {
     let transport = Transport::new(TransportConfig::default());

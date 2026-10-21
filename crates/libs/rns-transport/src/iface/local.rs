@@ -877,4 +877,40 @@ mod tests {
             "a stop while connected is not reported as a disconnect"
         );
     }
+
+    /// `with_disconnect_events` rustdoc: a client built from a pre-supplied
+    /// stream (the shape the listener hands out per accepted peer) has no
+    /// endpoint to reconnect to, so when that stream ends it reports the
+    /// disconnect once and its task finishes on its own.
+    #[tokio::test]
+    #[deny(clippy::await_holding_invalid_type)]
+    async fn local_unix_stream_client_reports_one_disconnect_when_the_stream_ends_and_finishes() {
+        let (ours, peer) = UnixStream::pair().expect("unix stream pair");
+        let (disconnect_tx, mut disconnect_rx) = tokio::sync::mpsc::channel(32);
+        let mut manager = InterfaceManager::new(8);
+        let context = manager.new_context(
+            LocalUnixClient::new_from_stream("peer", ours).with_disconnect_events(disconnect_tx),
+        );
+        let iface_address = context.channel.address;
+        let task = tokio::spawn(LocalUnixClient::spawn(context));
+
+        drop(peer);
+
+        let disconnected_iface = tokio::time::timeout(Duration::from_secs(2), disconnect_rx.recv())
+            .await
+            .expect("disconnect event timed out")
+            .expect("disconnect event");
+        assert_eq!(disconnected_iface, iface_address);
+
+        // Nothing is cancelled here: a stream client that ran out of stream
+        // has nowhere to reconnect to and must end by itself.
+        tokio::time::timeout(Duration::from_secs(2), task)
+            .await
+            .expect("a client built from a stream must finish once that stream ends")
+            .expect("client task");
+        assert!(
+            disconnect_rx.try_recv().is_err(),
+            "the end of the pre-supplied stream is reported exactly once"
+        );
+    }
 }

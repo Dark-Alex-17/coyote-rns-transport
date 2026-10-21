@@ -30,8 +30,8 @@ shared-instance client parity. The
 `18e2ccb5`, `52be26ad`, `428a699a`, `4b67a5e9`, `5319bcde` and `114cd382`;
 the `shared-instance client parity` patch is fork commits `5af0c425`,
 `c8a296f3`, `60656cdb`, `54035599`, `9dfc446e`, `8e20e0d4`, `4f41b2f2`,
-`c972552f`, `867264ef`, `cce0a328`, `0f581ef3`, `41064bcb`, `6089ea85` and
-`a9ce646f`; the `proof cap stall on signal`
+`c972552f`, `867264ef`, `cce0a328`, `0f581ef3`, `41064bcb`, `6089ea85`,
+`a9ce646f` and `98f4073f`; the `proof cap stall on signal`
 patch carries no other id and is fork commit `cccc40e4`.
 
 | File | Patch |
@@ -216,7 +216,7 @@ crate `CHANGELOG.md` carries the release notes.
 
 Fork commits `5af0c425`, `c8a296f3`, `60656cdb`, `54035599`, `9dfc446e`,
 `8e20e0d4`, `4f41b2f2`, `c972552f`, `867264ef`, `cce0a328`, `0f581ef3`,
-`41064bcb`, `6089ea85` and `a9ce646f`: F5, shared-instance client parity.
+`41064bcb`, `6089ea85`, `a9ce646f` and `98f4073f`: F5, shared-instance client parity.
 The first gives `TcpClient` a configurable
 reconnect wait, `with_reconnect_wait` and `reconnect_wait` with the default
 kept at 5 s, used at both backoff sleeps of its spawn loop, and pins it
@@ -302,8 +302,12 @@ claim in the README, the duplicate-filter comment and the release notes to
 the duplicate filter alone, says the tunnel is synthesized at attach and
 on every reconnect, names the transport in the re-announce warning,
 clamps `LocalUnixClient::with_reconnect_wait` to 1 ms like the TCP knob,
-and refreshes two fixture comments. The file sites below describe the
-combined result.
+and refreshes two fixture comments. The fifteenth narrows
+`clear_reverse_routes` to the index entries of received packets, so the
+entry of a packet this node sent, its receipt guard, survives the drop as
+Python's `receipts` list does, and has the flush fixture send data from
+the client before the drop and assert that entry kept. The file sites
+below describe the combined result.
 Upstream sites: `src/iface/tcp_client.rs` and `src/iface/local.rs` carry
 the reconnect wait, its 1 ms clamp and the disconnect seam;
 `src/destination_parts/destination.rs` gains `announce_with_context`;

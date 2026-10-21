@@ -124,7 +124,9 @@ bullet of its own, marked test-only.
   announce, link and tunnel tables, the held announces and the packet
   cache's reverse routes, Python's `reverse_table`, through
   `PacketCache::clear_reverse_routes` (`transport/packet_cache.rs`), which
-  leaves the duplicate-filter hashes in place
+  leaves the duplicate-filter hashes in place and keeps the index entry of
+  every packet this node sent, its receipt guard, as Python's flush leaves
+  its `receipts` list alone
   (`RNS/Transport.py:3690-3702`, `RNS/Interfaces/LocalInterface.py:255-261`);
   a detach, a stop, a dropped connected posture or an interface no longer
   flagged as the shared instance flushes nothing. The links are taken out

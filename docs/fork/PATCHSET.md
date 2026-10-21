@@ -32,7 +32,8 @@ the `shared-instance client parity` patch is fork commits `5af0c425`,
 `c8a296f3`, `60656cdb`, `54035599`, `9dfc446e`, `8e20e0d4`, `4f41b2f2`,
 `c972552f`, `867264ef`, `cce0a328`, `0f581ef3`, `41064bcb`, `6089ea85`,
 `a9ce646f`, `98f4073f`, `2b44522c`, `8a33660f`, `f3613fba`, `fbfa0589`,
-`1bb9b2cc`, `47cf9313` and `05337466`; the
+`1bb9b2cc`, `47cf9313`, `05337466`, `3239bf09`, `ef3827a6`, `f38a8b81`
+and `abf09730`; the
 `proof cap stall on signal`
 patch carries no other id and is fork commit `cccc40e4`.
 
@@ -79,6 +80,7 @@ patch carries no other id and is fork commit `cccc40e4`.
 | `crates/libs/rns-transport/src/transport/tests_parts/two_transport_shared_instance_probe7.rs` | shared-instance client parity |
 | `crates/libs/rns-transport/src/transport/tests_parts/two_transport_shared_instance_probe8.rs` | shared-instance client parity |
 | `crates/libs/rns-transport/src/transport/tests_parts/two_transport_shared_instance_probe9.rs` | shared-instance client parity |
+| `crates/libs/rns-transport/src/transport/tests_parts/two_transport_shared_instance_probe10.rs` | shared-instance client parity |
 | `crates/libs/rns-transport/src/transport/tests_parts/two_transport_shared_instance_reconnect.rs` | shared-instance client parity |
 | `crates/libs/rns-transport/src/transport/tests_parts/two_transport_shared_instance_stop.rs` | shared-instance client parity |
 | `crates/libs/rns-transport/src/transport/tests_parts/two_transport_shared_instance_tasks.rs` | shared-instance client parity |
@@ -223,7 +225,8 @@ crate `CHANGELOG.md` carries the release notes.
 Fork commits `5af0c425`, `c8a296f3`, `60656cdb`, `54035599`, `9dfc446e`,
 `8e20e0d4`, `4f41b2f2`, `c972552f`, `867264ef`, `cce0a328`, `0f581ef3`,
 `41064bcb`, `6089ea85`, `a9ce646f`, `98f4073f`, `2b44522c`, `8a33660f`,
-`f3613fba`, `fbfa0589`, `1bb9b2cc`, `47cf9313` and `05337466`: F5,
+`f3613fba`, `fbfa0589`, `1bb9b2cc`, `47cf9313`, `05337466`, `3239bf09`,
+`ef3827a6`, `f38a8b81` and `abf09730`: F5,
 shared-instance client parity.
 The first gives `TcpClient` a configurable
 reconnect wait, `with_reconnect_wait` and `reconnect_wait` with the default
@@ -355,7 +358,28 @@ panic, `LinkTable::clear` cites `Transport.py:3700`, stop's join no
 longer claims every task saw the cancel, `with_reconnect_wait` notes the
 clamp and the TCP client's immediate first redial, the two unguarded
 packet-cache updates name the receipt guard, and the README carries the
-clamp and the two fork-only collections the flush empties. The file sites
+clamp and the two fork-only collections the flush empties. The
+twenty-third has the drop handler tear each drained link down with
+`Link::teardown` instead of `close`, as `shared_connection_disappeared`
+does (`RNS/Transport.py:3692`, `:3695`, `RNS/Link.py:657-668`): the
+LINKCLOSE packet of every active link is sent on the interface the link
+rides through `request_dispatch::send_on_iface` once every guard is
+released, a packet that does not go out is logged at debug, the
+disconnected line counts the ones sent, and the flush fixture gains a
+third transport over plain TCP whose link sees `Closed` with the
+initiator-side reason when the shared instance drops. The twenty-fourth
+makes `LocalUnixClient` sleep `reconnect_wait` before every redial after
+an established stream drops, selected against cancel and stop, as
+Python's reconnect loop sleeps before every attempt
+(`RNS/Interfaces/LocalInterface.py:159-160`), while a client built from a
+pre-supplied stream still finishes at once, and adopts the tenth probe
+fixture (the TCP clamp reads 1 ms, the TCP client redials at once after
+the first drop and waits from the second, the unix client's re-accept
+lands no sooner than the wait, the drop line counts the link table
+entries, a posture dropped before the restart still re-synthesizes the
+tunnel). The twenty-fifth pins that a shared-instance task that ended by
+panic is warned about once as `tp(<name>)` while stop completes. The
+twenty-sixth carries the three into the README and the release notes. The file sites
 below describe the combined result.
 Upstream sites: `src/iface/tcp_client.rs` and `src/iface/local.rs` carry
 the reconnect wait, its 1 ms clamp and the disconnect seam;
@@ -377,7 +401,7 @@ their packet-cache updates as the receipt guard, with
 announce from `register_destination`;
 `links_parts/transport_sections/shared_instance.rs` wires the seams and
 refuses the post-stop attach; `transport/shared_instance.rs` drops the
-unix-only wording and notes the clamp; `transport/tests.rs` includes the eight new fixtures;
+unix-only wording and notes the clamp; `transport/tests.rs` includes the nine new fixtures;
 `transport/tests_parts/two_transport_loopback_requests_isolation.rs`
 keeps every links-target warning; the shared-instance fixture and probe
 fixtures two to six follow the new attach line, stop window and oracle;
@@ -393,8 +417,9 @@ New files:
 `src/transport/tests_parts/two_transport_shared_instance_tasks.rs`,
 `src/transport/tests_parts/two_transport_shared_instance_flush.rs`,
 `src/transport/tests_parts/two_transport_shared_instance_probe7.rs`,
-`src/transport/tests_parts/two_transport_shared_instance_probe8.rs` and
-`src/transport/tests_parts/two_transport_shared_instance_probe9.rs`.
+`src/transport/tests_parts/two_transport_shared_instance_probe8.rs`,
+`src/transport/tests_parts/two_transport_shared_instance_probe9.rs` and
+`src/transport/tests_parts/two_transport_shared_instance_probe10.rs`.
 The README and the crate `CHANGELOG.md` carry the prose.
 
 Fork commit `cccc40e4`: proof cap stall on signal. The cap fixture of

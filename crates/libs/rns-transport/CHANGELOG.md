@@ -66,7 +66,8 @@ bullet of its own, marked test-only.
   `crates/apps/reticulumd/tests/python_channel_interop_parts/python_shared_instance_live.rs`
   attaches the crate to a Python `rnsd` shared instance next to a Python
   local client and proves the zero-hop path (`RNS/Transport.py:1938`),
-  the Rust announce reaching the Python client through rnsd's live
+  the Rust announce reaching the Python client at zero hops from that
+  client's view, through rnsd's live
   rebroadcast to its other local clients (`RNS/Transport.py:2398-2430`;
   the client's handler takes no path responses, so rnsd's replay of the
   cached announce cannot stand in for it) and `Link.request` both ways,
@@ -322,7 +323,10 @@ bullet of its own, marked test-only.
   while the first holds the slot adds none), by
   `transport/tests_parts/two_transport_shared_instance_probe12.rs` (`[::1]`
   never warns, `[::ffff:10.255.255.1]` warns once, and an attach after a
-  detach warns once per attach) and by
+  detach warns once per attach), by
+  `transport/tests_parts/two_transport_shared_instance_probe13.rs`
+  (`[::ffff:127.0.0.1]` never warns, and an attach refused after stop
+  warns nothing even for a non-loopback endpoint) and by
   `transport/tests_parts/two_transport_shared_instance_probe5.rs` (the
   loopback attach never warns).
 - The `TestLogger` in

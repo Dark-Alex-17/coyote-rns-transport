@@ -43,7 +43,8 @@ patch carries no other id and is fork commit `cccc40e4`; the
 is fork commit `eceeb9ad`; the `release 0.15.1` patch carries no other id
 and is fork commits `e529730c`, `84d90f75`, `9b2e20a6`, `0df584b1`,
 `b4a941d8`, `59b66d8e`, `257c180d`, `8559e395`, `6fed34de`, `dffe6f9b`,
-`134140fb`, `df914502`, `692d9327`, `e5e3bc88` and `d632c5e9`.
+`134140fb`, `df914502`, `692d9327`, `e5e3bc88`, `d632c5e9`, `4fd3a8dc`
+and `4994a8f1`.
 
 | File | Patch |
 | --- | --- |
@@ -104,6 +105,7 @@ and is fork commits `e529730c`, `84d90f75`, `9b2e20a6`, `0df584b1`,
 | `crates/libs/rns-transport/src/transport/tests_parts/two_transport_shared_instance_probe10.rs` | shared-instance client parity |
 | `crates/libs/rns-transport/src/transport/tests_parts/two_transport_shared_instance_probe11.rs` | shared-instance client parity |
 | `crates/libs/rns-transport/src/transport/tests_parts/two_transport_shared_instance_probe12.rs` | release 0.15.1 |
+| `crates/libs/rns-transport/src/transport/tests_parts/two_transport_shared_instance_probe13.rs` | release 0.15.1 |
 | `crates/libs/rns-transport/src/transport/tests_parts/two_transport_shared_instance_reconnect.rs` | shared-instance client parity |
 | `crates/libs/rns-transport/src/transport/tests_parts/two_transport_shared_instance_stop.rs` | shared-instance client parity |
 | `crates/libs/rns-transport/src/transport/tests_parts/two_transport_shared_instance_tasks.rs` | shared-instance client parity |
@@ -497,7 +499,8 @@ files only.
 
 Fork commits `e529730c`, `84d90f75`, `9b2e20a6`, `0df584b1`, `b4a941d8`,
 `59b66d8e`, `257c180d`, `8559e395`, `6fed34de`, `dffe6f9b`, `134140fb`,
-`df914502`, `692d9327`, `e5e3bc88` and `d632c5e9`: release 0.15.1. The first pins a shared-instance
+`df914502`, `692d9327`, `e5e3bc88`, `d632c5e9`, `4fd3a8dc` and
+`4994a8f1`: release 0.15.1. The first pins a shared-instance
 usage example in the crate README (`crates/libs/rns-transport/README.md`):
 the `## Attaching to a shared instance` section gains one rust fence
 showing attach, destination plus request handler, the on-demand announce
@@ -585,6 +588,20 @@ posture gets 250 ms later cannot land in the second after the explicit
 early announce and move rnsd's timebase past the second announce
 (`RNS/Transport.py:2238`), and takes the guard instant after the early
 announce returns so it bounds the emission time from above.
+The sixteenth adds
+`crates/libs/rns-transport/src/transport/tests_parts/two_transport_shared_instance_probe13.rs`,
+included from `crates/libs/rns-transport/src/transport/tests.rs`, pinning
+the two edges the warning's rustdoc states: `[::ffff:127.0.0.1]` never
+warns, and an attach refused after stop returns `InvalidArgument` and
+warns nothing even for a non-loopback endpoint. The seventeenth makes
+`emit` in `crates/apps/reticulumd/tests/support/python_shared_instance_client.py`
+write under `RNS.logging_lock` (`RNS/__init__.py:89`, held by `RNS.log` at
+`:129-133`) so a report cannot interleave with an RNS log line, adds the
+zero-hop assertion on the Python client's announce report to
+`crates/apps/reticulumd/tests/python_channel_interop_parts/python_shared_instance_live.rs`,
+adds `RNS/Interfaces/LocalInterface.py:109` and `RNS/Transport.py:1938` to
+the README cite list in `crates/apps/reticulumd/tests/fork_release_docs_contract.rs`,
+and makes this section's closing sentence plural.
 The ledger-only commits that complete this section are
 omitted by convention.
 

@@ -5,8 +5,8 @@ and versions follow the cargo semver rules described in the crate README.
 Test-only files are not listed as entries of their own; each is named in a
 trailing clause of the bullet for the behaviour it pins. A change that alters
 no library behaviour (a test-only change such as a fixture hardening or a
-test hygiene pass, release tooling, CI) is a Changed bullet of its own,
-marked as such.
+test hygiene pass, release tooling, CI) is a Changed (or, for a deleted file,
+Removed) bullet of its own, marked as such.
 
 ## Unreleased
 
@@ -49,9 +49,9 @@ marked as such.
 
 ### Removed
 
-- The Codex pull-request review workflow, which was opt-in through a
-  repository variable that was never set, and its clause in the publish
-  contract; the pin keeps the `ci.yml` clauses
+- No library behaviour change: the Codex pull-request review workflow, which
+  was opt-in through a repository variable that was never set, and its clause
+  in the publish contract; the pin keeps the `ci.yml` clauses
   (`crates/apps/reticulumd/tests/fork_publish_contract.rs`,
   `pull_request_ci_runs_the_publish_contract`).
 

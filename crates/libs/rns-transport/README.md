@@ -690,18 +690,20 @@ unchanged and listed in the `0.14.1` section of `docs/fork/PATCHSET.md`.
    fuzz crate's own `crates/libs/rns-transport/fuzz/Cargo.lock` (the same
    command with `--manifest-path crates/libs/rns-transport/fuzz/Cargo.toml`),
    and add the release headings to `CHANGELOG.md` and `docs/fork/PATCHSET.md`.
-   Once the bump is committed and its hash is cited in a ledger-only
-   follow-up commit,
-   `tools/scripts/patchset-ledger-check.sh <previous-tag> <version> <previous-version>`
-   (usage `<base> <label> [<previous-version> [<head>]]`) checks that the
-   section's file table equals `git diff --name-only` from that tag
-   (deletions and `plans/` excluded) and that every non-ledger commit in the
-   range is cited in the section; PR CI runs the zero-argument form.
 7. `cargo check --workspace && cargo test -p coyote-rns-transport && cargo test -p reticulumd --test fork_publish_contract --test fork_release_docs_contract && tools/scripts/check-boundaries.sh && tools/scripts/workspace-clippy-classify.sh && cargo publish -p coyote-rns-transport --locked --dry-run`
+   `workspace-clippy-classify.sh` (needs `python3`) replays CI's clippy
+   invocation and passes only on the known macOS-only `dead_code` in the
+   linux-only interop target.
    `tools/scripts/semver-major-findings-check.sh` records the
    `cargo-semver-checks` verdict: `... <previous-tag> 0` for a patch bump,
    `... <previous-tag> <expected-major-count> [lint ...]` for a minor bump.
-8. Commit, then either tag `coyote-rns-transport-vX.Y.Z` and push the tag, or
+8. Commit; cite the bump commit's hash in a ledger-only follow-up commit and
+   run `tools/scripts/patchset-ledger-check.sh <previous-tag> <version> <previous-version>`
+   (usage `<base-sha> <label> [<previous-version> [<head>]]`), which checks
+   that the section's file table equals `git diff --name-only` from that tag
+   (deletions and `plans/` excluded) and that every non-ledger commit in the
+   range is cited in the section; PR CI runs the zero-argument form. Then
+   either tag `coyote-rns-transport-vX.Y.Z` and push the tag, or
    run the `publish-coyote-rns-transport` workflow by hand from the Actions
    tab, setting the `ref` input to the tag; the dropdown choice alone does not
    select what is published. The repository secret `CARGO_REGISTRY_TOKEN`

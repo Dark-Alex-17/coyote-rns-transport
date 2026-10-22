@@ -2,7 +2,7 @@
 set -euo pipefail
 
 # Fork patch-set ledger completeness. The current release section of
-# docs/fork/PATCHSET.md must (1) open with a file table equal to
+# docs/fork/PATCHSET.md must (1) contain a file table equal to
 # `git diff --name-only <base>..HEAD -- . ':!plans'` less the files that
 # range deletes (the table lists files in the tree; a deletion is told in
 # the patch narrative) and (2) cite, in that section, by the first eight

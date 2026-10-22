@@ -112,8 +112,9 @@ unit tests out of `xtask/src/main_parts/run_unused_deps.rs` to
 `patchset-ledger-check.sh` take the newest `coyote-rns-transport-v*` tag
 that is an ancestor of HEAD and grep each commit hash inside the labelled
 section, rewrites `old-name-tracked-scan.sh` as one `grep -F -f` pass over
-the filtered file list, strips colour portably in
-`semver-major-findings-check.sh`, notes the python3 dependency of
+the filtered file list, disables colour in
+`semver-major-findings-check.sh` (`CARGO_TERM_COLOR=never NO_COLOR=1`)
+instead of stripping it, notes the python3 dependency of
 `workspace-clippy-classify.sh`, and names the CI step for what it runs
 (`Crate test targets`). `0e034698` adopts the usage pins in
 `fork_publish_contract_parts/release_tooling_probe.rs` (script usage
@@ -137,7 +138,7 @@ and the crate README `## Known divergences from Python RNS` while the
 row of `docs/status/reticulum-parity-matrix.md` points at the B1 patch
 instead of carrying fork hashes; the crate `CHANGELOG.md` preamble widens
 its test-only exception from a fixture hardening to any test-only change
-that alters no library behaviour.
+that alters no library behaviour (later widened to release tooling and CI).
 
 ## 0.15.1 (upstream 0.14.0)
 

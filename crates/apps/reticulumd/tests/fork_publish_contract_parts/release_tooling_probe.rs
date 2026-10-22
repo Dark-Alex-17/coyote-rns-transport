@@ -19,11 +19,12 @@ fn run_fork_script(script: &str, args: &[&str]) -> (Option<i32>, String, String)
     )
 }
 
-/// Whether a `coyote-rns-transport-v*` tag is reachable: the zero-argument
-/// ledger check needs one, and a shallow checkout has none.
+/// Whether a `coyote-rns-transport-v*` tag is reachable from HEAD, the
+/// script's own precondition for its zero-argument form; a shallow checkout
+/// or a branch cut before the first fork tag has none.
 fn fork_release_tag_reachable() -> bool {
     Command::new("git")
-        .args(["tag", "--list", "coyote-rns-transport-v*"])
+        .args(["tag", "--list", "coyote-rns-transport-v*", "--merged", "HEAD"])
         .current_dir(repo_root())
         .output()
         .map(|output| output.status.success() && !output.stdout.is_empty())
@@ -33,7 +34,8 @@ fn fork_release_tag_reachable() -> bool {
 /// The runbook hands a releaser `patchset-ledger-check.sh`: with no arguments
 /// (the CI form) it passes at a tree whose ledger is complete, a wrong arity
 /// is a usage error (exit 2), and a label with no ledger section is a check
-/// failure (exit 1) that names the missing heading.
+/// failure (exit 1) that names the missing heading. Without a reachable fork
+/// tag the zero-argument form fails naming that precondition.
 #[cfg(unix)]
 #[test]
 fn patchset_ledger_check_script_passes_at_head_and_reports_misuse() {
@@ -45,8 +47,11 @@ fn patchset_ledger_check_script_passes_at_head_and_reports_misuse() {
             "the ledger check should report success on stdout, got {stdout:?}"
         );
     } else {
-        eprintln!(
-            "skipping the zero-argument ledger run: no coyote-rns-transport-v* tag reachable"
+        let (code, _, stderr) = run_fork_script("patchset-ledger-check.sh", &[]);
+        assert_eq!(code, Some(1), "without a reachable fork tag the check fails, got {stderr:?}");
+        assert!(
+            stderr.contains("no coyote-rns-transport-v* tag is reachable from HEAD"),
+            "the failure should name the missing fork tag, got {stderr:?}"
         );
     }
 
@@ -68,12 +73,12 @@ fn patchset_ledger_check_script_passes_at_head_and_reports_misuse() {
     );
 }
 
-/// The two scripts a releaser may call with the wrong shape refuse with a
-/// usage line instead of running a two-minute clippy or a semver baseline
-/// build against nothing.
+/// The scripts a releaser may call with the wrong shape refuse with a usage
+/// line instead of running a two-minute clippy, a semver baseline build
+/// against nothing or a scan with stray arguments.
 #[cfg(unix)]
 #[test]
-fn clippy_classify_and_semver_scripts_reject_a_wrong_arity_with_usage() {
+fn release_scripts_reject_a_wrong_arity_with_usage() {
     let (code, _, stderr) = run_fork_script("workspace-clippy-classify.sh", &["unexpected"]);
     assert_eq!(code, Some(2), "clippy classify takes no arguments, got stderr {stderr:?}");
     assert!(stderr.contains("usage:"), "{stderr:?}");
@@ -93,7 +98,6 @@ fn clippy_classify_and_semver_scripts_reject_a_wrong_arity_with_usage() {
 /// doc prefixes and skipped directories in the script are read back and
 /// compared against this file's constants. The script itself is not run here;
 /// `old_package_name_survives_only_as_prose` already scans the same set.
-#[cfg(unix)]
 #[test]
 fn old_name_tracked_scan_script_is_the_twin_of_the_prose_test() {
     let script = read_repo_file("tools/scripts/old-name-tracked-scan.sh");
@@ -216,6 +220,10 @@ fn parity_matrix_segment_dispatch_row_points_at_the_patchset_not_at_hashes() {
         row.contains("docs/fork/PATCHSET.md"),
         "the segment-dispatch row should point at docs/fork/PATCHSET.md"
     );
+    assert!(
+        row.contains("0.14.1 section"),
+        "patch ids are per section, so the row should name the section it points into"
+    );
     let patch_id = row
         .split(|c: char| !c.is_ascii_alphanumeric())
         .find(|token| is_patch_id(token))
@@ -227,9 +235,11 @@ fn parity_matrix_segment_dispatch_row_points_at_the_patchset_not_at_hashes() {
     );
 
     let ledger = read_repo_file("docs/fork/PATCHSET.md");
+    let section = ledger_section(&ledger, "0.14.1")
+        .expect("docs/fork/PATCHSET.md should keep its 0.14.1 section");
     assert!(
-        ledger.contains(&format!("{patch_id} is ")),
-        "docs/fork/PATCHSET.md should define patch id {patch_id} the matrix points at"
+        ledger_legend("0.14.1", section).contains(&format!("{patch_id} is ")),
+        "the 0.14.1 legend should define patch id {patch_id} the matrix points at"
     );
 }
 
@@ -247,7 +257,7 @@ fn changelog_preamble_allows_any_test_only_change_as_its_own_bullet() {
         "the CHANGELOG preamble should state the no-library-behaviour exception generally, got {rule:?}"
     );
     assert!(
-        rule.contains("is a Changed bullet of its own, marked as such"),
-        "the exception bullet must be its own marked Changed bullet, got {rule:?}"
+        rule.contains("bullet of its own, marked as such"),
+        "the exception bullet must be its own marked bullet, got {rule:?}"
     );
 }

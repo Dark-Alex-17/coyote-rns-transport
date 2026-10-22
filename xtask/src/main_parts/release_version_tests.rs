@@ -35,7 +35,21 @@ mod release_version_tests {
 
     #[test]
     fn crate_manifest_version_rejects_unparsable_toml() {
-        version_of_manifest("[package\nversion = \"1.2.3\"\n").expect_err("broken toml must fail");
+        let error = version_of_manifest("[package\nversion = \"1.2.3\"\n")
+            .expect_err("broken toml must fail");
+        assert!(error.to_string().contains("parse"), "{error}");
+    }
+
+    #[test]
+    fn crate_manifest_version_rejects_a_missing_manifest() {
+        let path = std::env::temp_dir().join(format!(
+            "xtask-release-version-missing-{}-{}.toml",
+            std::process::id(),
+            MANIFEST_COUNTER.fetch_add(1, Ordering::Relaxed)
+        ));
+        let error = crate_manifest_version(path.to_str().expect("utf-8 temp path"))
+            .expect_err("missing manifest must fail");
+        assert!(error.to_string().contains("read "), "{error}");
     }
 
     #[test]

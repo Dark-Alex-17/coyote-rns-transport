@@ -115,9 +115,9 @@ fn patch_set_ledger_patch_header_hashes_are_named_by_the_legend() {
 
 /// Released CHANGELOG sections from this version up carry a pinning cite on
 /// every bullet. Earlier sections keep their text as published and are
-/// exempt: 0.15.0 has ten uncited bullets (its Breaking migration notes and
-/// two Changed bullets) and 0.14.1 has two, and released notes are not
-/// edited.
+/// exempt: 0.15.0 has ten uncited bullets (its seven Breaking migration
+/// notes, two Changed bullets and one Added bullet) and 0.14.1 has two, and
+/// released notes are not edited.
 const BULLET_CITE_CONTRACT_FROM: (u64, u64, u64) = (0, 15, 1);
 
 /// The released `## X.Y.Z - <date>` sections of the crate CHANGELOG from

@@ -267,6 +267,11 @@ fn crate_manifest_version(manifest_path: &str) -> Result<String> {
 /// comparison is xtask's own. The fork tag is never compared against
 /// `VERSION`, since the two lines version independently. A matching tag is
 /// returned as written; a `v*` or bare tag has slashes replaced by dashes.
+/// Root `VERSION` must still be a single non-empty token on every flag-less
+/// run, fork tag included, because the token check precedes the tag arms.
+/// On a commit carrying tags from both families `git describe --tags
+/// --exact-match` picks one by git's tag-priority rule, so pass `--version`
+/// to choose explicitly.
 fn resolve_release_version(
     explicit_version: Option<&str>,
     exact_tag: Option<&str>,

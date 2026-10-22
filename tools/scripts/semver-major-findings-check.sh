@@ -33,6 +33,8 @@ expected="$2"
   usage
   exit 2
 }
+# Decimal, without leading zeros, so "01" is matched and echoed as 1.
+expected=$((10#$expected))
 shift 2
 
 status=0

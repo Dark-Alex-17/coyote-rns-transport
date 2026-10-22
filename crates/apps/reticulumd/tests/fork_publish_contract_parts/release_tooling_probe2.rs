@@ -118,8 +118,22 @@ fn git_stdout(dir: &Path, args: &[&str]) -> String {
 
 #[cfg(unix)]
 fn git_stdout_with_env(dir: &Path, args: &[&str], env: &[(&str, &str)]) -> String {
-    let output = Command::new("git")
-        .args(args)
+    let mut command = Command::new("git");
+    command.args(args);
+    // An identity the test process inherited through the environment would
+    // satisfy git before any config is consulted, so a probe commit would
+    // pass here on a host that exports one and fail on a runner that does
+    // not; the probes commit on the clone-local identity alone.
+    for variable in [
+        "GIT_AUTHOR_NAME",
+        "GIT_AUTHOR_EMAIL",
+        "GIT_COMMITTER_NAME",
+        "GIT_COMMITTER_EMAIL",
+        "EMAIL",
+    ] {
+        command.env_remove(variable);
+    }
+    let output = command
         .envs(env.iter().copied())
         .current_dir(dir)
         .output()
@@ -240,10 +254,15 @@ fn ledger_check_cites_commits_per_section_not_per_file() {
     let (code, _, stderr) = clone.run_script("patchset-ledger-check.sh", &[]);
     assert_eq!(code, Some(0), "clean clone should pass first: {stderr}");
 
+    // The zero-argument run checks the newest section, whatever the current
+    // release state labels it.
+    let label = newest_ledger_label();
     let ledger_path = clone.path("docs/fork/PATCHSET.md");
     let ledger = fs::read_to_string(&ledger_path).expect("read the clone's ledger");
-    let start =
-        ledger.find("\n## Unreleased (upstream").expect("the ledger has an Unreleased section") + 1;
+    let start = ledger
+        .find(&format!("\n## {label} (upstream"))
+        .unwrap_or_else(|| panic!("the ledger has a `## {label} (upstream ...)` section"))
+        + 1;
     let after_heading = start + ledger[start..].find('\n').expect("heading line ends") + 1;
     let end =
         ledger[after_heading..].find("\n## ").map_or(ledger.len(), |rel| after_heading + rel + 1);
@@ -253,7 +272,7 @@ fn ledger_check_cites_commits_per_section_not_per_file() {
         .filter(|token| token.len() == 8 && token.chars().all(|c| c.is_ascii_hexdigit()))
         .collect();
     if cites.is_empty() {
-        eprintln!("skipping: the Unreleased section cites no commit");
+        eprintln!("skipping: the {label} section cites no commit");
         return;
     }
 
@@ -288,7 +307,7 @@ fn ledger_check_cites_commits_per_section_not_per_file() {
     assert_eq!(code, Some(1), "a hash cited only outside the section must fail: {stderr}");
     assert!(stderr.contains("uncited commit "), "the failure names the uncited commit: {stderr:?}");
     assert!(
-        stderr.contains("the Unreleased section of docs/fork/PATCHSET.md does not cite"),
+        stderr.contains(&format!("the {label} section of docs/fork/PATCHSET.md does not cite")),
         "the failure names the section, got {stderr:?}"
     );
 }

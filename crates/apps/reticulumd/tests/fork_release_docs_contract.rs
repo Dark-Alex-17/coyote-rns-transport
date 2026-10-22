@@ -687,6 +687,45 @@ fn release_notes_list_breaking_changes_on_a_minor_bump() {
     }
 }
 
+/// The top-level `- ` bullets of a markdown text, each joined with its
+/// two-space-indented continuation lines.
+fn top_level_bullets(markdown: &str) -> Vec<String> {
+    let mut bullets: Vec<Vec<&str>> = Vec::new();
+    for line in markdown.lines() {
+        if line.starts_with("- ") {
+            bullets.push(vec![line]);
+        } else if line.starts_with("  ") {
+            if let Some(bullet) = bullets.last_mut() {
+                bullet.push(line);
+            }
+        }
+    }
+    bullets.iter().map(|bullet| bullet.join("\n")).collect()
+}
+
+/// The Codex review workflow was removed after 0.15.1, so the README register
+/// that records 0.15.0 adding it must say so in the same bullet: a reader of
+/// the register must not be left believing the `CODEX_REVIEW_ENABLED`
+/// variable still gates anything.
+#[test]
+fn readme_names_the_codex_variable_only_in_a_bullet_that_says_removed() {
+    let readme = read_repo_file("crates/libs/rns-transport/README.md");
+    let codex_bullets: Vec<String> = top_level_bullets(&readme)
+        .into_iter()
+        .filter(|bullet| bullet.contains("CODEX_REVIEW_ENABLED"))
+        .collect();
+    assert!(
+        !codex_bullets.is_empty(),
+        "the crate README should record the Codex review workflow in a bullet of the 0.15.0 register"
+    );
+    for bullet in codex_bullets {
+        assert!(
+            bullet.contains("removed"),
+            "a README bullet naming CODEX_REVIEW_ENABLED should say the workflow was removed:\n{bullet}"
+        );
+    }
+}
+
 /// Every `rust` snippet in the crate README is pinned verbatim by one of the
 /// public-API test files, so a README edit that drifts from what compiles and
 /// runs turns this test red. `use` lines are left to the compiler of those

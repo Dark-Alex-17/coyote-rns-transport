@@ -651,7 +651,9 @@ What `0.15.0` carries on top of `0.14.1`:
   variable `CODEX_REVIEW_ENABLED` and skipped for fork-originated pull
   requests, `fork_publish_contract` and `fork_release_docs_contract` run in
   PR CI, the old-name walk skipping dot-directories, and RNS citations on
-  every public request-layer and outcome item.
+  every public request-layer and outcome item. The Codex workflow was
+  removed after 0.15.1; the crate CHANGELOG records it under `### Removed`
+  in the first release after 0.15.1.
 
 The `0.14.1` patches (link-close stdout, bound-interface segment dispatch,
 reject outside the link lock, sender before advertisement, hex parsers,

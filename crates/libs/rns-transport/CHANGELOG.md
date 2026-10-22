@@ -55,7 +55,10 @@ Removed) bullet of its own, marked as such.
   was opt-in through a repository variable that was never set, and its clause
   in the publish contract; the pin keeps the `ci.yml` clauses
   (`crates/apps/reticulumd/tests/fork_publish_contract.rs`,
-  `pull_request_ci_runs_the_publish_contract`).
+  `pull_request_ci_runs_the_publish_contract`); the crate README
+  `What 0.15.0 carries` register notes the removal (pinned by
+  `crates/apps/reticulumd/tests/fork_release_docs_contract.rs`,
+  `readme_names_the_codex_variable_only_in_a_bullet_that_says_removed`).
 
 ## 0.15.1 - 2026-10-21
 

@@ -101,6 +101,28 @@ impl PythonChannelInteropPaths {
             .expect("spawn python shared instance client")
     }
 
+    // Runs `script` under the pinned Python with the shared-instance client
+    // helper's path as its first argument and `extra_args` after it, with the
+    // Reticulum checkout on PYTHONPATH, and returns the finished process. The
+    // script imports the helper as a module (its `main` runs only under
+    // `__main__`), so a test can exercise one of the helper's functions on
+    // its own without an rnsd.
+    pub(super) fn run_shared_instance_client_helper_script(
+        &self,
+        script: &str,
+        extra_args: &[&str],
+    ) -> std::process::Output {
+        Command::new(&self.python_bin)
+            .arg("-u")
+            .arg("-c")
+            .arg(script)
+            .arg(&self.shared_instance_client_helper)
+            .args(extra_args)
+            .env("PYTHONPATH", &self.reticulum_py_repo)
+            .output()
+            .expect("run a script against the python shared instance client helper")
+    }
+
     pub(super) fn spawn_endpoint_with_args(
         &self,
         config_dir: &Path,

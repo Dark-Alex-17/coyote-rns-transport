@@ -12,7 +12,10 @@ listed; lint-table changes that bind contributors (`clippy.toml` and the
 manifest `[lints]` tables) are. Each patch header lists every commit a rebase
 must re-apply: every commit that touches a file other than this ledger and
 the crate `CHANGELOG.md` (code, tests, fixtures, scripts, doc comments).
-Commits that only update this ledger are omitted. The crate README
+Commits that only update this ledger are omitted.
+`tools/scripts/patchset-ledger-check.sh` checks that the current section's
+table equals the files changed since the previous release tag and that every
+such commit is cited. The crate README
 (`crates/libs/rns-transport/README.md`) carries the versioning policy, the
 rebase recipe and a prose summary of the current patch list; this file is
 the per-release ledger of the same patches, with commit hashes and file

@@ -676,6 +676,8 @@ unchanged and listed in the `0.14.1` section of `docs/fork/PATCHSET.md`.
    and the needle literals inside the test itself are allowed; the only docs
    that may keep the old commands are the historical subtrees the test skips
    (`docs/goals/`, `docs/migrations/`, `docs/adr/`, `docs/release-notes-*`).
+   `tools/scripts/old-name-tracked-scan.sh` is the tracked-tree twin of that
+   walk: the same needles and filters over `git ls-files` only.
 6. Bump the version at every site: `version` in this crate's `Cargo.toml`,
    the workspace `[workspace.dependencies] rns-transport` entry,
    `crates/apps/rns-tools/Cargo.toml` and `crates/apps/reticulumd/Cargo.toml`
@@ -686,7 +688,14 @@ unchanged and listed in the `0.14.1` section of `docs/fork/PATCHSET.md`.
    fuzz crate's own `crates/libs/rns-transport/fuzz/Cargo.lock` (the same
    command with `--manifest-path crates/libs/rns-transport/fuzz/Cargo.toml`),
    and add the release headings to `CHANGELOG.md` and `docs/fork/PATCHSET.md`.
-7. `cargo check --workspace && cargo test -p coyote-rns-transport && cargo test -p reticulumd --test fork_publish_contract --test fork_release_docs_contract && tools/scripts/check-boundaries.sh && cargo publish -p coyote-rns-transport --locked --dry-run`
+   `tools/scripts/patchset-ledger-check.sh <base-sha> <version> <previous-version>`
+   checks that the new section's file table equals `git diff --name-only`
+   from the previous release and that every non-ledger commit since it is
+   cited; PR CI runs the same check in its zero-argument form.
+7. `cargo check --workspace && cargo test -p coyote-rns-transport && cargo test -p reticulumd --test fork_publish_contract --test fork_release_docs_contract && tools/scripts/check-boundaries.sh && tools/scripts/workspace-clippy-classify.sh && cargo publish -p coyote-rns-transport --locked --dry-run`
+   For a minor bump,
+   `tools/scripts/semver-major-findings-check.sh <baseline-tag> <expected-major-count> [lint ...]`
+   records the `cargo-semver-checks` verdict.
 8. Commit, then either tag `coyote-rns-transport-vX.Y.Z` and push the tag, or
    run the `publish-coyote-rns-transport` workflow by hand from the Actions
    tab, setting the `ref` input to the tag; the dropdown choice alone does not

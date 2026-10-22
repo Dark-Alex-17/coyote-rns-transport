@@ -32,6 +32,11 @@ impl ProbeClone {
             .expect("run git clone");
         assert!(status.success(), "git clone --local of the repository should succeed");
         let clone = Self { root };
+        // The probes create commits (`commit-tree`), and a CI runner has no
+        // git identity to auto-detect; the clone carries its own so the
+        // probes do not depend on the host's.
+        clone.git(&["config", "user.name", "probe"]);
+        clone.git(&["config", "user.email", PROBE_CLONE_EMAIL]);
         // Detach at the source HEAD so a detached source or a branch-less
         // clone cannot leave the working tree somewhere else.
         let head = git_stdout(&repo_root(), &["rev-parse", "HEAD"]);
@@ -50,6 +55,11 @@ impl ProbeClone {
 
     fn git(&self, args: &[&str]) -> String {
         git_stdout(&self.root, args)
+    }
+
+    /// `git <args>` in the clone with `env` added to the process environment.
+    fn git_with_env(&self, args: &[&str], env: &[(&str, &str)]) -> String {
+        git_stdout_with_env(&self.root, args, env)
     }
 
     /// Runs `tools/scripts/<script>` from the clone and returns
@@ -90,6 +100,9 @@ impl ProbeClone {
 }
 
 #[cfg(unix)]
+const PROBE_CLONE_EMAIL: &str = "probe@example.invalid";
+
+#[cfg(unix)]
 impl Drop for ProbeClone {
     fn drop(&mut self) {
         // Best-effort cleanup of a temp dir: a failure here must not mask the
@@ -100,8 +113,14 @@ impl Drop for ProbeClone {
 
 #[cfg(unix)]
 fn git_stdout(dir: &Path, args: &[&str]) -> String {
+    git_stdout_with_env(dir, args, &[])
+}
+
+#[cfg(unix)]
+fn git_stdout_with_env(dir: &Path, args: &[&str], env: &[(&str, &str)]) -> String {
     let output = Command::new("git")
         .args(args)
+        .envs(env.iter().copied())
         .current_dir(dir)
         .output()
         .unwrap_or_else(|err| panic!("run git {args:?}: {err}"));
@@ -111,6 +130,36 @@ fn git_stdout(dir: &Path, args: &[&str]) -> String {
         String::from_utf8_lossy(&output.stderr)
     );
     String::from_utf8_lossy(&output.stdout).trim().to_string()
+}
+
+/// The probe clone's commits are signed by the clone's own identity, not
+/// the host's: with the global and system git config out of reach and
+/// identity auto-detection disabled (what a CI runner without a configured
+/// identity amounts to), `commit-tree` still succeeds and the commit's
+/// author and committer are the clone-local ones.
+#[cfg(unix)]
+#[test]
+fn probe_clone_commits_without_a_global_git_identity() {
+    let clone = ProbeClone::new("clone-identity");
+    // `user.useConfigOnly` closes the auto-detection route a host with a
+    // fully qualified hostname would otherwise take; without it a missing
+    // clone-local identity would go unnoticed on such a host.
+    let no_host_identity = [
+        ("GIT_CONFIG_GLOBAL", "/dev/null"),
+        ("GIT_CONFIG_NOSYSTEM", "1"),
+        ("GIT_CONFIG_COUNT", "1"),
+        ("GIT_CONFIG_KEY_0", "user.useConfigOnly"),
+        ("GIT_CONFIG_VALUE_0", "true"),
+    ];
+    let commit =
+        clone.git_with_env(&["commit-tree", "-m", "probe", "HEAD^{tree}"], &no_host_identity);
+    assert_eq!(commit.len(), 40, "commit-tree prints the new commit's hash, got {commit:?}");
+    let identities = clone.git(&["log", "-1", "--format=%ae %ce", &commit]);
+    assert_eq!(
+        identities,
+        format!("{PROBE_CLONE_EMAIL} {PROBE_CLONE_EMAIL}"),
+        "author and committer should be the clone-local identity"
+    );
 }
 
 /// The zero-argument ledger check takes as its base the newest
@@ -152,7 +201,11 @@ fn zero_argument_ledger_check_bases_on_the_newest_fork_tag_reachable_from_head()
     assert_eq!(
         code,
         Some(1),
-        "a reachable higher tag becomes the base and the table no longer matches"
+        "a reachable higher tag becomes the base; the ledger has no 9.9.9 heading to end the section, so the check fails naming the range"
+    );
+    assert!(
+        stderr.contains("no '## 9.9.9 (upstream ...)' heading"),
+        "the failure should name the missing 9.9.9 heading, got {stderr:?}"
     );
     assert!(
         stderr.contains("coyote-rns-transport-v9.9.9..HEAD"),

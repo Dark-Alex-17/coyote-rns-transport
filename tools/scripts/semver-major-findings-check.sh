@@ -24,6 +24,10 @@ fail() {
 
 baseline="$1"
 expected="$2"
+[[ "$expected" =~ ^[0-9]+$ ]] || {
+  echo "usage: $0 <baseline-rev> <expected-major-count> [lint ...]" >&2
+  exit 2
+}
 shift 2
 
 status=0

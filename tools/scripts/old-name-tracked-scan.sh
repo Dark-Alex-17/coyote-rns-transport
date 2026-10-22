@@ -48,6 +48,13 @@ while IFS= read -r file; do
   esac
 done < <(git ls-files)
 
+# Under `set -u` an empty "${files[@]}" is an error on bash before 4.4, and
+# grep with no file operands would read stdin.
+if [ "${#files[@]}" -eq 0 ]; then
+  echo "old-name scan ok: no tracked scanned file"
+  exit 0
+fi
+
 # One grep over the whole list; its exit 1 (no match) is the pass case.
 status=0
 grep -nHF -f "$needle_file" -- "${files[@]}" || status=$?

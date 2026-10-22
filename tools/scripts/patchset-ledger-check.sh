@@ -7,7 +7,8 @@ set -euo pipefail
 # range deletes (the table lists files in the tree; a deletion is told in
 # the patch narrative) and (2) cite, in that section, by the first eight
 # characters of its hash, every commit in <base>..HEAD that touches a file
-# other than the ledger itself and the crate CHANGELOG.md.
+# other than the ledger itself and the crate CHANGELOG.md. Merge commits are
+# never cited (`git log --no-merges`).
 #
 # Explicit mode names the range and the section; <head> (default HEAD) lets
 # a released section be re-checked against its own tag once the branch has
@@ -72,6 +73,7 @@ grep -q "^## ${label} (upstream" "$ledger" || fail "no '## ${label} (upstream ..
 # The section runs to the previous release's heading when one is named,
 # otherwise to whatever heading comes next.
 if [ -n "$previous" ]; then
+  grep -q "^## ${previous} (upstream" "$ledger" || fail "no '## ${previous} (upstream ...)' heading in ${ledger} to end the ${label} section for ${base}..${head}"
   section_end="^## ${previous} \\\\(upstream"
 else
   section_end='^## '

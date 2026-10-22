@@ -31,8 +31,8 @@ Every file changed since the `0.15.1` release and the patch each change
 belongs to. Patch ids: H1 is test hygiene, H2 is release tooling, H3 is
 ledger conventions. The `test hygiene` patch is fork commit `08362717`; the
 `release tooling` patch is fork commits `7e63de1a`, `7fbc97cb`, `fbd4da9d`,
-`f206f31c`, `8e3e587f`, `0e034698`, `3008c9fb` and `72a3a4ab`; the
-`ledger conventions` patch is fork commit `c45a4e5c`.
+`f206f31c`, `8e3e587f`, `0e034698`, `3008c9fb`, `72a3a4ab`, `b48e5d81` and
+`9b7bf2e6`; the `ledger conventions` patch is fork commit `c45a4e5c`.
 
 | File | Patch |
 | --- | --- |
@@ -42,6 +42,7 @@ ledger conventions. The `test hygiene` patch is fork commit `08362717`; the
 | `crates/apps/reticulumd/tests/fork_publish_contract.rs` | release tooling |
 | `crates/apps/reticulumd/tests/fork_publish_contract_parts/ledger_contract.rs` | release tooling |
 | `crates/apps/reticulumd/tests/fork_publish_contract_parts/release_tooling_probe.rs` | release tooling |
+| `crates/apps/reticulumd/tests/fork_publish_contract_parts/release_tooling_probe2.rs` | release tooling |
 | `crates/apps/reticulumd/tests/python_channel_interop_parts/multi_segment_python_interop.rs` | test hygiene |
 | `crates/libs/rns-transport/CHANGELOG.md` | test hygiene, release tooling, ledger conventions |
 | `crates/libs/rns-transport/README.md` | release tooling |
@@ -67,7 +68,8 @@ label from the fork's own planning, and drops the
 library behaviour changes.
 
 Fork commits `7e63de1a`, `7fbc97cb`, `fbd4da9d`, `f206f31c`, `8e3e587f`,
-`0e034698`, `3008c9fb` and `72a3a4ab`: H2, release tooling. No library
+`0e034698`, `3008c9fb`, `72a3a4ab`, `b48e5d81` and `9b7bf2e6`: H2, release
+tooling. No library
 behaviour changes. `7e63de1a` commits the release
 checks that lived in the release operator's home directory under
 `tools/scripts/`: `patchset-ledger-check.sh` (this ledger's file table
@@ -129,7 +131,19 @@ written in `resolve_release_version`, corrects its rustdoc about the tag
 guard and adds unit tests for `crate_manifest_version`. `72a3a4ab` orders
 the README rebase recipe's ledger check after the bump commit, mirrors the
 script's usage shape and covers patch and minor bumps for the semver
-script.
+script. `b48e5d81` adds
+`fork_publish_contract_parts/release_tooling_probe2.rs`, which clones the
+repository into a temporary directory and proves the zero-argument ledger
+check bases on the newest fork tag reachable from HEAD, cites commits per
+section and that the old-name scan reports tracked hits only; aligns the
+usage probe's skip guard with the script's `--merged HEAD` predicate and
+pins its no-tag failure; scopes the parity-matrix pin to the `0.14.1`
+legend; and states the `VERSION` token rule and the dual-tag tiebreak in
+the xtask rustdoc with two more `crate_manifest_version` cases. `9b7bf2e6`
+moves the README recipe's ledger check into the commit step with the
+script's own usage shape, names the python3 dependency of the clippy
+classifier, admits a `Removed` bullet in the CHANGELOG rule and points the
+parity-matrix row at the `0.14.1` section.
 
 Fork commit `c45a4e5c`: H3, ledger conventions. No library behaviour
 changes. `AGENTS.md` records that fork-only parity rows live in this file

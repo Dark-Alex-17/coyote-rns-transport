@@ -910,7 +910,9 @@ pub struct TcpClient {
     hdlc_watchdog: Option<HdlcStreamWatchdog>,
     forced_bitrate_bps: Option<u64>,
     reconnect_events: Option<tokio::sync::mpsc::Sender<crate::hash::AddressHash>>,
+    disconnect_events: Option<tokio::sync::mpsc::Sender<crate::hash::AddressHash>>,
     connect_timeout: Duration,
+    reconnect_wait: Duration,
     max_reconnect_tries: Option<u64>,
     prefer_ipv6: bool,
     runtime_status: Arc<std::sync::Mutex<TcpRuntimeStatus>>,
@@ -922,6 +924,7 @@ pub struct TcpClient {
 impl TcpClient {
     pub const DEFAULT_MTU: usize = 262_144;
     pub const DEFAULT_CONNECT_TIMEOUT: Duration = Duration::from_secs(5);
+    pub const DEFAULT_RECONNECT_WAIT: Duration = Duration::from_secs(5);
 
     pub fn new<T: Into<String>>(addr: T) -> Self {
         let addr = addr.into();
@@ -937,7 +940,9 @@ impl TcpClient {
             hdlc_watchdog: None,
             forced_bitrate_bps: None,
             reconnect_events: None,
+            disconnect_events: None,
             connect_timeout: Self::DEFAULT_CONNECT_TIMEOUT,
+            reconnect_wait: Self::DEFAULT_RECONNECT_WAIT,
             max_reconnect_tries: None,
             prefer_ipv6: false,
             fast_flap_tracker: None,
@@ -960,7 +965,9 @@ impl TcpClient {
             hdlc_watchdog: None,
             forced_bitrate_bps: None,
             reconnect_events: None,
+            disconnect_events: None,
             connect_timeout: Self::DEFAULT_CONNECT_TIMEOUT,
+            reconnect_wait: Self::DEFAULT_RECONNECT_WAIT,
             max_reconnect_tries: None,
             prefer_ipv6: false,
             fast_flap_tracker: None,
@@ -1012,9 +1019,39 @@ impl TcpClient {
         self
     }
 
+    /// Sends the interface address on `events` each time an established
+    /// stream ends while the client is neither cancelled nor stopped; a
+    /// client built from a pre-supplied stream ([`Self::new_from_stream`])
+    /// sends it once, when that stream ends, since it has no endpoint to
+    /// reconnect to. A full channel drops the event at debug. Python's
+    /// shared-instance client treats a socket closed while connected and
+    /// not detached as the shared connection disappearing and
+    /// then reconnects (`RNS/Interfaces/LocalInterface.py:255-261`).
+    #[must_use]
+    pub fn with_disconnect_events(
+        mut self,
+        events: tokio::sync::mpsc::Sender<crate::hash::AddressHash>,
+    ) -> Self {
+        self.disconnect_events = Some(events);
+        self
+    }
+
     #[must_use]
     pub fn with_connect_timeout(mut self, connect_timeout: Duration) -> Self {
         self.connect_timeout = connect_timeout.max(Duration::from_millis(1));
+        self
+    }
+
+    /// Sleeps `reconnect_wait` before each retry once a connect has failed or
+    /// an established stream has dropped twice in a row, instead of the 5 s
+    /// default. Python's shared-instance client sleeps
+    /// `LocalClientInterface.RECONNECT_WAIT`, 8 s
+    /// (`RNS/Interfaces/LocalInterface.py:54`), before every attempt
+    /// (`:160`); `TCPClientInterface` runs its own reconnect loop, so this
+    /// knob is the shared-instance client's wait. Clamped to at least 1 ms.
+    #[must_use]
+    pub fn with_reconnect_wait(mut self, reconnect_wait: Duration) -> Self {
+        self.reconnect_wait = reconnect_wait.max(Duration::from_millis(1));
         self
     }
 
@@ -1073,8 +1110,18 @@ impl TcpClient {
     }
 
     #[must_use]
+    pub fn disconnect_events_enabled(&self) -> bool {
+        self.disconnect_events.is_some()
+    }
+
+    #[must_use]
     pub fn connect_timeout(&self) -> Duration {
         self.connect_timeout
+    }
+
+    #[must_use]
+    pub fn reconnect_wait(&self) -> Duration {
+        self.reconnect_wait
     }
 
     #[must_use]
@@ -1113,6 +1160,7 @@ impl TcpClient {
             hdlc_watchdog,
             forced_bitrate_bps,
             connect_timeout,
+            reconnect_wait,
             max_reconnect_tries,
             prefer_ipv6,
             fast_flap_tracker,
@@ -1128,6 +1176,7 @@ impl TcpClient {
                 guard.hdlc_watchdog.clone(),
                 guard.forced_bitrate_bps,
                 guard.connect_timeout,
+                guard.reconnect_wait,
                 guard.max_reconnect_tries,
                 guard.prefer_ipv6,
                 guard.fast_flap_tracker.clone(),
@@ -1142,9 +1191,9 @@ impl TcpClient {
         let ifac_violations = context.channel.ifac_violations.clone();
         let online = context.channel.online.clone();
         online.store(false, std::sync::atomic::Ordering::Release);
-        let (mut stream, reconnect_events) = {
+        let (mut stream, reconnect_events, disconnect_events) = {
             let mut guard = context.inner.lock().unwrap();
-            (guard.stream.take(), guard.reconnect_events.clone())
+            (guard.stream.take(), guard.reconnect_events.clone(), guard.disconnect_events.clone())
         };
 
         let (rx_channel, tx_channel) = context.channel.split();
@@ -1201,7 +1250,7 @@ impl TcpClient {
                 tokio::select! {
                     _ = context.cancel.cancelled() => break,
                     _ = iface_stop.cancelled() => break,
-                    _ = tokio::time::sleep(std::time::Duration::from_secs(5)) => {}
+                    _ = tokio::time::sleep(reconnect_wait) => {}
                 }
                 continue;
             }
@@ -1287,6 +1336,16 @@ impl TcpClient {
             if context.cancel.is_cancelled() || iface_stop.is_cancelled() {
                 break;
             }
+            if let Some(events) = disconnect_events.as_ref() {
+                if let Err(err) = events.try_send(iface_address) {
+                    log::debug!(
+                        "dropped TCP disconnect event iface={} endpoint={} err={}",
+                        iface_address,
+                        addr,
+                        err
+                    );
+                }
+            }
 
             // A stream that died moments after connecting is treated as a
             // failed attempt (backoff + counts toward `max_reconnect_tries`),
@@ -1324,7 +1383,7 @@ impl TcpClient {
                     tokio::select! {
                         _ = context.cancel.cancelled() => break,
                         _ = iface_stop.cancelled() => break,
-                        _ = tokio::time::sleep(std::time::Duration::from_secs(5)) => {}
+                        _ = tokio::time::sleep(reconnect_wait) => {}
                     }
                 }
             } else {
@@ -1571,6 +1630,50 @@ mod tests {
             started_at.elapsed() >= Duration::from_secs(5),
             "expected at least one 5s backoff sleep once the storm was established, only took {:?}",
             started_at.elapsed()
+        );
+    }
+
+    // Same storm as above with the wait shortened to 50 ms: the one backoff
+    // sleep before the third attempt is now the configured wait, not the
+    // 5 s default.
+    #[tokio::test]
+    #[deny(clippy::await_holding_invalid_type)]
+    async fn tcp_client_reconnect_storm_backs_off_for_the_configured_reconnect_wait() {
+        let listener = TcpListener::bind("127.0.0.1:0").await.expect("bind listener");
+        let addr = listener.local_addr().expect("listener addr");
+
+        tokio::spawn(async move {
+            while let Ok((stream, _)) = listener.accept().await {
+                drop(stream);
+            }
+        });
+
+        let mut manager = InterfaceManager::new(8);
+        let client = TcpClient::new(addr.to_string())
+            .with_connect_timeout(Duration::from_millis(200))
+            .with_reconnect_wait(Duration::from_millis(50))
+            .with_max_reconnect_tries(Some(2));
+        assert_eq!(client.reconnect_wait(), Duration::from_millis(50));
+        let runtime_status = client.runtime_status_handle();
+        let context = manager.new_context(client);
+        let iface_stop = context.channel.stop.clone();
+        let started_at = Instant::now();
+        let task = tokio::spawn(TcpClient::spawn(context));
+
+        tokio::time::timeout(Duration::from_secs(8), task)
+            .await
+            .expect("tcp client should stop after reconnect budget")
+            .expect("tcp client task should not panic");
+        let elapsed = started_at.elapsed();
+        assert!(iface_stop.is_cancelled());
+        assert_eq!(runtime_status.to_json()["reconnect_attempts"].as_u64(), Some(3));
+        assert!(
+            elapsed >= Duration::from_millis(50),
+            "expected the 50 ms backoff sleep to happen, only took {elapsed:?}"
+        );
+        assert!(
+            elapsed < Duration::from_secs(2),
+            "expected the storm to back off for the configured 50 ms, not the 5 s default, took {elapsed:?}"
         );
     }
 
@@ -2176,6 +2279,101 @@ mod tests {
 
         assert!(iface_stop.is_cancelled());
         assert_eq!(reconnected_iface, iface_address);
+    }
+
+    #[tokio::test]
+    #[deny(clippy::await_holding_invalid_type)]
+    async fn tcp_client_reports_disconnect_events_when_the_stream_ends_but_not_on_stop() {
+        let listener = TcpListener::bind("127.0.0.1:0").await.expect("bind listener");
+        let addr = listener.local_addr().expect("listener addr");
+        let (reconnect_tx, mut reconnect_rx) = tokio::sync::mpsc::channel(32);
+        let (disconnect_tx, mut disconnect_rx) = tokio::sync::mpsc::channel(32);
+        let client = TcpClient::new(addr.to_string())
+            .with_reconnect_events(reconnect_tx)
+            .with_disconnect_events(disconnect_tx);
+        assert!(client.disconnect_events_enabled());
+        let mut manager = InterfaceManager::new(8);
+        let context = manager.new_context(client);
+        let iface_address = context.channel.address;
+        let iface_stop = context.channel.stop.clone();
+        let task = tokio::spawn(TcpClient::spawn(context));
+
+        let (first_stream, _) = tokio::time::timeout(Duration::from_secs(2), listener.accept())
+            .await
+            .expect("first connect timed out")
+            .expect("first accept");
+        drop(first_stream);
+        let disconnected_iface = tokio::time::timeout(Duration::from_secs(2), disconnect_rx.recv())
+            .await
+            .expect("disconnect event timed out")
+            .expect("disconnect event");
+        assert_eq!(disconnected_iface, iface_address);
+
+        let (second_stream, _) = tokio::time::timeout(Duration::from_secs(2), listener.accept())
+            .await
+            .expect("reconnect timed out")
+            .expect("second accept");
+        let reconnected_iface = tokio::time::timeout(Duration::from_secs(2), reconnect_rx.recv())
+            .await
+            .expect("reconnect event timed out")
+            .expect("reconnect event");
+        assert_eq!(reconnected_iface, iface_address);
+
+        iface_stop.cancel();
+        drop(second_stream);
+        tokio::time::timeout(Duration::from_secs(2), task)
+            .await
+            .expect("client task timed out")
+            .expect("client task");
+
+        assert!(
+            disconnect_rx.try_recv().is_err(),
+            "a stop while connected is not reported as a disconnect"
+        );
+    }
+
+    /// `with_disconnect_events` rustdoc: a client built from a pre-supplied
+    /// stream has no endpoint to reconnect to, so when that stream ends it
+    /// reports the disconnect once and its task finishes on its own, neither
+    /// reconnecting nor reporting again.
+    #[tokio::test]
+    #[deny(clippy::await_holding_invalid_type)]
+    async fn tcp_client_from_stream_reports_one_disconnect_when_the_stream_ends_and_finishes() {
+        let listener = TcpListener::bind("127.0.0.1:0").await.expect("bind listener");
+        let addr = listener.local_addr().expect("listener addr");
+        let peer = TcpStream::connect(addr).await.expect("connect peer");
+        let (server_stream, _) = listener.accept().await.expect("accept stream");
+        let (disconnect_tx, mut disconnect_rx) = tokio::sync::mpsc::channel(32);
+        let client = TcpClient::new_from_stream(addr.to_string(), server_stream)
+            .with_disconnect_events(disconnect_tx);
+        assert!(client.disconnect_events_enabled());
+        let mut manager = InterfaceManager::new(8);
+        let context = manager.new_context(client);
+        let iface_address = context.channel.address;
+        let task = tokio::spawn(TcpClient::spawn(context));
+
+        drop(peer);
+
+        let disconnected_iface = tokio::time::timeout(Duration::from_secs(2), disconnect_rx.recv())
+            .await
+            .expect("disconnect event timed out")
+            .expect("disconnect event");
+        assert_eq!(disconnected_iface, iface_address);
+
+        // Nothing is cancelled here: a stream client that ran out of stream
+        // has nowhere to reconnect to and must end by itself.
+        tokio::time::timeout(Duration::from_secs(2), task)
+            .await
+            .expect("a client built from a stream must finish once that stream ends")
+            .expect("client task");
+        assert!(
+            disconnect_rx.try_recv().is_err(),
+            "the end of the pre-supplied stream is reported exactly once"
+        );
+        assert!(
+            tokio::time::timeout(Duration::from_millis(200), listener.accept()).await.is_err(),
+            "a client built from a stream does not reconnect"
+        );
     }
 
     /// Returns `Err` (a TCP reset, not a graceful FIN) on its very first

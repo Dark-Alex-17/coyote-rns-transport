@@ -166,6 +166,8 @@ impl Transport {
             handler,
             cancel,
             manage_task: std::sync::Mutex::new(Some(manage_task)),
+            shared_instance: std::sync::Mutex::new(None),
+            shared_instance_tasks: Arc::new(std::sync::Mutex::new(tokio::task::JoinSet::new())),
         }
     }
 
@@ -465,16 +467,6 @@ impl Transport {
     }
 
     pub async fn synthesize_tunnel_on_interface(&self, iface: AddressHash) -> bool {
-        let packet = {
-            let handler = self.handler.lock().await;
-            let iface_manager = handler.iface_manager.lock().await;
-            let Some(interface_hash) = iface_manager.full_hash(&iface) else {
-                return false;
-            };
-            super::tunnels::synthesize_tunnel_packet(&handler.config.identity, interface_hash)
-        };
-
-        self.send_direct(iface, packet).await;
-        true
+        super::links::synthesize_tunnel_on_iface(&self.handler, iface).await
     }
 }

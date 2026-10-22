@@ -17,6 +17,7 @@ pub(super) struct PythonChannelInteropPaths {
     python_bin: String,
     reticulum_py_repo: PathBuf,
     helper: PathBuf,
+    shared_instance_client_helper: PathBuf,
 }
 
 struct PythonChannelClientConfig<'a> {
@@ -43,6 +44,83 @@ impl PythonChannelInteropPaths {
 
     pub(super) fn spawn_endpoint(&self, config_dir: &Path, payload_kind: &str) -> Child {
         self.spawn_endpoint_with_args(config_dir, payload_kind, &[])
+    }
+
+    // rnsd logs to stdout (RNS/Utilities/rnsd.py:40-49, LOG_STDOUT); both
+    // pipes are kept so the test can gate on log lines and dump them.
+    pub(super) fn spawn_rnsd(&self, config_dir: &Path) -> Child {
+        Command::new(&self.python_bin)
+            .arg("-u")
+            .arg("-m")
+            .arg("RNS.Utilities.rnsd")
+            .arg("--config")
+            .arg(config_dir)
+            .env("PYTHONPATH", &self.reticulum_py_repo)
+            .stdin(Stdio::null())
+            .stdout(Stdio::piped())
+            .stderr(Stdio::piped())
+            .spawn()
+            .expect("spawn python rnsd")
+    }
+
+    // The client holds its destination up until stdin closes, so the caller
+    // keeps the stdin handle for as long as the Rust side needs the peer. The
+    // destination name and the request literals are passed rather than
+    // defaulted so the Rust test's constants are the only copy.
+    pub(super) fn spawn_shared_instance_client(
+        &self,
+        config_dir: &Path,
+        rust_destination_hash: &str,
+        (app_name, aspect): (&str, &str),
+        request_path: &str,
+        request_data: &str,
+        timeout: f64,
+    ) -> Child {
+        Command::new(&self.python_bin)
+            .arg("-u")
+            .arg(&self.shared_instance_client_helper)
+            .arg("--config-dir")
+            .arg(config_dir)
+            .arg("--rust-destination-hash")
+            .arg(rust_destination_hash)
+            .arg("--app-name")
+            .arg(app_name)
+            .arg("--aspect")
+            .arg(aspect)
+            .arg("--request-path")
+            .arg(request_path)
+            .arg("--request-data")
+            .arg(request_data)
+            .arg("--timeout")
+            .arg(timeout.to_string())
+            .env("PYTHONPATH", &self.reticulum_py_repo)
+            .stdin(Stdio::piped())
+            .stdout(Stdio::piped())
+            .stderr(Stdio::piped())
+            .spawn()
+            .expect("spawn python shared instance client")
+    }
+
+    // Runs `script` under the pinned Python with the shared-instance client
+    // helper's path as its first argument and `extra_args` after it, with the
+    // Reticulum checkout on PYTHONPATH, and returns the finished process. The
+    // script imports the helper as a module (its `main` runs only under
+    // `__main__`), so a test can exercise one of the helper's functions on
+    // its own without an rnsd.
+    pub(super) fn run_shared_instance_client_helper_script(
+        &self,
+        script: &str,
+        extra_args: &[&str],
+    ) -> std::process::Output {
+        Command::new(&self.python_bin)
+            .arg("-u")
+            .arg("-c")
+            .arg(script)
+            .arg(&self.shared_instance_client_helper)
+            .args(extra_args)
+            .env("PYTHONPATH", &self.reticulum_py_repo)
+            .output()
+            .expect("run a script against the python shared instance client helper")
     }
 
     pub(super) fn spawn_endpoint_with_args(
@@ -400,8 +478,15 @@ pub(super) fn python_channel_interop_paths() -> PythonChannelInteropPaths {
     };
     let helper =
         PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("tests/support/python_channel_endpoint.py");
+    let shared_instance_client_helper = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+        .join("tests/support/python_shared_instance_client.py");
 
-    PythonChannelInteropPaths { python_bin, reticulum_py_repo, helper }
+    PythonChannelInteropPaths {
+        python_bin,
+        reticulum_py_repo,
+        helper,
+        shared_instance_client_helper,
+    }
 }
 
 pub(super) fn spawn_python_endpoint(

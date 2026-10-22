@@ -5,12 +5,13 @@ pub(super) const STOP_BUDGET: Duration = Duration::from_secs(5);
 
 impl Transport {
     /// Shuts the transport down: detaches every interface and waits for their
-    /// workers, then cancels the transport and waits for the management task.
-    /// Interface workers go first because they may be blocked handing a packet
-    /// to the management task, which has to stay alive to receive it. The
-    /// interface wait, the management wait and the receipt sweep that follows
-    /// share one 5 s budget; whatever is still running or still locked when it
-    /// runs out is aborted or skipped and logged. On every link it can lock,
+    /// workers, then cancels the transport and waits for the shared-instance
+    /// tasks and the management task. Interface workers go first because they
+    /// may be blocked handing a packet to the management task, which has to
+    /// stay alive to receive it. The interface wait, the shared-instance task
+    /// wait, the management wait and the receipt sweep that follows share one
+    /// 5 s budget; whatever is still running or still locked when it runs out
+    /// is aborted or skipped and logged. On every link it can lock,
     /// provided the handler itself can be re-locked within the budget, the
     /// sweep fails every pending request `LinkClosed`, so a receipt the caller
     /// still holds concludes instead of waiting for a watchdog that no longer
@@ -18,7 +19,16 @@ impl Transport {
     /// an outcome the caller still holds resolves. A receipt on a skipped
     /// link concludes `LinkClosed` once the link is dropped; an outcome on one
     /// resolves `Failed(LinkClosed)` once the transport is dropped. Calling it
-    /// again is a no-op.
+    /// again is a no-op unless an attach raced the first call (below). A
+    /// shared instance attached with [`Self::attach_shared_instance`] is
+    /// forgotten once the management task has stopped, and the transport is
+    /// no longer marked connected to one, since its interface is detached
+    /// with the rest. An attach that starts once the transport is cancelled
+    /// is refused. The interfaces are swept before the cancel, so an attach
+    /// whose interface is spawned between the two leaves that interface
+    /// registered and connected on the stopped transport with the slot empty
+    /// and the posture off; [`Self::detach_shared_instance`] then finds
+    /// nothing, and calling `stop()` again detaches it.
     #[deny(clippy::await_holding_invalid_type)]
     pub async fn stop(&self) {
         let deadline = Instant::now() + STOP_BUDGET;
@@ -54,6 +64,7 @@ impl Transport {
             }
         }
         self.cancel.cancel();
+        self.join_shared_instance_tasks(deadline).await;
         let manage_task = {
             let mut slot = self.manage_task.lock().unwrap_or_else(|poisoned| poisoned.into_inner());
             slot.take()
@@ -72,7 +83,61 @@ impl Transport {
                 }
             }
         }
+        match time::timeout_at(deadline, self.handler.lock()).await {
+            Ok(mut handler) => {
+                let attached = {
+                    let mut slot = self
+                        .shared_instance
+                        .lock()
+                        .unwrap_or_else(|poisoned| poisoned.into_inner());
+                    slot.take()
+                };
+                if let Some(iface) = attached {
+                    handler.config.set_connected_to_shared_instance(false);
+                    self.log_shared_instance_cleared_by_stop(iface);
+                }
+            }
+            Err(_) => {
+                let mut slot =
+                    self.shared_instance.lock().unwrap_or_else(|poisoned| poisoned.into_inner());
+                if let Some(iface) = slot.take() {
+                    log::warn!(
+                        "[tp] handler still locked after stop budget, shared-instance iface={} posture not cleared",
+                        iface.short()
+                    );
+                }
+            }
+        }
         self.fail_pending_requests_on_stop(deadline).await;
+    }
+
+    /// Fork-only: waits for the shared-instance tasks, which by now have
+    /// seen the cancel or fired into the already-detached interfaces and
+    /// finish their current step; Python never joins the threads these
+    /// mirror. The set is taken out of its std guard first,
+    /// so a spawn that races the stop lands in a fresh set, and the guard is
+    /// never held across the joins. What is still running at `deadline` is
+    /// aborted and logged.
+    #[deny(clippy::await_holding_invalid_type)]
+    async fn join_shared_instance_tasks(&self, deadline: Instant) {
+        let mut tasks = {
+            let mut set =
+                self.shared_instance_tasks.lock().unwrap_or_else(|poisoned| poisoned.into_inner());
+            std::mem::take(&mut *set)
+        };
+        loop {
+            match time::timeout_at(deadline, tasks.join_next()).await {
+                Ok(None) => break,
+                Ok(Some(Ok(()))) => {}
+                Ok(Some(Err(err))) => self.log_shared_instance_task_join_failed(&err),
+                Err(_) => {
+                    let running = tasks.len();
+                    tasks.abort_all();
+                    self.log_shared_instance_tasks_aborted_by_stop(running);
+                    break;
+                }
+            }
+        }
     }
 
     /// Fails every pending request `LinkClosed` and drops the response

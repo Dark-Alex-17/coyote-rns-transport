@@ -19,6 +19,21 @@ pub(super) async fn filter_duplicate_packet(
     connected_to_shared_instance: bool,
     transport_identity: AddressHash,
 ) -> (bool, bool) {
+    // An attached client leaves duplicate filtering to the shared-instance
+    // owner: Python's packet_filter accepts every packet in this mode and
+    // add_packet_hash skips the hashlist (RNS/Transport.py:1618-1627), so
+    // the filter neither reads nor writes the cache while attached and there
+    // is nothing to roll back later. The cache's other halves are still
+    // written: the source notes handle_data leaves for received Data
+    // packets, Python's reverse_table, share the cache with this filter and
+    // so count as seen once the transport detaches, a deliberate
+    // simplification over Python's separate packet_hashlist. The outbound
+    // hashes send records stay unguarded by design. They are the receipt
+    // guard, the role Python's separate receipts list plays
+    // (RNS/Transport.py:174), so a proof for a packet of our own still finds it.
+    if connected_to_shared_instance {
+        return (true, false);
+    }
     // The pinned Python packet_filter bypasses hash deduplication for these
     // contexts before applying packet-type or destination-specific filtering.
     let mut allow_duplicate = matches!(
@@ -30,8 +45,7 @@ pub(super) async fn filter_duplicate_packet(
             | PacketContext::CacheRequest
             | PacketContext::Channel
     );
-    if !connected_to_shared_instance
-        && packet.header.packet_type != PacketType::Announce
+    if packet.header.packet_type != PacketType::Announce
         && matches!(packet.header.destination_type, DestinationType::Plain | DestinationType::Group)
         && packet.transport.is_some_and(|transport| transport != transport_identity)
     {
@@ -84,10 +98,7 @@ pub(super) async fn filter_duplicate_packet(
             packet.context as u8
         );
     }
-    // An attached client delegates packet deduplication to the shared-instance
-    // owner. Reticulum's packet_filter accepts these packets and add_packet_hash
-    // deliberately does not populate the local duplicate list in this mode.
-    (is_new || allow_duplicate || connected_to_shared_instance, is_new)
+    (is_new || allow_duplicate, is_new)
 }
 
 pub(super) async fn preprocess_inbound_message(

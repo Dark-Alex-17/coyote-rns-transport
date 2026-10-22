@@ -274,8 +274,10 @@ async fn send_response_as_resource(
     }
 }
 
-/// The one transmit seam that holds the handler guard across the interface
-/// write, as `Transport::send_direct` always has.
+/// One of the two sanctioned free-function transmit seams that hold the
+/// handler guard across the interface write, as `Transport::send_direct`
+/// always has; the other is `shared_instance_announce::send_packet`, the
+/// announce broadcast.
 pub(super) async fn send_on_iface(
     handler: &Arc<Mutex<TransportHandler>>,
     iface: AddressHash,

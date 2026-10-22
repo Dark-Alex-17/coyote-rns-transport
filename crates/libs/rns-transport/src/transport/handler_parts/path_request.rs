@@ -5,6 +5,7 @@ impl TransportHandler {
         allowed_modes: Option<&[InterfaceMode]>,
     ) -> TxDispatchTrace {
         let packet = message.packet.clone();
+        // Unguarded on purpose: receipt guard, see filter_duplicate_packet / PacketCache::update.
         self.packet_cache.lock().await.update(&packet);
         let dispatch = self
             .iface_manager

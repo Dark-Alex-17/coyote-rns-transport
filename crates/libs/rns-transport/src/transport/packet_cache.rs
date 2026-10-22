@@ -125,6 +125,28 @@ impl PacketCache {
         }
     }
 
+    /// Forgets which interface each received packet arrived on, and the
+    /// proof-destination index entry of each such packet, the routing a
+    /// proof for it would follow back. This is the fork's twin of Python's
+    /// `reverse_table` (`RNS/Transport.py:2104-2109` writes it, `:1971`
+    /// reads it), which `shared_connection_disappeared` empties
+    /// (`RNS/Transport.py:3699`). The tracks themselves stay: they are the
+    /// duplicate filter, Python's `packet_hashlist`, which that flush leaves
+    /// alone. A packet this node sent has no source interface, and its index
+    /// entry stays too: that is the receipt guard, the role Python's
+    /// `receipts` list plays (`RNS/Transport.py:174`), which the flush does
+    /// not touch either. Returns how many tracks carried a source interface.
+    pub fn clear_reverse_routes(&mut self) -> usize {
+        let mut cleared = 0;
+        for (hash, track) in self.map.iter_mut() {
+            if track.source_iface.take().is_some() {
+                self.by_proof_destination.remove(&AddressHash::new_from_hash(hash));
+                cleared += 1;
+            }
+        }
+        cleared
+    }
+
     pub fn source_iface_for_hash(&self, hash: &Hash) -> Option<AddressHash> {
         self.map.get(hash).and_then(|track| track.source_iface)
     }

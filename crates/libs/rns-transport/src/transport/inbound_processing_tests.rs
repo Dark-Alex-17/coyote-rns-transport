@@ -118,6 +118,111 @@ async fn shared_instance_parent_does_not_remove_child_boundary_hop() {
     assert_eq!(processed_hops(&transport, child, 0).await, 0);
 }
 
+#[deny(clippy::await_holding_invalid_type)]
+async fn filter_twice(
+    connected_to_shared_instance: bool,
+) -> (Arc<Mutex<PacketCache>>, (bool, bool), (bool, bool)) {
+    let packet_cache = Arc::new(Mutex::new(PacketCache::new()));
+    let packet = message(PacketType::Data, AddressHash::new_from_rand(OsRng)).packet;
+    let transport_identity = AddressHash::new_from_rand(OsRng);
+    let mut results = Vec::new();
+    for _ in 0..2 {
+        results.push(
+            filter_duplicate_packet(
+                packet_cache.clone(),
+                None,
+                "test",
+                &packet,
+                connected_to_shared_instance,
+                transport_identity,
+            )
+            .await,
+        );
+    }
+    (packet_cache, results[0], results[1])
+}
+
+#[tokio::test]
+#[deny(clippy::await_holding_invalid_type)]
+async fn shared_instance_client_filter_inserts_nothing_into_the_packet_cache() {
+    let (packet_cache, first, second) = filter_twice(true).await;
+
+    assert_eq!(first, (true, false), "first packet must be accepted without a cache insert");
+    assert_eq!(second, (true, false), "repeat must be accepted without a cache insert");
+    assert!(packet_cache.lock().await.hashes().is_empty(), "owner dedups; local cache stays empty");
+}
+
+#[tokio::test]
+#[deny(clippy::await_holding_invalid_type)]
+async fn standalone_transport_still_populates_the_packet_cache() {
+    let (packet_cache, first, second) = filter_twice(false).await;
+
+    assert_eq!(first, (true, true), "first packet must be accepted and inserted");
+    assert_eq!(second, (false, false), "repeat must be dropped as a duplicate");
+    assert_eq!(packet_cache.lock().await.hashes().len(), 1);
+}
+
+#[tokio::test]
+#[deny(clippy::await_holding_invalid_type)]
+async fn shared_instance_client_accepts_the_same_packet_twice() {
+    let mut config = TransportConfig::default();
+    config.set_connected_to_shared_instance(true);
+    let transport = Transport::new(config);
+    let handler = transport.get_handler();
+    let iface = *transport.iface_manager().lock().await.new_channel(8).address();
+    let mut inbound = message(PacketType::Data, AddressHash::new_from_rand(OsRng));
+    inbound.address = iface;
+
+    for attempt in 1..=2 {
+        let (_, queued) =
+            preprocess_inbound_message(&handler, &transport.iface_messages_tx, inbound.clone())
+                .await
+                .unwrap_or_else(|| panic!("attempt {attempt} must be accepted"));
+        assert!(!queued.packet_cache_inserted, "attempt {attempt} must not insert into the cache");
+    }
+}
+
+/// README `## Attaching to a shared instance` and its "Known divergences" entry: the
+/// reverse-routing source note `handle_data` leaves for a Data packet received while
+/// attached shares the cache with the duplicate filter, so the same packet is treated as
+/// seen once the transport detaches, while a packet never received is still accepted.
+#[tokio::test]
+#[deny(clippy::await_holding_invalid_type)]
+async fn shared_instance_client_data_received_while_attached_is_seen_after_detach() {
+    let mut config = TransportConfig::default();
+    config.set_connected_to_shared_instance(true);
+    let transport = Transport::new(config);
+    let handler = transport.get_handler();
+    let iface = *transport.iface_manager().lock().await.new_channel(8).address();
+    let mut received = message(PacketType::Data, AddressHash::new_from_rand(OsRng));
+    received.address = iface;
+    let mut unseen = message(PacketType::Data, AddressHash::new_from_rand(OsRng));
+    unseen.address = iface;
+
+    let (_, queued) =
+        preprocess_inbound_message(&handler, &transport.iface_messages_tx, received.clone())
+            .await
+            .expect("the packet is accepted while attached");
+    assert!(!queued.packet_cache_inserted, "the filter inserts nothing while attached");
+    process_inbound_message(handler.clone(), queued).await;
+    let packet_cache = handler.lock().await.packet_cache.clone();
+    let noted = packet_cache.lock().await.hashes().len();
+    assert_eq!(noted, 1, "handle_data leaves the source note in the shared cache");
+
+    transport.set_connected_to_shared_instance(false).await;
+
+    assert!(
+        preprocess_inbound_message(&handler, &transport.iface_messages_tx, received)
+            .await
+            .is_none(),
+        "a Data packet received while attached counts as seen once detached"
+    );
+    let (_, fresh) = preprocess_inbound_message(&handler, &transport.iface_messages_tx, unseen)
+        .await
+        .expect("a packet never received is still accepted after the detach");
+    assert!(fresh.packet_cache_inserted, "the detached filter is back to inserting");
+}
+
 #[tokio::test]
 async fn rns_1_5_ingress_full_queue_does_not_poison_packet_retry() {
     let transport = Transport::new(TransportConfig::default());

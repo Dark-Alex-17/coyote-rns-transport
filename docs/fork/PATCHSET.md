@@ -16,11 +16,630 @@ Commits that only update this ledger are omitted. The crate README
 (`crates/libs/rns-transport/README.md`) carries the versioning policy, the
 rebase recipe and a prose summary of the current patch list; this file is
 the per-release ledger of the same patches, with commit hashes and file
-sites, so a rebase can re-apply them one commit at a time.
+sites, so a rebase can re-apply them one commit at a time. For fork-only
+parity rows this file plus the crate README `## Known divergences from
+Python RNS` are the parity ledger; `docs/status/*` matrices are not updated
+per fork task.
 
-## Unreleased (upstream 0.14.0)
+## 0.15.1 (upstream 0.14.0)
 
-No file has changed since the `0.15.0` release.
+Every file changed since the `0.15.0` release and the patch each change
+belongs to. Patch ids: F4 is shared-instance client packaging, F5 is
+shared-instance client parity. The
+`shared-instance client packaging` patch is fork commits `2a027a9d`,
+`b306b2a1`, `17b41d6a`, `ff8a8e8a`, `ff67110d`, `e4494576`, `21e4dacc`,
+`a6036013`, `8a1c2d16`, `9247525e`, `afa72a00`, `c05832b9`, `013d0dd2`,
+`b7df209e`, `6baf2e34`, `2e62274d`, `eba27ade`, `a4fdb0bb`, `952d6ca9`,
+`18e2ccb5`, `52be26ad`, `428a699a`, `4b67a5e9`, `5319bcde` and `114cd382`;
+the `shared-instance client parity` patch is fork commits `5af0c425`,
+`c8a296f3`, `60656cdb`, `54035599`, `9dfc446e`, `8e20e0d4`, `4f41b2f2`,
+`c972552f`, `867264ef`, `cce0a328`, `0f581ef3`, `41064bcb`, `6089ea85`,
+`a9ce646f`, `98f4073f`, `2b44522c`, `8a33660f`, `f3613fba`, `fbfa0589`,
+`1bb9b2cc`, `47cf9313`, `05337466`, `3239bf09`, `ef3827a6`, `f38a8b81`,
+`abf09730`, `7eeaafb0`, `e790cb55` and `6ca33e3f`; the
+`proof cap stall on signal`
+patch carries no other id and is fork commit `cccc40e4`; the
+`Python-in-the-loop shared-instance interop` patch carries no other id and
+is fork commit `eceeb9ad`; the `release 0.15.1` patch carries no other id
+and is fork commits `e529730c`, `84d90f75`, `9b2e20a6`, `0df584b1`,
+`b4a941d8`, `59b66d8e`, `257c180d`, `8559e395`, `6fed34de`, `dffe6f9b`,
+`134140fb`, `df914502`, `692d9327`, `e5e3bc88`, `d632c5e9`, `4fd3a8dc`,
+`4994a8f1`, `cfb0f62f`, `220a4794` and `fd10554b`.
+
+| File | Patch |
+| --- | --- |
+| `.github/workflows/ci-full.yml` | release 0.15.1 |
+| `Cargo.lock` | release 0.15.1 |
+| `Cargo.toml` | release 0.15.1 |
+| `crates/apps/reticulumd/Cargo.toml` | release 0.15.1 |
+| `crates/apps/reticulumd/tests/fork_publish_contract.rs` | shared-instance client packaging, release 0.15.1 |
+| `crates/apps/reticulumd/tests/fork_release_docs_contract.rs` | shared-instance client packaging, shared-instance client parity, release 0.15.1 |
+| `crates/apps/reticulumd/tests/python_channel_interop.rs` | Python-in-the-loop shared-instance interop, release 0.15.1 |
+| `crates/apps/reticulumd/tests/python_channel_interop_parts/python_shared_instance_client_emit.rs` | release 0.15.1 |
+| `crates/apps/reticulumd/tests/python_channel_interop_parts/python_shared_instance_live.rs` | Python-in-the-loop shared-instance interop, release 0.15.1 |
+| `crates/apps/reticulumd/tests/support/python_channel_process.rs` | Python-in-the-loop shared-instance interop, release 0.15.1 |
+| `crates/apps/reticulumd/tests/support/python_shared_instance_client.py` | Python-in-the-loop shared-instance interop, release 0.15.1 |
+| `crates/apps/rns-tools/Cargo.toml` | release 0.15.1 |
+| `crates/libs/rns-transport/CHANGELOG.md` | shared-instance client packaging, shared-instance client parity, release 0.15.1 |
+| `crates/libs/rns-transport/Cargo.toml` | release 0.15.1 |
+| `crates/libs/rns-transport/README.md` | shared-instance client packaging, shared-instance client parity, release 0.15.1 |
+| `crates/libs/rns-transport/fuzz/Cargo.lock` | release 0.15.1 |
+| `crates/libs/rns-transport/src/destination_parts/destination.rs` | shared-instance client parity |
+| `crates/libs/rns-transport/src/iface/local.rs` | shared-instance client parity |
+| `crates/libs/rns-transport/src/iface/tcp_client.rs` | shared-instance client parity |
+| `crates/libs/rns-transport/src/resource/outcome.rs` | release 0.15.1 |
+| `crates/libs/rns-transport/src/transport/announce_table.rs` | shared-instance client parity |
+| `crates/libs/rns-transport/src/transport/core.rs` | shared-instance client packaging, shared-instance client parity |
+| `crates/libs/rns-transport/src/transport/handler.rs` | shared-instance client packaging, shared-instance client parity |
+| `crates/libs/rns-transport/src/transport/handler_parts/path_request.rs` | shared-instance client parity |
+| `crates/libs/rns-transport/src/transport/inbound_processing.rs` | shared-instance client parity |
+| `crates/libs/rns-transport/src/transport/inbound_processing_tests.rs` | shared-instance client parity |
+| `crates/libs/rns-transport/src/transport/lifecycle.rs` | shared-instance client packaging, shared-instance client parity |
+| `crates/libs/rns-transport/src/transport/link_table.rs` | shared-instance client parity |
+| `crates/libs/rns-transport/src/transport/links_parts/transport.rs` | shared-instance client packaging, shared-instance client parity |
+| `crates/libs/rns-transport/src/transport/links_parts/transport_sections/close_channel.rs` | shared-instance client parity |
+| `crates/libs/rns-transport/src/transport/links_parts/transport_sections/shared_instance.rs` | shared-instance client packaging, shared-instance client parity, release 0.15.1 |
+| `crates/libs/rns-transport/src/transport/links_parts/transport_sections/shared_instance_announce.rs` | shared-instance client parity |
+| `crates/libs/rns-transport/src/transport/links_parts/transport_sections/shared_instance_reconnect.rs` | shared-instance client parity |
+| `crates/libs/rns-transport/src/transport/mod.rs` | shared-instance client packaging, shared-instance client parity |
+| `crates/libs/rns-transport/src/transport/packet_cache.rs` | shared-instance client parity |
+| `crates/libs/rns-transport/src/transport/path_table.rs` | shared-instance client parity |
+| `crates/libs/rns-transport/src/transport/path_table_codec.rs` | shared-instance client parity |
+| `crates/libs/rns-transport/src/transport/request_dispatch.rs` | shared-instance client parity |
+| `crates/libs/rns-transport/src/transport/shared_instance.rs` | shared-instance client packaging, shared-instance client parity |
+| `crates/libs/rns-transport/src/transport/tests.rs` | shared-instance client packaging, shared-instance client parity, release 0.15.1 |
+| `crates/libs/rns-transport/src/transport/tests_parts/two_transport_loopback_link_packet_proven_probe2.rs` | proof cap stall on signal, shared-instance client packaging |
+| `crates/libs/rns-transport/src/transport/tests_parts/two_transport_loopback_requests_isolation.rs` | shared-instance client packaging, shared-instance client parity |
+| `crates/libs/rns-transport/src/transport/tests_parts/two_transport_shared_instance.rs` | shared-instance client packaging, shared-instance client parity |
+| `crates/libs/rns-transport/src/transport/tests_parts/two_transport_shared_instance_endpoint_warn.rs` | release 0.15.1 |
+| `crates/libs/rns-transport/src/transport/tests_parts/two_transport_shared_instance_flush.rs` | shared-instance client parity |
+| `crates/libs/rns-transport/src/transport/tests_parts/two_transport_shared_instance_parity.rs` | shared-instance client parity |
+| `crates/libs/rns-transport/src/transport/tests_parts/two_transport_shared_instance_probe.rs` | shared-instance client packaging |
+| `crates/libs/rns-transport/src/transport/tests_parts/two_transport_shared_instance_probe2.rs` | shared-instance client packaging, shared-instance client parity |
+| `crates/libs/rns-transport/src/transport/tests_parts/two_transport_shared_instance_probe3.rs` | shared-instance client packaging, shared-instance client parity |
+| `crates/libs/rns-transport/src/transport/tests_parts/two_transport_shared_instance_probe4.rs` | shared-instance client packaging, shared-instance client parity |
+| `crates/libs/rns-transport/src/transport/tests_parts/two_transport_shared_instance_probe5.rs` | shared-instance client packaging, shared-instance client parity |
+| `crates/libs/rns-transport/src/transport/tests_parts/two_transport_shared_instance_probe6.rs` | shared-instance client packaging, shared-instance client parity |
+| `crates/libs/rns-transport/src/transport/tests_parts/two_transport_shared_instance_probe7.rs` | shared-instance client parity |
+| `crates/libs/rns-transport/src/transport/tests_parts/two_transport_shared_instance_probe8.rs` | shared-instance client parity |
+| `crates/libs/rns-transport/src/transport/tests_parts/two_transport_shared_instance_probe9.rs` | shared-instance client parity |
+| `crates/libs/rns-transport/src/transport/tests_parts/two_transport_shared_instance_probe10.rs` | shared-instance client parity |
+| `crates/libs/rns-transport/src/transport/tests_parts/two_transport_shared_instance_probe11.rs` | shared-instance client parity |
+| `crates/libs/rns-transport/src/transport/tests_parts/two_transport_shared_instance_probe12.rs` | release 0.15.1 |
+| `crates/libs/rns-transport/src/transport/tests_parts/two_transport_shared_instance_probe13.rs` | release 0.15.1 |
+| `crates/libs/rns-transport/src/transport/tests_parts/two_transport_shared_instance_probe14.rs` | release 0.15.1 |
+| `crates/libs/rns-transport/src/transport/tests_parts/two_transport_shared_instance_reconnect.rs` | shared-instance client parity |
+| `crates/libs/rns-transport/src/transport/tests_parts/two_transport_shared_instance_stop.rs` | shared-instance client parity |
+| `crates/libs/rns-transport/src/transport/tests_parts/two_transport_shared_instance_tasks.rs` | shared-instance client parity |
+| `crates/libs/rns-transport/src/transport/tunnels.rs` | shared-instance client parity |
+| `crates/libs/rns-transport/tests/shared_instance_api.rs` | release 0.15.1 |
+| `docs/fork/PATCHSET.md` | shared-instance client packaging, shared-instance client parity, release 0.15.1 |
+| `docs/getting-started.md` | release 0.15.1 |
+| `tools/scripts/check-publish-tag-version.sh` | release 0.15.1 |
+
+Fork commits `2a027a9d`, `b306b2a1`, `17b41d6a`, `ff8a8e8a`, `ff67110d`,
+`e4494576`, `21e4dacc`, `a6036013`, `8a1c2d16`, `9247525e`, `afa72a00`,
+`c05832b9`, `013d0dd2`, `b7df209e`, `6baf2e34`, `2e62274d`, `eba27ade`,
+`a4fdb0bb`, `952d6ca9`, `18e2ccb5`, `52be26ad`, `428a699a`, `4b67a5e9`,
+`5319bcde` and `114cd382`: F4, shared-instance client packaging. The first
+lands `SharedInstanceEndpoint`
+and `SharedInstanceOptions`, the four `Transport` methods
+`attach_shared_instance`, `detach_shared_instance`,
+`shared_instance` and `connected_to_shared_instance`, the `Transport::stop`
+teardown of an attached shared instance, and moves
+`local_hops_delta_for_packet` from `transport/mod.rs` to
+`transport/handler.rs` to stay under the module-size cap; the second lands
+the two-transport fixture; the third lands the README section, the release
+notes and the contract-test registrations. The fourth gates the
+`SharedInstanceEndpoint::Unix` variant, its `LocalUnixEndpoint` import and
+its attach arm behind `cfg(unix)`, clears the shared-instance posture in
+`Transport::stop` under the existing 5 s budget instead of an unbounded
+handler lock, makes detach take the slot and clear the connected flag in
+one handler-guarded critical section, warns when the tunnel cannot be
+synthesized at attach, and corrects the Python cites in the rustdoc. The
+fifth adopts the probe fixture (option default and builder, detach on
+a never-attached transport, concurrent attaches admit one, attach before
+the server listens connects once it does, detach silences the relay and
+re-attach restores one-hop paths) and pins the shared instance's tunnel
+table and the unix client's connect within the configured reconnect wait.
+The sixth qualifies the README and release notes for unix targets, the
+fixed TCP retry, the posture cites, the bool detach and the forced-off
+flags and tunnel synthesis Python does not share, and pins the README
+section as fence-free prose. The seventh corrects the probe fixture's
+header and its late-server detach message. The eighth makes
+`attach_shared_instance` set the connected posture under the handler lock
+only while the slot still holds the new interface, so a detach or stop
+running between the slot write and the posture write cannot leave the
+posture set with the slot empty, and moves the posture clearing in
+`Transport::stop` after the management-task join so a handler the task
+still holds no longer eats the stop budget ahead of it. The ninth adopts
+the second probe fixture (unix flavour end to end, TCP client keeps its
+fixed retry under a short reconnect wait, stop with a wedged handler still
+forgets the slot within budget, `stop_interface` leaves the slot held
+until detach) and adds a probe that joins an attach with a detach on a
+held slot five times and asserts only that the slot and the posture agree
+afterwards. The tenth extends the release-notes cite check to the
+`## Unreleased` section through two shared helpers, names the
+`Tcp(SocketAddr)` endpoint and the slot-release rule in the README, and
+rewords the release notes for the reconnect wait, the new pins and the
+posture ordering. The eleventh makes the stop-budget warning name the
+interface it left behind and fire only when a slot was actually held,
+carries the endpoint kind in the attach debug line so a TCP trace does not
+read as if the reconnect wait were in force, and documents on
+`attach_shared_instance` and `stop` that reticulumd also re-synthesizes
+the tunnel on reconnect and that an interface spawned after stop's sweep
+but before it takes the slot stays registered until a second stop. The
+twelfth adopts the third probe fixture (a detach queued on the handler
+before the attach's posture write wins the slot and the posture stays off,
+a stop racing an attach keeps the slot and the posture consistent,
+attach/detach cycles leave no interface behind), gates the two probe2
+helpers only the unix test calls behind `cfg(unix)`, guards the plain
+empty-detach await with the stop timeout, and rewords the first probe's
+race test as a refused attach racing a detach, since the slot is held
+when its join starts. The thirteenth rewords the detach sentence in the
+release notes, pins the third fixture there and records the gated warning
+and the stop-vs-attach window. The fourteenth adopts the fourth fixture
+(`remove_interface` leaves the slot held until detach, a second stop
+detaches an interface spawned inside the first stop's window), bounds
+every joined attach, detach or stop await in the earlier fixtures with the
+stop timeout, makes their stall releases consistent, notes on the stall
+helper's rustdoc that the shared-instance fixtures hold the handler with
+it, and reuses the `LocalUnixEndpoint` import in the second fixture. The
+fifteenth rewords the `stop` rustdoc so the repeated-stop sentence names
+its exception, quiets the missing-interface warning at attach to a debug
+line naming the racing detach or stop, labels the reconnect wait as in
+force only for unix endpoints and says so when a detach finds a stale slot.
+The sixteenth keeps the TCP attach line reading the configured reconnect
+wait, which the TCP client ignores, so the options stay used when the
+unix arm is compiled out. The seventeenth holds the `## Unreleased` ledger
+section to the release-section contracts (files exist, rows name a legend
+patch, legend hashes head a patch), requires an undated heading and a pin
+clause per bullet in the Unreleased release notes, pins the
+request-layer walker floor at its measured count and renames the README
+fence test. The eighteenth cites
+the fourth fixture, the two contract tests and the proof-cap stall in the
+release notes. The nineteenth makes the Unreleased ledger checks fail on
+a `## Unreleased` heading that lacks its `(upstream <base>)` suffix
+instead of skipping. The twentieth writes the TCP attach line as
+space-separated key=value like the unix arm, marking the reconnect wait
+as ignored by the tcp client, names `stop_interface` among the racers in
+the tunnel-miss debug line, starts the ledger header-hash walk at the
+table so a legend sentence cannot vouch for its own hashes, and says on
+the third and fourth fixtures' stop guards why they outlast the stop
+timeout. The twenty-first extends the binary's one logger in
+`two_transport_loopback_requests_isolation.rs` with a shared-instance
+record store keyed by transport name and adopts the fifth fixture that
+reads it (the attach never warns, the tcp line marks the reconnect wait
+as ignored while the unix line reports it, a stale-slot detach and an
+attach whose interface vanished between its sections log at debug). The
+twenty-second admits the test-only fixture-hardening exception to the
+release-notes listing rule, attributes the release notes and the ledger
+section to the publish contract, and pins the fifth fixture and the
+record store on the `Transport::stop` bullet. The twenty-third renames
+that logger, its static and its install function for the two record
+families they now serve. The twenty-fourth adopts the sixth fixture (the
+attach line is space-separated key=value tokens and only the tcp arm
+appends the ignored-wait parenthetical), scopes the never-warned oracle
+and test logger rustdocs to the records they read, sharpens the publish
+contract's cite message and the ledger header walk's missing-table
+panic. The twenty-fifth pins the sixth fixture on the `Transport::stop`
+bullet in the release notes. The file sites below describe the combined
+result.
+Upstream sites:
+`crates/libs/rns-transport/src/transport/mod.rs` registers the
+`shared_instance` module, re-exports its two types and gains the
+`shared_instance` slot on `Transport`; `transport/core.rs` initialises
+that slot; `transport/handler.rs` receives the moved
+`local_hops_delta_for_packet`; `transport/lifecycle.rs` clears the slot
+and the connected flag in `stop` after the management task has joined and
+warns, naming the interface, only when a slot was held past the budget;
+`links_parts/transport.rs` includes the new method section;
+`transport/tests.rs` includes the seven fixtures;
+`transport/tests_parts/two_transport_loopback_requests_isolation.rs`
+keeps the shared-instance client's log records next to the link's drop
+records;
+`crates/apps/reticulumd/tests/fork_publish_contract.rs` scans the
+`## Unreleased` release notes for file cites and checks the
+`## Unreleased` ledger section. New files:
+`src/transport/shared_instance.rs`,
+`src/transport/links_parts/transport_sections/shared_instance.rs`,
+`src/transport/tests_parts/two_transport_shared_instance.rs`,
+`src/transport/tests_parts/two_transport_shared_instance_probe.rs`,
+`src/transport/tests_parts/two_transport_shared_instance_probe2.rs`,
+`src/transport/tests_parts/two_transport_shared_instance_probe3.rs`,
+`src/transport/tests_parts/two_transport_shared_instance_probe4.rs`,
+`src/transport/tests_parts/two_transport_shared_instance_probe5.rs` and
+`src/transport/tests_parts/two_transport_shared_instance_probe6.rs`. The
+crate `CHANGELOG.md` carries the release notes.
+
+Fork commits `5af0c425`, `c8a296f3`, `60656cdb`, `54035599`, `9dfc446e`,
+`8e20e0d4`, `4f41b2f2`, `c972552f`, `867264ef`, `cce0a328`, `0f581ef3`,
+`41064bcb`, `6089ea85`, `a9ce646f`, `98f4073f`, `2b44522c`, `8a33660f`,
+`f3613fba`, `fbfa0589`, `1bb9b2cc`, `47cf9313`, `05337466`, `3239bf09`,
+`ef3827a6`, `f38a8b81`, `abf09730`, `7eeaafb0`, `e790cb55` and
+`6ca33e3f`: F5,
+shared-instance client parity.
+The first gives `TcpClient` a configurable
+reconnect wait, `with_reconnect_wait` and `reconnect_wait` with the default
+kept at 5 s, used at both backoff sleeps of its spawn loop, and pins it
+with a fast-retry twin of the reconnect-storm test. The second adds the
+disconnect-event seam to both stream clients, `with_disconnect_events` on
+`TcpClient` and `LocalUnixClient`: a sender, sibling of
+`with_reconnect_events`, that fires once per established stream that ends
+while the client is neither cancelled nor stopped, before the reconnect
+loop runs again; connect failures and detach or stop fire nothing. The
+third makes the TCP attach arm pass the configured reconnect wait to the
+client, so the attach debug line reports the wait as in force for both
+endpoints and the options rustdoc no longer calls it unix-only, and
+updates the three log and retry pins (the tcp attach line ends at the wait;
+a TCP client attached with a 50 ms wait reaches a late-bound shared
+instance within 2 s). The fourth announces a destination registered on an
+attached client as a path response 0.25 s later
+(`RNS/Transport.py:2911-2916`), adds
+`SingleInputDestination::announce_with_context` for the path-response
+context (`RNS/Destination.py:308-315`) and
+`Transport::announce_destinations_to_shared_instance`, which re-announces
+every registered destination the same way, and adopts the parity fixture.
+The fifth wires both clients' reconnect events into a per-attach consumer
+task that re-synthesizes the tunnel at once and, `reconnect_wait` plus two
+seconds later, announces every registered single destination as a path
+response while the transport is still attached
+(`RNS/Interfaces/LocalInterface.py:178-181`, `RNS/Transport.py:3705-3709`);
+`Transport::synthesize_tunnel_on_interface` now delegates to a free
+function that takes the handler and the iface_manager guards one after
+the other, and the reconnect fixture restarts the shared instance on the
+same port. The sixth serves the disconnect events in the same consumer: a
+dropped stream, while the transport is connected and the interface is
+still flagged as the shared instance, closes every in and out link with
+the reason of its own side, drops their resource state and empties the
+path, announce, link and tunnel tables plus the held announces
+(`RNS/Transport.py:3690-3702`, `RNS/Interfaces/LocalInterface.py:255-261`);
+`PathTable`, `AnnounceTable`, `LinkTable` and `TunnelTable` gain `clear`,
+the msgpack decoders duplicated in `tunnels.rs` move to the path table
+codec, and the fixture adds the flushed path, the closed-link event, the
+surviving attach and the three no-flush cases (detach, dropped posture,
+unflagged interface). The seventh returns early from
+`filter_duplicate_packet` while attached, so nothing is inserted into the
+local packet cache and nothing rolled back (`RNS/Transport.py:1618-1627`).
+The eighth biases the consumer's select so a queued disconnect is served
+before the reconnect behind it, and drives the consumer directly to pin
+the order. The ninth refuses `attach_shared_instance` once `stop` has
+cancelled the transport, logs the slot `stop` clears at debug under the
+links target, parks the stop of the fourth probe fixture on a held worker
+so the attach lands inside the sweep-to-cancel window for certain, pins
+the refused racing attach in the third, adds
+`two_transport_shared_instance_stop.rs` for the refused attach and the
+cleared-slot line, and makes the test logger keep every Warn-or-above
+record on the links target so the never-warned oracle covers any warning
+naming the transport. The tenth rewrites the README's
+attach section for the behaviour above, trims the divergence register to
+the two claims that still hold, and loops the reconnect-order test over
+twelve rounds. The eleventh gives `Transport` a private `JoinSet` that the
+registration announce, the per-attach reconnect consumer and the delayed
+re-announce are spawned through, reaped of finished tasks before each
+spawn, and makes `stop` take the set out of its std guard right after the
+cancel and join it under the existing budget, aborting and warning only on
+expiry, pinned by `two_transport_shared_instance_tasks.rs`. The twelfth
+adds `PacketCache::clear_reverse_routes`, the twin of Python's
+`reverse_table` flush that empties the proof-destination index and the
+source notes while keeping the duplicate-filter hashes, calls it from the
+drop handler in its own scoped lock after the handler block, takes the
+links out of both maps under the first handler guard before closing them
+so a link opened on the `Closed` event survives the clears, corrects the
+two docstrings that placed `reverse_table` on the link-table entries, and
+adds `two_transport_shared_instance_flush.rs`, which seeds every table and
+asserts each empty on its own after the drop. The thirteenth pins the
+widened logger with a needle-less warning, adds a release-docs contract
+test that the README's shared-instance section cites the five Python
+ranges and calls nothing pending, puts `await_holding_invalid_type` on
+every async test the parity commits added, runs the reconnect-order test
+over twenty rounds and adopts the seventh probe fixture (the registration
+announce waits its quarter second, the re-announce waits `reconnect_wait`
+plus two seconds, a posture dropped after the reconnect re-announces
+nothing, every restart re-announces again, a pending link is torn down,
+and the `TcpClient` wait defaults to five seconds). The fourteenth moves
+the cites to `LocalInterface.py:160`, `:178-181` and
+`Destination.py:308-315` as checked at ea98db4f, narrows the hashlist
+claim in the README, the duplicate-filter comment and the release notes to
+the duplicate filter alone, says the tunnel is synthesized at attach and
+on every reconnect, names the transport in the re-announce warning,
+clamps `LocalUnixClient::with_reconnect_wait` to 1 ms like the TCP knob,
+and refreshes two fixture comments. The fifteenth narrows
+`clear_reverse_routes` to the index entries of received packets, so the
+entry of a packet this node sent, its receipt guard, survives the drop as
+Python's `receipts` list does, and has the flush fixture send data from
+the client before the drop and assert that entry kept. The sixteenth adds
+the two new section files to the release-docs contract's fork-new list,
+cites `Transport.py:3697-3702` on the three `clear` methods that lacked
+one, has `request_dispatch::send_on_iface` name the announce broadcast as
+the other sanctioned guard-holding transmit seam, and puts the
+`await_holding_invalid_type` deny on the registration announce spawn. The
+seventeenth moves the two task warnings of stop's join loop into helpers
+on the links target and threads the transport's name into
+`spawn_shared_instance_task`, so every shared-instance task warning reads
+`tp(<name>)` on the links target (stop's own budget warning for a handler
+that stays locked keeps its `[tp]` prefix on the lifecycle target) and the
+never-warned oracle of the tasks fixture catches a join that regresses to
+an abort. The eighteenth narrows the
+duplicate-filter claim: the filter neither inserts nor consults while
+attached, but the source notes `handle_data` leaves share the cache and
+count as seen once detached, now a divergence entry against Python's
+separate `packet_hashlist`; it also says a posture set directly gets the
+registration announce but not the reconnect consumer's work, adopts the
+eighth probe fixture (the receipt guard survives a drop as the consumer
+sees it), moves the unix client's clamp sentence to Changed, says when
+`with_disconnect_events` fires for a pre-supplied stream, and derives the
+fixtures' timing bounds from the waits they are built on. The nineteenth
+adopts the ninth probe fixture (a posture set directly announces on
+registration, a stop that runs out of budget on a pending announce warns
+as `tp(<name>)` on the links target, a posture switched off announces
+nothing, and a directly set posture neither flushes nor re-announces on a
+restart), pins in `inbound_processing_tests.rs` that a Data packet
+received while attached counts as seen once detached, and pins in both
+stream clients that a client built from a pre-supplied stream reports its
+disconnect once and finishes without reconnecting. The twentieth biases
+the registration announce select toward its cancel, counts the link table
+entries the drop flush clears on the disconnected debug line, and says
+the tunnel re-synthesis is not posture gated. The twenty-first bounds the
+seventh probe's registration announce from above, derives its two floors
+from the production delay and the fixture's reconnect wait, and adds the
+unflagged-interface twin of its dropped-posture test. The twenty-second
+tidies the rustdoc and comments: the join-failed warning sees only a
+panic, `LinkTable::clear` cites `Transport.py:3700`, stop's join no
+longer claims every task saw the cancel, `with_reconnect_wait` notes the
+clamp and the TCP client's immediate first redial, the two unguarded
+packet-cache updates name the receipt guard, and the README carries the
+clamp and the two fork-only collections the flush empties. The
+twenty-third has the drop handler tear each drained link down with
+`Link::teardown` instead of `close`, as `shared_connection_disappeared`
+does (`RNS/Transport.py:3692`, `:3695`, `RNS/Link.py:657-668`): the
+LINKCLOSE packet of every active link is sent on the interface the link
+rides through `request_dispatch::send_on_iface` once every guard is
+released, a packet that does not go out is logged at debug, the
+disconnected line counts the ones sent, and the flush fixture gains a
+third transport over plain TCP whose link sees `Closed` with the
+initiator-side reason when the shared instance drops. The twenty-fourth
+makes `LocalUnixClient` sleep `reconnect_wait` before every redial after
+an established stream drops, selected against cancel and stop, as
+Python's reconnect loop sleeps before every attempt
+(`RNS/Interfaces/LocalInterface.py:159-160`), while a client built from a
+pre-supplied stream still finishes at once, and adopts the tenth probe
+fixture (the TCP clamp reads 1 ms, the TCP client redials at once after
+the first drop and waits from the second, the unix client's re-accept
+lands no sooner than the wait, the drop line counts the link table
+entries, a posture dropped before the restart still re-synthesizes the
+tunnel). In this workspace the change reaches reticulumd's unix
+`LocalClientInterface` bootstrap
+(`bootstrap_interface_startup_parts::module_prelude`), which builds
+`LocalUnixClient::new_connect` without `with_reconnect_wait` and so
+redials 5 s (`DEFAULT_RECONNECT_WAIT`) after a shared-instance drop rather
+than at once. The twenty-fifth pins that a shared-instance task that ended by
+panic is warned about once as `tp(<name>)` while stop completes. The
+twenty-sixth carries the three into the README and the release notes. The
+twenty-seventh adds the eleventh probe fixture (the drop's LINKCLOSE
+reaches the initiator of a link the client accepted, a `stop` inside the
+unix redial wait completes at once, a from-stream unix client ends at once
+when its stream drops). The twenty-eighth registers the Handshake teardown
+without a LINKCLOSE and the TCP client's immediate redial as divergences,
+names `MIN_STABLE_CONNECTION` in the redial wording of the README, the
+release notes and the `with_reconnect_wait` rustdoc, and notes in the
+`on_disconnected` rustdoc why a teardown without an interface is a no-op.
+The twenty-ninth pins the teardown and redial cites in the README
+contract. The file sites below describe the combined result.
+Upstream sites: `src/iface/tcp_client.rs` and `src/iface/local.rs` carry
+the reconnect wait, its 1 ms clamp and the disconnect seam;
+`src/destination_parts/destination.rs` gains `announce_with_context`;
+`transport/mod.rs` gains the shared-instance task set on `Transport` and
+`transport/core.rs` initialises it and delegates its tunnel synthesis to
+the free function; `transport/inbound_processing.rs` returns early while
+attached and `transport/inbound_processing_tests.rs` pins it;
+`transport/lifecycle.rs` logs the slot `stop` clears and joins the task
+set; `transport/packet_cache.rs` gains `clear_reverse_routes`;
+`transport/announce_table.rs`, `transport/link_table.rs`,
+`transport/path_table.rs` and `transport/tunnels.rs` gain `clear` and
+`transport/request_dispatch.rs` names the second transmit seam,
+`transport/handler.rs` and `transport/handler_parts/path_request.rs` mark
+their packet-cache updates as the receipt guard, with
+`transport/path_table_codec.rs` exposing the shared decoders;
+`links_parts/transport.rs` includes the two new sections;
+`links_parts/transport_sections/close_channel.rs` spawns the registration
+announce from `register_destination`;
+`links_parts/transport_sections/shared_instance.rs` wires the seams and
+refuses the post-stop attach; `transport/shared_instance.rs` drops the
+unix-only wording and notes the clamp; `transport/tests.rs` includes the ten new fixtures;
+`transport/tests_parts/two_transport_loopback_requests_isolation.rs`
+keeps every links-target warning; the shared-instance fixture and probe
+fixtures two to six follow the new attach line, stop window and oracle;
+`crates/apps/reticulumd/tests/fork_release_docs_contract.rs` holds the
+README's shared-instance section to its eight parity cites, walks the two
+new section files for cites and holds the request-layer walker to its
+measured floor.
+New files:
+`src/transport/links_parts/transport_sections/shared_instance_announce.rs`,
+`src/transport/links_parts/transport_sections/shared_instance_reconnect.rs`,
+`src/transport/tests_parts/two_transport_shared_instance_parity.rs`,
+`src/transport/tests_parts/two_transport_shared_instance_reconnect.rs`,
+`src/transport/tests_parts/two_transport_shared_instance_stop.rs`,
+`src/transport/tests_parts/two_transport_shared_instance_tasks.rs`,
+`src/transport/tests_parts/two_transport_shared_instance_flush.rs`,
+`src/transport/tests_parts/two_transport_shared_instance_probe7.rs`,
+`src/transport/tests_parts/two_transport_shared_instance_probe8.rs`,
+`src/transport/tests_parts/two_transport_shared_instance_probe9.rs`,
+`src/transport/tests_parts/two_transport_shared_instance_probe10.rs` and
+`src/transport/tests_parts/two_transport_shared_instance_probe11.rs`.
+The README and the crate `CHANGELOG.md` carry the prose.
+
+Fork commit `cccc40e4`: proof cap stall on signal. The cap fixture of
+`crates/libs/rns-transport/src/transport/tests_parts/two_transport_loopback_link_packet_proven_probe2.rs`
+stalled the listener's handler for a fixed 1500 ms while the connector
+sent its 1027 plain Data packets; under full-suite load the burst outran
+the stall, the listener proved early hashes before the cap could drop
+them, and the proven set no longer matched the newest 1024. The stall is
+now held on a blocking thread until the test releases it after the burst
+(`stall_handler_until_released` holds the guard, spawned by
+`stall_transport_until_released`, both defined in that file and reused by
+the third, fourth and fifth shared-instance fixtures), so its length
+no longer depends on runner speed. The pinned counts and hashes are
+unchanged. Upstream site: that fixture file only.
+
+Fork commit `eceeb9ad`: Python-in-the-loop shared-instance interop. A
+Python `rnsd` (RNS 1.5.2) runs as the shared instance on free ports, the
+library attaches through `Transport::attach_shared_instance`, and a second
+Python local client of the same `rnsd` exchanges announces and
+`Link.request` calls with the Rust transport in both directions. The new
+fixture
+`crates/apps/reticulumd/tests/python_channel_interop_parts/python_shared_instance_live.rs`,
+included from `crates/apps/reticulumd/tests/python_channel_interop.rs`,
+drains the `rnsd` log on background threads so it gates on the readiness
+line and on the line that files the Rust announce under a
+`LocalInterface`, and dumps both child logs on failure; the abstract
+AF_UNIX variant is Linux only, since Python's `use_af_unix()` is false
+elsewhere. The new
+`crates/apps/reticulumd/tests/support/python_shared_instance_client.py`
+registers an echoing request handler, reports the Rust announce, sends one
+`Link.request` to the Rust destination and then keeps announcing its own
+destination until stdin closes so the Rust side can run the reverse
+direction, one JSON object per stdout line.
+`crates/apps/reticulumd/tests/support/python_channel_process.rs` gains
+`spawn_rnsd` and `spawn_shared_instance_client`. Upstream site: test
+files only.
+
+Fork commits `e529730c`, `84d90f75`, `9b2e20a6`, `0df584b1`, `b4a941d8`,
+`59b66d8e`, `257c180d`, `8559e395`, `6fed34de`, `dffe6f9b`, `134140fb`,
+`df914502`, `692d9327`, `e5e3bc88`, `d632c5e9`, `4fd3a8dc`, `4994a8f1`,
+`cfb0f62f`, `220a4794` and `fd10554b`: release 0.15.1. The first pins a shared-instance
+usage example in the crate README (`crates/libs/rns-transport/README.md`):
+the `## Attaching to a shared instance` section gains one rust fence
+showing attach, destination plus request handler, the on-demand announce
+and detach, which the new `crates/libs/rns-transport/tests/shared_instance_api.rs`
+runs verbatim against an in-process loopback `TcpServer` shared instance
+and reads the announce back as a path response at one hop;
+`crates/apps/reticulumd/tests/fork_release_docs_contract.rs` adds that
+file to the pin list, raises the snippet floor to five and requires
+exactly one rust fence in the section, pinned by that test. The second
+makes `attach_shared_instance`
+(`crates/libs/rns-transport/src/transport/links_parts/transport_sections/shared_instance.rs`)
+warn once under the links target, naming the transport and the address,
+when a `Tcp` endpoint's address is not loopback, before any lock is taken;
+the attach proceeds unchanged, the rustdoc, the README section and the
+divergence register say so, and the fixture
+`crates/libs/rns-transport/src/transport/tests_parts/two_transport_shared_instance_endpoint_warn.rs`,
+included from `crates/libs/rns-transport/src/transport/tests.rs`, pins
+one warning for `10.255.255.1:1` and a quiet detach and stop. The third
+makes `ResourceManager::conclude_outbound`
+(`crates/libs/rns-transport/src/resource/outcome.rs`) log a debug line
+naming the resource hash and the link when the `OutboundOutcome` receiver
+was dropped before the verdict, in place of an ignored send. The fourth
+adds the fork publish and release-docs contract tests and the
+breaking-change compile-fail harness to the contracts job of
+`.github/workflows/ci-full.yml`, as the pull-request lane already ran
+them. The fifth makes `tools/scripts/check-publish-tag-version.sh` strip
+a leading `refs/tags/` from `PUBLISH_REF` before the prefix test, so a
+caller passing `github.ref` is checked rather than let through; the
+mismatched-tag test in
+`crates/apps/reticulumd/tests/fork_publish_contract.rs` covers the
+full-ref accept and reject cases and the README release section names
+the accepted form. The sixth adds the release notes for the endpoint
+warning and the outcome fix to the crate `CHANGELOG.md`. The seventh
+bumps the crate version to 0.15.1 at every manifest, consumer-snippet and
+contract-test site, regenerates `Cargo.lock` and
+`crates/libs/rns-transport/fuzz/Cargo.lock`, promotes `## Unreleased` to
+`## 0.15.1 - 2026-10-21` in the crate `CHANGELOG.md` with a version bullet
+and no `### Breaking` subsection, and adds the 0.15.1 paragraph to the
+README patch list. The eighth adds
+`crates/libs/rns-transport/src/transport/tests_parts/two_transport_shared_instance_probe12.rs`,
+included from `crates/libs/rns-transport/src/transport/tests.rs`, pinning
+the warning's boundary (`[::1]` never warns, `[::ffff:10.255.255.1]` warns
+once, an attach after a detach warns once per attach), and a test in
+`crates/apps/reticulumd/tests/fork_publish_contract.rs` that the
+`contracts` job of `.github/workflows/ci-full.yml` carries every `cargo
+test` step the one in `ci.yml` runs. The ninth moves the warning in
+`crates/libs/rns-transport/src/transport/links_parts/transport_sections/shared_instance.rs`
+after the first critical section, so an attach refused by the slot or the
+cancel warns nothing, and reads the address through
+`IpAddr::to_canonical`, so `[::ffff:127.0.0.1]` is quiet; the endpoint
+warn fixture gains the refused-attach pin and the rustdoc says the warning
+is per accepted attach. The tenth makes the live test's announce oracle a
+genuine rebroadcast:
+`crates/apps/reticulumd/tests/python_channel_interop_parts/python_shared_instance_live.rs`
+announces again once the Python client's ready line is seen, after waiting
+out the first announce's emitted second, and
+`crates/apps/reticulumd/tests/support/python_shared_instance_client.py`
+drops `receive_path_responses` from its handler so `announce_received`
+fires only on rnsd's live re-send to its other local clients
+(`RNS/Transport.py:2398-2430`); the client also takes `--app-name`,
+`--aspect`, `--request-path` and `--request-data`, passed by
+`spawn_shared_instance_client` in
+`crates/apps/reticulumd/tests/support/python_channel_process.rs` from the
+Rust constants, and refuses to build the link when the recalled identity
+under that name does not hash to the argv hash; the same commit renames
+the rnsd config string, names the `LOG_PATHING` floor on the loglevel
+line and joins the log tail's drain threads in `Drop`. The eleventh makes
+the full-ref accept case in
+`crates/apps/reticulumd/tests/fork_publish_contract.rs` assert the skip
+line is absent and adds the `refs/tags/` strip line to the token pin. The
+twelfth rewords `crates/libs/rns-transport/tests/shared_instance_api.rs`
+and the README section so the one-hop reading is attributed to the plain
+`TcpServer`, with rnsd and reticulumd reading zero
+(`RNS/Transport.py:1938`), leaving the pinned snippet lines untouched. The
+thirteenth applies review nits: the CHANGELOG parenthetical that still
+named the Unreleased checks, a README paragraph break before the endpoint
+warning, the divergence register's sentence naming itself plus this file
+as the parity ledger for fork-only rows, and the undelivered verdict on
+the debug line in `crates/libs/rns-transport/src/resource/outcome.rs`.
+The fourteenth adds the release notes for the warning placement, the
+live-rebroadcast oracle and the ci-full twin pin to the crate
+`CHANGELOG.md`. The fifteenth registers the live test's destination before
+the attach, so the registration announce a destination added under the
+posture gets 250 ms later cannot land in the second after the explicit
+early announce and move rnsd's timebase past the second announce
+(`RNS/Transport.py:2238`), and takes the guard instant after the early
+announce returns so it bounds the emission time from above.
+The sixteenth adds
+`crates/libs/rns-transport/src/transport/tests_parts/two_transport_shared_instance_probe13.rs`,
+included from `crates/libs/rns-transport/src/transport/tests.rs`, pinning
+the two edges the warning's rustdoc states: `[::ffff:127.0.0.1]` never
+warns, and an attach refused after stop returns `InvalidArgument` and
+warns nothing even for a non-loopback endpoint. The seventeenth makes
+`emit` in `crates/apps/reticulumd/tests/support/python_shared_instance_client.py`
+write under `RNS.logging_lock` (`RNS/__init__.py:89`, held by `RNS.log` at
+`:129-133`) so a report cannot interleave with an RNS log line, adds the
+zero-hop assertion on the Python client's announce report to
+`crates/apps/reticulumd/tests/python_channel_interop_parts/python_shared_instance_live.rs`,
+adds `RNS/Interfaces/LocalInterface.py:109` and `RNS/Transport.py:1938` to
+the README cite list in `crates/apps/reticulumd/tests/fork_release_docs_contract.rs`,
+and makes this section's closing sentence plural. The eighteenth adopts
+`crates/apps/reticulumd/tests/python_channel_interop_parts/python_shared_instance_client_emit.rs`,
+included from `crates/apps/reticulumd/tests/python_channel_interop.rs`,
+which imports the Python client helper as a module through
+`run_shared_instance_client_helper_script` in
+`crates/apps/reticulumd/tests/support/python_channel_process.rs` and races
+`emit` against four `RNS.log` threads for a second, asserting every stdout
+line is a whole log line or a whole report. The nineteenth adds the
+`iface=<hash>` field to the non-loopback endpoint warning in
+`crates/libs/rns-transport/src/transport/links_parts/transport_sections/shared_instance.rs`,
+as its sibling lines carry, and rewords
+`crates/libs/rns-transport/src/transport/tests_parts/two_transport_shared_instance_endpoint_warn.rs`
+to say the detach and the stop add no warning on the links target; makes
+the `--app-name`, `--aspect`, `--request-path` and `--request-data` arguments of
+`crates/apps/reticulumd/tests/support/python_shared_instance_client.py`
+required and names the mismatch report's hash `derived`; pins the
+tag-guard mismatch cases in `crates/apps/reticulumd/tests/fork_publish_contract.rs`
+to exit 1; and drops the redundant port wait in
+`crates/apps/reticulumd/tests/python_channel_interop_parts/python_shared_instance_live.rs`,
+which followed rnsd's "Started shared instance interface" line, logged
+after the listener is already bound.
+The twentieth adopts
+`crates/libs/rns-transport/src/transport/tests_parts/two_transport_shared_instance_probe14.rs`,
+included from `crates/libs/rns-transport/src/transport/tests.rs`, pinning
+the `iface=<hash>` token the nineteenth added: it is the interface the
+attach returned, whole, placed before the `endpoint <addr>` clause, equal
+to the token on the attach debug line, and a second attach after a detach
+names its own interface; the same commit makes the header of
+`crates/apps/reticulumd/tests/python_channel_interop_parts/python_shared_instance_client_emit.rs`
+state the measured glued-line rate of the unlocked `emit` as under one per cent.
+The ledger-only commits that complete this section are
+omitted by convention.
 
 ## 0.15.0 (upstream 0.14.0)
 

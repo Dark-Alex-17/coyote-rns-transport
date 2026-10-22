@@ -25,7 +25,7 @@ breaks the fork's public API, the next patch digit otherwise.
 
 ```toml
 [dependencies]
-coyote-rns-transport = "0.15.0"
+coyote-rns-transport = "0.15.1"
 ```
 
 ```rust
@@ -337,6 +337,115 @@ return promptly and must not call back into the transport. A later call
 replaces it; without one every plain advertisement is accepted, which is
 not Python's default (see Known divergences).
 
+## Attaching to a shared instance
+
+`Transport::attach_shared_instance(SharedInstanceEndpoint, SharedInstanceOptions)`
+spawns a `TcpClient` for a `SharedInstanceEndpoint::Tcp(SocketAddr)`, or on
+unix targets a `LocalUnixClient` for `Unix`, marks that interface as the shared
+instance, sets the transport's client posture, synthesizes a tunnel on it (at
+attach and again on every reconnect) and returns the interface address: the
+posture of a Python program
+attaching to the instance that owns `shared_instance_port`
+(`RNS/Reticulum.py:422-441`; the default port is `:295`), with the
+client-side hop count of `RNS/Transport.py:1940` and the transport header
+on one-hop paths of `:1416-1427`. One shared instance is held at a time:
+`shared_instance()` reports the attached interface, a second call returns
+`RnsError::InvalidArgument` until `detach_shared_instance()` removes the
+first (it returns `bool`, `false` when nothing was attached), and
+`Transport::stop()` removes it too. Only those two release the held slot:
+stopping or removing the interface directly with `stop_interface` or
+`remove_interface` leaves it held, and a later attach is refused until
+detach; an attach after `stop()` has cancelled the transport is refused with
+`RnsError::InvalidArgument` too. `reconnect_wait` (default 8 s,
+`RNS/Interfaces/LocalInterface.py:54`) is honoured by both the unix and the
+TCP client (`TcpClient::with_reconnect_wait`; the client's own default stays
+5 s) and clamped to at least 1 ms by both: the unix client sleeps it before
+every redial, a dropped stream's first included, as Python's reconnect loop
+does (`RNS/Interfaces/LocalInterface.py:159-160`); the TCP client redials
+at once after a drop and sleeps it from the second consecutive short-lived
+connection on, one that lasted under `MIN_STABLE_CONNECTION` (2 s); a
+connection that outlived the window resets the streak. While
+attached, a `SINGLE` destination is announced as a path
+response 0.25 s after `register_destination` (`RNS/Transport.py:2911-2916`,
+the context of `RNS/Destination.py:308-315`), and
+`Transport::announce_destinations_to_shared_instance` sends that announce
+for every registered destination on demand. On every reconnect the tunnel is
+re-synthesized at once and every registered single destination is
+re-announced as a path response `reconnect_wait` plus 2 s later, if the
+transport is still attached then (`RNS/Transport.py:3705-3709`,
+`RNS/Interfaces/LocalInterface.py:178-181`). A dropped connection, as
+opposed to a detach or a stop, tears down every active and pending link,
+sending a LINKCLOSE packet to the peer of each active link on the interface
+it rides, as Python's `Link.teardown` does for active links
+(`RNS/Link.py:657-668`), so a peer reached over another interface learns
+the close from the wire, and
+clears the path, announce, link and tunnel tables, the held announces and
+the packet cache's reverse routes, Python's `reverse_table`
+(`RNS/Transport.py:3690-3702`, `RNS/Interfaces/LocalInterface.py:255-261`),
+and with them the fork's own announce cache tier and its interface-tunnel
+index, which have no Python twin;
+a queued disconnect is served before the reconnect behind it, so the flush
+never lands after that cycle's tunnel. While attached, the duplicate filter
+inserts nothing and consults nothing (`RNS/Transport.py:1618-1627`): the
+owner deduplicates. The packet cache's other halves are still written: the
+source notes `handle_data` records for received Data packets share the cache
+and are seen as duplicates once the transport detaches, and the hash of each
+packet sent is the receipt guard. A transport whose connected posture is set
+directly, as reticulumd's own bootstrap does, rather than through
+`attach_shared_instance` gets the registration announce, whose trigger is the
+posture alone, but not the reconnect re-announce and the drop flush, which
+live in the attach's consumer task. `Transport::stop` joins the tasks the
+client spawns (the delayed announces and the reconnect consumer) within its
+budget, so none runs on a stopped transport.
+
+A `Tcp` endpoint whose address is not loopback is accepted and warned about
+once at attach, since Python's `LocalClientInterface` connects to `127.0.0.1`
+only (`RNS/Interfaces/LocalInterface.py:109`).
+
+A client that attaches, registers a destination with a request handler,
+announces it to the owner on demand and detaches, with `endpoint` the owner's
+`SocketAddr`:
+
+```rust
+use std::sync::Arc;
+use rns_transport::destination::request::{InboundRequest, RequestAllow, RequestResponse};
+use rns_transport::destination::DestinationName;
+use rns_transport::identity::PrivateIdentity;
+use rns_transport::rand_core::OsRng;
+use rns_transport::transport::{SharedInstanceEndpoint, SharedInstanceOptions};
+
+let iface = transport
+    .attach_shared_instance(
+        SharedInstanceEndpoint::Tcp(endpoint),
+        SharedInstanceOptions::default(),
+    )
+    .await?;
+let identity = PrivateIdentity::new_from_rand(OsRng);
+let destination =
+    transport.add_destination(identity, DestinationName::new("example", "echo")).await;
+destination.lock().await.register_request_handler(
+    "/echo",
+    Arc::new(|request: InboundRequest| async move {
+        Some(RequestResponse::Value(request.into_data()))
+    }),
+    RequestAllow::All,
+    true,
+)?;
+let announced = transport.announce_destinations_to_shared_instance().await;
+assert_eq!(announced, 1);
+assert!(transport.detach_shared_instance().await);
+```
+
+`crates/libs/rns-transport/tests/shared_instance_api.rs` runs this snippet
+verbatim against an in-process shared instance, a transport-enabled node with
+a `TcpServer` on 127.0.0.1, and reads the announce back as a path response.
+That plain server reads it at one hop; rnsd and reticulumd flag their
+listener as the shared instance and read a local client's announce at zero
+(`RNS/Transport.py:1938`). `crates/apps/reticulumd/tests/python_channel_interop_parts/python_shared_instance_live.rs`
+attaches this crate to a Python `rnsd` (RNS 1.5.2) shared instance on a free
+port next to a Python local client and proves the zero-hop path, announce and
+`Link.request` both ways, over TCP everywhere and over an abstract unix socket on Linux.
+
 ## Known divergences from Python RNS
 
 Where this crate is known to behave differently from RNS 1.5.2. Each entry
@@ -347,6 +456,8 @@ the ref the `verify.yml` interop workflow checks out.
 The register covers the divergences the fork introduced; behaviour
 inherited from upstream `reticulum-rs-transport` is not catalogued here,
 except where a fork change made it visible, and such an entry says so.
+For fork-only parity rows this register plus `docs/fork/PATCHSET.md` are the
+parity ledger; the `docs/status/*` matrices are not updated per fork task.
 
 - A request timeout fails a receipt in any status except `Receiving`, the
   packet form in `Sent` included, with `RequestError::Timeout`. Python only
@@ -432,6 +543,32 @@ except where a fork change made it visible, and such an entry says so.
   with no retries, then cancels (`RNS/Resource.py:643-650`); its
   `retries_left` budget applies while advertised (`:588-590`) and while
   awaiting the proof (`:659-661`).
+- `attach_shared_instance` does not force transport, remote management or
+  probes off as Python does (`RNS/Reticulum.py:438-440`): the caller keeps
+  `transport_enabled` as configured. And the client synthesizes a tunnel at
+  attach and again on every reconnect, which Python's `LocalClientInterface`
+  never does (`RNS/Interfaces/LocalInterface.py` has no tunnel code;
+  `wants_tunnel` is set by network-facing clients such as
+  `RNS/Interfaces/TCPInterface.py:179`).
+- `attach_shared_instance` accepts any `SocketAddr` for a `Tcp` endpoint and
+  warns once at attach when the address is not loopback. Python's
+  `LocalClientInterface` connects to `127.0.0.1` only
+  (`RNS/Interfaces/LocalInterface.py:109`).
+- The reverse-routing source notes live in the same cache as the duplicate
+  filter, so a Data packet received while attached to a shared instance is
+  treated as seen after a detach. Python's `add_packet_hash` guard
+  (`RNS/Transport.py:1618-1627`) keeps `packet_hashlist` empty of it, since
+  `reverse_table` is a separate dict there, and the shared-instance drop
+  flush keeps those notes' hashes in the cache too.
+- On the shared-instance drop, and in any `Link::teardown`, a link still in
+  `Handshake` is closed without a LINKCLOSE: `Link::teardown` builds the
+  packet only for `Active` and `Stale`. Python sends one for every status
+  but `PENDING` (`RNS/Link.py:668`).
+- The TCP shared-instance client redials at once after a drop that ended a
+  connection of at least `MIN_STABLE_CONNECTION` (2 s), and after the first
+  short-lived one; Python's `LocalClientInterface` sleeps `RECONNECT_WAIT`
+  before every redial (`RNS/Interfaces/LocalInterface.py:159-160`). The
+  unix client follows Python.
 
 Not divergences:
 
@@ -459,15 +596,41 @@ Release notes live in this crate's `CHANGELOG.md`. The per-release ledger of
 every file changed since the previous release, with the commit that changed
 it, is `docs/fork/PATCHSET.md`. A release is published by pushing the tag
 `coyote-rns-transport-v<version>`: `tools/scripts/check-publish-tag-version.sh`
-checks that the tag matches the crate version and
+checks that the tag matches the crate version, taking the tag bare or as the
+full `refs/tags/coyote-rns-transport-v<version>` ref, and
 `.github/workflows/publish-coyote-rns-transport.yml` runs the publish.
 
 ## Patch list
 
 `docs/fork/PATCHSET.md` is the single per-release ledger of every file changed
 since the previous release, with the commit that changed it and the upstream
-site; earlier sections carry the earlier patches. What `0.15.0` carries on top
-of `0.14.1`:
+site; earlier sections carry the earlier patches. What `0.15.1` carries on top
+of `0.15.0`:
+
+- The shared-instance client: `Transport::attach_shared_instance` and
+  `detach_shared_instance`, `SharedInstanceEndpoint` and
+  `SharedInstanceOptions`, `announce_destinations_to_shared_instance`, the
+  path-response announce of a destination registered while attached, the
+  re-announce after a reconnect, and the LINKCLOSE teardown and table flush
+  when the connection drops.
+- `TcpClient::with_reconnect_wait` and the matching redial wait in
+  `LocalUnixClient`, both honoured by `attach_shared_instance`.
+- The duplicate filter inserts nothing and consults nothing while attached,
+  as Python's `add_packet_hash` guard keeps `packet_hashlist` empty in that
+  mode; the `## Known divergences from Python RNS` entry on the reverse-routing
+  source notes describes what the cache still records.
+- A warning, once per attach, when a `Tcp` shared-instance endpoint is not
+  loopback.
+- The live interop test that attaches to a Python `rnsd` shared instance and
+  exchanges requests both ways.
+- The usage example under `## Attaching to a shared instance`, pinned
+  verbatim by `tests/shared_instance_api.rs`.
+- Release hygiene: ci-full runs the fork contracts and the compile-fail
+  harness as PR CI does, the publish tag guard takes the full `refs/tags/`
+  form, and `ResourceManager::conclude_outbound` logs a dropped outcome
+  receiver instead of discarding the send.
+
+What `0.15.0` carries on top of `0.14.1`:
 
 - The link request layer: the `RequestFrame` and `ResponseFrame` wire frames,
   request handlers with allow policies and size caps, `Transport::request`

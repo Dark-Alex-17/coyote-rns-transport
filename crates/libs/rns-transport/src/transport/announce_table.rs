@@ -123,6 +123,13 @@ impl AnnounceCache {
         newer_len + older_len
     }
 
+    pub fn clear(&mut self) -> usize {
+        let cleared = self.len();
+        self.newer = Some(BTreeMap::new());
+        self.older = None;
+        cleared
+    }
+
     fn evict_one(&mut self) {
         if let Some(ref mut older) = self.older {
             if let Some(first_key) = older.keys().next().cloned() {
@@ -173,6 +180,18 @@ impl AnnounceTable {
         };
 
         self.map.insert(destination, entry);
+    }
+
+    /// Drops the retransmission queue, the pending path responses and the
+    /// bounded cache, keeping the capacity and retry limit, and returns how
+    /// many entries the three held together: Python's
+    /// `Transport.announce_table = {}` (`RNS/Transport.py:3697`). The
+    /// in-memory cache tier is the fork's own and has no Python twin.
+    pub fn clear(&mut self) -> usize {
+        let queued = self.map.len() + self.responses.len();
+        self.map.clear();
+        self.responses.clear();
+        queued + self.cache.clear()
     }
 
     /// Queue an announce received from a local shared-instance client.

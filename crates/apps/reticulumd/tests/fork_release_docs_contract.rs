@@ -19,7 +19,7 @@ fn read_repo_file(relative: &str) -> String {
 
 /// The source files the fork added over the upstream baseline: every public
 /// item in them is fork-new.
-const FORK_NEW_FILES: [&str; 7] = [
+const FORK_NEW_FILES: [&str; 11] = [
     "crates/libs/rns-transport/src/destination/request/allow.rs",
     "crates/libs/rns-transport/src/destination/request/frame.rs",
     "crates/libs/rns-transport/src/destination/request/handler.rs",
@@ -27,6 +27,10 @@ const FORK_NEW_FILES: [&str; 7] = [
     "crates/libs/rns-transport/src/destination/request/inbound.rs",
     "crates/libs/rns-transport/src/destination/request/receipt.rs",
     "crates/libs/rns-transport/src/resource/outcome.rs",
+    "crates/libs/rns-transport/src/transport/links_parts/transport_sections/shared_instance.rs",
+    "crates/libs/rns-transport/src/transport/links_parts/transport_sections/shared_instance_announce.rs",
+    "crates/libs/rns-transport/src/transport/links_parts/transport_sections/shared_instance_reconnect.rs",
+    "crates/libs/rns-transport/src/transport/shared_instance.rs",
 ];
 
 fn crate_version() -> String {
@@ -326,7 +330,7 @@ fn request_layer_public_items_cite_python_or_say_fork_only() {
     }
 
     assert!(
-        checked >= 91,
+        checked >= 132,
         "the request layer should expose the receipt, frame, handler and outcome surface; found only {checked} public items"
     );
     assert!(
@@ -363,6 +367,7 @@ fn fork_new_public_structs_keep_their_fields_private() {
         "RequestReceipt",
         "RequestResponseData",
         "ResponseFrame",
+        "SharedInstanceOptions",
     ];
     let mut found = Vec::new();
     let mut exposed = Vec::new();
@@ -456,15 +461,7 @@ fn fork_new_public_structs_keep_their_fields_private() {
 #[test]
 fn crate_readme_known_divergences_cite_python_lines() {
     let readme = read_repo_file("crates/libs/rns-transport/README.md");
-    let heading = "\n## Known divergences from Python RNS\n";
-    let start = readme
-        .find(heading)
-        .expect("crate README should carry a `## Known divergences from Python RNS` section");
-    let section = &readme[start + heading.len()..];
-    let section = match section.find("\n## ") {
-        Some(end) => &section[..end],
-        None => section,
-    };
+    let section = crate_readme_section(&readme, "Known divergences from Python RNS");
 
     // Entries are top-level bullets; continuation lines are indented.
     let entries: Vec<String> = section
@@ -498,6 +495,111 @@ fn crate_readme_known_divergences_cite_python_lines() {
         section.contains("\nNot divergences:\n"),
         "the register should separate API-shape facts under `Not divergences:`"
     );
+}
+
+/// The crate README's `## Attaching to a shared instance` section carries
+/// exactly one `rust` fence, the attach, handler, announce and detach
+/// snippet, and no fence of any other kind; every line of that snippet is
+/// run verbatim by `crates/libs/rns-transport/tests/shared_instance_api.rs`
+/// against an in-process shared instance, under the same squash and skip
+/// rules as `crate_readme_rust_snippets_are_pinned_verbatim_by_the_api_tests`.
+#[test]
+fn crate_readme_shared_instance_section_fence_is_pinned_by_the_api_test() {
+    let readme = read_repo_file("crates/libs/rns-transport/README.md");
+    let section = crate_readme_section(&readme, "Attaching to a shared instance");
+    let fences: Vec<&str> =
+        section.lines().map(str::trim_start).filter(|line| line.starts_with("```")).collect();
+    assert_eq!(
+        fences,
+        vec!["```rust", "```"],
+        "the shared-instance section should carry exactly one rust fence and no other"
+    );
+    let snippet: Vec<&str> = section
+        .lines()
+        .skip_while(|line| line.trim_start() != "```rust")
+        .skip(1)
+        .take_while(|line| line.trim_start() != "```")
+        .collect();
+    assert!(!snippet.is_empty(), "the shared-instance snippet should not be empty");
+
+    let pin = squash(&read_repo_file("crates/libs/rns-transport/tests/shared_instance_api.rs"));
+    let unpinned: Vec<&str> = snippet
+        .iter()
+        .map(|line| line.trim())
+        .filter(|line| !line.is_empty() && !line.starts_with("use ") && !line.starts_with("//"))
+        .filter(|line| {
+            let needle = match line.split_once(" => ") {
+                Some((pattern, _)) => squash(pattern),
+                None => squash(line),
+            };
+            !pin.contains(&needle)
+        })
+        .collect();
+    assert!(
+        unpinned.is_empty(),
+        "every line of the shared-instance snippet should appear verbatim in tests/shared_instance_api.rs:\n{}",
+        unpinned.join("\n")
+    );
+}
+
+/// Snippet text with every whitespace character removed and a pin's leading
+/// underscore on an unused pattern binding dropped, the form the README
+/// snippet lines are matched against the public-API pin files in.
+fn squash(text: &str) -> String {
+    text.chars().filter(|c| !c.is_whitespace()).collect::<String>().replace("(_", "(")
+}
+
+/// The body of the crate README section under `## <heading>`, up to the next
+/// `## ` heading.
+fn crate_readme_section<'a>(readme: &'a str, heading: &str) -> &'a str {
+    let marker = format!("\n## {heading}\n");
+    let start = readme
+        .find(&marker)
+        .unwrap_or_else(|| panic!("crate README should carry a `## {heading}` section"));
+    let section = &readme[start + marker.len()..];
+    match section.find("\n## ") {
+        Some(end) => &section[..end],
+        None => section,
+    }
+}
+
+/// The shared-instance section's parity claims each point at the Python
+/// they mirror: the delayed registration announce, the reappearance
+/// re-announce and its delay, the disappearance flush and the guard that
+/// runs it only while attached, the drop teardown's LINKCLOSE, the redial
+/// wait, and the hashlist the owner keeps. Neither it nor the divergence
+/// register may describe any of it as still pending: everything the section
+/// claims is mirrored.
+#[test]
+fn crate_readme_shared_instance_section_cites_the_parity_lines() {
+    let readme = read_repo_file("crates/libs/rns-transport/README.md");
+    let section = crate_readme_section(&readme, "Attaching to a shared instance");
+    for cite in [
+        "`RNS/Transport.py:2911-2916`",
+        "`RNS/Transport.py:3705-3709`",
+        "`RNS/Transport.py:3690-3702`",
+        "`RNS/Transport.py:1618-1627`",
+        "`RNS/Interfaces/LocalInterface.py:178-181`",
+        "`RNS/Link.py:657-668`",
+        "`RNS/Interfaces/LocalInterface.py:159-160`",
+        "`RNS/Interfaces/LocalInterface.py:255-261`",
+        "`RNS/Interfaces/LocalInterface.py:109`",
+        "`RNS/Transport.py:1938`",
+    ] {
+        assert!(
+            section.contains(cite),
+            "the shared-instance section should cite {cite}:\n{section}"
+        );
+    }
+    let divergences = crate_readme_section(&readme, "Known divergences from Python RNS");
+    for (name, text) in [("shared-instance", section), ("divergence", divergences)] {
+        for pending in ["not yet mirrored", "does not yet"] {
+            assert!(
+                !text.contains(pending),
+                "the {name} section should not call anything pending ({pending:?}):\n{text}"
+            );
+        }
+    }
 }
 
 /// A release whose minor digit moved against the previous release heading
@@ -600,14 +702,12 @@ fn crate_readme_rust_snippets_are_pinned_verbatim_by_the_api_tests() {
         "crates/libs/rns-transport/tests/request_handler_api.rs",
         "crates/libs/rns-transport/tests/outbound_outcome_api.rs",
         "crates/libs/rns-transport/tests/request_receipt_api.rs",
+        "crates/libs/rns-transport/tests/shared_instance_api.rs",
     ]
     .iter()
     .map(|path| read_repo_file(path))
     .collect::<Vec<_>>()
     .join("\n");
-    let squash = |text: &str| {
-        text.chars().filter(|c| !c.is_whitespace()).collect::<String>().replace("(_", "(")
-    };
     let pins = squash(&pins);
 
     let mut snippets = Vec::new();
@@ -624,8 +724,8 @@ fn crate_readme_rust_snippets_are_pinned_verbatim_by_the_api_tests() {
         }
     }
     assert!(
-        snippets.len() >= 4,
-        "the README should carry the consumer, handler, request and outcome snippets, found {}",
+        snippets.len() >= 5,
+        "the README should carry the consumer, handler, request, outcome and shared-instance snippets, found {}",
         snippets.len()
     );
 
@@ -671,6 +771,7 @@ fn enums_the_docs_call_non_exhaustive_carry_the_attribute() {
         ("LinkEvent", "crates/libs/rns-transport/src/destination/link_parts/linkhandleresult.rs"),
         ("ResourceEventKind", "crates/libs/rns-transport/src/resource.rs"),
         ("AnnounceEvent", "crates/libs/rns-transport/src/transport/mod.rs"),
+        ("SharedInstanceEndpoint", "crates/libs/rns-transport/src/transport/shared_instance.rs"),
     ];
     for (item, file) in sites {
         let source = read_repo_file(file);

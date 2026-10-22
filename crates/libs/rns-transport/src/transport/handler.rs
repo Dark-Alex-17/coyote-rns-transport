@@ -208,6 +208,7 @@ impl TransportHandler {
 
     pub(super) async fn send(&self, message: TxMessage) -> TxDispatchTrace {
         let packet = message.packet.clone();
+        // Unguarded on purpose: receipt guard, see filter_duplicate_packet / PacketCache::update.
         self.packet_cache.lock().await.update(&packet);
         let announce_policy = if packet.header.packet_type == PacketType::Announce
             && matches!(message.tx_type, TxMessageType::Broadcast(_))
@@ -463,6 +464,22 @@ impl TransportHandler {
                     peer,
                 );
             }
+        }
+    }
+
+    pub(super) fn local_hops_delta_for_packet(&self, packet: &Packet) -> Option<u8> {
+        let local_hops_delta = self.config.local_hops_delta;
+        if self.config.connected_to_shared_instance
+            || packet.header.hops != 0
+            || local_hops_delta == 0
+            || matches!(
+                packet.header.destination_type,
+                DestinationType::Plain | DestinationType::Group
+            )
+        {
+            None
+        } else {
+            Some(local_hops_delta)
         }
     }
 }

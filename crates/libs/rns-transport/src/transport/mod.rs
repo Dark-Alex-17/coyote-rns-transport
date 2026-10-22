@@ -307,24 +307,6 @@ struct QueuedInbound {
     path_request: Option<PathRequest>,
 }
 
-impl TransportHandler {
-    fn local_hops_delta_for_packet(&self, packet: &Packet) -> Option<u8> {
-        let local_hops_delta = self.config.local_hops_delta;
-        if self.config.connected_to_shared_instance
-            || packet.header.hops != 0
-            || local_hops_delta == 0
-            || matches!(
-                packet.header.destination_type,
-                DestinationType::Plain | DestinationType::Group
-            )
-        {
-            None
-        } else {
-            Some(local_hops_delta)
-        }
-    }
-}
-
 pub struct Transport {
     name: String,
     link_in_event_tx: broadcast::Sender<LinkEventData>,
@@ -336,6 +318,16 @@ pub struct Transport {
     iface_manager: Arc<Mutex<InterfaceManager>>,
     cancel: CancellationToken,
     manage_task: std::sync::Mutex<Option<tokio::task::JoinHandle<()>>>,
+    shared_instance: std::sync::Mutex<Option<AddressHash>>,
+    /// Fork-only: the tasks the shared-instance client spawns, namely each
+    /// attach's reconnect consumer, the delayed registration announces and
+    /// the delayed re-announces after a reconnect. Python runs these as
+    /// threads it never joins (`RNS/Transport.py:2911-2916`,
+    /// `RNS/Interfaces/LocalInterface.py:178-181`); here [`Self::stop`] joins
+    /// them within its budget, since a task that outlived the stop would
+    /// announce on a stopped transport. Shared with the consumers, which
+    /// spawn their re-announces through it.
+    shared_instance_tasks: Arc<std::sync::Mutex<tokio::task::JoinSet<()>>>,
 }
 
 #[derive(Debug, Clone, Copy, Default, PartialEq)]
@@ -486,6 +478,9 @@ mod resource_accept_hook;
 pub use resource_accept_hook::ResourceAcceptHook;
 // resource_wire: link-scoped resource packet handling on inbound wire paths.
 mod resource_wire;
+// shared_instance: endpoint and options for attaching as a shared-instance client.
+mod shared_instance;
+pub use shared_instance::{SharedInstanceEndpoint, SharedInstanceOptions};
 // wire_encryption: packet-context policy for transport-layer encryption.
 mod wire_encryption;
 // wire_receipt: proof correlation and cryptographic receipt validation.

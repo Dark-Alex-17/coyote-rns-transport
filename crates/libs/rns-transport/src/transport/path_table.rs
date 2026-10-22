@@ -125,6 +125,14 @@ impl PathTable {
         self.map.get(destination).map(|entry| entry.iface)
     }
 
+    /// Drops every path and returns how many there were: Python's
+    /// `Transport.path_table = {}` (`RNS/Transport.py:3698`).
+    pub fn clear(&mut self) -> usize {
+        let cleared = self.map.len();
+        self.map.clear();
+        cleared
+    }
+
     pub fn expire_path(&mut self, destination: &AddressHash) -> bool {
         self.map.remove(destination).is_some()
     }
@@ -432,9 +440,9 @@ impl PathTable {
 #[path = "path_table_codec.rs"]
 mod path_table_codec;
 pub(super) use path_table_codec::{
-    bounded_random_blobs, decode_python_entry, decode_random_blobs, newest_random_blob_timebase,
-    path_expired_for_mode, path_timeout_for_mode, random_blob_timebase,
-    should_replace_path_with_policy,
+    bounded_random_blobs, decode_address_hash, decode_f64, decode_hash, decode_python_entry,
+    decode_random_blobs, decode_u8, newest_random_blob_timebase, path_expired_for_mode,
+    path_timeout_for_mode, random_blob_timebase, should_replace_path_with_policy,
 };
 
 include!("path_table_tunnel_restore.rs");

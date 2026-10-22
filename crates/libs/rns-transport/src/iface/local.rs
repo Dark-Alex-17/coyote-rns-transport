@@ -317,6 +317,7 @@ pub struct LocalUnixClient {
     forced_bitrate_bps: Option<u64>,
     reconnect_wait: Duration,
     reconnect_events: Option<tokio::sync::mpsc::Sender<crate::hash::AddressHash>>,
+    disconnect_events: Option<tokio::sync::mpsc::Sender<crate::hash::AddressHash>>,
 }
 
 impl LocalUnixClient {
@@ -331,6 +332,7 @@ impl LocalUnixClient {
             forced_bitrate_bps: None,
             reconnect_wait: Self::DEFAULT_RECONNECT_WAIT,
             reconnect_events: None,
+            disconnect_events: None,
         }
     }
 
@@ -344,6 +346,7 @@ impl LocalUnixClient {
             forced_bitrate_bps: None,
             reconnect_wait: Self::DEFAULT_RECONNECT_WAIT,
             reconnect_events: None,
+            disconnect_events: None,
         }
     }
 
@@ -359,9 +362,16 @@ impl LocalUnixClient {
         self
     }
 
+    /// The wait slept before each connect retry and before each redial after
+    /// an established stream drops, Python's
+    /// `LocalClientInterface.RECONNECT_WAIT`
+    /// (`RNS/Interfaces/LocalInterface.py:54`, slept at `:159-160` before
+    /// every connect attempt of a reconnect). Only the first connect of the
+    /// client's life goes out at once. Clamped to at least 1 ms, as
+    /// `TcpClient::with_reconnect_wait` is.
     #[must_use]
     pub fn with_reconnect_wait(mut self, reconnect_wait: Duration) -> Self {
-        self.reconnect_wait = reconnect_wait;
+        self.reconnect_wait = reconnect_wait.max(Duration::from_millis(1));
         self
     }
 
@@ -371,6 +381,23 @@ impl LocalUnixClient {
         events: tokio::sync::mpsc::Sender<crate::hash::AddressHash>,
     ) -> Self {
         self.reconnect_events = Some(events);
+        self
+    }
+
+    /// Sends the interface address on `events` each time an established
+    /// stream ends while the client is neither cancelled nor stopped; a
+    /// client built from a pre-supplied stream ([`Self::new_from_stream`])
+    /// sends it once, when that stream ends, since it has no endpoint to
+    /// reconnect to. A full channel drops the event at debug. Python's
+    /// shared-instance client treats a socket closed while connected and
+    /// not detached as the shared connection disappearing and
+    /// then reconnects (`RNS/Interfaces/LocalInterface.py:255-261`).
+    #[must_use]
+    pub fn with_disconnect_events(
+        mut self,
+        events: tokio::sync::mpsc::Sender<crate::hash::AddressHash>,
+    ) -> Self {
+        self.disconnect_events = Some(events);
         self
     }
 
@@ -387,6 +414,7 @@ impl LocalUnixClient {
             connect_endpoint,
             reconnect_wait,
             reconnect_events,
+            disconnect_events,
         ) = {
             let mut guard = context.inner.lock().unwrap();
             (
@@ -397,6 +425,7 @@ impl LocalUnixClient {
                 guard.connect_endpoint.clone(),
                 guard.reconnect_wait,
                 guard.reconnect_events.clone(),
+                guard.disconnect_events.clone(),
             )
         };
 
@@ -485,6 +514,27 @@ impl LocalUnixClient {
             }
 
             log::info!("disconnected from local unix client <{}>", addr);
+            if context.cancel.is_cancelled() || iface_stop.is_cancelled() {
+                break;
+            }
+            if let Some(events) = disconnect_events.as_ref() {
+                if let Err(err) = events.try_send(iface_address) {
+                    log::debug!(
+                        "dropped local unix disconnect event iface={} endpoint={} err={}",
+                        iface_address,
+                        addr,
+                        err
+                    );
+                }
+            }
+            // A client built from a stream has nothing to redial and must finish at once.
+            if running {
+                tokio::select! {
+                    _ = context.cancel.cancelled() => break,
+                    _ = iface_stop.cancelled() => break,
+                    _ = tokio::time::sleep(reconnect_wait) => {}
+                }
+            }
         }
 
         iface_stop.cancel();
@@ -780,5 +830,98 @@ mod tests {
 
         assert!(iface_stop.is_cancelled());
         assert_eq!(reconnected_iface, iface_address);
+    }
+
+    #[tokio::test]
+    #[deny(clippy::await_holding_invalid_type)]
+    async fn local_unix_connect_client_reports_disconnect_events_when_the_stream_ends_but_not_on_stop(
+    ) {
+        let temp = tempfile::tempdir().expect("tempdir");
+        let path = temp.path().join("reticulum-local.sock");
+        let endpoint = LocalUnixEndpoint::filesystem(path.clone());
+        let mut manager = InterfaceManager::new(8);
+        let (reconnect_tx, mut reconnect_rx) = tokio::sync::mpsc::channel(32);
+        let (disconnect_tx, mut disconnect_rx) = tokio::sync::mpsc::channel(32);
+        let context = manager.new_context(
+            LocalUnixClient::new_connect(endpoint.clone())
+                .with_reconnect_wait(Duration::from_millis(20))
+                .with_reconnect_events(reconnect_tx)
+                .with_disconnect_events(disconnect_tx),
+        );
+        let iface_address = context.channel.address;
+        let iface_stop = context.channel.stop.clone();
+        let task = tokio::spawn(LocalUnixClient::spawn(context));
+
+        let listener = UnixListener::bind(endpoint.tokio_path()).expect("bind socket");
+        let (first_stream, _) = tokio::time::timeout(Duration::from_secs(2), listener.accept())
+            .await
+            .expect("first connect timed out")
+            .expect("first accept");
+        drop(first_stream);
+        let disconnected_iface = tokio::time::timeout(Duration::from_secs(2), disconnect_rx.recv())
+            .await
+            .expect("disconnect event timed out")
+            .expect("disconnect event");
+        assert_eq!(disconnected_iface, iface_address);
+
+        let (second_stream, _) = tokio::time::timeout(Duration::from_secs(2), listener.accept())
+            .await
+            .expect("reconnect timed out")
+            .expect("second accept");
+        let reconnected_iface = tokio::time::timeout(Duration::from_secs(2), reconnect_rx.recv())
+            .await
+            .expect("reconnect event timed out")
+            .expect("reconnect event");
+        assert_eq!(reconnected_iface, iface_address);
+
+        iface_stop.cancel();
+        drop(second_stream);
+        drop(listener);
+        let _ = remove_socket_file(&path);
+        tokio::time::timeout(Duration::from_secs(2), task)
+            .await
+            .expect("client task timed out")
+            .expect("client task");
+
+        assert!(
+            disconnect_rx.try_recv().is_err(),
+            "a stop while connected is not reported as a disconnect"
+        );
+    }
+
+    /// `with_disconnect_events` rustdoc: a client built from a pre-supplied
+    /// stream (the shape the listener hands out per accepted peer) has no
+    /// endpoint to reconnect to, so when that stream ends it reports the
+    /// disconnect once and its task finishes on its own.
+    #[tokio::test]
+    #[deny(clippy::await_holding_invalid_type)]
+    async fn local_unix_stream_client_reports_one_disconnect_when_the_stream_ends_and_finishes() {
+        let (ours, peer) = UnixStream::pair().expect("unix stream pair");
+        let (disconnect_tx, mut disconnect_rx) = tokio::sync::mpsc::channel(32);
+        let mut manager = InterfaceManager::new(8);
+        let context = manager.new_context(
+            LocalUnixClient::new_from_stream("peer", ours).with_disconnect_events(disconnect_tx),
+        );
+        let iface_address = context.channel.address;
+        let task = tokio::spawn(LocalUnixClient::spawn(context));
+
+        drop(peer);
+
+        let disconnected_iface = tokio::time::timeout(Duration::from_secs(2), disconnect_rx.recv())
+            .await
+            .expect("disconnect event timed out")
+            .expect("disconnect event");
+        assert_eq!(disconnected_iface, iface_address);
+
+        // Nothing is cancelled here: a stream client that ran out of stream
+        // has nowhere to reconnect to and must end by itself.
+        tokio::time::timeout(Duration::from_secs(2), task)
+            .await
+            .expect("a client built from a stream must finish once that stream ends")
+            .expect("client task");
+        assert!(
+            disconnect_rx.try_recv().is_err(),
+            "the end of the pre-supplied stream is reported exactly once"
+        );
     }
 }

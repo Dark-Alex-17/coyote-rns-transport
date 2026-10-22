@@ -52,3 +52,7 @@ include!("python_channel_interop_parts/python_request_size_limits.rs");
 include!("python_channel_interop_parts/python_request_late_reply.rs");
 
 include!("python_channel_interop_parts/python_request_edges.rs");
+
+include!("python_channel_interop_parts/python_shared_instance_live.rs");
+
+include!("python_channel_interop_parts/python_shared_instance_client_emit.rs");

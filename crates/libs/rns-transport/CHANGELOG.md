@@ -3,7 +3,377 @@
 The section layout follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/)
 and versions follow the cargo semver rules described in the crate README.
 Test-only files are not listed as entries of their own; each is named in a
-trailing clause of the bullet for the behaviour it pins.
+trailing clause of the bullet for the behaviour it pins. A fixture hardening
+that changes no library behaviour is the one exception: it is a Changed
+bullet of its own, marked test-only.
+
+## 0.15.1 - 2026-10-21
+
+### Added
+
+- `transport::{SharedInstanceEndpoint, SharedInstanceOptions}` and
+  `Transport::{attach_shared_instance, detach_shared_instance,
+  shared_instance, connected_to_shared_instance}`: the client posture of a
+  Python program attaching to the instance that owns `shared_instance_port`
+  (`RNS/Reticulum.py:422-441`; the port is `:295`, `:491-493`).
+  `attach_shared_instance` spawns a `TcpClient`, or on unix targets a
+  `LocalUnixClient`, at the endpoint, marks that interface as the shared
+  instance, sets the connected flag and synthesizes a tunnel on it at
+  attach (and again on every reconnect, see Changed), so inbound packets
+  take the client-side hop (`RNS/Transport.py:1940`) and
+  outbound packets on one-hop paths carry a transport header
+  (`:1416-1427`); it returns the interface address. One shared instance is
+  held at a time: a second call returns `RnsError::InvalidArgument` until
+  `detach_shared_instance`, which stops the interface and clears the flag,
+  returning `false` when none was attached.
+  `SharedInstanceEndpoint::{Tcp, Unix}` is `#[non_exhaustive]`, with `Unix`
+  present on unix targets only; `SharedInstanceOptions` has private fields
+  and a `with_reconnect_wait` builder, default 8 s
+  (`RNS/Interfaces/LocalInterface.py:54`), honoured by both clients.
+  Pinned by `transport/tests_parts/two_transport_shared_instance.rs`: two
+  clients on one TCP shared instance learn each other at one hop and open
+  links both ways, the shared instance's tunnel table carries a path for
+  each attached client, a second attach is refused, detach and stop release
+  the interface, and a unix attach registers its client before the socket
+  exists and connects once a listener binds, while retrying at the
+  configured reconnect wait. By
+  `transport/tests_parts/two_transport_shared_instance_probe.rs`: the
+  option default and builder, detach on a never-attached transport,
+  concurrent attaches admit one, an attach before the server listens
+  connects once it does, detach silences the relay while re-attach restores
+  one-hop paths, and a refused attach racing a detach leaves the slot and
+  the posture in agreement. By
+  `transport/tests_parts/two_transport_shared_instance_probe2.rs`: the unix
+  flavour end to end, a TCP client retries at a short reconnect wait, stop
+  with a wedged handler still forgets the slot within its budget, and
+  `stop_interface` leaves the slot held until detach. And by
+  `transport/tests_parts/two_transport_shared_instance_probe3.rs`: a detach
+  queued before the attach's posture write wins the slot and the posture
+  stays off, an attach that starts once stop has cancelled is refused and
+  spawns nothing, and attach/detach cycles leave no interface behind. And by
+  `transport/tests_parts/two_transport_shared_instance_probe4.rs`:
+  `remove_interface` leaves the slot held until detach, and a second stop
+  detaches an interface spawned inside the first stop's window. The
+  `non_exhaustive` endpoint, the private option fields and the README
+  claims are pinned by
+  `crates/apps/reticulumd/tests/fork_release_docs_contract.rs`; the release
+  notes and the ledger section are held to
+  `crates/apps/reticulumd/tests/fork_publish_contract.rs` (the cite and
+  ledger checks for the current release). The README's attach,
+  handler, announce and detach snippet is run verbatim from outside the
+  crate by `crates/libs/rns-transport/tests/shared_instance_api.rs` against
+  an in-process TCP shared instance, and
+  `crates/apps/reticulumd/tests/python_channel_interop_parts/python_shared_instance_live.rs`
+  attaches the crate to a Python `rnsd` shared instance next to a Python
+  local client and proves the zero-hop path (rnsd's local-client branch,
+  `RNS/Transport.py:1938`), the Rust announce reaching the Python client
+  at zero hops from that client's view (its own decrement,
+  `RNS/Transport.py:1940`), through rnsd's live
+  rebroadcast to its other local clients (`RNS/Transport.py:2398-2430`;
+  the client's handler takes no path responses, so rnsd's replay of the
+  cached announce cannot stand in for it) and `Link.request` both ways,
+  over TCP everywhere and over an abstract unix socket on Linux. The
+  Python client's `emit` writes each report under `RNS.logging_lock`, and
+  `crates/apps/reticulumd/tests/python_channel_interop_parts/python_shared_instance_client_emit.rs`
+  pins it: the helper's `emit` raced against four `RNS.log` threads for a
+  second never shares a stdout line with a log line.
+- `TcpClient::{with_reconnect_wait, reconnect_wait}` and
+  `TcpClient::DEFAULT_RECONNECT_WAIT`, 5 s: the wait slept after a failed
+  connect and before each redial from the second consecutive short-lived
+  connection on, one that lasted under `MIN_STABLE_CONNECTION` (2 s), the
+  knob `LocalUnixClient::with_reconnect_wait` already
+  offered (`RNS/Interfaces/LocalInterface.py:54`, slept at `:160`).
+  `attach_shared_instance` now passes `SharedInstanceOptions::reconnect_wait`
+  to the `TcpClient` as it did to the `LocalUnixClient`, and its attach
+  debug line reports the wait as in force for both endpoints. Both knobs
+  clamp the wait to at least 1 ms. The 5 s default is pinned by
+  `transport/tests_parts/two_transport_shared_instance_probe7.rs`
+  (`shared_instance_probe7_tcp_client_reconnect_wait_defaults_to_five_seconds`),
+  the TCP clamp and the TCP client's redial policy (at once after a drop,
+  the wait from the second consecutive short-lived connection on; a
+  connection that outlived `MIN_STABLE_CONNECTION` resets the streak) by
+  `transport/tests_parts/two_transport_shared_instance_probe10.rs`
+  (`TcpClient::reconnect_wait` reads 1 ms for a zero wait, and the
+  re-accept after the second consecutive drop lands no sooner than the wait).
+  `TcpClient::with_disconnect_events` and
+  `LocalUnixClient::with_disconnect_events`, with
+  `TcpClient::disconnect_events_enabled`: a sender, sibling of
+  `with_reconnect_events`, that receives the interface address each time
+  an established stream ends while the client is neither cancelled nor
+  stopped, before it reconnects (`RNS/Interfaces/LocalInterface.py:255-261`);
+  connect failures and detach or stop send nothing, and `reconnect_events`
+  is unchanged. Pinned by `iface/tcp_client.rs` (a 50 ms wait makes a
+  reconnect storm back off for 50 ms rather than 5 s; a dropped stream
+  reports one disconnect event then the reconnect event, and a stop while
+  connected reports none; a client built from a pre-supplied stream
+  reports its disconnect once and finishes without reconnecting),
+  `iface/local.rs` (the same disconnect twin and the same pre-supplied
+  stream pin for the unix client),
+  `transport/tests_parts/two_transport_shared_instance_probe2.rs` (a TCP
+  client attached with a 50 ms wait reaches a late-bound shared instance
+  within 2 s),
+  `transport/tests_parts/two_transport_shared_instance_probe5.rs` (the tcp
+  attach line reports the wait in force and never says ignored) and
+  `transport/tests_parts/two_transport_shared_instance_probe6.rs` (the tcp
+  attach line is three key=value tokens ending at the wait).
+- `SingleInputDestination::announce_with_context`, the announce of
+  `announce` with the packet context set to `PathResponse` when asked, as
+  Python's `Destination.announce(path_response=True)` does
+  (`RNS/Destination.py:308-315`), and
+  `Transport::announce_destinations_to_shared_instance`, which announces
+  every registered single destination as a path response
+  with its registered app data and returns how many announces were handed
+  to the transport. While attached to a shared instance, a `SINGLE`
+  destination is announced that way 0.25 s after `register_destination`,
+  as Python's client does from a thread (`RNS/Transport.py:2911-2916`);
+  an unattached transport announces nothing on registration. Pinned by
+  `transport/tests_parts/two_transport_shared_instance_parity.rs` (a
+  registered destination is announced as a path response with no announce
+  from the test, an unattached transport announces nothing on
+  registration, the path-response announce differs from a plain one only
+  in its context, and the re-announce sends every destination with its
+  app data and reports the count) and by
+  `transport/tests_parts/two_transport_shared_instance_probe7.rs` (the
+  registration announce waits its 0.25 s rather than going out at once and
+  arrives within 2 s of it) and by
+  `transport/tests_parts/two_transport_shared_instance_probe9.rs` (a
+  posture set directly, with nothing attached, still announces on
+  registration, and a posture switched off before the registration
+  announces nothing).
+
+### Changed
+
+- The crate version is `0.15.1`; the discovery announce carries it in the
+  `TRANSPORT_VERS` field (`discovery/announce.rs`), so peers observe the fork
+  patch release through discovery. The bump is a patch one under the README
+  policy: every change since `0.15.0` is additive (the shared-instance
+  client API and its fixtures, the reconnect-wait knobs, a warning and a
+  debug line), with no public item removed or changed. The release
+  contracts are pinned by `crates/apps/reticulumd/tests/fork_publish_contract.rs`
+  (which also holds the `contracts` job of `ci-full.yml` to every
+  `cargo test` step the one in `ci.yml` runs, so the dispatch workflow
+  cannot pass on a tree the pull-request workflow would reject) and
+  `fork_release_docs_contract.rs`.
+
+- On every shared-instance reconnect the attached client re-synthesizes
+  the tunnel on the interface at once and, `reconnect_wait` plus 2 s
+  later, re-announces every registered single destination as a path
+  response if the transport is still attached then
+  (`RNS/Transport.py:3705-3709`, `RNS/Interfaces/LocalInterface.py:178-181`).
+  A dropped connection while attached, with the interface still flagged as
+  the shared instance, tears every in and out link down as Python's
+  `Link.teardown` does (`RNS/Transport.py:3692`, `:3695`,
+  `RNS/Link.py:657-668`): a LINKCLOSE packet goes to the peer of each
+  active link on the interface the link rides, once every guard is
+  released, so a peer reached over another interface learns the close
+  from the wire, and each link is closed with its own side's
+  `LinkCloseReason` (`:670-671`); it drops their resource state and clears the path,
+  announce, link and tunnel tables, the held announces and the packet
+  cache's reverse routes, Python's `reverse_table`, through
+  `PacketCache::clear_reverse_routes` (`transport/packet_cache.rs`), which
+  leaves the duplicate-filter hashes in place and keeps the index entry of
+  every packet this node sent, its receipt guard, as Python's flush leaves
+  its `receipts` list alone
+  (`RNS/Transport.py:3690-3702`, `RNS/Interfaces/LocalInterface.py:255-261`);
+  a detach, a stop, a dropped connected posture or an interface no longer
+  flagged as the shared instance flushes nothing. The links are taken out
+  of both maps before they are closed, so a link an application opens on
+  the `Closed` event is not evicted by the clears. Both are served by one
+  task per attach that reads the clients' reconnect and disconnect events,
+  serving a queued disconnect before the reconnect behind it. The warning
+  for a re-announce whose packet fails to build names the transport as
+  `tp(<name>)`, like the registration announce's; the drop's debug line
+  counts the close packets sent next to the links torn down. Pinned by
+  `transport/tests_parts/two_transport_shared_instance_reconnect.rs` (a
+  restart of the shared instance flushes the path, closes the link with
+  `InitiatorClosed`, keeps the attach and re-announces both destinations
+  as path responses within the bound into the new instance's tunnel table;
+  a detach, a dropped posture and an unflagged interface each keep the
+  path and the link across the restart; the consumer serves a queued
+  disconnect before the reconnect behind it; and each table's `clear`
+  empties every collection it holds and reports the count), by
+  `transport/tests_parts/two_transport_shared_instance_flush.rs` (before
+  the drop the path, announce, link and tunnel tables, the held announces
+  and the reverse route of a Data packet the shared instance sent over a
+  link each hold something, after it each is empty and the cached hashes
+  are kept; and a peer linked to the client over another interface sees
+  `Closed` with the initiator-side reason when the shared instance drops,
+  the close learned from the client's LINKCLOSE), by
+  `transport/tests_parts/two_transport_shared_instance_probe7.rs` (the
+  re-announce fires no sooner than `reconnect_wait` plus 2 s after the
+  re-accept, a posture dropped after the reconnect re-announces nothing,
+  an interface unflagged after the reconnect re-announces nothing, every
+  further restart re-announces again, and a pending link is torn down by
+  the drop like an active one), by
+  `transport/tests_parts/two_transport_shared_instance_probe8.rs` (a
+  restart flush keeps the delivery receipt of a packet sent on another
+  interface, observed from the consumer side, and drops the path), by
+  `transport/tests_parts/two_transport_shared_instance_probe9.rs` (a
+  posture set directly, with nothing attached, neither flushes nor
+  re-announces when the shared instance restarts), by
+  `transport/tests_parts/two_transport_shared_instance_probe10.rs` (the
+  drop's debug line counts the link table entries it clears next to the
+  links torn down, and a posture dropped before the restart still
+  re-synthesizes the tunnel on the reconnect while re-announcing nothing),
+  and by `transport/tests_parts/two_transport_shared_instance_probe11.rs`
+  (a third transport that initiated a link to a destination on the client,
+  over plain TCP, sees `Closed` with `DestinationClosed` when the client's
+  shared instance drops: the LINKCLOSE goes to the peer of an accepted
+  link too).
+- `filter_duplicate_packet` (`transport/inbound_processing.rs`) returns
+  early while attached to a shared instance: the duplicate filter inserts
+  nothing and consults nothing while attached, and nothing is rolled back,
+  as Python's `add_packet_hash` skips the hashlist and `packet_filter`
+  accepts every packet in that mode (`RNS/Transport.py:1618-1627`), the
+  owner deduplicates. The packet cache's other halves are still written
+  while attached: the source notes `handle_data` records for received Data
+  packets (Python's `reverse_table`) share the cache and are seen as
+  duplicates once the transport detaches, and the hash of each packet sent
+  is the receipt guard. Pinned by `transport/inbound_processing_tests.rs`
+  (`shared_instance_client_filter_inserts_nothing_into_the_packet_cache`,
+  `shared_instance_client_accepts_the_same_packet_twice`,
+  `shared_instance_client_data_received_while_attached_is_seen_after_detach`:
+  a Data packet received while attached counts as seen once detached).
+- `Transport::stop` forgets an attached shared instance and clears the
+  connected flag, since its interface is detached with the rest; a stopped
+  transport reports `shared_instance()` as `None`. The posture is now
+  cleared after the management task has stopped, within stop's 5 s budget;
+  when the handler stays locked past it the slot is still forgotten and a
+  warning naming the interface says the posture was not cleared; the
+  warning is emitted only when a slot was actually held. A slot that stop
+  does clear is logged at debug under the links target, naming the
+  interface. `attach_shared_instance` after `stop()` has cancelled the
+  transport returns `RnsError::InvalidArgument` and spawns nothing.
+  `attach_shared_instance` sets the posture only while the slot still holds
+  the new interface, so a concurrent detach or stop cannot leave the
+  posture set with the slot empty. An interface spawned after stop's sweep
+  but before stop cancels the transport stays registered with the slot
+  empty; a second stop detaches it. `stop` also joins the tasks the
+  shared-instance client spawns (each attach's reconnect consumer, the
+  delayed registration announces and the delayed re-announces, which
+  Python runs as threads it never joins) within its budget, right after
+  the cancel, aborting on expiry and warning on expiry or on a task that
+  ended by panic, so none of them announces on a stopped transport; the
+  set they live in is reaped of finished tasks before every spawn. The
+  warnings of that join and reap (a task that ended by panic, tasks
+  aborted at the budget) are logged
+  under the links target as `tp(<name>): shared instance task ...`, so
+  the never-warned oracle below sees them. Pinned by
+  `transport/tests_parts/two_transport_shared_instance.rs` (stop releases
+  the interface and the posture) and
+  `transport/tests_parts/two_transport_shared_instance_probe.rs` (detach
+  after stop reports `false`, a refused attach racing a detach keeps the
+  slot and the posture consistent) and
+  `transport/tests_parts/two_transport_shared_instance_probe3.rs` (a detach
+  queued before the attach's posture write wins the slot and the posture
+  stays off, an attach that starts once stop has cancelled is refused and
+  spawns nothing) and
+  `transport/tests_parts/two_transport_shared_instance_probe4.rs` (a second
+  stop detaches an interface spawned inside the first stop's window, the
+  stop parked on a held worker so the attach lands in it for certain) and
+  `transport/tests_parts/two_transport_shared_instance_probe5.rs`, through
+  the record store in
+  `transport/tests_parts/two_transport_loopback_requests_isolation.rs` (the
+  attach line never warns, both the tcp and the unix line report the
+  reconnect wait in force, a stale-slot detach and an attach whose
+  interface vanished between its sections log at debug) and
+  `transport/tests_parts/two_transport_shared_instance_probe6.rs` (the
+  attach line is space-separated key=value tokens and both arms end at the
+  wait) and `transport/tests_parts/two_transport_shared_instance_stop.rs`
+  (`shared_instance_stop_refuses_a_later_attach_and_spawns_nothing`,
+  `shared_instance_stop_logs_the_slot_it_clears_at_debug`) and
+  `transport/tests_parts/two_transport_shared_instance_tasks.rs` (a stop
+  inside the registration delay joins the announce task, which sends
+  nothing, and a stop after an attach joins the consumer; the set is empty
+  after both, and a task that ended by panic is warned about once as
+  `tp(<name>)` on the links target while the stop still completes) and
+  `transport/tests_parts/two_transport_shared_instance_probe9.rs` (a stop
+  that runs out of budget on a pending announce warns as `tp(<name>)` on
+  the links target).
+- `LocalUnixClient::with_reconnect_wait` (`iface/local.rs`) clamps the wait
+  to at least 1 ms, as `TcpClient::with_reconnect_wait` does; it previously
+  took a zero wait as given.
+- `LocalUnixClient` (`iface/local.rs`) sleeps `reconnect_wait` before every
+  redial after an established stream drops, not only after a failed
+  connect, as Python's reconnect loop sleeps `RECONNECT_WAIT` before every
+  attempt (`RNS/Interfaces/LocalInterface.py:159-160`); it previously
+  redialed at once after a drop. The first connect of the client's life
+  stays immediate, and a client built from a pre-supplied stream still
+  finishes at once when that stream ends. The TCP client's policy is
+  unchanged. In this workspace the change reaches reticulumd's unix
+  `LocalClientInterface` bootstrap (the daemon's
+  `bootstrap_interface_startup_parts::module_prelude`), which builds
+  `LocalUnixClient::new_connect(..)` and never calls `with_reconnect_wait`,
+  so it inherits `LocalUnixClient::DEFAULT_RECONNECT_WAIT` (5 s) and, after
+  a shared-instance drop, now redials 5 s later rather than at once; a
+  daemon that wants the old timing sets `with_reconnect_wait` there.
+  Pinned by
+  `transport/tests_parts/two_transport_shared_instance_probe10.rs` (with
+  the listener kept up, the unix client's re-accept after a drop lands no
+  sooner than the wait) and by
+  `transport/tests_parts/two_transport_shared_instance_probe11.rs` (a
+  `stop` issued inside a 30 s redial wait completes at once, and a client
+  built from a pre-supplied stream ends at once when the stream drops,
+  sleeping no wait).
+- `attach_shared_instance` (`transport_sections/shared_instance.rs`) warns
+  once per accepted attach when a `Tcp` endpoint's address is not
+  loopback, naming the transport as `tp(<name>)`, the attached interface as
+  `iface=<hash>` and the address; the
+  attach proceeds unchanged, and an attach refused because the slot is
+  held or the transport is stopped warns nothing. The address is read
+  through `IpAddr::to_canonical`, so `[::ffff:127.0.0.1]` is as quiet as
+  `127.0.0.1` and `[::1]`. Python's `LocalClientInterface` connects to
+  `127.0.0.1` only (`RNS/Interfaces/LocalInterface.py:109`), so a remote
+  shared instance is rarely what the caller meant. A loopback endpoint
+  still never warns. Pinned by
+  `transport/tests_parts/two_transport_shared_instance_endpoint_warn.rs`
+  (an attach to 10.255.255.1:1 warns exactly once with the address in the
+  text, and the detach and stop of the never-connected client complete
+  within their budgets without a further warning; a second attach refused
+  while the first holds the slot adds none), by
+  `transport/tests_parts/two_transport_shared_instance_probe12.rs` (`[::1]`
+  never warns, `[::ffff:10.255.255.1]` warns once, and an attach after a
+  detach warns once per attach), by
+  `transport/tests_parts/two_transport_shared_instance_probe13.rs`
+  (`[::ffff:127.0.0.1]` never warns, and an attach refused after stop
+  warns nothing even for a non-loopback endpoint), by
+  `transport/tests_parts/two_transport_shared_instance_probe14.rs` (the
+  warning names the attached interface as a whole `iface=<hash>` token
+  before the endpoint clause, the same token the attach debug line carries,
+  and a second attach after a detach names its own interface) and by
+  `transport/tests_parts/two_transport_shared_instance_probe5.rs` (the
+  loopback attach never warns).
+- The `TestLogger` in
+  `transport/tests_parts/two_transport_loopback_requests_isolation.rs`
+  keeps every record at `Warn` or above on the links target
+  unconditionally; Debug, Info and Trace records still need the "shared
+  instance" needle. `shared_instance_assert_never_warned` in
+  `transport/tests_parts/two_transport_shared_instance_probe5.rs` so
+  covers any warning naming the transport, not only the shared-instance
+  lines; `shared_instance_test_logger_keeps_a_needle_less_warning` in
+  `transport/tests_parts/two_transport_shared_instance_tasks.rs` pins that
+  a needle-less warning is stored and a needle-less debug record is not.
+  The reconnect-order test in
+  `transport/tests_parts/two_transport_shared_instance_reconnect.rs` runs
+  twenty rounds, each on its own transport name, channels and consumer,
+  since an unbiased select would pass a single round by luck. Test-only;
+  no library behaviour changes. Pinned by those same files.
+- The proof-cap fixture
+  `transport/tests_parts/two_transport_loopback_link_packet_proven_probe2.rs`
+  holds its handler stall until the test releases it after the burst
+  instead of for a fixed 1500 ms, so the proven set no longer depends on
+  runner speed. Test-only; no library behaviour changes. Pinned by that
+  same file.
+
+### Fixed
+
+- `ResourceManager::conclude_outbound` (`resource/outcome.rs`) no longer
+  discards the result of handing the verdict to the `OutboundOutcome`
+  future: when that future was dropped before the transfer concluded, the
+  send fails and a debug line names the resource hash, the link and the
+  undelivered verdict. The verdict itself is unchanged. Pinned by
+  `crates/apps/reticulumd/tests/code_quality_issue_369.rs`, which flags an
+  ignored channel send in production code.
 
 ## 0.15.0 - 2026-10-20
 

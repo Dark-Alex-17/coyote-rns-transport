@@ -3,9 +3,9 @@
 The section layout follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/)
 and versions follow the cargo semver rules described in the crate README.
 Test-only files are not listed as entries of their own; each is named in a
-trailing clause of the bullet for the behaviour it pins. A fixture hardening
-that changes no library behaviour is the one exception: it is a Changed
-bullet of its own, marked test-only.
+trailing clause of the bullet for the behaviour it pins. A test-only change
+that alters no library behaviour (a fixture hardening, a test hygiene pass)
+is the one exception: it is a Changed bullet of its own, marked test-only.
 
 ## Unreleased
 

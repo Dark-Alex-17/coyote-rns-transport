@@ -32,7 +32,10 @@ marked as such.
   (`pull_request_ci_runs_every_external_rns_transport_test_target`,
   `ci_full_contracts_job_runs_every_contract_step_ci_runs`) and
   `fork_publish_contract_parts/ledger_contract.rs`
-  (`fork_release_scripts_are_committed_and_named_by_the_runbooks`).
+  (`fork_release_scripts_are_committed_and_named_by_the_runbooks`); the
+  scripts' usage errors, the zero-argument ledger run and the scan script's
+  needles and filters are pinned by
+  `fork_publish_contract_parts/release_tooling_probe.rs`.
 - Ledger contracts, test-only: every patch-header hash in
   `docs/fork/PATCHSET.md` must be named by its section's legend, the
   all-legend-hash and header-to-legend checks run over `## Unreleased` and

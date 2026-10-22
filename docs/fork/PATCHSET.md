@@ -30,8 +30,9 @@ per fork task.
 Every file changed since the `0.15.1` release and the patch each change
 belongs to. Patch ids: H1 is test hygiene, H2 is release tooling, H3 is
 ledger conventions. The `test hygiene` patch is fork commit `08362717`; the
-`release tooling` patch is fork commits `7e63de1a`, `7fbc97cb`, `fbd4da9d`
-and `f206f31c`; the `ledger conventions` patch is fork commit `c45a4e5c`.
+`release tooling` patch is fork commits `7e63de1a`, `7fbc97cb`, `fbd4da9d`,
+`f206f31c`, `8e3e587f`, `0e034698`, `3008c9fb` and `72a3a4ab`; the
+`ledger conventions` patch is fork commit `c45a4e5c`.
 
 | File | Patch |
 | --- | --- |
@@ -40,6 +41,7 @@ and `f206f31c`; the `ledger conventions` patch is fork commit `c45a4e5c`.
 | `AGENTS.md` | ledger conventions |
 | `crates/apps/reticulumd/tests/fork_publish_contract.rs` | release tooling |
 | `crates/apps/reticulumd/tests/fork_publish_contract_parts/ledger_contract.rs` | release tooling |
+| `crates/apps/reticulumd/tests/fork_publish_contract_parts/release_tooling_probe.rs` | release tooling |
 | `crates/apps/reticulumd/tests/python_channel_interop_parts/multi_segment_python_interop.rs` | test hygiene |
 | `crates/libs/rns-transport/CHANGELOG.md` | test hygiene, release tooling, ledger conventions |
 | `crates/libs/rns-transport/README.md` | release tooling |
@@ -64,8 +66,9 @@ label from the fork's own planning, and drops the
 `digest_hex` in favour of the shared helper at its three call sites. No
 library behaviour changes.
 
-Fork commits `7e63de1a`, `7fbc97cb`, `fbd4da9d` and `f206f31c`: H2, release
-tooling. No library behaviour changes. `7e63de1a` commits the release
+Fork commits `7e63de1a`, `7fbc97cb`, `fbd4da9d`, `f206f31c`, `8e3e587f`,
+`0e034698`, `3008c9fb` and `72a3a4ab`: H2, release tooling. No library
+behaviour changes. `7e63de1a` commits the release
 checks that lived in the release operator's home directory under
 `tools/scripts/`: `patchset-ledger-check.sh` (this ledger's file table
 against `git diff --name-only --diff-filter=d <base>..<head>` and a citation
@@ -105,7 +108,27 @@ version (returned as written, the fork-tag form
 bare tags on the root `VERSION` comparison, and moves the release-version
 unit tests out of `xtask/src/main_parts/run_unused_deps.rs` to
 `xtask/src/main_parts/release_version_tests.rs`, included from
-`xtask/src/main.rs`.
+`xtask/src/main.rs`. `8e3e587f` makes the zero-argument
+`patchset-ledger-check.sh` take the newest `coyote-rns-transport-v*` tag
+that is an ancestor of HEAD and grep each commit hash inside the labelled
+section, rewrites `old-name-tracked-scan.sh` as one `grep -F -f` pass over
+the filtered file list, strips colour portably in
+`semver-major-findings-check.sh`, notes the python3 dependency of
+`workspace-clippy-classify.sh`, and names the CI step for what it runs
+(`Crate test targets`). `0e034698` adopts the usage pins in
+`fork_publish_contract_parts/release_tooling_probe.rs` (script usage
+errors and the zero-argument ledger run, the scan script's needles and
+filters against the contract constants, the manifest shape
+`cargo test --tests` relies on, the `AGENTS.md` carve-out, the
+parity-matrix pointer and the CHANGELOG preamble rule), requires the four
+scripts to be tracked, compares the shebang line without its newline, pins
+the CHANGELOG bullet-cite gate's labels and makes the ci-full twin pin
+require the full-history checkout. `3008c9fb` returns the fork tag as
+written in `resolve_release_version`, corrects its rustdoc about the tag
+guard and adds unit tests for `crate_manifest_version`. `72a3a4ab` orders
+the README rebase recipe's ledger check after the bump commit, mirrors the
+script's usage shape and covers patch and minor bumps for the semver
+script.
 
 Fork commit `c45a4e5c`: H3, ledger conventions. No library behaviour
 changes. `AGENTS.md` records that fork-only parity rows live in this file

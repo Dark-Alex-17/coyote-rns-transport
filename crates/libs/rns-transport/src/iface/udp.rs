@@ -330,8 +330,7 @@ impl UdpInterface {
             status.iface = Some(iface_address.to_string());
         });
 
-        let (rx_channel, tx_channel) = context.channel.split();
-        let tx_channel = Arc::new(tokio::sync::Mutex::new(tx_channel));
+        let (rx_channel, mut tx_channel) = context.channel.split();
 
         loop {
             if context.cancel.is_cancelled() {
@@ -479,22 +478,20 @@ impl UdpInterface {
             };
 
             if let Some(forward_addr) = forward_addr.clone() {
-                // Start transmit task
-                let tx_task = {
+                // Transmit loop; runs here so the reconnect loop keeps the receiver.
+                let tx_loop = {
                     let cancel = cancel.clone();
-                    let tx_channel = tx_channel.clone();
                     let socket = write_socket;
+                    let tx_channel = &mut tx_channel;
                     let peer_routing = peer_routing.clone();
                     let runtime_status = runtime_status.clone();
                     let ifac_state = ifac_state.clone();
 
-                    tokio::spawn(async move {
+                    async move {
                         loop {
                             if stop.is_cancelled() {
                                 break;
                             }
-
-                            let mut tx_channel = tx_channel.lock().await;
 
                             tokio::select! {
                                 _ = cancel.cancelled() => {
@@ -518,7 +515,8 @@ impl UdpInterface {
                                         TxMessageType::Broadcast(_) => Some(forward_addr.clone()),
                                         TxMessageType::Direct(addr) => {
                                             if let Some(ref routing) = peer_routing {
-                                                if let Some(peer) = routing.lock().await.addr_for_hash(&addr) {
+                                                let routed_peer = routing.lock().await.addr_for_hash(&addr);
+                                                if let Some(peer) = routed_peer {
                                                     Some(peer.to_string())
                                                 } else if addr == iface_address && is_link_proof(&message.packet) {
                                                     if PACKET_TRACE {
@@ -597,9 +595,9 @@ impl UdpInterface {
                                 }
                             };
                         }
-                    })
+                    }
                 };
-                tx_task.await.unwrap();
+                tx_loop.await;
             }
 
             rx_task.await.unwrap();

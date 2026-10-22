@@ -480,8 +480,7 @@ impl TcpServer {
         let iface_manager = { context.inner.lock().unwrap().iface_manager.clone() };
         let mut startup_result = context.inner.lock().unwrap().startup_result.take();
 
-        let (_, tx_channel) = context.channel.split();
-        let tx_channel = Arc::new(tokio::sync::Mutex::new(tx_channel));
+        let (_, mut tx_channel) = context.channel.split();
 
         loop {
             if context.cancel.is_cancelled() {
@@ -520,15 +519,13 @@ impl TcpServer {
 
             let tx_task = {
                 let cancel = context.cancel.clone();
-                let tx_channel = tx_channel.clone();
+                let mut tx_channel = tx_channel;
 
                 tokio::spawn(async move {
                     loop {
                         if cancel.is_cancelled() {
                             break;
                         }
-
-                        let mut tx_channel = tx_channel.lock().await;
 
                         tokio::select! {
                             _ = cancel.cancelled() => {
@@ -538,6 +535,7 @@ impl TcpServer {
                             _ = tx_channel.recv() => {}
                         }
                     }
+                    tx_channel
                 })
             };
 
@@ -616,9 +614,16 @@ impl TcpServer {
                 }
             }
 
-            if let Err(error) = tx_task.await {
-                log::error!("tcp server transmit task failed listener={addr}: {error}");
-            }
+            // The accept loop above only exits on cancel, so a failed join
+            // ends the listener the same way the next iteration's cancel
+            // check would.
+            tx_channel = match tx_task.await {
+                Ok(tx_channel) => tx_channel,
+                Err(error) => {
+                    log::error!("tcp server transmit task failed listener={addr}: {error}");
+                    break;
+                }
+            };
         }
         runtime_status.lock().expect("tcp server runtime status mutex poisoned").mark_closed();
     }

@@ -518,7 +518,7 @@ pub(crate) async fn run_hdlc_stream_with_runtime<R, W>(
     cancel: CancellationToken,
     iface_stop: CancellationToken,
     rx_channel: InterfaceRxSender,
-    tx_channel: Arc<tokio::sync::Mutex<InterfaceTxReceiver>>,
+    mut tx_channel: InterfaceTxReceiver,
     read_stream: R,
     write_stream: W,
     runtime: HdlcStreamRuntime,
@@ -533,7 +533,7 @@ pub(crate) async fn run_hdlc_stream_with_runtime<R, W>(
         cancel,
         iface_stop,
         rx_channel,
-        tx_channel,
+        &mut tx_channel,
         Arc::new(std::sync::RwLock::new(None)),
         Arc::new(std::sync::atomic::AtomicU64::new(0)),
         read_stream,
@@ -543,6 +543,10 @@ pub(crate) async fn run_hdlc_stream_with_runtime<R, W>(
     .await;
 }
 
+/// Drives one HDLC-framed connection. The rx side runs as its own task; the
+/// tx side runs here so the caller keeps ownership of `tx_channel` and the
+/// packets queued on it survive into the next connection. Returns once both
+/// sides have exited.
 #[allow(clippy::too_many_arguments)]
 pub(crate) async fn run_hdlc_stream_with_runtime_and_ifac<R, W>(
     label: String,
@@ -551,7 +555,7 @@ pub(crate) async fn run_hdlc_stream_with_runtime_and_ifac<R, W>(
     cancel: CancellationToken,
     iface_stop: CancellationToken,
     rx_channel: InterfaceRxSender,
-    tx_channel: Arc<tokio::sync::Mutex<InterfaceTxReceiver>>,
+    tx_channel: &mut InterfaceTxReceiver,
     ifac_state: IfacState,
     ifac_violations: Arc<std::sync::atomic::AtomicU64>,
     read_stream: R,
@@ -710,11 +714,11 @@ pub(crate) async fn run_hdlc_stream_with_runtime_and_ifac<R, W>(
                                     // A TCP reset (rather than a graceful FIN) lands
                                     // here, not in the `Ok(0)` arm above — which
                                     // does call `stop.cancel()`. Without it, the tx
-                                    // task's `select!` has no branch left that will
+                                    // loop's `select!` has no branch left that will
                                     // ever fire when there's no watchdog configured
                                     // and nothing queued to send, so it parks on
                                     // `tx_channel.recv()` forever and this function's
-                                    // `tx_task.await` (below) never returns — meaning
+                                    // `tx_loop.await` (below) never returns, meaning
                                     // the MIN_STABLE_CONNECTION backoff check in
                                     // tcp_client's caller never gets reached for
                                     // exactly the reset case it was added for.
@@ -728,18 +732,12 @@ pub(crate) async fn run_hdlc_stream_with_runtime_and_ifac<R, W>(
         })
     };
 
-    let tx_task = {
-        let cancel = cancel.clone();
-        let tx_channel = tx_channel.clone();
+    let tx_loop = {
         let mut stream = write_stream;
-        let label = label.clone();
-        let last_read_at = last_read_at.clone();
-        let events = events.clone();
-        let watchdog = runtime.watchdog.clone();
+        let watchdog = &runtime.watchdog;
         let forced_bitrate_bps = runtime.forced_bitrate_bps;
-        let ifac_state = ifac_state.clone();
 
-        tokio::spawn(async move {
+        async move {
             let mut last_write_at = Instant::now();
             let mut stale = false;
             let mut buffers = TcpTxBuffers::default();
@@ -749,8 +747,6 @@ pub(crate) async fn run_hdlc_stream_with_runtime_and_ifac<R, W>(
                 if stop.is_cancelled() {
                     break;
                 }
-
-                let mut tx_channel = tx_channel.lock().await;
 
                 tokio::select! {
                     _ = cancel.cancelled() => {
@@ -884,10 +880,10 @@ pub(crate) async fn run_hdlc_stream_with_runtime_and_ifac<R, W>(
                     }
                 };
             }
-        })
+        }
     };
 
-    tx_task.await.unwrap();
+    tx_loop.await;
     rx_task.await.unwrap();
 }
 
@@ -1196,8 +1192,7 @@ impl TcpClient {
             (guard.stream.take(), guard.reconnect_events.clone(), guard.disconnect_events.clone())
         };
 
-        let (rx_channel, tx_channel) = context.channel.split();
-        let tx_channel = Arc::new(tokio::sync::Mutex::new(tx_channel));
+        let (rx_channel, mut tx_channel) = context.channel.split();
 
         let mut running = true;
         let mut has_connected = false;
@@ -1305,7 +1300,7 @@ impl TcpClient {
                 context.cancel.clone(),
                 iface_stop.clone(),
                 rx_channel.clone(),
-                tx_channel.clone(),
+                &mut tx_channel,
                 ifac_state.clone(),
                 ifac_violations.clone(),
                 read_stream,
@@ -1440,8 +1435,9 @@ impl Interface for TcpClient {
 mod tests {
     #[path = "issue_614_reconnected_stream.rs"]
     mod issue_614_reconnected_stream;
+    #[path = "tx_queue_survives_reconnect.rs"]
+    mod tx_queue_survives_reconnect;
 
-    use std::sync::Arc;
     use std::time::{Duration, Instant};
 
     use super::{
@@ -1888,7 +1884,7 @@ mod tests {
             cancel.clone(),
             iface_stop,
             rx_channel,
-            Arc::new(tokio::sync::Mutex::new(tx_receiver)),
+            tx_receiver,
             read_stream,
             write_stream,
             HdlcStreamRuntime::new().with_events(event_tx),
@@ -1965,7 +1961,7 @@ mod tests {
             cancel.clone(),
             iface_stop,
             rx_channel,
-            Arc::new(tokio::sync::Mutex::new(tx_receiver)),
+            tx_receiver,
             read_stream,
             write_stream,
             HdlcStreamRuntime::new()
@@ -2020,7 +2016,7 @@ mod tests {
             cancel.clone(),
             iface_stop,
             rx_channel,
-            Arc::new(tokio::sync::Mutex::new(tx_receiver)),
+            tx_receiver,
             read_stream,
             write_stream,
             HdlcStreamRuntime::new()
@@ -2094,7 +2090,7 @@ mod tests {
             cancel.clone(),
             iface_stop,
             rx_channel,
-            Arc::new(tokio::sync::Mutex::new(tx_receiver)),
+            tx_receiver,
             read_stream,
             write_stream,
             HdlcStreamRuntime::new().with_watchdog(super::backbone_hdlc_watchdog()),
@@ -2150,7 +2146,7 @@ mod tests {
             cancel.clone(),
             iface_stop,
             rx_channel,
-            Arc::new(tokio::sync::Mutex::new(tx_receiver)),
+            tx_receiver,
             read_stream,
             write_stream,
             HdlcStreamRuntime::new().with_forced_bitrate(1_000),
@@ -2395,11 +2391,11 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn read_error_cancels_stop_so_the_tx_task_does_not_hang_forever() {
+    async fn read_error_cancels_stop_so_the_tx_loop_does_not_hang_forever() {
         // The exact scenario the P1 review on PR #494 flagged: no watchdog
-        // configured and nothing queued to send means the tx task's only
+        // configured and nothing queued to send means the tx loop's only
         // live `select!` branches are `cancel`/`iface_stop`/`stop` — if the
-        // rx task's read-error arm doesn't cancel `stop`, tx_task.await
+        // rx task's read-error arm doesn't cancel `stop`, tx_loop.await
         // (and so this whole function) never returns.
         let cancel = CancellationToken::new();
         let iface_stop = CancellationToken::new();
@@ -2415,7 +2411,7 @@ mod tests {
             cancel,
             iface_stop,
             rx_channel,
-            Arc::new(tokio::sync::Mutex::new(tx_receiver)),
+            tx_receiver,
             ResetOnceStream,
             tokio::io::sink(),
             HdlcStreamRuntime::new().with_events(event_tx),
@@ -2423,7 +2419,7 @@ mod tests {
 
         tokio::time::timeout(Duration::from_secs(2), handle)
             .await
-            .expect("run_hdlc_stream_with_runtime hung — tx task never saw stop cancelled")
+            .expect("run_hdlc_stream_with_runtime hung: tx loop never saw stop cancelled")
             .expect("hdlc stream task panicked");
 
         let mut saw_error_event = false;

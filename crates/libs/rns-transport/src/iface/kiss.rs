@@ -7,3 +7,6 @@ include!("kiss_parts/kisstcpclientinterface.rs");
 #[cfg(test)]
 #[path = "kiss_parts/ifac_runtime_tests.rs"]
 mod ifac_runtime_tests;
+#[cfg(test)]
+#[path = "kiss_parts/tx_queue_survives_reconnect_tests.rs"]
+mod tx_queue_survives_reconnect_tests;

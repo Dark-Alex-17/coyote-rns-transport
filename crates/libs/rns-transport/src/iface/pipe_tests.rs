@@ -295,22 +295,27 @@ async fn pipe_stream_rejects_wrong_ifac_key_before_admission() {
 
     let (stream, mut peer) = tokio::io::duplex(4096);
     let (rx_channel, mut rx_receiver) = mpsc::channel(8);
-    let (_tx_sender, tx_receiver) = mpsc::channel(8);
+    let (_tx_sender, mut tx_receiver) = mpsc::channel(8);
     let runtime_status = Arc::new(std::sync::Mutex::new(super::PipeRuntimeStatus::new("test")));
     let cancel = CancellationToken::new();
-    let worker = tokio::spawn(super::run_pipe_stream(
-        stream,
-        tokio::io::sink(),
-        address,
-        PipeInterface::DEFAULT_MTU,
-        cancel.clone(),
-        CancellationToken::new(),
-        rx_channel,
-        Arc::new(tokio::sync::Mutex::new(tx_receiver)),
-        runtime_status,
-        ifac_state,
-        ifac_violations.clone(),
-    ));
+    let worker_cancel = cancel.clone();
+    let worker_violations = ifac_violations.clone();
+    let worker = tokio::spawn(async move {
+        super::run_pipe_stream(
+            stream,
+            tokio::io::sink(),
+            address,
+            PipeInterface::DEFAULT_MTU,
+            worker_cancel,
+            CancellationToken::new(),
+            rx_channel,
+            &mut tx_receiver,
+            runtime_status,
+            ifac_state,
+            worker_violations,
+        )
+        .await;
+    });
 
     peer.write_all(output.as_slice()).await.expect("write wrong-key Pipe frame");
     timeout(Duration::from_secs(1), async {

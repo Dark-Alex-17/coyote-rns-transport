@@ -54,7 +54,6 @@ async fn serial_stream_ifac_rejects_wrong_key_and_roundtrips_authenticated_packe
 
     let receiver = manager.receiver();
     let (rx_channel, tx_channel) = context.channel.split();
-    let tx_channel = Arc::new(tokio::sync::Mutex::new(tx_channel));
     let (serial_stream, mut peer_stream) = tokio::io::duplex(4_096);
     let cancel = CancellationToken::new();
     let session = tokio::spawn(run_serial_stream_with_ifac(

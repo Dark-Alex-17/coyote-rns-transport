@@ -15,8 +15,9 @@ use tokio_util::sync::CancellationToken;
 use crate::hash::AddressHash;
 
 use crate::iface::{
-    decode_packet_ifac, encode_packet_ifac, is_ifac_violation, record_ifac_violation, IfacState,
-    IfaceSource, RxMessage, TxMessage,
+    decode_packet_ifac, encode_packet_ifac, is_ifac_violation, recv_optional_management_frame,
+    record_ifac_violation, IfacRuntime, IfacState, IfaceSource, InterfaceTxReceiver, RxMessage,
+    TxMessage,
 };
 
 use crate::kiss::{
@@ -555,8 +556,7 @@ impl KissInterface {
 
         let online = context.channel.online.clone();
         online.store(false, std::sync::atomic::Ordering::Release);
-        let (rx_channel, tx_channel) = context.channel.split();
-        let tx_channel = Arc::new(tokio::sync::Mutex::new(tx_channel));
+        let (rx_channel, mut tx_channel) = context.channel.split();
         let mut active_backoff = reconnect_backoff;
 
         loop {
@@ -604,7 +604,7 @@ impl KissInterface {
             });
             online.store(true, std::sync::atomic::Ordering::Release);
 
-            run_kiss_stream_with_ifac(
+            run_kiss_stream_owned(
                 port,
                 KissStreamOptions {
                     iface_address,
@@ -626,9 +626,9 @@ impl KissInterface {
                 },
                 context.cancel.clone(),
                 rx_channel.clone(),
-                tx_channel.clone(),
-                ifac_state.clone(),
-                ifac_violations.clone(),
+                &mut tx_channel,
+                None,
+                IfacRuntime::from_parts(ifac_state.clone(), ifac_violations.clone()),
             )
             .await;
             online.store(false, std::sync::atomic::Ordering::Release);

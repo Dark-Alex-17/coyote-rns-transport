@@ -127,7 +127,7 @@ async fn decode_chunks_with_ifac(
     let cancel = CancellationToken::new();
     let iface_stop = CancellationToken::new();
     let (rx_sender, mut rx_receiver) = tokio::sync::mpsc::channel(8);
-    let (_tx_sender, tx_receiver) = tokio::sync::mpsc::channel(1);
+    let (_tx_sender, mut tx_receiver) = tokio::sync::mpsc::channel(1);
     super::run_hdlc_stream_with_runtime_and_ifac(
         "memory-test".to_string(),
         AddressHash::new([0x51; 16]),
@@ -135,7 +135,7 @@ async fn decode_chunks_with_ifac(
         cancel,
         iface_stop,
         rx_sender,
-        Arc::new(tokio::sync::Mutex::new(tx_receiver)),
+        &mut tx_receiver,
         ifac_state,
         ifac_violations,
         ChunkedReader::new(chunks),
@@ -377,7 +377,7 @@ async fn tx_disconnect_stops_both_stream_tasks() {
             cancel,
             iface_stop,
             rx_sender,
-            Arc::new(tokio::sync::Mutex::new(tx_receiver)),
+            tx_receiver,
             PendingReader,
             BrokenWriter,
             HdlcStreamRuntime::new().with_events(event_sender),
@@ -406,7 +406,7 @@ async fn watchdog_stream_cancels_promptly_while_tx_is_idle() {
         cancel.clone(),
         iface_stop,
         rx_sender,
-        Arc::new(tokio::sync::Mutex::new(tx_receiver)),
+        tx_receiver,
         PendingReader,
         tokio::io::sink(),
         HdlcStreamRuntime::new().with_watchdog(HdlcStreamWatchdog {

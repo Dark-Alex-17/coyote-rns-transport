@@ -53,36 +53,41 @@ async fn kiss_stream_ifac_rejects_wrong_key_and_authenticates_ingress_egress() {
     );
     let receiver = manager.receiver();
     let ifac_violations = context.channel.ifac_violations.clone();
-    let (rx_channel, tx_channel) = context.channel.split();
-    let tx_channel = Arc::new(tokio::sync::Mutex::new(tx_channel));
+    let (rx_channel, mut tx_channel) = context.channel.split();
     let (stream, mut peer_stream) = tokio::io::duplex(4_096);
     let cancel = CancellationToken::new();
-    let session = tokio::spawn(run_kiss_stream_with_ifac(
-        stream,
-        KissStreamOptions {
-            iface_address: address,
-            device: "in-memory KISS TCP".to_string(),
-            mtu: 564,
-            flow_control: false,
-            flow_control_timeout: KISS_FLOW_CONTROL_TIMEOUT,
-            read_frame_timeout: KISS_READ_FRAME_TIMEOUT,
-            initial_frames: Vec::new(),
-            shutdown_frames: Vec::new(),
-            id_beacon: None,
-            activity_probe: None,
-            payload_adapter: adapter.clone(),
-            strip_command_port_nibble: false,
-            command_tx: None,
-            data_rx_tx: None,
-            management_frame_rx: None,
-            runtime_status: Some(runtime_status.clone()),
-        },
-        cancel.clone(),
-        rx_channel,
-        tx_channel,
-        ifac_state.clone(),
-        ifac_violations.clone(),
-    ));
+    let session_options = KissStreamOptions {
+        iface_address: address,
+        device: "in-memory KISS TCP".to_string(),
+        mtu: 564,
+        flow_control: false,
+        flow_control_timeout: KISS_FLOW_CONTROL_TIMEOUT,
+        read_frame_timeout: KISS_READ_FRAME_TIMEOUT,
+        initial_frames: Vec::new(),
+        shutdown_frames: Vec::new(),
+        id_beacon: None,
+        activity_probe: None,
+        payload_adapter: adapter.clone(),
+        strip_command_port_nibble: false,
+        command_tx: None,
+        data_rx_tx: None,
+        management_frame_rx: None,
+        runtime_status: Some(runtime_status.clone()),
+    };
+    let session_cancel = cancel.clone();
+    let session_ifac = IfacRuntime::from_parts(ifac_state.clone(), ifac_violations.clone());
+    let session = tokio::spawn(async move {
+        run_kiss_stream_owned(
+            stream,
+            session_options,
+            session_cancel,
+            rx_channel,
+            &mut tx_channel,
+            None,
+            session_ifac,
+        )
+        .await;
+    });
 
     let rejected_packet = Packet {
         destination: AddressHash::new_from_slice(&[0x61; 16]),

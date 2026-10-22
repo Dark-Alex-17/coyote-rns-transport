@@ -7,7 +7,7 @@ use tokio::io::{AsyncRead, AsyncReadExt, AsyncWrite, AsyncWriteExt};
 use tokio::process::Command;
 use tokio_util::sync::CancellationToken;
 
-use super::{Interface, InterfaceContext, TxMessage};
+use super::{Interface, InterfaceContext, InterfaceTxReceiver};
 use crate::buffer::OutputBuffer;
 use crate::hash::AddressHash;
 use crate::iface::{
@@ -92,8 +92,7 @@ impl PipeInterface {
         let ifac_violations = context.channel.ifac_violations.clone();
         let online = context.channel.online.clone();
         online.store(false, std::sync::atomic::Ordering::Release);
-        let (rx_channel, tx_channel) = context.channel.split();
-        let tx_channel = Arc::new(tokio::sync::Mutex::new(tx_channel));
+        let (rx_channel, mut tx_channel) = context.channel.split();
 
         loop {
             if context.cancel.is_cancelled() || iface_stop.is_cancelled() {
@@ -122,7 +121,7 @@ impl PipeInterface {
                 context.cancel.clone(),
                 iface_stop.clone(),
                 rx_channel.clone(),
-                tx_channel.clone(),
+                &mut tx_channel,
                 runtime_status.clone(),
                 online.clone(),
                 ifac_state.clone(),
@@ -245,7 +244,7 @@ async fn run_pipe_process(
     cancel: CancellationToken,
     iface_stop: CancellationToken,
     rx_channel: tokio::sync::mpsc::Sender<RxMessage>,
-    tx_channel: Arc<tokio::sync::Mutex<tokio::sync::mpsc::Receiver<TxMessage>>>,
+    tx_channel: &mut InterfaceTxReceiver,
     runtime_status: Arc<std::sync::Mutex<PipeRuntimeStatus>>,
     online: Arc<std::sync::atomic::AtomicBool>,
     ifac_state: IfacState,
@@ -290,6 +289,9 @@ async fn run_pipe_process(
     Ok(())
 }
 
+/// Pumps one spawned process. The reader runs as its own task; the writer
+/// loop runs here so the caller keeps ownership of `tx_channel` across
+/// respawns. Returns once both sides have exited.
 #[allow(clippy::too_many_arguments)]
 async fn run_pipe_stream<R, W>(
     mut reader: R,
@@ -299,7 +301,7 @@ async fn run_pipe_stream<R, W>(
     cancel: CancellationToken,
     iface_stop: CancellationToken,
     rx_channel: tokio::sync::mpsc::Sender<RxMessage>,
-    tx_channel: Arc<tokio::sync::Mutex<tokio::sync::mpsc::Receiver<TxMessage>>>,
+    tx_channel: &mut InterfaceTxReceiver,
     runtime_status: Arc<std::sync::Mutex<PipeRuntimeStatus>>,
     ifac_state: IfacState,
     ifac_violations: Arc<std::sync::atomic::AtomicU64>,
@@ -401,13 +403,12 @@ async fn run_pipe_stream<R, W>(
         })
     };
 
-    let tx_task = {
+    let tx_loop = {
         let cancel = cancel.clone();
         let iface_stop = iface_stop.clone();
-        let tx_channel = tx_channel.clone();
         let runtime_status = runtime_status.clone();
         let ifac_state = ifac_state.clone();
-        tokio::spawn(async move {
+        async move {
             loop {
                 if tx_stop.is_cancelled() {
                     break;
@@ -419,7 +420,6 @@ async fn run_pipe_stream<R, W>(
                         .saturating_mul(2)
                         .saturating_add(16)
                 ];
-                let mut tx_channel = tx_channel.lock().await;
 
                 tokio::select! {
                     _ = cancel.cancelled() => break,
@@ -463,22 +463,18 @@ async fn run_pipe_stream<R, W>(
                     }
                 }
             }
-        })
+        }
     };
 
+    // Every reader exit except an external cancel already cancels `stop`, and
+    // the writer exits on `stop`, so finishing the writer first and then
+    // cancelling `stop` leaves the reader nothing further to wait for.
+    tx_loop.await;
+    stop.cancel();
     if let Err(error) = rx_task.await {
         log::error!("pipe receive task failed iface={iface_address}: {error}");
         update_pipe_status(&runtime_status, |status| {
             status.process_state = "receive_task_failed".to_string();
-            status.pipe_is_open = false;
-            status.last_error = Some(error.to_string());
-        });
-    }
-    stop.cancel();
-    if let Err(error) = tx_task.await {
-        log::error!("pipe transmit task failed iface={iface_address}: {error}");
-        update_pipe_status(&runtime_status, |status| {
-            status.process_state = "transmit_task_failed".to_string();
             status.pipe_is_open = false;
             status.last_error = Some(error.to_string());
         });

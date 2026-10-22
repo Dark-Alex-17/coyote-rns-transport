@@ -21,21 +21,26 @@ async fn rnode_multi_kiss_vport_rejects_wrong_ifac_and_authenticates_ingress_egr
     let vport = 2;
     let (stream, mut peer) = duplex(8192);
     let (rx_tx, mut rx_rx) = tokio::sync::mpsc::channel(4);
-    let (tx_tx, tx_rx) = tokio::sync::mpsc::channel(4);
+    let (tx_tx, mut tx_rx) = tokio::sync::mpsc::channel(4);
     let cancel = CancellationToken::new();
     let options = test_options(child, vport);
     let ifac_state = rnode_multi_ifac_state("rnode-multi-ifac-secret");
     let wrong_ifac_state = rnode_multi_ifac_state("incorrect-rnode-multi-ifac-secret");
     let violations = Arc::new(AtomicU64::new(0));
-    let task = tokio::spawn(run_rnode_multi_stream_with_ifac(
-        stream,
-        options,
-        cancel.clone(),
-        CancellationToken::new(),
-        rx_tx,
-        Arc::new(tokio::sync::Mutex::new(tx_rx)),
-        IfacRuntime::from_parts(ifac_state.clone(), violations.clone()),
-    ));
+    let task_cancel = cancel.clone();
+    let task_ifac = IfacRuntime::from_parts(ifac_state.clone(), violations.clone());
+    let task = tokio::spawn(async move {
+        run_rnode_multi_stream_with_ifac(
+            stream,
+            options,
+            RNodeMultiStreamControl { cancel: task_cancel, iface_stop: CancellationToken::new() },
+            rx_tx,
+            &mut tx_rx,
+            None,
+            task_ifac,
+        )
+        .await;
+    });
 
     let rejected = Packet {
         destination: AddressHash::new([0x63; 16]),

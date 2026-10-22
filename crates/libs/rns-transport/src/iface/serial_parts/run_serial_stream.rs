@@ -4,7 +4,7 @@ struct SerialStreamOptions {
     mtu: usize,
     cancel: CancellationToken,
     rx_channel: tokio::sync::mpsc::Sender<RxMessage>,
-    tx_channel: Arc<tokio::sync::Mutex<tokio::sync::mpsc::Receiver<TxMessage>>>,
+    tx_channel: InterfaceTxReceiver,
     runtime_status: SerialRuntimeStatusHandle,
 }
 
@@ -24,12 +24,16 @@ async fn run_serial_stream<IO>(
     .await;
 }
 
+/// Pumps one opened port and returns the tx receiver so the caller can carry
+/// it, with any queued messages, into the next open attempt. The reader runs
+/// as its own task; the writer loop runs here because it owns the receiver.
 async fn run_serial_stream_with_ifac<IO>(
     stream: IO,
     options: SerialStreamOptions,
     ifac_state: IfacState,
     ifac_violations: Arc<std::sync::atomic::AtomicU64>,
-) where
+) -> InterfaceTxReceiver
+where
     IO: AsyncRead + AsyncWrite + Unpin + Send + 'static,
 {
     let stop = CancellationToken::new();
@@ -40,7 +44,7 @@ async fn run_serial_stream_with_ifac<IO>(
         mtu,
         cancel,
         rx_channel,
-        tx_channel,
+        mut tx_channel,
         runtime_status,
     } = options;
     let rx_device = device.clone();
@@ -176,13 +180,13 @@ async fn run_serial_stream_with_ifac<IO>(
         })
     };
 
-    let tx_task = {
+    let tx_loop = {
         let cancel = cancel.clone();
         let stop = stop.clone();
-        let tx_channel = tx_channel.clone();
+        let tx_channel = &mut tx_channel;
         let runtime_status = runtime_status.clone();
         let ifac_state = ifac_state.clone();
-        tokio::spawn(async move {
+        async move {
             loop {
                 if stop.is_cancelled() {
                     break;
@@ -190,7 +194,6 @@ async fn run_serial_stream_with_ifac<IO>(
 
                 let mut hdlc_tx_buffer =
                     vec![0_u8; serial_wire_buffer_capacity(mtu.saturating_add(MAX_IFAC_SIZE_BYTES))];
-                let mut tx_channel = tx_channel.lock().await;
 
                 tokio::select! {
                     _ = cancel.cancelled() => break,
@@ -271,15 +274,10 @@ async fn run_serial_stream_with_ifac<IO>(
                     }
                 }
             }
-        })
+        }
     };
 
-    if let Err(error) = tx_task.await {
-        log::error!("serial transmit task failed iface={iface_address}: {error}");
-        runtime_status.update(|status| {
-            status.last_error = Some(format!("transmit task failed: {error}"));
-        });
-    }
+    tx_loop.await;
     if let Err(error) = rx_task.await {
         log::error!("serial receive task failed iface={iface_address}: {error}");
         runtime_status.update(|status| {
@@ -289,6 +287,7 @@ async fn run_serial_stream_with_ifac<IO>(
     runtime_status.update(|status| {
         status.link_state = "closed".to_string();
     });
+    tx_channel
 }
 
 #[cfg(test)]
@@ -418,7 +417,6 @@ mod tests {
 
         let (rx_send, _rx_recv) = mpsc::channel(4);
         let (tx_send, tx_recv) = mpsc::channel(4);
-        let tx_recv = Arc::new(tokio::sync::Mutex::new(tx_recv));
         let cancel = CancellationToken::new();
         let status = SerialInterface::new("duplex", 115200).runtime_status_handle();
 
@@ -453,7 +451,6 @@ mod tests {
         let (io_a, mut io_b) = tokio::io::duplex(1024);
         let (rx_send, _rx_recv) = mpsc::channel(4);
         let (tx_send, tx_recv) = mpsc::channel(4);
-        let tx_recv = Arc::new(tokio::sync::Mutex::new(tx_recv));
         let cancel = CancellationToken::new();
         let status = SerialInterface::new("duplex", 115200).runtime_status_handle();
 
@@ -497,7 +494,6 @@ mod tests {
         let (io_a, mut io_b) = tokio::io::duplex(1024);
         let (rx_send, mut rx_recv) = mpsc::channel(4);
         let (_tx_send, tx_recv) = mpsc::channel(4);
-        let tx_recv = Arc::new(tokio::sync::Mutex::new(tx_recv));
         let cancel = CancellationToken::new();
         let status = SerialInterface::new("duplex", 115200).runtime_status_handle();
 
@@ -550,7 +546,6 @@ mod tests {
         let (io_a, mut io_b) = tokio::io::duplex(256);
         let (rx_send, mut rx_recv) = mpsc::channel(4);
         let (_tx_send, tx_recv) = mpsc::channel(4);
-        let tx_recv = Arc::new(tokio::sync::Mutex::new(tx_recv));
         let cancel = CancellationToken::new();
         let status = SerialInterface::new("duplex", 115200).runtime_status_handle();
 

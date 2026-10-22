@@ -105,8 +105,7 @@ impl KissTcpClientInterface {
 
         let online = context.channel.online.clone();
         online.store(false, std::sync::atomic::Ordering::Release);
-        let (rx_channel, tx_channel) = context.channel.split();
-        let tx_channel = Arc::new(tokio::sync::Mutex::new(tx_channel));
+        let (rx_channel, mut tx_channel) = context.channel.split();
         let mut active_backoff = reconnect_backoff;
 
         loop {
@@ -152,7 +151,7 @@ impl KissTcpClientInterface {
                 }
             });
 
-            run_kiss_stream_with_ifac(
+            run_kiss_stream_owned(
                 stream,
                 KissStreamOptions {
                     iface_address,
@@ -174,9 +173,9 @@ impl KissTcpClientInterface {
                 },
                 stream_cancel.clone(),
                 rx_channel.clone(),
-                tx_channel.clone(),
-                ifac_state.clone(),
-                ifac_violations.clone(),
+                &mut tx_channel,
+                None,
+                IfacRuntime::from_parts(ifac_state.clone(), ifac_violations.clone()),
             )
             .await;
             stream_cancel.cancel();
@@ -383,14 +382,51 @@ pub async fn run_kiss_stream<IO>(
     .await;
 }
 
+/// Shared-receiver entry point kept for callers outside this crate. Both
+/// receivers stay locked for the life of the stream, so the guards are held
+/// across every await of the loop; drivers in this crate own their receivers
+/// and call `run_kiss_stream_owned` instead.
+#[allow(clippy::await_holding_invalid_type)] // TASK-026: public signature pins the shared receivers
 pub async fn run_kiss_stream_with_ifac<IO>(
-    mut stream: IO,
+    stream: IO,
     mut options: KissStreamOptions,
     cancel: CancellationToken,
     rx_channel: tokio::sync::mpsc::Sender<RxMessage>,
     tx_channel: Arc<tokio::sync::Mutex<tokio::sync::mpsc::Receiver<TxMessage>>>,
     ifac_state: IfacState,
     ifac_violations: Arc<std::sync::atomic::AtomicU64>,
+) where
+    IO: AsyncRead + AsyncWrite + Unpin + Send + 'static,
+{
+    let mut tx_channel = tx_channel.lock().await;
+    let shared_management_frame_rx = options.management_frame_rx.take();
+    let mut management_frame_rx = match shared_management_frame_rx.as_ref() {
+        Some(management_frame_rx) => Some(management_frame_rx.lock().await),
+        None => None,
+    };
+    run_kiss_stream_owned(
+        stream,
+        options,
+        cancel,
+        rx_channel,
+        &mut tx_channel,
+        management_frame_rx.as_deref_mut(),
+        IfacRuntime::from_parts(ifac_state, ifac_violations),
+    )
+    .await;
+}
+
+/// Runs one KISS stream over receivers the caller owns, which is what lets a
+/// reconnect loop keep queued packets across connections. The management
+/// receiver is passed here rather than through `options.management_frame_rx`.
+pub(crate) async fn run_kiss_stream_owned<IO>(
+    mut stream: IO,
+    options: KissStreamOptions,
+    cancel: CancellationToken,
+    rx_channel: tokio::sync::mpsc::Sender<RxMessage>,
+    tx_channel: &mut InterfaceTxReceiver,
+    mut management_frame_rx: Option<&mut tokio::sync::mpsc::Receiver<Vec<u8>>>,
+    ifac: IfacRuntime,
 ) where
     IO: AsyncRead + AsyncWrite + Unpin + Send + 'static,
 {
@@ -408,7 +444,6 @@ pub async fn run_kiss_stream_with_ifac<IO>(
     let mut activity_tick = tokio::time::interval(Duration::from_millis(80));
     activity_tick.set_missed_tick_behavior(tokio::time::MissedTickBehavior::Delay);
     let mut last_read_at = Instant::now();
-    let mut management_frame_rx = options.management_frame_rx.take();
 
     update_kiss_status(&options, |status| {
         status.link_state = "running".to_string();
@@ -431,7 +466,6 @@ pub async fn run_kiss_stream_with_ifac<IO>(
     let mut last_write_at = Instant::now();
 
     loop {
-        let mut tx_channel = tx_channel.lock().await;
         tokio::select! {
             _ = cancel.cancelled() => break,
             _ = id_tick.tick(), if options.id_beacon.is_some() && first_tx_at.is_some() => {
@@ -527,7 +561,7 @@ pub async fn run_kiss_stream_with_ifac<IO>(
                     last_write_at = Instant::now();
                 }
             }
-            frame = recv_optional_management_frame(&mut management_frame_rx), if management_frame_rx.is_some() => {
+            frame = recv_optional_management_frame(management_frame_rx.as_deref_mut()), if management_frame_rx.is_some() => {
                 match frame {
                     Some(frame) => {
                         if write_raw_kiss_frames(
@@ -595,7 +629,7 @@ pub async fn run_kiss_stream_with_ifac<IO>(
                                                 });
                                                 continue;
                                             };
-                                            match decode_packet_ifac(&ifac_state, &payload) {
+                                            match decode_packet_ifac(&ifac.state, &payload) {
                                                 Ok(packet) => {
                                                 match rx_channel
                                                     .send(RxMessage {
@@ -624,7 +658,7 @@ pub async fn run_kiss_stream_with_ifac<IO>(
                                                 }
                                                 Err(error) => {
                                                     if is_ifac_violation(&error) {
-                                                        record_ifac_violation(&ifac_violations, &error);
+                                                        record_ifac_violation(&ifac.violations, &error);
                                                     }
                                                     update_kiss_status(&options, |status| {
                                                         status.deserialize_errors =
@@ -711,7 +745,7 @@ pub async fn run_kiss_stream_with_ifac<IO>(
                 }
             }
             Some(message) = tx_channel.recv() => {
-                let encoded = match encode_packet_ifac(&ifac_state, &message.packet) {
+                let encoded = match encode_packet_ifac(&ifac.state, &message.packet) {
                     Ok(encoded) => encoded,
                     Err(err) => {
                         log::warn!(
@@ -762,15 +796,6 @@ pub async fn run_kiss_stream_with_ifac<IO>(
         status.interface_ready = interface_ready;
         status.pending_depth = pending.len();
     });
-}
-
-async fn recv_optional_management_frame(
-    management_frame_rx: &mut Option<Arc<tokio::sync::Mutex<tokio::sync::mpsc::Receiver<Vec<u8>>>>>,
-) -> Option<Vec<u8>> {
-    match management_frame_rx {
-        Some(rx) => rx.lock().await.recv().await,
-        None => None,
-    }
 }
 
 async fn write_shutdown_frames<IO>(stream: &mut IO, options: &KissStreamOptions)

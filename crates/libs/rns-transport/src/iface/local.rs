@@ -146,22 +146,18 @@ impl LocalUnixServer {
             )
         };
 
-        let (_, tx_channel) = context.channel.split();
-        let tx_channel = Arc::new(tokio::sync::Mutex::new(tx_channel));
+        let (_, mut tx_channel) = context.channel.split();
         let endpoint_label = endpoint.label();
 
         let tx_task = {
             let cancel = context.cancel.clone();
             let iface_stop = iface_stop.clone();
-            let tx_channel = tx_channel.clone();
 
             tokio::spawn(async move {
                 loop {
                     if cancel.is_cancelled() || iface_stop.is_cancelled() {
                         break;
                     }
-
-                    let mut tx_channel = tx_channel.lock().await;
 
                     tokio::select! {
                         _ = cancel.cancelled() => {
@@ -178,6 +174,7 @@ impl LocalUnixServer {
                         }
                     }
                 }
+                tx_channel
             })
         };
 
@@ -429,8 +426,7 @@ impl LocalUnixClient {
             )
         };
 
-        let (rx_channel, tx_channel) = context.channel.split();
-        let tx_channel = Arc::new(tokio::sync::Mutex::new(tx_channel));
+        let (rx_channel, mut tx_channel) = context.channel.split();
 
         let mut running = true;
         let mut has_connected = false;
@@ -487,7 +483,7 @@ impl LocalUnixClient {
                     context.cancel.clone(),
                     iface_stop.clone(),
                     rx_channel.clone(),
-                    tx_channel.clone(),
+                    &mut tx_channel,
                     ifac_state.clone(),
                     ifac_violations.clone(),
                     read_stream,
@@ -503,7 +499,7 @@ impl LocalUnixClient {
                     context.cancel.clone(),
                     iface_stop.clone(),
                     rx_channel.clone(),
-                    tx_channel.clone(),
+                    &mut tx_channel,
                     ifac_state.clone(),
                     ifac_violations.clone(),
                     read_stream,

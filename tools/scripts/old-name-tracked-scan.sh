@@ -7,7 +7,8 @@ set -euo pipefail
 # committable untracked files) and skips dot-directories other than .github.
 # This script applies the same needles, extension filter and skipped doc
 # prefixes to `git ls-files` only, with no dot-directory skip. Exit 0 iff no
-# tracked scanned file carries an old-package-name form.
+# tracked scanned file carries an old-package-name form; a pass that scanned
+# files says `old-name scan ok:`, a tree with nothing to scan says `skipped:`.
 
 if [ $# -ne 0 ]; then
   echo "usage: $0" >&2
@@ -49,9 +50,10 @@ while IFS= read -r file; do
 done < <(git ls-files)
 
 # Under `set -u` an empty "${files[@]}" is an error on bash before 4.4, and
-# grep with no file operands would read stdin.
+# grep with no file operands would read stdin. Nothing to scan is not a
+# failure, but it is not a pass over scanned files either.
 if [ "${#files[@]}" -eq 0 ]; then
-  echo "old-name scan ok: no tracked scanned file"
+  echo "old-name scan skipped: no tracked scanned file"
   exit 0
 fi
 

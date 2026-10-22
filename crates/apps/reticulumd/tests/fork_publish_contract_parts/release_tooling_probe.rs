@@ -77,7 +77,8 @@ fn patchset_ledger_check_script_passes_at_head_and_reports_misuse() {
 
 /// The scripts a releaser may call with the wrong shape refuse with a usage
 /// line instead of running a two-minute clippy, a semver baseline build
-/// against nothing or a scan with stray arguments.
+/// against nothing or for a count that is not a number, or a scan with
+/// stray arguments.
 #[cfg(unix)]
 #[test]
 fn release_scripts_reject_a_wrong_arity_with_usage() {
@@ -88,6 +89,22 @@ fn release_scripts_reject_a_wrong_arity_with_usage() {
     let (code, _, stderr) = run_fork_script("semver-major-findings-check.sh", &["baseline-only"]);
     assert_eq!(code, Some(2), "semver check needs a baseline and a count, got stderr {stderr:?}");
     assert!(stderr.contains("<baseline-rev> <expected-major-count>"), "{stderr:?}");
+
+    let started = std::time::Instant::now();
+    let (code, stdout, stderr) =
+        run_fork_script("semver-major-findings-check.sh", &["HEAD", "four"]);
+    assert_eq!(code, Some(2), "a non-numeric count is a usage error, got stderr {stderr:?}");
+    assert!(
+        stderr.contains("usage:")
+            && stderr.contains("<baseline-rev> <expected-major-count>")
+            && stderr.contains("must be an integer, got 'four'"),
+        "{stderr:?}"
+    );
+    assert!(stdout.is_empty(), "no summary line for a refused count, got {stdout:?}");
+    assert!(
+        started.elapsed() < std::time::Duration::from_secs(10),
+        "the refusal must not wait on a cargo semver-checks run"
+    );
 
     let (code, _, stderr) = run_fork_script("old-name-tracked-scan.sh", &["unexpected"]);
     assert_eq!(code, Some(2), "old-name scan takes no arguments, got stderr {stderr:?}");

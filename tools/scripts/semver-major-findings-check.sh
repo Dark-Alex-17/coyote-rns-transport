@@ -9,8 +9,12 @@ set -euo pipefail
 # summary to report exactly <expected-major-count> major findings, 0 minor,
 # and every named lint to appear in the failure list. Exit 0 on match.
 
-if [ $# -lt 2 ]; then
+usage() {
   echo "usage: $0 <baseline-rev> <expected-major-count> [lint ...]" >&2
+}
+
+if [ $# -lt 2 ]; then
+  usage
   exit 2
 fi
 
@@ -25,7 +29,8 @@ fail() {
 baseline="$1"
 expected="$2"
 [[ "$expected" =~ ^[0-9]+$ ]] || {
-  echo "usage: $0 <baseline-rev> <expected-major-count> [lint ...]" >&2
+  echo "expected-major-count must be an integer, got '${expected}'" >&2
+  usage
   exit 2
 }
 shift 2
@@ -42,7 +47,8 @@ if [ "$expected" -eq 0 ]; then
   exit 0
 fi
 
-if ! printf '%s\n' "$summary" | grep -qE "${expected} major and 0 minor"; then
+# Anchored on the left so an expected count of 1 cannot match "11 major".
+if ! printf '%s\n' "$summary" | grep -qE "(^|[^0-9])${expected} major and 0 minor"; then
   printf '%s\n' "$out" | tail -40 >&2
   fail "expected ${expected} major and 0 minor findings"
 fi

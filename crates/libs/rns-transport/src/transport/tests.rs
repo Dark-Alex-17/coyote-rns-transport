@@ -1,3 +1,6 @@
+// Test code holds guards across awaits on purpose; production code is lint-clean.
+#![allow(clippy::await_holding_invalid_type)]
+
 include!("tests_parts/module_prelude.rs");
 
 include!("tests_parts/path_table_api.rs");

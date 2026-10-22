@@ -1433,6 +1433,9 @@ impl Interface for TcpClient {
 
 #[cfg(test)]
 mod tests {
+    // Test code holds guards across awaits on purpose; production code is lint-clean.
+    #![allow(clippy::await_holding_invalid_type)]
+
     #[path = "issue_614_reconnected_stream.rs"]
     mod issue_614_reconnected_stream;
     #[path = "tx_queue_survives_reconnect.rs"]

@@ -1475,6 +1475,9 @@ fn switch_id_from_slice(value: &[u8]) -> [u8; SWITCH_ID_LEN] {
 
 #[cfg(test)]
 mod tests {
+    // Test code holds guards across awaits on purpose; production code is lint-clean.
+    #![allow(clippy::await_holding_invalid_type)]
+
     use std::collections::VecDeque;
     use std::io;
     use std::pin::Pin;

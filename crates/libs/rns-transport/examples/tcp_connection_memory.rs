@@ -1,3 +1,6 @@
+// Test code holds guards across awaits on purpose; production code is lint-clean.
+#![allow(clippy::await_holding_invalid_type)]
+
 use std::env;
 #[cfg(target_os = "linux")]
 use std::fs;

@@ -662,6 +662,9 @@ fn bind_tcp_socket(addr: SocketAddr) -> io::Result<TcpListener> {
 
 #[cfg(test)]
 mod tests {
+    // Test code holds guards across awaits on purpose; production code is lint-clean.
+    #![allow(clippy::await_holding_invalid_type)]
+
     use std::sync::Arc;
     use std::time::Duration;
 

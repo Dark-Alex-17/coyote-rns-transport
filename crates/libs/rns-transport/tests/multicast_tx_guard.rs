@@ -23,6 +23,9 @@
 //! The tests run against IPv4 `224.0.0.100`, link-local scope, which
 //! works on stock Linux/macOS loopback without any routing setup.
 
+// Test code holds guards across awaits on purpose; production code is lint-clean.
+#![allow(clippy::await_holding_invalid_type)]
+
 use std::net::{Ipv4Addr, SocketAddr};
 use std::sync::Arc;
 use std::time::Duration;

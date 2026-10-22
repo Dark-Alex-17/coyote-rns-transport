@@ -1,3 +1,6 @@
+// Test code holds guards across awaits on purpose; production code is lint-clean.
+#![allow(clippy::await_holding_invalid_type)]
+
 #[path = "support/python_channel_events.rs"]
 mod python_channel_events;
 

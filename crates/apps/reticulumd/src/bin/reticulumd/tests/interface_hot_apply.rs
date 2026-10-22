@@ -1,3 +1,6 @@
+// Test code holds guards across awaits on purpose; production code is lint-clean.
+#![allow(clippy::await_holding_invalid_type)]
+
 use super::{
     apply_hot_apply_interface_records, mark_udp_record_runtime_status,
     refresh_hot_apply_pipe_runtime_status_once, refresh_hot_apply_tcp_listener_runtime_status_once,

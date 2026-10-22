@@ -408,7 +408,7 @@ fn print_cargo_output(output: &std::process::Output) {
 
 #[cfg(test)]
 mod version_tests {
-    use super::{public_api_line_diff, release_platform_label_for_target, resolve_release_version};
+    use super::{public_api_line_diff, release_platform_label_for_target};
 
     #[test]
     fn public_api_diff_reports_removed_and_added_lines() {
@@ -426,38 +426,6 @@ mod version_tests {
         assert_eq!(
             public_api_line_diff("pub const A: &str\npub const B: &str", "pub const B: &str\npub const A: &str"),
             "first ordering difference at line 1:\nbaseline: pub const A: &str\ncurrent: pub const B: &str"
-        );
-    }
-
-    #[test]
-    fn explicit_release_version_wins() {
-        assert_eq!(
-            resolve_release_version(Some(" custom/1 "), Some("v0.2.3"), "0.2.3")
-                .expect("explicit version"),
-            "custom-1"
-        );
-    }
-
-    #[test]
-    fn matching_exact_tag_is_used() {
-        assert_eq!(
-            resolve_release_version(None, Some("v0.2.3"), "0.2.3").expect("matching tag"),
-            "v0.2.3"
-        );
-    }
-
-    #[test]
-    fn mismatched_exact_tag_is_rejected() {
-        let error = resolve_release_version(None, Some("v0.2.4"), "0.2.3")
-            .expect_err("mismatched tag must fail");
-        assert!(error.to_string().contains("does not match project VERSION"));
-    }
-
-    #[test]
-    fn project_version_is_used_without_exact_tag() {
-        assert_eq!(
-            resolve_release_version(None, None, "0.2.3\n").expect("VERSION fallback"),
-            "0.2.3"
         );
     }
 

@@ -8,9 +8,9 @@
 //! hold, returns `Err(InvalidArgument)` before any advertisement exists (the same answer the plain senders
 //! gave before this release; `ConnectionError` is reserved for an advertisement that failed
 //! to leave an interface the link does have); `Transport::link`
-//! fails fast and repeatably with `NoPath` through the public API alone; the pre-task
-//! `send_resource` / `send_request_resource` / `send_response_resource` argument lists still
-//! compile; and `transport::ResourceAcceptHook` is the exported alias with the stated bounds.
+//! fails fast and repeatably with `NoPath` through the public API alone; the `send_resource` /
+//! `send_request_resource` / `send_response_resource` argument lists from before this release
+//! still compile; and `transport::ResourceAcceptHook` is the exported alias with the stated bounds.
 //! The loopback behaviour behind each verdict lives in the crate's own `tests_parts` fixtures.
 
 use std::sync::Arc;

@@ -141,6 +141,24 @@ fn changelog_sections_under_bullet_cite_contract(changelog: &str) -> Vec<(String
         .collect()
 }
 
+/// Pins which released CHANGELOG sections the bullet-cite gate admits at this
+/// tree: 0.15.1 and nothing earlier. Extend the expected labels when a
+/// section is released.
+#[test]
+fn bullet_cite_contract_covers_the_releases_from_0_15_1() {
+    let changelog = read_repo_file("crates/libs/rns-transport/CHANGELOG.md");
+    let labels: Vec<String> = changelog_sections_under_bullet_cite_contract(&changelog)
+        .into_iter()
+        .map(|(label, _)| label)
+        .collect();
+    assert_eq!(
+        labels,
+        ["0.15.1"],
+        "the bullet cite contract should cover the released sections from 0.15.1 up; extend \
+         this pin when a section is released"
+    );
+}
+
 /// The top-level `- ` bullets of a CHANGELOG section that cite no `.rs` or
 /// `.py` file, each with its two-space-indented continuation lines.
 fn changelog_bullets_without_a_cite(label: &str, section: &str) -> Vec<String> {
@@ -201,25 +219,25 @@ const FORK_RELEASE_SCRIPTS: [&str; 4] = [
 ];
 
 /// The release checks the runbook and the README recipe hand to a releaser
-/// exist as runnable bash under `tools/scripts/`, are files git would commit
-/// (not left behind by an ignore rule), and every document that walks a
+/// exist as runnable bash under `tools/scripts/`, are tracked by git (not a
+/// local file a release run left behind), and every document that walks a
 /// releaser through a fork release names them, so none can be dropped or
 /// renamed without the prose following.
 #[test]
 fn fork_release_scripts_are_committed_and_named_by_the_runbooks() {
     let root = repo_root();
-    let committable = git_committable_files();
+    let tracked = git_tracked_files();
     for script in FORK_RELEASE_SCRIPTS {
         let relative = format!("tools/scripts/{script}");
         assert!(
-            committable.contains(&relative),
-            "{relative} should be a file git commits, not one an ignore rule hides from the release"
+            tracked.contains(&relative),
+            "{relative} should be tracked by git, not a local file the release leaves behind"
         );
         let path = root.join(&relative);
         let text = fs::read_to_string(&path)
             .unwrap_or_else(|err| panic!("tools/scripts/{script} should exist: {err}"));
         assert!(
-            text.starts_with("#!/usr/bin/env bash\n"),
+            text.lines().next() == Some("#!/usr/bin/env bash"),
             "tools/scripts/{script} should open with the bash shebang"
         );
         assert!(

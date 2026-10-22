@@ -862,6 +862,8 @@ fn unreleased_notes_cite_files_that_exist_in_the_tree() {
 
 include!("fork_publish_contract_parts/ledger_contract.rs");
 
+include!("fork_publish_contract_parts/release_tooling_probe.rs");
+
 #[test]
 fn repo_readme_points_at_the_crate_readme() {
     let pointer = "](crates/libs/rns-transport/README.md)";
@@ -976,8 +978,20 @@ fn visit_text_files(root: &Path, dir: &Path, f: &mut impl FnMut(&Path)) {
 /// untracked ones no ignore rule excludes, so local tool state (`.coyote/`,
 /// `plans/`, anything in `.git/info/exclude`) is never scanned.
 fn git_committable_files() -> Vec<String> {
+    git_ls_files(&["--cached", "--others", "--exclude-standard"])
+}
+
+/// Every file git tracks in this checkout, so a file that only exists on
+/// disk (left behind by a release run, not yet added) does not count.
+fn git_tracked_files() -> Vec<String> {
+    git_ls_files(&["--cached"])
+}
+
+fn git_ls_files(selection: &[&str]) -> Vec<String> {
     let output = Command::new("git")
-        .args(["ls-files", "--cached", "--others", "--exclude-standard", "-z"])
+        .arg("ls-files")
+        .args(selection)
+        .arg("-z")
         .current_dir(repo_root())
         .output()
         .expect("run git ls-files");
@@ -1099,8 +1113,8 @@ fn pull_request_ci_runs_every_external_rns_transport_test_target() {
 /// every step the pull-request workflow runs (the docs build, the fork
 /// publish and release-docs contracts, the breaking-change compile-fail
 /// harness, the external test targets, the patch-set ledger check) runs
-/// there too, so the dispatch workflow cannot pass on a tree the PR
-/// workflow would reject.
+/// there too, on the same full-history checkout the ledger check needs, so
+/// the dispatch workflow cannot pass on a tree the PR workflow would reject.
 #[test]
 fn ci_full_contracts_job_runs_every_contract_step_ci_runs() {
     let ci = read_repo_file(".github/workflows/ci.yml");
@@ -1110,10 +1124,17 @@ fn ci_full_contracts_job_runs_every_contract_step_ci_runs() {
     let steps: Vec<&str> =
         ci_job.lines().filter(|line| line.trim_start().starts_with("run: ")).collect();
     assert!(
-        steps.len() >= 4,
-        "ci.yml's contracts job should run at least four steps, got {steps:?}"
+        steps.len() >= 5,
+        "ci.yml's contracts job should run at least five steps, got {steps:?}"
     );
     for step in steps {
         assert!(ci_full_job.contains(step), "ci-full.yml's contracts job should carry {step:?}");
     }
+    let checkout = &ci_full_job
+        [..ci_full_job.find("run:").expect("ci-full.yml's contracts job should have a run step")];
+    assert!(
+        checkout.contains("fetch-depth: 0"),
+        "ci-full.yml's contracts job checkout needs the full history and tags for the ledger \
+         check, got {checkout:?}"
+    );
 }

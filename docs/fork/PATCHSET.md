@@ -42,7 +42,8 @@ patch carries no other id and is fork commit `cccc40e4`; the
 `Python-in-the-loop shared-instance interop` patch carries no other id and
 is fork commit `eceeb9ad`; the `release 0.15.1` patch carries no other id
 and is fork commits `e529730c`, `84d90f75`, `9b2e20a6`, `0df584b1`,
-`b4a941d8`, `59b66d8e` and `257c180d`.
+`b4a941d8`, `59b66d8e`, `257c180d`, `8559e395`, `6fed34de`, `dffe6f9b`,
+`134140fb`, `df914502`, `692d9327`, `e5e3bc88` and `d632c5e9`.
 
 | File | Patch |
 | --- | --- |
@@ -53,9 +54,9 @@ and is fork commits `e529730c`, `84d90f75`, `9b2e20a6`, `0df584b1`,
 | `crates/apps/reticulumd/tests/fork_publish_contract.rs` | shared-instance client packaging, release 0.15.1 |
 | `crates/apps/reticulumd/tests/fork_release_docs_contract.rs` | shared-instance client packaging, shared-instance client parity, release 0.15.1 |
 | `crates/apps/reticulumd/tests/python_channel_interop.rs` | Python-in-the-loop shared-instance interop |
-| `crates/apps/reticulumd/tests/python_channel_interop_parts/python_shared_instance_live.rs` | Python-in-the-loop shared-instance interop |
-| `crates/apps/reticulumd/tests/support/python_channel_process.rs` | Python-in-the-loop shared-instance interop |
-| `crates/apps/reticulumd/tests/support/python_shared_instance_client.py` | Python-in-the-loop shared-instance interop |
+| `crates/apps/reticulumd/tests/python_channel_interop_parts/python_shared_instance_live.rs` | Python-in-the-loop shared-instance interop, release 0.15.1 |
+| `crates/apps/reticulumd/tests/support/python_channel_process.rs` | Python-in-the-loop shared-instance interop, release 0.15.1 |
+| `crates/apps/reticulumd/tests/support/python_shared_instance_client.py` | Python-in-the-loop shared-instance interop, release 0.15.1 |
 | `crates/apps/rns-tools/Cargo.toml` | release 0.15.1 |
 | `crates/libs/rns-transport/CHANGELOG.md` | shared-instance client packaging, shared-instance client parity, release 0.15.1 |
 | `crates/libs/rns-transport/Cargo.toml` | release 0.15.1 |
@@ -102,6 +103,7 @@ and is fork commits `e529730c`, `84d90f75`, `9b2e20a6`, `0df584b1`,
 | `crates/libs/rns-transport/src/transport/tests_parts/two_transport_shared_instance_probe9.rs` | shared-instance client parity |
 | `crates/libs/rns-transport/src/transport/tests_parts/two_transport_shared_instance_probe10.rs` | shared-instance client parity |
 | `crates/libs/rns-transport/src/transport/tests_parts/two_transport_shared_instance_probe11.rs` | shared-instance client parity |
+| `crates/libs/rns-transport/src/transport/tests_parts/two_transport_shared_instance_probe12.rs` | release 0.15.1 |
 | `crates/libs/rns-transport/src/transport/tests_parts/two_transport_shared_instance_reconnect.rs` | shared-instance client parity |
 | `crates/libs/rns-transport/src/transport/tests_parts/two_transport_shared_instance_stop.rs` | shared-instance client parity |
 | `crates/libs/rns-transport/src/transport/tests_parts/two_transport_shared_instance_tasks.rs` | shared-instance client parity |
@@ -494,7 +496,8 @@ direction, one JSON object per stdout line.
 files only.
 
 Fork commits `e529730c`, `84d90f75`, `9b2e20a6`, `0df584b1`, `b4a941d8`,
-`59b66d8e` and `257c180d`: release 0.15.1. The first pins a shared-instance
+`59b66d8e`, `257c180d`, `8559e395`, `6fed34de`, `dffe6f9b`, `134140fb`,
+`df914502`, `692d9327`, `e5e3bc88` and `d632c5e9`: release 0.15.1. The first pins a shared-instance
 usage example in the crate README (`crates/libs/rns-transport/README.md`):
 the `## Attaching to a shared instance` section gains one rust fence
 showing attach, destination plus request handler, the on-demand announce
@@ -533,7 +536,56 @@ contract-test site, regenerates `Cargo.lock` and
 `crates/libs/rns-transport/fuzz/Cargo.lock`, promotes `## Unreleased` to
 `## 0.15.1 - 2026-10-21` in the crate `CHANGELOG.md` with a version bullet
 and no `### Breaking` subsection, and adds the 0.15.1 paragraph to the
-README patch list. The ledger-only commit that completes this section is
+README patch list. The eighth adds
+`crates/libs/rns-transport/src/transport/tests_parts/two_transport_shared_instance_probe12.rs`,
+included from `crates/libs/rns-transport/src/transport/tests.rs`, pinning
+the warning's boundary (`[::1]` never warns, `[::ffff:10.255.255.1]` warns
+once, an attach after a detach warns once per attach), and a test in
+`crates/apps/reticulumd/tests/fork_publish_contract.rs` that the
+`contracts` job of `.github/workflows/ci-full.yml` carries every `cargo
+test` step the one in `ci.yml` runs. The ninth moves the warning in
+`crates/libs/rns-transport/src/transport/links_parts/transport_sections/shared_instance.rs`
+after the first critical section, so an attach refused by the slot or the
+cancel warns nothing, and reads the address through
+`IpAddr::to_canonical`, so `[::ffff:127.0.0.1]` is quiet; the endpoint
+warn fixture gains the refused-attach pin and the rustdoc says the warning
+is per accepted attach. The tenth makes the live test's announce oracle a
+genuine rebroadcast:
+`crates/apps/reticulumd/tests/python_channel_interop_parts/python_shared_instance_live.rs`
+announces again once the Python client's ready line is seen, after waiting
+out the first announce's emitted second, and
+`crates/apps/reticulumd/tests/support/python_shared_instance_client.py`
+drops `receive_path_responses` from its handler so `announce_received`
+fires only on rnsd's live re-send to its other local clients
+(`RNS/Transport.py:2398-2430`); the client also takes `--app-name`,
+`--aspect`, `--request-path` and `--request-data`, passed by
+`spawn_shared_instance_client` in
+`crates/apps/reticulumd/tests/support/python_channel_process.rs` from the
+Rust constants, and refuses to build the link when the recalled identity
+under that name does not hash to the argv hash; the same commit renames
+the rnsd config string, names the `LOG_PATHING` floor on the loglevel
+line and joins the log tail's drain threads in `Drop`. The eleventh makes
+the full-ref accept case in
+`crates/apps/reticulumd/tests/fork_publish_contract.rs` assert the skip
+line is absent and adds the `refs/tags/` strip line to the token pin. The
+twelfth rewords `crates/libs/rns-transport/tests/shared_instance_api.rs`
+and the README section so the one-hop reading is attributed to the plain
+`TcpServer`, with rnsd and reticulumd reading zero
+(`RNS/Transport.py:1938`), leaving the pinned snippet lines untouched. The
+thirteenth applies review nits: the CHANGELOG parenthetical that still
+named the Unreleased checks, a README paragraph break before the endpoint
+warning, the divergence register's sentence naming itself plus this file
+as the parity ledger for fork-only rows, and the undelivered verdict on
+the debug line in `crates/libs/rns-transport/src/resource/outcome.rs`.
+The fourteenth adds the release notes for the warning placement, the
+live-rebroadcast oracle and the ci-full twin pin to the crate
+`CHANGELOG.md`. The fifteenth registers the live test's destination before
+the attach, so the registration announce a destination added under the
+posture gets 250 ms later cannot land in the second after the explicit
+early announce and move rnsd's timebase past the second announce
+(`RNS/Transport.py:2238`), and takes the guard instant after the early
+announce returns so it bounds the emission time from above.
+The ledger-only commit that completes this section is
 omitted by convention.
 
 ## 0.15.0 (upstream 0.14.0)

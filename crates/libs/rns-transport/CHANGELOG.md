@@ -7,6 +7,16 @@ trailing clause of the bullet for the behaviour it pins. A fixture hardening
 that changes no library behaviour is the one exception: it is a Changed
 bullet of its own, marked test-only.
 
+## Unreleased
+
+### Changed
+
+- Test-only: `tests/outbound_outcome_api.rs` describes the plain senders'
+  argument lists as the ones from before this release instead of by a label
+  from the fork's own planning, and
+  `python_channel_interop_parts/multi_segment_python_interop.rs` reuses the
+  harness's `digest_hex` instead of carrying a second copy of it.
+
 ## 0.15.1 - 2026-10-21
 
 ### Added

@@ -16,6 +16,38 @@ is the one exception: it is a Changed bullet of its own, marked test-only.
   from the fork's own planning, and
   `python_channel_interop_parts/multi_segment_python_interop.rs` reuses the
   harness's `digest_hex` instead of carrying a second copy of it.
+- Release tooling, no library behaviour change: the fork's release checks
+  are committed under `tools/scripts/` (`patchset-ledger-check.sh`,
+  `workspace-clippy-classify.sh`, `old-name-tracked-scan.sh`,
+  `semver-major-findings-check.sh`) and named by the README rebase recipe
+  and the release runbook; pull-request CI runs every external test target
+  of this crate (`cargo test -p coyote-rns-transport --tests`) and the
+  ledger check from a full-history checkout, mirrored into the dispatch
+  workflow; `cargo xtask package-daemon-bundle` accepts a checkout at a
+  `coyote-rns-transport-v*` tag whose version equals this crate's manifest
+  version (its unit tests live in `xtask`, outside this changelog's cite
+  roots). Pinned by `crates/apps/reticulumd/tests/fork_publish_contract.rs`
+  (`pull_request_ci_runs_every_external_rns_transport_test_target`,
+  `ci_full_contracts_job_runs_every_contract_step_ci_runs`) and
+  `fork_publish_contract_parts/ledger_contract.rs`
+  (`fork_release_scripts_are_committed_and_named_by_the_runbooks`).
+- Ledger contracts, test-only: every patch-header hash in
+  `docs/fork/PATCHSET.md` must be named by its section's legend, the
+  all-legend-hash and header-to-legend checks and the per-bullet cite check
+  of this file run over every released section from 0.15.1 up (earlier
+  sections keep their published text), patch ids take one or two digits,
+  the Python-in-the-loop trap names its rule when it fires, and the
+  old-package-name scan reads `git ls-files` instead of walking
+  git-excluded local state (`crates/apps/reticulumd/tests/fork_publish_contract.rs`,
+  `fork_publish_contract_parts/ledger_contract.rs`).
+
+### Removed
+
+- The Codex pull-request review workflow, which was opt-in through a
+  repository variable that was never set, and its clause in the publish
+  contract; the pin keeps the `ci.yml` clauses
+  (`crates/apps/reticulumd/tests/fork_publish_contract.rs`,
+  `pull_request_ci_runs_the_publish_contract`).
 
 ## 0.15.1 - 2026-10-21
 

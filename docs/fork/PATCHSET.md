@@ -27,15 +27,33 @@ per fork task.
 ## Unreleased (upstream 0.14.0)
 
 Every file changed since the `0.15.1` release and the patch each change
-belongs to. Patch ids: H1 is test hygiene. The `test hygiene` patch is fork
-commit `08362717`.
+belongs to. Patch ids: H1 is test hygiene, H2 is release tooling, H3 is
+ledger conventions. The `test hygiene` patch is fork commit `08362717`; the
+`release tooling` patch is fork commits `7e63de1a`, `7fbc97cb`, `fbd4da9d`
+and `f206f31c`; the `ledger conventions` patch is fork commit `c45a4e5c`.
 
 | File | Patch |
 | --- | --- |
+| `.github/workflows/ci-full.yml` | release tooling |
+| `.github/workflows/ci.yml` | release tooling |
+| `AGENTS.md` | ledger conventions |
+| `crates/apps/reticulumd/tests/fork_publish_contract.rs` | release tooling |
+| `crates/apps/reticulumd/tests/fork_publish_contract_parts/ledger_contract.rs` | release tooling |
 | `crates/apps/reticulumd/tests/python_channel_interop_parts/multi_segment_python_interop.rs` | test hygiene |
-| `crates/libs/rns-transport/CHANGELOG.md` | test hygiene |
+| `crates/libs/rns-transport/CHANGELOG.md` | test hygiene, release tooling, ledger conventions |
+| `crates/libs/rns-transport/README.md` | release tooling |
 | `crates/libs/rns-transport/tests/outbound_outcome_api.rs` | test hygiene |
-| `docs/fork/PATCHSET.md` | test hygiene |
+| `docs/fork/PATCHSET.md` | test hygiene, release tooling, ledger conventions |
+| `docs/runbooks/release-runbook.md` | release tooling |
+| `docs/status/reticulum-parity-matrix.md` | ledger conventions |
+| `tools/scripts/old-name-tracked-scan.sh` | release tooling |
+| `tools/scripts/patchset-ledger-check.sh` | release tooling |
+| `tools/scripts/semver-major-findings-check.sh` | release tooling |
+| `tools/scripts/workspace-clippy-classify.sh` | release tooling |
+| `xtask/src/main.rs` | release tooling |
+| `xtask/src/main_parts/capture_platform_descriptor.rs` | release tooling |
+| `xtask/src/main_parts/release_version_tests.rs` | release tooling |
+| `xtask/src/main_parts/run_unused_deps.rs` | release tooling |
 
 Fork commit `08362717`: H1, test hygiene. Rewords the
 `tests/outbound_outcome_api.rs` module doc so the plain senders' argument
@@ -44,6 +62,56 @@ label from the fork's own planning, and drops the
 `multi_segment_python_interop.rs` copy of the interop harness's
 `digest_hex` in favour of the shared helper at its three call sites. No
 library behaviour changes.
+
+Fork commits `7e63de1a`, `7fbc97cb`, `fbd4da9d` and `f206f31c`: H2, release
+tooling. No library behaviour changes. `7e63de1a` commits the release
+checks that lived in the release operator's home directory under
+`tools/scripts/`: `patchset-ledger-check.sh` (this ledger's file table
+against `git diff --name-only --diff-filter=d <base>..<head>` and a citation
+of every non-ledger commit in the range, with a zero-argument form that
+takes the latest `coyote-rns-transport-v*` tag as the base),
+`workspace-clippy-classify.sh` (the CI clippy invocation with every
+diagnostic classified), `old-name-tracked-scan.sh` (the `git ls-files`
+twin of the old-package-name contract walk) and
+`semver-major-findings-check.sh` (the `cargo-semver-checks` verdict for a
+release); the crate README rebase recipe, this preamble and
+`docs/runbooks/release-runbook.md` name them. `7fbc97cb` makes the
+`contracts` job of `.github/workflows/ci.yml` check out the full history,
+run `cargo test -p coyote-rns-transport --tests` (every
+`crates/libs/rns-transport/tests/*.rs` target on the pull-request path) and
+run the ledger check, mirrors the steps into `.github/workflows/ci-full.yml`,
+and deletes `.github/workflows/codex-review.yml` with its prompt
+`.github/codex/prompts/review.md`; the contract pin keeps only its `ci.yml`
+clauses, the twin pin mirrors every `run:` line of the job, and a new pin
+requires the external-test and ledger steps and the full-history checkout.
+`fbd4da9d` closes the ledger contract gaps in
+`crates/apps/reticulumd/tests/fork_publish_contract.rs` and its new
+include!'d part `fork_publish_contract_parts/ledger_contract.rs`: every
+patch-header hash must be named by its section's legend, the all-legend-hash
+and header-to-legend checks run over `Unreleased` and every released
+section from `0.15.1` up, the per-bullet CHANGELOG cite check runs over
+every released section from `0.15.1` up (earlier sections keep their
+published text), patch ids take one or two digits, the Python-in-the-loop
+trap names its rule when it fires, the old-package-name scan reads
+`git ls-files --cached --others --exclude-standard`, and a pin requires the
+four scripts to exist as bash under `set -euo pipefail` and to be named by
+the runbooks. `f206f31c` makes `resolve_release_version` in
+`xtask/src/main_parts/capture_platform_descriptor.rs` accept a
+`coyote-rns-transport-v*` tag when its version equals the crate manifest
+version (returned as written, as `tools/scripts/check-publish-tag-version.sh`
+checks it), keeps `v*` and bare tags on the root `VERSION` comparison, and
+moves the release-version unit tests to
+`xtask/src/main_parts/release_version_tests.rs`, included from
+`xtask/src/main.rs`.
+
+Fork commit `c45a4e5c`: H3, ledger conventions. No library behaviour
+changes. `AGENTS.md` records that fork-only parity rows live in this file
+and the crate README `## Known divergences from Python RNS` while the
+`docs/status/*` matrices track upstream rows only; the `#610` compression
+row of `docs/status/reticulum-parity-matrix.md` points at the B1 patch
+instead of carrying fork hashes; the crate `CHANGELOG.md` preamble widens
+its test-only exception from a fixture hardening to any test-only change
+that alters no library behaviour.
 
 ## 0.15.1 (upstream 0.14.0)
 

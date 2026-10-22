@@ -44,7 +44,7 @@ is fork commit `eceeb9ad`; the `release 0.15.1` patch carries no other id
 and is fork commits `e529730c`, `84d90f75`, `9b2e20a6`, `0df584b1`,
 `b4a941d8`, `59b66d8e`, `257c180d`, `8559e395`, `6fed34de`, `dffe6f9b`,
 `134140fb`, `df914502`, `692d9327`, `e5e3bc88`, `d632c5e9`, `4fd3a8dc`,
-`4994a8f1`, `cfb0f62f` and `220a4794`.
+`4994a8f1`, `cfb0f62f`, `220a4794` and `fd10554b`.
 
 | File | Patch |
 | --- | --- |
@@ -107,6 +107,7 @@ and is fork commits `e529730c`, `84d90f75`, `9b2e20a6`, `0df584b1`,
 | `crates/libs/rns-transport/src/transport/tests_parts/two_transport_shared_instance_probe11.rs` | shared-instance client parity |
 | `crates/libs/rns-transport/src/transport/tests_parts/two_transport_shared_instance_probe12.rs` | release 0.15.1 |
 | `crates/libs/rns-transport/src/transport/tests_parts/two_transport_shared_instance_probe13.rs` | release 0.15.1 |
+| `crates/libs/rns-transport/src/transport/tests_parts/two_transport_shared_instance_probe14.rs` | release 0.15.1 |
 | `crates/libs/rns-transport/src/transport/tests_parts/two_transport_shared_instance_reconnect.rs` | shared-instance client parity |
 | `crates/libs/rns-transport/src/transport/tests_parts/two_transport_shared_instance_stop.rs` | shared-instance client parity |
 | `crates/libs/rns-transport/src/transport/tests_parts/two_transport_shared_instance_tasks.rs` | shared-instance client parity |
@@ -506,7 +507,7 @@ files only.
 Fork commits `e529730c`, `84d90f75`, `9b2e20a6`, `0df584b1`, `b4a941d8`,
 `59b66d8e`, `257c180d`, `8559e395`, `6fed34de`, `dffe6f9b`, `134140fb`,
 `df914502`, `692d9327`, `e5e3bc88`, `d632c5e9`, `4fd3a8dc`, `4994a8f1`,
-`cfb0f62f` and `220a4794`: release 0.15.1. The first pins a shared-instance
+`cfb0f62f`, `220a4794` and `fd10554b`: release 0.15.1. The first pins a shared-instance
 usage example in the crate README (`crates/libs/rns-transport/README.md`):
 the `## Attaching to a shared instance` section gains one rust fence
 showing attach, destination plus request handler, the on-demand announce
@@ -620,7 +621,7 @@ line is a whole log line or a whole report. The nineteenth adds the
 as its sibling lines carry, and rewords
 `crates/libs/rns-transport/src/transport/tests_parts/two_transport_shared_instance_endpoint_warn.rs`
 to say the detach and the stop add no warning on the links target; makes
-the four destination-name arguments of
+the `--app-name`, `--aspect`, `--request-path` and `--request-data` arguments of
 `crates/apps/reticulumd/tests/support/python_shared_instance_client.py`
 required and names the mismatch report's hash `derived`; pins the
 tag-guard mismatch cases in `crates/apps/reticulumd/tests/fork_publish_contract.rs`
@@ -628,6 +629,15 @@ to exit 1; and drops the redundant port wait in
 `crates/apps/reticulumd/tests/python_channel_interop_parts/python_shared_instance_live.rs`,
 which followed rnsd's "Started shared instance interface" line, logged
 after the listener is already bound.
+The twentieth adopts
+`crates/libs/rns-transport/src/transport/tests_parts/two_transport_shared_instance_probe14.rs`,
+included from `crates/libs/rns-transport/src/transport/tests.rs`, pinning
+the `iface=<hash>` token the nineteenth added: it is the interface the
+attach returned, whole, placed before the `endpoint <addr>` clause, equal
+to the token on the attach debug line, and a second attach after a detach
+names its own interface; the same commit makes the header of
+`crates/apps/reticulumd/tests/python_channel_interop_parts/python_shared_instance_client_emit.rs`
+state the measured glued-line rate of the unlocked `emit` as under one per cent.
 The ledger-only commits that complete this section are
 omitted by convention.
 

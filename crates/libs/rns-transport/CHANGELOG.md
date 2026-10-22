@@ -317,7 +317,8 @@ bullet of its own, marked test-only.
   sleeping no wait).
 - `attach_shared_instance` (`transport_sections/shared_instance.rs`) warns
   once per accepted attach when a `Tcp` endpoint's address is not
-  loopback, naming the transport as `tp(<name>)` and the address; the
+  loopback, naming the transport as `tp(<name>)`, the attached interface as
+  `iface=<hash>` and the address; the
   attach proceeds unchanged, and an attach refused because the slot is
   held or the transport is stopped warns nothing. The address is read
   through `IpAddr::to_canonical`, so `[::ffff:127.0.0.1]` is as quiet as
@@ -335,7 +336,11 @@ bullet of its own, marked test-only.
   detach warns once per attach), by
   `transport/tests_parts/two_transport_shared_instance_probe13.rs`
   (`[::ffff:127.0.0.1]` never warns, and an attach refused after stop
-  warns nothing even for a non-loopback endpoint) and by
+  warns nothing even for a non-loopback endpoint), by
+  `transport/tests_parts/two_transport_shared_instance_probe14.rs` (the
+  warning names the attached interface as a whole `iface=<hash>` token
+  before the endpoint clause, the same token the attach debug line carries,
+  and a second attach after a detach names its own interface) and by
   `transport/tests_parts/two_transport_shared_instance_probe5.rs` (the
   loopback attach never warns).
 - The `TestLogger` in

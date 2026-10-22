@@ -170,6 +170,27 @@ async fn send_announce_survives_an_unbuildable_announce() {
 
 #[tokio::test]
 #[deny(clippy::await_holding_invalid_type)]
+async fn send_announce_hands_a_buildable_announce_to_the_interface() {
+    let identity = PrivateIdentity::new_from_rand(OsRng);
+    let transport = Transport::new(TransportConfig::new("t", &identity, true));
+    let mut channel = transport.iface_manager().lock().await.new_channel(16);
+    let destination =
+        transport.add_destination(identity, DestinationName::new("app", "aspect")).await;
+    let address_hash = destination.lock().await.desc.address_hash;
+
+    transport.send_announce(&destination, Some(b"small")).await;
+
+    let sent = timeout(Duration::from_millis(200), channel.tx_channel.recv())
+        .await
+        .expect("the announce reaches the interface")
+        .expect("the interface channel stays open");
+    assert_eq!(sent.packet.header.packet_type, PacketType::Announce);
+    assert_eq!(sent.packet.destination, address_hash);
+    assert!(matches!(sent.tx_type, TxMessageType::Broadcast(None)));
+}
+
+#[tokio::test]
+#[deny(clippy::await_holding_invalid_type)]
 async fn try_send_announce_reports_the_build_error() {
     let identity = PrivateIdentity::new_from_rand(OsRng);
     let transport = Transport::new(TransportConfig::new("t", &identity, false));

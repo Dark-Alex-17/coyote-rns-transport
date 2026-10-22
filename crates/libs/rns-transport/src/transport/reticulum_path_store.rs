@@ -1,4 +1,5 @@
 use super::*;
+use crate::iface::InterfaceMode;
 use crate::transport::reticulum_announce_cache::{
     CachedAnnounce, CachedAnnounceRestore, ReticulumAnnounceCache,
 };
@@ -38,7 +39,34 @@ pub struct RestoredReticulumPathIdentity {
     pub verifying_key: [u8; crate::identity::PUBLIC_KEY_LENGTH],
 }
 
+/// What the path-table exporters read about an interface. Captured under
+/// the iface_manager guard alone so the exporters can take the handler
+/// guard afterwards instead of nesting the two.
+pub(super) struct ExportedIface {
+    pub(super) mode: InterfaceMode,
+    pub(super) full_hash: Hash,
+    pub(super) display_name: Option<String>,
+}
+
 impl Transport {
+    pub(super) async fn exported_ifaces(&self) -> HashMap<AddressHash, ExportedIface> {
+        let iface_manager = self.iface_manager.lock().await;
+        iface_manager
+            .interface_hashes()
+            .into_iter()
+            .filter_map(|iface| {
+                Some((
+                    iface,
+                    ExportedIface {
+                        mode: iface_manager.mode(&iface)?,
+                        full_hash: iface_manager.full_hash(&iface)?,
+                        display_name: iface_manager.display_name(&iface).map(ToOwned::to_owned),
+                    },
+                ))
+            })
+            .collect()
+    }
+
     pub async fn save_reticulum_path_table<P: AsRef<Path>>(
         &self,
         storage_path: P,
@@ -50,11 +78,11 @@ impl Transport {
         let storage_path = storage_path.as_ref().to_path_buf();
         let now = std::time::Instant::now();
         let now_unix_secs = now_unix_secs();
+        let ifaces = self.exported_ifaces().await;
         let (kept_entries, tunnel_entries, packets) = {
             let handler = self.handler.lock().await;
-            let iface_manager = self.iface_manager.lock().await;
             let entries = handler.path_table.export_python_entries(now, now_unix_secs, |iface| {
-                Some((iface_manager.mode(iface)?, iface_manager.full_hash(iface)?))
+                ifaces.get(iface).map(|info| (info.mode, info.full_hash))
             });
             let mut kept_entries = Vec::new();
             let mut packets = Vec::new();
@@ -68,7 +96,7 @@ impl Transport {
             }
             let mut tunnel_entries =
                 handler.tunnel_table.export_python_entries(now, now_unix_secs, |iface| {
-                    iface_manager.full_hash(iface)
+                    ifaces.get(iface).map(|info| info.full_hash)
                 });
             for tunnel in &mut tunnel_entries {
                 tunnel.paths.retain(|path| {

@@ -8,10 +8,10 @@ impl Transport {
             .duration_since(std::time::UNIX_EPOCH)
             .map_err(|err| std::io::Error::other(format!("system clock precedes Unix epoch: {err}")))?
             .as_secs_f64();
+        let ifaces = self.exported_ifaces().await;
         let handler = self.handler.lock().await;
-        let iface_manager = self.iface_manager.lock().await;
         let entries = handler.path_table.export_python_entries(now, now_unix_secs, |iface| {
-            Some((iface_manager.mode(iface)?, iface_manager.full_hash(iface)?))
+            ifaces.get(iface).map(|info| (info.mode, info.full_hash))
         });
         Ok(entries
             .into_iter()
@@ -22,7 +22,7 @@ impl Transport {
                 next_hop: entry.received_from,
                 hops: entry.hops,
                 expires_secs: entry.expires_secs,
-                interface_name: iface_manager.display_name(&entry.iface).map(ToOwned::to_owned),
+                interface_name: ifaces.get(&entry.iface).and_then(|info| info.display_name.clone()),
                 interface: entry.iface,
                 interface_hash: entry.interface_hash,
             })

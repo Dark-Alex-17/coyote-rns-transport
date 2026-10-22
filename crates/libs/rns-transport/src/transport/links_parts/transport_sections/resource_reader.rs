@@ -41,10 +41,12 @@ impl Transport {
                 true,
             )?
         };
-        let mut handler = self.handler.lock().await;
-        let (resource_hash, packet) = handler.resource_manager.track_prepared(prepared);
-        observe_resource(resource_hash);
-        drop(handler);
+        let (resource_hash, packet) = {
+            let mut handler = self.handler.lock().await;
+            let (resource_hash, packet) = handler.resource_manager.track_prepared(prepared);
+            observe_resource(resource_hash);
+            (resource_hash, packet)
+        };
         let outcome = self.send_link_packet_on_bound_iface(&link, packet).await;
         let mut handler = self.handler.lock().await;
         let sent = outcome.is_sent();

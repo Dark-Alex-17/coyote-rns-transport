@@ -188,9 +188,9 @@ impl Transport {
             self.send_direct(iface, packet).await;
             log::trace!("Sent outbound packet to {}", iface);
         } else {
-            let handler = self.handler.lock().await;
-            if handler.config.broadcast {
-                handler.send(TxMessage { tx_type: TxMessageType::Broadcast(None), packet }).await;
+            let broadcast = self.handler.lock().await.config.broadcast;
+            if broadcast {
+                self.send_broadcast(packet, None).await;
             } else {
                 log::trace!("tp({}): no route for outbound packet dst={}", self.name, destination);
             }
@@ -370,30 +370,32 @@ impl Transport {
         SendPacketTrace::with_packet_hash(outcome, packet_hash, None, true, dispatch)
     }
 
+    #[deny(clippy::await_holding_invalid_type)]
     pub async fn send_announce(
         &self,
         destination: &Arc<Mutex<SingleInputDestination>>,
         app_data: Option<&[u8]>,
     ) {
-        let mut destination = destination.lock().await;
-        log::trace!(
-            "[tp] announce_tx dst={} app_data_len={}",
-            destination.desc.address_hash,
-            app_data.map(|value| value.len()).unwrap_or(0)
-        );
-        let packet = match destination.announce(OsRng, app_data) {
-            Ok(packet) => packet,
-            Err(error) => {
-                log::warn!(
-                    "[tp] announce not sent: packet build failed dst={} error={:?}",
-                    destination.desc.address_hash.short(),
-                    error
-                );
-                return;
+        let packet = {
+            let mut destination = destination.lock().await;
+            log::trace!(
+                "[tp] announce_tx dst={} app_data_len={}",
+                destination.desc.address_hash,
+                app_data.map(|value| value.len()).unwrap_or(0)
+            );
+            match destination.announce(OsRng, app_data) {
+                Ok(packet) => packet,
+                Err(error) => {
+                    log::warn!(
+                        "[tp] announce not sent: packet build failed dst={} error={:?}",
+                        destination.desc.address_hash.short(),
+                        error
+                    );
+                    return;
+                }
             }
         };
-        let mut handler = self.handler.lock().await;
-        handler.send_packet(packet).await;
+        self.send_packet(packet).await;
     }
 
     /// Builds and sends an announce for `destination`, returning the build error instead of

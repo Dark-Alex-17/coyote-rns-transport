@@ -7,8 +7,9 @@
 // `emit` is imported as a module function and raced against four threads
 // calling `RNS.log` to stdout for one second; every stdout line must then
 // be either a whole log line or a whole report. The unlocked form of `emit`
-// (one `write` + `flush`, no lock) loses about two per cent of its reports
-// to glued lines in that window on this host, so the oracle discriminates.
+// (one `write` + `flush`, no lock) loses under one per cent of its reports
+// (about 0.7-0.9 % measured) to glued lines in that window on this host, so
+// the oracle discriminates.
 
 const SHARED_INSTANCE_CLIENT_EMIT_RACE_SECS: &str = "1.0";
 

@@ -65,13 +65,18 @@ bullet of its own, marked test-only.
   an in-process TCP shared instance, and
   `crates/apps/reticulumd/tests/python_channel_interop_parts/python_shared_instance_live.rs`
   attaches the crate to a Python `rnsd` shared instance next to a Python
-  local client and proves the zero-hop path (`RNS/Transport.py:1938`),
-  the Rust announce reaching the Python client at zero hops from that
-  client's view, through rnsd's live
+  local client and proves the zero-hop path (rnsd's local-client branch,
+  `RNS/Transport.py:1938`), the Rust announce reaching the Python client
+  at zero hops from that client's view (its own decrement,
+  `RNS/Transport.py:1940`), through rnsd's live
   rebroadcast to its other local clients (`RNS/Transport.py:2398-2430`;
   the client's handler takes no path responses, so rnsd's replay of the
   cached announce cannot stand in for it) and `Link.request` both ways,
-  over TCP everywhere and over an abstract unix socket on Linux.
+  over TCP everywhere and over an abstract unix socket on Linux. The
+  Python client's `emit` writes each report under `RNS.logging_lock`, and
+  `crates/apps/reticulumd/tests/python_channel_interop_parts/python_shared_instance_client_emit.rs`
+  pins it: the helper's `emit` raced against four `RNS.log` threads for a
+  second never shares a stdout line with a log line.
 - `TcpClient::{with_reconnect_wait, reconnect_wait}` and
   `TcpClient::DEFAULT_RECONNECT_WAIT`, 5 s: the wait slept after a failed
   connect and before each redial from the second consecutive short-lived
@@ -145,13 +150,10 @@ bullet of its own, marked test-only.
   client API and its fixtures, the reconnect-wait knobs, a warning and a
   debug line), with no public item removed or changed. The release
   contracts are pinned by `crates/apps/reticulumd/tests/fork_publish_contract.rs`
-  and `fork_release_docs_contract.rs`.
-
-- Test only: `crates/apps/reticulumd/tests/fork_publish_contract.rs` pins
-  that the `contracts` job of `ci-full.yml` carries every `cargo test` step
-  the one in `ci.yml` runs (the fork publish and release-docs contracts,
-  the breaking-change compile-fail harness), so the dispatch workflow
-  cannot pass on a tree the pull-request workflow would reject.
+  (which also holds the `contracts` job of `ci-full.yml` to every
+  `cargo test` step the one in `ci.yml` runs, so the dispatch workflow
+  cannot pass on a tree the pull-request workflow would reject) and
+  `fork_release_docs_contract.rs`.
 
 - On every shared-instance reconnect the attached client re-synthesizes
   the tunnel on the interface at once and, `reconnect_wait` plus 2 s
@@ -298,7 +300,14 @@ bullet of its own, marked test-only.
   redialed at once after a drop. The first connect of the client's life
   stays immediate, and a client built from a pre-supplied stream still
   finishes at once when that stream ends. The TCP client's policy is
-  unchanged. Pinned by
+  unchanged. In this workspace the change reaches reticulumd's unix
+  `LocalClientInterface` bootstrap (the daemon's
+  `bootstrap_interface_startup_parts::module_prelude`), which builds
+  `LocalUnixClient::new_connect(..)` and never calls `with_reconnect_wait`,
+  so it inherits `LocalUnixClient::DEFAULT_RECONNECT_WAIT` (5 s) and, after
+  a shared-instance drop, now redials 5 s later rather than at once; a
+  daemon that wants the old timing sets `with_reconnect_wait` there.
+  Pinned by
   `transport/tests_parts/two_transport_shared_instance_probe10.rs` (with
   the listener kept up, the unix client's re-accept after a drop lands no
   sooner than the wait) and by

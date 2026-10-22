@@ -43,8 +43,8 @@ patch carries no other id and is fork commit `cccc40e4`; the
 is fork commit `eceeb9ad`; the `release 0.15.1` patch carries no other id
 and is fork commits `e529730c`, `84d90f75`, `9b2e20a6`, `0df584b1`,
 `b4a941d8`, `59b66d8e`, `257c180d`, `8559e395`, `6fed34de`, `dffe6f9b`,
-`134140fb`, `df914502`, `692d9327`, `e5e3bc88`, `d632c5e9`, `4fd3a8dc`
-and `4994a8f1`.
+`134140fb`, `df914502`, `692d9327`, `e5e3bc88`, `d632c5e9`, `4fd3a8dc`,
+`4994a8f1`, `cfb0f62f` and `220a4794`.
 
 | File | Patch |
 | --- | --- |
@@ -54,7 +54,8 @@ and `4994a8f1`.
 | `crates/apps/reticulumd/Cargo.toml` | release 0.15.1 |
 | `crates/apps/reticulumd/tests/fork_publish_contract.rs` | shared-instance client packaging, release 0.15.1 |
 | `crates/apps/reticulumd/tests/fork_release_docs_contract.rs` | shared-instance client packaging, shared-instance client parity, release 0.15.1 |
-| `crates/apps/reticulumd/tests/python_channel_interop.rs` | Python-in-the-loop shared-instance interop |
+| `crates/apps/reticulumd/tests/python_channel_interop.rs` | Python-in-the-loop shared-instance interop, release 0.15.1 |
+| `crates/apps/reticulumd/tests/python_channel_interop_parts/python_shared_instance_client_emit.rs` | release 0.15.1 |
 | `crates/apps/reticulumd/tests/python_channel_interop_parts/python_shared_instance_live.rs` | Python-in-the-loop shared-instance interop, release 0.15.1 |
 | `crates/apps/reticulumd/tests/support/python_channel_process.rs` | Python-in-the-loop shared-instance interop, release 0.15.1 |
 | `crates/apps/reticulumd/tests/support/python_shared_instance_client.py` | Python-in-the-loop shared-instance interop, release 0.15.1 |
@@ -406,7 +407,12 @@ fixture (the TCP clamp reads 1 ms, the TCP client redials at once after
 the first drop and waits from the second, the unix client's re-accept
 lands no sooner than the wait, the drop line counts the link table
 entries, a posture dropped before the restart still re-synthesizes the
-tunnel). The twenty-fifth pins that a shared-instance task that ended by
+tunnel). In this workspace the change reaches reticulumd's unix
+`LocalClientInterface` bootstrap
+(`bootstrap_interface_startup_parts::module_prelude`), which builds
+`LocalUnixClient::new_connect` without `with_reconnect_wait` and so
+redials 5 s (`DEFAULT_RECONNECT_WAIT`) after a shared-instance drop rather
+than at once. The twenty-fifth pins that a shared-instance task that ended by
 panic is warned about once as `tp(<name>)` while stop completes. The
 twenty-sixth carries the three into the README and the release notes. The
 twenty-seventh adds the eleventh probe fixture (the drop's LINKCLOSE
@@ -499,8 +505,8 @@ files only.
 
 Fork commits `e529730c`, `84d90f75`, `9b2e20a6`, `0df584b1`, `b4a941d8`,
 `59b66d8e`, `257c180d`, `8559e395`, `6fed34de`, `dffe6f9b`, `134140fb`,
-`df914502`, `692d9327`, `e5e3bc88`, `d632c5e9`, `4fd3a8dc` and
-`4994a8f1`: release 0.15.1. The first pins a shared-instance
+`df914502`, `692d9327`, `e5e3bc88`, `d632c5e9`, `4fd3a8dc`, `4994a8f1`,
+`cfb0f62f` and `220a4794`: release 0.15.1. The first pins a shared-instance
 usage example in the crate README (`crates/libs/rns-transport/README.md`):
 the `## Attaching to a shared instance` section gains one rust fence
 showing attach, destination plus request handler, the on-demand announce
@@ -601,7 +607,27 @@ zero-hop assertion on the Python client's announce report to
 `crates/apps/reticulumd/tests/python_channel_interop_parts/python_shared_instance_live.rs`,
 adds `RNS/Interfaces/LocalInterface.py:109` and `RNS/Transport.py:1938` to
 the README cite list in `crates/apps/reticulumd/tests/fork_release_docs_contract.rs`,
-and makes this section's closing sentence plural.
+and makes this section's closing sentence plural. The eighteenth adopts
+`crates/apps/reticulumd/tests/python_channel_interop_parts/python_shared_instance_client_emit.rs`,
+included from `crates/apps/reticulumd/tests/python_channel_interop.rs`,
+which imports the Python client helper as a module through
+`run_shared_instance_client_helper_script` in
+`crates/apps/reticulumd/tests/support/python_channel_process.rs` and races
+`emit` against four `RNS.log` threads for a second, asserting every stdout
+line is a whole log line or a whole report. The nineteenth adds the
+`iface=<hash>` field to the non-loopback endpoint warning in
+`crates/libs/rns-transport/src/transport/links_parts/transport_sections/shared_instance.rs`,
+as its sibling lines carry, and rewords
+`crates/libs/rns-transport/src/transport/tests_parts/two_transport_shared_instance_endpoint_warn.rs`
+to say the detach and the stop add no warning on the links target; makes
+the four destination-name arguments of
+`crates/apps/reticulumd/tests/support/python_shared_instance_client.py`
+required and names the mismatch report's hash `derived`; pins the
+tag-guard mismatch cases in `crates/apps/reticulumd/tests/fork_publish_contract.rs`
+to exit 1; and drops the redundant port wait in
+`crates/apps/reticulumd/tests/python_channel_interop_parts/python_shared_instance_live.rs`,
+which followed rnsd's "Started shared instance interface" line, logged
+after the listener is already bound.
 The ledger-only commits that complete this section are
 omitted by convention.
 

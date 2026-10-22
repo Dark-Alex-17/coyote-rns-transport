@@ -307,6 +307,10 @@ async fn run_python_rnsd_shared_instance_requests_both_ways(
         )
         .await;
     assert_eq!(announce["announce_received"], rust_hex);
+    assert_eq!(
+        announce["hops"], 0,
+        "rnsd files a local client's announce at zero hops: {announce}"
+    );
     let outcome = client_log
         .wait_for(
             "the python request outcome",

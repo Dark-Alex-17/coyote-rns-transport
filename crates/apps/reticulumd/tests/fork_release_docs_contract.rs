@@ -583,6 +583,8 @@ fn crate_readme_shared_instance_section_cites_the_parity_lines() {
         "`RNS/Link.py:657-668`",
         "`RNS/Interfaces/LocalInterface.py:159-160`",
         "`RNS/Interfaces/LocalInterface.py:255-261`",
+        "`RNS/Interfaces/LocalInterface.py:109`",
+        "`RNS/Transport.py:1938`",
     ] {
         assert!(
             section.contains(cite),

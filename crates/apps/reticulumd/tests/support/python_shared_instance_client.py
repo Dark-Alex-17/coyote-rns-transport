@@ -32,10 +32,11 @@ HOLD_ANNOUNCE_INTERVAL = 1.0
 
 
 def emit(payload: dict) -> None:
-    # One write, so the report cannot interleave with RNS log lines
-    # the transport thread prints to the same stdout.
-    sys.stdout.write(json.dumps(payload) + "\n")
-    sys.stdout.flush()
+    # RNS.log prints under RNS.logging_lock in two write syscalls (RNS/__init__.py:89,
+    # :129-133), so the report takes the same lock to keep clear of a log line.
+    with RNS.logging_lock:
+        sys.stdout.write(json.dumps(payload) + "\n")
+        sys.stdout.flush()
 
 
 def log(message: str) -> None:

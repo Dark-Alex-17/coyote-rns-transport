@@ -585,7 +585,7 @@ posture gets 250 ms later cannot land in the second after the explicit
 early announce and move rnsd's timebase past the second announce
 (`RNS/Transport.py:2238`), and takes the guard instant after the early
 announce returns so it bounds the emission time from above.
-The ledger-only commit that completes this section is
+The ledger-only commits that complete this section are
 omitted by convention.
 
 ## 0.15.0 (upstream 0.14.0)

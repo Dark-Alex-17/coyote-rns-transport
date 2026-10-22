@@ -23,11 +23,6 @@ fn multi_segment_response_body() -> Vec<u8> {
     body
 }
 
-fn multi_segment_digest_hex(data: &[u8]) -> String {
-    use sha2::Digest as _;
-    hex::encode(sha2::Sha256::digest(data))
-}
-
 // Like `read_ready`, but hands the stdout reader back so the server's later
 // JSON lines stay readable.
 fn read_ready_keeping_stdout(
@@ -276,10 +271,10 @@ async fn run_rust_to_python_multi_segment_response_roundtrip() {
         panic!("multi-segment response should arrive as a msgpack binary value");
     };
     assert_eq!(body.len(), MULTI_SEGMENT_RESPONSE_LEN);
-    let received_digest = multi_segment_digest_hex(&body);
+    let received_digest = digest_hex(&body);
     assert_eq!(
         received_digest,
-        multi_segment_digest_hex(&multi_segment_response_body()),
+        digest_hex(&multi_segment_response_body()),
         "received body must match the deterministic fixture"
     );
 
@@ -351,7 +346,7 @@ async fn run_python_to_rust_multi_segment_response_roundtrip() {
     let request_id = wait_for_link_request(&mut in_events, link_id, Duration::from_secs(30)).await;
 
     let body = multi_segment_response_body();
-    let expected_digest = multi_segment_digest_hex(&body);
+    let expected_digest = digest_hex(&body);
     let response_payload = rmp_serde::to_vec(&rmpv::Value::Array(vec![
         rmpv::Value::Binary(request_id.to_vec()),
         rmpv::Value::Binary(body),

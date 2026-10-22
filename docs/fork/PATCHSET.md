@@ -21,6 +21,27 @@ parity rows this file plus the crate README `## Known divergences from
 Python RNS` are the parity ledger; `docs/status/*` matrices are not updated
 per fork task.
 
+## Unreleased (upstream 0.14.0)
+
+Every file changed since the `0.15.1` release and the patch each change
+belongs to. Patch ids: H1 is test hygiene. The `test hygiene` patch is fork
+commit `08362717`.
+
+| File | Patch |
+| --- | --- |
+| `crates/apps/reticulumd/tests/python_channel_interop_parts/multi_segment_python_interop.rs` | test hygiene |
+| `crates/libs/rns-transport/CHANGELOG.md` | test hygiene |
+| `crates/libs/rns-transport/tests/outbound_outcome_api.rs` | test hygiene |
+| `docs/fork/PATCHSET.md` | test hygiene |
+
+Fork commit `08362717`: H1, test hygiene. Rewords the
+`tests/outbound_outcome_api.rs` module doc so the plain senders' argument
+lists are described as the ones from before this release rather than by a
+label from the fork's own planning, and drops the
+`multi_segment_python_interop.rs` copy of the interop harness's
+`digest_hex` in favour of the shared helper at its three call sites. No
+library behaviour changes.
+
 ## 0.15.1 (upstream 0.14.0)
 
 Every file changed since the `0.15.0` release and the patch each change

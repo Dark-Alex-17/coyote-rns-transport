@@ -1016,13 +1016,9 @@ fn old_package_name_survives_only_as_prose() {
 }
 
 /// Release hygiene the fork carries in CI: the publish contract runs on the
-/// pull-request path, not only on the tag workflow, and the upstream Codex
-/// review is opt-in through a repository variable, so a fork without the
-/// OpenAI secret does not fail every PR. The Codex job also skips pull
-/// requests from forks, whose heads cannot read the `OPENAI_API_KEY`
-/// secret.
+/// pull-request path, not only on the tag workflow.
 #[test]
-fn pull_request_ci_runs_the_publish_contract_and_codex_review_is_opt_in() {
+fn pull_request_ci_runs_the_publish_contract() {
     let ci = read_repo_file(".github/workflows/ci.yml");
     assert!(ci.contains("\non:\n  pull_request:"), "ci.yml should run on pull requests");
     assert!(
@@ -1038,55 +1034,62 @@ fn pull_request_ci_runs_the_publish_contract_and_codex_review_is_opt_in() {
         !job.lines().any(|line| line.trim_start().starts_with("if:")),
         "the `contracts` job must not be conditional, or the publish contract skips on PRs"
     );
+}
 
-    let codex = read_repo_file(".github/workflows/codex-review.yml");
-    let guard = codex
+// The job body: the `  contracts:` line and every following line that is blank or
+// indented deeper than a top-level job key.
+fn contracts_job(workflow: &str, name: &str) -> String {
+    let start = workflow
+        .find("\n  contracts:\n")
+        .unwrap_or_else(|| panic!("{name} should have a `contracts` job"));
+    workflow[start + 1..]
         .lines()
-        .find(|line| line.trim_start().starts_with("if:"))
-        .expect("codex-review.yml should guard its job with an `if:`");
+        .enumerate()
+        .take_while(|(i, line)| *i == 0 || line.is_empty() || line.starts_with("    "))
+        .map(|(_, line)| format!("{line}\n"))
+        .collect()
+}
+
+/// Every `crates/libs/rns-transport/tests/*.rs` target runs on the
+/// pull-request path, not only the compile-fail harness, and the fork
+/// patch-set ledger is checked against the release tags, which the script
+/// can only see on a full-history checkout.
+#[test]
+fn pull_request_ci_runs_every_external_rns_transport_test_target() {
+    let ci = read_repo_file(".github/workflows/ci.yml");
+    let job = contracts_job(&ci, "ci.yml");
     assert!(
-        guard.contains("vars.CODEX_REVIEW_ENABLED == 'true'"),
-        "the Codex review job should be opt-in through the CODEX_REVIEW_ENABLED variable, got {guard:?}"
+        job.contains("run: cargo test -p coyote-rns-transport --tests"),
+        "ci.yml's contracts job should run every external coyote-rns-transport test target"
     );
     assert!(
-        guard.contains("github.event.pull_request.head.repo.full_name == github.repository"),
-        "the Codex review job must skip pull requests from forks, whose heads cannot read the OPENAI_API_KEY secret, got {guard:?}"
+        job.contains("run: tools/scripts/patchset-ledger-check.sh"),
+        "ci.yml's contracts job should run the fork patch-set ledger check"
     );
+    let checkout = &job[..job.find("run:").expect("the contracts job should have a run step")];
     assert!(
-        !guard.contains("secrets."),
-        "a job-level `if:` cannot read secrets; the gate must be a repository variable"
+        checkout.contains("fetch-depth: 0"),
+        "the contracts job checkout needs the full history and tags for the ledger check, got {checkout:?}"
     );
 }
 
 /// The `contracts` job of `ci-full.yml` is the twin of the one in `ci.yml`:
-/// every contract step the pull-request workflow runs (the fork publish and
-/// release-docs contracts, the breaking-change compile-fail harness) runs
+/// every step the pull-request workflow runs (the docs build, the fork
+/// publish and release-docs contracts, the breaking-change compile-fail
+/// harness, the external test targets, the patch-set ledger check) runs
 /// there too, so the dispatch workflow cannot pass on a tree the PR
 /// workflow would reject.
 #[test]
 fn ci_full_contracts_job_runs_every_contract_step_ci_runs() {
-    // The job body: the `  contracts:` line and every following line that is blank or
-    // indented deeper than a top-level job key.
-    fn contracts_job(workflow: &str, name: &str) -> String {
-        let start = workflow
-            .find("\n  contracts:\n")
-            .unwrap_or_else(|| panic!("{name} should have a `contracts` job"));
-        workflow[start + 1..]
-            .lines()
-            .enumerate()
-            .take_while(|(i, line)| *i == 0 || line.is_empty() || line.starts_with("    "))
-            .map(|(_, line)| format!("{line}\n"))
-            .collect()
-    }
     let ci = read_repo_file(".github/workflows/ci.yml");
     let ci_full = read_repo_file(".github/workflows/ci-full.yml");
     let ci_job = contracts_job(&ci, "ci.yml");
     let ci_full_job = contracts_job(&ci_full, "ci-full.yml");
     let steps: Vec<&str> =
-        ci_job.lines().filter(|line| line.trim_start().starts_with("run: cargo test ")).collect();
+        ci_job.lines().filter(|line| line.trim_start().starts_with("run: ")).collect();
     assert!(
-        steps.len() >= 2,
-        "ci.yml's contracts job should run at least two cargo test steps, got {steps:?}"
+        steps.len() >= 4,
+        "ci.yml's contracts job should run at least four steps, got {steps:?}"
     );
     for step in steps {
         assert!(ci_full_job.contains(step), "ci-full.yml's contracts job should carry {step:?}");

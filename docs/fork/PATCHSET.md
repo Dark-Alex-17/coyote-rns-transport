@@ -34,8 +34,8 @@ ledger conventions. The `test hygiene` patch is fork commit `08362717`; the
 `release tooling` patch is fork commits `7e63de1a`, `7fbc97cb`, `fbd4da9d`,
 `f206f31c`, `8e3e587f`, `0e034698`, `3008c9fb`, `72a3a4ab`, `b48e5d81`,
 `9b7bf2e6`, `ab8673b8`, `824b1388`, `bf35ab79`, `d6c59496`, `1405ea9e`,
-`4b11d3c0`, `1ee6045e`, `2f41f29e` and `b91113d6`; the `ledger conventions`
-patch is fork commit `c45a4e5c`.
+`4b11d3c0`, `1ee6045e`, `2f41f29e`, `b91113d6` and `cbab03dc`; the
+`ledger conventions` patch is fork commit `c45a4e5c`.
 
 | File | Patch |
 | --- | --- |
@@ -49,6 +49,7 @@ patch is fork commit `c45a4e5c`.
 | `crates/apps/reticulumd/tests/fork_publish_contract_parts/release_tooling_probe2.rs` | release tooling |
 | `crates/apps/reticulumd/tests/fork_publish_contract_parts/release_tooling_probe3.rs` | release tooling |
 | `crates/apps/reticulumd/tests/fork_publish_contract_parts/release_tooling_probe4.rs` | release tooling |
+| `crates/apps/reticulumd/tests/fork_publish_contract_parts/release_tooling_probe5.rs` | release tooling |
 | `crates/apps/reticulumd/tests/fork_release_docs_contract.rs` | release tooling |
 | `crates/apps/reticulumd/tests/python_channel_interop_parts/multi_segment_python_interop.rs` | test hygiene |
 | `crates/libs/rns-transport/CHANGELOG.md` | test hygiene, release tooling, ledger conventions |
@@ -77,7 +78,7 @@ library behaviour changes.
 Fork commits `7e63de1a`, `7fbc97cb`, `fbd4da9d`, `f206f31c`, `8e3e587f`,
 `0e034698`, `3008c9fb`, `72a3a4ab`, `b48e5d81`, `9b7bf2e6`, `ab8673b8`,
 `824b1388`, `bf35ab79`, `d6c59496`, `1405ea9e`, `4b11d3c0`, `1ee6045e`,
-`2f41f29e` and `b91113d6`: H2, release tooling. No library behaviour
+`2f41f29e`, `b91113d6` and `cbab03dc`: H2, release tooling. No library behaviour
 changes. `7e63de1a` commits the release
 checks that lived in the release operator's home directory under
 `tools/scripts/`: `patchset-ledger-check.sh` (this ledger's file table
@@ -193,6 +194,20 @@ Codex pin in `crates/apps/reticulumd/tests/fork_release_docs_contract.rs`
 require every `CODEX_REVIEW_ENABLED` mention to sit in a bullet that says
 the workflow was removed, and documents the bare-heading case of
 `ledger_section` in `crates/apps/reticulumd/tests/fork_publish_contract.rs`.
+`cbab03dc` adds `fork_publish_contract_parts/release_tooling_probe5.rs`,
+which answers `cargo semver-checks` from a stub placed first on `PATH` so
+the semver script's summary match is pinned as a whole-number count (an
+expected 1 is not satisfied by 11), the zero-expected form is pinned to
+follow the cargo exit status, and a source walk requires every `commit-tree`
+the probes issue to go through the identity-bearing clone; makes the
+per-section cite probe of `release_tooling_probe2.rs` read the newest
+ledger label instead of the `Unreleased` literal so it survives a release
+promotion; removes `GIT_AUTHOR_*`, `GIT_COMMITTER_*` and `EMAIL` from the
+clone's git environment so an identity exported by the host cannot satisfy
+the identity pin in the clone's place; normalises the semver script's
+expected count to decimal after the integer guard so `01` matches `1`; and
+drops the non-numeric count case from `release_tooling_probe.rs`, which
+`release_tooling_probe4.rs` covers.
 
 Fork commit `c45a4e5c`: H3, ledger conventions. No library behaviour
 changes. `AGENTS.md` records that fork-only parity rows live in this file

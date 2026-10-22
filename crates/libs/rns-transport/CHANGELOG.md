@@ -43,10 +43,15 @@ Removed) bullet of its own, marked as such.
   `fork_publish_contract_parts/release_tooling_probe3.rs`, the release
   scripts' refusals (a previous version with no ledger heading, a scan over
   an empty index, a non-numeric semver count) by
-  `fork_publish_contract_parts/release_tooling_probe4.rs`, and the ledger
+  `fork_publish_contract_parts/release_tooling_probe4.rs`, the semver
+  script's verdict (the major count matched as a whole number, the
+  zero-expected form following the `cargo semver-checks` exit status) and
+  the rule that every probe commit goes through the identity-bearing clone
+  by `fork_publish_contract_parts/release_tooling_probe5.rs`, and the ledger
   helpers themselves on synthetic fixtures by
   `fork_publish_contract_parts/ledger_contract_fixtures.rs`; the clone
-  probes set a clone-local git identity so they run on a host without one.
+  probes set a clone-local git identity and ignore one exported by the
+  host, so they run the same on a host without one.
 - Ledger contracts, test-only: every patch-header hash in
   `docs/fork/PATCHSET.md` must be named by its section's legend, the
   all-legend-hash and header-to-legend checks run over `## Unreleased` and

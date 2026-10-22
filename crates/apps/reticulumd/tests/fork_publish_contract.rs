@@ -1,5 +1,6 @@
 use std::fs;
 use std::path::{Path, PathBuf};
+use std::process::Command;
 
 /// The lockfiles a release regenerates: the workspace lock and the fuzz crate's
 /// own lock, the fuzz crate not being a workspace member.
@@ -23,14 +24,25 @@ fn crate_version() -> String {
         .to_string()
 }
 
-/// Patch ids in the ledger legend are one uppercase letter and one digit,
-/// such as `B3` or `F1`.
+/// Patch ids in the ledger legend are one uppercase letter and one or two
+/// digits, such as `B3`, `F1` or `F10`.
 fn is_patch_id(token: &str) -> bool {
     let mut chars = token.chars();
-    matches!(
-        (chars.next(), chars.next(), chars.next()),
-        (Some(letter), Some(digit), None) if letter.is_ascii_uppercase() && digit.is_ascii_digit()
-    )
+    let Some(letter) = chars.next() else { return false };
+    let digits = chars.as_str();
+    letter.is_ascii_uppercase()
+        && (1..=2).contains(&digits.len())
+        && digits.bytes().all(|byte| byte.is_ascii_digit())
+}
+
+#[test]
+fn is_patch_id_accepts_one_letter_and_one_or_two_digits() {
+    for accepted in ["F1", "F10", "F99"] {
+        assert!(is_patch_id(accepted), "{accepted:?} is a patch id");
+    }
+    for rejected in ["F", "F100", "f1", "1F", "F1x"] {
+        assert!(!is_patch_id(rejected), "{rejected:?} is not a patch id");
+    }
 }
 
 #[test]
@@ -97,8 +109,6 @@ fn publish_tag_version_guard_pins_its_contract() {
 #[cfg(unix)]
 #[test]
 fn publish_tag_version_guard_rejects_a_mismatched_tag() {
-    use std::process::Command;
-
     let script = repo_root().join("tools/scripts/check-publish-tag-version.sh");
     let run = |publish_ref: Option<&str>| {
         let mut command = Command::new("bash");
@@ -604,9 +614,18 @@ fn check_ledger_rows_name_a_patch_from_the_legend(
     // fixture row is attributed to a patch named for it.
     let interop_rows: Vec<&(&str, &str)> =
         rows.iter().filter(|(file, _)| file.contains("/python_channel_interop_parts/")).collect();
+    let found = if interop_rows.is_empty() {
+        "the table has no interop rows".to_string()
+    } else {
+        let rows: Vec<String> =
+            interop_rows.iter().map(|(file, patch)| format!("{file} ({patch})")).collect();
+        format!("interop rows found: {}", rows.join("; "))
+    };
     assert!(
         interop_rows.iter().any(|(_, patch)| patch.contains("Python-in-the-loop")),
-        "the {label} table should attribute an interop fixture to a Python-in-the-loop patch, got {interop_rows:?}"
+        "the {label} table should attribute at least one `python_channel_interop_parts/` row to a \
+         patch whose legend phrase contains `Python-in-the-loop`: every release section owes a \
+         Python-in-the-loop proof, and the ledger shows it by naming the patch for it; {found}"
     );
 }
 
@@ -687,29 +706,6 @@ fn patch_set_ledger_release_legend_hashes_each_have_a_patch_header() {
         "every fork commit the {version} legend names for the release patch should head a patch \
          in the section, since each patch header lists every commit a rebase must re-apply; \
          missing: {}",
-        missing.join(", ")
-    );
-}
-
-/// The `## Unreleased` legend has no release patch to anchor on, so every
-/// backticked short hash it names, under any patch, must head a patch in the
-/// section.
-#[test]
-fn patch_set_ledger_unreleased_legend_hashes_each_have_a_patch_header() {
-    let ledger = read_repo_file("docs/fork/PATCHSET.md");
-    let Some(section) = ledger_section(&ledger, "Unreleased") else { return };
-    let legend = ledger_legend("Unreleased", section);
-    let legend_hashes: Vec<&str> = legend.split(' ').filter_map(commit_hash).collect();
-    assert!(
-        !legend_hashes.is_empty(),
-        "the Unreleased legend should name the fork commits of each patch"
-    );
-
-    let missing = legend_hashes_without_a_header(section, &legend_hashes);
-    assert!(
-        missing.is_empty(),
-        "every fork commit the Unreleased legend names should head a patch in the section, \
-         since each patch header lists every commit a rebase must re-apply; missing: {}",
         missing.join(", ")
     );
 }
@@ -848,24 +844,12 @@ fn unreleased_notes_cite_files_that_exist_in_the_tree() {
         None => body,
     };
 
-    // Top-level bullets start at column 0; their continuation lines are indented.
-    let mut bullets: Vec<Vec<&str>> = Vec::new();
-    for line in section.lines() {
-        if line.starts_with("- ") {
-            bullets.push(vec![line]);
-        } else if line.starts_with("  ") {
-            bullets.last_mut().expect("indented line before the first bullet").push(line);
-        }
-    }
-    assert!(!bullets.is_empty(), "the Unreleased release notes should carry at least one bullet");
-    for bullet in &bullets {
-        let text = bullet.join("\n");
-        assert!(
-            !cited_source_files(&text).is_empty(),
-            "every Unreleased bullet should cite at least one file that pins it; \
-             this one cites none:\n{text}"
-        );
-    }
+    let uncited = changelog_bullets_without_a_cite("Unreleased", section);
+    assert!(
+        uncited.is_empty(),
+        "every Unreleased bullet should cite at least one file that pins it; these cite none:\n{}",
+        uncited.join("\n")
+    );
 
     let unresolved = unresolved_source_cites(&cited_source_files(section));
     assert!(
@@ -875,6 +859,8 @@ fn unreleased_notes_cite_files_that_exist_in_the_tree() {
         unresolved.join("\n")
     );
 }
+
+include!("fork_publish_contract_parts/ledger_contract.rs");
 
 #[test]
 fn repo_readme_points_at_the_crate_readme() {
@@ -986,27 +972,63 @@ fn visit_text_files(root: &Path, dir: &Path, f: &mut impl FnMut(&Path)) {
     }
 }
 
+/// Every file git would commit from this checkout: tracked files plus
+/// untracked ones no ignore rule excludes, so local tool state (`.coyote/`,
+/// `plans/`, anything in `.git/info/exclude`) is never scanned.
+fn git_committable_files() -> Vec<String> {
+    let output = Command::new("git")
+        .args(["ls-files", "--cached", "--others", "--exclude-standard", "-z"])
+        .current_dir(repo_root())
+        .output()
+        .expect("run git ls-files");
+    assert!(
+        output.status.success(),
+        "git ls-files should succeed: {}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+    String::from_utf8(output.stdout)
+        .expect("git ls-files paths should be UTF-8")
+        .split('\0')
+        .filter(|path| !path.is_empty())
+        .map(str::to_string)
+        .collect()
+}
+
+/// The same filters `visit_text_files` applies, on a repo-relative path.
+fn is_scanned_for_the_old_package_name(relative: &str) -> bool {
+    let path = Path::new(relative);
+    let name = path.file_name().and_then(|name| name.to_str()).unwrap_or_default();
+    let in_skipped_dir = path.parent().into_iter().flat_map(Path::components).any(|dir| {
+        let dir = dir.as_os_str().to_str().unwrap_or_default();
+        SKIPPED_DIRECTORIES.contains(&dir) || (dir.starts_with('.') && dir != ".github")
+    });
+    let scanned = path
+        .extension()
+        .and_then(|ext| ext.to_str())
+        .is_some_and(|ext| SCANNED_EXTENSIONS.contains(&ext));
+    scanned
+        && !in_skipped_dir
+        && name != "Cargo.lock"
+        && !SKIPPED_DOC_PREFIXES.iter().any(|prefix| relative.starts_with(prefix))
+}
+
 #[test]
 fn old_package_name_survives_only_as_prose() {
     let root = repo_root();
-    let this_file = root.join("crates/apps/reticulumd/tests/fork_publish_contract.rs");
     let mut offenders = Vec::new();
-
-    visit_text_files(&root, &root, &mut |path| {
-        // This file spells out the forbidden forms as needles.
-        if path == this_file {
-            return;
+    // This file spells out the forbidden forms as needles.
+    let this_file = "crates/apps/reticulumd/tests/fork_publish_contract.rs";
+    for relative in git_committable_files() {
+        if relative == this_file || !is_scanned_for_the_old_package_name(&relative) {
+            continue;
         }
-        let Ok(text) = fs::read_to_string(path) else {
-            return;
-        };
+        let Ok(text) = fs::read_to_string(root.join(&relative)) else { continue };
         for (index, line) in text.lines().enumerate() {
             if OLD_PACKAGE_NAME_FORMS.iter().any(|form| line.contains(form)) {
-                let relative = path.strip_prefix(&root).unwrap_or(path);
-                offenders.push(format!("{}:{}: {}", relative.display(), index + 1, line.trim()));
+                offenders.push(format!("{relative}:{}: {}", index + 1, line.trim()));
             }
         }
-    });
+    }
 
     assert!(
         offenders.is_empty(),

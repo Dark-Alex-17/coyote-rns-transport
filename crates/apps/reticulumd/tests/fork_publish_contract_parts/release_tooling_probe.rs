@@ -5,6 +5,7 @@
 
 /// Runs a `tools/scripts/*.sh` script from the repo root and returns
 /// `(exit code, stdout, stderr)`.
+#[cfg(unix)]
 fn run_fork_script(script: &str, args: &[&str]) -> (Option<i32>, String, String) {
     let output = Command::new("bash")
         .arg(repo_root().join("tools/scripts").join(script))
@@ -22,6 +23,7 @@ fn run_fork_script(script: &str, args: &[&str]) -> (Option<i32>, String, String)
 /// Whether a `coyote-rns-transport-v*` tag is reachable from HEAD, the
 /// script's own precondition for its zero-argument form; a shallow checkout
 /// or a branch cut before the first fork tag has none.
+#[cfg(unix)]
 fn fork_release_tag_reachable() -> bool {
     Command::new("git")
         .args(["tag", "--list", "coyote-rns-transport-v*", "--merged", "HEAD"])

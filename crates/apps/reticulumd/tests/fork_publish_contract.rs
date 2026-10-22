@@ -37,10 +37,10 @@ fn is_patch_id(token: &str) -> bool {
 
 #[test]
 fn is_patch_id_accepts_one_letter_and_one_or_two_digits() {
-    for accepted in ["F1", "F10", "F99"] {
+    for accepted in ["F1", "F10", "F99", "H2"] {
         assert!(is_patch_id(accepted), "{accepted:?} is a patch id");
     }
-    for rejected in ["F", "F100", "f1", "1F", "F1x"] {
+    for rejected in ["F", "F100", "f1", "1F", "F1x", "FX", "10"] {
         assert!(!is_patch_id(rejected), "{rejected:?} is not a patch id");
     }
 }
@@ -395,16 +395,17 @@ fn fuzz_lock_resolves_the_crate_from_its_path_dependency() {
 
 /// The `## <label> (upstream <base>)` section of the patch-set ledger, up to
 /// the next `## ` heading. `label` is a release version or `Unreleased`.
-/// A `## <label>` heading without the `(upstream <base>)` suffix is a
-/// malformed ledger, not a missing section, so it panics rather than
+/// The anchor ends in a space so `0.15.1` cannot match a `0.15.10` heading.
+/// A `## <label> ` heading that does not continue with `(upstream <base>)`
+/// is a malformed ledger, not a missing section, so it panics rather than
 /// disabling the checks that key on the heading.
 fn ledger_section<'a>(ledger: &'a str, label: &str) -> Option<&'a str> {
-    let heading_anchor = format!("\n## {label}");
+    let heading_anchor = format!("\n## {label} ");
     let start = ledger.find(&heading_anchor)?;
     let section = &ledger[start + 1..];
     let heading = section.lines().next().unwrap_or_default();
     assert!(
-        heading[heading_anchor.len() - 1..].starts_with(" (upstream "),
+        heading[heading_anchor.len() - 1..].starts_with("(upstream "),
         "the ledger heading for {label} should read `## {label} (upstream <base>)`, got {heading:?}"
     );
     Some(match section[heading.len()..].find("\n## ") {
@@ -861,6 +862,8 @@ fn unreleased_notes_cite_files_that_exist_in_the_tree() {
 }
 
 include!("fork_publish_contract_parts/ledger_contract.rs");
+
+include!("fork_publish_contract_parts/ledger_contract_fixtures.rs");
 
 include!("fork_publish_contract_parts/release_tooling_probe.rs");
 

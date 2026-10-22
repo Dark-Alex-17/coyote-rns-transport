@@ -33,8 +33,9 @@ belongs to. Patch ids: H1 is test hygiene, H2 is release tooling, H3 is
 ledger conventions. The `test hygiene` patch is fork commit `08362717`; the
 `release tooling` patch is fork commits `7e63de1a`, `7fbc97cb`, `fbd4da9d`,
 `f206f31c`, `8e3e587f`, `0e034698`, `3008c9fb`, `72a3a4ab`, `b48e5d81`,
-`9b7bf2e6`, `ab8673b8`, `824b1388`, `bf35ab79`, `d6c59496` and `1405ea9e`;
-the `ledger conventions` patch is fork commit `c45a4e5c`.
+`9b7bf2e6`, `ab8673b8`, `824b1388`, `bf35ab79`, `d6c59496`, `1405ea9e`,
+`4b11d3c0`, `1ee6045e`, `2f41f29e` and `b91113d6`; the `ledger conventions`
+patch is fork commit `c45a4e5c`.
 
 | File | Patch |
 | --- | --- |
@@ -47,6 +48,7 @@ the `ledger conventions` patch is fork commit `c45a4e5c`.
 | `crates/apps/reticulumd/tests/fork_publish_contract_parts/release_tooling_probe.rs` | release tooling |
 | `crates/apps/reticulumd/tests/fork_publish_contract_parts/release_tooling_probe2.rs` | release tooling |
 | `crates/apps/reticulumd/tests/fork_publish_contract_parts/release_tooling_probe3.rs` | release tooling |
+| `crates/apps/reticulumd/tests/fork_publish_contract_parts/release_tooling_probe4.rs` | release tooling |
 | `crates/apps/reticulumd/tests/fork_release_docs_contract.rs` | release tooling |
 | `crates/apps/reticulumd/tests/python_channel_interop_parts/multi_segment_python_interop.rs` | test hygiene |
 | `crates/libs/rns-transport/CHANGELOG.md` | test hygiene, release tooling, ledger conventions |
@@ -74,8 +76,9 @@ library behaviour changes.
 
 Fork commits `7e63de1a`, `7fbc97cb`, `fbd4da9d`, `f206f31c`, `8e3e587f`,
 `0e034698`, `3008c9fb`, `72a3a4ab`, `b48e5d81`, `9b7bf2e6`, `ab8673b8`,
-`824b1388`, `bf35ab79`, `d6c59496` and `1405ea9e`: H2, release tooling. No
-library behaviour changes. `7e63de1a` commits the release
+`824b1388`, `bf35ab79`, `d6c59496`, `1405ea9e`, `4b11d3c0`, `1ee6045e`,
+`2f41f29e` and `b91113d6`: H2, release tooling. No library behaviour
+changes. `7e63de1a` commits the release
 checks that lived in the release operator's home directory under
 `tools/scripts/`: `patchset-ledger-check.sh` (this ledger's file table
 against `git diff --name-only --diff-filter=d <base>..<head>` and a citation
@@ -170,7 +173,26 @@ makes `patchset-ledger-check.sh` name a missing previous-release heading
 before slicing the section and state that merge commits are never cited,
 makes `old-name-tracked-scan.sh` pass without running grep when no tracked
 file is scanned, and makes `semver-major-findings-check.sh` reject a
-non-numeric expected count as a usage error.
+non-numeric expected count as a usage error. `4b11d3c0` gives the
+throwaway clone of `fork_publish_contract_parts/release_tooling_probe2.rs`
+a clone-local git identity so its `commit-tree` calls do not depend on the
+host's, pins that the clone commits with the global and system config out
+of reach and auto-detection disabled, and makes the reachable-higher-tag
+case assert the missing `9.9.9` heading the ledger check now names.
+`1ee6045e` anchors the summary match of `semver-major-findings-check.sh`
+so an expected count of 1 cannot match 11, factors its usage line into a
+function, names a non-integer count before the usage line, makes
+`old-name-tracked-scan.sh` report a tree with nothing to scan as
+`old-name scan skipped:` so `old-name scan ok:` stays a pass over scanned
+files, and pins the non-numeric count in
+`fork_publish_contract_parts/release_tooling_probe.rs`. `2f41f29e` adds
+`fork_publish_contract_parts/release_tooling_probe4.rs`, which pins the
+scripts' refusals of a previous version with no ledger heading, a scan over
+an empty index and a non-numeric semver count. `b91113d6` makes the README
+Codex pin in `crates/apps/reticulumd/tests/fork_release_docs_contract.rs`
+require every `CODEX_REVIEW_ENABLED` mention to sit in a bullet that says
+the workflow was removed, and documents the bare-heading case of
+`ledger_section` in `crates/apps/reticulumd/tests/fork_publish_contract.rs`.
 
 Fork commit `c45a4e5c`: H3, ledger conventions. No library behaviour
 changes. `AGENTS.md` records that fork-only parity rows live in this file

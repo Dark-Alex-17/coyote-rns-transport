@@ -40,9 +40,13 @@ Removed) bullet of its own, marked as such.
   hits by `fork_publish_contract_parts/release_tooling_probe2.rs`, the
   agreement between the ledger script's zero-argument precondition and the
   clone probes' skip predicate by
-  `fork_publish_contract_parts/release_tooling_probe3.rs`, and the ledger
+  `fork_publish_contract_parts/release_tooling_probe3.rs`, the release
+  scripts' refusals (a previous version with no ledger heading, a scan over
+  an empty index, a non-numeric semver count) by
+  `fork_publish_contract_parts/release_tooling_probe4.rs`, and the ledger
   helpers themselves on synthetic fixtures by
-  `fork_publish_contract_parts/ledger_contract_fixtures.rs`.
+  `fork_publish_contract_parts/ledger_contract_fixtures.rs`; the clone
+  probes set a clone-local git identity so they run on a host without one.
 - Ledger contracts, test-only: every patch-header hash in
   `docs/fork/PATCHSET.md` must be named by its section's legend, the
   all-legend-hash and header-to-legend checks run over `## Unreleased` and

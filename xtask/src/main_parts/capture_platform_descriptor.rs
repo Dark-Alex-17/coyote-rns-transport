@@ -243,6 +243,9 @@ fn release_version_label(version: Option<String>) -> Result<String> {
     resolve_release_version(None, exact_tag.as_deref(), &project_version, &crate_version)
 }
 
+/// Reads the literal `[package] version` string. The fork crate keeps a
+/// literal version in its `[package]` table (the publish contract tests pin
+/// that), so `version.workspace = true` is deliberately not resolved here.
 fn crate_manifest_version(manifest_path: &str) -> Result<String> {
     let raw = fs::read_to_string(manifest_path).with_context(|| format!("read {manifest_path}"))?;
     let manifest: toml::Value =
@@ -256,13 +259,14 @@ fn crate_manifest_version(manifest_path: &str) -> Result<String> {
 }
 
 /// Picks the release label from an explicit version, the exact git tag or the
-/// root `VERSION` file, in that order. Two tag families are accepted, the same
-/// ones `tools/scripts/check-publish-tag-version.sh` checks: a `v*` or bare tag
-/// must match root `VERSION` (the daemon release line), and a
+/// root `VERSION` file, in that order. Two tag families are accepted. A
 /// `coyote-rns-transport-v*` tag must match the published crate's manifest
-/// version; the fork tag is never compared against `VERSION`, since the two
-/// lines version independently. A matching tag is returned as written, with
-/// slashes replaced by dashes.
+/// version, the same comparison `tools/scripts/check-publish-tag-version.sh`
+/// makes for that family (it passes every other ref through unchecked). A
+/// `v*` or bare tag must match root `VERSION` (the daemon release line); that
+/// comparison is xtask's own. The fork tag is never compared against
+/// `VERSION`, since the two lines version independently. A matching tag is
+/// returned as written; a `v*` or bare tag has slashes replaced by dashes.
 fn resolve_release_version(
     explicit_version: Option<&str>,
     exact_tag: Option<&str>,
@@ -286,7 +290,7 @@ fn resolve_release_version(
                     "exact git tag '{tag}' does not match the coyote-rns-transport crate version '{crate_version}'"
                 );
             }
-            return Ok(tag.replace('/', "-"));
+            return Ok(tag.to_string());
         }
 
         let normalized_tag = tag.strip_prefix('v').unwrap_or(tag);

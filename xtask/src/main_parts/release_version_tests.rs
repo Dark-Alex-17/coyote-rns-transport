@@ -1,6 +1,42 @@
 #[cfg(test)]
 mod release_version_tests {
-    use super::resolve_release_version;
+    use super::{crate_manifest_version, resolve_release_version};
+    use std::sync::atomic::{AtomicUsize, Ordering};
+
+    static MANIFEST_COUNTER: AtomicUsize = AtomicUsize::new(0);
+
+    fn version_of_manifest(contents: &str) -> anyhow::Result<String> {
+        let path = std::env::temp_dir().join(format!(
+            "xtask-release-version-{}-{}.toml",
+            std::process::id(),
+            MANIFEST_COUNTER.fetch_add(1, Ordering::Relaxed)
+        ));
+        std::fs::write(&path, contents).expect("write manifest fixture");
+        let result = crate_manifest_version(path.to_str().expect("utf-8 temp path"));
+        std::fs::remove_file(&path).expect("remove manifest fixture");
+        result
+    }
+
+    #[test]
+    fn crate_manifest_version_reads_the_literal_package_version() {
+        assert_eq!(
+            version_of_manifest("[package]\nname = \"demo\"\nversion = \"1.2.3\"\n")
+                .expect("literal version"),
+            "1.2.3"
+        );
+    }
+
+    #[test]
+    fn crate_manifest_version_rejects_a_package_without_version() {
+        let error = version_of_manifest("[package]\nname = \"demo\"\n")
+            .expect_err("missing version must fail");
+        assert!(error.to_string().contains("no [package] version string"), "{error}");
+    }
+
+    #[test]
+    fn crate_manifest_version_rejects_unparsable_toml() {
+        version_of_manifest("[package\nversion = \"1.2.3\"\n").expect_err("broken toml must fail");
+    }
 
     #[test]
     fn explicit_release_version_wins() {

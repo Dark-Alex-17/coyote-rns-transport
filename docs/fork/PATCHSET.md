@@ -30,18 +30,24 @@ per fork task.
 
 Every file changed since the `0.15.1` release and the patch each change
 belongs to. Patch ids: H1 is test hygiene, H2 is release tooling, H3 is
-ledger conventions. The `test hygiene` patch is fork commit `08362717`; the
+ledger conventions, H4 is guard discipline. The `test hygiene` patch is
+fork commit `08362717`; the
 `release tooling` patch is fork commits `7e63de1a`, `7fbc97cb`, `fbd4da9d`,
 `f206f31c`, `8e3e587f`, `0e034698`, `3008c9fb`, `72a3a4ab`, `b48e5d81`,
 `9b7bf2e6`, `ab8673b8`, `824b1388`, `bf35ab79`, `d6c59496`, `1405ea9e`,
 `4b11d3c0`, `1ee6045e`, `2f41f29e`, `b91113d6` and `cbab03dc`; the
-`ledger conventions` patch is fork commit `c45a4e5c`.
+`ledger conventions` patch is fork commit `c45a4e5c`; the
+`guard discipline` patch is fork commits `f7be0f41`, `ae4f16d8`, `5f6c230f`,
+`e916ce9e`, `39d107b9`, `882baabc` and `e9c2ea93`.
 
 | File | Patch |
 | --- | --- |
 | `.github/workflows/ci-full.yml` | release tooling |
 | `.github/workflows/ci.yml` | release tooling |
 | `AGENTS.md` | ledger conventions |
+| `Cargo.toml` | guard discipline |
+| `crates/apps/reticulumd/Cargo.toml` | guard discipline |
+| `crates/apps/reticulumd/src/bin/reticulumd/tests/interface_hot_apply.rs` | guard discipline |
 | `crates/apps/reticulumd/tests/fork_publish_contract.rs` | release tooling |
 | `crates/apps/reticulumd/tests/fork_publish_contract_parts/ledger_contract.rs` | release tooling |
 | `crates/apps/reticulumd/tests/fork_publish_contract_parts/ledger_contract_fixtures.rs` | release tooling |
@@ -51,17 +57,84 @@ ledger conventions. The `test hygiene` patch is fork commit `08362717`; the
 | `crates/apps/reticulumd/tests/fork_publish_contract_parts/release_tooling_probe4.rs` | release tooling |
 | `crates/apps/reticulumd/tests/fork_publish_contract_parts/release_tooling_probe5.rs` | release tooling |
 | `crates/apps/reticulumd/tests/fork_release_docs_contract.rs` | release tooling |
+| `crates/apps/reticulumd/tests/python_channel_interop.rs` | guard discipline |
 | `crates/apps/reticulumd/tests/python_channel_interop_parts/multi_segment_python_interop.rs` | test hygiene |
-| `crates/libs/rns-transport/CHANGELOG.md` | test hygiene, release tooling, ledger conventions |
+| `crates/apps/reticulumd/tests/python_tcp_ifac_lifecycle.rs` | guard discipline |
+| `crates/libs/lxmf-sdk/src/backend/zmq_pipeline/tests/mod.rs` | guard discipline |
+| `crates/libs/lxmf-sdk/src/lib.rs` | guard discipline |
+| `crates/libs/meshchat-api/src/lib.rs` | guard discipline |
+| `crates/libs/rns-transport/CHANGELOG.md` | test hygiene, release tooling, ledger conventions, guard discipline |
 | `crates/libs/rns-transport/README.md` | release tooling |
+| `crates/libs/rns-transport/examples/tcp_connection_memory.rs` | guard discipline |
+| `crates/libs/rns-transport/src/iface/auto_runtime_parts/autoruntimeplan_sections/runtime_json.rs` | guard discipline |
+| `crates/libs/rns-transport/src/iface/auto_runtime_parts/autoruntimeplan_sections/send_due_multicast_peer_announces_wi.rs` | guard discipline |
+| `crates/libs/rns-transport/src/iface/auto_runtime_parts/autoruntimeplan_sections/spawn_peer_data_receive_loop.rs` | guard discipline |
+| `crates/libs/rns-transport/src/iface/auto_runtime_parts/module_prelude_sections/transport_bridge.rs` | guard discipline |
+| `crates/libs/rns-transport/src/iface/auto_runtime_parts/tests.rs` | guard discipline |
+| `crates/libs/rns-transport/src/iface/auto_runtime_parts/tests_sections/auto_peer_data_transport_bridge_regi.rs` | guard discipline |
+| `crates/libs/rns-transport/src/iface/i2p.rs` | guard discipline |
+| `crates/libs/rns-transport/src/iface/kiss.rs` | guard discipline |
+| `crates/libs/rns-transport/src/iface/kiss_parts/ifac_runtime_tests.rs` | guard discipline |
+| `crates/libs/rns-transport/src/iface/kiss_parts/kisstcpclientinterface.rs` | guard discipline |
+| `crates/libs/rns-transport/src/iface/kiss_parts/module_prelude.rs` | guard discipline |
+| `crates/libs/rns-transport/src/iface/kiss_parts/tx_queue_survives_reconnect_tests.rs` | guard discipline |
+| `crates/libs/rns-transport/src/iface/local.rs` | guard discipline |
+| `crates/libs/rns-transport/src/iface/lora_parts/module_extra.rs` | guard discipline |
+| `crates/libs/rns-transport/src/iface/meshtastic_parts/ifac_runtime_tests.rs` | guard discipline |
+| `crates/libs/rns-transport/src/iface/meshtastic_parts/interface.rs` | guard discipline |
+| `crates/libs/rns-transport/src/iface/pipe.rs` | guard discipline |
+| `crates/libs/rns-transport/src/iface/pipe_tests.rs` | guard discipline |
+| `crates/libs/rns-transport/src/iface/rnode_bearer_interface_tests.rs` | guard discipline |
+| `crates/libs/rns-transport/src/iface/rnode_ble.rs` | guard discipline |
+| `crates/libs/rns-transport/src/iface/rnode_multi.rs` | guard discipline |
+| `crates/libs/rns-transport/src/iface/rnode_multi_ifac_tests.rs` | guard discipline |
+| `crates/libs/rns-transport/src/iface/serial_parts/ifac_runtime_tests.rs` | guard discipline |
+| `crates/libs/rns-transport/src/iface/serial_parts/module_prelude.rs` | guard discipline |
+| `crates/libs/rns-transport/src/iface/serial_parts/run_serial_stream.rs` | guard discipline |
+| `crates/libs/rns-transport/src/iface/tcp_client.rs` | guard discipline |
+| `crates/libs/rns-transport/src/iface/tcp_client/tests/tx_queue_survives_reconnect.rs` | guard discipline |
+| `crates/libs/rns-transport/src/iface/tcp_client_memory_tests.rs` | guard discipline |
+| `crates/libs/rns-transport/src/iface/tcp_server.rs` | guard discipline |
+| `crates/libs/rns-transport/src/iface/udp.rs` | guard discipline |
+| `crates/libs/rns-transport/src/iface/weave.rs` | guard discipline |
+| `crates/libs/rns-transport/src/iface/weave_ifac_runtime_tests.rs` | guard discipline |
+| `crates/libs/rns-transport/src/iface_types.rs` | guard discipline |
+| `crates/libs/rns-transport/src/transport/announce.rs` | guard discipline |
+| `crates/libs/rns-transport/src/transport/core.rs` | guard discipline |
+| `crates/libs/rns-transport/src/transport/handler.rs` | guard discipline |
+| `crates/libs/rns-transport/src/transport/handler_parts/path_request.rs` | guard discipline |
+| `crates/libs/rns-transport/src/transport/inbound_processing.rs` | guard discipline |
+| `crates/libs/rns-transport/src/transport/inbound_processing_tests.rs` | guard discipline |
+| `crates/libs/rns-transport/src/transport/jobs.rs` | guard discipline |
+| `crates/libs/rns-transport/src/transport/jobs_parts/link_maintenance.rs` | guard discipline |
+| `crates/libs/rns-transport/src/transport/jobs_parts/link_table_cleanup.rs` | guard discipline |
+| `crates/libs/rns-transport/src/transport/links_parts/transport_sections/close_channel.rs` | guard discipline |
+| `crates/libs/rns-transport/src/transport/links_parts/transport_sections/path_table.rs` | guard discipline |
+| `crates/libs/rns-transport/src/transport/links_parts/transport_sections/reset_out_link.rs` | guard discipline |
+| `crates/libs/rns-transport/src/transport/links_parts/transport_sections/resource_reader.rs` | guard discipline |
+| `crates/libs/rns-transport/src/transport/links_parts/transport_sections/shared_instance_announce.rs` | guard discipline |
+| `crates/libs/rns-transport/src/transport/links_parts/transportchannel.rs` | guard discipline |
+| `crates/libs/rns-transport/src/transport/mod.rs` | guard discipline |
+| `crates/libs/rns-transport/src/transport/next_hop_metrics.rs` | guard discipline |
+| `crates/libs/rns-transport/src/transport/path.rs` | guard discipline |
+| `crates/libs/rns-transport/src/transport/request_dispatch.rs` | guard discipline |
+| `crates/libs/rns-transport/src/transport/resource_wire.rs` | guard discipline |
+| `crates/libs/rns-transport/src/transport/resource_wire_parts/proof.rs` | guard discipline |
+| `crates/libs/rns-transport/src/transport/reticulum_path_store.rs` | guard discipline |
+| `crates/libs/rns-transport/src/transport/tests.rs` | guard discipline |
+| `crates/libs/rns-transport/src/transport/tests_parts/two_transport_loopback_lifecycle.rs` | guard discipline |
+| `crates/libs/rns-transport/src/transport/wire.rs` | guard discipline |
+| `crates/libs/rns-transport/tests/multicast_tx_guard.rs` | guard discipline |
 | `crates/libs/rns-transport/tests/outbound_outcome_api.rs` | test hygiene |
-| `docs/fork/PATCHSET.md` | test hygiene, release tooling, ledger conventions |
+| `crates/libs/rns-transport/tests/tcp_client_reconnect.rs` | guard discipline |
+| `crates/libs/rns-transport/tests/tcp_connection_memory.rs` | guard discipline |
+| `docs/fork/PATCHSET.md` | test hygiene, release tooling, ledger conventions, guard discipline |
 | `docs/runbooks/release-runbook.md` | release tooling |
 | `docs/status/reticulum-parity-matrix.md` | ledger conventions |
 | `tools/scripts/old-name-tracked-scan.sh` | release tooling |
 | `tools/scripts/patchset-ledger-check.sh` | release tooling |
 | `tools/scripts/semver-major-findings-check.sh` | release tooling |
-| `tools/scripts/workspace-clippy-classify.sh` | release tooling |
+| `tools/scripts/workspace-clippy-classify.sh` | release tooling, guard discipline |
 | `xtask/src/main.rs` | release tooling |
 | `xtask/src/main_parts/capture_platform_descriptor.rs` | release tooling |
 | `xtask/src/main_parts/release_version_tests.rs` | release tooling |
@@ -217,6 +290,61 @@ row of `docs/status/reticulum-parity-matrix.md` points at the B1 patch
 instead of carrying fork hashes; the crate `CHANGELOG.md` preamble widens
 its test-only exception from a fixture hardening to any test-only change
 that alters no library behaviour (later widened to release tooling and CI).
+
+Fork commits `f7be0f41`, `ae4f16d8`, `5f6c230f`, `e916ce9e`, `39d107b9`,
+`882baabc` and `e9c2ea93`: H4, guard discipline. No library behaviour
+changes; `clippy::await_holding_invalid_type` (the tokio `MutexGuard`,
+`RwLockReadGuard` and `RwLockWriteGuard` types named in `clippy.toml`) now
+runs at its default level under the workspace clippy invocation, and the
+production code of this crate holds no tokio guard across an await except
+where a fn-level allowance names the reason. The first commit moves
+`NextHopMetrics` and the medium path timeout out of `transport/mod.rs`
+into `transport/next_hop_metrics.rs` (re-exported at the same path) so the
+lock-discipline rustdoc fits under the module cap. The second shortens the
+guards that could be shortened without changing the order of effects:
+`send_announce` builds its packet under a scoped destination guard and
+hands it to `send_packet`, the shape `try_send_announce` already had, so
+the destination guard no longer spans the handler lock; `outbound` reads
+the broadcast flag under a scoped guard and sends through
+`send_broadcast`; the path-table exporters snapshot each interface's mode,
+hash and display name under the `iface_manager` guard before taking the
+handler guard; `send_resource_from_reader_observed` scopes its first
+handler guard in a block. The third documents the lock discipline once, on
+`TransportHandler` (the guard spans one job; lock order handler, then
+`packet_cache`; handler, then `iface_manager`, then the interface tx
+channel; handler, then a link; handler, then a destination), and marks
+each of the 36 transport fns whose handler guard crosses an await, the
+`Transport::send_*` wrappers and the job fns alike, with the fn-level
+allowance; `request_dispatch::send_on_iface` and
+`shared_instance_announce::send_packet` lose their special status in
+rustdoc. The fourth splits the auto-interface listener supervisors into a
+sync take phase under the guard and an async finish phase after it (stop
+and join the retired handles, prune the retired socket's outbound routes,
+join the pending stops, in that order), hoists the `peer_ifaces` lookup in
+`ensure_peer_iface` out of the `if let` scrutinee, and marks the peer-data
+receive loop whose one sync body needs both the state and the dedupe
+guard. The fifth lets every interface driver own the `InterfaceTxReceiver`
+it gets from `InterfaceChannel::split` and lend it into the per-connection
+code (`&mut` into the stream fn for tcp_client, local, weave, rnode_multi
+and kiss; moved into the tx task and taken back through the `JoinHandle`
+for tcp_server, local server, pipe and serial, whose tasks were joined,
+never aborted), hoists udp's nested `PeerRouting` lookup into a scoped
+binding, routes management frames through
+`recv_optional_management_frame(Option<&mut Receiver<T>>)`, and keeps two
+pub items with the allowance: `run_kiss_stream_with_ifac` (shared-receiver
+signature, now a wrapper over `run_kiss_stream_owned`) and
+`MeshtasticInterfaceHandle::recv_transmit`. The sixth adds one
+module-level allowance per test root (test code holds guards across awaits
+on purpose). The seventh removes the `[workspace.lints.clippy]` allow from
+`Cargo.toml`, gives `meshchat-api` and `lxmf-sdk` a crate-root allowance
+naming the sites a follow-up restructures (their manifests inherit the
+workspace lint table, which cannot be combined with a package override),
+rewords the `reticulumd` package allowance the same way, and rewords
+`tools/scripts/workspace-clippy-classify.sh` so its zero-diagnostic
+verdict describes the lint as live. Pinned by
+`tcp_client/tests/tx_queue_survives_reconnect.rs`,
+`kiss_parts/tx_queue_survives_reconnect_tests.rs` and
+`tests_parts/two_transport_loopback_lifecycle.rs`.
 
 ## 0.15.1 (upstream 0.14.0)
 

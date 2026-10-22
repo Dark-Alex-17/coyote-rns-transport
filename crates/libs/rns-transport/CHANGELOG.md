@@ -62,6 +62,53 @@ Removed) bullet of its own, marked as such.
   old-package-name scan reads `git ls-files` instead of walking
   git-excluded local state (`crates/apps/reticulumd/tests/fork_publish_contract.rs`,
   `fork_publish_contract_parts/ledger_contract.rs`).
+- No library behaviour change, guard discipline in the transport layer:
+  `send_announce` builds its announce under a scoped destination guard and
+  hands it to `send_packet`, the shape `try_send_announce` already had, so
+  the destination guard no longer spans the handler lock
+  (`transport/core.rs`); `outbound` reads the broadcast flag under a scoped
+  guard and sends through `send_broadcast`; the path-table exporters
+  snapshot each interface's mode, hash and display name before taking the
+  handler guard (`transport/reticulum_path_store.rs`,
+  `links_parts/transport_sections/path_table.rs`); `NextHopMetrics` lives
+  in `transport/next_hop_metrics.rs` and is re-exported at its old path;
+  the handler lock discipline (the guard spans one job; lock order handler,
+  then `packet_cache`; handler, then `iface_manager`, then the interface
+  tx channel; handler, then a link; handler, then a destination) is
+  documented on `TransportHandler` (`transport/mod.rs`), and every
+  transport fn whose handler guard crosses an await carries the
+  `clippy::await_holding_invalid_type` allowance, the `Transport::send_*`
+  wrappers and the job fns alike, in place of the two formerly sanctioned
+  transmit seams. Pinned by
+  `tests_parts/two_transport_loopback_lifecycle.rs` (a buildable announce
+  still reaches the wire through `send_announce`).
+- No library behaviour change, guard discipline in the interface drivers:
+  each driver owns the `InterfaceTxReceiver` it gets from
+  `InterfaceChannel::split` and lends it into its per-connection code
+  instead of guarding a shared one across the whole select loop
+  (`iface/tcp_client.rs`, `iface/tcp_server.rs`, `iface/local.rs`,
+  `iface/udp.rs`, `iface/pipe.rs`, `iface/serial_parts/run_serial_stream.rs`,
+  `iface/weave.rs`, `iface/rnode_multi.rs`,
+  `iface/kiss_parts/kisstcpclientinterface.rs`); management frames arrive
+  through `recv_optional_management_frame` (`iface_types.rs`); the
+  auto-interface listener supervisors take the retired listener under
+  their guard and stop, prune and join it after the guard is gone
+  (`iface/auto_runtime_parts/autoruntimeplan_sections/send_due_multicast_peer_announces_wi.rs`,
+  `iface/auto_runtime_parts/autoruntimeplan_sections/runtime_json.rs`);
+  `run_kiss_stream_with_ifac` keeps its shared-receiver signature as a
+  wrapper over `run_kiss_stream_owned`. Pinned by
+  `tcp_client/tests/tx_queue_survives_reconnect.rs` and
+  `kiss_parts/tx_queue_survives_reconnect_tests.rs` (a packet queued while
+  the driver is between connections is delivered after the reconnect).
+- Lint tables, no library behaviour change: `clippy::await_holding_invalid_type`
+  runs at its default level under the workspace clippy invocation; the
+  workspace lint-table allow is gone, every test root carries one
+  module-level allowance (`src/transport/tests.rs`,
+  `crates/apps/reticulumd/tests/python_channel_interop.rs` and the other
+  test roots), and `meshchat-api`, `lxmf-sdk` and `reticulumd` keep a
+  crate- or package-level allowance naming the production sites a
+  follow-up restructures; `tools/scripts/workspace-clippy-classify.sh`
+  still passes only when no diagnostic of the lint fires.
 
 ### Removed
 

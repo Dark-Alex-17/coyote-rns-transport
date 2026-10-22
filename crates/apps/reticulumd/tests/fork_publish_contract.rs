@@ -398,7 +398,10 @@ fn fuzz_lock_resolves_the_crate_from_its_path_dependency() {
 /// The anchor ends in a space so `0.15.1` cannot match a `0.15.10` heading.
 /// A `## <label> ` heading that does not continue with `(upstream <base>)`
 /// is a malformed ledger, not a missing section, so it panics rather than
-/// disabling the checks that key on the heading.
+/// disabling the checks that key on the heading. A bare `## <label>` heading
+/// with nothing after the label does not match the anchor and is a missing
+/// section here (`None`); `ledger_sections_under_full_hash_contract` turns
+/// that `None` into a panic for the sections it covers.
 fn ledger_section<'a>(ledger: &'a str, label: &str) -> Option<&'a str> {
     let heading_anchor = format!("\n## {label} ");
     let start = ledger.find(&heading_anchor)?;

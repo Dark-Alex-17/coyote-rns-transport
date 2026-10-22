@@ -706,7 +706,8 @@ fn top_level_bullets(markdown: &str) -> Vec<String> {
 /// The Codex review workflow was removed after 0.15.1, so the README register
 /// that records 0.15.0 adding it must say so in the same bullet: a reader of
 /// the register must not be left believing the `CODEX_REVIEW_ENABLED`
-/// variable still gates anything.
+/// variable still gates anything. Every mention of the variable in the README
+/// sits in such a bullet; a mention in free prose has no removal note.
 #[test]
 fn readme_names_the_codex_variable_only_in_a_bullet_that_says_removed() {
     let readme = read_repo_file("crates/libs/rns-transport/README.md");
@@ -718,12 +719,20 @@ fn readme_names_the_codex_variable_only_in_a_bullet_that_says_removed() {
         !codex_bullets.is_empty(),
         "the crate README should record the Codex review workflow in a bullet of the 0.15.0 register"
     );
-    for bullet in codex_bullets {
+    for bullet in &codex_bullets {
+        let unwrapped = bullet.split_whitespace().collect::<Vec<_>>().join(" ");
         assert!(
-            bullet.contains("removed"),
+            unwrapped.contains("workflow was removed"),
             "a README bullet naming CODEX_REVIEW_ENABLED should say the workflow was removed:\n{bullet}"
         );
     }
+    let mentions_in_bullets: usize =
+        codex_bullets.iter().map(|bullet| bullet.matches("CODEX_REVIEW_ENABLED").count()).sum();
+    assert_eq!(
+        readme.matches("CODEX_REVIEW_ENABLED").count(),
+        mentions_in_bullets,
+        "every README mention of CODEX_REVIEW_ENABLED should sit in a bullet that says the workflow was removed"
+    );
 }
 
 /// Every `rust` snippet in the crate README is pinned verbatim by one of the

@@ -3,9 +3,10 @@
 The section layout follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/)
 and versions follow the cargo semver rules described in the crate README.
 Test-only files are not listed as entries of their own; each is named in a
-trailing clause of the bullet for the behaviour it pins. A test-only change
-that alters no library behaviour (a fixture hardening, a test hygiene pass)
-is the one exception: it is a Changed bullet of its own, marked test-only.
+trailing clause of the bullet for the behaviour it pins. A change that alters
+no library behaviour (a test-only change such as a fixture hardening or a
+test hygiene pass, release tooling, CI) is a Changed bullet of its own,
+marked as such.
 
 ## Unreleased
 
@@ -20,8 +21,9 @@ is the one exception: it is a Changed bullet of its own, marked test-only.
   are committed under `tools/scripts/` (`patchset-ledger-check.sh`,
   `workspace-clippy-classify.sh`, `old-name-tracked-scan.sh`,
   `semver-major-findings-check.sh`) and named by the README rebase recipe
-  and the release runbook; pull-request CI runs every external test target
-  of this crate (`cargo test -p coyote-rns-transport --tests`) and the
+  and the release runbook; pull-request CI runs every test target of this
+  crate (every `tests/*.rs` target and the lib unit tests,
+  `cargo test -p coyote-rns-transport --tests`) and the
   ledger check from a full-history checkout, mirrored into the dispatch
   workflow; `cargo xtask package-daemon-bundle` accepts a checkout at a
   `coyote-rns-transport-v*` tag whose version equals this crate's manifest
@@ -33,10 +35,11 @@ is the one exception: it is a Changed bullet of its own, marked test-only.
   (`fork_release_scripts_are_committed_and_named_by_the_runbooks`).
 - Ledger contracts, test-only: every patch-header hash in
   `docs/fork/PATCHSET.md` must be named by its section's legend, the
-  all-legend-hash and header-to-legend checks and the per-bullet cite check
-  of this file run over every released section from 0.15.1 up (earlier
-  sections keep their published text), patch ids take one or two digits,
-  the Python-in-the-loop trap names its rule when it fires, and the
+  all-legend-hash and header-to-legend checks run over `## Unreleased` and
+  every released section from 0.15.1 up, the per-bullet cite check of this
+  file runs over every released section from 0.15.1 up (earlier sections
+  keep their published text), patch ids take one or two digits, the
+  Python-in-the-loop trap names its rule when it fires, and the
   old-package-name scan reads `git ls-files` instead of walking
   git-excluded local state (`crates/apps/reticulumd/tests/fork_publish_contract.rs`,
   `fork_publish_contract_parts/ledger_contract.rs`).

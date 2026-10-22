@@ -15,7 +15,8 @@ the crate `CHANGELOG.md` (code, tests, fixtures, scripts, doc comments).
 Commits that only update this ledger are omitted.
 `tools/scripts/patchset-ledger-check.sh` checks that the current section's
 table equals the files changed since the previous release tag and that every
-such commit is cited. The crate README
+commit in that range outside this ledger and the crate `CHANGELOG.md` is
+cited in the section. The crate README
 (`crates/libs/rns-transport/README.md`) carries the versioning policy, the
 rebase recipe and a prose summary of the current patch list; this file is
 the per-release ledger of the same patches, with commit hashes and file
@@ -77,8 +78,9 @@ twin of the old-package-name contract walk) and
 release); the crate README rebase recipe, this preamble and
 `docs/runbooks/release-runbook.md` name them. `7fbc97cb` makes the
 `contracts` job of `.github/workflows/ci.yml` check out the full history,
-run `cargo test -p coyote-rns-transport --tests` (every
-`crates/libs/rns-transport/tests/*.rs` target on the pull-request path) and
+run `cargo test -p coyote-rns-transport --tests` (every test target of this
+crate, every `crates/libs/rns-transport/tests/*.rs` target and the lib unit
+tests, on the pull-request path) and
 run the ledger check, mirrors the steps into `.github/workflows/ci-full.yml`,
 and deletes `.github/workflows/codex-review.yml` with its prompt
 `.github/codex/prompts/review.md`; the contract pin keeps only its `ci.yml`
@@ -98,9 +100,10 @@ four scripts to exist as bash under `set -euo pipefail` and to be named by
 the runbooks. `f206f31c` makes `resolve_release_version` in
 `xtask/src/main_parts/capture_platform_descriptor.rs` accept a
 `coyote-rns-transport-v*` tag when its version equals the crate manifest
-version (returned as written, as `tools/scripts/check-publish-tag-version.sh`
-checks it), keeps `v*` and bare tags on the root `VERSION` comparison, and
-moves the release-version unit tests to
+version (returned as written, the fork-tag form
+`tools/scripts/check-publish-tag-version.sh` also guards), keeps `v*` and
+bare tags on the root `VERSION` comparison, and moves the release-version
+unit tests out of `xtask/src/main_parts/run_unused_deps.rs` to
 `xtask/src/main_parts/release_version_tests.rs`, included from
 `xtask/src/main.rs`.
 

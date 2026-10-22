@@ -1,6 +1,7 @@
 #[cfg(test)]
 mod release_version_tests {
-    use super::{crate_manifest_version, resolve_release_version};
+    use super::{crate_manifest_version, resolve_release_version, Xtask, XtaskCommand};
+    use clap::Parser;
     use std::sync::atomic::{AtomicUsize, Ordering};
 
     static MANIFEST_COUNTER: AtomicUsize = AtomicUsize::new(0);
@@ -37,7 +38,11 @@ mod release_version_tests {
     fn crate_manifest_version_rejects_unparsable_toml() {
         let error = version_of_manifest("[package\nversion = \"1.2.3\"\n")
             .expect_err("broken toml must fail");
-        assert!(error.to_string().contains("parse"), "{error}");
+        // The toml crate's own message also says "parse"; the fixture path
+        // is what the xtask context adds.
+        let message = error.to_string();
+        assert!(message.contains("parse "), "{message}");
+        assert!(message.contains("xtask-release-version-"), "{message}");
     }
 
     #[test]
@@ -130,5 +135,80 @@ mod release_version_tests {
                 .expect("fork tag matching the crate version with a different VERSION"),
             "coyote-rns-transport-v0.14.0"
         );
+    }
+
+    /// The rustdoc promises that root `VERSION` must still be one non-empty
+    /// token on a flag-less run even when a fork tag matches the crate
+    /// version, because the token check precedes the tag arms. An empty or a
+    /// two-token `VERSION` therefore fails with the token error, not with a
+    /// fork-tag verdict and not with an accepted label.
+    #[test]
+    fn fork_tag_does_not_excuse_a_malformed_version_token() {
+        for project_version in ["", "   \n", "0.14.0 extra\n", "0.14.0\n0.14.1\n"] {
+            let error = match resolve_release_version(
+                None,
+                Some("coyote-rns-transport-v0.15.1"),
+                project_version,
+                "0.15.1",
+            ) {
+                Ok(label) => panic!(
+                    "VERSION {project_version:?} must fail the token check, got label {label:?}"
+                ),
+                Err(error) => error,
+            };
+            let message = error.to_string();
+            assert!(
+                message.contains("VERSION must contain exactly one non-empty version token"),
+                "VERSION {project_version:?}: {message}"
+            );
+            assert!(
+                !message.contains("coyote-rns-transport crate version"),
+                "the token check should fire before the fork-tag arm, got {message}"
+            );
+        }
+    }
+
+    /// The rustdoc's escape hatch for a commit carrying tags from both
+    /// families: an explicit version wins over whichever tag `git describe`
+    /// picked, and over a malformed `VERSION`, since it is read first.
+    #[test]
+    fn explicit_version_wins_over_a_fork_tag_and_a_malformed_version_file() {
+        assert_eq!(
+            resolve_release_version(
+                Some("v0.14.0"),
+                Some("coyote-rns-transport-v0.15.1"),
+                "",
+                "0.15.1"
+            )
+            .expect("the explicit version is resolved before VERSION is inspected"),
+            "v0.14.0"
+        );
+        assert_eq!(
+            resolve_release_version(
+                Some(" coyote-rns-transport-v0.15.1 "),
+                Some("v0.14.0"),
+                "0.14.0",
+                "0.15.1"
+            )
+            .expect("the explicit fork label is returned as written"),
+            "coyote-rns-transport-v0.15.1"
+        );
+    }
+
+    /// The flag the rustdoc tells a releaser to pass is spelled `--version`
+    /// on `package-daemon-bundle`; a rename of the clap field would silently
+    /// strand that instruction.
+    #[test]
+    fn package_daemon_bundle_takes_the_release_label_as_dash_dash_version() {
+        let parsed =
+            Xtask::try_parse_from(["xtask", "package-daemon-bundle", "--version", "custom/1"])
+                .expect("--version is the release-label flag");
+        match parsed.command {
+            XtaskCommand::PackageDaemonBundle { version, target } => {
+                assert_eq!(version.as_deref(), Some("custom/1"));
+                assert_eq!(target, None);
+            }
+            _ => panic!("package-daemon-bundle should parse to PackageDaemonBundle"),
+        }
     }
 }

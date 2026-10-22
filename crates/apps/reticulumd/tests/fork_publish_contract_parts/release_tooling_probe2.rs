@@ -78,6 +78,15 @@ impl ProbeClone {
             .map(str::to_string)
             .collect()
     }
+
+    /// The script's own precondition for its zero-argument form: a fork tag
+    /// that is an ancestor of HEAD. Tags on other branches do not count.
+    fn has_a_reachable_fork_tag(&self) -> bool {
+        !self
+            .git(&["tag", "--list", "coyote-rns-transport-v*", "--merged", "HEAD"])
+            .trim()
+            .is_empty()
+    }
 }
 
 #[cfg(unix)]
@@ -113,8 +122,8 @@ fn git_stdout(dir: &Path, args: &[&str]) -> String {
 #[test]
 fn zero_argument_ledger_check_bases_on_the_newest_fork_tag_reachable_from_head() {
     let clone = ProbeClone::new("ledger-tags");
-    if clone.fork_tags().is_empty() {
-        eprintln!("skipping: no coyote-rns-transport-v* tag in this checkout");
+    if !clone.has_a_reachable_fork_tag() {
+        eprintln!("skipping: no coyote-rns-transport-v* tag reachable from HEAD in this checkout");
         return;
     }
     let (code, stdout, stderr) = clone.run_script("patchset-ledger-check.sh", &[]);
@@ -171,8 +180,8 @@ fn zero_argument_ledger_check_bases_on_the_newest_fork_tag_reachable_from_head()
 #[test]
 fn ledger_check_cites_commits_per_section_not_per_file() {
     let clone = ProbeClone::new("ledger-section");
-    if clone.fork_tags().is_empty() {
-        eprintln!("skipping: no coyote-rns-transport-v* tag in this checkout");
+    if !clone.has_a_reachable_fork_tag() {
+        eprintln!("skipping: no coyote-rns-transport-v* tag reachable from HEAD in this checkout");
         return;
     }
     let (code, _, stderr) = clone.run_script("patchset-ledger-check.sh", &[]);

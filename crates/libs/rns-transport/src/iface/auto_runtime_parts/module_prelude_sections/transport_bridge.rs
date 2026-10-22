@@ -86,7 +86,8 @@ impl AutoInterfaceTransportBridge {
         peer: SocketAddr,
         route: AutoPeerOutboundRoute,
     ) -> Option<AddressHash> {
-        if let Some(existing) = self.peer_ifaces.lock().await.get(&peer).copied() {
+        let existing = self.peer_ifaces.lock().await.get(&peer).copied();
+        if let Some(existing) = existing {
             self.outbound_routes.lock().await.insert(existing, route);
             return Some(existing);
         }

@@ -680,6 +680,13 @@
 
         assert!(data_supervisor.remove_listener("lo").await);
 
+        sender.send_to(&inbound_payload, bind_addr).await.expect("send to removed listener");
+        let removed_result = tokio::time::timeout(
+            std::time::Duration::from_millis(200),
+            events_rx.recv(),
+        )
+        .await;
+        assert!(removed_result.is_err(), "removed peer-data listener still processed a datagram");
         iface_manager
             .lock()
             .await

@@ -61,18 +61,6 @@ use crate::packet::PacketType;
 use crate::ratchets::{encrypt_for_public_key, now_secs, RatchetStore};
 use crate::resource::{build_resource_request_packet, ResourceEvent, ResourceManager};
 
-fn medium_path_timeout_for_bitrate(bitrate: Option<u64>) -> Duration {
-    const RETICULUM_MTU_BYTES: f64 = 500.0;
-    const MINIMUM_BITRATE: u64 = 5;
-    const DEFAULT_PER_HOP_TIMEOUT_SECS: f64 = 6.0;
-
-    let Some(bitrate) = bitrate else { return Duration::ZERO };
-    Duration::from_secs_f64(
-        2.0 * (RETICULUM_MTU_BYTES * 8.0 / bitrate.max(MINIMUM_BITRATE) as f64)
-            + DEFAULT_PER_HOP_TIMEOUT_SECS,
-    )
-}
-
 mod announce_limits;
 mod announce_table;
 mod diag;
@@ -80,6 +68,7 @@ mod inbound_processing;
 mod inbound_queues;
 mod lifecycle;
 mod link_table;
+mod next_hop_metrics;
 mod packet_cache;
 mod packet_disk_cache;
 mod path_requests;
@@ -95,6 +84,8 @@ pub use inbound_queues::{
     DEFAULT_ANNOUNCE_QUEUE_LENGTH, DEFAULT_DATA_QUEUE_LENGTH, DEFAULT_INGRESS_LIMITED_QUEUE_LENGTH,
     DEFAULT_PATH_REQUEST_QUEUE_LENGTH,
 };
+use next_hop_metrics::medium_path_timeout_for_bitrate;
+pub use next_hop_metrics::NextHopMetrics;
 pub use packet_disk_cache::{CachedPacket, ReticulumPacketDiskCache};
 
 pub use reticulum_path_store::{
@@ -335,32 +326,6 @@ pub struct PacketSignal {
     pub rssi: Option<f64>,
     pub snr: Option<f64>,
     pub q: Option<f64>,
-}
-
-#[derive(Debug, Clone, Copy, PartialEq)]
-pub struct NextHopMetrics {
-    pub interface: AddressHash,
-    pub bitrate: u64,
-    pub hardware_mtu: Option<usize>,
-    pub per_bit_latency: Option<f64>,
-}
-
-impl NextHopMetrics {
-    pub fn per_byte_latency(self) -> Option<f64> {
-        self.per_bit_latency.map(|latency| latency * 8.0)
-    }
-
-    pub fn first_hop_timeout(self, mtu: usize, default_timeout: Duration) -> Duration {
-        self.per_byte_latency()
-            .map(|latency| default_timeout + Duration::from_secs_f64(mtu as f64 * latency))
-            .unwrap_or(default_timeout)
-    }
-
-    pub fn extra_link_proof_timeout(self, mtu: usize) -> Duration {
-        self.per_byte_latency()
-            .map(|latency| Duration::from_secs_f64(mtu as f64 * latency))
-            .unwrap_or_default()
-    }
 }
 
 #[derive(Clone)]

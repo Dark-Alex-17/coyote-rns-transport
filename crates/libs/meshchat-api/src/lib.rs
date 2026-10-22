@@ -1,4 +1,5 @@
 //! Loopback MeshChat compatibility API backed by the running Reticulum daemon.
+#![allow(clippy::await_holding_invalid_type)] // TASK-026: restructure the 9 guard-across-await sites, then remove
 
 mod chat;
 mod control;

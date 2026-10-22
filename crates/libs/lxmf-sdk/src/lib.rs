@@ -1,4 +1,5 @@
 #![allow(clippy::result_large_err)]
+#![allow(clippy::await_holding_invalid_type)] // TASK-026: restructure the 3 guard-across-await sites, then remove
 
 mod api;
 pub mod app;

@@ -112,7 +112,6 @@ fn python_json_line<'a>(keys: &'a [&'a str]) -> impl Fn(&str) -> Option<serde_js
 struct LiveSharedInstance {
     instance_lines: String,
     endpoint: SharedInstanceEndpoint,
-    tcp_port: Option<u16>,
 }
 
 impl LiveSharedInstance {
@@ -137,7 +136,6 @@ fn live_tcp_shared_instance() -> LiveSharedInstance {
     LiveSharedInstance {
         instance_lines: format!("shared_instance_type = tcp\nshared_instance_port = {port}\n"),
         endpoint: SharedInstanceEndpoint::Tcp(SocketAddr::from(([127, 0, 0, 1], port))),
-        tcp_port: Some(port),
     }
 }
 
@@ -156,7 +154,6 @@ fn live_unix_shared_instance() -> LiveSharedInstance {
         endpoint: SharedInstanceEndpoint::Unix(LocalUnixEndpoint::abstract_name(format!(
             "rns/{instance_name}"
         ))),
-        tcp_port: None,
     }
 }
 
@@ -211,9 +208,6 @@ async fn run_python_rnsd_shared_instance_requests_both_ways(
             line.contains("Started shared instance interface").then_some(())
         })
         .await;
-    if let Some(port) = instance.tcp_port {
-        wait_for_port(port, Duration::from_secs(10)).await;
-    }
 
     let rust_identity = to_transport_private_identity(&PrivateIdentity::new_from_rand(OsRng));
     let mut config =

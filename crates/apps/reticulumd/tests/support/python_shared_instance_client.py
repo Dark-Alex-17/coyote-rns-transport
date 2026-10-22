@@ -117,10 +117,10 @@ def main() -> int:
     parser = argparse.ArgumentParser()
     parser.add_argument("--config-dir", required=True)
     parser.add_argument("--rust-destination-hash", required=True)
-    parser.add_argument("--app-name", default="test")
-    parser.add_argument("--aspect", default="shared")
-    parser.add_argument("--request-path", default="/test/request")
-    parser.add_argument("--request-data", default="hello-rust")
+    parser.add_argument("--app-name", required=True)
+    parser.add_argument("--aspect", required=True)
+    parser.add_argument("--request-path", required=True)
+    parser.add_argument("--request-data", required=True)
     parser.add_argument("--timeout", type=float, default=30.0)
     parser.add_argument("--announce-interval", type=float, default=0.25)
     args = parser.parse_args()
@@ -168,7 +168,7 @@ def main() -> int:
             {
                 "request_failed": True,
                 "reason": "destination name mismatch",
-                "expected": rust_destination.hash.hex(),
+                "derived": rust_destination.hash.hex(),
             }
         )
         return 1

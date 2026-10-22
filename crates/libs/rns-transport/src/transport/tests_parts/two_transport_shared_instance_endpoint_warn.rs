@@ -16,8 +16,8 @@ const SHARED_INSTANCE_UNREACHABLE_ENDPOINT: SocketAddr =
 
 /// The attach warns once, with the endpoint in the text, and proceeds: the slot, the
 /// posture and the interface are those of any attach. The client still redialing in the
-/// background holds up neither the detach nor the stop, and neither adds a warning of its
-/// own.
+/// background holds up neither the detach nor the stop, and neither adds a warning on the
+/// links target (the client's own connect warning is on its own target, outside the oracle).
 #[tokio::test]
 #[deny(clippy::await_holding_invalid_type)]
 async fn shared_instance_tcp_attach_to_a_non_loopback_endpoint_warns_once_and_proceeds() {
@@ -56,7 +56,10 @@ async fn shared_instance_tcp_attach_to_a_non_loopback_endpoint_warns_once_and_pr
         .into_iter()
         .filter(|(level, _)| *level <= log::Level::Warn)
         .count();
-    assert_eq!(loud, 1, "the detach and the stop of a never-connected client add no warning");
+    assert_eq!(
+        loud, 1,
+        "the detach and the stop of a never-connected client add no warning on the links target"
+    );
 }
 
 /// A second attach while the slot is held is refused before anything is spawned, and a

@@ -108,8 +108,9 @@ impl Transport {
         };
         if let Some(addr) = remote {
             log::warn!(
-                "tp({}): shared instance endpoint {} is not a loopback address; Python's LocalClientInterface connects to 127.0.0.1 only (RNS/Interfaces/LocalInterface.py:109), the attach proceeds",
+                "tp({}): shared instance iface={} endpoint {} is not a loopback address; Python's LocalClientInterface connects to 127.0.0.1 only (RNS/Interfaces/LocalInterface.py:109), the attach proceeds",
                 self.name,
+                iface,
                 addr
             );
         }

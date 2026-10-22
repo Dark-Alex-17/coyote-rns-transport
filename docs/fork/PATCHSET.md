@@ -31,8 +31,9 @@ Every file changed since the `0.15.1` release and the patch each change
 belongs to. Patch ids: H1 is test hygiene, H2 is release tooling, H3 is
 ledger conventions. The `test hygiene` patch is fork commit `08362717`; the
 `release tooling` patch is fork commits `7e63de1a`, `7fbc97cb`, `fbd4da9d`,
-`f206f31c`, `8e3e587f`, `0e034698`, `3008c9fb`, `72a3a4ab`, `b48e5d81` and
-`9b7bf2e6`; the `ledger conventions` patch is fork commit `c45a4e5c`.
+`f206f31c`, `8e3e587f`, `0e034698`, `3008c9fb`, `72a3a4ab`, `b48e5d81`,
+`9b7bf2e6` and `ab8673b8`; the `ledger conventions` patch is fork commit
+`c45a4e5c`.
 
 | File | Patch |
 | --- | --- |
@@ -68,7 +69,7 @@ label from the fork's own planning, and drops the
 library behaviour changes.
 
 Fork commits `7e63de1a`, `7fbc97cb`, `fbd4da9d`, `f206f31c`, `8e3e587f`,
-`0e034698`, `3008c9fb`, `72a3a4ab`, `b48e5d81` and `9b7bf2e6`: H2, release
+`0e034698`, `3008c9fb`, `72a3a4ab`, `b48e5d81`, `9b7bf2e6` and `ab8673b8`: H2, release
 tooling. No library
 behaviour changes. `7e63de1a` commits the release
 checks that lived in the release operator's home directory under
@@ -143,7 +144,12 @@ the xtask rustdoc with two more `crate_manifest_version` cases. `9b7bf2e6`
 moves the README recipe's ledger check into the commit step with the
 script's own usage shape, names the python3 dependency of the clippy
 classifier, admits a `Removed` bullet in the CHANGELOG rule and points the
-parity-matrix row at the `0.14.1` section.
+parity-matrix row at the `0.14.1` section, and words the ledger script's
+header for the table it checks. `ab8673b8` pins in
+`xtask/src/main_parts/release_version_tests.rs` the `VERSION` token rule
+under a fork tag, the `--version` escape hatch and the flag's spelling, makes
+the unparsable-manifest case check the path the xtask context adds, and
+gives the clone probe the script's own reachable-tag skip predicate.
 
 Fork commit `c45a4e5c`: H3, ledger conventions. No library behaviour
 changes. `AGENTS.md` records that fork-only parity rows live in this file

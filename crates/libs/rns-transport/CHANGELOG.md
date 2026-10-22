@@ -35,9 +35,14 @@ Removed) bullet of its own, marked as such.
   (`fork_release_scripts_are_committed_and_named_by_the_runbooks`); the
   scripts' usage errors, the zero-argument ledger run and the scan script's
   needles and filters are pinned by
-  `fork_publish_contract_parts/release_tooling_probe.rs`, and the ledger
+  `fork_publish_contract_parts/release_tooling_probe.rs`, the ledger
   check's base selection, per-section citing and the scan's tracked-only
-  hits by `fork_publish_contract_parts/release_tooling_probe2.rs`.
+  hits by `fork_publish_contract_parts/release_tooling_probe2.rs`, the
+  agreement between the ledger script's zero-argument precondition and the
+  clone probes' skip predicate by
+  `fork_publish_contract_parts/release_tooling_probe3.rs`, and the ledger
+  helpers themselves on synthetic fixtures by
+  `fork_publish_contract_parts/ledger_contract_fixtures.rs`.
 - Ledger contracts, test-only: every patch-header hash in
   `docs/fork/PATCHSET.md` must be named by its section's legend, the
   all-legend-hash and header-to-legend checks run over `## Unreleased` and

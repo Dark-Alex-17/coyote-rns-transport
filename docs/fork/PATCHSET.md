@@ -14,7 +14,8 @@ must re-apply: every commit that touches a file other than this ledger and
 the crate `CHANGELOG.md` (code, tests, fixtures, scripts, doc comments).
 Commits that only update this ledger are omitted.
 `tools/scripts/patchset-ledger-check.sh` checks that the current section's
-table equals the files changed since the previous release tag and that every
+table equals the files changed since the previous release tag (files the
+range deletes are told in the patch narrative, not tabled) and that every
 commit in that range outside this ledger and the crate `CHANGELOG.md` is
 cited in the section. The crate README
 (`crates/libs/rns-transport/README.md`) carries the versioning policy, the
@@ -32,8 +33,8 @@ belongs to. Patch ids: H1 is test hygiene, H2 is release tooling, H3 is
 ledger conventions. The `test hygiene` patch is fork commit `08362717`; the
 `release tooling` patch is fork commits `7e63de1a`, `7fbc97cb`, `fbd4da9d`,
 `f206f31c`, `8e3e587f`, `0e034698`, `3008c9fb`, `72a3a4ab`, `b48e5d81`,
-`9b7bf2e6` and `ab8673b8`; the `ledger conventions` patch is fork commit
-`c45a4e5c`.
+`9b7bf2e6`, `ab8673b8`, `824b1388`, `bf35ab79`, `d6c59496` and `1405ea9e`;
+the `ledger conventions` patch is fork commit `c45a4e5c`.
 
 | File | Patch |
 | --- | --- |
@@ -42,8 +43,11 @@ ledger conventions. The `test hygiene` patch is fork commit `08362717`; the
 | `AGENTS.md` | ledger conventions |
 | `crates/apps/reticulumd/tests/fork_publish_contract.rs` | release tooling |
 | `crates/apps/reticulumd/tests/fork_publish_contract_parts/ledger_contract.rs` | release tooling |
+| `crates/apps/reticulumd/tests/fork_publish_contract_parts/ledger_contract_fixtures.rs` | release tooling |
 | `crates/apps/reticulumd/tests/fork_publish_contract_parts/release_tooling_probe.rs` | release tooling |
 | `crates/apps/reticulumd/tests/fork_publish_contract_parts/release_tooling_probe2.rs` | release tooling |
+| `crates/apps/reticulumd/tests/fork_publish_contract_parts/release_tooling_probe3.rs` | release tooling |
+| `crates/apps/reticulumd/tests/fork_release_docs_contract.rs` | release tooling |
 | `crates/apps/reticulumd/tests/python_channel_interop_parts/multi_segment_python_interop.rs` | test hygiene |
 | `crates/libs/rns-transport/CHANGELOG.md` | test hygiene, release tooling, ledger conventions |
 | `crates/libs/rns-transport/README.md` | release tooling |
@@ -69,9 +73,9 @@ label from the fork's own planning, and drops the
 library behaviour changes.
 
 Fork commits `7e63de1a`, `7fbc97cb`, `fbd4da9d`, `f206f31c`, `8e3e587f`,
-`0e034698`, `3008c9fb`, `72a3a4ab`, `b48e5d81`, `9b7bf2e6` and `ab8673b8`: H2, release
-tooling. No library
-behaviour changes. `7e63de1a` commits the release
+`0e034698`, `3008c9fb`, `72a3a4ab`, `b48e5d81`, `9b7bf2e6`, `ab8673b8`,
+`824b1388`, `bf35ab79`, `d6c59496` and `1405ea9e`: H2, release tooling. No
+library behaviour changes. `7e63de1a` commits the release
 checks that lived in the release operator's home directory under
 `tools/scripts/`: `patchset-ledger-check.sh` (this ledger's file table
 against `git diff --name-only --diff-filter=d <base>..<head>` and a citation
@@ -150,6 +154,23 @@ header for the table it checks. `ab8673b8` pins in
 under a fork tag, the `--version` escape hatch and the flag's spelling, makes
 the unparsable-manifest case check the path the xtask context adds, and
 gives the clone probe the script's own reachable-tag skip predicate.
+`824b1388` adds `fork_publish_contract_parts/release_tooling_probe3.rs`,
+which moves every fork tag of a clone onto a commit HEAD does not contain
+and proves the zero-argument ledger check fails naming the unmerged-branch
+case while the probes' skip predicate reports no reachable tag. `bf35ab79`
+adds `fork_publish_contract_parts/ledger_contract_fixtures.rs`, which
+exercises the ledger-contract helpers on synthetic sections and changelogs
+so a helper that reports nothing could not pass, anchors `ledger_section` on
+the heading's trailing space so `0.15.1` cannot match a `0.15.10` heading,
+and marks the usage probe's script helpers `#[cfg(unix)]` like their
+callers. `d6c59496` appends to the crate README's `0.15.0` register bullet
+that the Codex workflow was removed after `0.15.1`, pinned in
+`crates/apps/reticulumd/tests/fork_release_docs_contract.rs`. `1405ea9e`
+makes `patchset-ledger-check.sh` name a missing previous-release heading
+before slicing the section and state that merge commits are never cited,
+makes `old-name-tracked-scan.sh` pass without running grep when no tracked
+file is scanned, and makes `semver-major-findings-check.sh` reject a
+non-numeric expected count as a usage error.
 
 Fork commit `c45a4e5c`: H3, ledger conventions. No library behaviour
 changes. `AGENTS.md` records that fork-only parity rows live in this file

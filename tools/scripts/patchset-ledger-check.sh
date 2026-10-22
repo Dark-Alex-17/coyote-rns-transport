@@ -5,18 +5,19 @@ set -euo pipefail
 # docs/fork/PATCHSET.md must (1) open with a file table equal to
 # `git diff --name-only <base>..HEAD -- . ':!plans'` less the files that
 # range deletes (the table lists files in the tree; a deletion is told in
-# the patch narrative) and (2) cite, by the first eight characters of its
-# hash, every commit in <base>..HEAD that touches a file other than the
-# ledger itself and the crate CHANGELOG.md.
+# the patch narrative) and (2) cite, in that section, by the first eight
+# characters of its hash, every commit in <base>..HEAD that touches a file
+# other than the ledger itself and the crate CHANGELOG.md.
 #
 # Explicit mode names the range and the section; <head> (default HEAD) lets
 # a released section be re-checked against its own tag once the branch has
 # moved past it:
 #   patchset-ledger-check.sh <base-sha> <label> [<previous-version> [<head>]]
-# With no arguments (the CI form) the base is the latest
-# coyote-rns-transport-v* tag, the previous version is that tag's version,
-# and the label is "Unreleased" when the ledger has such a section, else the
-# crate version in crates/libs/rns-transport/Cargo.toml.
+# With no arguments (the CI form) the base is the newest
+# coyote-rns-transport-v* tag that is an ancestor of HEAD, the previous
+# version is that tag's version, and the label is "Unreleased" when the
+# ledger has such a section, else the crate version in
+# crates/libs/rns-transport/Cargo.toml.
 
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 cd "$ROOT_DIR"
@@ -34,8 +35,8 @@ tick='`'
 head="HEAD"
 case $# in
   0)
-    base="$(git tag --list "${tag_prefix}*" --sort=-v:refname | head -1)"
-    [ -n "$base" ] || fail "no ${tag_prefix}* tag is reachable; fetch the full history and tags (fetch-depth: 0)"
+    base="$(git tag --list "${tag_prefix}*" --merged HEAD --sort=-v:refname | head -1)"
+    [ -n "$base" ] || fail "no ${tag_prefix}* tag is reachable from HEAD; fetch the full history and tags (fetch-depth: 0); a release tag on an unmerged branch does not count"
     previous="${base#"$tag_prefix"}"
     if grep -q '^## Unreleased (upstream' "$ledger"; then
       label="Unreleased"
@@ -75,10 +76,11 @@ if [ -n "$previous" ]; then
 else
   section_end='^## '
 fi
-rows="$(awk -v start="^## ${label} \\\\(upstream" -v end="$section_end" '
+section="$(awk -v start="^## ${label} \\\\(upstream" -v end="$section_end" '
   $0 ~ start {f=1; next}
   f && $0 ~ end {f=0}
-  f' "$ledger" | { grep -oE "^\| ${tick}[^${tick}]+${tick}" || true; } | sed "s/^| ${tick}//; s/${tick}\$//" | sort)"
+  f' "$ledger")"
+rows="$(printf '%s\n' "$section" | { grep -oE "^\| ${tick}[^${tick}]+${tick}" || true; } | sed "s/^| ${tick}//; s/${tick}\$//" | sort)"
 
 if ! diff <(printf '%s\n' "$changed") <(printf '%s\n' "$rows"); then
   fail "the ${label} table in ${ledger} differs from git diff --name-only ${base}..${head} (left: git, right: table)"
@@ -89,7 +91,7 @@ fi
 missing=0
 while read -r hash; do
   short="${hash:0:8}"
-  if ! grep -q "${tick}${short}${tick}" "$ledger"; then
+  if ! printf '%s\n' "$section" | grep -q "${tick}${short}${tick}"; then
     echo "uncited commit ${short}" >&2
     missing=1
   fi

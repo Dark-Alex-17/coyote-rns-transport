@@ -7,6 +7,7 @@ set -euo pipefail
 # diagnostic fires at any level and every error-level diagnostic is the
 # macOS-only dead_code in the linux-only reticulumd python_channel_interop
 # test target (the two files listed below), which CI on Linux never sees.
+# Requires python3 for the classification pass.
 
 if [ $# -ne 0 ]; then
   echo "usage: $0" >&2

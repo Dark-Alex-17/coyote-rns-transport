@@ -27,9 +27,9 @@ expected="$2"
 shift 2
 
 status=0
-out="$(cargo semver-checks check-release -p coyote-rns-transport \
+out="$(CARGO_TERM_COLOR=never NO_COLOR=1 cargo semver-checks check-release -p coyote-rns-transport \
   --baseline-rev "$baseline" --release-type patch 2>&1)" || status=$?
-summary="$(printf '%s\n' "$out" | sed 's/\x1b\[[0-9;]*m//g' | { grep -E 'Summary' || true; } | tail -1)"
+summary="$(printf '%s\n' "$out" | { grep -E 'Summary' || true; } | tail -1)"
 echo "$summary"
 
 if [ "$expected" -eq 0 ]; then

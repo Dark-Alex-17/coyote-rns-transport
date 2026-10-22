@@ -221,11 +221,11 @@ async fn run_python_rnsd_shared_instance_requests_both_ways(
     config.set_path_request_timeout_secs(2);
     let transport = Transport::new(config);
     let mut announces = transport.recv_announces().await;
-    transport
-        .attach_shared_instance(instance.endpoint, SharedInstanceOptions::default())
-        .await
-        .expect("attach to the python shared instance");
 
+    // Registered before the attach: a destination added while the posture is
+    // set is announced again 250 ms later by the registration task, and the
+    // announce guard below needs the explicit announce to be the only early
+    // one.
     let destination = transport
         .add_destination(
             rust_identity.clone(),
@@ -248,8 +248,12 @@ async fn run_python_rnsd_shared_instance_requests_both_ways(
             )
             .expect("handler registers");
     }
-    let first_announce_at = tokio::time::Instant::now();
+    transport
+        .attach_shared_instance(instance.endpoint, SharedInstanceOptions::default())
+        .await
+        .expect("attach to the python shared instance");
     assert_eq!(transport.announce_destinations_to_shared_instance().await, 1);
+    let first_announce_done = tokio::time::Instant::now();
 
     // RNS.prettyhexrep wraps the hash in angle brackets; a hop count of zero
     // is what a local client's own announce gets (RNS/Transport.py:1938),
@@ -288,10 +292,11 @@ async fn run_python_rnsd_shared_instance_requests_both_ways(
     // plain announce (RNS/Transport.py:2398-2430), which is the only way
     // the client's handler can fire: its path request is answered with a
     // path response the handler does not accept (RNS/Transport.py:2501-2504).
-    // rnsd replaces a path only for an announce emitted in a later second
-    // than the one on file (RNS/Transport.py:2281), so the second announce
-    // waits out the rest of the first one's second.
-    tokio::time::sleep_until(first_announce_at + Duration::from_millis(1100)).await;
+    // rnsd files a re-announce at the same hop count only when its emitted
+    // second is later than the one on file (RNS/Transport.py:2238) and
+    // otherwise ignores it silently, so the second announce waits a full
+    // second past the first one's return.
+    tokio::time::sleep_until(first_announce_done + Duration::from_millis(1100)).await;
     assert_eq!(transport.announce_destinations_to_shared_instance().await, 1);
 
     let announce = client_log

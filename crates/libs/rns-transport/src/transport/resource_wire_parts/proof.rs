@@ -2,6 +2,7 @@
 // module so it stays below the repository's 500-line limit; a file boundary,
 // not a privacy one.
 
+#[allow(clippy::await_holding_invalid_type)] // TASK-026: handler guard spans the job by design, see TransportHandler lock discipline
 pub(super) async fn handle_resource_proof(
     packet: Packet,
     handler: Arc<Mutex<TransportHandler>>,

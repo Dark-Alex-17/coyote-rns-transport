@@ -7,6 +7,7 @@ use crate::packet::Header;
 
 include!("wire_parts/link_proof_forward.rs");
 
+#[allow(clippy::await_holding_invalid_type)] // TASK-026: handler guard spans the job by design, see TransportHandler lock discipline
 pub(super) async fn handle_proof(
     packet: Packet,
     handler: Arc<Mutex<TransportHandler>>,
@@ -154,6 +155,7 @@ pub(super) async fn handle_keepalive_response<'a>(
     false
 }
 
+#[allow(clippy::await_holding_invalid_type)] // TASK-026: handler guard spans the job by design, see TransportHandler lock discipline
 pub(super) async fn handle_data<'a>(
     packet: &Packet,
     iface: AddressHash,

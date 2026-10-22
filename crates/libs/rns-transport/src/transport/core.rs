@@ -307,16 +307,19 @@ impl Transport {
         self.handler.lock().await.announce_tx.subscribe()
     }
 
+    #[allow(clippy::await_holding_invalid_type)] // TASK-026: handler guard spans the job by design, see TransportHandler lock discipline
     pub async fn send_packet(&self, packet: Packet) {
         let mut handler = self.handler.lock().await;
         handler.send_packet(packet).await;
     }
 
+    #[allow(clippy::await_holding_invalid_type)] // TASK-026: handler guard spans the job by design, see TransportHandler lock discipline
     pub async fn send_packet_with_outcome(&self, packet: Packet) -> SendPacketOutcome {
         let mut handler = self.handler.lock().await;
         handler.send_packet_with_outcome(packet).await
     }
 
+    #[allow(clippy::await_holding_invalid_type)] // TASK-026: handler guard spans the job by design, see TransportHandler lock discipline
     pub async fn send_packet_with_trace(&self, packet: Packet) -> SendPacketTrace {
         let mut handler = self.handler.lock().await;
         handler.send_packet_with_trace(packet).await
@@ -331,6 +334,7 @@ impl Transport {
     /// should remove the mapping after inspecting the returned trace.
     /// The observer must return promptly and must not synchronously re-enter
     /// this transport instance.
+    #[allow(clippy::await_holding_invalid_type)] // TASK-026: handler guard spans the job by design, see TransportHandler lock discipline
     pub async fn send_packet_observed_with_trace(
         &self,
         packet: Packet,
@@ -340,11 +344,13 @@ impl Transport {
         handler.send_packet_observed_with_trace(packet, observe_packet_hash).await
     }
 
+    #[allow(clippy::await_holding_invalid_type)] // TASK-026: handler guard spans the job by design, see TransportHandler lock discipline
     pub async fn send_packet_broadcast_with_trace(&self, packet: Packet) -> SendPacketTrace {
         let mut handler = self.handler.lock().await;
         handler.send_packet_broadcast_with_trace(packet).await
     }
 
+    #[allow(clippy::await_holding_invalid_type)] // TASK-026: handler guard spans the job by design, see TransportHandler lock discipline
     pub async fn send_prepared_packet_broadcast_with_trace(
         &self,
         packet: Packet,
@@ -434,6 +440,7 @@ impl Transport {
         }
     }
 
+    #[allow(clippy::await_holding_invalid_type)] // TASK-026: handler guard spans the job by design, see TransportHandler lock discipline
     pub async fn handle_inbound_for_test(&self, packet: Packet) {
         let (receipt, receipt_handler) = {
             let handler = self.handler.lock().await;
@@ -456,6 +463,7 @@ impl Transport {
         }
     }
 
+    #[allow(clippy::await_holding_invalid_type)] // TASK-026: handler guard spans the job by design, see TransportHandler lock discipline
     pub async fn send_broadcast(&self, packet: Packet, from_iface: Option<AddressHash>) {
         self.handler
             .lock()

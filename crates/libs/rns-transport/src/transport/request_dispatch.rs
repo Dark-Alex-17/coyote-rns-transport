@@ -274,10 +274,9 @@ async fn send_response_as_resource(
     }
 }
 
-/// One of the two sanctioned free-function transmit seams that hold the
-/// handler guard across the interface write, as `Transport::send_direct`
-/// always has; the other is `shared_instance_announce::send_packet`, the
-/// announce broadcast.
+/// Holds the handler guard across the dispatch like every
+/// `Transport::send_*` wrapper.
+#[allow(clippy::await_holding_invalid_type)] // TASK-026: handler guard spans the job by design, see TransportHandler lock discipline
 pub(super) async fn send_on_iface(
     handler: &Arc<Mutex<TransportHandler>>,
     iface: AddressHash,

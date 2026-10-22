@@ -129,6 +129,7 @@ async fn next_link_check_delay(handler_arc: &Arc<Mutex<TransportHandler>>) -> Du
 mod link_maintenance;
 pub(super) use link_maintenance::handle_check_links;
 
+#[allow(clippy::await_holding_invalid_type)] // TASK-026: handler guard spans the job by design, see TransportHandler lock discipline
 pub(super) async fn handle_cleanup<'a>(mut handler: MutexGuard<'a, TransportHandler>) {
     handler.gc_unicast_ifaces().await;
     {
@@ -142,6 +143,7 @@ pub(super) async fn handle_cleanup<'a>(mut handler: MutexGuard<'a, TransportHand
     }
 }
 
+#[allow(clippy::await_holding_invalid_type)] // TASK-026: handler guard spans the job by design, see TransportHandler lock discipline
 pub(super) async fn manage_transport(
     handler_arc: Arc<Mutex<TransportHandler>>,
     rx_receiver: Arc<Mutex<InterfaceRxReceiver>>,

@@ -335,6 +335,7 @@ pub(super) async fn handle_fixed_destinations<'a>(
     }
 }
 
+#[allow(clippy::await_holding_invalid_type)] // TASK-026: handler guard spans the job by design, see TransportHandler lock discipline
 pub(super) async fn handle_link_request_as_destination<'a>(
     destination: Arc<Mutex<SingleInputDestination>>,
     packet: &Packet,
@@ -387,6 +388,7 @@ pub(super) async fn handle_link_request_as_destination<'a>(
     }
 }
 
+#[allow(clippy::await_holding_invalid_type)] // TASK-026: handler guard spans the job by design, see TransportHandler lock discipline
 pub(super) async fn handle_link_request_as_intermediate<'a>(
     received_from: AddressHash,
     next_hop: AddressHash,
@@ -445,6 +447,7 @@ async fn clamp_forwarded_link_request_mtu<'a>(
     clamp_link_request_signalling_mtu(packet, max_mtu);
 }
 
+#[allow(clippy::await_holding_invalid_type)] // TASK-026: handler guard spans the job by design, see TransportHandler lock discipline
 pub(super) async fn handle_link_request<'a>(
     packet: &Packet,
     iface: AddressHash,

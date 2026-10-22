@@ -227,6 +227,17 @@ pub struct AnnounceEvent {
     pub is_path_response: bool,
 }
 
+/// Shared transport state behind one `tokio::sync::Mutex`. The guard spans
+/// one job: an inbound packet, a timer tick or a `Transport::send_*` call.
+/// Every transmit funnels through `TransportHandler::send`, which fixes the
+/// lock order: handler, then `packet_cache`; handler, then `iface_manager`,
+/// then the interface tx channel; handler, then a `Link`; handler, then a
+/// destination. The one rule that follows is to never take the handler guard
+/// while holding a link, destination or `iface_manager` guard: `send`
+/// re-locks the link of the packet it just wrote in `note_link_packet_sent`,
+/// so a caller still holding that link deadlocks itself (`resource_wire.rs`
+/// spells this out for the resource reject). Every fn whose guard crosses an
+/// await carries the `clippy::await_holding_invalid_type` allowance.
 pub(crate) struct TransportHandler {
     config: TransportConfig,
     iface_manager: Arc<Mutex<InterfaceManager>>,

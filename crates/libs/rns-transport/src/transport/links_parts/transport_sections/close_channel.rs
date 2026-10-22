@@ -21,6 +21,7 @@ impl Transport {
         Ok(state)
     }
 
+    #[allow(clippy::await_holding_invalid_type)] // TASK-026: handler guard spans the job by design, see TransportHandler lock discipline
     pub async fn send_resource_direct(
         &self,
         link_id: &AddressHash,
@@ -75,6 +76,7 @@ impl Transport {
         self.handler.lock().await.in_links.get(link_id).cloned()
     }
 
+    #[allow(clippy::await_holding_invalid_type)] // TASK-026: handler guard spans the job by design, see TransportHandler lock discipline
     pub async fn request_path(
         &self,
         destination: &AddressHash,

@@ -871,6 +871,8 @@ include!("fork_publish_contract_parts/release_tooling_probe2.rs");
 
 include!("fork_publish_contract_parts/release_tooling_probe3.rs");
 
+include!("fork_publish_contract_parts/release_tooling_probe4.rs");
+
 #[test]
 fn repo_readme_points_at_the_crate_readme() {
     let pointer = "](crates/libs/rns-transport/README.md)";

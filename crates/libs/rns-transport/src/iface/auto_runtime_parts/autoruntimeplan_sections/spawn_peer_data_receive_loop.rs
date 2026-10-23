@@ -1,5 +1,6 @@
 impl AutoRuntimePlan {
 
+    #[allow(clippy::await_holding_invalid_type)] // TASK-026: state guard spans the dedupe lock await in spawn_peer_data_receive_loop (documented lock-order nest: state, then dedupe; dedupe has no other locker)
     fn spawn_peer_data_receive_loop(
         &self,
         socket: AutoBoundDataSocket,
@@ -49,9 +50,8 @@ impl AutoRuntimePlan {
                             }
                         };
                         let Some(processed) = ({
-                            // Both guards come out of one await and drop before the next.
-                            let (mut state, mut dedupe) =
-                                tokio::join!(state.lock(), dedupe.lock());
+                            let mut state = state.lock().await;
+                            let mut dedupe = dedupe.lock().await;
                             plan.process_peer_data_datagram(
                                 &mut state,
                                 &mut dedupe,

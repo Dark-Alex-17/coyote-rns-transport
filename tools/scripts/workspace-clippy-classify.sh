@@ -4,9 +4,10 @@ set -euo pipefail
 # CI-equivalent clippy classification. Runs the workspace clippy invocation
 # CI uses (all targets, all features, -D warnings) with JSON output and
 # classifies every diagnostic. await_holding_invalid_type is live at its
-# default level; the only allows are one per test root plus the owner-tagged
-# crate-level allows in meshchat-api, lxmf-sdk and reticulumd. Passes only
-# when no await_holding_invalid_type diagnostic fires at any level and every
+# default level: no lint table mentions it, production code allows it only
+# per fn with a same-line comment naming the owner, and each test root allows
+# it once at module level. Passes only when no Cargo.toml mentions the lint,
+# no await_holding_invalid_type diagnostic fires at any level and every
 # error-level diagnostic is the macOS-only dead_code in the linux-only
 # reticulumd python_channel_interop test target (the two files listed below),
 # which CI on Linux never sees.
@@ -19,6 +20,15 @@ fi
 
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 cd "$ROOT_DIR"
+
+manifest_hits="$(git ls-files -z -- 'Cargo.toml' '*/Cargo.toml' | xargs -0 grep -l 'await_holding_invalid_type' -- || true)"
+if [ -n "$manifest_hits" ]; then
+  echo "FAIL: a Cargo.toml mentions await_holding_invalid_type; the lint runs at its default level and allowances live in code:"
+  while IFS= read -r hit; do
+    echo "  $hit"
+  done <<<"$manifest_hits"
+  exit 1
+fi
 
 json="$(mktemp "${TMPDIR:-/tmp}/clippy-json.XXXXXX")"
 trap 'rm -f "$json"' EXIT
@@ -66,7 +76,7 @@ bad = [e for e in errors if e[0] != "dead_code" or not e[1] or not e[1] <= allow
 for code, files in errors:
     print(f"  error {code}: {sorted(files)}")
 if await_hits:
-    print("FAIL: await_holding_invalid_type fired outside the per-target allows (a new test root or app-crate site)")
+    print("FAIL: await_holding_invalid_type fired outside the per-target allows (a production site or a new test root)")
     sys.exit(1)
 if clippy_rc != 0 and not errors:
     print(f"FAIL: cargo clippy exited {clippy_rc} without any error-level diagnostic; the invocation itself failed")

@@ -78,6 +78,7 @@ impl<B: SdkBackendAsyncOps> Client<B> {
         Ok(handle)
     }
 
+    #[allow(clippy::await_holding_invalid_type)] // TASK-026: restructure this guard-across-await site, then remove
     pub async fn send_async(&self, req: SendRequest) -> Result<MessageId, SdkError> {
         {
             let lifecycle = self.lifecycle.lock().expect("lifecycle mutex poisoned");

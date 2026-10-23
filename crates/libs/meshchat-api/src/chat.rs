@@ -272,6 +272,7 @@ pub(super) async fn conversations(State(state): State<Arc<AppState>>) -> ApiResu
     Ok(Json(json!({"conversations":conversations})))
 }
 
+#[allow(clippy::await_holding_invalid_type)] // TASK-026: restructure this guard-across-await site, then remove
 pub(super) async fn mark_read(
     State(state): State<Arc<AppState>>,
     Path(destination): Path<String>,

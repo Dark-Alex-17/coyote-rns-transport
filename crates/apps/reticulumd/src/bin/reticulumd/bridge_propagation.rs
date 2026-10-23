@@ -61,6 +61,7 @@ pub(super) fn build_propagation_payload_until_cancelled(
     Ok(PropagationPayload { bytes, transient_id, stamp_value })
 }
 
+#[allow(clippy::await_holding_invalid_type)] // TASK-026: restructure this guard-across-await site, then remove
 pub(super) async fn cached_propagation_link(
     state: &Arc<tokio::sync::Mutex<Option<CachedPropagationLink>>>,
     node_hex: &str,

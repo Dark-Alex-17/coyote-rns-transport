@@ -50,12 +50,6 @@ vrn76-kiss-ble = ["rns_transport/vrn76-kiss-ble"]
 [dev-dependencies]
 tempfile = { workspace = true }
 
-# TASK-026: restructure the 2 guard-across-await sites (announce_ingest.rs, bridge_propagation.rs), then remove.
-# This package is deliberately kept out of [workspace.lints] inheritance (which
-# would newly enable unwrap_used = "warn").
-[lints.clippy]
-await_holding_invalid_type = "allow"
-
 [[bin]]
 name = "reticulumd"
 path = "src/bin/reticulumd/main.rs"

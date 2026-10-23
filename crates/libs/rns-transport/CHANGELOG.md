@@ -93,8 +93,14 @@ Removed) bullet of its own, marked as such.
   `iface/lora_parts/lorainterface.rs`); the pipe and serial transmit
   loops run on the driver's own task under `CatchUnwind`
   (`iface/catch_unwind.rs`), so a panic inside one is still logged,
-  recorded as `transmit_task_failed` and leaves the driver with its
-  receiver, as the spawned task's join error did before;
+  recorded (the pipe `transmit_task_failed` status, the serial
+  `transmit task failed` last error with `tx_errors` and `link_state`) and
+  leaves the driver with its receiver, as the spawned task's join error
+  did before, and both pumps finish on whichever half ends first so a
+  reader panic no longer leaves the writer waiting on an idle receiver;
+  once a weave driver has stopped, `WeaveManagementHandle::try_set_remote_display`
+  reports the closed queue at once instead of buffering commands nobody
+  will read (`iface/weave.rs`);
   management frames arrive through `recv_optional_management_frame`
   (`iface_types.rs`), and a second take of a weave, rnode_multi or LoRa
   management receiver logs a warning naming the interface instead of
@@ -118,9 +124,11 @@ Removed) bullet of its own, marked as such.
   `serial_stream_returns_receiver_with_queued_message` in
   `iface/serial_parts/run_serial_stream.rs` (the serial stream hands the
   caller's receiver back with the message queued behind a failed write),
-  `pipe_stream_keeps_receiver_after_transmit_loop_panic` in `iface/pipe_tests.rs`
-  and `serial_stream_returns_receiver_after_transmit_loop_panic` (the
-  transmit-loop panic recovery).
+  the transmit-loop and reader panic pins in
+  `iface/pipe_tests_parts/transmit_panic.rs` and
+  `serial_stream_returns_receiver_after_transmit_loop_panic` and its
+  reader twin in `iface/serial_parts/run_serial_stream.rs`, and the
+  `CatchUnwind` unit tests in `iface/catch_unwind.rs`.
 - Lint tables, no library behaviour change: `clippy::await_holding_invalid_type`
   runs at its default level under the workspace clippy invocation; no
   lint table in the workspace mentions it any more, every test root
@@ -134,8 +142,16 @@ Removed) bullet of its own, marked as such.
   manifest that mentions the lint and still passes only when no
   diagnostic of the lint fires; the Linux-only `iface/pipe_tests.rs` root
   carries the test-root allowance too, so the ubuntu run of the invocation
-  is as clean as the macOS one. Pinned by
-  `crates/apps/reticulumd/tests/fork_publish_contract_parts/lint_discipline_probe.rs`.
+  is as clean as the macOS one; two more release checks are scripts under
+  `tools/scripts/`: `cross-target-clippy-classify.sh` lints the workspace
+  minus the two crates that pull `libdbus` for `x86_64-unknown-linux-gnu`
+  with `zig cc` as the C cross-compiler, and `python-interop-classify.sh`
+  runs the Python-in-the-loop batch and passes only when every failure is
+  a named macOS environment red or the reference-pin test while the
+  reference checkout is off its pin. Pinned by
+  `crates/apps/reticulumd/tests/fork_publish_contract_parts/lint_discipline_probe.rs`,
+  `fork_publish_contract_parts/lint_discipline_probe2.rs` and
+  `fork_publish_contract_parts/lint_discipline_probe3.rs`.
 
 ### Removed
 

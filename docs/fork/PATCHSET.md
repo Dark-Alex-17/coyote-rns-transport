@@ -40,7 +40,7 @@ fork commit `08362717`; the
 `guard discipline` patch is fork commits `f7be0f41`, `ae4f16d8`, `5f6c230f`,
 `e916ce9e`, `39d107b9`, `882baabc`, `e9c2ea93`, `7908fcff`, `044b64f4`,
 `fd3b249e`, `d4e1634d`, `71c25285`, `1b7ce1cb`, `6c0ea58e`, `66a703e9`,
-`719bff37` and `0d42d2e4`.
+`719bff37`, `0d42d2e4`, `e29addcb`, `0c4457e2`, `3e77860a` and `c80d6996`.
 
 | File | Patch |
 | --- | --- |
@@ -56,6 +56,8 @@ fork commit `08362717`; the
 | `crates/apps/reticulumd/tests/fork_publish_contract_parts/ledger_contract.rs` | release tooling |
 | `crates/apps/reticulumd/tests/fork_publish_contract_parts/ledger_contract_fixtures.rs` | release tooling |
 | `crates/apps/reticulumd/tests/fork_publish_contract_parts/lint_discipline_probe.rs` | guard discipline |
+| `crates/apps/reticulumd/tests/fork_publish_contract_parts/lint_discipline_probe2.rs` | guard discipline |
+| `crates/apps/reticulumd/tests/fork_publish_contract_parts/lint_discipline_probe3.rs` | guard discipline |
 | `crates/apps/reticulumd/tests/fork_publish_contract_parts/release_tooling_probe.rs` | release tooling |
 | `crates/apps/reticulumd/tests/fork_publish_contract_parts/release_tooling_probe2.rs` | release tooling |
 | `crates/apps/reticulumd/tests/fork_publish_contract_parts/release_tooling_probe3.rs` | release tooling |
@@ -101,6 +103,7 @@ fork commit `08362717`; the
 | `crates/libs/rns-transport/src/iface/pipe.rs` | guard discipline |
 | `crates/libs/rns-transport/src/iface/pipe_parts/status.rs` | guard discipline |
 | `crates/libs/rns-transport/src/iface/pipe_tests.rs` | guard discipline |
+| `crates/libs/rns-transport/src/iface/pipe_tests_parts/transmit_panic.rs` | guard discipline |
 | `crates/libs/rns-transport/src/iface/rnode_bearer_interface_tests.rs` | guard discipline |
 | `crates/libs/rns-transport/src/iface/rnode_ble.rs` | guard discipline |
 | `crates/libs/rns-transport/src/iface/rnode_multi.rs` | guard discipline |
@@ -149,8 +152,10 @@ fork commit `08362717`; the
 | `docs/fork/PATCHSET.md` | test hygiene, release tooling, ledger conventions, guard discipline |
 | `docs/runbooks/release-runbook.md` | release tooling |
 | `docs/status/reticulum-parity-matrix.md` | ledger conventions |
+| `tools/scripts/cross-target-clippy-classify.sh` | guard discipline |
 | `tools/scripts/old-name-tracked-scan.sh` | release tooling |
 | `tools/scripts/patchset-ledger-check.sh` | release tooling |
+| `tools/scripts/python-interop-classify.sh` | guard discipline |
 | `tools/scripts/semver-major-findings-check.sh` | release tooling |
 | `tools/scripts/workspace-clippy-classify.sh` | release tooling, guard discipline |
 | `xtask/src/main.rs` | release tooling |
@@ -311,7 +316,8 @@ that alters no library behaviour (later widened to release tooling and CI).
 
 Fork commits `f7be0f41`, `ae4f16d8`, `5f6c230f`, `e916ce9e`, `39d107b9`,
 `882baabc`, `e9c2ea93`, `7908fcff`, `044b64f4`, `fd3b249e`, `d4e1634d`,
-`71c25285`, `1b7ce1cb`, `6c0ea58e`, `66a703e9`, `719bff37` and `0d42d2e4`:
+`71c25285`, `1b7ce1cb`, `6c0ea58e`, `66a703e9`, `719bff37`, `0d42d2e4`,
+`e29addcb`, `0c4457e2`, `3e77860a` and `c80d6996`:
 H4, guard discipline. No library behaviour
 changes except the two auto-interface peer-table fixes of the eighth and
 thirteenth commits (the pipe and serial transmit-panic note of the fifth
@@ -416,16 +422,43 @@ the CHANGELOG section read label-aware, the `reticulumd` manifest checked
 for neither a lint table nor workspace inheritance, and the classify
 manifest gate exercised against a throwaway clone with a staged allowing
 manifest) and makes the classify script's manifest listing fatal on
-failure. Pinned by
+failure. The eighteenth makes the pipe and serial pumps finish on
+whichever half ends first: both select over the caught writer and the
+reader `JoinHandle`, cancel `stop` as soon as either ends and then collect
+the other, so a reader panic, which never reaches its own `stop.cancel()`,
+is recorded promptly instead of leaving the writer waiting on an idle
+receiver (serial was writer-first before this patch and wedged the same
+way); `CatchUnwind` drops its inner future on a caught panic and refuses a
+second poll, and the serial panic arm records `tx_errors` and `link_state`
+like its write-error arm. The transmit-loop panic probes move to
+`pipe_tests_parts/transmit_panic.rs`, included from `pipe_tests.rs` under
+its root attribute. The nineteenth credits the `entry()` fold in the
+transport bridge comment, widens the `manage_transport` allowance to the
+three worker guard families it covers and notes in the `TransportHandler`
+rustdoc that `handle_check_links` nests a link guard, then
+`iface_manager`. The twentieth records two checks that had only been run
+by hand as scripts: `tools/scripts/cross-target-clippy-classify.sh` (the
+workspace minus the two crates that pull `libdbus`, linted for
+`x86_64-unknown-linux-gnu` with `zig cc` as the C cross-compiler; `SKIP:`
+when zig or the target is absent) and `tools/scripts/python-interop-classify.sh`
+(the Python-in-the-loop batch, passing only when every failure is one of
+the named macOS environment reds or the reference-pin test while the
+reference checkout is off its pin). The twenty-first adopts the classify
+manifest-gate probes (`lint_discipline_probe2.rs`: an untracked manifest
+is ignored and clippy is reached through a stub `cargo`, a `warn`-level
+mention is refused, a dangling `gitdir:` makes the listing fatal) and pins
+the two scripts (`lint_discipline_probe3.rs`). Pinned by
 `tcp_client/tests/tx_queue_survives_reconnect.rs`,
 `kiss_parts/tx_queue_survives_reconnect_tests.rs`,
 `local/tests/tx_queue_survives_reconnect.rs`,
 `tests_sections/peer_route_table_expiry.rs`,
 `tests_sections/peer_route_table_probe.rs`,
 `tests_parts/two_transport_loopback_lifecycle.rs`,
-`pipe_tests.rs` and `serial_parts/run_serial_stream.rs` (the
-transmit-loop panic pins), `iface/catch_unwind.rs` (its own unit tests) and
-`fork_publish_contract_parts/lint_discipline_probe.rs`.
+`pipe_tests_parts/transmit_panic.rs` and `serial_parts/run_serial_stream.rs`
+(the transmit-loop and reader panic pins), `iface/catch_unwind.rs` (its own
+unit tests), `fork_publish_contract_parts/lint_discipline_probe.rs`,
+`fork_publish_contract_parts/lint_discipline_probe2.rs` and
+`fork_publish_contract_parts/lint_discipline_probe3.rs`.
 
 ## 0.15.1 (upstream 0.14.0)
 

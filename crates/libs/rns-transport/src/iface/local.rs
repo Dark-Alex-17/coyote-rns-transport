@@ -587,6 +587,9 @@ mod tests {
     use crate::packet::Packet;
     use tokio::io::{AsyncReadExt, AsyncWriteExt};
 
+    #[path = "tx_queue_survives_reconnect.rs"]
+    mod tx_queue_survives_reconnect;
+
     #[test]
     fn parses_abstract_config_labels() {
         let endpoint = LocalUnixEndpoint::from_config_value("@rns/default");

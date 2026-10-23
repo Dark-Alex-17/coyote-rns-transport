@@ -233,6 +233,12 @@ impl RNodeMultiInterface {
                 .lock()
                 .expect("rnode multi management receiver mutex poisoned")
                 .take();
+            if management_frame_rx.is_none() {
+                log::warn!(
+                    "RNodeMulti management receiver already taken, management frames will not be sent iface={}",
+                    parent_iface
+                );
+            }
             (
                 guard.endpoint.clone(),
                 guard.subinterfaces.clone(),

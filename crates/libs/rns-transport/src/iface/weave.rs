@@ -191,6 +191,12 @@ impl WeaveInterface {
                 .lock()
                 .expect("weave management receiver mutex poisoned")
                 .take();
+            if management_frame_rx.is_none() {
+                log::warn!(
+                    "Weave management receiver already taken, management frames will not be sent iface={}",
+                    parent_iface
+                );
+            }
             (
                 guard.device.clone(),
                 guard.baud_rate,

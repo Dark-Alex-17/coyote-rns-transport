@@ -293,8 +293,8 @@ where
 #[cfg(test)]
 mod tests {
     use super::{
-        bounded_backoff_next, run_serial_stream, serial_wire_buffer_capacity, SerialInterface,
-        SerialStreamOptions,
+        bounded_backoff_next, run_serial_stream, run_serial_stream_with_ifac,
+        serial_wire_buffer_capacity, SerialInterface, SerialStreamOptions,
     };
     use crate::buffer::OutputBuffer;
     use crate::hash::AddressHash;
@@ -573,5 +573,47 @@ mod tests {
         let status = status.snapshot();
         assert_eq!(status.link_state, "closed");
         assert_eq!(status.packets_rx, 0);
+    }
+
+    #[tokio::test]
+    async fn serial_stream_returns_receiver_with_queued_message() {
+        let (io_a, io_b) = tokio::io::duplex(64);
+        drop(io_b);
+
+        let (rx_send, _rx_recv) = mpsc::channel(4);
+        let (tx_send, tx_recv) = mpsc::channel(4);
+        for _ in 0..2 {
+            tx_send
+                .send(TxMessage { tx_type: TxMessageType::Broadcast(None), packet: Packet::default() })
+                .await
+                .expect("queue tx message");
+        }
+        let status = SerialInterface::new("duplex", 115200).runtime_status_handle();
+
+        let mut tx_recv = timeout(
+            Duration::from_secs(1),
+            run_serial_stream_with_ifac(
+                io_a,
+                SerialStreamOptions {
+                    iface_address: AddressHash::new_from_slice(b"serial-keep-queue"),
+                    device: "duplex".to_string(),
+                    mtu: 512,
+                    cancel: CancellationToken::new(),
+                    rx_channel: rx_send,
+                    tx_channel: tx_recv,
+                    runtime_status: status.clone(),
+                },
+                Arc::new(std::sync::RwLock::new(None)),
+                Arc::new(std::sync::atomic::AtomicU64::new(0)),
+            ),
+        )
+        .await
+        .expect("session should stop on write failure");
+
+        assert!(
+            tx_recv.try_recv().is_ok(),
+            "the message queued behind the failed write stays in the returned receiver"
+        );
+        assert_eq!(status.snapshot().link_state, "closed");
     }
 }

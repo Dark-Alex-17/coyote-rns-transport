@@ -43,7 +43,8 @@ fork commit `08362717`; the
 `719bff37`, `0d42d2e4`, `e29addcb`, `0c4457e2`, `3e77860a`, `c80d6996`,
 `120956aa`, `3b2352c0`, `c6d28577`, `05989491`, `5366399d`, `b879fc9b`,
 `d36f611c`, `31299980`, `1b02e70a`, `1393cecd`, `4576a35e`, `57cd07fa`,
-`f0e02c44`, `10888bf2`, `b785306b` and `f2bdb2ac`.
+`f0e02c44`, `10888bf2`, `b785306b`, `f2bdb2ac`, `23f196ea`, `a594ebb7`,
+`64f4fa37`, `b7ddb0ee` and `45d4a0dd`.
 
 | File | Patch |
 | --- | --- |
@@ -64,6 +65,7 @@ fork commit `08362717`; the
 | `crates/apps/reticulumd/tests/fork_publish_contract_parts/lint_discipline_probe4.rs` | guard discipline |
 | `crates/apps/reticulumd/tests/fork_publish_contract_parts/lint_discipline_probe5.rs` | guard discipline |
 | `crates/apps/reticulumd/tests/fork_publish_contract_parts/lint_discipline_probe6.rs` | guard discipline |
+| `crates/apps/reticulumd/tests/fork_publish_contract_parts/lint_discipline_probe7.rs` | guard discipline |
 | `crates/apps/reticulumd/tests/fork_publish_contract_parts/release_tooling_probe.rs` | release tooling |
 | `crates/apps/reticulumd/tests/fork_publish_contract_parts/release_tooling_probe2.rs` | release tooling |
 | `crates/apps/reticulumd/tests/fork_publish_contract_parts/release_tooling_probe3.rs` | release tooling |
@@ -99,6 +101,7 @@ fork commit `08362717`; the
 | `crates/libs/rns-transport/src/iface/kiss_parts/ifac_runtime_tests.rs` | guard discipline |
 | `crates/libs/rns-transport/src/iface/kiss_parts/kisstcpclientinterface.rs` | guard discipline |
 | `crates/libs/rns-transport/src/iface/kiss_parts/module_prelude.rs` | guard discipline |
+| `crates/libs/rns-transport/src/iface/kiss_parts/shared_receiver_lease_probe_tests.rs` | guard discipline |
 | `crates/libs/rns-transport/src/iface/kiss_parts/shared_receiver_lock_span_probe_tests.rs` | guard discipline |
 | `crates/libs/rns-transport/src/iface/kiss_parts/tx_queue_survives_reconnect_tests.rs` | guard discipline |
 | `crates/libs/rns-transport/src/iface/local.rs` | guard discipline |
@@ -333,7 +336,8 @@ Fork commits `f7be0f41`, `ae4f16d8`, `5f6c230f`, `e916ce9e`, `39d107b9`,
 `e29addcb`, `0c4457e2`, `3e77860a`, `c80d6996`, `120956aa`, `3b2352c0`,
 `c6d28577`, `05989491`, `5366399d`, `b879fc9b`, `d36f611c`, `31299980`,
 `1b02e70a`, `1393cecd`, `4576a35e`, `57cd07fa`, `f0e02c44`, `10888bf2`,
-`b785306b` and `f2bdb2ac`:
+`b785306b`, `f2bdb2ac`, `23f196ea`, `a594ebb7`, `64f4fa37`, `b7ddb0ee` and
+`45d4a0dd`:
 H4, guard discipline. The library behaviour changes are: the two
 auto-interface peer-table fixes of the eighth and thirteenth commits; the
 pipe and serial pump fixes of the eighteenth (a panicking half no longer
@@ -384,7 +388,9 @@ as the `transmit_task_failed` status; moved into the drain task and taken
 back through the `JoinHandle` for tcp_server and the local server, whose
 tasks were joined, never aborted), hoists udp's nested `PeerRouting`
 lookup into a scoped binding, routes management frames through
-`recv_optional_management_frame(Option<&mut Receiver<T>>)`, and keeps two
+`recv_optional_management_frame(Option<&mut Receiver<T>>)` for weave and
+rnode_multi (kiss reads its own through the private `recv_optional_leased`
+since the thirty-third), and keeps two
 pub items with the allowance: `run_kiss_stream_with_ifac` (shared-receiver
 signature, kept as a wrapper; since the thirty-third the allowance sits on
 the private `ReceiverLease::recv` behind it rather than on the wrapper) and
@@ -542,8 +548,10 @@ driver receiver, or a shared mutex receiver re-locked per receive) feeds
 the loop body, now `run_kiss_stream_leased`, and `run_kiss_stream_owned`
 and the pub wrapper keep their signatures and wrap it, so a co-consumer
 queued on the mutex is served between passes (tokio's `Mutex` is fair, so
-the guard passes to a queued waiter at the pass boundary), the shape the
-wrapper had before the drivers took owned receivers; the allowance moves
+the guard passes to a queued waiter at the pass boundary); before the
+drivers took owned receivers the wrapper locked the tx receiver per pass
+and the management receiver per receive, and both are now leased per
+receive; the allowance moves
 from the wrapper onto `ReceiverLease::recv`, the one span left. Pinned by
 `kiss_stream_with_ifac_holds_the_tx_receiver_lock_while_idle_and_frees_it_on_stop`
 (`kiss_parts/ifac_runtime_tests.rs`, renamed; both shapes satisfy it) and
@@ -557,7 +565,8 @@ the transmit-join probes, `pipe_tests_parts/transmit_join_probe.rs`
 transmit loop is a spawned task that is joined, never aborted, so a write
 in flight when the reader ends first still reaches the child or port and
 the receiver comes back, and a writer that ends first on a write error
-cancels the stop token so a parked reader is collected. The thirty-fifth
+cancels the stop token so a parked reader is collected (pinned on the
+pipe side; the serial twin pins only the EOF-first join). The thirty-fifth
 makes each of the thirteen app-crate allowance markers (`reticulumd`
 `announce_ingest.rs` and `bridge_propagation.rs`, `meshchat-api` `chat.rs`,
 `control.rs` and `lib.rs`, `lxmf-sdk` `zmq_pipeline/transport.rs` and
@@ -566,7 +575,8 @@ site is to be scoped away or kept by design (the `lxmf-sdk` slot-ownership
 and per-key idempotency holds), has the two remaining category sites in
 `rns-transport` (`spawn_peer_data_receive_loop.rs`, the documented lock-order
 nest; `meshtastic_parts/interface.rs`, the public-API-pinned shared
-receiver) name their category, and makes `lint_discipline_probe.rs` ask
+receiver) name their category (the former is gone since the
+thirty-ninth), and makes `lint_discipline_probe.rs` ask
 every marked crate for the owner tag plus a non-empty reason instead of
 one fixed sentence (the per-file site counts are unchanged). The
 thirty-sixth has `tools/scripts/workspace-clippy-classify.sh` describe the
@@ -591,6 +601,57 @@ size check in `resource_wire.rs`), documents on `ExportedIface` in
 `Transport.interfaces` unlocked, `RNS/Transport.py:2983-2984` and
 `:3820-3822`) and its unreachable `?` arms, and makes the negative pin in
 `tests_parts/two_transport_loopback_lifecycle.rs` use `try_recv`.
+The thirty-eighth adopts the shared-receiver lease probes,
+`kiss_parts/shared_receiver_lease_probe_tests.rs` (a `mod` in `kiss.rs`):
+a co-consumer holding the tx lock parks neither inbound decoding nor
+cancellation (a per-pass lock parks the whole loop on the mutex), a
+co-consumer that takes the lock after a pass consumes the next queued
+packet itself and the stream resumes transmitting once it releases, and
+the shared management receiver is leased per receive too (a frame fed
+through it reaches the wire byte for byte and a locker queued on its
+mutex is served); and the allowance-reason probe,
+`fork_publish_contract_parts/lint_discipline_probe7.rs` (included from
+`fork_publish_contract.rs`): every production allowance reason names a
+guard noun, an await verb and a code identifier or one of the two
+sanctioned category phrases, and under `kiss_parts/` the pub wrapper
+carries no allowance while the one allowance sits on the lease `recv`
+whose shared arm is `.lock().await.recv().await`. The thirty-ninth has
+`spawn_peer_data_receive_loop.rs` take its `state` and `dedupe` guards at
+one await (`tokio::join!(state.lock(), dedupe.lock())`) inside the sync
+processing block, so neither guard spans an await and the fn's
+`await_holding_invalid_type` allowance goes (its reason claimed a
+documented lock-order nest that nothing documented; `dedupe.lock()` has
+no other production site, so no order is inverted), and drops two stale
+`#[allow(dead_code)]`, on that fn (live from
+`send_due_multicast_peer_announces_wi.rs`) and on
+`transport/jobs_parts/link_table_cleanup.rs` (live from `jobs.rs`); the
+production census goes from 52 to 51 markers (38 in `rns-transport`, 13
+in the app crates, unchanged). The fortieth drops the lost-receiver arm's
+own `pipe_is_open = false` write in `pipe.rs` (the post-loop block writes
+it; the log line and the `break` stay), has
+`serial_parts/transmit_join_probe_tests.rs` assert `last_error == None`
+after the in-flight write is joined and drop its inert root allowance
+(the file holds no guard across an await), and has the
+`pipe_tests_parts/transmit_join_probe.rs` header state what the
+write-error test pins: the status record and the returned receiver, the
+parked reader being released by the writer's own `tx_stop.cancel()`
+rather than by pump ordering. The forty-first has the `# Lock discipline`
+heading in `transport/mod.rs` name the two extra nests by fn (`send`'s
+announce arm; the `max_request_size` check in
+`handle_link_resource_packet`) instead of by line range and say both run
+under the handler guard so they cannot interleave, has the
+`transport/resource_wire.rs` marker name the destination
+(`max_request_size`) and `iface_manager` (MTU) lock awaits its link
+guard spans, and corrects the `transport/reticulum_path_store.rs` cite
+to `RNS/Transport.py:3819-3821` (the throttle `if` plus the refresh). The
+forty-second adds the `unicast_discovery_port` step-down to the crate
+README's divergence register (Python computes `discovery_port + 1`,
+`RNS/Interfaces/AutoInterface.py:173`, and its unicast bind fails there)
+and has step 7 of the release recipe say that
+`workspace-clippy-classify.sh` refuses any tracked manifest that mentions
+`await_holding_invalid_type` and tolerates, on macOS only, the
+`dead_code` of the interop test target whose linux-only cases are cfg'd
+out there; the README cite is walked by `fork_release_docs_contract.rs`.
 Pinned by
 `tcp_client/tests/tx_queue_survives_reconnect.rs`,
 `kiss_parts/tx_queue_survives_reconnect_tests.rs`,
@@ -608,10 +669,14 @@ Pinned by
 `fork_publish_contract_parts/lint_discipline_probe3.rs`,
 `fork_publish_contract_parts/lint_discipline_probe4.rs`,
 `fork_publish_contract_parts/lint_discipline_probe5.rs`,
-`fork_publish_contract_parts/lint_discipline_probe6.rs` and
-`kiss_parts/ifac_runtime_tests.rs` and
+`fork_publish_contract_parts/lint_discipline_probe6.rs`,
+`fork_publish_contract_parts/lint_discipline_probe7.rs` (every
+allowance reason names its guard and await; the kiss wrapper holds no
+allowance),
+`kiss_parts/ifac_runtime_tests.rs`,
 `kiss_parts/shared_receiver_lock_span_probe_tests.rs` (the wrapper lock
-span).
+span) and `kiss_parts/shared_receiver_lease_probe_tests.rs` (the
+per-receive lease of both shared receivers).
 
 ## 0.15.1 (upstream 0.14.0)
 

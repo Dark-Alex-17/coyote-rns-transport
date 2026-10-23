@@ -115,26 +115,38 @@ Removed) bullet of its own, marked as such.
   reports the closed queue at once where it used to buffer up to the
   channel capacity before failing with `Full` (`iface/weave.rs`, pinned by
   `iface/weave_management_handle_tests.rs`);
-  management frames arrive through `recv_optional_management_frame`
-  (`iface_types.rs`), and a second take of a weave, rnode_multi or LoRa
+  weave and rnode_multi management frames arrive through
+  `recv_optional_management_frame` (`iface_types.rs`) and the kiss loop
+  reads its own through the private `recv_optional_leased`
+  (`iface/kiss_parts/kisstcpclientinterface.rs`) since the per-receive
+  restore, and a second take of a weave, rnode_multi or LoRa
   management receiver logs a warning naming the interface instead of
   running silently without management frames; the auto-interface
   listener supervisors take the retired listener under their guard and
   stop, prune and join it after the guard is gone
   (`iface/auto_runtime_parts/autoruntimeplan_sections/send_due_multicast_peer_announces_wi.rs`,
   `iface/auto_runtime_parts/autoruntimeplan_sections/runtime_json.rs`),
-  and the peer-data receive loop keeps its state-then-dedupe guard pair
-  under the allowance
+  and the peer-data receive loop takes its `state` and `dedupe` guards at
+  one await (`tokio::join!`) inside the sync processing block, so neither
+  guard spans an await and the loop carries no allowance
   (`iface/auto_runtime_parts/autoruntimeplan_sections/spawn_peer_data_receive_loop.rs`);
   `run_kiss_stream_with_ifac` keeps its shared-receiver signature for
-  callers outside this crate and locks each shared receiver per receive,
-  as before, so a co-consumer queued on the mutex is served between
+  callers outside this crate and locks each shared receiver per receive
+  (the tx receiver was locked per pass before the owned-receiver change,
+  the management receiver per receive), so a co-consumer queued on the
+  mutex is served between
   passes; drivers in this crate call `run_kiss_stream_owned`, and both
   now feed one loop over a private `ReceiverLease`
   (`iface/kiss_parts/kisstcpclientinterface.rs`; the idle hold and its
   release on stop are observed by `iface/kiss_parts/ifac_runtime_tests.rs`,
   a queued locker served across a transmit pass by
-  `iface/kiss_parts/shared_receiver_lock_span_probe_tests.rs`);
+  `iface/kiss_parts/shared_receiver_lock_span_probe_tests.rs`, and the
+  per-receive span by `iface/kiss_parts/shared_receiver_lease_probe_tests.rs`:
+  a co-consumer holding the tx lock parks neither inbound decoding nor
+  cancellation, a co-consumer that takes the lock after a pass consumes
+  the next queued packet itself and the stream resumes once it releases,
+  and a frame fed through the shared management receiver reaches the
+  wire byte-exact while a locker queued on it is served);
   `MeshtasticInterfaceHandle::recv_transmit` keeps its shared
   receiver (`iface/meshtastic_parts/interface.rs`). Pinned by
   `tcp_client/tests/tx_queue_survives_reconnect.rs`,
@@ -151,14 +163,17 @@ Removed) bullet of its own, marked as such.
   transmit-join pins in `iface/pipe_tests_parts/transmit_join_probe.rs`
   and `iface/serial_parts/transmit_join_probe_tests.rs` (the transmit loop
   is joined, never aborted, so an in-flight write completes and the
-  receiver comes back; a writer ending on a write error cancels the
-  parked reader).
+  receiver comes back; the writer ending on a write error and the parked
+  reader being collected is pinned on the pipe side only).
 - Lint tables, no library behaviour change: `clippy::await_holding_invalid_type`
   runs at its default level under the workspace clippy invocation; no
-  lint table in the workspace mentions it any more, every test root
-  carries one module-level allowance (`src/transport/tests.rs`,
+  lint table in the workspace mentions it any more, every test or example
+  root that holds a guard across an await carries one module-level
+  allowance (`src/transport/tests.rs`,
   `crates/apps/reticulumd/tests/python_channel_interop.rs` and the other
-  test roots), and each production fn of `reticulumd`, `meshchat-api` and
+  test roots; the example target `examples/tcp_connection_memory.rs`
+  carries the same root allowance), and each production fn of
+  `reticulumd`, `meshchat-api` and
   `lxmf-sdk` that the live lint reports carries a fn-level allowance
   whose comment names the guard, the await it spans and whether the site
   is to be scoped away or kept by design (thirteen fns; the preferred-node read
@@ -183,8 +198,12 @@ Removed) bullet of its own, marked as such.
   `fork_publish_contract_parts/lint_discipline_probe2.rs`,
   `fork_publish_contract_parts/lint_discipline_probe3.rs`,
   `fork_publish_contract_parts/lint_discipline_probe4.rs`,
-  `fork_publish_contract_parts/lint_discipline_probe5.rs` and
-  `fork_publish_contract_parts/lint_discipline_probe6.rs`.
+  `fork_publish_contract_parts/lint_discipline_probe5.rs`,
+  `fork_publish_contract_parts/lint_discipline_probe6.rs` and
+  `fork_publish_contract_parts/lint_discipline_probe7.rs` (every
+  production allowance reason names a guard, the await it spans and a
+  concrete site; the kiss wrapper carries no allowance and the lease
+  `recv` carries the only one under `kiss_parts/`).
 
 ### Removed
 
@@ -231,7 +250,9 @@ Removed) bullet of its own, marked as such.
   in `iface/serial_parts/run_serial_stream.rs`).
 - `AutoInterfaceConfig::unicast_discovery_port` computed
   `discovery_port + 1`, which overflows when the discovery port is 65535
-  (a debug-build panic; Python binds the same `discovery_port + 1` and its
+  (a debug-build panic; in a release build the addition wrapped to 0 and
+  the unicast socket bound an ephemeral port; Python binds the same
+  `discovery_port + 1` and its
   bind raises there, `RNS/Interfaces/AutoInterface.py:173`). It now steps
   down to 65534 at the top of the range, so the pair stays adjacent and
   distinct for every discovery port (`iface/auto_parts/module_prelude.rs`).

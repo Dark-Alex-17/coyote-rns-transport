@@ -350,7 +350,7 @@ impl Transport {
         handler.send_packet_broadcast_with_trace(packet).await
     }
 
-    #[allow(clippy::await_holding_invalid_type)] // TASK-026: handler guard spans the job by design, see TransportHandler lock discipline
+    #[allow(clippy::await_holding_invalid_type)] // TASK-026: iface_manager guard spans the broadcast send; no handler guard is taken, see TransportHandler lock discipline
     pub async fn send_prepared_packet_broadcast_with_trace(
         &self,
         packet: Packet,

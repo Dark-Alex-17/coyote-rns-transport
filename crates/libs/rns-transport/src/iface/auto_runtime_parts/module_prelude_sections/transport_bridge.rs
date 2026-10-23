@@ -94,9 +94,10 @@ impl AutoInterfaceTransportBridge {
             manager.register_virtual_iface(self.host_iface, IfaceRole::VirtualUnicast)?
         };
         // The discovery and data tasks can both miss the first lookup for the
-        // same peer and both register; whichever reaches the table first wins
-        // and the other registration is stopped so the manager does not keep a
-        // second iface that Broadcast would send to.
+        // same peer and both register; `entry()` makes the table the single
+        // authority, so both callers come away with the same iface and the
+        // loser's registration, which the table never held, is stopped so the
+        // manager does not keep a second iface that Broadcast would send to.
         let registered = {
             let mut table = self.peer_routes.lock().await;
             let PeerRouteTable { peer_ifaces, outbound_routes } = &mut *table;

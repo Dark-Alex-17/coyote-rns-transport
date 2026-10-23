@@ -10,4 +10,5 @@ include!("tests_sections/auto_multicast_discovery_bind_resolv.rs");
 include!("tests_sections/auto_peer_data_transport_bridge_regi.rs");
 include!("tests_sections/auto_peer_route_origination.rs");
 include!("tests_sections/peer_route_table_expiry.rs");
+include!("tests_sections/peer_route_table_probe.rs");
 }

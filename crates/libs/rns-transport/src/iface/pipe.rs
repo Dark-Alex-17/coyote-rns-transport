@@ -314,7 +314,7 @@ async fn run_pipe_stream<R, W>(
     let rx_stop = stop.clone();
     let tx_stop = stop.clone();
 
-    let rx_task = {
+    let mut rx_task = {
         let cancel = cancel.clone();
         let iface_stop = iface_stop.clone();
         let runtime_status = runtime_status.clone();
@@ -467,16 +467,19 @@ async fn run_pipe_stream<R, W>(
         }
     };
 
-    // Every reader exit except an external cancel already cancels `stop`, and
-    // the writer exits on `stop`, so finishing the writer first and then
-    // cancelling `stop` leaves the reader nothing further to wait for. A
-    // writer panic is caught so the caller keeps `tx_channel` for the respawn.
-    if let Err(error) = CatchUnwind::new(tx_loop).await {
+    // A panicking reader never reaches `rx_stop.cancel()` and an idle writer only
+    // exits on `stop`, so finish whichever half ends first, cancel `stop` and
+    // collect the other. The caught writer panic keeps `tx_channel` for respawn.
+    let mut tx = CatchUnwind::new(tx_loop);
+    let (tx_result, rx_result) = tokio::select! {
+        result = &mut tx => { stop.cancel(); (result, rx_task.await) }
+        joined = &mut rx_task => { stop.cancel(); (tx.await, joined) }
+    };
+    if let Err(error) = tx_result {
         log::error!("pipe transmit task failed iface={iface_address}: {error}");
         mark_task_failed(&runtime_status, "transmit_task_failed", error);
     }
-    stop.cancel();
-    if let Err(error) = rx_task.await {
+    if let Err(error) = rx_result {
         log::error!("pipe receive task failed iface={iface_address}: {error}");
         mark_task_failed(&runtime_status, "receive_task_failed", error.to_string());
     }

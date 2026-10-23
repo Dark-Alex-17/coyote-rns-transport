@@ -54,7 +54,7 @@ where
         status.last_error = None;
     });
 
-    let rx_task = {
+    let mut rx_task = {
         let cancel = cancel.clone();
         let stop = stop.clone();
         let rx_channel = rx_channel.clone();
@@ -277,16 +277,26 @@ where
         }
     };
 
-    // A writer panic is caught so this fn still returns the receiver; the
-    // reader is told to stop since the writer no longer exits on its own.
-    if let Err(error) = CatchUnwind::new(tx_loop).await {
+    // A panicking reader never reaches `stop.cancel()` and an idle writer only
+    // exits on `stop`, so finish whichever half ends first, cancel `stop` and
+    // collect the other. The caught writer panic keeps the receiver for the
+    // reopen; the block ends the writer's borrow of it before it is returned.
+    let (tx_result, rx_result) = {
+        let mut tx = CatchUnwind::new(tx_loop);
+        tokio::select! {
+            result = &mut tx => { stop.cancel(); (result, rx_task.await) }
+            joined = &mut rx_task => { stop.cancel(); (tx.await, joined) }
+        }
+    };
+    if let Err(error) = tx_result {
         log::error!("serial transmit task failed iface={iface_address}: {error}");
         runtime_status.update(|status| {
+            status.link_state = "transmit_task_failed".to_string();
+            status.tx_errors = status.tx_errors.saturating_add(1);
             status.last_error = Some(format!("transmit task failed: {error}"));
         });
-        stop.cancel();
     }
-    if let Err(error) = rx_task.await {
+    if let Err(error) = rx_result {
         log::error!("serial receive task failed iface={iface_address}: {error}");
         runtime_status.update(|status| {
             status.last_error = Some(format!("receive task failed: {error}"));
@@ -697,6 +707,7 @@ mod tests {
         assert!(tx_recv.try_recv().is_ok(), "the receiver survives the panic with its queue");
         let status = status.snapshot();
         assert_eq!(status.link_state, "closed");
+        assert_eq!(status.tx_errors, 1, "the panic counts as a transmit error like a failed write");
         // The write half panicked inside `tokio::io::split`, whose shared lock
         // is poisoned from then on, so the read task fails right after it and
         // records its own failure last.
@@ -706,5 +717,85 @@ mod tests {
                 || last_error.starts_with("receive task failed: "),
             "a task failure is recorded after the transmit loop panic: {last_error}"
         );
+    }
+
+    /// A port whose first read panics and whose writes succeed.
+    struct PanickingReadPort;
+
+    impl tokio::io::AsyncRead for PanickingReadPort {
+        fn poll_read(
+            self: std::pin::Pin<&mut Self>,
+            _: &mut std::task::Context<'_>,
+            _: &mut tokio::io::ReadBuf<'_>,
+        ) -> std::task::Poll<std::io::Result<()>> {
+            panic!("injected serial read panic")
+        }
+    }
+
+    impl tokio::io::AsyncWrite for PanickingReadPort {
+        fn poll_write(
+            self: std::pin::Pin<&mut Self>,
+            _: &mut std::task::Context<'_>,
+            buf: &[u8],
+        ) -> std::task::Poll<std::io::Result<usize>> {
+            std::task::Poll::Ready(Ok(buf.len()))
+        }
+
+        fn poll_flush(
+            self: std::pin::Pin<&mut Self>,
+            _: &mut std::task::Context<'_>,
+        ) -> std::task::Poll<std::io::Result<()>> {
+            std::task::Poll::Ready(Ok(()))
+        }
+
+        fn poll_shutdown(
+            self: std::pin::Pin<&mut Self>,
+            _: &mut std::task::Context<'_>,
+        ) -> std::task::Poll<std::io::Result<()>> {
+            std::task::Poll::Ready(Ok(()))
+        }
+    }
+
+    // The writer has nothing queued and no cancel, so it only exits on `stop`;
+    // a pump that awaits the writer before joining the reader never returns.
+    #[tokio::test]
+    async fn serial_stream_returns_receiver_after_a_receive_task_panic_with_the_writer_idle() {
+        let (rx_send, _rx_recv) = mpsc::channel(4);
+        let (tx_send, tx_recv) = mpsc::channel(4);
+        let status = SerialInterface::new("read-panic", 115200).runtime_status_handle();
+
+        let mut tx_recv = timeout(
+            Duration::from_secs(1),
+            run_serial_stream_with_ifac(
+                PanickingReadPort,
+                SerialStreamOptions {
+                    iface_address: AddressHash::new_from_slice(b"serial-rx-panic"),
+                    device: "read-panic".to_string(),
+                    mtu: 512,
+                    cancel: CancellationToken::new(),
+                    rx_channel: rx_send,
+                    tx_channel: tx_recv,
+                    runtime_status: status.clone(),
+                },
+                Arc::new(std::sync::RwLock::new(None)),
+                Arc::new(std::sync::atomic::AtomicU64::new(0)),
+            ),
+        )
+        .await
+        .expect("a receive task panic stops the writer and returns from the driver");
+
+        let status = status.snapshot();
+        assert_eq!(status.link_state, "closed");
+        let last_error = status.last_error.as_deref().unwrap_or_default();
+        assert!(
+            last_error.starts_with("receive task failed: ")
+                && last_error.contains("injected serial read panic"),
+            "the join error carries the reader's panic message: {last_error}"
+        );
+        tx_send
+            .send(TxMessage { tx_type: TxMessageType::Broadcast(None), packet: Packet::default() })
+            .await
+            .expect("the tx sender is still live after the pump returns");
+        assert!(tx_recv.try_recv().is_ok(), "the returned receiver is intact for the reopen");
     }
 }

@@ -405,3 +405,5 @@ async fn pipe_stream_keeps_receiver_after_transmit_loop_panic() {
     assert!(!status.pipe_is_open);
     assert_eq!(status.last_error.as_deref(), Some("injected pipe write panic"));
 }
+
+include!("pipe_tests_parts/transmit_panic.rs");

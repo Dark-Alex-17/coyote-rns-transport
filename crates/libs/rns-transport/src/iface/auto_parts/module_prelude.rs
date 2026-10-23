@@ -299,8 +299,12 @@ impl AutoInterfaceConfig {
         )
     }
 
+    /// Python derives the unicast discovery port as `discovery_port + 1`
+    /// (`AutoInterface.py:173`) and fails to bind it when `discovery_port` is
+    /// 65535. This fork places it one below instead, so the pair stays
+    /// adjacent and distinct across the whole port range.
     pub fn unicast_discovery_port(&self) -> u16 {
-        self.discovery_port + 1
+        self.discovery_port.checked_add(1).unwrap_or(u16::MAX - 1)
     }
 
     pub fn multicast_peering_packet(

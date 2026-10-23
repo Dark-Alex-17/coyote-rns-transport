@@ -229,19 +229,30 @@ pub struct AnnounceEvent {
 
 /// Shared transport state behind one `tokio::sync::Mutex`. The guard spans
 /// one job: an inbound packet, a timer tick or a `Transport::send_*` call.
+///
+/// # Lock discipline
+///
 /// Every transmit funnels through `TransportHandler::send`, which fixes the
 /// lock order: handler, then `packet_cache`; handler, then `iface_manager`,
 /// then the interface tx channel; handler, then a `Link`; handler, then a
 /// destination. `handle_check_links` nests one level deeper, holding a
 /// `Link` guard and then taking `iface_manager` for the next-hop MTU, so a
-/// link is also taken before `iface_manager`. The one rule that follows is to
-/// never take the handler guard while holding a link, destination or
-/// `iface_manager` guard: `send` re-locks the link of the packet it just
-/// wrote in `note_link_packet_sent`, so a caller still holding that link
-/// deadlocks itself (`resource_wire.rs` spells this out for the resource
-/// reject). Every fn that owns a handler guard across an await carries the
-/// `clippy::await_holding_invalid_type` allowance; the lint does not see
-/// helpers that borrow a `&mut MutexGuard`.
+/// link is also taken before `iface_manager`. Two more nests exist. The
+/// announce arm of `send` (`handler.rs:218-226`) keeps the `iface_manager`
+/// guard while it calls `note_link_packet_sent`, which locks the link the
+/// packet belongs to; that is `iface_manager` before link, the reverse of
+/// `handle_check_links`, and it is inert only because an announce is never
+/// addressed to a link, so `note_link_packet_sent` finds none to lock. The
+/// resource request size check (`resource_wire.rs:158-164`) locks the
+/// receiving destination for `max_request_size` while holding the link
+/// guard, so a link is also taken before a destination. The one rule that
+/// follows is to never take the handler guard while holding a link,
+/// destination or `iface_manager` guard: `send` re-locks the link of the
+/// packet it just wrote in `note_link_packet_sent`, so a caller still
+/// holding that link deadlocks itself (`resource_wire.rs` spells this out
+/// for the resource reject). Every fn that owns a handler guard across an
+/// await carries the `clippy::await_holding_invalid_type` allowance; the
+/// lint does not see helpers that borrow a `&mut MutexGuard`.
 pub(crate) struct TransportHandler {
     config: TransportConfig,
     iface_manager: Arc<Mutex<InterfaceManager>>,

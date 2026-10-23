@@ -282,8 +282,16 @@ impl LocalUnixServer {
             }
         }
         iface_stop.cancel();
-        if let Err(error) = tx_task.await {
-            log::error!("local unix transmit task failed endpoint={}: {error}", endpoint.label());
+        match tx_task.await {
+            // The listener loop above has already exited and nothing rebinds after
+            // this point, so the transmit receiver is dropped here for good.
+            Ok(_tx_receiver) => {}
+            Err(error) => {
+                log::error!(
+                    "local unix transmit task failed endpoint={}: {error}",
+                    endpoint.label()
+                );
+            }
         }
     }
 

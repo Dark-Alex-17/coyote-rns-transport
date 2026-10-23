@@ -41,7 +41,12 @@ pub struct RestoredReticulumPathIdentity {
 
 /// What the path-table exporters read about an interface. Captured under
 /// the iface_manager guard alone so the exporters can take the handler
-/// guard afterwards instead of nesting the two.
+/// guard afterwards instead of nesting the two. The capture is a snapshot:
+/// an interface added or removed between the two guards is missing from or
+/// stale in the export. Python has the same window: its persist loop reads
+/// `Transport.interfaces` without a lock and refreshes the hash set at most
+/// every two seconds (`RNS/Transport.py:2983-2984`,
+/// `RNS/Transport.py:3820-3822`).
 pub(super) struct ExportedIface {
     pub(super) mode: InterfaceMode,
     pub(super) full_hash: Hash,
@@ -54,6 +59,8 @@ impl Transport {
         iface_manager
             .interface_hashes()
             .into_iter()
+            // The `?` arms cannot fire: `interface_hashes`, `mode` and `full_hash`
+            // all read the same `ifaces` list under the guard held here.
             .filter_map(|iface| {
                 Some((
                     iface,

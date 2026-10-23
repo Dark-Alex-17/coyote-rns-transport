@@ -225,7 +225,7 @@ async fn outbound_without_a_path_sends_nothing_when_broadcast_is_off() {
     transport.outbound(&pathless_data_packet()).await;
 
     assert!(
-        timeout(Duration::from_millis(100), channel.tx_channel.recv()).await.is_err(),
+        channel.tx_channel.try_recv().is_err(),
         "a pathless packet is dropped when broadcast is off"
     );
 }

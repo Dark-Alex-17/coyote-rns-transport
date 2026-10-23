@@ -152,7 +152,6 @@ impl PipeInterface {
                     "pipe interface closed iface={iface_address}: transmit task lost its receiver"
                 );
                 update_pipe_status(&runtime_status, |status| {
-                    status.process_state = "closed".to_string();
                     status.pipe_is_open = false;
                 });
                 break;

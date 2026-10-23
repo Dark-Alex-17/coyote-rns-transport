@@ -47,9 +47,12 @@ fn app_crate_marker() -> String {
 /// above its allowance.
 const TEST_ROOT_REASON: &str = "holds guards across awaits on purpose";
 
+/// A source-path prefix and the builder of the marker text its allowances carry.
+type MarkedCrate = (&'static str, fn() -> String);
+
 /// Production sources whose allowances this probe pins, with the marker text
 /// each must carry on the same line.
-const MARKED_CRATES: [(&str, fn() -> String); 4] = [
+const MARKED_CRATES: [MarkedCrate; 4] = [
     ("crates/libs/rns-transport/src/", owner_tag),
     ("crates/apps/reticulumd/src/", app_crate_marker),
     ("crates/libs/meshchat-api/src/", app_crate_marker),

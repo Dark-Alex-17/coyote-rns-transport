@@ -569,6 +569,10 @@ parity ledger; the `docs/status/*` matrices are not updated per fork task.
   short-lived one; Python's `LocalClientInterface` sleeps `RECONNECT_WAIT`
   before every redial (`RNS/Interfaces/LocalInterface.py:159-160`). The
   unix client follows Python.
+- `AutoInterfaceConfig::unicast_discovery_port` steps down to 65534 when
+  `discovery_port` is 65535, so the pair stays adjacent and distinct; Python
+  computes `discovery_port + 1` (`RNS/Interfaces/AutoInterface.py:173`) and
+  its unicast bind fails there.
 
 Not divergences:
 
@@ -693,9 +697,11 @@ unchanged and listed in the `0.14.1` section of `docs/fork/PATCHSET.md`.
    command with `--manifest-path crates/libs/rns-transport/fuzz/Cargo.toml`),
    and add the release headings to `CHANGELOG.md` and `docs/fork/PATCHSET.md`.
 7. `cargo check --workspace && cargo test -p coyote-rns-transport && cargo test -p reticulumd --test fork_publish_contract --test fork_release_docs_contract && tools/scripts/check-boundaries.sh && tools/scripts/workspace-clippy-classify.sh && cargo publish -p coyote-rns-transport --locked --dry-run`
-   `workspace-clippy-classify.sh` (needs `python3`) replays CI's clippy
-   invocation and passes only on the known macOS-only `dead_code` in the
-   linux-only interop target.
+   `workspace-clippy-classify.sh` (needs `python3`) refuses any tracked
+   manifest that mentions `await_holding_invalid_type`, replays CI's clippy
+   invocation and passes only when every error-level record is, on macOS
+   only, the `dead_code` of the interop test target whose linux-only cases
+   are cfg'd out there.
    `tools/scripts/semver-major-findings-check.sh` records the
    `cargo-semver-checks` verdict: `... <previous-tag> 0` for a patch bump,
    `... <previous-tag> <expected-major-count> [lint ...]` for a minor bump.

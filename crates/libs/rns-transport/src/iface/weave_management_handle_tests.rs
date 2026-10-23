@@ -5,8 +5,8 @@
 // device that does not exist, spawned and stopped through the
 // `InterfaceManager`, with the handle taken the way an operator would.
 
-/// Before the driver has stopped a command queues (the driver owns the
-/// receiver and will read it once the port opens); after `stop_interface`
+/// Before spawn the `WeaveInterface` value holds the receiver, so a command
+/// queues for the driver to read once the port opens; after `stop_interface`
 /// the same call fails at once with `WouldBlock` naming the closed queue.
 #[tokio::test]
 async fn weave_management_handle_reports_the_closed_queue_once_the_driver_has_stopped() {
@@ -19,7 +19,7 @@ async fn weave_management_handle_reports_the_closed_queue_once_the_driver_has_st
 
     let queued = handle
         .try_set_remote_display(Some(switch), true)
-        .expect("a command queues while the driver still owns the receiver");
+        .expect("a command queues while the interface value still holds the receiver");
     assert_eq!(queued, switch);
 
     let address = manager.lock().await.spawn(weave, WeaveInterface::spawn);

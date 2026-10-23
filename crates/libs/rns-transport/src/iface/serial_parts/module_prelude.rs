@@ -11,6 +11,7 @@ use tokio_util::sync::CancellationToken;
 use crate::buffer::OutputBuffer;
 
 use crate::hash::AddressHash;
+use crate::iface::catch_unwind::CatchUnwind;
 
 use crate::iface::{
     decode_packet_ifac, encode_packet_ifac, is_ifac_violation, record_ifac_violation, IfacState,

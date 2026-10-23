@@ -2,6 +2,8 @@ pub mod auto;
 
 pub mod auto_runtime;
 
+mod catch_unwind;
+
 pub mod driver;
 
 pub mod hdlc;

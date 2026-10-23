@@ -277,7 +277,15 @@ where
         }
     };
 
-    tx_loop.await;
+    // A writer panic is caught so this fn still returns the receiver; the
+    // reader is told to stop since the writer no longer exits on its own.
+    if let Err(error) = CatchUnwind::new(tx_loop).await {
+        log::error!("serial transmit task failed iface={iface_address}: {error}");
+        runtime_status.update(|status| {
+            status.last_error = Some(format!("transmit task failed: {error}"));
+        });
+        stop.cancel();
+    }
     if let Err(error) = rx_task.await {
         log::error!("serial receive task failed iface={iface_address}: {error}");
         runtime_status.update(|status| {
@@ -615,5 +623,88 @@ mod tests {
             "the message queued behind the failed write stays in the returned receiver"
         );
         assert_eq!(status.snapshot().link_state, "closed");
+    }
+
+    /// A port whose reads stay pending and whose first write panics.
+    struct PanickingPort;
+
+    impl tokio::io::AsyncRead for PanickingPort {
+        fn poll_read(
+            self: std::pin::Pin<&mut Self>,
+            _: &mut std::task::Context<'_>,
+            _: &mut tokio::io::ReadBuf<'_>,
+        ) -> std::task::Poll<std::io::Result<()>> {
+            std::task::Poll::Pending
+        }
+    }
+
+    impl tokio::io::AsyncWrite for PanickingPort {
+        fn poll_write(
+            self: std::pin::Pin<&mut Self>,
+            _: &mut std::task::Context<'_>,
+            _: &[u8],
+        ) -> std::task::Poll<std::io::Result<usize>> {
+            panic!("injected serial write panic")
+        }
+
+        fn poll_flush(
+            self: std::pin::Pin<&mut Self>,
+            _: &mut std::task::Context<'_>,
+        ) -> std::task::Poll<std::io::Result<()>> {
+            std::task::Poll::Ready(Ok(()))
+        }
+
+        fn poll_shutdown(
+            self: std::pin::Pin<&mut Self>,
+            _: &mut std::task::Context<'_>,
+        ) -> std::task::Poll<std::io::Result<()>> {
+            std::task::Poll::Ready(Ok(()))
+        }
+    }
+
+    #[tokio::test]
+    async fn serial_stream_returns_receiver_after_transmit_loop_panic() {
+        let (rx_send, _rx_recv) = mpsc::channel(4);
+        let (tx_send, tx_recv) = mpsc::channel(4);
+        for _ in 0..2 {
+            tx_send
+                .send(TxMessage { tx_type: TxMessageType::Broadcast(None), packet: Packet::default() })
+                .await
+                .expect("queue tx message");
+        }
+        let status = SerialInterface::new("panic", 115200).runtime_status_handle();
+
+        let mut tx_recv = timeout(
+            Duration::from_secs(1),
+            run_serial_stream_with_ifac(
+                PanickingPort,
+                SerialStreamOptions {
+                    iface_address: AddressHash::new_from_slice(b"serial-tx-panic"),
+                    device: "panic".to_string(),
+                    mtu: 512,
+                    cancel: CancellationToken::new(),
+                    rx_channel: rx_send,
+                    tx_channel: tx_recv,
+                    runtime_status: status.clone(),
+                },
+                Arc::new(std::sync::RwLock::new(None)),
+                Arc::new(std::sync::atomic::AtomicU64::new(0)),
+            ),
+        )
+        .await
+        .expect("a transmit loop panic returns from the driver instead of unwinding it");
+
+        assert!(tx_recv.try_recv().is_ok(), "the receiver survives the panic with its queue");
+        let status = status.snapshot();
+        assert_eq!(status.link_state, "closed");
+        // The write half panicked inside `tokio::io::split`, whose shared lock
+        // is poisoned from then on, so the read task fails right after it and
+        // records its own failure last.
+        let last_error = status.last_error.as_deref().unwrap_or_default();
+        assert!(
+            last_error == "transmit task failed: injected serial write panic"
+                || last_error.starts_with("receive task failed: "),
+            "a task failure is recorded after the transmit loop panic: {last_error}"
+        );
     }
 }

@@ -10,6 +10,7 @@ use tokio_util::sync::CancellationToken;
 use super::{Interface, InterfaceContext, InterfaceTxReceiver};
 use crate::buffer::OutputBuffer;
 use crate::hash::AddressHash;
+use crate::iface::catch_unwind::CatchUnwind;
 use crate::iface::{
     decode_packet_ifac, encode_packet_ifac, hdlc::Hdlc, is_ifac_violation, record_ifac_violation,
     IfacState, IfaceRole, IfaceSource, InterfaceManager, RxMessage, MAX_IFAC_SIZE_BYTES,
@@ -21,7 +22,7 @@ use process_cleanup::terminate_pipe_child;
 
 #[path = "pipe_parts/status.rs"]
 mod status;
-use status::update_pipe_status;
+use status::{mark_task_failed, update_pipe_status};
 
 pub struct PipeInterface {
     command: String,
@@ -468,16 +469,16 @@ async fn run_pipe_stream<R, W>(
 
     // Every reader exit except an external cancel already cancels `stop`, and
     // the writer exits on `stop`, so finishing the writer first and then
-    // cancelling `stop` leaves the reader nothing further to wait for.
-    tx_loop.await;
+    // cancelling `stop` leaves the reader nothing further to wait for. A
+    // writer panic is caught so the caller keeps `tx_channel` for the respawn.
+    if let Err(error) = CatchUnwind::new(tx_loop).await {
+        log::error!("pipe transmit task failed iface={iface_address}: {error}");
+        mark_task_failed(&runtime_status, "transmit_task_failed", error);
+    }
     stop.cancel();
     if let Err(error) = rx_task.await {
         log::error!("pipe receive task failed iface={iface_address}: {error}");
-        update_pipe_status(&runtime_status, |status| {
-            status.process_state = "receive_task_failed".to_string();
-            status.pipe_is_open = false;
-            status.last_error = Some(error.to_string());
-        });
+        mark_task_failed(&runtime_status, "receive_task_failed", error.to_string());
     }
 }
 

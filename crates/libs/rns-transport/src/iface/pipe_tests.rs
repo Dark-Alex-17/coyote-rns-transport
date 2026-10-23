@@ -1,3 +1,6 @@
+// Test code holds guards across awaits on purpose.
+#![allow(clippy::await_holding_invalid_type)]
+
 use super::PipeInterface;
 use crate::buffer::OutputBuffer;
 use crate::iface::{
@@ -334,4 +337,71 @@ async fn pipe_stream_rejects_wrong_ifac_key_before_admission() {
         .await
         .expect("Pipe stream worker should stop")
         .expect("Pipe stream worker task");
+}
+
+/// A child stdin whose first write panics.
+struct PanickingWriter;
+
+impl tokio::io::AsyncWrite for PanickingWriter {
+    fn poll_write(
+        self: std::pin::Pin<&mut Self>,
+        _: &mut std::task::Context<'_>,
+        _: &[u8],
+    ) -> std::task::Poll<std::io::Result<usize>> {
+        panic!("injected pipe write panic")
+    }
+
+    fn poll_flush(
+        self: std::pin::Pin<&mut Self>,
+        _: &mut std::task::Context<'_>,
+    ) -> std::task::Poll<std::io::Result<()>> {
+        std::task::Poll::Ready(Ok(()))
+    }
+
+    fn poll_shutdown(
+        self: std::pin::Pin<&mut Self>,
+        _: &mut std::task::Context<'_>,
+    ) -> std::task::Poll<std::io::Result<()>> {
+        std::task::Poll::Ready(Ok(()))
+    }
+}
+
+#[tokio::test]
+async fn pipe_stream_keeps_receiver_after_transmit_loop_panic() {
+    let (stream, _peer) = tokio::io::duplex(64);
+    let (rx_channel, _rx_receiver) = mpsc::channel(8);
+    let (tx_sender, mut tx_receiver) = mpsc::channel(8);
+    for _ in 0..2 {
+        tx_sender
+            .send(TxMessage { tx_type: TxMessageType::Broadcast(None), packet: Packet::default() })
+            .await
+            .expect("queue tx message");
+    }
+    let runtime_status = Arc::new(std::sync::Mutex::new(super::PipeRuntimeStatus::new("test")));
+    let ifac_state: IfacState = Arc::new(std::sync::RwLock::new(None));
+
+    timeout(
+        Duration::from_secs(1),
+        super::run_pipe_stream(
+            stream,
+            PanickingWriter,
+            crate::hash::AddressHash::new_from_slice(b"pipe-tx-panic"),
+            PipeInterface::DEFAULT_MTU,
+            CancellationToken::new(),
+            CancellationToken::new(),
+            rx_channel,
+            &mut tx_receiver,
+            runtime_status.clone(),
+            ifac_state,
+            Arc::new(std::sync::atomic::AtomicU64::new(0)),
+        ),
+    )
+    .await
+    .expect("a transmit loop panic returns from the driver instead of unwinding it");
+
+    assert!(tx_receiver.try_recv().is_ok(), "the receiver survives the panic with its queue");
+    let status = runtime_status.lock().expect("pipe runtime status").clone();
+    assert_eq!(status.process_state, "transmit_task_failed");
+    assert!(!status.pipe_is_open);
+    assert_eq!(status.last_error.as_deref(), Some("injected pipe write panic"));
 }

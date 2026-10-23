@@ -1164,3 +1164,5 @@ include!("fork_publish_contract_parts/lint_discipline_probe4.rs");
 include!("fork_publish_contract_parts/lint_discipline_probe5.rs");
 
 include!("fork_publish_contract_parts/lint_discipline_probe6.rs");
+
+include!("fork_publish_contract_parts/lint_discipline_probe7.rs");

@@ -361,6 +361,33 @@ struct PendingKissPayload {
     kind: KissDataFrameKind,
 }
 
+/// A transmit or management receiver the stream reads from: owned by the
+/// driver, or shared behind a mutex that the stream re-takes per receive.
+enum ReceiverLease<'a, T> {
+    Owned(&'a mut tokio::sync::mpsc::Receiver<T>),
+    Shared(&'a Arc<tokio::sync::Mutex<tokio::sync::mpsc::Receiver<T>>>),
+}
+
+impl<T> ReceiverLease<'_, T> {
+    #[allow(clippy::await_holding_invalid_type)] // TASK-026: public-API-pinned shared receiver, the guard spans only this recv so a co-consumer is served between passes
+    async fn recv(&mut self) -> Option<T> {
+        match self {
+            Self::Owned(receiver) => receiver.recv().await,
+            Self::Shared(shared) => shared.lock().await.recv().await,
+        }
+    }
+}
+
+/// Receives the next frame from a leased management channel a driver may not
+/// have. The `select!` arm is gated on `is_some()`, so the `None` arm only
+/// documents the absent case.
+async fn recv_optional_leased<T>(lease: Option<&mut ReceiverLease<'_, T>>) -> Option<T> {
+    match lease {
+        Some(lease) => lease.recv().await,
+        None => None,
+    }
+}
+
 pub async fn run_kiss_stream<IO>(
     stream: IO,
     options: KissStreamOptions,
@@ -382,11 +409,11 @@ pub async fn run_kiss_stream<IO>(
     .await;
 }
 
-/// Shared-receiver entry point kept for callers outside this crate. Both
-/// receivers stay locked for the life of the stream, so the guards are held
-/// across every await of the loop; drivers in this crate own their receivers
-/// and call `run_kiss_stream_owned` instead.
-#[allow(clippy::await_holding_invalid_type)] // TASK-026: public signature pins the shared receivers
+/// Shared-receiver entry point kept for callers outside this crate. Each
+/// shared receiver is locked per receive, so a co-consumer queued on the
+/// mutex is served between passes, the shape this function had before the
+/// drivers took owned receivers; drivers in this crate call
+/// `run_kiss_stream_owned` instead.
 pub async fn run_kiss_stream_with_ifac<IO>(
     stream: IO,
     mut options: KissStreamOptions,
@@ -398,19 +425,14 @@ pub async fn run_kiss_stream_with_ifac<IO>(
 ) where
     IO: AsyncRead + AsyncWrite + Unpin + Send + 'static,
 {
-    let mut tx_channel = tx_channel.lock().await;
-    let shared_management_frame_rx = options.management_frame_rx.take();
-    let mut management_frame_rx = match shared_management_frame_rx.as_ref() {
-        Some(management_frame_rx) => Some(management_frame_rx.lock().await),
-        None => None,
-    };
-    run_kiss_stream_owned(
+    let management_frame_rx = options.management_frame_rx.take();
+    run_kiss_stream_leased(
         stream,
         options,
         cancel,
         rx_channel,
-        &mut tx_channel,
-        management_frame_rx.as_deref_mut(),
+        ReceiverLease::Shared(&tx_channel),
+        management_frame_rx.as_ref().map(ReceiverLease::Shared),
         IfacRuntime::from_parts(ifac_state, ifac_violations),
     )
     .await;
@@ -420,12 +442,35 @@ pub async fn run_kiss_stream_with_ifac<IO>(
 /// reconnect loop keep queued packets across connections. The management
 /// receiver is passed here rather than through `options.management_frame_rx`.
 pub(crate) async fn run_kiss_stream_owned<IO>(
-    mut stream: IO,
+    stream: IO,
     options: KissStreamOptions,
     cancel: CancellationToken,
     rx_channel: tokio::sync::mpsc::Sender<RxMessage>,
     tx_channel: &mut InterfaceTxReceiver,
-    mut management_frame_rx: Option<&mut tokio::sync::mpsc::Receiver<Vec<u8>>>,
+    management_frame_rx: Option<&mut tokio::sync::mpsc::Receiver<Vec<u8>>>,
+    ifac: IfacRuntime,
+) where
+    IO: AsyncRead + AsyncWrite + Unpin + Send + 'static,
+{
+    run_kiss_stream_leased(
+        stream,
+        options,
+        cancel,
+        rx_channel,
+        ReceiverLease::Owned(tx_channel),
+        management_frame_rx.map(ReceiverLease::Owned),
+        ifac,
+    )
+    .await;
+}
+
+async fn run_kiss_stream_leased<IO>(
+    mut stream: IO,
+    options: KissStreamOptions,
+    cancel: CancellationToken,
+    rx_channel: tokio::sync::mpsc::Sender<RxMessage>,
+    mut tx_channel: ReceiverLease<'_, TxMessage>,
+    mut management_frame_rx: Option<ReceiverLease<'_, Vec<u8>>>,
     ifac: IfacRuntime,
 ) where
     IO: AsyncRead + AsyncWrite + Unpin + Send + 'static,
@@ -561,7 +606,7 @@ pub(crate) async fn run_kiss_stream_owned<IO>(
                     last_write_at = Instant::now();
                 }
             }
-            frame = recv_optional_management_frame(management_frame_rx.as_deref_mut()), if management_frame_rx.is_some() => {
+            frame = recv_optional_leased(management_frame_rx.as_mut()), if management_frame_rx.is_some() => {
                 match frame {
                     Some(frame) => {
                         if write_raw_kiss_frames(
@@ -799,7 +844,6 @@ pub(crate) async fn run_kiss_stream_owned<IO>(
 }
 
 async fn write_shutdown_frames<IO>(stream: &mut IO, options: &KissStreamOptions)
-
 where
     IO: AsyncWrite + Unpin,
 {

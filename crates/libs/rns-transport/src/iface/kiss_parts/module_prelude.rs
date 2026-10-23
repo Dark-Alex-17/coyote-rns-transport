@@ -15,9 +15,8 @@ use tokio_util::sync::CancellationToken;
 use crate::hash::AddressHash;
 
 use crate::iface::{
-    decode_packet_ifac, encode_packet_ifac, is_ifac_violation, recv_optional_management_frame,
-    record_ifac_violation, IfacRuntime, IfacState, IfaceSource, InterfaceTxReceiver, RxMessage,
-    TxMessage,
+    decode_packet_ifac, encode_packet_ifac, is_ifac_violation, record_ifac_violation, IfacRuntime,
+    IfacState, IfaceSource, InterfaceTxReceiver, RxMessage, TxMessage,
 };
 
 use crate::kiss::{

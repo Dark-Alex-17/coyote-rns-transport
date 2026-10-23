@@ -184,11 +184,11 @@ async fn kiss_stream_ifac_rejects_wrong_key_and_authenticates_ingress_egress() {
     assert_eq!(status.data_frames_tx, 1);
 }
 
-/// The shared-receiver entry point holds the `tx_channel` guard from the
-/// first poll to the end of the stream rather than taking it per pass, so the
-/// mutex is contended for as long as the stream runs and free once it stops.
+/// While the shared-receiver entry point idles, its pending receive holds the
+/// `tx_channel` guard, so the mutex is contended; once the stream stops the
+/// lock is free again.
 #[tokio::test]
-async fn kiss_stream_with_ifac_holds_the_tx_receiver_lock_for_the_life_of_the_stream() {
+async fn kiss_stream_with_ifac_holds_the_tx_receiver_lock_while_idle_and_frees_it_on_stop() {
     let (rx_channel, _rx_queue) = mpsc::channel::<RxMessage>(8);
     let (_tx_queue, tx_receiver) = mpsc::channel::<TxMessage>(8);
     let tx_channel = Arc::new(tokio::sync::Mutex::new(tx_receiver));
@@ -232,7 +232,7 @@ async fn kiss_stream_with_ifac_holds_the_tx_receiver_lock_for_the_life_of_the_st
     sleep(Duration::from_millis(20)).await;
     assert!(
         tx_channel.try_lock().is_err(),
-        "the tx receiver lock must stay held between passes while the stream runs"
+        "the idle stream's pending receive must hold the tx receiver lock"
     );
 
     cancel.cancel();

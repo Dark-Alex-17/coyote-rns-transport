@@ -104,6 +104,10 @@
     }
 
     fn plan_with_data_listener(listener: AutoDataListenerBinding) -> AutoRuntimePlan {
+        plan_with_data_listeners(vec![listener])
+    }
+
+    fn plan_with_data_listeners(listeners: Vec<AutoDataListenerBinding>) -> AutoRuntimePlan {
         AutoRuntimePlan {
             config: AutoInterfaceConfig::default(),
             platform: AutoInterfacePlatform::Other,
@@ -113,7 +117,7 @@
             peering_packets: Vec::new(),
             startup_plan: AutoStartupPlan {
                 discovery_listeners: Vec::new(),
-                data_listeners: vec![listener],
+                data_listeners: listeners,
                 peer_job_interval: core::time::Duration::ZERO,
                 initial_peering_wait: core::time::Duration::ZERO,
             },

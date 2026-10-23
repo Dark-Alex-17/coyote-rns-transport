@@ -213,6 +213,7 @@ struct AutoDiscoveryListenerHandle {
 pub struct AutoPeerDataListenerSupervisor {
     plan: AutoRuntimePlan,
     state: Arc<tokio::sync::Mutex<AutoDiscoveryState>>,
+    /// Handed to each receive loop; see AutoPeerDataReceiveLoopRuntime::dedupe for the lock order.
     dedupe: Arc<tokio::sync::Mutex<AutoInboundPacketDeduplicator>>,
     transport: Option<AutoInterfaceTransportBridge>,
     runtime_status: Option<AutoRuntimeStatusHandle>,

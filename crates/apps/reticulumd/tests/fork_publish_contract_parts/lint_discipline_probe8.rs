@@ -93,8 +93,12 @@ fn exactly_one_production_allowance_claims_the_lock_order_nest_and_it_sits_on_th
         .collect::<Vec<_>>()
         .join(" ");
     assert!(
-        ["Lock order:", "state", "then", "dedupe"].iter().all(|needle| doc.contains(needle)),
-        "the dedupe field documents the state-then-dedupe order, got {doc:?}"
+        doc.contains("Lock order: `state`, then `dedupe`"),
+        "the dedupe field documents the state-then-dedupe order verbatim, got {doc:?}"
+    );
+    assert!(
+        doc.contains("only locker"),
+        "the dedupe field names its only locker, got {doc:?}"
     );
 }
 
@@ -136,9 +140,6 @@ fn peer_data_receive_loop_takes_state_then_dedupe_sequentially_under_its_marker(
     let mut dedupe_lockers: Vec<String> = Vec::new();
     for path in tracked_rust_sources() {
         if !path.starts_with("crates/libs/rns-transport/src/") || is_test_or_example_path(&path) {
-            continue;
-        }
-        if path.contains("_probe") {
             continue;
         }
         let text = read_repo_file(&path);

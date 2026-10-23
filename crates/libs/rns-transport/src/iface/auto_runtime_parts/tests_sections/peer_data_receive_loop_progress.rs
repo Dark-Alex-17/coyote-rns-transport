@@ -1,20 +1,3 @@
-    fn plan_with_data_listeners(listeners: Vec<AutoDataListenerBinding>) -> AutoRuntimePlan {
-        AutoRuntimePlan {
-            config: AutoInterfaceConfig::default(),
-            platform: AutoInterfacePlatform::Other,
-            device_filter: AutoInterfaceDeviceFilter::default(),
-            candidates: Vec::new(),
-            adopted_devices: Vec::new(),
-            peering_packets: Vec::new(),
-            startup_plan: AutoStartupPlan {
-                discovery_listeners: Vec::new(),
-                data_listeners: listeners,
-                peer_job_interval: core::time::Duration::ZERO,
-                initial_peering_wait: core::time::Duration::ZERO,
-            },
-        }
-    }
-
     /// Every adopted NIC gets its own receive loop, and all of them share one
     /// `state` and one `dedupe` mutex. Each loop must take the pair in one total
     /// order (`state`, then `dedupe`); any form that can hold one guard while
@@ -55,6 +38,8 @@
         let sender =
             Arc::new(tokio::net::UdpSocket::bind("127.0.0.1:0").await.expect("bind sender"));
         let source_address = sender.local_addr().expect("sender addr").ip().to_string();
+        // Register the sender so every datagram takes the Accepted path and touches
+        // dedupe under the nest.
         state.lock().await.observe_discovery_packet(
             &source_address,
             "lo",
@@ -91,8 +76,8 @@
         })
         .await
         .expect(
-            "every datagram is processed within 2 s: the receive loops must not deadlock on \
-             state/dedupe",
+            "every datagram is processed within 2 s: the receive loops did not drain (a deadlock \
+             on state/dedupe, or a loopback drop)",
         );
 
         for sender in senders {

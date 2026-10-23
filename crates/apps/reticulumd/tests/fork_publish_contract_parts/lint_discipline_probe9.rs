@@ -4,7 +4,7 @@
 // its only locker and that locker is the fn under the nest marker; no
 // production source in any crate joins lock futures; the census the ledger
 // states equals the census the tree carries; the probe sources and auto
-// runtime test sections are ASCII and their headers carry no task or round
+// runtime test sections are ASCII and their headers carry no task or lane
 // references; and the lifecycle header names each pin its file holds.
 // Needles are assembled so this file never contains the attribute or marker
 // text the sibling probes scan for.

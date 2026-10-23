@@ -291,7 +291,6 @@ where
     if let Err(error) = tx_result {
         log::error!("serial transmit task failed iface={iface_address}: {error}");
         runtime_status.update(|status| {
-            status.link_state = "transmit_task_failed".to_string();
             status.tx_errors = status.tx_errors.saturating_add(1);
             status.last_error = Some(format!("transmit task failed: {error}"));
         });

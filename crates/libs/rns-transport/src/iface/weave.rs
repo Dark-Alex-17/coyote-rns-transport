@@ -2077,6 +2077,8 @@ mod tests {
 
     include!("weave_ifac_runtime_tests.rs");
 
+    include!("weave_management_handle_tests.rs");
+
     #[tokio::test]
     async fn weave_stream_sends_handshake_for_valid_discovery_response() {
         let (options, _manager, _parent) = test_options().await;

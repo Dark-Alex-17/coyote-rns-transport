@@ -122,8 +122,8 @@ Removed) bullet of its own, marked as such.
   `run_kiss_stream_with_ifac` keeps its shared-receiver signature as a
   wrapper over `run_kiss_stream_owned` for callers outside this crate and
   holds both receiver guards for the life of the stream (the shared form
-  re-took them on every loop pass; pinned by the lock-span test in
-  `iface/kiss_parts/ifac_runtime_tests.rs`); `MeshtasticInterfaceHandle::recv_transmit` keeps its shared
+  re-took them on every loop pass; the span is observed while the stream
+  idles by `iface/kiss_parts/ifac_runtime_tests.rs`); `MeshtasticInterfaceHandle::recv_transmit` keeps its shared
   receiver (`iface/meshtastic_parts/interface.rs`). Pinned by
   `tcp_client/tests/tx_queue_survives_reconnect.rs`,
   `kiss_parts/tx_queue_survives_reconnect_tests.rs` and
@@ -134,7 +134,7 @@ Removed) bullet of its own, marked as such.
   caller's receiver back with the message queued behind a failed write),
   the transmit-loop and reader panic pins in
   `iface/pipe_tests_parts/transmit_panic.rs` and
-  `serial_stream_returns_receiver_after_transmit_loop_panic` and its
+  `serial_stream_reports_a_lost_receiver_after_transmit_loop_panic` and its
   reader twin in `iface/serial_parts/run_serial_stream.rs`.
 - Lint tables, no library behaviour change: `clippy::await_holding_invalid_type`
   runs at its default level under the workspace clippy invocation; no
@@ -205,7 +205,7 @@ Removed) bullet of its own, marked as such.
   reader on the child's stdout; the serial pump awaited the writer, so a
   reader panic left the writer idle); both pumps now finish on whichever
   half ends first, cancel the other and record both results
-  (`iface/pipe.rs`, `iface/serial_parts/run_serial_stream.rs`, pinned by
+  (`iface/pipe_parts/stream.rs`, `iface/serial_parts/run_serial_stream.rs`, pinned by
   the reader and writer panic pins in `iface/pipe_tests_parts/transmit_panic.rs` and
   `serial_stream_returns_receiver_after_a_receive_task_panic_with_the_writer_idle`
   in `iface/serial_parts/run_serial_stream.rs`).

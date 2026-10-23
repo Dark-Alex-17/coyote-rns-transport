@@ -12,9 +12,14 @@
 /// exits 0.
 #[cfg(unix)]
 fn add_stub_tool(stub: &CargoStub, name: &str, stdout: &str) {
+    write_stub_tool(stub, name, &format!("printf '%s\\n' {}\n", shell_quote(stdout)));
+}
+
+#[cfg(unix)]
+fn write_stub_tool(stub: &CargoStub, name: &str, body: &str) {
     use std::os::unix::fs::PermissionsExt;
     let path = stub.dir.join(name);
-    fs::write(&path, format!("#!/usr/bin/env bash\nprintf '%s\\n' {}\n", shell_quote(stdout)))
+    fs::write(&path, format!("#!/usr/bin/env bash\n{body}"))
         .unwrap_or_else(|err| panic!("write the {name} stub: {err}"));
     fs::set_permissions(&path, fs::Permissions::from_mode(0o755))
         .unwrap_or_else(|err| panic!("make the {name} stub executable: {err}"));
@@ -23,6 +28,21 @@ fn add_stub_tool(stub: &CargoStub, name: &str, stdout: &str) {
 #[cfg(unix)]
 fn shell_quote(text: &str) -> String {
     format!("'{}'", text.replace('\'', "'\\''"))
+}
+
+/// Replaces the stub `cargo` with one that prints `$PROBE_CARGO_OUT` on
+/// stdout, `marker` on stderr and exits with `$PROBE_CARGO_STATUS`, so a
+/// script's stderr capture can be told apart from the JSON it parses.
+#[cfg(unix)]
+fn add_cargo_stub_with_stderr(stub: &CargoStub, marker: &str) {
+    write_stub_tool(
+        stub,
+        "cargo",
+        &format!(
+            "printf '%s\\n' \"${{PROBE_CARGO_OUT}}\"\nprintf '%s\\n' {} >&2\nexit \"${{PROBE_CARGO_STATUS:-0}}\"\n",
+            shell_quote(marker)
+        ),
+    );
 }
 
 /// Runs `tools/scripts/<script>` from the repository root with the stub
@@ -126,15 +146,21 @@ fn cross_target_script_fails_on_a_linux_only_hit_and_names_the_file() {
 }
 
 /// A cross-target build that fails with no diagnostic of the lint is not a
-/// pass either: the verdict requires a clean cargo exit.
+/// pass either: the verdict requires a clean cargo exit, and the tail of
+/// cargo's stderr is surfaced on stdout so the failure is readable.
 #[cfg(unix)]
 #[test]
 fn cross_target_script_fails_when_the_cross_build_itself_fails() {
     let stub = cross_target_stub("cross-build-failed");
+    let marker = "PROBE_CARGO_ERR: error: linking with `cc` failed";
+    add_cargo_stub_with_stderr(&stub, marker);
     let (code, stdout, stderr) =
         run_script_with_stub_toolchain(CROSS_TARGET_SCRIPT, &stub, BUILD_FINISHED, 101, &[]);
     assert_eq!(code, Some(1), "a failed build fails: stdout {stdout:?} stderr {stderr:?}");
     assert!(stdout.contains(&format!("cargo clippy (--target {LINUX_TARGET}) exit: 101")), "{stdout:?}");
+    assert!(stdout.contains("cargo clippy stderr (last 40 lines):"), "the stderr tail is announced, got {stdout:?}");
+    assert!(stdout.contains(marker), "cargo's stderr reaches stdout, got {stdout:?}");
+    assert!(!stderr.contains(marker), "cargo's stderr is captured, not passed through, got {stderr:?}");
     assert!(stdout.contains("FAIL: cargo clippy exited 101"), "the failure names the exit, got {stdout:?}");
     assert!(!stdout.contains("OK:"), "a failed build is never OK, got {stdout:?}");
 }
@@ -201,9 +227,13 @@ fn nextest_line(status: &str, index: usize, total: usize, test: &str) -> String 
     format!("{status:>12} [   0.100s] ({index}/{total}) reticulumd::python_channel_interop {test}")
 }
 
+/// nextest's Summary line: the `failed` segment is printed only when a test
+/// failed, and the pass count carries its qualifiers (`(1 slow)`) in
+/// parentheses.
 #[cfg(unix)]
 fn summary_line(run: usize, passed: usize, failed: usize) -> String {
-    format!("     Summary [   0.300s] {run} tests run: {passed} passed, {failed} failed, 0 skipped")
+    let failed = if failed == 0 { String::new() } else { format!("{failed} failed, ") };
+    format!("     Summary [   0.300s] {run} tests run: {passed} passed, {failed}0 skipped")
 }
 
 #[cfg(unix)]
@@ -233,7 +263,7 @@ fn interop_script_tolerates_only_the_pin_drift_test_when_the_checkout_is_off_its
     assert!(stdout.contains("cargo nextest (python_channel_interop batch) exit: 100"), "{stdout:?}");
     assert!(stdout.contains("passed: 2, failed: 1"), "the counts are reported, got {stdout:?}");
     assert!(
-        stdout.contains(&format!("OK: 2 passed; every failure is tolerated: {PIN_DRIFT_TEST}")),
+        stdout.contains(&format!("OK: 2 passed; every failure is tolerated: {PIN_DRIFT_TEST} (FAIL)")),
         "the verdict names the tolerated failure, got {stdout:?}"
     );
 }
@@ -258,7 +288,10 @@ fn interop_script_fails_when_the_pin_test_fails_on_the_pinned_checkout() {
     assert!(stdout.contains(&format!("python reticulum checkout: {pinned} (pinned: {pinned})")), "{stdout:?}");
     assert!(!stdout.contains("checkout differs from the pin"), "no drift to announce, got {stdout:?}");
     assert!(stdout.contains("FAIL: 1 failure(s) outside the tolerated set:"), "{stdout:?}");
-    assert!(stdout.lines().any(|line| line.trim() == PIN_DRIFT_TEST), "the pin test is named, got {stdout:?}");
+    assert!(
+        stdout.lines().any(|line| line.trim() == format!("{PIN_DRIFT_TEST} (FAIL)")),
+        "the pin test is named with its token, got {stdout:?}"
+    );
     assert!(!stdout.contains("OK:"), "never OK when the pin test fails on its pin, got {stdout:?}");
 }
 
@@ -278,8 +311,8 @@ fn interop_script_fails_naming_an_untolerated_failure() {
     assert_eq!(code, Some(1), "an untolerated failure fails: stdout {stdout:?} stderr {stderr:?}");
     assert!(stdout.contains("FAIL: 1 failure(s) outside the tolerated set:"), "{stdout:?}");
     assert!(
-        stdout.lines().any(|line| line.trim() == "rust_to_python_link_roundtrip"),
-        "the untolerated test is named on a line of its own, got {stdout:?}"
+        stdout.lines().any(|line| line.trim() == "rust_to_python_link_roundtrip (FAIL)"),
+        "the untolerated test is named with its token on a line of its own, got {stdout:?}"
     );
     assert!(!stdout.contains("OK:"), "never OK with an untolerated failure, got {stdout:?}");
 }
@@ -316,10 +349,11 @@ fn interop_script_passes_an_all_green_batch() {
     assert!(stdout.contains("OK: 2 passed; every failure is tolerated: none"), "{stdout:?}");
 }
 
-/// nextest marks a passing test that leaked a child as `LEAK`, one over the
-/// slow threshold as `SLOW` and one that passed on a retry as `FLAKY n/m`;
-/// all three are passes in its Summary and must count as passes here, or the
-/// cross-check fails a green batch.
+/// nextest marks a passing test that leaked a child as `LEAK`, prints an
+/// in-flight `SLOW [> ...]` line before the `PASS` of one over the slow
+/// threshold, and reprints one that passed on a retry as `FLAKY n/m`; all
+/// three are passes in its Summary (`4 passed (1 slow, 1 flaky, 1 leaky)`)
+/// and must count as passes here, or the cross-check fails a green batch.
 #[cfg(unix)]
 #[test]
 fn interop_script_counts_leak_slow_and_flaky_as_passes() {
@@ -327,7 +361,8 @@ fn interop_script_counts_leak_slow_and_flaky_as_passes() {
     let transcript = [
         nextest_line("PASS", 1, 4, "python_to_rust_channel_roundtrip"),
         nextest_line("LEAK", 2, 4, "rust_to_python_link_roundtrip"),
-        nextest_line("SLOW", 3, 4, "rust_to_python_buffer_roundtrip"),
+        "        SLOW [> 60.000s] reticulumd::python_channel_interop rust_to_python_buffer_roundtrip".to_string(),
+        nextest_line("PASS", 3, 4, "rust_to_python_buffer_roundtrip"),
         nextest_line("TRY 1 FAIL", 4, 4, "python_to_rust_request_roundtrip"),
         nextest_line("TRY 2 PASS", 4, 4, "python_to_rust_request_roundtrip"),
         "     Summary [   0.400s] 4 tests run: 4 passed (1 slow, 1 flaky, 1 leaky), 0 skipped".to_string(),
@@ -385,9 +420,9 @@ fn interop_script_fails_without_a_summary_line() {
 }
 
 /// nextest reports a test whose process died on a signal as `SIGABRT [` (or
-/// `SIGSEGV [`, `TIMEOUT [`) and counts it as failed in its Summary; such a
-/// test is a failure outside the tolerated set and must fail the run, with
-/// or without a tolerated `FAIL` beside it.
+/// `SIGSEGV [`) and counts it as failed in its Summary; such a test is a
+/// failure outside the tolerated set and must fail the run by name and
+/// token, with or without a tolerated `FAIL` beside it.
 #[cfg(unix)]
 #[test]
 fn interop_script_fails_when_a_test_dies_on_a_signal_beside_a_tolerated_failure() {
@@ -401,13 +436,12 @@ fn interop_script_fails_when_a_test_dies_on_a_signal_beside_a_tolerated_failure(
     ]
     .join("\n");
     let (code, stdout, stderr) = run_interop_with_transcript(&stub, &transcript, 100);
+    assert_eq!(code, Some(1), "a signalled test is an untolerated failure: stdout {stdout:?} stderr {stderr:?}");
+    assert!(stdout.contains("passed: 1, failed: 2"), "the signal is counted as a failure, got {stdout:?}");
+    assert!(stdout.contains("FAIL: 1 failure(s) outside the tolerated set:"), "{stdout:?}");
     assert!(
-        matches!(code, Some(c) if c != 0),
-        "a test that died on a signal is an untolerated failure: stdout {stdout:?} stderr {stderr:?}"
-    );
-    assert!(
-        stdout.contains("rust_to_python_link_roundtrip"),
-        "the signalled test is named, got {stdout:?}"
+        stdout.lines().any(|line| line.trim() == "rust_to_python_link_roundtrip (SIGABRT)"),
+        "the signalled test is named with its token, got {stdout:?}"
     );
     assert!(!stdout.contains("OK:"), "never OK with a signalled test, got {stdout:?}");
 }

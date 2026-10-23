@@ -59,26 +59,29 @@
         let pressure = CpuPressure::start();
         let mut stalled = Vec::new();
         for round in 0..ROUNDS {
-            if !drain_burst(round).await {
-                stalled.push(round);
+            if let Err(evidence) = drain_burst(round).await {
+                stalled.push(evidence);
             }
         }
         drop(pressure);
         assert!(
             stalled.is_empty(),
-            "every burst drains within 2 s and its loops shut down; the receive loops must not \
-             deadlock on state/dedupe (stalled rounds: {stalled:?})"
+            "every burst drains within 2 s and its loops shut down: the receive loops did not \
+             drain (a deadlock on state/dedupe, or a loopback drop); stalled rounds: {stalled:?}"
         );
     }
 
     /// Eight loops on one `state`/`dedupe` pair, every socket pre-loaded with
-    /// a backlog before its loop starts, then fed live. Returns whether every
+    /// a backlog before its loop starts, then fed live. `Ok` when every
     /// datagram was processed within two seconds and every loop then shut
-    /// down (a wedged loop never observes the shutdown signal).
-    async fn drain_burst(round: usize) -> bool {
+    /// down (a wedged loop never observes the shutdown signal); otherwise the
+    /// `Err` records which of those failed and whether either mutex was still
+    /// held at that point. The per-socket depth stays far below the kernel's
+    /// default receive buffer so a stall is never a loopback drop.
+    async fn drain_burst(round: usize) -> Result<(), String> {
         const SOCKETS: usize = 8;
-        const BACKLOG_PER_SOCKET: usize = 96;
-        const LIVE_PER_SOCKET: usize = 150;
+        const BACKLOG_PER_SOCKET: usize = 64;
+        const LIVE_PER_SOCKET: usize = 96;
         let listeners = (0..SOCKETS)
             .map(|_| AutoDataListenerBinding {
                 ifname: "lo".to_string(),
@@ -167,10 +170,16 @@
                 shut_down = false;
             }
         }
+        let state_free = state.try_lock().is_ok();
+        let dedupe_free = dedupe.try_lock().is_ok();
         if drained && shut_down {
             // Both mutexes are free once every loop has returned.
-            assert!(state.try_lock().is_ok(), "no loop still holds the state guard");
-            assert!(dedupe.try_lock().is_ok(), "no loop still holds the dedupe guard");
+            assert!(state_free, "no loop still holds the state guard");
+            assert!(dedupe_free, "no loop still holds the dedupe guard");
+            return Ok(());
         }
-        drained && shut_down
+        Err(format!(
+            "round {round}: drained={drained} shut_down={shut_down} \
+             state_free={state_free} dedupe_free={dedupe_free}"
+        ))
     }

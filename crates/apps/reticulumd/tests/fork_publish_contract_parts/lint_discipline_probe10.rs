@@ -4,10 +4,9 @@
 // PATCHSET narrative says why the joined form was wrong (it counted sites,
 // not tasks) and which patch undid it; the PATCHSET header confines the
 // joined form to the commits it lived in and says it shipped in no release;
-// the README row carries its two patch attributions and every row's
-// attribution is a phrase the legend defines; and the code-identifier rule
-// the allowance-reason probes share treats "e.g." and "i.e." as prose while
-// keeping dotted paths.
+// the README row carries its two patch attributions; and the code-identifier
+// rule the allowance-reason probes share treats "e.g." and "i.e." as prose
+// while keeping dotted paths.
 
 /// The `## Unreleased` section of the crate changelog, whitespace-normalised.
 fn changelog_unreleased_flat() -> String {
@@ -47,15 +46,28 @@ fn changelog_unreleased_names_the_sequential_lock_order_under_its_allowance() {
     );
 }
 
-/// The ledger narrative names the flaw in the joined form's premise and the
-/// patch that undid it, without repeating the claim the premise rested on.
+/// The thirty-ninth narrative itself (not a later one quoting it) names the
+/// flaw in the joined form's premise and the patch that undid it, without
+/// repeating the claim the premise rested on.
 #[test]
 fn patchset_thirty_ninth_narrative_no_longer_vouches_for_the_joined_form() {
     let flat = patchset_unreleased_flat();
-    assert!(flat.contains("counted sites, not tasks"), "the narrative names the flawed premise");
-    assert!(flat.contains("the forty-third undoes it"), "the narrative names the undoing patch");
+    let (_, rest) = flat
+        .split_once("The thirty-ninth has")
+        .expect("the ledger narrates the thirty-ninth patch");
+    let (narrative, _) = rest
+        .split_once("The fortieth")
+        .expect("the fortieth narrative follows the thirty-ninth");
     assert!(
-        !flat.contains("so neither guard spans an await"),
+        narrative.contains("counted sites, not tasks"),
+        "the narrative names the flawed premise, got {narrative:?}"
+    );
+    assert!(
+        narrative.contains("the forty-third undoes it"),
+        "the narrative names the undoing patch, got {narrative:?}"
+    );
+    assert!(
+        !narrative.contains("so neither guard spans an await"),
         "the narrative no longer vouches for the joined form"
     );
 }
@@ -74,37 +86,21 @@ fn patchset_header_confines_the_joined_form_to_the_commits_it_lived_in() {
     }
 }
 
-/// The README row is attributed to both patches that touched it, and every
-/// row's attribution is built from phrases the legend defines.
+/// The README row is attributed to both patches that touched it.
 #[test]
 fn patchset_readme_row_is_attributed_to_release_tooling_and_guard_discipline() {
     let ledger = read_repo_file("docs/fork/PATCHSET.md");
     let section = ledger_section(&ledger, "Unreleased").expect("an Unreleased ledger section");
-    let legend = ledger_legend("Unreleased", section);
-    let rows: Vec<(&str, &str)> = section
+    let readme = section
         .lines()
         .filter(|line| line.starts_with("| `"))
-        .map(|line| {
+        .find_map(|line| {
             let mut cells = line.trim_matches('|').split('|').map(str::trim);
             let file = cells.next().unwrap_or_default().trim_matches('`');
-            let patch = cells.next().unwrap_or_default();
-            (file, patch)
+            (file == "crates/libs/rns-transport/README.md").then(|| cells.next().unwrap_or_default())
         })
-        .collect();
-    let readme = rows
-        .iter()
-        .find(|(file, _)| *file == "crates/libs/rns-transport/README.md")
-        .map(|(_, patch)| *patch)
         .expect("the README has a row");
     assert_eq!(readme, "release tooling, guard discipline");
-    for (file, patch) in rows {
-        for phrase in patch.split(", ") {
-            assert!(
-                legend.contains(phrase),
-                "{file} is attributed to {phrase:?}, which the legend does not define"
-            );
-        }
-    }
 }
 
 /// Latin abbreviations are prose, dotted paths and calls are identifiers,

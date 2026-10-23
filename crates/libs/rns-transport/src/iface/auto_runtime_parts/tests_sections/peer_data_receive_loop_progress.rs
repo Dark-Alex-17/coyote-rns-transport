@@ -38,8 +38,8 @@
         let sender =
             Arc::new(tokio::net::UdpSocket::bind("127.0.0.1:0").await.expect("bind sender"));
         let source_address = sender.local_addr().expect("sender addr").ip().to_string();
-        // Register the sender so every datagram takes the Accepted path and touches
-        // dedupe under the nest.
+        // Register the sender so every datagram reaches should_accept (the Accepted
+        // path) instead of returning UnknownPeer; both locks are taken either way.
         state.lock().await.observe_discovery_packet(
             &source_address,
             "lo",

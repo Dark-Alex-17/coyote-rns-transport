@@ -1,16 +1,21 @@
 // Usage pins around the sequential peer-data lock order and its regression
-// pin: the progress pin keeps the shape that lets it see a deadlock (several
-// loops, a multi-thread runtime, a bounded wait); the `dedupe` field names
-// its only locker and that locker is the fn under the nest marker; no
-// production source in any crate joins lock futures; the census the ledger
-// states equals the census the tree carries; the probe sources and auto
-// runtime test sections are ASCII and their headers carry no task or lane
-// references; and the lifecycle header names each pin its file holds.
+// pin: the progress pin and its repeated-burst twin keep the shape that lets
+// them see a deadlock (several loops, a multi-thread runtime, a bounded
+// wait); the `dedupe` field names its only locker and that locker is the fn
+// under the nest marker; the supervisor's `dedupe` field points at that
+// rustdoc; no production source in any crate joins lock futures; the census
+// the ledger states equals the census the tree carries; the probe sources
+// and auto runtime test sections are ASCII and their headers carry no task
+// or lane references; and the lifecycle header names each pin its file
+// holds.
 // Needles are assembled so this file never contains the attribute or marker
 // text the sibling probes scan for.
 
 /// The regression pin for the peer-data lock order.
 const PEER_DATA_PROGRESS_PIN: &str = "crates/libs/rns-transport/src/iface/auto_runtime_parts/tests_sections/peer_data_receive_loop_progress.rs";
+
+/// The repeated-burst twin of the progress pin, run under CPU pressure.
+const PEER_DATA_PROGRESS_TWIN: &str = "crates/libs/rns-transport/src/iface/auto_runtime_parts/tests_sections/peer_data_receive_loop_progress_probe.rs";
 
 /// The auto runtime test root that includes the pin.
 const AUTO_RUNTIME_TESTS_ROOT: &str =
@@ -77,6 +82,37 @@ fn peer_data_progress_pin_keeps_the_shape_that_can_see_a_deadlock() {
     );
 }
 
+/// One burst on an idle machine hits the cross-thread window only sometimes;
+/// the twin makes the deadlock frequent with many independent rounds, several
+/// loops on several workers, CPU pressure and a bounded wait, and every one
+/// of those knobs is kept here.
+#[test]
+fn strong_progress_twin_keeps_the_shape_that_makes_the_deadlock_frequent() {
+    let text = read_repo_file(PEER_DATA_PROGRESS_TWIN);
+    let attribute = text
+        .lines()
+        .find(|line| line.trim_start().starts_with("#[tokio::test("))
+        .expect("the twin is a tokio test");
+    assert!(
+        attribute.contains("flavor = \"multi_thread\""),
+        "the twin runs on a multi-thread runtime, got {attribute:?}"
+    );
+    let workers = number_after(attribute, "worker_threads =").expect("worker_threads is set");
+    assert!(workers >= 2, "two loops need two workers to wait on each other, got {workers}");
+    let rounds = number_after(&text, "const ROUNDS: usize =").expect("ROUNDS is a const");
+    assert!(rounds >= 10, "the rounds are the independent trials, got {rounds}");
+    let sockets = number_after(&text, "const SOCKETS: usize =").expect("SOCKETS is a const");
+    assert!(sockets >= 2, "a deadlock needs at least two receive loops, got {sockets}");
+    for needle in ["CpuPressure::start()", "spawn_peer_data_receive_loops(", "Duration::from_secs(2)"] {
+        assert!(text.contains(needle), "the twin keeps {needle:?}");
+    }
+    let root = read_repo_file(AUTO_RUNTIME_TESTS_ROOT);
+    assert!(
+        root.contains("include!(\"tests_sections/peer_data_receive_loop_progress_probe.rs\");"),
+        "auto_runtime_parts/tests.rs includes the twin"
+    );
+}
+
 /// The `dedupe` field rustdoc names `spawn_peer_data_receive_loop` as the only
 /// locker, that name is the fn carrying the nest marker, and the one
 /// production `dedupe.lock()` site lives in that fn's file.
@@ -114,18 +150,21 @@ fn dedupe_field_rustdoc_names_the_only_locker_and_the_name_resolves_to_the_marke
         .iter()
         .position(|l| is_site_allowance(l) && l.contains(OWNER_TAG))
         .expect("the loop carries the owner-tagged allowance");
+    let item = lines[marker + 1..]
+        .iter()
+        .find(|l| !l.trim_start().starts_with("#["))
+        .expect("an item follows the marker");
     assert!(
-        lines[marker + 1].contains("fn spawn_peer_data_receive_loop("),
-        "the allowance sits directly on the fn the rustdoc names, got {:?}",
-        lines[marker + 1]
+        item.contains("fn spawn_peer_data_receive_loop("),
+        "the allowance sits on the fn the rustdoc names, got {item:?}"
     );
     assert!(
-        !lines[marker + 1].trim_start().starts_with("pub"),
+        !item.trim_start().starts_with("pub"),
         "the marked fn is private, so the fix changes no public signature"
     );
     let dedupe_sites: Vec<String> = tracked_rust_sources()
         .into_iter()
-        .filter(|p| !is_test_or_example_path(p) && !p.contains("_probe"))
+        .filter(|p| !is_test_or_example_path(p))
         .filter(|p| read_repo_file(p).contains("dedupe.lock()"))
         .collect();
     assert_eq!(
@@ -133,6 +172,38 @@ fn dedupe_field_rustdoc_names_the_only_locker_and_the_name_resolves_to_the_marke
         vec![loop_file.to_string()],
         "dedupe has exactly one production locker"
     );
+}
+
+/// The supervisor holds the same `dedupe` mutex but documents no order of its
+/// own: its one rustdoc line sends the reader to the runtime field that does.
+#[test]
+fn supervisor_dedupe_field_points_at_the_runtime_lock_order_doc() {
+    let prelude = read_repo_file(AUTO_RUNTIME_PRELUDE);
+    let lines: Vec<&str> = prelude.lines().collect();
+    let start = lines
+        .iter()
+        .position(|l| l.starts_with("pub struct AutoPeerDataListenerSupervisor"))
+        .expect("the prelude defines the supervisor");
+    let end = start
+        + lines[start..]
+            .iter()
+            .position(|l| l.trim() == "}")
+            .expect("the supervisor struct closes");
+    let field = start
+        + lines[start..end]
+            .iter()
+            .position(|l| l.trim_start().starts_with("dedupe:"))
+            .expect("the supervisor has a dedupe field");
+    let doc: Vec<&str> = lines[start..field]
+        .iter()
+        .rev()
+        .take_while(|l| l.trim_start().starts_with("///"))
+        .map(|l| l.trim_start().trim_start_matches("///").trim())
+        .collect();
+    assert_eq!(doc.len(), 1, "the supervisor field carries one rustdoc line, got {doc:?}");
+    for needle in ["`AutoPeerDataReceiveLoopRuntime::dedupe`", "lock order"] {
+        assert!(doc[0].contains(needle), "the pointer says {needle:?}, got {:?}", doc[0]);
+    }
 }
 
 /// Joining two lock futures parks the first-won guard while the other pends
@@ -145,7 +216,7 @@ fn no_production_source_in_any_crate_joins_lock_futures() {
     let lock_calls = [".lock()", ".read()", ".write()", ".lock_owned()"];
     let mut offenders: Vec<String> = Vec::new();
     for path in tracked_rust_sources() {
-        if is_test_or_example_path(&path) || path.contains("_probe") {
+        if is_test_or_example_path(&path) {
             continue;
         }
         let text = read_repo_file(&path);
@@ -192,6 +263,7 @@ fn ledger_census_sentence_matches_the_measured_production_allowances() {
         .next()
         .and_then(|tail| tail.trim().parse().ok())
         .expect("a transport count precedes `rns-transport`");
+    // With an empty key, number_after reads the number the remainder opens with.
     let stated_app = number_after(after, "").expect("an app count follows");
     assert!(after.trim_start().contains("in the app crates"), "the split names the app crates");
     assert_eq!(
@@ -249,6 +321,7 @@ fn lifecycle_fixture_header_names_the_announce_and_outbound_pins_it_holds() {
         ("buildable announce", "fn send_announce_hands_a_buildable_announce_to_the_interface("),
         ("pathless outbound packet broadcast", "fn outbound_without_a_path_broadcasts_when_configured("),
         ("dropped when broadcast is off", "fn outbound_without_a_path_sends_nothing_when_broadcast_is_off("),
+        ("`try_send_announce` surfacing the build error as `Err`", "fn try_send_announce_reports_the_build_error("),
     ];
     for (phrase, test_fn) in pins {
         assert!(header.contains(phrase), "{path} header names the pin {phrase:?}, got {header:?}");

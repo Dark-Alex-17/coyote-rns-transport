@@ -1154,3 +1154,7 @@ fn ci_full_contracts_job_runs_every_contract_step_ci_runs() {
 }
 
 include!("fork_publish_contract_parts/lint_discipline_probe.rs");
+
+include!("fork_publish_contract_parts/lint_discipline_probe2.rs");
+
+include!("fork_publish_contract_parts/lint_discipline_probe3.rs");

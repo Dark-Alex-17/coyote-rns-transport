@@ -457,32 +457,29 @@ fn classify_script_and_changelog_say_the_guard_lint_is_live() {
 /// manifest gate, by name, before any cargo run: the clone's reticulumd
 /// manifest gets a `[lints.clippy]` table with the lint allowed, the
 /// working-tree script is run over the clone, and the refusal arrives in
-/// well under the time a clippy run would take.
+/// well under the time a clippy run would take. A stub `cargo` answers a
+/// gate that lets the manifest through, so that failure is a wrong verdict
+/// in milliseconds rather than a cold clippy run in the clone.
 #[cfg(unix)]
 #[test]
 fn classify_script_refuses_a_staged_manifest_that_allows_the_guard_lint() {
-    let script = "workspace-clippy-classify.sh";
     let manifest = "crates/apps/reticulumd/Cargo.toml";
     let clone = ProbeClone::new("classify-manifest-gate");
-    fs::copy(repo_root().join("tools/scripts").join(script), clone.path("tools/scripts").join(script))
-        .expect("copy the working-tree classify script into the clone");
+    let stub = CargoStub::new("classify-manifest-gate");
     let mut staged = fs::read_to_string(clone.path(manifest)).expect("read the clone's manifest");
     staged.push_str(&format!("\n[lints.clippy]\n{GUARD_LINT} = \"allow\"\n"));
     fs::write(clone.path(manifest), staged).expect("write the clone's manifest");
     clone.git(&["add", manifest]);
 
     let started = std::time::Instant::now();
-    let (code, stdout, stderr) = clone.run_script(script, &[]);
+    let (code, stdout, stderr) = run_classify_with_stub_cargo(&clone, &stub);
     assert_eq!(code, Some(1), "a manifest allowing {GUARD_LINT} fails the gate: {stderr:?}");
     assert!(
         stdout.contains("FAIL: a Cargo.toml mentions await_holding_invalid_type"),
         "the refusal names the gate, got stdout {stdout:?} stderr {stderr:?}"
     );
     assert!(stdout.contains(manifest), "the refusal names the manifest, got {stdout:?}");
-    assert!(
-        !stdout.contains("cargo clippy (CI invocation) exit"),
-        "the gate refuses before the clippy run, got {stdout:?}"
-    );
+    assert!(!stdout.contains(CLIPPY_RAN), "the gate refuses before the clippy run, got {stdout:?}");
     assert!(
         started.elapsed() < std::time::Duration::from_secs(10),
         "the refusal must not wait on a clippy run"

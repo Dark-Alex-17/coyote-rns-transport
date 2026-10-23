@@ -9,7 +9,8 @@ set -euo pipefail
 # it once at module level. Passes only when no Cargo.toml mentions the lint,
 # no await_holding_invalid_type diagnostic fires at any level and every
 # error-level diagnostic is the dead_code that macOS produces in the
-# linux-only reticulumd python_channel_interop test target (the two files
+# reticulumd python_channel_interop test target, whose linux-only cases are
+# cfg'd out on macOS, stranding their helpers as dead_code (the two files
 # listed below). That tolerance applies on Darwin only: on Linux, where CI
 # runs, no error-level diagnostic is tolerated.
 # Error-level diagnostics without a code (parse, macro and linker errors)
@@ -68,8 +69,9 @@ import sys
 path = sys.argv[1]
 clippy_rc = int(sys.argv[2])
 host = sys.argv[3]
-# The dead_code only appears where the linux-only test target is not built,
-# so the tolerance is populated on Darwin alone; CI on Linux tolerates nothing.
+# The target builds everywhere, but its linux-only test fns are cfg'd out on
+# macOS and their helpers go dead there, so the tolerance is populated on
+# Darwin alone; CI on Linux tolerates nothing.
 allowed_files = set()
 tolerance = "none"
 if host == "Darwin":
@@ -77,7 +79,7 @@ if host == "Darwin":
         "crates/apps/reticulumd/tests/python_channel_interop_parts/resource_memory_profile.rs",
         "crates/apps/reticulumd/tests/support/python_channel_process.rs",
     }
-    tolerance = "the macOS-only dead_code in the linux-only reticulumd test target"
+    tolerance = "the macOS dead_code in the reticulumd interop test target whose linux-only cases are cfg'd out"
 
 
 def restates_counted_errors(text):

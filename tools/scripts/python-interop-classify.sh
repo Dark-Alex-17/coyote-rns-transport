@@ -8,7 +8,9 @@ set -euo pipefail
 # token (FAIL, SIGABRT, SIGSEGV, TIMEOUT, XFAIL, ...) counts as failed. The
 # counts are checked against nextest's own Summary line, and the run passes
 # only when they agree, every failure is in the tolerated set below and at
-# least one test passed. Anything else fails naming the untolerated tests.
+# least one test passed; the pass also lists any tolerated name that did
+# not run, so a stale entry is visible. Anything else fails naming the
+# untolerated tests.
 # A listed name is tolerated only on FAIL or TIMEOUT, the two shapes the
 # environment reds take; a listed test that died on a signal (SIGABRT,
 # SIGSEGV, ...) is a crash, never the known environment red, and fails.
@@ -117,9 +119,9 @@ with open(path, errors="replace") as fh:
         m = summary.match(line)
         if m:
             counts = m
-passed = sum(1 for token in outcome.values() if is_pass(token))
+passed = {name for name, token in outcome.items() if is_pass(token)}
 failed = {name: token for name, token in outcome.items() if not is_pass(token)}
-print(f"passed: {passed}, failed: {len(failed)}")
+print(f"passed: {len(passed)}, failed: {len(failed)}")
 untolerated = sorted(
     name for name, token in failed.items() if name not in tolerated or token not in tolerable_tokens
 )
@@ -139,15 +141,19 @@ if counts.group(2) is not None:
     sys.exit(1)
 summary_passed = int(counts.group(3))
 summary_failed = sum(int(n or 0) for n in counts.group(4, 5, 6))
-if (passed, len(failed)) != (summary_passed, summary_failed):
+if (len(passed), len(failed)) != (summary_passed, summary_failed):
     print(
-        f"FAIL: parsed {passed} passed, {len(failed)} failed but the nextest Summary says "
+        f"FAIL: parsed {len(passed)} passed, {len(failed)} failed but the nextest Summary says "
         f"{summary_passed} passed, {summary_failed} failed (failed + exec failed + timed out)"
     )
     sys.exit(1)
-if passed == 0:
+if not passed:
     print("FAIL: no test passed")
     sys.exit(1)
 tolerated_list = ", ".join(f"{name} ({token})" for name, token in sorted(failed.items())) or "none"
-print(f"OK: {passed} passed; every failure is tolerated: {tolerated_list}")
+print(f"OK: {len(passed)} passed; every failure is tolerated: {tolerated_list}")
+# A tolerated name that never ran is stale (renamed or deleted) and should
+# leave the list above.
+stale = ", ".join(sorted(tolerated - passed - failed.keys())) or "none"
+print(f"tolerated but did not run: {stale}")
 PY

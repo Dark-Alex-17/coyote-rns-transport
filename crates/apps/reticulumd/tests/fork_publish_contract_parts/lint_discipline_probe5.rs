@@ -228,7 +228,8 @@ fn dead_code_error(file_name: &str) -> String {
 
 /// Runs the workspace classify script with `uname -s` answering `host` and
 /// the stub `cargo` emitting the two dead_code errors macOS produces in the
-/// linux-only interop test target, exiting 101 as `-D warnings` makes it.
+/// interop test target whose linux-only cases are cfg'd out there, exiting
+/// 101 as `-D warnings` makes it.
 #[cfg(unix)]
 fn run_classify_with_darwin_dead_code(label: &str, host: &str) -> (Option<i32>, String, String) {
     let stub = CargoStub::new(label);
@@ -258,7 +259,7 @@ fn classify_script_tolerates_the_interop_target_dead_code_on_darwin() {
     );
     assert!(stdout.contains("error-level diagnostics by code: {'dead_code': 2}"), "{stdout:?}");
     assert!(
-        stdout.contains("OK: zero await_holding_invalid_type diagnostics with the lint live at its default level; every error is the macOS-only dead_code"),
+        stdout.contains("OK: zero await_holding_invalid_type diagnostics with the lint live at its default level; every error is the macOS dead_code in the reticulumd interop test target whose linux-only cases are cfg'd out"),
         "{stdout:?}"
     );
 }

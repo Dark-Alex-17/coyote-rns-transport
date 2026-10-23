@@ -1,7 +1,8 @@
 // Verdict probes for the arms probe4 and probe5 leave unpinned, written from
 // the acceptance text before the scripts were read: a listed environment red
 // is tolerated on `TIMEOUT` as well as on `FAIL` (and only on a Darwin host:
-// "on other OSes nothing is tolerated"); the workspace classify script fails
+// "on other OSes nothing is tolerated"), a passing interop verdict is followed
+// by the tolerated names that did not run; the workspace classify script fails
 // any `await_holding_invalid_type` diagnostic with the lint live even when
 // cargo exits 0, tolerates the Darwin dead_code only in exactly the two
 // listed files, tails cargo's stderr when the invocation itself fails, and
@@ -77,6 +78,46 @@ fn interop_script_does_not_tolerate_a_darwin_red_when_the_host_is_linux() {
         "the red is named with its token, got {stdout:?}"
     );
     assert!(!stdout.contains("OK:"), "never OK, got {stdout:?}");
+}
+
+/// A tolerated name that appears nowhere in the log is stale (renamed or
+/// deleted) and must be visible on a passing run: the line after the `OK:`
+/// verdict names it, and says `none` once every tolerated name has run. On a
+/// Linux host the tolerated set is the pin-drift test alone, so the two arms
+/// are a batch without it and a batch where it failed.
+#[cfg(unix)]
+#[test]
+fn interop_script_reports_tolerated_names_that_did_not_run_after_the_ok_line() {
+    let stub = CargoStub::new("interop-linux-stale-tolerated");
+    add_stub_tool(&stub, "uname", "Linux");
+    let transcript = [
+        nextest_line("PASS", 1, 2, "python_to_rust_channel_roundtrip"),
+        nextest_line("PASS", 2, 2, "rust_to_python_link_roundtrip"),
+        summary_line(2, 2, 0),
+    ]
+    .join("\n");
+    let (code, stdout, stderr) = run_interop_with_transcript(&stub, &transcript, 0);
+    assert_eq!(code, Some(0), "all green passes: stdout {stdout:?} stderr {stderr:?}");
+    let ok = stdout.find("OK: 2 passed; every failure is tolerated: none").expect("the OK verdict");
+    let stale = stdout
+        .find(&format!("tolerated but did not run: {PIN_DRIFT_TEST}"))
+        .expect("the stale tolerated name is reported");
+    assert!(ok < stale, "the stale report follows the OK verdict, got {stdout:?}");
+
+    let stub = CargoStub::new("interop-linux-no-stale-tolerated");
+    add_stub_tool(&stub, "uname", "Linux");
+    let transcript = [
+        nextest_line("PASS", 1, 2, "python_to_rust_channel_roundtrip"),
+        nextest_line("FAIL", 2, 2, PIN_DRIFT_TEST),
+        summary_line(2, 1, 1),
+    ]
+    .join("\n");
+    let (code, stdout, stderr) = run_interop_with_transcript(&stub, &transcript, 100);
+    assert_eq!(code, Some(0), "the pin-drift red is tolerated: stdout {stdout:?} stderr {stderr:?}");
+    assert!(
+        stdout.contains("tolerated but did not run: none"),
+        "every tolerated name ran, got {stdout:?}"
+    );
 }
 
 /// Runs the workspace classify script at the repository root with `uname -s`
@@ -157,7 +198,7 @@ fn classify_script_refuses_dead_code_outside_the_two_listed_files_even_on_darwin
         "the stray file is listed, got {stdout:?}"
     );
     assert!(
-        stdout.contains("FAIL: 1 error diagnostic(s) outside the tolerated set (Darwin: the macOS-only dead_code"),
+        stdout.contains("FAIL: 1 error diagnostic(s) outside the tolerated set (Darwin: the macOS dead_code in the reticulumd interop test target whose linux-only cases are cfg'd out)"),
         "{stdout:?}"
     );
     assert!(!stdout.contains("OK:"), "never OK with a stray error, got {stdout:?}");
@@ -200,7 +241,10 @@ fn classify_script_fails_a_broken_clippy_invocation_and_tails_cargo_stderr() {
 #[test]
 fn classify_script_reports_no_error_level_diagnostic_on_an_all_green_run() {
     for (host, tolerance) in [
-        ("Darwin", "the macOS-only dead_code in the linux-only reticulumd test target"),
+        (
+            "Darwin",
+            "the macOS dead_code in the reticulumd interop test target whose linux-only cases are cfg'd out",
+        ),
         ("Linux", "none"),
     ] {
         let (code, stdout, stderr) = run_classify_with_records(
@@ -303,7 +347,7 @@ fn classify_script_skips_the_aborting_summary_that_closes_the_tolerated_darwin_c
     assert!(stdout.contains("error-level diagnostics by code: {'dead_code': 2}"), "{stdout:?}");
     assert!(stdout.contains("codeless error-level diagnostics: 0"), "{stdout:?}");
     assert!(
-        stdout.contains("OK: zero await_holding_invalid_type diagnostics with the lint live at its default level; every error is the macOS-only dead_code"),
+        stdout.contains("OK: zero await_holding_invalid_type diagnostics with the lint live at its default level; every error is the macOS dead_code in the reticulumd interop test target whose linux-only cases are cfg'd out"),
         "{stdout:?}"
     );
     assert!(!stdout.contains("FAIL:"), "nothing is refused, got {stdout:?}");

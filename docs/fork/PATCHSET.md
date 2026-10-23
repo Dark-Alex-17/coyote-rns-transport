@@ -41,7 +41,8 @@ fork commit `08362717`; the
 `e916ce9e`, `39d107b9`, `882baabc`, `e9c2ea93`, `7908fcff`, `044b64f4`,
 `fd3b249e`, `d4e1634d`, `71c25285`, `1b7ce1cb`, `6c0ea58e`, `66a703e9`,
 `719bff37`, `0d42d2e4`, `e29addcb`, `0c4457e2`, `3e77860a`, `c80d6996`,
-`120956aa`, `3b2352c0`, `c6d28577`, `05989491`, `5366399d` and `b879fc9b`.
+`120956aa`, `3b2352c0`, `c6d28577`, `05989491`, `5366399d`, `b879fc9b`,
+`d36f611c`, `31299980` and `1b02e70a`.
 
 | File | Patch |
 | --- | --- |
@@ -61,6 +62,7 @@ fork commit `08362717`; the
 | `crates/apps/reticulumd/tests/fork_publish_contract_parts/lint_discipline_probe3.rs` | guard discipline |
 | `crates/apps/reticulumd/tests/fork_publish_contract_parts/lint_discipline_probe4.rs` | guard discipline |
 | `crates/apps/reticulumd/tests/fork_publish_contract_parts/lint_discipline_probe5.rs` | guard discipline |
+| `crates/apps/reticulumd/tests/fork_publish_contract_parts/lint_discipline_probe6.rs` | guard discipline |
 | `crates/apps/reticulumd/tests/fork_publish_contract_parts/release_tooling_probe.rs` | release tooling |
 | `crates/apps/reticulumd/tests/fork_publish_contract_parts/release_tooling_probe2.rs` | release tooling |
 | `crates/apps/reticulumd/tests/fork_publish_contract_parts/release_tooling_probe3.rs` | release tooling |
@@ -321,8 +323,9 @@ that alters no library behaviour (later widened to release tooling and CI).
 Fork commits `f7be0f41`, `ae4f16d8`, `5f6c230f`, `e916ce9e`, `39d107b9`,
 `882baabc`, `e9c2ea93`, `7908fcff`, `044b64f4`, `fd3b249e`, `d4e1634d`,
 `71c25285`, `1b7ce1cb`, `6c0ea58e`, `66a703e9`, `719bff37`, `0d42d2e4`,
-`e29addcb`, `0c4457e2`, `3e77860a`, `c80d6996`, `120956aa`, `3b2352c0` and
-`c6d28577`, `05989491`, `5366399d` and `b879fc9b`:
+`e29addcb`, `0c4457e2`, `3e77860a`, `c80d6996`, `120956aa`, `3b2352c0`,
+`c6d28577`, `05989491`, `5366399d`, `b879fc9b`, `d36f611c`, `31299980` and
+`1b02e70a`:
 H4, guard discipline. The library behaviour changes are: the two
 auto-interface peer-table fixes of the eighth and thirteenth commits; the
 pipe and serial pump fixes of the eighteenth (a panicking half no longer
@@ -472,7 +475,7 @@ queues; after `stop_interface` the same call fails at once with
 arm's `link_state` write, which the unconditional `closed` write a few
 lines later always overwrote. The twenty-third makes the interop script
 classify every nextest status token (`SIGABRT`, `SIGSEGV`, `TIMEOUT` and
-the `TRY n` forms count as failures; `LEAK`, `SLOW` and `FLAKY` as passes)
+`TRY n FAIL` count as failures; `LEAK`, `SLOW`, `FLAKY` and `TRY n PASS` as passes)
 and cross-check its counts against the nextest `Summary` line, captures
 the manifest grep's exit code in the classify script and reads the
 installed targets through a here-string in the cross-target script. The
@@ -491,7 +494,18 @@ signal-token arm asserts the exact failure line and counts, the synthetic
 `Summary` lines take nextest's shape) and adopts `lint_discipline_probe5.rs`
 (`TIMEOUT` and `TRY n FAIL` tokens, a crash in a tolerated name, a cancelled
 run, a missing tracked manifest making the listing exit 2, and a Linux
-`uname` refusing the macOS tolerance). Pinned by
+`uname` refusing the macOS tolerance). The twenty-eighth makes the
+classify script count codeless error-level diagnostics (a parse, macro or
+link error carries no lint code) as failures, so a non-zero cargo exit
+passes only when every error-level record is a tolerated `dead_code` one,
+and adds the `set -u` guard its cross-target twin had. The twenty-ninth
+pins the kiss wrapper's lock span: while `run_kiss_stream_with_ifac` runs
+on a duplex stream the shared receiver cannot be locked, and it can once
+the stream has been cancelled and joined. The thirtieth adopts
+`lint_discipline_probe6.rs` (the stderr tail of the classify script, a
+listed macOS name tolerated on `TIMEOUT`, the codeless-error arms) and
+teaches the discipline probe that `_tests_parts/` directories are test
+code. Pinned by
 `tcp_client/tests/tx_queue_survives_reconnect.rs`,
 `kiss_parts/tx_queue_survives_reconnect_tests.rs`,
 `local/tests/tx_queue_survives_reconnect.rs`,
@@ -504,8 +518,10 @@ run, a missing tracked manifest making the listing exit 2, and a Linux
 unit tests), `fork_publish_contract_parts/lint_discipline_probe.rs`,
 `fork_publish_contract_parts/lint_discipline_probe2.rs`,
 `fork_publish_contract_parts/lint_discipline_probe3.rs`,
-`fork_publish_contract_parts/lint_discipline_probe4.rs` and
-`fork_publish_contract_parts/lint_discipline_probe5.rs`.
+`fork_publish_contract_parts/lint_discipline_probe4.rs`,
+`fork_publish_contract_parts/lint_discipline_probe5.rs`,
+`fork_publish_contract_parts/lint_discipline_probe6.rs` and
+`kiss_parts/ifac_runtime_tests.rs` (the wrapper lock span).
 
 ## 0.15.1 (upstream 0.14.0)
 

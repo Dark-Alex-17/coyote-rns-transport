@@ -84,7 +84,9 @@ Removed) bullet of its own, marked as such.
   transmit seams. Pinned by
   `tests_parts/two_transport_loopback_lifecycle.rs` (a buildable announce
   still reaches the wire through `send_announce`).
-- No library behaviour change, guard discipline in the interface drivers:
+- Guard discipline in the interface drivers, behaviour-neutral except for
+  the two clauses that say otherwise (the weave handle after stop and the
+  kiss wrapper's lock span) and the pump fixes listed under Fixed:
   each driver owns the `InterfaceTxReceiver` it gets from
   `InterfaceChannel::split` and lends it into its per-connection code
   instead of guarding a shared one across the whole select loop
@@ -117,7 +119,8 @@ Removed) bullet of its own, marked as such.
   `run_kiss_stream_with_ifac` keeps its shared-receiver signature as a
   wrapper over `run_kiss_stream_owned` for callers outside this crate and
   holds both receiver guards for the life of the stream (the shared form
-  re-took them on every loop pass); `MeshtasticInterfaceHandle::recv_transmit` keeps its shared
+  re-took them on every loop pass; pinned by the lock-span test in
+  `iface/kiss_parts/ifac_runtime_tests.rs`); `MeshtasticInterfaceHandle::recv_transmit` keeps its shared
   receiver (`iface/meshtastic_parts/interface.rs`). Pinned by
   `tcp_client/tests/tx_queue_survives_reconnect.rs`,
   `kiss_parts/tx_queue_survives_reconnect_tests.rs` and
@@ -157,8 +160,9 @@ Removed) bullet of its own, marked as such.
   `crates/apps/reticulumd/tests/fork_publish_contract_parts/lint_discipline_probe.rs`,
   `fork_publish_contract_parts/lint_discipline_probe2.rs`,
   `fork_publish_contract_parts/lint_discipline_probe3.rs`,
-  `fork_publish_contract_parts/lint_discipline_probe4.rs` and
-  `fork_publish_contract_parts/lint_discipline_probe5.rs`.
+  `fork_publish_contract_parts/lint_discipline_probe4.rs`,
+  `fork_publish_contract_parts/lint_discipline_probe5.rs` and
+  `fork_publish_contract_parts/lint_discipline_probe6.rs`.
 
 ### Removed
 

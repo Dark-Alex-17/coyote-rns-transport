@@ -12,6 +12,12 @@ set -euo pipefail
 # linux-only reticulumd python_channel_interop test target (the two files
 # listed below). That tolerance applies on Darwin only: on Linux, where CI
 # runs, no error-level diagnostic is tolerated.
+# Error-level diagnostics without a code (parse, macro and linker errors)
+# are never tolerated. The one codeless shape skipped is rustc's
+# "aborting due to N previous errors" summary, which closes every failed
+# crate including the tolerated dead_code one and only restates errors
+# already classified; cargo's "could not compile" wrapper is skipped on the
+# same grounds should it ever arrive as a compiler-message.
 # Requires python3 for the classification pass.
 
 if [ $# -ne 0 ]; then
@@ -36,7 +42,7 @@ while IFS= read -r -d '' manifest; do
   manifest_list+=("$manifest")
 done <"$manifests"
 rc=0
-manifest_hits="$(grep -l 'await_holding_invalid_type' -- "${manifest_list[@]}")" || rc=$?
+manifest_hits="$(grep -l 'await_holding_invalid_type' -- ${manifest_list[@]+"${manifest_list[@]}"})" || rc=$?
 [ "$rc" -le 1 ] || exit "$rc"
 if [ -n "$manifest_hits" ]; then
   echo "FAIL: a Cargo.toml mentions await_holding_invalid_type; the lint runs at its default level and allowances live in code:"
@@ -72,8 +78,15 @@ if host == "Darwin":
         "crates/apps/reticulumd/tests/support/python_channel_process.rs",
     }
     tolerance = "the macOS-only dead_code in the linux-only reticulumd test target"
+
+
+def restates_counted_errors(text):
+    return text.startswith("aborting due to") or text.startswith("could not compile")
+
+
 await_hits = 0
 errors = []
+codeless = []
 codes = collections.Counter()
 with open(path) as fh:
     for line in fh:
@@ -89,22 +102,34 @@ with open(path) as fh:
         level = msg.get("level")
         if "await_holding_invalid_type" in code:
             await_hits += 1
-        if level == "error" and code:
+        if level != "error":
+            continue
+        if code:
             spans = [s for s in msg.get("spans", []) if s.get("is_primary")]
             files = {s.get("file_name") for s in spans}
             codes[code] += 1
             errors.append((code, files))
+            continue
+        text = msg.get("message") or ""
+        if not restates_counted_errors(text):
+            codeless.append(text)
 print(f"await_holding_invalid_type diagnostics (any level): {await_hits}")
 print(f"error-level diagnostics by code: {dict(codes)}")
+print(f"codeless error-level diagnostics: {len(codeless)}")
 print(f"tolerated errors ({host}): {tolerance}")
 bad = [e for e in errors if e[0] != "dead_code" or not e[1] or not e[1] <= allowed_files]
 for code, files in errors:
     print(f"  error {code}: {sorted(files)}")
+for text in codeless:
+    print(f"  error (no code): {text}")
 if await_hits:
     print("FAIL: await_holding_invalid_type fired outside the per-target allows (a production site or a new test root)")
     sys.exit(1)
-if clippy_rc != 0 and not errors:
+if clippy_rc != 0 and not errors and not codeless:
     print(f"FAIL: cargo clippy exited {clippy_rc} without any error-level diagnostic; the invocation itself failed")
+    sys.exit(1)
+if codeless:
+    print(f"FAIL: {len(codeless)} codeless error-level diagnostic(s), a compile or link failure rather than a lint: {codeless[0]}")
     sys.exit(1)
 if bad:
     print(f"FAIL: {len(bad)} error diagnostic(s) outside the tolerated set ({host}: {tolerance})")

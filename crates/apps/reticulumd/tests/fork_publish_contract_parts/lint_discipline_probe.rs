@@ -103,6 +103,8 @@ fn is_test_or_example_path(relative: &str) -> bool {
     relative.contains("/tests/")
         || relative.contains("/tests_parts/")
         || relative.contains("/tests_sections/")
+        || relative.contains("_tests_parts/")
+        || relative.contains("_tests_sections/")
         || relative.contains("/examples/")
         || file == "tests.rs"
         || file.ends_with("_tests.rs")

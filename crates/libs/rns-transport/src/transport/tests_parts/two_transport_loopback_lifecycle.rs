@@ -1,8 +1,10 @@
 // Loopback coverage for the transport lifecycle surface: link round-trip time after
 // activation, `Transport::stop` releasing the listener socket, announce building that
-// fails instead of panicking, and an over-cap resource advertisement that is dropped
-// without disturbing the link. Helpers come from the sibling `tests_parts` files included
-// into this module.
+// fails instead of panicking, a buildable announce reaching the interface channel as a
+// broadcast, a pathless outbound packet broadcast when the transport is configured for
+// it, the same packet dropped when broadcast is off, and an over-cap resource
+// advertisement that is dropped without disturbing the link. Helpers come from the
+// sibling `tests_parts` files included into this module.
 
 use crate::packet::PACKET_DATA_MAX;
 use crate::resource::RANDOM_HASH_SIZE;

@@ -13,7 +13,7 @@
 const GUARD_NOUNS: [&str; 3] = ["guard", "Guard", "lock"];
 
 /// Words a reason uses to name the await the guard spans.
-const AWAIT_VERBS: [&str; 6] = ["await", "recv", "spans", "spanning", "across", "held"];
+const AWAIT_VERBS: [&str; 5] = ["await", "recv", "spans", "spanning", "across"];
 
 /// The two sanctioned categories whose reasons name the guard by its
 /// category rather than by a code identifier.
@@ -24,6 +24,9 @@ const CATEGORY_PHRASES: [&str; 2] =
 /// snake_case name or CamelCase type. Prose such as "guard-across-await
 /// site" or "public signature" has none of these.
 fn is_code_identifier(token: &str) -> bool {
+    if matches!(token.trim_end_matches('.'), "e.g" | "i.e") {
+        return false;
+    }
     if token.contains("::") || token.contains("()") || token.contains('_') {
         return true;
     }
@@ -77,6 +80,8 @@ fn every_production_allowance_reason_names_a_guard_and_the_await_it_spans() {
             }
         }
     }
+    // The floor tracks the measured census (52 at the time of writing) and
+    // moves down as each owner-tagged site is removed.
     assert!(sites >= 50, "expected the measured production allowances, found {sites}");
     assert!(
         vague.is_empty(),
@@ -130,7 +135,7 @@ fn kiss_shared_receiver_wrapper_holds_no_allowance_and_the_lease_recv_holds_the_
         marker.contains("public-API-pinned shared receiver"),
         "the kiss allowance claims the sanctioned public-API-pinned category, got {marker:?}"
     );
-    let shared_arm = lines[index..index + 8].join("\n");
+    let shared_arm = lines[index..(index + 8).min(lines.len())].join("\n");
     assert!(
         shared_arm.contains(".lock().await.recv().await"),
         "the shared arm takes the guard as a temporary spanning only the recv: {shared_arm}"

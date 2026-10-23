@@ -41,7 +41,7 @@ fork commit `08362717`; the
 `e916ce9e`, `39d107b9`, `882baabc`, `e9c2ea93`, `7908fcff`, `044b64f4`,
 `fd3b249e`, `d4e1634d`, `71c25285`, `1b7ce1cb`, `6c0ea58e`, `66a703e9`,
 `719bff37`, `0d42d2e4`, `e29addcb`, `0c4457e2`, `3e77860a`, `c80d6996`,
-`120956aa`, `3b2352c0` and `c6d28577`.
+`120956aa`, `3b2352c0`, `c6d28577`, `05989491`, `5366399d` and `b879fc9b`.
 
 | File | Patch |
 | --- | --- |
@@ -60,6 +60,7 @@ fork commit `08362717`; the
 | `crates/apps/reticulumd/tests/fork_publish_contract_parts/lint_discipline_probe2.rs` | guard discipline |
 | `crates/apps/reticulumd/tests/fork_publish_contract_parts/lint_discipline_probe3.rs` | guard discipline |
 | `crates/apps/reticulumd/tests/fork_publish_contract_parts/lint_discipline_probe4.rs` | guard discipline |
+| `crates/apps/reticulumd/tests/fork_publish_contract_parts/lint_discipline_probe5.rs` | guard discipline |
 | `crates/apps/reticulumd/tests/fork_publish_contract_parts/release_tooling_probe.rs` | release tooling |
 | `crates/apps/reticulumd/tests/fork_publish_contract_parts/release_tooling_probe2.rs` | release tooling |
 | `crates/apps/reticulumd/tests/fork_publish_contract_parts/release_tooling_probe3.rs` | release tooling |
@@ -321,12 +322,18 @@ Fork commits `f7be0f41`, `ae4f16d8`, `5f6c230f`, `e916ce9e`, `39d107b9`,
 `882baabc`, `e9c2ea93`, `7908fcff`, `044b64f4`, `fd3b249e`, `d4e1634d`,
 `71c25285`, `1b7ce1cb`, `6c0ea58e`, `66a703e9`, `719bff37`, `0d42d2e4`,
 `e29addcb`, `0c4457e2`, `3e77860a`, `c80d6996`, `120956aa`, `3b2352c0` and
-`c6d28577`:
-H4, guard discipline. No library behaviour
-changes except the two auto-interface peer-table fixes of the eighth and
-thirteenth commits and the serial reader-panic fix of the eighteenth (the
-pipe and serial transmit-panic note of the fifth
-is closed by the fifteenth); `clippy::await_holding_invalid_type` (the tokio `MutexGuard`,
+`c6d28577`, `05989491`, `5366399d` and `b879fc9b`:
+H4, guard discipline. The library behaviour changes are: the two
+auto-interface peer-table fixes of the eighth and thirteenth commits; the
+pipe and serial pump fixes of the eighteenth (a panicking half no longer
+leaves the other waiting); `WeaveManagementHandle::try_set_remote_display`
+reporting the closed queue at once after the driver has stopped where it
+used to buffer up to the channel capacity (fifth); the pub
+`run_kiss_stream_with_ifac` holding both shared receiver guards for the
+life of the stream where it used to re-take them on every loop pass
+(fifth); and the pipe and serial transmit-panic note of the fifth, closed
+by the fifteenth. Everything else keeps its behaviour;
+`clippy::await_holding_invalid_type` (the tokio `MutexGuard`,
 `RwLockReadGuard` and `RwLockWriteGuard` types named in `clippy.toml`) now
 runs at its default level under the workspace clippy invocation, and the
 production code of this crate holds no tokio guard across an await except
@@ -433,9 +440,10 @@ whichever half ends first: both select over the caught writer and the
 reader `JoinHandle`, cancel `stop` as soon as either ends and then collect
 the other, so a reader panic, which never reaches its own `stop.cancel()`,
 is recorded promptly instead of leaving the writer waiting on an idle
-receiver (for pipe this restores the reader-first order of the base; serial
-was writer-first before this patch and wedged the same way, so for serial
-it is a fix); `CatchUnwind` drops its inner future on a caught panic and refuses a
+receiver (the base pipe pump awaited the reader first, so there a writer
+panic left the reader waiting on the child's stdout; the base serial pump
+awaited the writer first, so there a reader panic left the writer idle;
+both are fixes); `CatchUnwind` drops its inner future on a caught panic and refuses a
 second poll, and the serial panic arm records `tx_errors` and `link_state`
 like its write-error arm. The transmit-loop panic probes move to
 `pipe_tests_parts/transmit_panic.rs`, included from `pipe_tests.rs` under
@@ -457,9 +465,10 @@ manifest-gate probes (`lint_discipline_probe2.rs`: an untracked manifest
 is ignored and clippy is reached through a stub `cargo`, a `warn`-level
 mention is refused, a dangling `gitdir:` makes the listing fatal) and pins
 the two scripts (`lint_discipline_probe3.rs`). The twenty-second pins the
-stopped weave handle (`weave_management_handle_tests.rs`: a remote display
-command queues while the driver owns the receiver and fails at once with
-`WouldBlock` after `stop_interface`) and drops the serial transmit-panic
+stopped weave handle (`weave_management_handle_tests.rs`: before spawn the
+`WeaveInterface` value holds the receiver and a remote display command
+queues; after `stop_interface` the same call fails at once with
+`WouldBlock` naming the closed queue) and drops the serial transmit-panic
 arm's `link_state` write, which the unconditional `closed` write a few
 lines later always overwrote. The twenty-third makes the interop script
 classify every nextest status token (`SIGABRT`, `SIGSEGV`, `TIMEOUT` and
@@ -469,7 +478,20 @@ the manifest grep's exit code in the classify script and reads the
 installed targets through a here-string in the cross-target script. The
 twenty-fourth adopts the verdict probes for both scripts
 (`lint_discipline_probe4.rs`, a stub toolchain that never runs cargo or
-nextest). Pinned by
+nextest). The twenty-fifth rewords the weave handle fixture so it says the
+`WeaveInterface` value, not a driver, holds the receiver before spawn. The
+twenty-sixth scopes the classify script's `dead_code` tolerance to macOS
+(`uname -s` reports `Darwin`) so a Linux run fails on real dead code, tails
+cargo's stderr there too, and makes the interop script keep each outcome's
+status token: a listed name is tolerated only on `FAIL` or `TIMEOUT`, the
+verdict lists print `name (TOKEN)`, and a `RETICULUM_PY_REPO` that is not
+a git checkout fails with a `FAIL:` line. The twenty-seventh tightens the
+verdict probes (the cross-build failure arm asserts the stderr tail, the
+signal-token arm asserts the exact failure line and counts, the synthetic
+`Summary` lines take nextest's shape) and adopts `lint_discipline_probe5.rs`
+(`TIMEOUT` and `TRY n FAIL` tokens, a crash in a tolerated name, a cancelled
+run, a missing tracked manifest making the listing exit 2, and a Linux
+`uname` refusing the macOS tolerance). Pinned by
 `tcp_client/tests/tx_queue_survives_reconnect.rs`,
 `kiss_parts/tx_queue_survives_reconnect_tests.rs`,
 `local/tests/tx_queue_survives_reconnect.rs`,
@@ -481,8 +503,9 @@ nextest). Pinned by
 `weave_management_handle_tests.rs`, `iface/catch_unwind.rs` (its own
 unit tests), `fork_publish_contract_parts/lint_discipline_probe.rs`,
 `fork_publish_contract_parts/lint_discipline_probe2.rs`,
-`fork_publish_contract_parts/lint_discipline_probe3.rs` and
-`fork_publish_contract_parts/lint_discipline_probe4.rs`.
+`fork_publish_contract_parts/lint_discipline_probe3.rs`,
+`fork_publish_contract_parts/lint_discipline_probe4.rs` and
+`fork_publish_contract_parts/lint_discipline_probe5.rs`.
 
 ## 0.15.1 (upstream 0.14.0)
 

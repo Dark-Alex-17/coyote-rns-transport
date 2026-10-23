@@ -98,11 +98,10 @@ Removed) bullet of its own, marked as such.
   recorded (the pipe `transmit_task_failed` status, the serial
   `transmit task failed` last error with `tx_errors`) and
   leaves the driver with its receiver, as the spawned task's join error
-  did before, and the pipe pump again finishes on whichever half ends
-  first, as it did before the transmit loop moved inline;
+  did before (the pump ordering itself is a fix, listed under Fixed);
   once a weave driver has stopped, `WeaveManagementHandle::try_set_remote_display`
-  reports the closed queue at once instead of buffering commands nobody
-  will read (`iface/weave.rs`, pinned by
+  reports the closed queue at once where it used to buffer up to the
+  channel capacity before failing with `Full` (`iface/weave.rs`, pinned by
   `iface/weave_management_handle_tests.rs`);
   management frames arrive through `recv_optional_management_frame`
   (`iface_types.rs`), and a second take of a weave, rnode_multi or LoRa
@@ -150,11 +149,16 @@ Removed) bullet of its own, marked as such.
   minus the two crates that pull `libdbus` for `x86_64-unknown-linux-gnu`
   with `zig cc` as the C cross-compiler, and `python-interop-classify.sh`
   runs the Python-in-the-loop batch and passes only when every failure is
-  a named macOS environment red or the reference-pin test while the
-  reference checkout is off its pin. Pinned by
+  a named macOS environment red (and only on a `FAIL` or `TIMEOUT` status;
+  a crash in a listed test is never tolerated) or the reference-pin test
+  while the reference checkout is off its pin; the workspace classify
+  script tolerates the linux-only interop target's `dead_code` only on
+  macOS. Pinned by
   `crates/apps/reticulumd/tests/fork_publish_contract_parts/lint_discipline_probe.rs`,
-  `fork_publish_contract_parts/lint_discipline_probe2.rs` and
-  `fork_publish_contract_parts/lint_discipline_probe3.rs`.
+  `fork_publish_contract_parts/lint_discipline_probe2.rs`,
+  `fork_publish_contract_parts/lint_discipline_probe3.rs`,
+  `fork_publish_contract_parts/lint_discipline_probe4.rs` and
+  `fork_publish_contract_parts/lint_discipline_probe5.rs`.
 
 ### Removed
 
@@ -177,7 +181,8 @@ Removed) bullet of its own, marked as such.
 
 - The auto-interface bridge keeps its peer-to-virtual-iface map and its
   outbound route map under one lock
-  (`iface/auto_runtime_parts/module_prelude_sections/transport_bridge.rs`),
+  (`PeerRouteTable` in `iface/auto_runtime_parts/module_prelude.rs`, used
+  by `iface/auto_runtime_parts/module_prelude_sections/transport_bridge.rs`),
   so a route can no longer be re-inserted for a virtual iface that
   `remove_expired_peer_routes` has just stopped, and when the discovery
   and data tasks both miss the first lookup for one peer the first
@@ -187,14 +192,17 @@ Removed) bullet of its own, marked as such.
   received every broadcast twice. Pinned by
   `iface/auto_runtime_parts/tests_sections/peer_route_table_expiry.rs` and
   `iface/auto_runtime_parts/tests_sections/peer_route_table_probe.rs`.
-- A serial driver whose read task panicked kept its transmit loop waiting
-  on an idle receiver until an external cancel or a write error, because
-  the pump awaited the writer first and a panicking reader never cancels
-  the shared stop token; the pump now finishes on whichever half ends
-  first, cancels the other and records both results
-  (`iface/serial_parts/run_serial_stream.rs`, pinned by
+- A pipe or serial driver whose read or write half panicked kept the other
+  half waiting until an external cancel or an I/O error, because each pump
+  awaited one half first and a panicking half never cancels the shared
+  stop token (the pipe pump awaited the reader, so a writer panic left the
+  reader on the child's stdout; the serial pump awaited the writer, so a
+  reader panic left the writer idle); both pumps now finish on whichever
+  half ends first, cancel the other and record both results
+  (`iface/pipe.rs`, `iface/serial_parts/run_serial_stream.rs`, pinned by
+  the reader and writer panic pins in `iface/pipe_tests_parts/transmit_panic.rs` and
   `serial_stream_returns_receiver_after_a_receive_task_panic_with_the_writer_idle`
-  in the same file).
+  in `iface/serial_parts/run_serial_stream.rs`).
 
 ## 0.15.1 - 2026-10-21
 

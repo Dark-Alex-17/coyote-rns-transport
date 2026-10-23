@@ -10,7 +10,7 @@ use rns_transport::transport::AnnounceEvent;
 use std::collections::HashMap;
 use std::sync::{Arc, Mutex};
 
-#[allow(clippy::await_holding_invalid_type)] // TASK-026: restructure this guard-across-await site, then remove
+#[allow(clippy::await_holding_invalid_type)] // TASK-026: event.destination MutexGuard drop()ed before the spawn_blocking await still trips the lint; scope it in a block, then remove
 pub(super) async fn ingest_announce_event(
     daemon: &Arc<RpcDaemon>,
     event: AnnounceEvent,

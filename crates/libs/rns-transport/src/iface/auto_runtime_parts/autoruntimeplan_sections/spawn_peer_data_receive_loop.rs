@@ -1,7 +1,7 @@
 impl AutoRuntimePlan {
 
     #[allow(dead_code)]
-    #[allow(clippy::await_holding_invalid_type)] // TASK-026: state then dedupe lock order, one sync body needs both
+    #[allow(clippy::await_holding_invalid_type)] // TASK-026: documented lock-order nest (state, then dedupe) held across the sync body; reclassify
     fn spawn_peer_data_receive_loop(
         &self,
         socket: AutoBoundDataSocket,

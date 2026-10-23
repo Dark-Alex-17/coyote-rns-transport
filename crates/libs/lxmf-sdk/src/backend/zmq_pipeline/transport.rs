@@ -157,7 +157,7 @@ impl ZmqPipelineBackendClient {
         Ok(encoded)
     }
 
-    #[allow(clippy::await_holding_invalid_type)] // TASK-026: restructure this guard-across-await site, then remove
+    #[allow(clippy::await_holding_invalid_type)] // TASK-026: transport slot MutexGuard held across the connect/send/recv exchange so no other caller takes endpoint ownership; by design, reclassify
     async fn send_and_recv_pipeline(
         &self,
         mut envelope: ZmqRpcEnvelope,
@@ -224,7 +224,7 @@ impl ZmqPipelineBackendClient {
         result
     }
 
-    #[allow(clippy::await_holding_invalid_type)] // TASK-026: restructure this guard-across-await site, then remove
+    #[allow(clippy::await_holding_invalid_type)] // TASK-026: dealer_pool slot MutexGuard held across the connect/send/recv exchange so no other caller takes the dealer socket; by design, reclassify
     async fn send_and_recv_single_endpoint(
         &self,
         mut envelope: ZmqRpcEnvelope,

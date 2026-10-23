@@ -291,7 +291,7 @@ async fn status(State(state): State<Arc<AppState>>) -> ApiResult {
     Ok(Json(json!({"status":"ok"})))
 }
 
-#[allow(clippy::await_holding_invalid_type)] // TASK-026: restructure this guard-across-await site, then remove
+#[allow(clippy::await_holding_invalid_type)] // TASK-026: state.local write guard drop()ed before wait_persist().await still trips the lint; scope it in a block, then remove
 async fn announce(State(state): State<Arc<AppState>>) -> ApiResult {
     state.rpc("announce_now", None).await?;
     let mut local = state.local.write().await;
@@ -303,7 +303,7 @@ async fn announce(State(state): State<Arc<AppState>>) -> ApiResult {
     Ok(Json(json!({"message":"announcing"})))
 }
 
-#[allow(clippy::await_holding_invalid_type)] // TASK-026: restructure this guard-across-await site, then remove
+#[allow(clippy::await_holding_invalid_type)] // TASK-026: state.local write guard drop()ed before wait_persist().await still trips the lint; scope it in a block, then remove
 async fn sync_propagation_node(State(state): State<Arc<AppState>>) -> ApiResult {
     let peer = {
         let local = state.local.read().await;

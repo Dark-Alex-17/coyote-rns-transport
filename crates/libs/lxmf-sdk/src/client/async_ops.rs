@@ -78,7 +78,7 @@ impl<B: SdkBackendAsyncOps> Client<B> {
         Ok(handle)
     }
 
-    #[allow(clippy::await_holding_invalid_type)] // TASK-026: restructure this guard-across-await site, then remove
+    #[allow(clippy::await_holding_invalid_type)] // TASK-026: per-key idempotency MutexGuard held across backend.send_async().await so same-key sends serialise; by design, reclassify
     pub async fn send_async(&self, req: SendRequest) -> Result<MessageId, SdkError> {
         {
             let lifecycle = self.lifecycle.lock().expect("lifecycle mutex poisoned");

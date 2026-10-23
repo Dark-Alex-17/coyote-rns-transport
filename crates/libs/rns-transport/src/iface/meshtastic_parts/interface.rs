@@ -12,7 +12,7 @@ impl MeshtasticInterfaceHandle {
         self.inbound_tx.send(frame).await
     }
 
-    #[allow(clippy::await_holding_invalid_type)] // TASK-026: clones of this pub handle share one receiver; the guard spanning recv is the serialisation point
+    #[allow(clippy::await_holding_invalid_type)] // TASK-026: public-API-pinned shared receiver; clones of this pub handle share one receiver and the guard spanning recv is the serialisation point
     pub async fn recv_transmit(&self) -> Option<MeshtasticTransmitFrame> {
         self.outbound_rx.lock().await.recv().await
     }

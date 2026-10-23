@@ -52,8 +52,8 @@ fn fn_level_deny() -> String {
 /// The owner tag every production allowance must carry on the same line.
 const OWNER_TAG: &str = concat!("// TASK-", "026:");
 
-/// The bare owner tag: rns-transport sites carry it followed by a reason of
-/// their own.
+/// The bare owner tag every marked crate's sites carry, followed by a reason
+/// of their own.
 fn owner_tag() -> String {
     OWNER_TAG.to_string()
 }
@@ -66,26 +66,17 @@ fn transport_marker() -> String {
     )
 }
 
-/// The exact marker on the app-crate sites that still await a restructure.
-fn app_crate_marker() -> String {
-    format!("{OWNER_TAG} restructure this guard-across-await site, then remove")
-}
-
 /// The reason every test or example root states in the comment directly
 /// above its allowance.
 const TEST_ROOT_REASON: &str = "holds guards across awaits on purpose";
 
-/// A source-path prefix and the builder of the marker text its allowances carry.
-type MarkedCrate = (&'static str, fn() -> String);
-
-/// Production sources whose allowances this probe pins, with the marker text
-/// each must carry on the same line. Production code anywhere else allows
-/// the lint nowhere.
-const MARKED_CRATES: [MarkedCrate; 4] = [
-    ("crates/libs/rns-transport/src/", owner_tag),
-    ("crates/apps/reticulumd/src/", app_crate_marker),
-    ("crates/libs/meshchat-api/src/", app_crate_marker),
-    ("crates/libs/lxmf-sdk/src/", app_crate_marker),
+/// Production source prefixes whose allowances this probe pins. Production
+/// code anywhere else allows the lint nowhere.
+const MARKED_CRATES: [&str; 4] = [
+    "crates/libs/rns-transport/src/",
+    "crates/apps/reticulumd/src/",
+    "crates/libs/meshchat-api/src/",
+    "crates/libs/lxmf-sdk/src/",
 ];
 
 /// Tracked Rust sources under `crates/`, excluding this probe itself.
@@ -172,13 +163,14 @@ fn reticulumd_manifest_has_no_lint_table_and_does_not_inherit_the_workspace_one(
 
 /// Every allowance in production code sits in one of the four marked crates,
 /// is fn-level, sits directly on a fn, and names its owner on the same line:
-/// the exact restructure marker in the app crates, the owner tag plus a
-/// site-specific reason in rns-transport. The rns-transport sites are still
-/// there in number, as are the by-design handler-guard sites among them, and
-/// the app-crate sites are exactly the measured ones.
+/// the owner tag plus a site-specific reason in every marked crate. The
+/// rns-transport sites are still there in number, as are the by-design
+/// handler-guard sites among them, and the app-crate sites are exactly the
+/// measured ones.
 #[test]
 fn every_production_allow_of_the_guard_lint_is_fn_level_and_names_its_owner() {
     let handler_guard_marker = transport_marker();
+    let marker = owner_tag();
     let mut transport_sites = 0_usize;
     let mut handler_guard_sites = 0_usize;
     let mut app_sites: Vec<(String, usize)> = Vec::new();
@@ -189,8 +181,7 @@ fn every_production_allow_of_the_guard_lint_is_fn_level_and_names_its_owner() {
         }
         let text = read_repo_file(&path);
         let lines: Vec<&str> = text.lines().collect();
-        let Some((_, marker)) = MARKED_CRATES.iter().find(|(prefix, _)| path.starts_with(prefix))
-        else {
+        if !MARKED_CRATES.iter().any(|prefix| path.starts_with(prefix)) {
             unmarked_sites.extend(
                 lines
                     .iter()
@@ -199,8 +190,7 @@ fn every_production_allow_of_the_guard_lint_is_fn_level_and_names_its_owner() {
                     .map(|(index, _)| format!("{path}:{}", index + 1)),
             );
             continue;
-        };
-        let marker = marker();
+        }
         let mut sites = 0_usize;
         for (index, line) in lines.iter().enumerate() {
             if !is_site_allowance(line) {
@@ -210,6 +200,12 @@ fn every_production_allow_of_the_guard_lint_is_fn_level_and_names_its_owner() {
             assert!(
                 line.contains(&marker),
                 "{path}:{}: a production allowance of {GUARD_LINT} carries `{marker}` on the same line",
+                index + 1
+            );
+            let reason = line.split_once(OWNER_TAG).map(|(_, r)| r.trim()).unwrap_or_default();
+            assert!(
+                !reason.is_empty(),
+                "{path}:{}: the owner tag is followed by a site-specific reason on the same line",
                 index + 1
             );
             if line.contains(&handler_guard_marker) {

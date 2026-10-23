@@ -44,8 +44,8 @@ fork commit `08362717`; the
 `120956aa`, `3b2352c0`, `c6d28577`, `05989491`, `5366399d`, `b879fc9b`,
 `d36f611c`, `31299980`, `1b02e70a`, `1393cecd`, `4576a35e`, `57cd07fa`,
 `f0e02c44`, `10888bf2`, `b785306b`, `f2bdb2ac`, `23f196ea`, `a594ebb7`,
-`64f4fa37`, `b7ddb0ee`, `45d4a0dd`, `2997ad2a`, `9e1145fc` and
-`2293a968`.
+`64f4fa37`, `b7ddb0ee`, `45d4a0dd`, `2997ad2a`, `9e1145fc`, `2293a968`,
+`d9b5ad57` and `47350e23`.
 
 | File | Patch |
 | --- | --- |
@@ -61,6 +61,7 @@ fork commit `08362717`; the
 | `crates/apps/reticulumd/tests/fork_publish_contract_parts/ledger_contract.rs` | release tooling |
 | `crates/apps/reticulumd/tests/fork_publish_contract_parts/ledger_contract_fixtures.rs` | release tooling |
 | `crates/apps/reticulumd/tests/fork_publish_contract_parts/lint_discipline_probe.rs` | guard discipline |
+| `crates/apps/reticulumd/tests/fork_publish_contract_parts/lint_discipline_probe10.rs` | guard discipline |
 | `crates/apps/reticulumd/tests/fork_publish_contract_parts/lint_discipline_probe2.rs` | guard discipline |
 | `crates/apps/reticulumd/tests/fork_publish_contract_parts/lint_discipline_probe3.rs` | guard discipline |
 | `crates/apps/reticulumd/tests/fork_publish_contract_parts/lint_discipline_probe4.rs` | guard discipline |
@@ -68,6 +69,7 @@ fork commit `08362717`; the
 | `crates/apps/reticulumd/tests/fork_publish_contract_parts/lint_discipline_probe6.rs` | guard discipline |
 | `crates/apps/reticulumd/tests/fork_publish_contract_parts/lint_discipline_probe7.rs` | guard discipline |
 | `crates/apps/reticulumd/tests/fork_publish_contract_parts/lint_discipline_probe8.rs` | guard discipline |
+| `crates/apps/reticulumd/tests/fork_publish_contract_parts/lint_discipline_probe9.rs` | guard discipline |
 | `crates/apps/reticulumd/tests/fork_publish_contract_parts/release_tooling_probe.rs` | release tooling |
 | `crates/apps/reticulumd/tests/fork_publish_contract_parts/release_tooling_probe2.rs` | release tooling |
 | `crates/apps/reticulumd/tests/fork_publish_contract_parts/release_tooling_probe3.rs` | release tooling |
@@ -97,6 +99,7 @@ fork commit `08362717`; the
 | `crates/libs/rns-transport/src/iface/auto_runtime_parts/tests_sections/auto_peer_data_transport_bridge_regi.rs` | guard discipline |
 | `crates/libs/rns-transport/src/iface/auto_runtime_parts/tests_sections/core_tests.rs` | guard discipline |
 | `crates/libs/rns-transport/src/iface/auto_runtime_parts/tests_sections/peer_data_receive_loop_progress.rs` | guard discipline |
+| `crates/libs/rns-transport/src/iface/auto_runtime_parts/tests_sections/peer_data_receive_loop_progress_probe.rs` | guard discipline |
 | `crates/libs/rns-transport/src/iface/auto_runtime_parts/tests_sections/peer_route_table_expiry.rs` | guard discipline |
 | `crates/libs/rns-transport/src/iface/auto_runtime_parts/tests_sections/peer_route_table_probe.rs` | guard discipline |
 | `crates/libs/rns-transport/src/iface/i2p.rs` | guard discipline |
@@ -340,7 +343,7 @@ Fork commits `f7be0f41`, `ae4f16d8`, `5f6c230f`, `e916ce9e`, `39d107b9`,
 `c6d28577`, `05989491`, `5366399d`, `b879fc9b`, `d36f611c`, `31299980`,
 `1b02e70a`, `1393cecd`, `4576a35e`, `57cd07fa`, `f0e02c44`, `10888bf2`,
 `b785306b`, `f2bdb2ac`, `23f196ea`, `a594ebb7`, `64f4fa37`, `b7ddb0ee`,
-`45d4a0dd`, `2997ad2a`, `9e1145fc` and `2293a968`:
+`45d4a0dd`, `2997ad2a`, `9e1145fc`, `2293a968`, `d9b5ad57` and `47350e23`:
 H4, guard discipline. The library behaviour changes are: the two
 auto-interface peer-table fixes of the eighth and thirteenth commits; the
 pipe and serial pump fixes of the eighteenth (a panicking half no longer
@@ -672,8 +675,8 @@ the pin is `tests_sections/peer_data_receive_loop_progress.rs` (included
 from `auto_runtime_parts/tests.rs`), a four-worker multi-thread test that
 blasts four loopback data sockets under one `spawn_peer_data_receive_loops`
 with four hundred datagrams at once and expects every `Processed` event
-within two seconds (the joined form timed out in three of ten runs, the
-sequential form passes ten of ten). The forty-fourth adopts
+within two seconds (the joined form fails this pin, the sequential form
+passes it). The forty-fourth adopts
 `fork_publish_contract_parts/lint_discipline_probe8.rs` (included from
 `fork_publish_contract.rs`): exactly one production allowance claims the
 lock-order-nest category and it sits on `spawn_peer_data_receive_loop`,
@@ -692,6 +695,42 @@ floor annotated as tracking the census) and has the
 announce and outbound pins. The forty-fifth rewords the `dedupe` field
 rustdoc to name `spawn_peer_data_receive_loop` as the only locker and
 has the probe8 README pin's doc comment describe the cite it checks.
+The forty-sixth adopts
+`tests_sections/peer_data_receive_loop_progress_probe.rs` (included from
+`auto_runtime_parts/tests.rs`), a four-worker multi-thread test that runs
+thirty rounds, each binding eight fresh loopback data sockets with a
+backlog queued before the loop starts and live sends with no yield, under
+one busy thread per core; each round must drain within two seconds and
+its loops must shut down (the joined form stalls, the sequential form
+passes), and adopts `fork_publish_contract_parts/lint_discipline_probe9.rs`
+(included from `fork_publish_contract.rs`): the progress pin keeps the
+shape that can see a deadlock (several sockets, a multi-thread runtime, a
+bounded wait); the `dedupe` field rustdoc names the only locker and that
+name resolves to the fn under the nest marker; no production source in
+any crate joins lock futures; the census sentence above equals the
+measured production allowances and their split; the probe sources and
+auto-runtime test sections are ASCII with headers that cite no task or
+lane; and the lifecycle fixture header names each pin its file holds. The
+forty-seventh adopts `fork_publish_contract_parts/lint_discipline_probe10.rs`
+(included from `fork_publish_contract.rs`): the CHANGELOG Unreleased entry
+describes the sequential order under its allowance and no longer vouches
+for the joined form; the thirty-ninth narrative above says the premise
+counted sites, not tasks, and that the forty-third undoes it; the header's
+behaviour sentence confines the joined form to the thirty-ninth through
+forty-third and says never in a release; the README row is attributed to
+`release tooling, guard discipline` and every row's attribution is a
+legend phrase; and the code-identifier rule treats `e.g.` and `i.e.` as
+prose and keeps dotted paths. It also tightens `lint_discipline_probe8.rs`
+(its rustdoc needle now checks the order itself, `state` before `dedupe`
+after `Lock order:`, plus `only locker`; the dead `_probe` path skip is
+dropped), has the `peer_data_receive_loop_progress.rs` expect message name
+a loopback drop as the other cause and replaces its local plan fixture
+with `core_tests.rs`'s `plan_with_data_listener`, which now delegates to
+a new `plan_with_data_listeners(Vec<..>)`, adds one rustdoc line on
+`AutoPeerDataListenerSupervisor.dedupe` in `module_prelude.rs` pointing at
+the runtime field for the lock order, and has the
+`tests_parts/two_transport_loopback_lifecycle.rs` header also name
+`try_send_announce` surfacing the build error as `Err`.
 Pinned by
 `tcp_client/tests/tx_queue_survives_reconnect.rs`,
 `kiss_parts/tx_queue_survives_reconnect_tests.rs`,
@@ -700,6 +739,8 @@ Pinned by
 `tests_sections/peer_route_table_probe.rs`,
 `tests_sections/peer_data_receive_loop_progress.rs` (four receive loops
 on one `state`/`dedupe` pair keep making progress under concurrent load),
+`tests_sections/peer_data_receive_loop_progress_probe.rs` (thirty bursts
+on eight sockets under CPU pressure each drain within two seconds),
 `tests_parts/two_transport_loopback_lifecycle.rs`,
 `pipe_tests_parts/transmit_panic.rs` and `serial_parts/run_serial_stream.rs`
 (the transmit-loop and reader panic pins),
@@ -718,6 +759,11 @@ allowance),
 `fork_publish_contract_parts/lint_discipline_probe8.rs` (one
 lock-order-nest allowance, on the peer-data loop, with the order on the
 `dedupe` field; no join over lock futures in the auto runtime),
+`fork_publish_contract_parts/lint_discipline_probe9.rs` (the progress pin
+keeps its deadlock-visible shape; no production source joins lock futures;
+the census sentence matches the tree),
+`fork_publish_contract_parts/lint_discipline_probe10.rs` (the ledger and
+changelog prose on the lock order; every row attribution is a legend phrase),
 `kiss_parts/ifac_runtime_tests.rs`,
 `kiss_parts/shared_receiver_lock_span_probe_tests.rs` (the wrapper lock
 span) and `kiss_parts/shared_receiver_lease_probe_tests.rs` (the

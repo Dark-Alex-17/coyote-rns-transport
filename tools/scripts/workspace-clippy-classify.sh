@@ -21,7 +21,12 @@ fi
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 cd "$ROOT_DIR"
 
-manifest_hits="$(git ls-files -z -- 'Cargo.toml' '*/Cargo.toml' | xargs -0 grep -l 'await_holding_invalid_type' -- || true)"
+manifests="$(mktemp "${TMPDIR:-/tmp}/clippy-manifests.XXXXXX")"
+json="$(mktemp "${TMPDIR:-/tmp}/clippy-json.XXXXXX")"
+trap 'rm -f "$manifests" "$json"' EXIT
+
+git ls-files -z -- 'Cargo.toml' '*/Cargo.toml' >"$manifests"
+manifest_hits="$(xargs -0 grep -l 'await_holding_invalid_type' -- <"$manifests" || true)"
 if [ -n "$manifest_hits" ]; then
   echo "FAIL: a Cargo.toml mentions await_holding_invalid_type; the lint runs at its default level and allowances live in code:"
   while IFS= read -r hit; do
@@ -29,9 +34,6 @@ if [ -n "$manifest_hits" ]; then
   done <<<"$manifest_hits"
   exit 1
 fi
-
-json="$(mktemp "${TMPDIR:-/tmp}/clippy-json.XXXXXX")"
-trap 'rm -f "$json"' EXIT
 
 rc=0
 cargo clippy --workspace --all-targets --all-features --no-deps --message-format=json -- -D warnings >"$json" 2>/dev/null || rc=$?

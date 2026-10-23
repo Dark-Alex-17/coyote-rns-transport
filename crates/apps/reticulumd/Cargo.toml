@@ -50,6 +50,9 @@ vrn76-kiss-ble = ["rns_transport/vrn76-kiss-ble"]
 [dev-dependencies]
 tempfile = { workspace = true }
 
+# No [lints] workspace = true on purpose: inheriting would newly enable
+# unwrap_used = "warn" on this crate.
+
 [[bin]]
 name = "reticulumd"
 path = "src/bin/reticulumd/main.rs"

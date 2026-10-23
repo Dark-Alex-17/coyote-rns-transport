@@ -81,13 +81,18 @@ Removed) bullet of its own, marked as such.
   transport fn whose handler guard crosses an await carries the
   `clippy::await_holding_invalid_type` allowance, the `Transport::send_*`
   wrappers and the job fns alike, in place of the two formerly sanctioned
-  transmit seams. Pinned by
+  transmit seams; the rustdoc's `# Lock discipline` heading also lists
+  the `iface_manager`-before-link nest in `send`'s announce arm and the
+  link-before-destination nest in the resource request size check, and
+  `ExportedIface` documents the snapshot window between the
+  `iface_manager` guard and the handler guard
+  (`transport/reticulum_path_store.rs`). Pinned by
   `tests_parts/two_transport_loopback_lifecycle.rs` (a buildable announce
   still reaches the wire through `send_announce`).
 - Guard discipline in the interface drivers, behaviour-neutral except for
-  the three clauses that say otherwise (a pipe or serial transmit-task
-  panic ending the interface, the weave handle after stop and the kiss
-  wrapper's lock span) and the pump fixes listed under Fixed:
+  the two clauses that say otherwise (a pipe or serial transmit-task
+  panic ending the interface and the weave handle after stop) and the
+  pump fixes listed under Fixed:
   each driver owns the `InterfaceTxReceiver` it gets from
   `InterfaceChannel::split` and lends it into its per-connection code
   instead of guarding a shared one across the whole select loop
@@ -98,9 +103,11 @@ Removed) bullet of its own, marked as such.
   `iface/lora_parts/lorainterface.rs`); the pipe and serial transmit
   loops stay spawned tasks that carry the receiver in and hand it back
   through their join handle (`iface/pipe_parts/stream.rs`,
-  `iface/serial_parts/run_serial_stream.rs`); a panic inside one is
+  `iface/serial_parts/run_serial_stream.rs`), the shape the tcp server
+  and local server drain tasks share; a panic inside one is
   logged and recorded as before (the pipe `transmit_task_failed` status,
-  the serial `transmit task failed` last error with `tx_errors`) but,
+  the serial `transmit task failed` last error; the serial arm's
+  `tx_errors` bump is new) but,
   the receiver having died with the task, now ends the interface instead
   of respawning it without a transmit side (the pump ordering itself is
   a fix, listed under Fixed);
@@ -119,11 +126,16 @@ Removed) bullet of its own, marked as such.
   and the peer-data receive loop keeps its state-then-dedupe guard pair
   under the allowance
   (`iface/auto_runtime_parts/autoruntimeplan_sections/spawn_peer_data_receive_loop.rs`);
-  `run_kiss_stream_with_ifac` keeps its shared-receiver signature as a
-  wrapper over `run_kiss_stream_owned` for callers outside this crate and
-  holds both receiver guards for the life of the stream (the shared form
-  re-took them on every loop pass; the span is observed while the stream
-  idles by `iface/kiss_parts/ifac_runtime_tests.rs`); `MeshtasticInterfaceHandle::recv_transmit` keeps its shared
+  `run_kiss_stream_with_ifac` keeps its shared-receiver signature for
+  callers outside this crate and locks each shared receiver per receive,
+  as before, so a co-consumer queued on the mutex is served between
+  passes; drivers in this crate call `run_kiss_stream_owned`, and both
+  now feed one loop over a private `ReceiverLease`
+  (`iface/kiss_parts/kisstcpclientinterface.rs`; the idle hold and its
+  release on stop are observed by `iface/kiss_parts/ifac_runtime_tests.rs`,
+  a queued locker served across a transmit pass by
+  `iface/kiss_parts/shared_receiver_lock_span_probe_tests.rs`);
+  `MeshtasticInterfaceHandle::recv_transmit` keeps its shared
   receiver (`iface/meshtastic_parts/interface.rs`). Pinned by
   `tcp_client/tests/tx_queue_survives_reconnect.rs`,
   `kiss_parts/tx_queue_survives_reconnect_tests.rs` and
@@ -135,7 +147,12 @@ Removed) bullet of its own, marked as such.
   the transmit-loop and reader panic pins in
   `iface/pipe_tests_parts/transmit_panic.rs` and
   `serial_stream_reports_a_lost_receiver_after_transmit_loop_panic` and its
-  reader twin in `iface/serial_parts/run_serial_stream.rs`.
+  reader twin in `iface/serial_parts/run_serial_stream.rs`, and the
+  transmit-join pins in `iface/pipe_tests_parts/transmit_join_probe.rs`
+  and `iface/serial_parts/transmit_join_probe_tests.rs` (the transmit loop
+  is joined, never aborted, so an in-flight write completes and the
+  receiver comes back; a writer ending on a write error cancels the
+  parked reader).
 - Lint tables, no library behaviour change: `clippy::await_holding_invalid_type`
   runs at its default level under the workspace clippy invocation; no
   lint table in the workspace mentions it any more, every test root
@@ -143,7 +160,8 @@ Removed) bullet of its own, marked as such.
   `crates/apps/reticulumd/tests/python_channel_interop.rs` and the other
   test roots), and each production fn of `reticulumd`, `meshchat-api` and
   `lxmf-sdk` that the live lint reports carries a fn-level allowance
-  naming the restructure follow-up (thirteen fns; the preferred-node read
+  whose comment names the guard, the await it spans and whether the site
+  is to be scoped away or kept by design (thirteen fns; the preferred-node read
   in `meshchat-api` is a scoped read instead);
   `tools/scripts/workspace-clippy-classify.sh` refuses any tracked
   manifest that mentions the lint and still passes only when no
@@ -157,8 +175,10 @@ Removed) bullet of its own, marked as such.
   a named macOS environment red (and only on a `FAIL` or `TIMEOUT` status;
   a crash in a listed test is never tolerated) or the reference-pin test
   while the reference checkout is off its pin; the workspace classify
-  script tolerates the linux-only interop target's `dead_code` only on
-  macOS. Pinned by
+  script tolerates, on macOS only, the `dead_code` of the interop test
+  target whose linux-only cases are cfg'd out there, and
+  `python-interop-classify.sh` lists after its verdict the tolerated names
+  that did not run. Pinned by
   `crates/apps/reticulumd/tests/fork_publish_contract_parts/lint_discipline_probe.rs`,
   `fork_publish_contract_parts/lint_discipline_probe2.rs`,
   `fork_publish_contract_parts/lint_discipline_probe3.rs`,
@@ -209,6 +229,17 @@ Removed) bullet of its own, marked as such.
   the reader and writer panic pins in `iface/pipe_tests_parts/transmit_panic.rs` and
   `serial_stream_returns_receiver_after_a_receive_task_panic_with_the_writer_idle`
   in `iface/serial_parts/run_serial_stream.rs`).
+- `AutoInterfaceConfig::unicast_discovery_port` computed
+  `discovery_port + 1`, which overflows when the discovery port is 65535
+  (a debug-build panic; Python binds the same `discovery_port + 1` and its
+  bind raises there, `RNS/Interfaces/AutoInterface.py:173`). It now steps
+  down to 65534 at the top of the range, so the pair stays adjacent and
+  distinct for every discovery port (`iface/auto_parts/module_prelude.rs`).
+  Pinned by
+  `unicast_discovery_port_is_the_next_port_and_steps_down_at_the_top_of_the_range`
+  in `iface/auto_parts/default_multicast_discovery_address_sections/core_tests.rs`;
+  the loopback fixtures in `iface/auto_runtime_parts/tests_sections/core_tests.rs`
+  re-draw a discovery port of 65535.
 
 ## 0.15.1 - 2026-10-21
 

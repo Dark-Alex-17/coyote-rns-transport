@@ -42,7 +42,8 @@ fork commit `08362717`; the
 `fd3b249e`, `d4e1634d`, `71c25285`, `1b7ce1cb`, `6c0ea58e`, `66a703e9`,
 `719bff37`, `0d42d2e4`, `e29addcb`, `0c4457e2`, `3e77860a`, `c80d6996`,
 `120956aa`, `3b2352c0`, `c6d28577`, `05989491`, `5366399d`, `b879fc9b`,
-`d36f611c`, `31299980`, `1b02e70a` and `1393cecd`.
+`d36f611c`, `31299980`, `1b02e70a`, `1393cecd`, `4576a35e`, `57cd07fa`,
+`f0e02c44`, `10888bf2`, `b785306b` and `f2bdb2ac`.
 
 | File | Patch |
 | --- | --- |
@@ -81,6 +82,8 @@ fork commit `08362717`; the
 | `crates/libs/rns-transport/CHANGELOG.md` | test hygiene, release tooling, ledger conventions, guard discipline |
 | `crates/libs/rns-transport/README.md` | release tooling |
 | `crates/libs/rns-transport/examples/tcp_connection_memory.rs` | guard discipline |
+| `crates/libs/rns-transport/src/iface/auto_parts/default_multicast_discovery_address_sections/core_tests.rs` | guard discipline |
+| `crates/libs/rns-transport/src/iface/auto_parts/module_prelude.rs` | guard discipline |
 | `crates/libs/rns-transport/src/iface/auto_runtime_parts/autoruntimeplan_sections/runtime_json.rs` | guard discipline |
 | `crates/libs/rns-transport/src/iface/auto_runtime_parts/autoruntimeplan_sections/send_due_multicast_peer_announces_wi.rs` | guard discipline |
 | `crates/libs/rns-transport/src/iface/auto_runtime_parts/autoruntimeplan_sections/spawn_peer_data_receive_loop.rs` | guard discipline |
@@ -88,6 +91,7 @@ fork commit `08362717`; the
 | `crates/libs/rns-transport/src/iface/auto_runtime_parts/module_prelude_sections/transport_bridge.rs` | guard discipline |
 | `crates/libs/rns-transport/src/iface/auto_runtime_parts/tests.rs` | guard discipline |
 | `crates/libs/rns-transport/src/iface/auto_runtime_parts/tests_sections/auto_peer_data_transport_bridge_regi.rs` | guard discipline |
+| `crates/libs/rns-transport/src/iface/auto_runtime_parts/tests_sections/core_tests.rs` | guard discipline |
 | `crates/libs/rns-transport/src/iface/auto_runtime_parts/tests_sections/peer_route_table_expiry.rs` | guard discipline |
 | `crates/libs/rns-transport/src/iface/auto_runtime_parts/tests_sections/peer_route_table_probe.rs` | guard discipline |
 | `crates/libs/rns-transport/src/iface/i2p.rs` | guard discipline |
@@ -95,6 +99,7 @@ fork commit `08362717`; the
 | `crates/libs/rns-transport/src/iface/kiss_parts/ifac_runtime_tests.rs` | guard discipline |
 | `crates/libs/rns-transport/src/iface/kiss_parts/kisstcpclientinterface.rs` | guard discipline |
 | `crates/libs/rns-transport/src/iface/kiss_parts/module_prelude.rs` | guard discipline |
+| `crates/libs/rns-transport/src/iface/kiss_parts/shared_receiver_lock_span_probe_tests.rs` | guard discipline |
 | `crates/libs/rns-transport/src/iface/kiss_parts/tx_queue_survives_reconnect_tests.rs` | guard discipline |
 | `crates/libs/rns-transport/src/iface/local.rs` | guard discipline |
 | `crates/libs/rns-transport/src/iface/local/tests/tx_queue_survives_reconnect.rs` | guard discipline |
@@ -108,14 +113,17 @@ fork commit `08362717`; the
 | `crates/libs/rns-transport/src/iface/pipe_parts/status.rs` | guard discipline |
 | `crates/libs/rns-transport/src/iface/pipe_parts/stream.rs` | guard discipline |
 | `crates/libs/rns-transport/src/iface/pipe_tests.rs` | guard discipline |
+| `crates/libs/rns-transport/src/iface/pipe_tests_parts/transmit_join_probe.rs` | guard discipline |
 | `crates/libs/rns-transport/src/iface/pipe_tests_parts/transmit_panic.rs` | guard discipline |
 | `crates/libs/rns-transport/src/iface/rnode_bearer_interface_tests.rs` | guard discipline |
 | `crates/libs/rns-transport/src/iface/rnode_ble.rs` | guard discipline |
 | `crates/libs/rns-transport/src/iface/rnode_multi.rs` | guard discipline |
 | `crates/libs/rns-transport/src/iface/rnode_multi_ifac_tests.rs` | guard discipline |
+| `crates/libs/rns-transport/src/iface/serial.rs` | guard discipline |
 | `crates/libs/rns-transport/src/iface/serial_parts/ifac_runtime_tests.rs` | guard discipline |
 | `crates/libs/rns-transport/src/iface/serial_parts/module_prelude.rs` | guard discipline |
 | `crates/libs/rns-transport/src/iface/serial_parts/run_serial_stream.rs` | guard discipline |
+| `crates/libs/rns-transport/src/iface/serial_parts/transmit_join_probe_tests.rs` | guard discipline |
 | `crates/libs/rns-transport/src/iface/tcp_client.rs` | guard discipline |
 | `crates/libs/rns-transport/src/iface/tcp_client/tests/tx_queue_survives_reconnect.rs` | guard discipline |
 | `crates/libs/rns-transport/src/iface/tcp_client_memory_tests.rs` | guard discipline |
@@ -324,22 +332,22 @@ Fork commits `f7be0f41`, `ae4f16d8`, `5f6c230f`, `e916ce9e`, `39d107b9`,
 `71c25285`, `1b7ce1cb`, `6c0ea58e`, `66a703e9`, `719bff37`, `0d42d2e4`,
 `e29addcb`, `0c4457e2`, `3e77860a`, `c80d6996`, `120956aa`, `3b2352c0`,
 `c6d28577`, `05989491`, `5366399d`, `b879fc9b`, `d36f611c`, `31299980`,
-`1b02e70a` and `1393cecd`:
+`1b02e70a`, `1393cecd`, `4576a35e`, `57cd07fa`, `f0e02c44`, `10888bf2`,
+`b785306b` and `f2bdb2ac`:
 H4, guard discipline. The library behaviour changes are: the two
 auto-interface peer-table fixes of the eighth and thirteenth commits; the
 pipe and serial pump fixes of the eighteenth (a panicking half no longer
 leaves the other waiting); `WeaveManagementHandle::try_set_remote_display`
 reporting the closed queue at once after the driver has stopped where it
-used to buffer up to the channel capacity (fifth); the pub
-`run_kiss_stream_with_ifac` holding both shared receiver guards for the
-life of the stream where it used to re-take them on every loop pass
-(fifth); and a pipe or serial transmit-task panic ending the interface
-instead of respawning it without a transmit side (fifth, settled by the
-thirty-first after the fifteenth's poll-level panic adapter was
-rejected). Everything else keeps its behaviour;
-`clippy::await_holding_invalid_type` (the tokio `MutexGuard`,
-`RwLockReadGuard` and `RwLockWriteGuard` types named in `clippy.toml`) now
-runs at its default level under the workspace clippy invocation, and the
+used to buffer up to the channel capacity (fifth); a pipe or serial
+transmit-task panic ending the interface instead of respawning it without
+a transmit side (fifth, settled by the thirty-first after the fifteenth's
+poll-level panic adapter was rejected); and the auto interface's unicast
+discovery port stepping down to 65534 when the discovery port is 65535
+where it used to overflow (thirty-second). Everything else keeps its
+behaviour; `clippy::await_holding_invalid_type` (the tokio `MutexGuard`,
+`RwLockReadGuard` and `RwLockWriteGuard` types named in `clippy.toml`)
+now runs at its default level under the workspace clippy invocation, and the
 production code of this crate holds no tokio guard across an await except
 where a fn-level allowance names the reason. The first commit moves
 `NextHopMetrics` and the medium path timeout out of `transport/mod.rs`
@@ -378,8 +386,8 @@ tasks were joined, never aborted), hoists udp's nested `PeerRouting`
 lookup into a scoped binding, routes management frames through
 `recv_optional_management_frame(Option<&mut Receiver<T>>)`, and keeps two
 pub items with the allowance: `run_kiss_stream_with_ifac` (shared-receiver
-signature, now a wrapper over `run_kiss_stream_owned` that holds both
-receiver guards for the life of the stream) and
+signature, kept as a wrapper; since the thirty-third the allowance sits on
+the private `ReceiverLease::recv` behind it rather than on the wrapper) and
 `MeshtasticInterfaceHandle::recv_transmit`. The sixth adds one
 module-level allowance per test root (test code holds guards across awaits
 on purpose). The seventh removes the `[workspace.lints.clippy]` allow from
@@ -502,7 +510,9 @@ passes only when every error-level record is a tolerated `dead_code` one,
 and adds the `set -u` guard its cross-target twin had. The twenty-ninth
 pins the kiss wrapper's lock span: while `run_kiss_stream_with_ifac` runs
 on a duplex stream the shared receiver cannot be locked, and it can once
-the stream has been cancelled and joined. The thirtieth adopts
+the stream has been cancelled and joined (the idle stream's pending
+receive holds the guard; the thirty-third renames the pin to say so). The
+thirtieth adopts
 `lint_discipline_probe6.rs` (the stderr tail of the classify script, a
 listed macOS name tolerated on `TIMEOUT`, the codeless-error arms) and
 teaches the discipline probe that `_tests_parts/` directories are test
@@ -511,9 +521,76 @@ adapter: the pipe and serial transmit loops are spawned tasks again that
 carry the receiver in and hand it back through their `JoinHandle`, the
 pump still finishes on whichever half ends first, and a transmit-task
 panic, which takes the receiver with it, logs and records the failure as
-before and then ends the interface (the respawn and reconnect loops mark
-closed and stop); `run_pipe_stream` moves to `pipe_parts/stream.rs` so
+before and then ends the interface (the respawn and reconnect loops
+stop); `run_pipe_stream` moves to `pipe_parts/stream.rs` so
 `pipe.rs` stays under the module cap, and the adapter module is deleted.
+The thirty-second fixes `AutoInterfaceConfig::unicast_discovery_port`
+(`auto_parts/module_prelude.rs`): it computed `discovery_port + 1`, which
+overflowed in debug builds when a fixture drew the ephemeral port 65535
+(Python has no answer either; its bind of `discovery_port + 1` raises,
+`RNS/Interfaces/AutoInterface.py:173`), and now uses
+`checked_add(1).unwrap_or(u16::MAX - 1)` so the pair stays adjacent and
+distinct at the top of the range; pinned by
+`unicast_discovery_port_is_the_next_port_and_steps_down_at_the_top_of_the_range`
+in `default_multicast_discovery_address_sections/core_tests.rs` (48555 to
+48556, 0 to 1, 65535 to 65534), and the three loopback fixtures in
+`auto_runtime_parts/tests_sections/core_tests.rs` re-draw a 65535
+discovery port through `reserve_loopback_udp_port_below_max`. The
+thirty-third returns the pub `run_kiss_stream_with_ifac` to locking each
+shared receiver per receive: a private `ReceiverLease` enum (an owned
+driver receiver, or a shared mutex receiver re-locked per receive) feeds
+the loop body, now `run_kiss_stream_leased`, and `run_kiss_stream_owned`
+and the pub wrapper keep their signatures and wrap it, so a co-consumer
+queued on the mutex is served between passes (tokio's `Mutex` is fair, so
+the guard passes to a queued waiter at the pass boundary), the shape the
+wrapper had before the drivers took owned receivers; the allowance moves
+from the wrapper onto `ReceiverLease::recv`, the one span left. Pinned by
+`kiss_stream_with_ifac_holds_the_tx_receiver_lock_while_idle_and_frees_it_on_stop`
+(`kiss_parts/ifac_runtime_tests.rs`, renamed; both shapes satisfy it) and
+`kiss_stream_with_ifac_serves_a_queued_locker_between_transmit_passes` in
+`kiss_parts/shared_receiver_lock_span_probe_tests.rs`, which queues a
+locker, drives one transmit pass and asserts the waiter is served while
+the stream runs (a life-of-stream hold fails it). The thirty-fourth adopts
+the transmit-join probes, `pipe_tests_parts/transmit_join_probe.rs`
+(included from `pipe_tests.rs`) and
+`serial_parts/transmit_join_probe_tests.rs` (a `mod` in `serial.rs`): the
+transmit loop is a spawned task that is joined, never aborted, so a write
+in flight when the reader ends first still reaches the child or port and
+the receiver comes back, and a writer that ends first on a write error
+cancels the stop token so a parked reader is collected. The thirty-fifth
+makes each of the thirteen app-crate allowance markers (`reticulumd`
+`announce_ingest.rs` and `bridge_propagation.rs`, `meshchat-api` `chat.rs`,
+`control.rs` and `lib.rs`, `lxmf-sdk` `zmq_pipeline/transport.rs` and
+`client/async_ops.rs`) name its guard, the await it spans and whether the
+site is to be scoped away or kept by design (the `lxmf-sdk` slot-ownership
+and per-key idempotency holds), has the two remaining category sites in
+`rns-transport` (`spawn_peer_data_receive_loop.rs`, the documented lock-order
+nest; `meshtastic_parts/interface.rs`, the public-API-pinned shared
+receiver) name their category, and makes `lint_discipline_probe.rs` ask
+every marked crate for the owner tag plus a non-empty reason instead of
+one fixed sentence (the per-file site counts are unchanged). The
+thirty-sixth has `tools/scripts/workspace-clippy-classify.sh` describe the
+Darwin tolerance precisely (the interop test target builds on macOS; only
+its linux-only cases are cfg'd out there, which strands their helpers as
+`dead_code`) and has `tools/scripts/python-interop-classify.sh` follow its
+`OK:` verdict with `tolerated but did not run: <names|none>` so a stale
+tolerated name is visible; pinned in `lint_discipline_probe5.rs` and
+`lint_discipline_probe6.rs`
+(`interop_script_reports_tolerated_names_that_did_not_run_after_the_ok_line`).
+The thirty-seventh drops the dead `process_state = "closed"` write in
+`pipe.rs`'s lost-receiver arm (the post-loop block overwrote it with
+`stopped`; the log line and `pipe_is_open=false` stay), names the receiver
+the unix server in `local.rs` drops after its listener exits, gives the
+`TransportHandler` rustdoc in `transport/mod.rs` a `# Lock discipline`
+heading that lists two more nests (`iface_manager` before link in `send`'s
+announce arm through `note_link_packet_sent`, inert because an announce
+never addresses a link; link before destination in the resource request
+size check in `resource_wire.rs`), documents on `ExportedIface` in
+`transport/reticulum_path_store.rs` the snapshot window between the
+`iface_manager` guard and the handler guard (Python reads
+`Transport.interfaces` unlocked, `RNS/Transport.py:2983-2984` and
+`:3820-3822`) and its unreachable `?` arms, and makes the negative pin in
+`tests_parts/two_transport_loopback_lifecycle.rs` use `try_recv`.
 Pinned by
 `tcp_client/tests/tx_queue_survives_reconnect.rs`,
 `kiss_parts/tx_queue_survives_reconnect_tests.rs`,
@@ -523,6 +600,8 @@ Pinned by
 `tests_parts/two_transport_loopback_lifecycle.rs`,
 `pipe_tests_parts/transmit_panic.rs` and `serial_parts/run_serial_stream.rs`
 (the transmit-loop and reader panic pins),
+`pipe_tests_parts/transmit_join_probe.rs` and
+`serial_parts/transmit_join_probe_tests.rs` (the transmit-join pins),
 `weave_management_handle_tests.rs`,
 `fork_publish_contract_parts/lint_discipline_probe.rs`,
 `fork_publish_contract_parts/lint_discipline_probe2.rs`,
@@ -530,7 +609,9 @@ Pinned by
 `fork_publish_contract_parts/lint_discipline_probe4.rs`,
 `fork_publish_contract_parts/lint_discipline_probe5.rs`,
 `fork_publish_contract_parts/lint_discipline_probe6.rs` and
-`kiss_parts/ifac_runtime_tests.rs` (the wrapper lock span).
+`kiss_parts/ifac_runtime_tests.rs` and
+`kiss_parts/shared_receiver_lock_span_probe_tests.rs` (the wrapper lock
+span).
 
 ## 0.15.1 (upstream 0.14.0)
 

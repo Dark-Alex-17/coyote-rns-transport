@@ -38,7 +38,8 @@ fork commit `08362717`; the
 `4b11d3c0`, `1ee6045e`, `2f41f29e`, `b91113d6` and `cbab03dc`; the
 `ledger conventions` patch is fork commit `c45a4e5c`; the
 `guard discipline` patch is fork commits `f7be0f41`, `ae4f16d8`, `5f6c230f`,
-`e916ce9e`, `39d107b9`, `882baabc` and `e9c2ea93`.
+`e916ce9e`, `39d107b9`, `882baabc`, `e9c2ea93`, `7908fcff`, `044b64f4`,
+`fd3b249e`, `d4e1634d`, `71c25285`, `1b7ce1cb` and `6c0ea58e`.
 
 | File | Patch |
 | --- | --- |
@@ -47,10 +48,13 @@ fork commit `08362717`; the
 | `AGENTS.md` | ledger conventions |
 | `Cargo.toml` | guard discipline |
 | `crates/apps/reticulumd/Cargo.toml` | guard discipline |
+| `crates/apps/reticulumd/src/bin/reticulumd/announce_ingest.rs` | guard discipline |
+| `crates/apps/reticulumd/src/bin/reticulumd/bridge_propagation.rs` | guard discipline |
 | `crates/apps/reticulumd/src/bin/reticulumd/tests/interface_hot_apply.rs` | guard discipline |
-| `crates/apps/reticulumd/tests/fork_publish_contract.rs` | release tooling |
+| `crates/apps/reticulumd/tests/fork_publish_contract.rs` | release tooling, guard discipline |
 | `crates/apps/reticulumd/tests/fork_publish_contract_parts/ledger_contract.rs` | release tooling |
 | `crates/apps/reticulumd/tests/fork_publish_contract_parts/ledger_contract_fixtures.rs` | release tooling |
+| `crates/apps/reticulumd/tests/fork_publish_contract_parts/lint_discipline_probe.rs` | guard discipline |
 | `crates/apps/reticulumd/tests/fork_publish_contract_parts/release_tooling_probe.rs` | release tooling |
 | `crates/apps/reticulumd/tests/fork_publish_contract_parts/release_tooling_probe2.rs` | release tooling |
 | `crates/apps/reticulumd/tests/fork_publish_contract_parts/release_tooling_probe3.rs` | release tooling |
@@ -60,8 +64,11 @@ fork commit `08362717`; the
 | `crates/apps/reticulumd/tests/python_channel_interop.rs` | guard discipline |
 | `crates/apps/reticulumd/tests/python_channel_interop_parts/multi_segment_python_interop.rs` | test hygiene |
 | `crates/apps/reticulumd/tests/python_tcp_ifac_lifecycle.rs` | guard discipline |
+| `crates/libs/lxmf-sdk/src/backend/zmq_pipeline/transport.rs` | guard discipline |
 | `crates/libs/lxmf-sdk/src/backend/zmq_pipeline/tests/mod.rs` | guard discipline |
-| `crates/libs/lxmf-sdk/src/lib.rs` | guard discipline |
+| `crates/libs/lxmf-sdk/src/client/async_ops.rs` | guard discipline |
+| `crates/libs/meshchat-api/src/chat.rs` | guard discipline |
+| `crates/libs/meshchat-api/src/control.rs` | guard discipline |
 | `crates/libs/meshchat-api/src/lib.rs` | guard discipline |
 | `crates/libs/rns-transport/CHANGELOG.md` | test hygiene, release tooling, ledger conventions, guard discipline |
 | `crates/libs/rns-transport/README.md` | release tooling |
@@ -69,9 +76,11 @@ fork commit `08362717`; the
 | `crates/libs/rns-transport/src/iface/auto_runtime_parts/autoruntimeplan_sections/runtime_json.rs` | guard discipline |
 | `crates/libs/rns-transport/src/iface/auto_runtime_parts/autoruntimeplan_sections/send_due_multicast_peer_announces_wi.rs` | guard discipline |
 | `crates/libs/rns-transport/src/iface/auto_runtime_parts/autoruntimeplan_sections/spawn_peer_data_receive_loop.rs` | guard discipline |
+| `crates/libs/rns-transport/src/iface/auto_runtime_parts/module_prelude.rs` | guard discipline |
 | `crates/libs/rns-transport/src/iface/auto_runtime_parts/module_prelude_sections/transport_bridge.rs` | guard discipline |
 | `crates/libs/rns-transport/src/iface/auto_runtime_parts/tests.rs` | guard discipline |
 | `crates/libs/rns-transport/src/iface/auto_runtime_parts/tests_sections/auto_peer_data_transport_bridge_regi.rs` | guard discipline |
+| `crates/libs/rns-transport/src/iface/auto_runtime_parts/tests_sections/peer_route_table_expiry.rs` | guard discipline |
 | `crates/libs/rns-transport/src/iface/i2p.rs` | guard discipline |
 | `crates/libs/rns-transport/src/iface/kiss.rs` | guard discipline |
 | `crates/libs/rns-transport/src/iface/kiss_parts/ifac_runtime_tests.rs` | guard discipline |
@@ -79,7 +88,11 @@ fork commit `08362717`; the
 | `crates/libs/rns-transport/src/iface/kiss_parts/module_prelude.rs` | guard discipline |
 | `crates/libs/rns-transport/src/iface/kiss_parts/tx_queue_survives_reconnect_tests.rs` | guard discipline |
 | `crates/libs/rns-transport/src/iface/local.rs` | guard discipline |
+| `crates/libs/rns-transport/src/iface/local/tests/tx_queue_survives_reconnect.rs` | guard discipline |
+| `crates/libs/rns-transport/src/iface/lora_parts/ifac_runtime_tests.rs` | guard discipline |
+| `crates/libs/rns-transport/src/iface/lora_parts/lorainterface.rs` | guard discipline |
 | `crates/libs/rns-transport/src/iface/lora_parts/module_extra.rs` | guard discipline |
+| `crates/libs/rns-transport/src/iface/lora_parts/module_prelude.rs` | guard discipline |
 | `crates/libs/rns-transport/src/iface/meshtastic_parts/ifac_runtime_tests.rs` | guard discipline |
 | `crates/libs/rns-transport/src/iface/meshtastic_parts/interface.rs` | guard discipline |
 | `crates/libs/rns-transport/src/iface/pipe.rs` | guard discipline |
@@ -292,8 +305,11 @@ its test-only exception from a fixture hardening to any test-only change
 that alters no library behaviour (later widened to release tooling and CI).
 
 Fork commits `f7be0f41`, `ae4f16d8`, `5f6c230f`, `e916ce9e`, `39d107b9`,
-`882baabc` and `e9c2ea93`: H4, guard discipline. No library behaviour
-changes; `clippy::await_holding_invalid_type` (the tokio `MutexGuard`,
+`882baabc`, `e9c2ea93`, `7908fcff`, `044b64f4`, `fd3b249e`, `d4e1634d`,
+`71c25285`, `1b7ce1cb` and `6c0ea58e`: H4, guard discipline. No library behaviour
+changes except the two auto-interface peer-table fixes of the eighth and
+thirteenth commits and the pipe and serial transmit-panic note of the
+fifth; `clippy::await_holding_invalid_type` (the tokio `MutexGuard`,
 `RwLockReadGuard` and `RwLockWriteGuard` types named in `clippy.toml`) now
 runs at its default level under the workspace clippy invocation, and the
 production code of this crate holds no tokio guard across an await except
@@ -325,26 +341,62 @@ join the pending stops, in that order), hoists the `peer_ifaces` lookup in
 receive loop whose one sync body needs both the state and the dedupe
 guard. The fifth lets every interface driver own the `InterfaceTxReceiver`
 it gets from `InterfaceChannel::split` and lend it into the per-connection
-code (`&mut` into the stream fn for tcp_client, local, weave, rnode_multi
-and kiss; moved into the tx task and taken back through the `JoinHandle`
-for tcp_server, local server, pipe and serial, whose tasks were joined,
-never aborted), hoists udp's nested `PeerRouting` lookup into a scoped
-binding, routes management frames through
+code (`&mut` into the stream fn for tcp_client, local, weave, rnode_multi,
+kiss and i2p; the tx loop runs inline on the driver's task for pipe and
+serial, so a panic in it now unwinds the driver instead of being recorded
+as the `transmit_task_failed` status; moved into the drain task and taken
+back through the `JoinHandle` for tcp_server and the local server, whose
+tasks were joined, never aborted), hoists udp's nested `PeerRouting`
+lookup into a scoped binding, routes management frames through
 `recv_optional_management_frame(Option<&mut Receiver<T>>)`, and keeps two
 pub items with the allowance: `run_kiss_stream_with_ifac` (shared-receiver
-signature, now a wrapper over `run_kiss_stream_owned`) and
+signature, now a wrapper over `run_kiss_stream_owned` that holds both
+receiver guards for the life of the stream) and
 `MeshtasticInterfaceHandle::recv_transmit`. The sixth adds one
 module-level allowance per test root (test code holds guards across awaits
 on purpose). The seventh removes the `[workspace.lints.clippy]` allow from
 `Cargo.toml`, gives `meshchat-api` and `lxmf-sdk` a crate-root allowance
-naming the sites a follow-up restructures (their manifests inherit the
-workspace lint table, which cannot be combined with a package override),
-rewords the `reticulumd` package allowance the same way, and rewords
+naming the sites a follow-up restructures, rewords the `reticulumd`
+package allowance the same way, and rewords
 `tools/scripts/workspace-clippy-classify.sh` so its zero-diagnostic
-verdict describes the lint as live. Pinned by
+verdict describes the lint as live. The eighth puts the auto-interface
+bridge's `peer_ifaces` and `outbound_routes` maps under one
+`tokio::sync::Mutex<PeerRouteTable>`, so `ensure_peer_iface` looks up
+and inserts under the same guard and expiry clears both halves at once;
+the split locks had let a route be re-inserted for a virtual iface that
+`remove_expired_peer_routes` had just stopped. The ninth lets the LoRa
+driver own its receivers and call `run_kiss_stream_owned` (its management
+channel moves to the take-once shape weave and rnode_multi use), makes a
+second take of a weave, rnode_multi or LoRa management receiver log a
+warning naming the interface, has the serial stream return the caller's
+receiver, and adopts the local unix client reconnect fixture. The tenth
+makes each allowance comment name the guard that actually crosses the
+await (`iface_manager` in `TransportHandler::send`,
+`send_recursive_path_request_with_modes`, `announce_retransmit_tick` and
+`request_path`; the shared `InterfaceRxReceiver` in `manage_transport`;
+the `Link` in `handle_link_resource_packet`), narrows the rustdoc to fns
+that own a handler guard, pins `outbound` on the pathless broadcast-on
+and broadcast-off cases, and drops the production-code clause from the
+test-root comments. The eleventh replaces the `reticulumd` package
+allowance and the `meshchat-api` and `lxmf-sdk` crate-root allowances
+with a same-line fn-level allowance on each production fn the live lint
+reports (thirteen fns; the ninth `meshchat-api` site is a scoped read
+instead), and makes the classify script refuse any tracked `Cargo.toml`
+that mentions the lint. The twelfth adopts the lint discipline probe into
+the publish contract; the fourteenth names the probe's marked-crate table
+entry type with an alias so the workspace clippy invocation accepts it.
+The thirteenth makes the peer table the authority
+on `ensure_peer_iface`'s miss path: when the discovery and data tasks
+both miss the first lookup for one peer, the first registration to reach
+the table wins, the loser's route folds onto it and the losing virtual
+iface is stopped after the guard drops, where before the second insert
+overwrote the first and the peer received every broadcast twice. Pinned by
 `tcp_client/tests/tx_queue_survives_reconnect.rs`,
-`kiss_parts/tx_queue_survives_reconnect_tests.rs` and
-`tests_parts/two_transport_loopback_lifecycle.rs`.
+`kiss_parts/tx_queue_survives_reconnect_tests.rs`,
+`local/tests/tx_queue_survives_reconnect.rs`,
+`tests_sections/peer_route_table_expiry.rs`,
+`tests_parts/two_transport_loopback_lifecycle.rs` and
+`fork_publish_contract_parts/lint_discipline_probe.rs`.
 
 ## 0.15.1 (upstream 0.14.0)
 

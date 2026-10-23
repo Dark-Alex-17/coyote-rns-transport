@@ -88,27 +88,61 @@ Removed) bullet of its own, marked as such.
   instead of guarding a shared one across the whole select loop
   (`iface/tcp_client.rs`, `iface/tcp_server.rs`, `iface/local.rs`,
   `iface/udp.rs`, `iface/pipe.rs`, `iface/serial_parts/run_serial_stream.rs`,
-  `iface/weave.rs`, `iface/rnode_multi.rs`,
-  `iface/kiss_parts/kisstcpclientinterface.rs`); management frames arrive
-  through `recv_optional_management_frame` (`iface_types.rs`); the
-  auto-interface listener supervisors take the retired listener under
-  their guard and stop, prune and join it after the guard is gone
+  `iface/weave.rs`, `iface/rnode_multi.rs`, `iface/i2p.rs`,
+  `iface/kiss_parts/kisstcpclientinterface.rs`,
+  `iface/lora_parts/lorainterface.rs`); the pipe and serial transmit
+  loops run on the driver's own task, so a panic inside one unwinds the
+  driver instead of being recorded as a `transmit_task_failed` status;
+  management frames arrive through `recv_optional_management_frame`
+  (`iface_types.rs`), and a second take of a weave, rnode_multi or LoRa
+  management receiver logs a warning naming the interface instead of
+  running silently without management frames; the auto-interface
+  listener supervisors take the retired listener under their guard and
+  stop, prune and join it after the guard is gone
   (`iface/auto_runtime_parts/autoruntimeplan_sections/send_due_multicast_peer_announces_wi.rs`,
-  `iface/auto_runtime_parts/autoruntimeplan_sections/runtime_json.rs`);
+  `iface/auto_runtime_parts/autoruntimeplan_sections/runtime_json.rs`),
+  and the peer-data receive loop keeps its state-then-dedupe guard pair
+  under the allowance
+  (`iface/auto_runtime_parts/autoruntimeplan_sections/spawn_peer_data_receive_loop.rs`);
   `run_kiss_stream_with_ifac` keeps its shared-receiver signature as a
-  wrapper over `run_kiss_stream_owned`. Pinned by
-  `tcp_client/tests/tx_queue_survives_reconnect.rs` and
-  `kiss_parts/tx_queue_survives_reconnect_tests.rs` (a packet queued while
-  the driver is between connections is delivered after the reconnect).
+  wrapper over `run_kiss_stream_owned` for callers outside this crate and
+  holds both receiver guards for the life of the stream, as it always
+  has; `MeshtasticInterfaceHandle::recv_transmit` keeps its shared
+  receiver (`iface/meshtastic_parts/interface.rs`). Pinned by
+  `tcp_client/tests/tx_queue_survives_reconnect.rs`,
+  `kiss_parts/tx_queue_survives_reconnect_tests.rs` and
+  `local/tests/tx_queue_survives_reconnect.rs` (a packet queued while the
+  driver is between connections is delivered after the reconnect) and by
+  `serial_stream_returns_receiver_with_queued_message` in
+  `iface/serial_parts/run_serial_stream.rs` (the serial stream hands the
+  caller's receiver back with the message queued behind a failed write).
 - Lint tables, no library behaviour change: `clippy::await_holding_invalid_type`
-  runs at its default level under the workspace clippy invocation; the
-  workspace lint-table allow is gone, every test root carries one
-  module-level allowance (`src/transport/tests.rs`,
+  runs at its default level under the workspace clippy invocation; no
+  lint table in the workspace mentions it any more, every test root
+  carries one module-level allowance (`src/transport/tests.rs`,
   `crates/apps/reticulumd/tests/python_channel_interop.rs` and the other
-  test roots), and `meshchat-api`, `lxmf-sdk` and `reticulumd` keep a
-  crate- or package-level allowance naming the production sites a
-  follow-up restructures; `tools/scripts/workspace-clippy-classify.sh`
-  still passes only when no diagnostic of the lint fires.
+  test roots), and each production fn of `reticulumd`, `meshchat-api` and
+  `lxmf-sdk` that the live lint reports carries a fn-level allowance
+  naming the restructure follow-up (thirteen fns; the preferred-node read
+  in `meshchat-api` is a scoped read instead);
+  `tools/scripts/workspace-clippy-classify.sh` refuses any tracked
+  manifest that mentions the lint and still passes only when no
+  diagnostic of the lint fires. Pinned by
+  `crates/apps/reticulumd/tests/fork_publish_contract_parts/lint_discipline_probe.rs`.
+
+### Fixed
+
+- The auto-interface bridge keeps its peer-to-virtual-iface map and its
+  outbound route map under one lock
+  (`iface/auto_runtime_parts/module_prelude_sections/transport_bridge.rs`),
+  so a route can no longer be re-inserted for a virtual iface that
+  `remove_expired_peer_routes` has just stopped, and when the discovery
+  and data tasks both miss the first lookup for one peer the first
+  registration to reach the table wins, the other route folds onto it and
+  the losing virtual iface is stopped; before, the second insert
+  overwrote the first, one iface leaked in the manager and the peer
+  received every broadcast twice. Pinned by
+  `iface/auto_runtime_parts/tests_sections/peer_route_table_expiry.rs`.
 
 ### Removed
 

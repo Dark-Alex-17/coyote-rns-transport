@@ -12,4 +12,5 @@ include!("tests_sections/auto_peer_route_origination.rs");
 include!("tests_sections/peer_route_table_expiry.rs");
 include!("tests_sections/peer_route_table_probe.rs");
 include!("tests_sections/peer_data_receive_loop_progress.rs");
+include!("tests_sections/peer_data_receive_loop_progress_probe.rs");
 }

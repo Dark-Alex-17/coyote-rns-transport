@@ -9,7 +9,9 @@ set -euo pipefail
 # counts are checked against nextest's own Summary line, and the run passes
 # only when they agree, every failure is in the tolerated set below and at
 # least one test passed. Anything else fails naming the untolerated tests.
-# A tolerated name is tolerated whatever its status token.
+# A listed name is tolerated only on FAIL or TIMEOUT, the two shapes the
+# environment reds take; a listed test that died on a signal (SIGABRT,
+# SIGSEGV, ...) is a crash, never the known environment red, and fails.
 #
 # Tolerated failures are environment reds, not product defects: on macOS the
 # backbone and serial-pty cases listed below fail against the Python side on
@@ -59,7 +61,10 @@ if [ -z "$pinned" ]; then
   echo "FAIL: no PINNED_RETICULUM constant in $PIN_SOURCE"
   exit 1
 fi
-checkout="$(git -C "$RETICULUM_PY_REPO" rev-parse HEAD)"
+if ! checkout="$(git -C "$RETICULUM_PY_REPO" rev-parse HEAD 2>/dev/null)"; then
+  echo "FAIL: RETICULUM_PY_REPO=$RETICULUM_PY_REPO is not a git checkout; git rev-parse HEAD failed"
+  exit 1
+fi
 echo "python reticulum checkout: $checkout (pinned: $pinned)"
 if [ "$checkout" != "$pinned" ]; then
   echo "checkout differs from the pin; tolerating $PIN_DRIFT_FAILURE"
@@ -90,30 +95,38 @@ tolerated = set(sys.argv[3:])
 status = re.compile(r"^\s*([A-Z][A-Z0-9+/ -]*?) \[\s*[\d.]+s\] ")
 passed_tokens = {"PASS", "LEAK", "SLOW", "SLOW + LEAK", "SLOW+TMPASS", "TIMEOUT-PASS"}
 retried_pass = re.compile(r"FLAKY \d+/\d+|TRY \d+ PASS")
+tolerable_tokens = {"FAIL", "TIMEOUT"}
 summary = re.compile(
     r"^\s*Summary \[\s*[\d.]+s\] (\d+)(?:/(\d+))? tests? run: (\d+) passed(?: \([^)]*\))?, "
     r"(?:(\d+) failed(?: \([^)]*\))?, )?(?:(\d+) exec failed, )?(?:(\d+) timed out, )?\d+ skipped"
 )
+
+
+def is_pass(token):
+    return token in passed_tokens or bool(retried_pass.fullmatch(token))
+
+
 outcome = {}
 counts = None
 with open(path, errors="replace") as fh:
     for line in fh:
         m = status.match(line)
         if m:
-            token = m.group(1)
-            outcome[line.split()[-1]] = token in passed_tokens or bool(retried_pass.fullmatch(token))
+            outcome[line.split()[-1]] = m.group(1)
             continue
         m = summary.match(line)
         if m:
             counts = m
-passed = sum(1 for ok in outcome.values() if ok)
-failed = {name for name, ok in outcome.items() if not ok}
+passed = sum(1 for token in outcome.values() if is_pass(token))
+failed = {name: token for name, token in outcome.items() if not is_pass(token)}
 print(f"passed: {passed}, failed: {len(failed)}")
-untolerated = sorted(failed - tolerated)
+untolerated = sorted(
+    name for name, token in failed.items() if name not in tolerated or token not in tolerable_tokens
+)
 if untolerated:
     print(f"FAIL: {len(untolerated)} failure(s) outside the tolerated set:")
     for name in untolerated:
-        print(f"  {name}")
+        print(f"  {name} ({failed[name]})")
     sys.exit(1)
 if nextest_rc != 0 and not outcome:
     print(f"FAIL: cargo nextest exited {nextest_rc} without a status line; the batch itself did not run")
@@ -135,5 +148,6 @@ if (passed, len(failed)) != (summary_passed, summary_failed):
 if passed == 0:
     print("FAIL: no test passed")
     sys.exit(1)
-print(f"OK: {passed} passed; every failure is tolerated: {', '.join(sorted(failed)) or 'none'}")
+tolerated_list = ", ".join(f"{name} ({token})" for name, token in sorted(failed.items())) or "none"
+print(f"OK: {passed} passed; every failure is tolerated: {tolerated_list}")
 PY

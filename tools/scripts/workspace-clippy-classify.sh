@@ -8,9 +8,10 @@ set -euo pipefail
 # per fn with a same-line comment naming the owner, and each test root allows
 # it once at module level. Passes only when no Cargo.toml mentions the lint,
 # no await_holding_invalid_type diagnostic fires at any level and every
-# error-level diagnostic is the macOS-only dead_code in the linux-only
-# reticulumd python_channel_interop test target (the two files listed below),
-# which CI on Linux never sees.
+# error-level diagnostic is the dead_code that macOS produces in the
+# linux-only reticulumd python_channel_interop test target (the two files
+# listed below). That tolerance applies on Darwin only: on Linux, where CI
+# runs, no error-level diagnostic is tolerated.
 # Requires python3 for the classification pass.
 
 if [ $# -ne 0 ]; then
@@ -23,7 +24,8 @@ cd "$ROOT_DIR"
 
 manifests="$(mktemp "${TMPDIR:-/tmp}/clippy-manifests.XXXXXX")"
 json="$(mktemp "${TMPDIR:-/tmp}/clippy-json.XXXXXX")"
-trap 'rm -f "$manifests" "$json"' EXIT
+stderr_log="$(mktemp "${TMPDIR:-/tmp}/clippy-stderr.XXXXXX")"
+trap 'rm -f "$manifests" "$json" "$stderr_log"' EXIT
 
 git ls-files -z -- 'Cargo.toml' '*/Cargo.toml' >"$manifests"
 # One grep over the whole list rather than xargs: xargs folds grep's "no
@@ -45,20 +47,31 @@ if [ -n "$manifest_hits" ]; then
 fi
 
 rc=0
-cargo clippy --workspace --all-targets --all-features --no-deps --message-format=json -- -D warnings >"$json" 2>/dev/null || rc=$?
+cargo clippy --workspace --all-targets --all-features --no-deps --message-format=json -- -D warnings >"$json" 2>"$stderr_log" || rc=$?
 echo "cargo clippy (CI invocation) exit: $rc"
+if [ "$rc" -ne 0 ]; then
+  echo "cargo clippy stderr (last 40 lines):"
+  tail -n 40 "$stderr_log"
+fi
 
-python3 - "$json" "$rc" <<'PY'
+python3 - "$json" "$rc" "$(uname -s)" <<'PY'
 import collections
 import json
 import sys
 
 path = sys.argv[1]
 clippy_rc = int(sys.argv[2])
-allowed_files = {
-    "crates/apps/reticulumd/tests/python_channel_interop_parts/resource_memory_profile.rs",
-    "crates/apps/reticulumd/tests/support/python_channel_process.rs",
-}
+host = sys.argv[3]
+# The dead_code only appears where the linux-only test target is not built,
+# so the tolerance is populated on Darwin alone; CI on Linux tolerates nothing.
+allowed_files = set()
+tolerance = "none"
+if host == "Darwin":
+    allowed_files = {
+        "crates/apps/reticulumd/tests/python_channel_interop_parts/resource_memory_profile.rs",
+        "crates/apps/reticulumd/tests/support/python_channel_process.rs",
+    }
+    tolerance = "the macOS-only dead_code in the linux-only reticulumd test target"
 await_hits = 0
 errors = []
 codes = collections.Counter()
@@ -83,6 +96,7 @@ with open(path) as fh:
             errors.append((code, files))
 print(f"await_holding_invalid_type diagnostics (any level): {await_hits}")
 print(f"error-level diagnostics by code: {dict(codes)}")
+print(f"tolerated errors ({host}): {tolerance}")
 bad = [e for e in errors if e[0] != "dead_code" or not e[1] or not e[1] <= allowed_files]
 for code, files in errors:
     print(f"  error {code}: {sorted(files)}")
@@ -93,7 +107,10 @@ if clippy_rc != 0 and not errors:
     print(f"FAIL: cargo clippy exited {clippy_rc} without any error-level diagnostic; the invocation itself failed")
     sys.exit(1)
 if bad:
-    print(f"FAIL: {len(bad)} error diagnostic(s) outside the known macOS-only dead_code in the linux-only reticulumd test target")
+    print(f"FAIL: {len(bad)} error diagnostic(s) outside the tolerated set ({host}: {tolerance})")
     sys.exit(1)
-print("OK: zero await_holding_invalid_type diagnostics with the lint live at its default level; every error is the macOS-only dead_code in the linux-only reticulumd test target")
+if errors:
+    print(f"OK: zero await_holding_invalid_type diagnostics with the lint live at its default level; every error is {tolerance}")
+else:
+    print("OK: zero await_holding_invalid_type diagnostics with the lint live at its default level; no error-level diagnostic")
 PY

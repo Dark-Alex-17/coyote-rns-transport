@@ -184,7 +184,8 @@ pub enum AutoPeerDataLoopEvent {
 #[derive(Clone)]
 struct AutoPeerDataReceiveLoopRuntime {
     state: Arc<tokio::sync::Mutex<AutoDiscoveryState>>,
-    /// Lock order: `state`, then `dedupe`. This is the only site that takes `dedupe`.
+    /// Lock order: `state`, then `dedupe`.
+    /// `spawn_peer_data_receive_loop` is the only locker of `dedupe`.
     dedupe: Arc<tokio::sync::Mutex<AutoInboundPacketDeduplicator>>,
     transport: Option<AutoInterfaceTransportBridge>,
     runtime_status: Option<AutoRuntimeStatusHandle>,

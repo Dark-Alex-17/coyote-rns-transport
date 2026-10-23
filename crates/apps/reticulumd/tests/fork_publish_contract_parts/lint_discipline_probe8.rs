@@ -261,7 +261,7 @@ fn lock_discipline_rustdoc_names_fns_that_exist_and_cites_no_line_ranges() {
 }
 
 /// The README divergence register carries the unicast discovery-port
-/// step-down as its own entry with the Python cite the fix round named.
+/// step-down as its own entry with the Python cite it carries.
 #[test]
 fn readme_register_names_the_unicast_port_step_down_with_its_cite() {
     let readme = read_repo_file("crates/libs/rns-transport/README.md");

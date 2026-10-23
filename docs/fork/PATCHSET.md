@@ -40,7 +40,8 @@ fork commit `08362717`; the
 `guard discipline` patch is fork commits `f7be0f41`, `ae4f16d8`, `5f6c230f`,
 `e916ce9e`, `39d107b9`, `882baabc`, `e9c2ea93`, `7908fcff`, `044b64f4`,
 `fd3b249e`, `d4e1634d`, `71c25285`, `1b7ce1cb`, `6c0ea58e`, `66a703e9`,
-`719bff37`, `0d42d2e4`, `e29addcb`, `0c4457e2`, `3e77860a` and `c80d6996`.
+`719bff37`, `0d42d2e4`, `e29addcb`, `0c4457e2`, `3e77860a`, `c80d6996`,
+`120956aa`, `3b2352c0` and `c6d28577`.
 
 | File | Patch |
 | --- | --- |
@@ -58,6 +59,7 @@ fork commit `08362717`; the
 | `crates/apps/reticulumd/tests/fork_publish_contract_parts/lint_discipline_probe.rs` | guard discipline |
 | `crates/apps/reticulumd/tests/fork_publish_contract_parts/lint_discipline_probe2.rs` | guard discipline |
 | `crates/apps/reticulumd/tests/fork_publish_contract_parts/lint_discipline_probe3.rs` | guard discipline |
+| `crates/apps/reticulumd/tests/fork_publish_contract_parts/lint_discipline_probe4.rs` | guard discipline |
 | `crates/apps/reticulumd/tests/fork_publish_contract_parts/release_tooling_probe.rs` | release tooling |
 | `crates/apps/reticulumd/tests/fork_publish_contract_parts/release_tooling_probe2.rs` | release tooling |
 | `crates/apps/reticulumd/tests/fork_publish_contract_parts/release_tooling_probe3.rs` | release tooling |
@@ -118,6 +120,7 @@ fork commit `08362717`; the
 | `crates/libs/rns-transport/src/iface/udp.rs` | guard discipline |
 | `crates/libs/rns-transport/src/iface/weave.rs` | guard discipline |
 | `crates/libs/rns-transport/src/iface/weave_ifac_runtime_tests.rs` | guard discipline |
+| `crates/libs/rns-transport/src/iface/weave_management_handle_tests.rs` | guard discipline |
 | `crates/libs/rns-transport/src/iface.rs` | guard discipline |
 | `crates/libs/rns-transport/src/iface_types.rs` | guard discipline |
 | `crates/libs/rns-transport/src/transport/announce.rs` | guard discipline |
@@ -317,10 +320,12 @@ that alters no library behaviour (later widened to release tooling and CI).
 Fork commits `f7be0f41`, `ae4f16d8`, `5f6c230f`, `e916ce9e`, `39d107b9`,
 `882baabc`, `e9c2ea93`, `7908fcff`, `044b64f4`, `fd3b249e`, `d4e1634d`,
 `71c25285`, `1b7ce1cb`, `6c0ea58e`, `66a703e9`, `719bff37`, `0d42d2e4`,
-`e29addcb`, `0c4457e2`, `3e77860a` and `c80d6996`:
+`e29addcb`, `0c4457e2`, `3e77860a`, `c80d6996`, `120956aa`, `3b2352c0` and
+`c6d28577`:
 H4, guard discipline. No library behaviour
 changes except the two auto-interface peer-table fixes of the eighth and
-thirteenth commits (the pipe and serial transmit-panic note of the fifth
+thirteenth commits and the serial reader-panic fix of the eighteenth (the
+pipe and serial transmit-panic note of the fifth
 is closed by the fifteenth); `clippy::await_holding_invalid_type` (the tokio `MutexGuard`,
 `RwLockReadGuard` and `RwLockWriteGuard` types named in `clippy.toml`) now
 runs at its default level under the workspace clippy invocation, and the
@@ -406,7 +411,8 @@ overwrote the first and the peer received every broadcast twice. The
 fifteenth closes the transmit-panic note of the fifth: `CatchUnwind`
 (`iface/catch_unwind.rs`, a poll-level adapter with no new dependency)
 wraps the inline pipe and serial transmit loops so a panic is logged,
-recorded as `transmit_task_failed` and the driver returns with its
+recorded (the pipe `transmit_task_failed` status, the serial
+`transmit task failed` last error) and the driver returns with its
 receiver, as the spawned task of old did through its `JoinError`; it also
 gives `pipe_tests.rs`, whose Linux-only test holds a guard across an
 await, the test-root allowance (cross-target clippy on
@@ -427,13 +433,16 @@ whichever half ends first: both select over the caught writer and the
 reader `JoinHandle`, cancel `stop` as soon as either ends and then collect
 the other, so a reader panic, which never reaches its own `stop.cancel()`,
 is recorded promptly instead of leaving the writer waiting on an idle
-receiver (serial was writer-first before this patch and wedged the same
-way); `CatchUnwind` drops its inner future on a caught panic and refuses a
+receiver (for pipe this restores the reader-first order of the base; serial
+was writer-first before this patch and wedged the same way, so for serial
+it is a fix); `CatchUnwind` drops its inner future on a caught panic and refuses a
 second poll, and the serial panic arm records `tx_errors` and `link_state`
 like its write-error arm. The transmit-loop panic probes move to
 `pipe_tests_parts/transmit_panic.rs`, included from `pipe_tests.rs` under
-its root attribute. The nineteenth credits the `entry()` fold in the
-transport bridge comment, widens the `manage_transport` allowance to the
+its root attribute. The nineteenth re-attributes the double-broadcast fix
+in the transport bridge comment to the bridge's own fan-out, which the
+`entry()` fold prevents (the manager already skips `VirtualUnicast`),
+widens the `manage_transport` allowance to the
 three worker guard families it covers and notes in the `TransportHandler`
 rustdoc that `handle_check_links` nests a link guard, then
 `iface_manager`. The twentieth records two checks that had only been run
@@ -447,7 +456,20 @@ reference checkout is off its pin). The twenty-first adopts the classify
 manifest-gate probes (`lint_discipline_probe2.rs`: an untracked manifest
 is ignored and clippy is reached through a stub `cargo`, a `warn`-level
 mention is refused, a dangling `gitdir:` makes the listing fatal) and pins
-the two scripts (`lint_discipline_probe3.rs`). Pinned by
+the two scripts (`lint_discipline_probe3.rs`). The twenty-second pins the
+stopped weave handle (`weave_management_handle_tests.rs`: a remote display
+command queues while the driver owns the receiver and fails at once with
+`WouldBlock` after `stop_interface`) and drops the serial transmit-panic
+arm's `link_state` write, which the unconditional `closed` write a few
+lines later always overwrote. The twenty-third makes the interop script
+classify every nextest status token (`SIGABRT`, `SIGSEGV`, `TIMEOUT` and
+the `TRY n` forms count as failures; `LEAK`, `SLOW` and `FLAKY` as passes)
+and cross-check its counts against the nextest `Summary` line, captures
+the manifest grep's exit code in the classify script and reads the
+installed targets through a here-string in the cross-target script. The
+twenty-fourth adopts the verdict probes for both scripts
+(`lint_discipline_probe4.rs`, a stub toolchain that never runs cargo or
+nextest). Pinned by
 `tcp_client/tests/tx_queue_survives_reconnect.rs`,
 `kiss_parts/tx_queue_survives_reconnect_tests.rs`,
 `local/tests/tx_queue_survives_reconnect.rs`,
@@ -455,10 +477,12 @@ the two scripts (`lint_discipline_probe3.rs`). Pinned by
 `tests_sections/peer_route_table_probe.rs`,
 `tests_parts/two_transport_loopback_lifecycle.rs`,
 `pipe_tests_parts/transmit_panic.rs` and `serial_parts/run_serial_stream.rs`
-(the transmit-loop and reader panic pins), `iface/catch_unwind.rs` (its own
+(the transmit-loop and reader panic pins),
+`weave_management_handle_tests.rs`, `iface/catch_unwind.rs` (its own
 unit tests), `fork_publish_contract_parts/lint_discipline_probe.rs`,
-`fork_publish_contract_parts/lint_discipline_probe2.rs` and
-`fork_publish_contract_parts/lint_discipline_probe3.rs`.
+`fork_publish_contract_parts/lint_discipline_probe2.rs`,
+`fork_publish_contract_parts/lint_discipline_probe3.rs` and
+`fork_publish_contract_parts/lint_discipline_probe4.rs`.
 
 ## 0.15.1 (upstream 0.14.0)
 

@@ -72,6 +72,8 @@ Removed) bullet of its own, marked as such.
   handler guard (`transport/reticulum_path_store.rs`,
   `links_parts/transport_sections/path_table.rs`); `NextHopMetrics` lives
   in `transport/next_hop_metrics.rs` and is re-exported at its old path;
+  `send_resource_from_reader_observed` scopes its first handler guard in a
+  block (`links_parts/transport_sections/resource_reader.rs`);
   the handler lock discipline (the guard spans one job; lock order handler,
   then `packet_cache`; handler, then `iface_manager`, then the interface
   tx channel; handler, then a link; handler, then a destination) is
@@ -94,13 +96,14 @@ Removed) bullet of its own, marked as such.
   loops run on the driver's own task under `CatchUnwind`
   (`iface/catch_unwind.rs`), so a panic inside one is still logged,
   recorded (the pipe `transmit_task_failed` status, the serial
-  `transmit task failed` last error with `tx_errors` and `link_state`) and
+  `transmit task failed` last error with `tx_errors`) and
   leaves the driver with its receiver, as the spawned task's join error
-  did before, and both pumps finish on whichever half ends first so a
-  reader panic no longer leaves the writer waiting on an idle receiver;
+  did before, and the pipe pump again finishes on whichever half ends
+  first, as it did before the transmit loop moved inline;
   once a weave driver has stopped, `WeaveManagementHandle::try_set_remote_display`
   reports the closed queue at once instead of buffering commands nobody
-  will read (`iface/weave.rs`);
+  will read (`iface/weave.rs`, pinned by
+  `iface/weave_management_handle_tests.rs`);
   management frames arrive through `recv_optional_management_frame`
   (`iface_types.rs`), and a second take of a weave, rnode_multi or LoRa
   management receiver logs a warning naming the interface instead of
@@ -114,8 +117,8 @@ Removed) bullet of its own, marked as such.
   (`iface/auto_runtime_parts/autoruntimeplan_sections/spawn_peer_data_receive_loop.rs`);
   `run_kiss_stream_with_ifac` keeps its shared-receiver signature as a
   wrapper over `run_kiss_stream_owned` for callers outside this crate and
-  holds both receiver guards for the life of the stream, as it always
-  has; `MeshtasticInterfaceHandle::recv_transmit` keeps its shared
+  holds both receiver guards for the life of the stream (the shared form
+  re-took them on every loop pass); `MeshtasticInterfaceHandle::recv_transmit` keeps its shared
   receiver (`iface/meshtastic_parts/interface.rs`). Pinned by
   `tcp_client/tests/tx_queue_survives_reconnect.rs`,
   `kiss_parts/tx_queue_survives_reconnect_tests.rs` and
@@ -163,6 +166,12 @@ Removed) bullet of its own, marked as such.
   `What 0.15.0 carries` register notes the removal (pinned by
   `crates/apps/reticulumd/tests/fork_release_docs_contract.rs`,
   `readme_names_the_codex_variable_only_in_a_bullet_that_says_removed`).
+- No library behaviour change: the `await_holding_invalid_type = "allow"`
+  entries of the workspace and `reticulumd` lint tables; the lint runs at
+  its default level and no tracked manifest may mention it (pinned by
+  `crates/apps/reticulumd/tests/fork_publish_contract_parts/lint_discipline_probe.rs`
+  and the classify manifest gate probes in
+  `fork_publish_contract_parts/lint_discipline_probe2.rs`).
 
 ### Fixed
 
@@ -178,6 +187,14 @@ Removed) bullet of its own, marked as such.
   received every broadcast twice. Pinned by
   `iface/auto_runtime_parts/tests_sections/peer_route_table_expiry.rs` and
   `iface/auto_runtime_parts/tests_sections/peer_route_table_probe.rs`.
+- A serial driver whose read task panicked kept its transmit loop waiting
+  on an idle receiver until an external cancel or a write error, because
+  the pump awaited the writer first and a panicking reader never cancels
+  the shared stop token; the pump now finishes on whichever half ends
+  first, cancels the other and records both results
+  (`iface/serial_parts/run_serial_stream.rs`, pinned by
+  `serial_stream_returns_receiver_after_a_receive_task_panic_with_the_writer_idle`
+  in the same file).
 
 ## 0.15.1 - 2026-10-21
 

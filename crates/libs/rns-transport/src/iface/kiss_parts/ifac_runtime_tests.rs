@@ -183,3 +183,65 @@ async fn kiss_stream_ifac_rejects_wrong_key_and_authenticates_ingress_egress() {
     assert_eq!(status.data_frames_rx, 2);
     assert_eq!(status.data_frames_tx, 1);
 }
+
+/// The shared-receiver entry point holds the `tx_channel` guard from the
+/// first poll to the end of the stream rather than taking it per pass, so the
+/// mutex is contended for as long as the stream runs and free once it stops.
+#[tokio::test]
+async fn kiss_stream_with_ifac_holds_the_tx_receiver_lock_for_the_life_of_the_stream() {
+    let (rx_channel, _rx_queue) = mpsc::channel::<RxMessage>(8);
+    let (_tx_queue, tx_receiver) = mpsc::channel::<TxMessage>(8);
+    let tx_channel = Arc::new(tokio::sync::Mutex::new(tx_receiver));
+    let (stream, _peer_stream) = tokio::io::duplex(4_096);
+    let cancel = CancellationToken::new();
+    let session_options = KissStreamOptions {
+        iface_address: AddressHash::new_from_slice(&[0x64; 16]),
+        device: "in-memory KISS TCP".to_string(),
+        mtu: 564,
+        flow_control: false,
+        flow_control_timeout: KISS_FLOW_CONTROL_TIMEOUT,
+        read_frame_timeout: KISS_READ_FRAME_TIMEOUT,
+        initial_frames: Vec::new(),
+        shutdown_frames: Vec::new(),
+        id_beacon: None,
+        activity_probe: None,
+        payload_adapter: KissPayloadAdapter::Raw,
+        strip_command_port_nibble: false,
+        command_tx: None,
+        data_rx_tx: None,
+        management_frame_rx: None,
+        runtime_status: None,
+    };
+    let session = tokio::spawn(run_kiss_stream_with_ifac(
+        stream,
+        session_options,
+        cancel.clone(),
+        rx_channel,
+        tx_channel.clone(),
+        Arc::new(std::sync::RwLock::new(None)),
+        Arc::new(std::sync::atomic::AtomicU64::new(0)),
+    ));
+
+    timeout(Duration::from_secs(1), async {
+        while tx_channel.try_lock().is_ok() {
+            sleep(Duration::from_millis(5)).await;
+        }
+    })
+    .await
+    .expect("the running stream should hold the tx receiver lock");
+    sleep(Duration::from_millis(20)).await;
+    assert!(
+        tx_channel.try_lock().is_err(),
+        "the tx receiver lock must stay held between passes while the stream runs"
+    );
+
+    cancel.cancel();
+    timeout(Duration::from_secs(1), session)
+        .await
+        .expect("KISS stream should stop after cancellation")
+        .expect("join KISS stream");
+    assert!(
+        tx_channel.try_lock().is_ok(),
+        "the tx receiver lock must be released once the stream stops"
+    );
+}

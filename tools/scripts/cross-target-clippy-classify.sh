@@ -33,7 +33,7 @@ if ! command -v zig >/dev/null 2>&1; then
   echo "SKIP: zig is not on PATH (install it from https://ziglang.org/download or 'brew install zig'); a skip is not a pass, the ubuntu CI run is the authority"
   exit 0
 fi
-if ! command -v rustup >/dev/null 2>&1 || ! rustup target list --installed | grep -qx "$TARGET"; then
+if ! command -v rustup >/dev/null 2>&1 || ! grep -qx "$TARGET" <<<"$(rustup target list --installed)"; then
   echo "SKIP: rust-std for $TARGET is not installed (run 'rustup target add $TARGET'); a skip is not a pass, the ubuntu CI run is the authority"
   exit 0
 fi
@@ -43,7 +43,8 @@ cd "$ROOT_DIR"
 
 wrappers="$(mktemp -d "${TMPDIR:-/tmp}/cross-clippy-zig.XXXXXX")"
 json="$(mktemp "${TMPDIR:-/tmp}/cross-clippy-json.XXXXXX")"
-trap 'rm -rf "$wrappers" "$json"' EXIT
+stderr_log="$(mktemp "${TMPDIR:-/tmp}/cross-clippy-stderr.XXXXXX")"
+trap 'rm -rf "$wrappers" "$json" "$stderr_log"' EXIT
 
 # cc-rs recognises zig cc as clang and adds --target=<rust triple>, which zig
 # rejects; the wrapper drops it and supplies zig's own triple instead.
@@ -67,8 +68,12 @@ export CC_x86_64_unknown_linux_gnu="$wrappers/cc"
 export AR_x86_64_unknown_linux_gnu="$wrappers/ar"
 
 rc=0
-cargo clippy --workspace --exclude reticulumd --exclude rns-tools --all-targets --no-deps --target "$TARGET" --message-format=json >"$json" 2>/dev/null || rc=$?
+cargo clippy --workspace --exclude reticulumd --exclude rns-tools --all-targets --no-deps --target "$TARGET" --message-format=json >"$json" 2>"$stderr_log" || rc=$?
 echo "cargo clippy (--target $TARGET) exit: $rc"
+if [ "$rc" -ne 0 ]; then
+  echo "cargo clippy stderr (last 40 lines):"
+  tail -n 40 "$stderr_log"
+fi
 
 python3 - "$json" "$rc" <<'PY'
 import collections

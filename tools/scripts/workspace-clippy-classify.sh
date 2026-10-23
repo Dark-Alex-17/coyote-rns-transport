@@ -26,7 +26,16 @@ json="$(mktemp "${TMPDIR:-/tmp}/clippy-json.XXXXXX")"
 trap 'rm -f "$manifests" "$json"' EXIT
 
 git ls-files -z -- 'Cargo.toml' '*/Cargo.toml' >"$manifests"
-manifest_hits="$(xargs -0 grep -l 'await_holding_invalid_type' -- <"$manifests" || true)"
+# One grep over the whole list rather than xargs: xargs folds grep's "no
+# match" (1) and "unreadable file" (2) into the same 123, and only the former
+# may pass.
+manifest_list=()
+while IFS= read -r -d '' manifest; do
+  manifest_list+=("$manifest")
+done <"$manifests"
+rc=0
+manifest_hits="$(grep -l 'await_holding_invalid_type' -- "${manifest_list[@]}")" || rc=$?
+[ "$rc" -le 1 ] || exit "$rc"
 if [ -n "$manifest_hits" ]; then
   echo "FAIL: a Cargo.toml mentions await_holding_invalid_type; the lint runs at its default level and allowances live in code:"
   while IFS= read -r hit; do

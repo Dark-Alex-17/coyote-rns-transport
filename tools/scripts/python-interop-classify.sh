@@ -3,10 +3,13 @@ set -euo pipefail
 
 # Python-in-the-loop interop classification. Runs the ignored
 # python_channel_interop batch against a Python Reticulum checkout, keeps the
-# nextest output in a temp file, reads the failed test names from its
-# `FAIL [` lines and passes only when every failure is in the tolerated set
-# below and at least one test passed. Anything else fails naming the
-# untolerated tests.
+# nextest output in a temp file and reads every finished test's status line.
+# PASS, LEAK, SLOW, FLAKY and the retry pass forms count as passed; any other
+# token (FAIL, SIGABRT, SIGSEGV, TIMEOUT, XFAIL, ...) counts as failed. The
+# counts are checked against nextest's own Summary line, and the run passes
+# only when they agree, every failure is in the tolerated set below and at
+# least one test passed. Anything else fails naming the untolerated tests.
+# A tolerated name is tolerated whatever its status token.
 #
 # Tolerated failures are environment reds, not product defects: on macOS the
 # backbone and serial-pty cases listed below fail against the Python side on
@@ -79,19 +82,32 @@ import sys
 path = sys.argv[1]
 nextest_rc = int(sys.argv[2])
 tolerated = set(sys.argv[3:])
-status = re.compile(r"^\s*(PASS|FAIL) \[")
-passed = 0
-failed = set()
+# A finished test: a status token right-aligned before a bracketed duration,
+# then the binary and the test name. START lines carry an empty bracket and
+# the in-flight SLOW/TERMINATING lines a `>` before the duration, so neither
+# matches. nextest prints the final statuses again after the Summary, hence
+# the by-name map rather than a counter.
+status = re.compile(r"^\s*([A-Z][A-Z0-9+/ -]*?) \[\s*[\d.]+s\] ")
+passed_tokens = {"PASS", "LEAK", "SLOW", "SLOW + LEAK", "SLOW+TMPASS", "TIMEOUT-PASS"}
+retried_pass = re.compile(r"FLAKY \d+/\d+|TRY \d+ PASS")
+summary = re.compile(
+    r"^\s*Summary \[\s*[\d.]+s\] (\d+)(?:/(\d+))? tests? run: (\d+) passed(?: \([^)]*\))?, "
+    r"(?:(\d+) failed(?: \([^)]*\))?, )?(?:(\d+) exec failed, )?(?:(\d+) timed out, )?\d+ skipped"
+)
+outcome = {}
+counts = None
 with open(path, errors="replace") as fh:
     for line in fh:
         m = status.match(line)
-        if not m:
+        if m:
+            token = m.group(1)
+            outcome[line.split()[-1]] = token in passed_tokens or bool(retried_pass.fullmatch(token))
             continue
-        name = line.split()[-1]
-        if m.group(1) == "PASS":
-            passed += 1
-        else:
-            failed.add(name)
+        m = summary.match(line)
+        if m:
+            counts = m
+passed = sum(1 for ok in outcome.values() if ok)
+failed = {name for name, ok in outcome.items() if not ok}
 print(f"passed: {passed}, failed: {len(failed)}")
 untolerated = sorted(failed - tolerated)
 if untolerated:
@@ -99,8 +115,22 @@ if untolerated:
     for name in untolerated:
         print(f"  {name}")
     sys.exit(1)
-if nextest_rc != 0 and not failed:
-    print(f"FAIL: cargo nextest exited {nextest_rc} without a FAIL line; the batch itself did not run")
+if nextest_rc != 0 and not outcome:
+    print(f"FAIL: cargo nextest exited {nextest_rc} without a status line; the batch itself did not run")
+    sys.exit(1)
+if counts is None:
+    print("FAIL: no Summary line in the nextest output; the batch did not finish")
+    sys.exit(1)
+if counts.group(2) is not None:
+    print(f"FAIL: nextest ran {counts.group(1)} of {counts.group(2)} tests; the batch was cancelled")
+    sys.exit(1)
+summary_passed = int(counts.group(3))
+summary_failed = sum(int(n or 0) for n in counts.group(4, 5, 6))
+if (passed, len(failed)) != (summary_passed, summary_failed):
+    print(
+        f"FAIL: parsed {passed} passed, {len(failed)} failed but the nextest Summary says "
+        f"{summary_passed} passed, {summary_failed} failed (failed + exec failed + timed out)"
+    )
     sys.exit(1)
 if passed == 0:
     print("FAIL: no test passed")

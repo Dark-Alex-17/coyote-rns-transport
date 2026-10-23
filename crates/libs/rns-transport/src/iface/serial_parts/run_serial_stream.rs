@@ -12,7 +12,8 @@ struct SerialStreamOptions {
 async fn run_serial_stream<IO>(
     stream: IO,
     options: SerialStreamOptions,
-) where
+) -> Option<InterfaceTxReceiver>
+where
     IO: AsyncRead + AsyncWrite + Unpin + Send + 'static,
 {
     run_serial_stream_with_ifac(
@@ -21,18 +22,20 @@ async fn run_serial_stream<IO>(
         Arc::new(std::sync::RwLock::new(None)),
         Arc::new(std::sync::atomic::AtomicU64::new(0)),
     )
-    .await;
+    .await
 }
 
-/// Pumps one opened port and returns the tx receiver so the caller can carry
-/// it, with any queued messages, into the next open attempt. The reader runs
-/// as its own task; the writer loop runs here because it owns the receiver.
+/// Pumps one opened port. The reader and the writer each run as their own
+/// task; the tx receiver travels into the writer and comes back through its
+/// join handle on a normal exit so the caller can carry it, with any queued
+/// messages, into the next open attempt. `None` means the writer panicked and
+/// took the receiver with it.
 async fn run_serial_stream_with_ifac<IO>(
     stream: IO,
     options: SerialStreamOptions,
     ifac_state: IfacState,
     ifac_violations: Arc<std::sync::atomic::AtomicU64>,
-) -> InterfaceTxReceiver
+) -> Option<InterfaceTxReceiver>
 where
     IO: AsyncRead + AsyncWrite + Unpin + Send + 'static,
 {
@@ -180,13 +183,12 @@ where
         })
     };
 
-    let tx_loop = {
+    let mut tx_task = {
         let cancel = cancel.clone();
         let stop = stop.clone();
-        let tx_channel = &mut tx_channel;
         let runtime_status = runtime_status.clone();
         let ifac_state = ifac_state.clone();
-        async move {
+        tokio::spawn(async move {
             loop {
                 if stop.is_cancelled() {
                     break;
@@ -274,27 +276,28 @@ where
                     }
                 }
             }
-        }
+            tx_channel
+        })
     };
 
     // A panicking reader never reaches `stop.cancel()` and an idle writer only
     // exits on `stop`, so finish whichever half ends first, cancel `stop` and
-    // collect the other. The caught writer panic keeps the receiver for the
-    // reopen; the block ends the writer's borrow of it before it is returned.
-    let (tx_result, rx_result) = {
-        let mut tx = CatchUnwind::new(tx_loop);
-        tokio::select! {
-            result = &mut tx => { stop.cancel(); (result, rx_task.await) }
-            joined = &mut rx_task => { stop.cancel(); (tx.await, joined) }
+    // collect the other.
+    let (tx_result, rx_result) = tokio::select! {
+        joined = &mut tx_task => { stop.cancel(); (joined, rx_task.await) }
+        joined = &mut rx_task => { stop.cancel(); (tx_task.await, joined) }
+    };
+    let tx_channel = match tx_result {
+        Ok(tx_channel) => Some(tx_channel),
+        Err(error) => {
+            log::error!("serial transmit task failed iface={iface_address}: {error}");
+            runtime_status.update(|status| {
+                status.tx_errors = status.tx_errors.saturating_add(1);
+                status.last_error = Some(format!("transmit task failed: {error}"));
+            });
+            None
         }
     };
-    if let Err(error) = tx_result {
-        log::error!("serial transmit task failed iface={iface_address}: {error}");
-        runtime_status.update(|status| {
-            status.tx_errors = status.tx_errors.saturating_add(1);
-            status.last_error = Some(format!("transmit task failed: {error}"));
-        });
-    }
     if let Err(error) = rx_result {
         log::error!("serial receive task failed iface={iface_address}: {error}");
         runtime_status.update(|status| {
@@ -458,7 +461,8 @@ mod tests {
         timeout(Duration::from_secs(1), session)
             .await
             .expect("session should stop on write failure")
-            .expect("join session task");
+            .expect("join session task")
+            .expect("the receiver comes back");
         let status = status.snapshot();
         assert_eq!(status.link_state, "closed");
     }
@@ -499,7 +503,8 @@ mod tests {
         timeout(Duration::from_secs(1), session)
             .await
             .expect("session should stop after cancel")
-            .expect("join session task");
+            .expect("join session task")
+            .expect("the receiver comes back");
         let status = status.snapshot();
         assert_eq!(status.packets_tx, 1);
         assert_eq!(status.frames_tx, 1);
@@ -551,7 +556,8 @@ mod tests {
         timeout(Duration::from_secs(1), session)
             .await
             .expect("session should stop after cancel")
-            .expect("join session task");
+            .expect("join session task")
+            .expect("the receiver comes back");
         let status = status.snapshot();
         assert_eq!(status.packets_rx, 1);
         assert_eq!(status.frames_rx, 1);
@@ -585,7 +591,8 @@ mod tests {
         timeout(Duration::from_secs(1), session)
             .await
             .expect("session should stop on EOF")
-            .expect("join session task");
+            .expect("join session task")
+            .expect("the receiver comes back");
         assert!(rx_recv.try_recv().is_err(), "malformed frame must not emit packets");
         let status = status.snapshot();
         assert_eq!(status.link_state, "closed");
@@ -625,7 +632,8 @@ mod tests {
             ),
         )
         .await
-        .expect("session should stop on write failure");
+        .expect("session should stop on write failure")
+        .expect("the receiver comes back");
 
         assert!(
             tx_recv.try_recv().is_ok(),
@@ -671,8 +679,10 @@ mod tests {
         }
     }
 
+    // The reader stays pending and only exits on `stop`; a pump that joins
+    // the panicked writer without cancelling `stop` never returns.
     #[tokio::test]
-    async fn serial_stream_returns_receiver_after_transmit_loop_panic() {
+    async fn serial_stream_reports_a_lost_receiver_after_transmit_loop_panic() {
         let (rx_send, _rx_recv) = mpsc::channel(4);
         let (tx_send, tx_recv) = mpsc::channel(4);
         for _ in 0..2 {
@@ -683,7 +693,7 @@ mod tests {
         }
         let status = SerialInterface::new("panic", 115200).runtime_status_handle();
 
-        let mut tx_recv = timeout(
+        let tx_recv = timeout(
             Duration::from_secs(1),
             run_serial_stream_with_ifac(
                 PanickingPort,
@@ -703,7 +713,7 @@ mod tests {
         .await
         .expect("a transmit loop panic returns from the driver instead of unwinding it");
 
-        assert!(tx_recv.try_recv().is_ok(), "the receiver survives the panic with its queue");
+        assert!(tx_recv.is_none(), "the receiver died with the panicking transmit task");
         let status = status.snapshot();
         assert_eq!(status.link_state, "closed");
         assert_eq!(status.tx_errors, 1, "the panic counts as a transmit error like a failed write");
@@ -712,7 +722,8 @@ mod tests {
         // records its own failure last.
         let last_error = status.last_error.as_deref().unwrap_or_default();
         assert!(
-            last_error == "transmit task failed: injected serial write panic"
+            (last_error.starts_with("transmit task failed: ")
+                && last_error.contains("injected serial write panic"))
                 || last_error.starts_with("receive task failed: "),
             "a task failure is recorded after the transmit loop panic: {last_error}"
         );
@@ -781,7 +792,8 @@ mod tests {
             ),
         )
         .await
-        .expect("a receive task panic stops the writer and returns from the driver");
+        .expect("a receive task panic stops the writer and returns from the driver")
+        .expect("the receiver comes back");
 
         let status = status.snapshot();
         assert_eq!(status.link_state, "closed");

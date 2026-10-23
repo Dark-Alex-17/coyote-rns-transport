@@ -11,7 +11,6 @@ use tokio_util::sync::CancellationToken;
 use crate::buffer::OutputBuffer;
 
 use crate::hash::AddressHash;
-use crate::iface::catch_unwind::CatchUnwind;
 
 use crate::iface::{
     decode_packet_ifac, encode_packet_ifac, is_ifac_violation, record_ifac_violation, IfacState,
@@ -513,7 +512,7 @@ impl SerialInterface {
             });
             online.store(true, std::sync::atomic::Ordering::Release);
 
-            tx_channel = run_serial_stream_with_ifac(
+            let returned = run_serial_stream_with_ifac(
                 port,
                 SerialStreamOptions {
                     iface_address,
@@ -529,6 +528,15 @@ impl SerialInterface {
             )
             .await;
             online.store(false, std::sync::atomic::Ordering::Release);
+            match returned {
+                Some(returned) => tx_channel = returned,
+                None => {
+                    log::error!(
+                        "serial interface closed iface={iface_address}: transmit task lost its receiver"
+                    );
+                    break;
+                }
+            }
 
             if context.cancel.is_cancelled() {
                 break;

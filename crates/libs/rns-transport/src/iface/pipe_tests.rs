@@ -298,7 +298,7 @@ async fn pipe_stream_rejects_wrong_ifac_key_before_admission() {
 
     let (stream, mut peer) = tokio::io::duplex(4096);
     let (rx_channel, mut rx_receiver) = mpsc::channel(8);
-    let (_tx_sender, mut tx_receiver) = mpsc::channel(8);
+    let (_tx_sender, tx_receiver) = mpsc::channel(8);
     let runtime_status = Arc::new(std::sync::Mutex::new(super::PipeRuntimeStatus::new("test")));
     let cancel = CancellationToken::new();
     let worker_cancel = cancel.clone();
@@ -312,12 +312,12 @@ async fn pipe_stream_rejects_wrong_ifac_key_before_admission() {
             worker_cancel,
             CancellationToken::new(),
             rx_channel,
-            &mut tx_receiver,
+            tx_receiver,
             runtime_status,
             ifac_state,
             worker_violations,
         )
-        .await;
+        .await
     });
 
     peer.write_all(output.as_slice()).await.expect("write wrong-key Pipe frame");
@@ -336,7 +336,8 @@ async fn pipe_stream_rejects_wrong_ifac_key_before_admission() {
     timeout(Duration::from_secs(1), worker)
         .await
         .expect("Pipe stream worker should stop")
-        .expect("Pipe stream worker task");
+        .expect("Pipe stream worker task")
+        .expect("the receiver comes back");
 }
 
 /// A child stdin whose first write panics.
@@ -366,11 +367,13 @@ impl tokio::io::AsyncWrite for PanickingWriter {
     }
 }
 
+// The reader sits on an open duplex and only exits on `stop`; a pump that
+// joins the panicked writer without cancelling `stop` never returns.
 #[tokio::test]
-async fn pipe_stream_keeps_receiver_after_transmit_loop_panic() {
+async fn pipe_stream_reports_a_lost_receiver_after_transmit_loop_panic() {
     let (stream, _peer) = tokio::io::duplex(64);
     let (rx_channel, _rx_receiver) = mpsc::channel(8);
-    let (tx_sender, mut tx_receiver) = mpsc::channel(8);
+    let (tx_sender, tx_receiver) = mpsc::channel(8);
     for _ in 0..2 {
         tx_sender
             .send(TxMessage { tx_type: TxMessageType::Broadcast(None), packet: Packet::default() })
@@ -380,7 +383,7 @@ async fn pipe_stream_keeps_receiver_after_transmit_loop_panic() {
     let runtime_status = Arc::new(std::sync::Mutex::new(super::PipeRuntimeStatus::new("test")));
     let ifac_state: IfacState = Arc::new(std::sync::RwLock::new(None));
 
-    timeout(
+    let tx_receiver = timeout(
         Duration::from_secs(1),
         super::run_pipe_stream(
             stream,
@@ -390,7 +393,7 @@ async fn pipe_stream_keeps_receiver_after_transmit_loop_panic() {
             CancellationToken::new(),
             CancellationToken::new(),
             rx_channel,
-            &mut tx_receiver,
+            tx_receiver,
             runtime_status.clone(),
             ifac_state,
             Arc::new(std::sync::atomic::AtomicU64::new(0)),
@@ -399,11 +402,18 @@ async fn pipe_stream_keeps_receiver_after_transmit_loop_panic() {
     .await
     .expect("a transmit loop panic returns from the driver instead of unwinding it");
 
-    assert!(tx_receiver.try_recv().is_ok(), "the receiver survives the panic with its queue");
+    assert!(tx_receiver.is_none(), "the receiver died with the panicking transmit task");
     let status = runtime_status.lock().expect("pipe runtime status").clone();
     assert_eq!(status.process_state, "transmit_task_failed");
     assert!(!status.pipe_is_open);
-    assert_eq!(status.last_error.as_deref(), Some("injected pipe write panic"));
+    assert!(
+        status
+            .last_error
+            .as_deref()
+            .is_some_and(|e| e.contains("panicked") && e.contains("injected pipe write panic")),
+        "the join error names the writer panic: {:?}",
+        status.last_error
+    );
 }
 
 include!("pipe_tests_parts/transmit_panic.rs");

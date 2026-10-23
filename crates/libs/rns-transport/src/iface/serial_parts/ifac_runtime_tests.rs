@@ -160,7 +160,8 @@ async fn serial_stream_ifac_rejects_wrong_key_and_roundtrips_authenticated_packe
     timeout(Duration::from_secs(1), session)
         .await
         .expect("serial IFAC stream should stop after cancellation")
-        .expect("join serial IFAC stream");
+        .expect("join serial IFAC stream")
+        .expect("the receiver comes back");
 
     let status = runtime_status.snapshot();
     assert_eq!(status.packets_rx, 1);

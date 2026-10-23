@@ -46,7 +46,7 @@ pub struct RestoredReticulumPathIdentity {
 /// stale in the export. Python has the same window: its persist loop reads
 /// `Transport.interfaces` without a lock and refreshes the hash set at most
 /// every two seconds (`RNS/Transport.py:2983-2984`,
-/// `RNS/Transport.py:3820-3822`).
+/// `RNS/Transport.py:3819-3821`).
 pub(super) struct ExportedIface {
     pub(super) mode: InterfaceMode,
     pub(super) full_hash: Hash,

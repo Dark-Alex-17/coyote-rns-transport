@@ -25,7 +25,7 @@ pub(super) fn is_link_resource_proof(packet: &Packet) -> bool {
         && packet.header.destination_type == DestinationType::Link
 }
 
-#[allow(clippy::await_holding_invalid_type)] // TASK-026: the Link guard spans the resource manager awaits under the caller's handler guard, see TransportHandler lock discipline
+#[allow(clippy::await_holding_invalid_type)] // TASK-026: the Link guard spans the destination (max_request_size) and iface_manager (MTU) lock awaits under the caller's handler guard, see TransportHandler lock discipline
 pub(super) async fn handle_link_resource_packet<'a>(
     packet: &Packet,
     iface: AddressHash,

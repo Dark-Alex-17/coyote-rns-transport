@@ -179,10 +179,10 @@ impl tokio::io::AsyncWrite for BrokenPipeWriter {
     }
 }
 
-// The writer ends first on a plain write error while the reader sits on an
-// open pipe. The pump must cancel `stop` so the reader is collected; a pump
-// that only joins the reader after the writer never returns, and the
-// receiver (with nothing lost) must come back for the respawn.
+// A write error while the reader sits on an open pipe records the write-error
+// status (`process_state == "write_error"`, `last_error` is the injected error,
+// `pipe_is_open == false`) and hands the receiver back intact for the respawn.
+// The writer's own `tx_stop.cancel()` releases the parked reader, not the pump.
 #[tokio::test]
 async fn pipe_stream_cancels_an_open_reader_after_a_write_error_and_keeps_the_receiver() {
     let (stream, _peer) = tokio::io::duplex(64);

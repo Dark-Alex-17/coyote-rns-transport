@@ -1,6 +1,3 @@
-// Test code holds guards across awaits on purpose.
-#![allow(clippy::await_holding_invalid_type)]
-
 // Pins the serial pump's join discipline: the transmit loop is a spawned task
 // that is JOINED, never aborted, so a write already in flight when the port
 // reports EOF still completes, is counted, and the receiver comes back for
@@ -127,11 +124,7 @@ async fn serial_stream_joins_an_in_flight_write_when_the_port_reports_eof_first(
     assert_eq!(status.tx_errors, 0, "nothing about the join is a transmit error");
     assert_eq!(status.eof_count, 1, "the port's EOF is the recorded outcome");
     assert_eq!(status.link_state, "closed");
-    assert!(
-        !status.last_error.as_deref().unwrap_or_default().starts_with("transmit task failed"),
-        "no task failure is recorded: {:?}",
-        status.last_error
-    );
+    assert_eq!(status.last_error, None, "no task failure is recorded");
     tx_send
         .send(TxMessage { tx_type: TxMessageType::Broadcast(None), packet: Packet::default() })
         .await

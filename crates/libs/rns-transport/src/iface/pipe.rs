@@ -151,9 +151,6 @@ impl PipeInterface {
                 log::error!(
                     "pipe interface closed iface={iface_address}: transmit task lost its receiver"
                 );
-                update_pipe_status(&runtime_status, |status| {
-                    status.pipe_is_open = false;
-                });
                 break;
             }
             if context.cancel.is_cancelled() || iface_stop.is_cancelled() {

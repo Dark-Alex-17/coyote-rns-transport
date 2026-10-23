@@ -12,8 +12,7 @@ impl AutoInterfaceTransportRuntime {
                 rx_channel: channel.rx_channel,
                 ifac_state: channel.ifac_state,
                 ifac_violations: channel.ifac_violations,
-                peer_ifaces: Arc::new(tokio::sync::Mutex::new(BTreeMap::new())),
-                outbound_routes: Arc::new(tokio::sync::Mutex::new(BTreeMap::new())),
+                peer_routes: Arc::new(tokio::sync::Mutex::new(PeerRouteTable::default())),
             },
             tx_channel: channel.tx_channel,
         }
@@ -57,24 +56,20 @@ impl AutoInterfaceTransportBridge {
             return;
         }
         let expired_ifaces = {
-            let mut peers = self.peer_ifaces.lock().await;
-            let expired = peers
+            let mut table = self.peer_routes.lock().await;
+            let expired = table
+                .peer_ifaces
                 .iter()
                 .filter_map(|(address, iface)| {
                     expired_addresses.contains(&address.ip()).then_some((*address, *iface))
                 })
                 .collect::<Vec<_>>();
-            for (address, _) in &expired {
-                peers.remove(address);
+            for (address, iface) in &expired {
+                table.peer_ifaces.remove(address);
+                table.outbound_routes.remove(iface);
             }
             expired.into_iter().map(|(_, iface)| iface).collect::<Vec<_>>()
         };
-        {
-            let mut routes = self.outbound_routes.lock().await;
-            for iface in &expired_ifaces {
-                routes.remove(iface);
-            }
-        }
         let mut manager = self.iface_manager.lock().await;
         for iface in expired_ifaces {
             manager.stop_interface(iface);
@@ -86,18 +81,21 @@ impl AutoInterfaceTransportBridge {
         peer: SocketAddr,
         route: AutoPeerOutboundRoute,
     ) -> Option<AddressHash> {
-        let existing = self.peer_ifaces.lock().await.get(&peer).copied();
-        if let Some(existing) = existing {
-            self.outbound_routes.lock().await.insert(existing, route);
-            return Some(existing);
+        {
+            let mut table = self.peer_routes.lock().await;
+            if let Some(existing) = table.peer_ifaces.get(&peer).copied() {
+                table.outbound_routes.insert(existing, route);
+                return Some(existing);
+            }
         }
 
         let virtual_iface = {
             let mut manager = self.iface_manager.lock().await;
             manager.register_virtual_iface(self.host_iface, IfaceRole::VirtualUnicast)?
         };
-        self.peer_ifaces.lock().await.insert(peer, virtual_iface);
-        self.outbound_routes.lock().await.insert(virtual_iface, route);
+        let mut table = self.peer_routes.lock().await;
+        table.peer_ifaces.insert(peer, virtual_iface);
+        table.outbound_routes.insert(virtual_iface, route);
         Some(virtual_iface)
     }
 
@@ -175,7 +173,8 @@ impl AutoInterfaceTransportBridge {
     }
 
     async fn remove_outbound_routes_for_socket(&self, socket: &Arc<tokio::net::UdpSocket>) -> usize {
-        let mut routes = self.outbound_routes.lock().await;
+        let mut table = self.peer_routes.lock().await;
+        let routes = &mut table.outbound_routes;
         let before = routes.len();
         routes.retain(|_, route| !Arc::ptr_eq(&route.socket, socket));
         before.saturating_sub(routes.len())
@@ -187,7 +186,7 @@ impl AutoInterfaceTransportBridge {
                 self.send_to_route(iface, message.packet).await;
             }
             TxMessageType::Broadcast(_) => {
-                let routes = self.outbound_routes.lock().await.clone();
+                let routes = self.peer_routes.lock().await.outbound_routes.clone();
                 for (iface, _) in routes {
                     self.send_to_route(iface, message.packet.clone()).await;
                 }
@@ -196,7 +195,7 @@ impl AutoInterfaceTransportBridge {
     }
 
     async fn send_to_route(&self, iface: AddressHash, packet: Packet) {
-        let Some(route) = self.outbound_routes.lock().await.get(&iface).cloned() else {
+        let Some(route) = self.peer_routes.lock().await.outbound_routes.get(&iface).cloned() else {
             return;
         };
         let payload = match crate::iface::encode_packet_ifac(&self.ifac_state, &packet) {

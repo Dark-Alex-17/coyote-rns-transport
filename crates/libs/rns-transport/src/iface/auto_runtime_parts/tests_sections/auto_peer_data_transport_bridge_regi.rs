@@ -298,8 +298,7 @@
             rx_channel: closed_rx_channel,
             ifac_state: std::sync::Arc::new(std::sync::RwLock::new(None)),
             ifac_violations: std::sync::Arc::new(std::sync::atomic::AtomicU64::new(0)),
-            peer_ifaces: Arc::new(tokio::sync::Mutex::new(BTreeMap::new())),
-            outbound_routes: Arc::new(tokio::sync::Mutex::new(BTreeMap::new())),
+            peer_routes: Arc::new(tokio::sync::Mutex::new(PeerRouteTable::default())),
         };
         let closed_packet = Packet {
             destination: AddressHash::new_from_slice(
@@ -1106,22 +1105,25 @@ async fn expired_auto_peer_teardown_removes_only_its_virtual_route() {
         rx_channel: tokio::sync::mpsc::channel(1).0,
         ifac_state: Arc::new(std::sync::RwLock::new(None)),
         ifac_violations: Arc::new(std::sync::atomic::AtomicU64::new(0)),
-        peer_ifaces: Arc::new(tokio::sync::Mutex::new(BTreeMap::from([
-            (expired_addr, expired_iface),
-            (live_addr, live_iface),
-        ]))),
-        outbound_routes: Arc::new(tokio::sync::Mutex::new(BTreeMap::from([
-            (expired_iface, AutoPeerOutboundRoute { socket: expired_socket, destination: expired_addr }),
-            (live_iface, AutoPeerOutboundRoute { socket: live_socket, destination: live_addr }),
-        ]))),
+        peer_routes: Arc::new(tokio::sync::Mutex::new(PeerRouteTable {
+            peer_ifaces: BTreeMap::from([(expired_addr, expired_iface), (live_addr, live_iface)]),
+            outbound_routes: BTreeMap::from([
+                (
+                    expired_iface,
+                    AutoPeerOutboundRoute { socket: expired_socket, destination: expired_addr },
+                ),
+                (live_iface, AutoPeerOutboundRoute { socket: live_socket, destination: live_addr }),
+            ]),
+        })),
     };
 
     bridge.remove_expired_peer_routes(&["192.0.2.10".to_string()]).await;
 
     assert!(!manager.lock().await.interface_hashes().contains(&expired_iface));
     assert!(manager.lock().await.interface_hashes().contains(&live_iface));
-    assert!(!bridge.peer_ifaces.lock().await.contains_key(&expired_addr));
-    assert!(bridge.peer_ifaces.lock().await.contains_key(&live_addr));
-    assert!(!bridge.outbound_routes.lock().await.contains_key(&expired_iface));
-    assert!(bridge.outbound_routes.lock().await.contains_key(&live_iface));
+    let table = bridge.peer_routes.lock().await;
+    assert!(!table.peer_ifaces.contains_key(&expired_addr));
+    assert!(table.peer_ifaces.contains_key(&live_addr));
+    assert!(!table.outbound_routes.contains_key(&expired_iface));
+    assert!(table.outbound_routes.contains_key(&live_iface));
 }

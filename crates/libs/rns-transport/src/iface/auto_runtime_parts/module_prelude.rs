@@ -312,8 +312,16 @@ pub struct AutoInterfaceTransportBridge {
     rx_channel: InterfaceRxSender,
     ifac_state: IfacState,
     ifac_violations: Arc<std::sync::atomic::AtomicU64>,
-    peer_ifaces: Arc<tokio::sync::Mutex<BTreeMap<SocketAddr, AddressHash>>>,
-    outbound_routes: Arc<tokio::sync::Mutex<BTreeMap<AddressHash, AutoPeerOutboundRoute>>>,
+    peer_routes: Arc<tokio::sync::Mutex<PeerRouteTable>>,
+}
+
+/// Both halves of the peer-to-route mapping live under one lock so that a
+/// lookup of a peer's virtual iface and the route insert that follows cannot
+/// straddle an expiry that drops the iface from both maps.
+#[derive(Default)]
+struct PeerRouteTable {
+    peer_ifaces: BTreeMap<SocketAddr, AddressHash>,
+    outbound_routes: BTreeMap<AddressHash, AutoPeerOutboundRoute>,
 }
 
 #[allow(dead_code)]

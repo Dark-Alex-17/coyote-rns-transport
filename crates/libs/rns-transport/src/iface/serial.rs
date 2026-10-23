@@ -5,3 +5,6 @@ include!("serial_parts/run_serial_stream.rs");
 #[cfg(test)]
 #[path = "serial_parts/ifac_runtime_tests.rs"]
 mod ifac_runtime_tests;
+#[cfg(test)]
+#[path = "serial_parts/transmit_join_probe_tests.rs"]
+mod transmit_join_probe_tests;

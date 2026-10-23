@@ -417,3 +417,4 @@ async fn pipe_stream_reports_a_lost_receiver_after_transmit_loop_panic() {
 }
 
 include!("pipe_tests_parts/transmit_panic.rs");
+include!("pipe_tests_parts/transmit_join_probe.rs");

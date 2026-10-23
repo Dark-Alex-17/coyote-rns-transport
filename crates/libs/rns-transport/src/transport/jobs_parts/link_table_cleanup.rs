@@ -1,4 +1,3 @@
-#[allow(dead_code)]
 #[allow(clippy::await_holding_invalid_type)] // TASK-026: handler guard spans the job by design, see TransportHandler lock discipline
 pub(super) async fn handle_link_table_cleanup<'a>(mut handler: MutexGuard<'a, TransportHandler>) {
     let expired_links = handler.link_table.remove_stale();

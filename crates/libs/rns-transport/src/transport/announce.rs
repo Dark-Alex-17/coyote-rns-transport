@@ -437,7 +437,7 @@ async fn retransmit_announces_at<'a>(mut handler: MutexGuard<'a, TransportHandle
     }
 }
 
-#[allow(clippy::await_holding_invalid_type)] // TASK-026: handler guard spans the job by design, see TransportHandler lock discipline
+#[allow(clippy::await_holding_invalid_type)] // TASK-026: iface_manager guard spans release_queued_announces, see TransportHandler lock discipline
 pub(super) async fn announce_retransmit_tick(
     handler_arc: &Arc<Mutex<TransportHandler>>,
     now: Instant,

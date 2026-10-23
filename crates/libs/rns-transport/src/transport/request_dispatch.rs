@@ -274,8 +274,8 @@ async fn send_response_as_resource(
     }
 }
 
-/// Holds the handler guard across the dispatch like every
-/// `Transport::send_*` wrapper.
+/// Holds the handler guard across the dispatch like `Transport::send_packet`
+/// and `Transport::send_broadcast`.
 #[allow(clippy::await_holding_invalid_type)] // TASK-026: handler guard spans the job by design, see TransportHandler lock discipline
 pub(super) async fn send_on_iface(
     handler: &Arc<Mutex<TransportHandler>>,

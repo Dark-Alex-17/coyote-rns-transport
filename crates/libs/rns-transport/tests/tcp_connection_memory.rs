@@ -1,4 +1,4 @@
-// Test code holds guards across awaits on purpose; production code is lint-clean.
+// Test code holds guards across awaits on purpose.
 #![allow(clippy::await_holding_invalid_type)]
 
 use std::net::{Ipv4Addr, SocketAddrV4, TcpListener as StdTcpListener};

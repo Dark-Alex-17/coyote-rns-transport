@@ -172,7 +172,7 @@ async fn send_announce_survives_an_unbuildable_announce() {
 #[deny(clippy::await_holding_invalid_type)]
 async fn send_announce_hands_a_buildable_announce_to_the_interface() {
     let identity = PrivateIdentity::new_from_rand(OsRng);
-    let transport = Transport::new(TransportConfig::new("t", &identity, true));
+    let transport = Transport::new(TransportConfig::new("t", &identity, false));
     let mut channel = transport.iface_manager().lock().await.new_channel(16);
     let destination =
         transport.add_destination(identity, DestinationName::new("app", "aspect")).await;
@@ -187,6 +187,47 @@ async fn send_announce_hands_a_buildable_announce_to_the_interface() {
     assert_eq!(sent.packet.header.packet_type, PacketType::Announce);
     assert_eq!(sent.packet.destination, address_hash);
     assert!(matches!(sent.tx_type, TxMessageType::Broadcast(None)));
+}
+
+fn pathless_data_packet() -> Packet {
+    Packet {
+        destination: AddressHash::new_from_slice(&[0x5a; 16]),
+        data: PacketDataBuffer::new_from_slice(b"no path"),
+        ..Packet::default()
+    }
+}
+
+#[tokio::test]
+#[deny(clippy::await_holding_invalid_type)]
+async fn outbound_without_a_path_broadcasts_when_configured() {
+    let identity = PrivateIdentity::new_from_rand(OsRng);
+    let transport = Transport::new(TransportConfig::new("t", &identity, true));
+    let mut channel = transport.iface_manager().lock().await.new_channel(16);
+    let packet = pathless_data_packet();
+
+    transport.outbound(&packet).await;
+
+    let sent = timeout(Duration::from_millis(200), channel.tx_channel.recv())
+        .await
+        .expect("the packet reaches the interface")
+        .expect("the interface channel stays open");
+    assert_eq!(sent.packet.destination, packet.destination);
+    assert!(matches!(sent.tx_type, TxMessageType::Broadcast(None)));
+}
+
+#[tokio::test]
+#[deny(clippy::await_holding_invalid_type)]
+async fn outbound_without_a_path_sends_nothing_when_broadcast_is_off() {
+    let identity = PrivateIdentity::new_from_rand(OsRng);
+    let transport = Transport::new(TransportConfig::new("t", &identity, false));
+    let mut channel = transport.iface_manager().lock().await.new_channel(16);
+
+    transport.outbound(&pathless_data_packet()).await;
+
+    assert!(
+        timeout(Duration::from_millis(100), channel.tx_channel.recv()).await.is_err(),
+        "a pathless packet is dropped when broadcast is off"
+    );
 }
 
 #[tokio::test]

@@ -143,7 +143,7 @@ pub(super) async fn handle_cleanup<'a>(mut handler: MutexGuard<'a, TransportHand
     }
 }
 
-#[allow(clippy::await_holding_invalid_type)] // TASK-026: handler guard spans the job by design, see TransportHandler lock discipline
+#[allow(clippy::await_holding_invalid_type)] // TASK-026: the packet-ingress worker holds the shared InterfaceRxReceiver guard across recv; InterfaceManager::receiver() is pub, so the receiver stays shared
 pub(super) async fn manage_transport(
     handler_arc: Arc<Mutex<TransportHandler>>,
     rx_receiver: Arc<Mutex<InterfaceRxReceiver>>,

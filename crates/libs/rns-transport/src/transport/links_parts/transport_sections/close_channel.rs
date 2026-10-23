@@ -76,7 +76,7 @@ impl Transport {
         self.handler.lock().await.in_links.get(link_id).cloned()
     }
 
-    #[allow(clippy::await_holding_invalid_type)] // TASK-026: handler guard spans the job by design, see TransportHandler lock discipline
+    #[allow(clippy::await_holding_invalid_type)] // TASK-026: iface_manager guard spans the path request send, see TransportHandler lock discipline
     pub async fn request_path(
         &self,
         destination: &AddressHash,

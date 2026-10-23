@@ -18,7 +18,7 @@ include!("rnode_ble_parts/runtime_status_handle.rs");
 
 #[cfg(all(test, feature = "rnode-ble"))]
 mod rnode_ble_tests {
-    // Test code holds guards across awaits on purpose; production code is lint-clean.
+    // Test code holds guards across awaits on purpose.
     #![allow(clippy::await_holding_invalid_type)]
 
     use super::*;

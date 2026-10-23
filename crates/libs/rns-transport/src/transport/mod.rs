@@ -236,8 +236,9 @@ pub struct AnnounceEvent {
 /// while holding a link, destination or `iface_manager` guard: `send`
 /// re-locks the link of the packet it just wrote in `note_link_packet_sent`,
 /// so a caller still holding that link deadlocks itself (`resource_wire.rs`
-/// spells this out for the resource reject). Every fn whose guard crosses an
-/// await carries the `clippy::await_holding_invalid_type` allowance.
+/// spells this out for the resource reject). Every fn that owns a handler
+/// guard across an await carries the `clippy::await_holding_invalid_type`
+/// allowance; the lint does not see helpers that borrow a `&mut MutexGuard`.
 pub(crate) struct TransportHandler {
     config: TransportConfig,
     iface_manager: Arc<Mutex<InterfaceManager>>,

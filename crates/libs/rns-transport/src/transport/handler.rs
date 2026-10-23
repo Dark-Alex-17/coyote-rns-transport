@@ -206,7 +206,7 @@ impl TransportHandler {
         SendPacketTrace::with_packet_hash(outcome, packet_hash, None, true, dispatch)
     }
 
-    #[allow(clippy::await_holding_invalid_type)] // TASK-026: handler guard spans the job by design, see TransportHandler lock discipline
+    #[allow(clippy::await_holding_invalid_type)] // TASK-026: iface_manager guard spans the send under the caller's handler guard, see TransportHandler lock discipline
     pub(super) async fn send(&self, message: TxMessage) -> TxDispatchTrace {
         let packet = message.packet.clone();
         // Unguarded on purpose: receipt guard, see filter_duplicate_packet / PacketCache::update.

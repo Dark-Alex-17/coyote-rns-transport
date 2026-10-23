@@ -91,8 +91,10 @@ Removed) bullet of its own, marked as such.
   `iface/weave.rs`, `iface/rnode_multi.rs`, `iface/i2p.rs`,
   `iface/kiss_parts/kisstcpclientinterface.rs`,
   `iface/lora_parts/lorainterface.rs`); the pipe and serial transmit
-  loops run on the driver's own task, so a panic inside one unwinds the
-  driver instead of being recorded as a `transmit_task_failed` status;
+  loops run on the driver's own task under `CatchUnwind`
+  (`iface/catch_unwind.rs`), so a panic inside one is still logged,
+  recorded as `transmit_task_failed` and leaves the driver with its
+  receiver, as the spawned task's join error did before;
   management frames arrive through `recv_optional_management_frame`
   (`iface_types.rs`), and a second take of a weave, rnode_multi or LoRa
   management receiver logs a warning naming the interface instead of
@@ -115,7 +117,10 @@ Removed) bullet of its own, marked as such.
   driver is between connections is delivered after the reconnect) and by
   `serial_stream_returns_receiver_with_queued_message` in
   `iface/serial_parts/run_serial_stream.rs` (the serial stream hands the
-  caller's receiver back with the message queued behind a failed write).
+  caller's receiver back with the message queued behind a failed write),
+  `pipe_stream_keeps_receiver_after_transmit_loop_panic` in `iface/pipe_tests.rs`
+  and `serial_stream_returns_receiver_after_transmit_loop_panic` (the
+  transmit-loop panic recovery).
 - Lint tables, no library behaviour change: `clippy::await_holding_invalid_type`
   runs at its default level under the workspace clippy invocation; no
   lint table in the workspace mentions it any more, every test root
@@ -127,8 +132,21 @@ Removed) bullet of its own, marked as such.
   in `meshchat-api` is a scoped read instead);
   `tools/scripts/workspace-clippy-classify.sh` refuses any tracked
   manifest that mentions the lint and still passes only when no
-  diagnostic of the lint fires. Pinned by
+  diagnostic of the lint fires; the Linux-only `iface/pipe_tests.rs` root
+  carries the test-root allowance too, so the ubuntu run of the invocation
+  is as clean as the macOS one. Pinned by
   `crates/apps/reticulumd/tests/fork_publish_contract_parts/lint_discipline_probe.rs`.
+
+### Removed
+
+- No library behaviour change: the Codex pull-request review workflow, which
+  was opt-in through a repository variable that was never set, and its clause
+  in the publish contract; the pin keeps the `ci.yml` clauses
+  (`crates/apps/reticulumd/tests/fork_publish_contract.rs`,
+  `pull_request_ci_runs_the_publish_contract`); the crate README
+  `What 0.15.0 carries` register notes the removal (pinned by
+  `crates/apps/reticulumd/tests/fork_release_docs_contract.rs`,
+  `readme_names_the_codex_variable_only_in_a_bullet_that_says_removed`).
 
 ### Fixed
 
@@ -142,18 +160,8 @@ Removed) bullet of its own, marked as such.
   the losing virtual iface is stopped; before, the second insert
   overwrote the first, one iface leaked in the manager and the peer
   received every broadcast twice. Pinned by
-  `iface/auto_runtime_parts/tests_sections/peer_route_table_expiry.rs`.
-
-### Removed
-
-- No library behaviour change: the Codex pull-request review workflow, which
-  was opt-in through a repository variable that was never set, and its clause
-  in the publish contract; the pin keeps the `ci.yml` clauses
-  (`crates/apps/reticulumd/tests/fork_publish_contract.rs`,
-  `pull_request_ci_runs_the_publish_contract`); the crate README
-  `What 0.15.0 carries` register notes the removal (pinned by
-  `crates/apps/reticulumd/tests/fork_release_docs_contract.rs`,
-  `readme_names_the_codex_variable_only_in_a_bullet_that_says_removed`).
+  `iface/auto_runtime_parts/tests_sections/peer_route_table_expiry.rs` and
+  `iface/auto_runtime_parts/tests_sections/peer_route_table_probe.rs`.
 
 ## 0.15.1 - 2026-10-21
 

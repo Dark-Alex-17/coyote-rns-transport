@@ -39,7 +39,8 @@ fork commit `08362717`; the
 `ledger conventions` patch is fork commit `c45a4e5c`; the
 `guard discipline` patch is fork commits `f7be0f41`, `ae4f16d8`, `5f6c230f`,
 `e916ce9e`, `39d107b9`, `882baabc`, `e9c2ea93`, `7908fcff`, `044b64f4`,
-`fd3b249e`, `d4e1634d`, `71c25285`, `1b7ce1cb` and `6c0ea58e`.
+`fd3b249e`, `d4e1634d`, `71c25285`, `1b7ce1cb`, `6c0ea58e`, `66a703e9`,
+`719bff37` and `0d42d2e4`.
 
 | File | Patch |
 | --- | --- |
@@ -81,6 +82,8 @@ fork commit `08362717`; the
 | `crates/libs/rns-transport/src/iface/auto_runtime_parts/tests.rs` | guard discipline |
 | `crates/libs/rns-transport/src/iface/auto_runtime_parts/tests_sections/auto_peer_data_transport_bridge_regi.rs` | guard discipline |
 | `crates/libs/rns-transport/src/iface/auto_runtime_parts/tests_sections/peer_route_table_expiry.rs` | guard discipline |
+| `crates/libs/rns-transport/src/iface/auto_runtime_parts/tests_sections/peer_route_table_probe.rs` | guard discipline |
+| `crates/libs/rns-transport/src/iface/catch_unwind.rs` | guard discipline |
 | `crates/libs/rns-transport/src/iface/i2p.rs` | guard discipline |
 | `crates/libs/rns-transport/src/iface/kiss.rs` | guard discipline |
 | `crates/libs/rns-transport/src/iface/kiss_parts/ifac_runtime_tests.rs` | guard discipline |
@@ -96,6 +99,7 @@ fork commit `08362717`; the
 | `crates/libs/rns-transport/src/iface/meshtastic_parts/ifac_runtime_tests.rs` | guard discipline |
 | `crates/libs/rns-transport/src/iface/meshtastic_parts/interface.rs` | guard discipline |
 | `crates/libs/rns-transport/src/iface/pipe.rs` | guard discipline |
+| `crates/libs/rns-transport/src/iface/pipe_parts/status.rs` | guard discipline |
 | `crates/libs/rns-transport/src/iface/pipe_tests.rs` | guard discipline |
 | `crates/libs/rns-transport/src/iface/rnode_bearer_interface_tests.rs` | guard discipline |
 | `crates/libs/rns-transport/src/iface/rnode_ble.rs` | guard discipline |
@@ -111,6 +115,7 @@ fork commit `08362717`; the
 | `crates/libs/rns-transport/src/iface/udp.rs` | guard discipline |
 | `crates/libs/rns-transport/src/iface/weave.rs` | guard discipline |
 | `crates/libs/rns-transport/src/iface/weave_ifac_runtime_tests.rs` | guard discipline |
+| `crates/libs/rns-transport/src/iface.rs` | guard discipline |
 | `crates/libs/rns-transport/src/iface_types.rs` | guard discipline |
 | `crates/libs/rns-transport/src/transport/announce.rs` | guard discipline |
 | `crates/libs/rns-transport/src/transport/core.rs` | guard discipline |
@@ -306,10 +311,11 @@ that alters no library behaviour (later widened to release tooling and CI).
 
 Fork commits `f7be0f41`, `ae4f16d8`, `5f6c230f`, `e916ce9e`, `39d107b9`,
 `882baabc`, `e9c2ea93`, `7908fcff`, `044b64f4`, `fd3b249e`, `d4e1634d`,
-`71c25285`, `1b7ce1cb` and `6c0ea58e`: H4, guard discipline. No library behaviour
+`71c25285`, `1b7ce1cb`, `6c0ea58e`, `66a703e9`, `719bff37` and `0d42d2e4`:
+H4, guard discipline. No library behaviour
 changes except the two auto-interface peer-table fixes of the eighth and
-thirteenth commits and the pipe and serial transmit-panic note of the
-fifth; `clippy::await_holding_invalid_type` (the tokio `MutexGuard`,
+thirteenth commits (the pipe and serial transmit-panic note of the fifth
+is closed by the fifteenth); `clippy::await_holding_invalid_type` (the tokio `MutexGuard`,
 `RwLockReadGuard` and `RwLockWriteGuard` types named in `clippy.toml`) now
 runs at its default level under the workspace clippy invocation, and the
 production code of this crate holds no tokio guard across an await except
@@ -390,12 +396,35 @@ on `ensure_peer_iface`'s miss path: when the discovery and data tasks
 both miss the first lookup for one peer, the first registration to reach
 the table wins, the loser's route folds onto it and the losing virtual
 iface is stopped after the guard drops, where before the second insert
-overwrote the first and the peer received every broadcast twice. Pinned by
+overwrote the first and the peer received every broadcast twice. The
+fifteenth closes the transmit-panic note of the fifth: `CatchUnwind`
+(`iface/catch_unwind.rs`, a poll-level adapter with no new dependency)
+wraps the inline pipe and serial transmit loops so a panic is logged,
+recorded as `transmit_task_failed` and the driver returns with its
+receiver, as the spawned task of old did through its `JoinError`; it also
+gives `pipe_tests.rs`, whose Linux-only test holds a guard across an
+await, the test-root allowance (cross-target clippy on
+`x86_64-unknown-linux-gnu` then reports zero diagnostics of the lint for
+the workspace minus the two crates that pull `libdbus`). The sixteenth
+names the `iface_manager` guard on `send_prepared_packet_broadcast_with_trace`,
+credits the `entry()` fold in the transport bridge comment and adopts the
+peer-table probe fixture. The seventeenth hardens the lint discipline
+probe (allowances counted by owner tag with slack, the open
+`allow(clippy::await_holding_invalid_type` form, no production allowance
+outside the four pinned crates, a floor on the fn-level deny carriers,
+the CHANGELOG section read label-aware, the `reticulumd` manifest checked
+for neither a lint table nor workspace inheritance, and the classify
+manifest gate exercised against a throwaway clone with a staged allowing
+manifest) and makes the classify script's manifest listing fatal on
+failure. Pinned by
 `tcp_client/tests/tx_queue_survives_reconnect.rs`,
 `kiss_parts/tx_queue_survives_reconnect_tests.rs`,
 `local/tests/tx_queue_survives_reconnect.rs`,
 `tests_sections/peer_route_table_expiry.rs`,
-`tests_parts/two_transport_loopback_lifecycle.rs` and
+`tests_sections/peer_route_table_probe.rs`,
+`tests_parts/two_transport_loopback_lifecycle.rs`,
+`pipe_tests.rs` and `serial_parts/run_serial_stream.rs` (the
+transmit-loop panic pins), `iface/catch_unwind.rs` (its own unit tests) and
 `fork_publish_contract_parts/lint_discipline_probe.rs`.
 
 ## 0.15.1 (upstream 0.14.0)

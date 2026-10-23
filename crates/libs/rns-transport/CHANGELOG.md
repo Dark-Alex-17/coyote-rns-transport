@@ -126,10 +126,12 @@ Removed) bullet of its own, marked as such.
   stop, prune and join it after the guard is gone
   (`iface/auto_runtime_parts/autoruntimeplan_sections/send_due_multicast_peer_announces_wi.rs`,
   `iface/auto_runtime_parts/autoruntimeplan_sections/runtime_json.rs`),
-  and the peer-data receive loop takes its `state` and `dedupe` guards at
-  one await (`tokio::join!`) inside the sync processing block, so neither
-  guard spans an await and the loop carries no allowance
-  (`iface/auto_runtime_parts/autoruntimeplan_sections/spawn_peer_data_receive_loop.rs`);
+  and the peer-data receive loop keeps taking `state` and then `dedupe`
+  in sequence under a fn-level allowance that names the documented order
+  (one receive loop per adopted NIC shares both mutexes, so the order is
+  a total order and the `dedupe` field rustdoc states it)
+  (`iface/auto_runtime_parts/autoruntimeplan_sections/spawn_peer_data_receive_loop.rs`,
+  `iface/auto_runtime_parts/module_prelude.rs`);
   `run_kiss_stream_with_ifac` keeps its shared-receiver signature for
   callers outside this crate and locks each shared receiver per receive
   (the tx receiver was locked per pass before the owned-receiver change,
@@ -164,7 +166,10 @@ Removed) bullet of its own, marked as such.
   and `iface/serial_parts/transmit_join_probe_tests.rs` (the transmit loop
   is joined, never aborted, so an in-flight write completes and the
   receiver comes back; the writer ending on a write error and the parked
-  reader being collected is pinned on the pipe side only).
+  reader being collected is pinned on the pipe side only), and by
+  `tests_sections/peer_data_receive_loop_progress.rs` (four receive loops
+  sharing one `state`/`dedupe` pair keep making progress under concurrent
+  load on a multi-thread runtime).
 - Lint tables, no library behaviour change: `clippy::await_holding_invalid_type`
   runs at its default level under the workspace clippy invocation; no
   lint table in the workspace mentions it any more, every test or example
@@ -199,11 +204,15 @@ Removed) bullet of its own, marked as such.
   `fork_publish_contract_parts/lint_discipline_probe3.rs`,
   `fork_publish_contract_parts/lint_discipline_probe4.rs`,
   `fork_publish_contract_parts/lint_discipline_probe5.rs`,
-  `fork_publish_contract_parts/lint_discipline_probe6.rs` and
+  `fork_publish_contract_parts/lint_discipline_probe6.rs`,
   `fork_publish_contract_parts/lint_discipline_probe7.rs` (every
   production allowance reason names a guard, the await it spans and a
   concrete site; the kiss wrapper carries no allowance and the lease
-  `recv` carries the only one under `kiss_parts/`).
+  `recv` carries the only one under `kiss_parts/`) and
+  `fork_publish_contract_parts/lint_discipline_probe8.rs` (one
+  lock-order-nest allowance, on the peer-data loop, with the order on the
+  `dedupe` field; no join over lock futures in the auto runtime;
+  `link_table_cleanup` carries no stale `dead_code` allow).
 
 ### Removed
 

@@ -44,7 +44,8 @@ fork commit `08362717`; the
 `120956aa`, `3b2352c0`, `c6d28577`, `05989491`, `5366399d`, `b879fc9b`,
 `d36f611c`, `31299980`, `1b02e70a`, `1393cecd`, `4576a35e`, `57cd07fa`,
 `f0e02c44`, `10888bf2`, `b785306b`, `f2bdb2ac`, `23f196ea`, `a594ebb7`,
-`64f4fa37`, `b7ddb0ee` and `45d4a0dd`.
+`64f4fa37`, `b7ddb0ee`, `45d4a0dd`, `2997ad2a`, `9e1145fc` and
+`2293a968`.
 
 | File | Patch |
 | --- | --- |
@@ -66,6 +67,7 @@ fork commit `08362717`; the
 | `crates/apps/reticulumd/tests/fork_publish_contract_parts/lint_discipline_probe5.rs` | guard discipline |
 | `crates/apps/reticulumd/tests/fork_publish_contract_parts/lint_discipline_probe6.rs` | guard discipline |
 | `crates/apps/reticulumd/tests/fork_publish_contract_parts/lint_discipline_probe7.rs` | guard discipline |
+| `crates/apps/reticulumd/tests/fork_publish_contract_parts/lint_discipline_probe8.rs` | guard discipline |
 | `crates/apps/reticulumd/tests/fork_publish_contract_parts/release_tooling_probe.rs` | release tooling |
 | `crates/apps/reticulumd/tests/fork_publish_contract_parts/release_tooling_probe2.rs` | release tooling |
 | `crates/apps/reticulumd/tests/fork_publish_contract_parts/release_tooling_probe3.rs` | release tooling |
@@ -82,7 +84,7 @@ fork commit `08362717`; the
 | `crates/libs/meshchat-api/src/control.rs` | guard discipline |
 | `crates/libs/meshchat-api/src/lib.rs` | guard discipline |
 | `crates/libs/rns-transport/CHANGELOG.md` | test hygiene, release tooling, ledger conventions, guard discipline |
-| `crates/libs/rns-transport/README.md` | release tooling |
+| `crates/libs/rns-transport/README.md` | release tooling, guard discipline |
 | `crates/libs/rns-transport/examples/tcp_connection_memory.rs` | guard discipline |
 | `crates/libs/rns-transport/src/iface/auto_parts/default_multicast_discovery_address_sections/core_tests.rs` | guard discipline |
 | `crates/libs/rns-transport/src/iface/auto_parts/module_prelude.rs` | guard discipline |
@@ -94,6 +96,7 @@ fork commit `08362717`; the
 | `crates/libs/rns-transport/src/iface/auto_runtime_parts/tests.rs` | guard discipline |
 | `crates/libs/rns-transport/src/iface/auto_runtime_parts/tests_sections/auto_peer_data_transport_bridge_regi.rs` | guard discipline |
 | `crates/libs/rns-transport/src/iface/auto_runtime_parts/tests_sections/core_tests.rs` | guard discipline |
+| `crates/libs/rns-transport/src/iface/auto_runtime_parts/tests_sections/peer_data_receive_loop_progress.rs` | guard discipline |
 | `crates/libs/rns-transport/src/iface/auto_runtime_parts/tests_sections/peer_route_table_expiry.rs` | guard discipline |
 | `crates/libs/rns-transport/src/iface/auto_runtime_parts/tests_sections/peer_route_table_probe.rs` | guard discipline |
 | `crates/libs/rns-transport/src/iface/i2p.rs` | guard discipline |
@@ -336,8 +339,8 @@ Fork commits `f7be0f41`, `ae4f16d8`, `5f6c230f`, `e916ce9e`, `39d107b9`,
 `e29addcb`, `0c4457e2`, `3e77860a`, `c80d6996`, `120956aa`, `3b2352c0`,
 `c6d28577`, `05989491`, `5366399d`, `b879fc9b`, `d36f611c`, `31299980`,
 `1b02e70a`, `1393cecd`, `4576a35e`, `57cd07fa`, `f0e02c44`, `10888bf2`,
-`b785306b`, `f2bdb2ac`, `23f196ea`, `a594ebb7`, `64f4fa37`, `b7ddb0ee` and
-`45d4a0dd`:
+`b785306b`, `f2bdb2ac`, `23f196ea`, `a594ebb7`, `64f4fa37`, `b7ddb0ee`,
+`45d4a0dd`, `2997ad2a`, `9e1145fc` and `2293a968`:
 H4, guard discipline. The library behaviour changes are: the two
 auto-interface peer-table fixes of the eighth and thirteenth commits; the
 pipe and serial pump fixes of the eighteenth (a panicking half no longer
@@ -349,11 +352,14 @@ a transmit side (fifth, settled by the thirty-first after the fifteenth's
 poll-level panic adapter was rejected); and the auto interface's unicast
 discovery port stepping down to 65534 when the discovery port is 65535
 where it used to overflow (thirty-second). Everything else keeps its
-behaviour; `clippy::await_holding_invalid_type` (the tokio `MutexGuard`,
-`RwLockReadGuard` and `RwLockWriteGuard` types named in `clippy.toml`)
-now runs at its default level under the workspace clippy invocation, and the
-production code of this crate holds no tokio guard across an await except
-where a fn-level allowance names the reason. The first commit moves
+behaviour (the thirty-ninth's one-await lock form, which let two peer-data
+receive loops wait on each other, lived only until the forty-third and
+never in a release); `clippy::await_holding_invalid_type` (the tokio
+`MutexGuard`, `RwLockReadGuard` and `RwLockWriteGuard` types named in
+`clippy.toml`) now runs at its default level under the workspace clippy
+invocation, and the production code of this crate holds no tokio guard
+across an await except where a fn-level allowance names the reason. The
+first commit moves
 `NextHopMetrics` and the medium path timeout out of `transport/mod.rs`
 into `transport/next_hop_metrics.rs` (re-exported at the same path) so the
 lock-discipline rustdoc fits under the module cap. The second shortens the
@@ -575,8 +581,9 @@ site is to be scoped away or kept by design (the `lxmf-sdk` slot-ownership
 and per-key idempotency holds), has the two remaining category sites in
 `rns-transport` (`spawn_peer_data_receive_loop.rs`, the documented lock-order
 nest; `meshtastic_parts/interface.rs`, the public-API-pinned shared
-receiver) name their category (the former is gone since the
-thirty-ninth), and makes `lint_discipline_probe.rs` ask
+receiver) name their category (the former went in the thirty-ninth and
+came back, with the order documented, in the forty-third), and makes
+`lint_discipline_probe.rs` ask
 every marked crate for the owner tag plus a non-empty reason instead of
 one fixed sentence (the per-file site counts are unchanged). The
 thirty-sixth has `tools/scripts/workspace-clippy-classify.sh` describe the
@@ -616,17 +623,20 @@ guard noun, an await verb and a code identifier or one of the two
 sanctioned category phrases, and under `kiss_parts/` the pub wrapper
 carries no allowance while the one allowance sits on the lease `recv`
 whose shared arm is `.lock().await.recv().await`. The thirty-ninth has
-`spawn_peer_data_receive_loop.rs` take its `state` and `dedupe` guards at
-one await (`tokio::join!(state.lock(), dedupe.lock())`) inside the sync
-processing block, so neither guard spans an await and the fn's
-`await_holding_invalid_type` allowance goes (its reason claimed a
-documented lock-order nest that nothing documented; `dedupe.lock()` has
-no other production site, so no order is inverted), and drops two stale
-`#[allow(dead_code)]`, on that fn (live from
+`spawn_peer_data_receive_loop.rs` take its `state` and `dedupe` guards
+through one `join!` over the two lock futures and drops the fn's
+`await_holding_invalid_type` allowance on the premise that `dedupe.lock()`
+has a single production site so no order could invert; the premise
+counted sites, not tasks (one receive loop is spawned per adopted NIC and
+all of them share both mutexes), and the joined form parks the first-won
+guard while the other lock pends, so two loops could wait on each other
+on a multi-thread runtime; the forty-third undoes it. The thirty-ninth
+also drops two stale `#[allow(dead_code)]`, on that fn (live from
 `send_due_multicast_peer_announces_wi.rs`) and on
 `transport/jobs_parts/link_table_cleanup.rs` (live from `jobs.rs`); the
-production census goes from 52 to 51 markers (38 in `rns-transport`, 13
-in the app crates, unchanged). The fortieth drops the lost-receiver arm's
+production census went from 52 to 51 markers there and back to 52 in the
+forty-third (39 in `rns-transport`, 13 in the app crates). The fortieth
+drops the lost-receiver arm's
 own `pipe_is_open = false` write in `pipe.rs` (the post-loop block writes
 it; the log line and the `break` stay), has
 `serial_parts/transmit_join_probe_tests.rs` assert `last_error == None`
@@ -652,12 +662,44 @@ and has step 7 of the release recipe say that
 `await_holding_invalid_type` and tolerates, on macOS only, the
 `dead_code` of the interop test target whose linux-only cases are cfg'd
 out there; the README cite is walked by `fork_release_docs_contract.rs`.
+The forty-third has `spawn_peer_data_receive_loop.rs` take `state` and
+then `dedupe` in sequence again, under a fn-level
+`await_holding_invalid_type` allowance whose reason names the documented
+lock-order nest (state, then dedupe; dedupe has no other locker), and
+writes that order on the `dedupe` field of `AutoPeerDataReceiveLoopRuntime`
+in `auto_runtime_parts/module_prelude.rs` so the category is now true;
+the pin is `tests_sections/peer_data_receive_loop_progress.rs` (included
+from `auto_runtime_parts/tests.rs`), a four-worker multi-thread test that
+blasts four loopback data sockets under one `spawn_peer_data_receive_loops`
+with four hundred datagrams at once and expects every `Processed` event
+within two seconds (the joined form timed out in three of ten runs, the
+sequential form passes ten of ten). The forty-fourth adopts
+`fork_publish_contract_parts/lint_discipline_probe8.rs` (included from
+`fork_publish_contract.rs`): exactly one production allowance claims the
+lock-order-nest category and it sits on `spawn_peer_data_receive_loop`,
+whose body takes `state` then `dedupe` sequentially while no `join!` or
+`try_join!` over lock futures exists under `auto_runtime_parts` and
+`dedupe.lock()` has one production site; `link_table_cleanup.rs` opens
+with its marker and carries no `dead_code` allow; the `# Lock discipline`
+rustdoc names fns that exist and cites no line ranges; the README register
+names the unicast-port step-down with its `AutoInterface.py:173` cite; and
+the serial transmit-join probe root binds no tokio guard and carries no
+allowance. It also tightens `lint_discipline_probe7.rs` (`held` dropped
+from the await verbs, the kiss window bounded by the file length, `e.g.`
+and `i.e.` excluded from the dotted-identifier rule, the `sites >= 50`
+floor annotated as tracking the census) and has the
+`tests_parts/two_transport_loopback_lifecycle.rs` header name its three
+announce and outbound pins. The forty-fifth rewords the `dedupe` field
+rustdoc to name `spawn_peer_data_receive_loop` as the only locker and
+has the probe8 README pin's doc comment describe the cite it checks.
 Pinned by
 `tcp_client/tests/tx_queue_survives_reconnect.rs`,
 `kiss_parts/tx_queue_survives_reconnect_tests.rs`,
 `local/tests/tx_queue_survives_reconnect.rs`,
 `tests_sections/peer_route_table_expiry.rs`,
 `tests_sections/peer_route_table_probe.rs`,
+`tests_sections/peer_data_receive_loop_progress.rs` (four receive loops
+on one `state`/`dedupe` pair keep making progress under concurrent load),
 `tests_parts/two_transport_loopback_lifecycle.rs`,
 `pipe_tests_parts/transmit_panic.rs` and `serial_parts/run_serial_stream.rs`
 (the transmit-loop and reader panic pins),
@@ -673,6 +715,9 @@ Pinned by
 `fork_publish_contract_parts/lint_discipline_probe7.rs` (every
 allowance reason names its guard and await; the kiss wrapper holds no
 allowance),
+`fork_publish_contract_parts/lint_discipline_probe8.rs` (one
+lock-order-nest allowance, on the peer-data loop, with the order on the
+`dedupe` field; no join over lock futures in the auto runtime),
 `kiss_parts/ifac_runtime_tests.rs`,
 `kiss_parts/shared_receiver_lock_span_probe_tests.rs` (the wrapper lock
 span) and `kiss_parts/shared_receiver_lease_probe_tests.rs` (the

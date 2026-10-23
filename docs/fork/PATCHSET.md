@@ -42,7 +42,7 @@ fork commit `08362717`; the
 `fd3b249e`, `d4e1634d`, `71c25285`, `1b7ce1cb`, `6c0ea58e`, `66a703e9`,
 `719bff37`, `0d42d2e4`, `e29addcb`, `0c4457e2`, `3e77860a`, `c80d6996`,
 `120956aa`, `3b2352c0`, `c6d28577`, `05989491`, `5366399d`, `b879fc9b`,
-`d36f611c`, `31299980` and `1b02e70a`.
+`d36f611c`, `31299980`, `1b02e70a` and `1393cecd`.
 
 | File | Patch |
 | --- | --- |
@@ -90,7 +90,6 @@ fork commit `08362717`; the
 | `crates/libs/rns-transport/src/iface/auto_runtime_parts/tests_sections/auto_peer_data_transport_bridge_regi.rs` | guard discipline |
 | `crates/libs/rns-transport/src/iface/auto_runtime_parts/tests_sections/peer_route_table_expiry.rs` | guard discipline |
 | `crates/libs/rns-transport/src/iface/auto_runtime_parts/tests_sections/peer_route_table_probe.rs` | guard discipline |
-| `crates/libs/rns-transport/src/iface/catch_unwind.rs` | guard discipline |
 | `crates/libs/rns-transport/src/iface/i2p.rs` | guard discipline |
 | `crates/libs/rns-transport/src/iface/kiss.rs` | guard discipline |
 | `crates/libs/rns-transport/src/iface/kiss_parts/ifac_runtime_tests.rs` | guard discipline |
@@ -107,6 +106,7 @@ fork commit `08362717`; the
 | `crates/libs/rns-transport/src/iface/meshtastic_parts/interface.rs` | guard discipline |
 | `crates/libs/rns-transport/src/iface/pipe.rs` | guard discipline |
 | `crates/libs/rns-transport/src/iface/pipe_parts/status.rs` | guard discipline |
+| `crates/libs/rns-transport/src/iface/pipe_parts/stream.rs` | guard discipline |
 | `crates/libs/rns-transport/src/iface/pipe_tests.rs` | guard discipline |
 | `crates/libs/rns-transport/src/iface/pipe_tests_parts/transmit_panic.rs` | guard discipline |
 | `crates/libs/rns-transport/src/iface/rnode_bearer_interface_tests.rs` | guard discipline |
@@ -124,7 +124,6 @@ fork commit `08362717`; the
 | `crates/libs/rns-transport/src/iface/weave.rs` | guard discipline |
 | `crates/libs/rns-transport/src/iface/weave_ifac_runtime_tests.rs` | guard discipline |
 | `crates/libs/rns-transport/src/iface/weave_management_handle_tests.rs` | guard discipline |
-| `crates/libs/rns-transport/src/iface.rs` | guard discipline |
 | `crates/libs/rns-transport/src/iface_types.rs` | guard discipline |
 | `crates/libs/rns-transport/src/transport/announce.rs` | guard discipline |
 | `crates/libs/rns-transport/src/transport/core.rs` | guard discipline |
@@ -324,8 +323,8 @@ Fork commits `f7be0f41`, `ae4f16d8`, `5f6c230f`, `e916ce9e`, `39d107b9`,
 `882baabc`, `e9c2ea93`, `7908fcff`, `044b64f4`, `fd3b249e`, `d4e1634d`,
 `71c25285`, `1b7ce1cb`, `6c0ea58e`, `66a703e9`, `719bff37`, `0d42d2e4`,
 `e29addcb`, `0c4457e2`, `3e77860a`, `c80d6996`, `120956aa`, `3b2352c0`,
-`c6d28577`, `05989491`, `5366399d`, `b879fc9b`, `d36f611c`, `31299980` and
-`1b02e70a`:
+`c6d28577`, `05989491`, `5366399d`, `b879fc9b`, `d36f611c`, `31299980`,
+`1b02e70a` and `1393cecd`:
 H4, guard discipline. The library behaviour changes are: the two
 auto-interface peer-table fixes of the eighth and thirteenth commits; the
 pipe and serial pump fixes of the eighteenth (a panicking half no longer
@@ -334,8 +333,10 @@ reporting the closed queue at once after the driver has stopped where it
 used to buffer up to the channel capacity (fifth); the pub
 `run_kiss_stream_with_ifac` holding both shared receiver guards for the
 life of the stream where it used to re-take them on every loop pass
-(fifth); and the pipe and serial transmit-panic note of the fifth, closed
-by the fifteenth. Everything else keeps its behaviour;
+(fifth); and a pipe or serial transmit-task panic ending the interface
+instead of respawning it without a transmit side (fifth, settled by the
+thirty-first after the fifteenth's poll-level panic adapter was
+rejected). Everything else keeps its behaviour;
 `clippy::await_holding_invalid_type` (the tokio `MutexGuard`,
 `RwLockReadGuard` and `RwLockWriteGuard` types named in `clippy.toml`) now
 runs at its default level under the workspace clippy invocation, and the
@@ -418,11 +419,11 @@ both miss the first lookup for one peer, the first registration to reach
 the table wins, the loser's route folds onto it and the losing virtual
 iface is stopped after the guard drops, where before the second insert
 overwrote the first and the peer received every broadcast twice. The
-fifteenth closes the transmit-panic note of the fifth: `CatchUnwind`
-(`iface/catch_unwind.rs`, a poll-level adapter with no new dependency)
-wraps the inline pipe and serial transmit loops so a panic is logged,
+fifteenth wrapped the inline pipe and serial transmit loops in a
+poll-level panic adapter, `CatchUnwind` (removed again by the
+thirty-first), so a panic was logged,
 recorded (the pipe `transmit_task_failed` status, the serial
-`transmit task failed` last error) and the driver returns with its
+`transmit task failed` last error) and the driver returned with its
 receiver, as the spawned task of old did through its `JoinError`; it also
 gives `pipe_tests.rs`, whose Linux-only test holds a guard across an
 await, the test-root allowance (cross-target clippy on
@@ -505,7 +506,15 @@ the stream has been cancelled and joined. The thirtieth adopts
 `lint_discipline_probe6.rs` (the stderr tail of the classify script, a
 listed macOS name tolerated on `TIMEOUT`, the codeless-error arms) and
 teaches the discipline probe that `_tests_parts/` directories are test
-code. Pinned by
+code. The thirty-first applies the ruling against the fifteenth's
+adapter: the pipe and serial transmit loops are spawned tasks again that
+carry the receiver in and hand it back through their `JoinHandle`, the
+pump still finishes on whichever half ends first, and a transmit-task
+panic, which takes the receiver with it, logs and records the failure as
+before and then ends the interface (the respawn and reconnect loops mark
+closed and stop); `run_pipe_stream` moves to `pipe_parts/stream.rs` so
+`pipe.rs` stays under the module cap, and the adapter module is deleted.
+Pinned by
 `tcp_client/tests/tx_queue_survives_reconnect.rs`,
 `kiss_parts/tx_queue_survives_reconnect_tests.rs`,
 `local/tests/tx_queue_survives_reconnect.rs`,
@@ -514,8 +523,8 @@ code. Pinned by
 `tests_parts/two_transport_loopback_lifecycle.rs`,
 `pipe_tests_parts/transmit_panic.rs` and `serial_parts/run_serial_stream.rs`
 (the transmit-loop and reader panic pins),
-`weave_management_handle_tests.rs`, `iface/catch_unwind.rs` (its own
-unit tests), `fork_publish_contract_parts/lint_discipline_probe.rs`,
+`weave_management_handle_tests.rs`,
+`fork_publish_contract_parts/lint_discipline_probe.rs`,
 `fork_publish_contract_parts/lint_discipline_probe2.rs`,
 `fork_publish_contract_parts/lint_discipline_probe3.rs`,
 `fork_publish_contract_parts/lint_discipline_probe4.rs`,

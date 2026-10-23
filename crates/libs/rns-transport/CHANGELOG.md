@@ -85,8 +85,9 @@ Removed) bullet of its own, marked as such.
   `tests_parts/two_transport_loopback_lifecycle.rs` (a buildable announce
   still reaches the wire through `send_announce`).
 - Guard discipline in the interface drivers, behaviour-neutral except for
-  the two clauses that say otherwise (the weave handle after stop and the
-  kiss wrapper's lock span) and the pump fixes listed under Fixed:
+  the three clauses that say otherwise (a pipe or serial transmit-task
+  panic ending the interface, the weave handle after stop and the kiss
+  wrapper's lock span) and the pump fixes listed under Fixed:
   each driver owns the `InterfaceTxReceiver` it gets from
   `InterfaceChannel::split` and lends it into its per-connection code
   instead of guarding a shared one across the whole select loop
@@ -95,12 +96,14 @@ Removed) bullet of its own, marked as such.
   `iface/weave.rs`, `iface/rnode_multi.rs`, `iface/i2p.rs`,
   `iface/kiss_parts/kisstcpclientinterface.rs`,
   `iface/lora_parts/lorainterface.rs`); the pipe and serial transmit
-  loops run on the driver's own task under `CatchUnwind`
-  (`iface/catch_unwind.rs`), so a panic inside one is still logged,
-  recorded (the pipe `transmit_task_failed` status, the serial
-  `transmit task failed` last error with `tx_errors`) and
-  leaves the driver with its receiver, as the spawned task's join error
-  did before (the pump ordering itself is a fix, listed under Fixed);
+  loops stay spawned tasks that carry the receiver in and hand it back
+  through their join handle (`iface/pipe_parts/stream.rs`,
+  `iface/serial_parts/run_serial_stream.rs`); a panic inside one is
+  logged and recorded as before (the pipe `transmit_task_failed` status,
+  the serial `transmit task failed` last error with `tx_errors`) but,
+  the receiver having died with the task, now ends the interface instead
+  of respawning it without a transmit side (the pump ordering itself is
+  a fix, listed under Fixed);
   once a weave driver has stopped, `WeaveManagementHandle::try_set_remote_display`
   reports the closed queue at once where it used to buffer up to the
   channel capacity before failing with `Full` (`iface/weave.rs`, pinned by
@@ -132,8 +135,7 @@ Removed) bullet of its own, marked as such.
   the transmit-loop and reader panic pins in
   `iface/pipe_tests_parts/transmit_panic.rs` and
   `serial_stream_returns_receiver_after_transmit_loop_panic` and its
-  reader twin in `iface/serial_parts/run_serial_stream.rs`, and the
-  `CatchUnwind` unit tests in `iface/catch_unwind.rs`.
+  reader twin in `iface/serial_parts/run_serial_stream.rs`.
 - Lint tables, no library behaviour change: `clippy::await_holding_invalid_type`
   runs at its default level under the workspace clippy invocation; no
   lint table in the workspace mentions it any more, every test root

@@ -93,10 +93,21 @@ impl AutoInterfaceTransportBridge {
             let mut manager = self.iface_manager.lock().await;
             manager.register_virtual_iface(self.host_iface, IfaceRole::VirtualUnicast)?
         };
-        let mut table = self.peer_routes.lock().await;
-        table.peer_ifaces.insert(peer, virtual_iface);
-        table.outbound_routes.insert(virtual_iface, route);
-        Some(virtual_iface)
+        // The discovery and data tasks can both miss the first lookup for the
+        // same peer and both register; whichever reaches the table first wins
+        // and the other registration is stopped so the manager does not keep a
+        // second iface that Broadcast would send to.
+        let registered = {
+            let mut table = self.peer_routes.lock().await;
+            let PeerRouteTable { peer_ifaces, outbound_routes } = &mut *table;
+            let registered = *peer_ifaces.entry(peer).or_insert(virtual_iface);
+            outbound_routes.insert(registered, route);
+            registered
+        };
+        if registered != virtual_iface {
+            self.iface_manager.lock().await.stop_interface(virtual_iface);
+        }
+        Some(registered)
     }
 
     /// Gives the transport somewhere to send the moment a peering announce

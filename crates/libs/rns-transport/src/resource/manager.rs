@@ -93,7 +93,7 @@ impl ResourceManager {
             PacketContext::Resource => self.handle_resource_part_into(packet, link, responses),
             PacketContext::ResourceProof => self.handle_proof_into(packet, link, responses),
             PacketContext::ResourceInitiatorCancel | PacketContext::ResourceReceiverCancel => {
-                self.cancel_into(packet, responses)
+                self.cancel_into(packet, link.id(), responses)
             }
             _ => {}
         }
@@ -133,6 +133,7 @@ impl ResourceManager {
             let expected_segment = self
                 .incoming_segments
                 .get(&advertisement.original_hash)
+                .filter(|assembly| assembly.link_id == *link.id())
                 .map(|assembly| assembly.next_segment)
                 .unwrap_or(1);
             if advertisement.segment_index != expected_segment {
@@ -252,7 +253,8 @@ impl ResourceManager {
         let Ok(update) = ResourceHashUpdate::decode(packet.data.as_slice()) else {
             return;
         };
-        if let Some(receiver) = self.incoming.get_mut(&update.resource_hash) {
+        let receiver = self.incoming.get_mut(&update.resource_hash);
+        if let Some(receiver) = receiver.filter(|receiver| receiver.link_id == *link.id()) {
             receiver.handle_hash_update(&update);
             let update_now = Instant::now();
             let stats =
@@ -297,7 +299,9 @@ impl ResourceManager {
         let mut request_packet: Option<Packet> = None;
         let mut payload: Option<ResourcePayload> = None;
         let mut failed: Option<(Hash, Hash, AddressHash, ResourceProgress, &'static str)> = None;
-        for (hash, receiver) in self.incoming.iter_mut() {
+        let link_id = *link.id();
+        let receivers = self.incoming.iter_mut().filter(|(_, r)| r.link_id == link_id);
+        for (hash, receiver) in receivers {
             let before_received = receiver.received;
             match receiver.handle_part(packet.data.as_slice(), link) {
                 PartOutcome::NoMatch => continue,
@@ -432,14 +436,20 @@ impl ResourceManager {
     /// segment's own hash, and so does the reference. Dropping the sender is
     /// therefore not enough: the unbuilt tail is keyed by `original_hash`, so
     /// it would go on holding the caller's whole payload until the link closed.
-    fn cancel_into(&mut self, packet: &Packet, _responses: &mut Vec<Packet>) {
+    fn cancel_into(
+        &mut self,
+        packet: &Packet,
+        link_id: &AddressHash,
+        _responses: &mut Vec<Packet>,
+    ) {
         let Ok(hash_bytes) = copy_hash(packet.data.as_slice()) else {
             return;
         };
         let hash = Hash::new(hash_bytes);
         match packet.context {
             PacketContext::ResourceInitiatorCancel => {
-                if let Some(receiver) = self.incoming.remove(&hash) {
+                let on_link = self.incoming.get(&hash).is_some_and(|r| r.link_id == *link_id);
+                if let Some(receiver) = on_link.then(|| self.incoming.remove(&hash)).flatten() {
                     // A split receiver keeps completed segments in an assembly
                     // keyed by the original hash. The initiator cancel names
                     // the in-flight segment, so remove and report that assembly.
@@ -460,7 +470,8 @@ impl ResourceManager {
                 // Python Reticulum routes RCL only to outgoing resources and
                 // reports Resource.REJECTED. Keep rejection distinct from a
                 // local cancel and from ICL, which terminates an inbound one.
-                if let Some(sender) = self.outgoing.remove(&hash) {
+                let on_link = self.outgoing.get(&hash).is_some_and(|s| s.link_id == *link_id);
+                if let Some(sender) = on_link.then(|| self.outgoing.remove(&hash)).flatten() {
                     self.outgoing_segment_chains.remove(&sender.original_hash);
                     self.conclude_outbound(
                         sender.original_hash,

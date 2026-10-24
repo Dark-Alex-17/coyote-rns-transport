@@ -385,13 +385,21 @@ sending a LINKCLOSE packet to the peer of each link past `Pending` on the
 interface it rides, as Python's `Link.teardown` does for every such link
 (`RNS/Link.py:657-668`), so a peer reached over another interface learns
 the close from the wire, while a link that rode the dropped interface
-itself sends none, its peer being gone with the connection, and
+itself sends none, its peer being gone with the connection (the flush
+would inherit the `Handshake` LINKCLOSE too; no `in_links`/`out_links`
+entry is observable in `Handshake`, because the responder proves, which
+makes it `Active`, before the insertion, `transport/path.rs:372` vs
+`:383`), and
 clears the path, announce, link and tunnel tables, the held announces and
 the packet cache's reverse routes, the received-packet entries that are
 Python's `reverse_table`
 (`RNS/Transport.py:3690-3702`, `RNS/Interfaces/LocalInterface.py:255-261`),
-and with them the fork's own announce cache tier and its interface-tunnel
-index, which have no Python twin; the entries of packets this node sent,
+and with them the fork's own announce cache tier, which has no Python twin,
+and its interface-tunnel index, whose twin is `interface.tunnel_id`
+(`RNS/Transport.py:2827`, `:2834`, read at `:2467`): Python's
+`shared_connection_disappeared` (`:3690-3702`) leaves it set, so Python's
+`note_path` on a vanished tunnel logs the `:2469` warning where the fork's
+does nothing; the entries of packets this node sent,
 the receipt guard that is Python's `receipts` list (`RNS/Transport.py:174`),
 stay;
 a queued disconnect is served before the reconnect behind it, so the flush
@@ -597,6 +605,20 @@ parity ledger; the `docs/status/*` matrices are not updated per fork task.
   short-lived one; Python's `LocalClientInterface` sleeps `RECONNECT_WAIT`
   before every redial (`RNS/Interfaces/LocalInterface.py:159-160`). The
   unix client follows Python.
+- Inherited from upstream, made visible by the `Handshake` LINKCLOSE
+  widening: a responder-side link becomes `Active` when it proves
+  (`destination/link_parts/link_sections/new.rs:137-138`, called from
+  `transport/path.rs:372` before the `in_links` insertion at `:383`), so no
+  link of this crate is ever observable in `Handshake` from the tables.
+  Python's responder stays `HANDSHAKE` after `validate_request` runs
+  `handshake()` and `prove()` (`RNS/Link.py:186-213`, the status set at
+  `:350`) and `register_link` files it under `active_links` in that status
+  (`RNS/Transport.py:2928-2937`) until the RTT packet makes it `ACTIVE`
+  (`RNS/Link.py:516-523`). So Python's drop flush can tear down a
+  `HANDSHAKE` responder link and send its LINKCLOSE (`RNS/Link.py:668`),
+  where this crate's drop flush finds only `Active` ones; the widened
+  `Link::teardown` sends the packet for a `Handshake` link a caller holds
+  outside the tables.
 - `AutoInterfaceConfig::unicast_discovery_port` steps down to 65534 when
   `discovery_port` is 65535, so the pair stays adjacent and distinct; Python
   computes `discovery_port + 1` (`RNS/Interfaces/AutoInterface.py:173`) and

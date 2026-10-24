@@ -210,6 +210,14 @@ async fn send_packet_response(
     };
     let (packet, iface) = {
         let link = link.lock().await;
+        if !link.status().can_exchange_data() {
+            log::debug!(
+                "tp: response {} dropped, link {} closed before transmit",
+                request_id,
+                link_id
+            );
+            return;
+        }
         let fits = encoded.len() <= link.link_mdu();
         let packet = fits.then(|| link.response_packet(&encoded)).transpose();
         (packet, link.ingress_iface())
@@ -341,6 +349,14 @@ pub(super) async fn send_response_resource(
     let link = find_any_link(handler, link_id).await.ok_or(RnsError::InvalidArgument)?;
     let iface = {
         let link_guard = link.lock().await;
+        if !link_guard.status().can_exchange_data() {
+            log::debug!(
+                "tp: response {} dropped, link {} closed before transmit",
+                super::diag::bytes_to_hex(&request_id),
+                link_id
+            );
+            return Err(RnsError::ConnectionError);
+        }
         link_guard.ingress_iface()
     };
     let interface_mtu = resource_mtu_for_iface(handler, iface).await;

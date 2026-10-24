@@ -11,17 +11,19 @@ const SLOW_HANDLER_SLEEP: Duration = Duration::from_secs(30);
 
 /// Keeps the link's drop records, from the links target every record at `Warn` or above
 /// plus the debug lines of the shared-instance client, and from the resource target the
-/// dropped-outcome-receiver lines, and from the link target the closed-link packet
-/// warnings. Tests share one process and `log::set_logger` installs
-/// once, so there must be exactly one logger in the binary and this is it; a record is
-/// attributed to a test by the link id, resource hash or `tp(<name>)` it names, and the
-/// quieter levels are kept only for the shared-instance and dropped-receiver lines so the
-/// stores stay small for the rest of the run.
+/// dropped-outcome-receiver lines, from the link target the closed-link packet warnings,
+/// and from the request-dispatch target the responses dropped for a closed link. Tests
+/// share one process and `log::set_logger` installs once, so there must be exactly one
+/// logger in the binary and this is it; a record is attributed to a test by the link id,
+/// resource hash or `tp(<name>)` it names, and the quieter levels are kept only for the
+/// shared-instance and dropped-receiver lines so the stores stay small for the rest of
+/// the run.
 struct TestLogger {
     dropped_requests: StdMutex<Vec<String>>,
     shared_instance: StdMutex<Vec<(log::Level, String)>>,
     outcome_receiver_dropped: StdMutex<Vec<String>>,
     closed_link_packet_warnings: StdMutex<Vec<String>>,
+    closed_link_responses: StdMutex<Vec<String>>,
 }
 
 static TEST_LOG: TestLogger = TestLogger {
@@ -29,6 +31,7 @@ static TEST_LOG: TestLogger = TestLogger {
     shared_instance: StdMutex::new(Vec::new()),
     outcome_receiver_dropped: StdMutex::new(Vec::new()),
     closed_link_packet_warnings: StdMutex::new(Vec::new()),
+    closed_link_responses: StdMutex::new(Vec::new()),
 };
 
 /// The target `attach_shared_instance` and `detach_shared_instance` log under: their
@@ -39,11 +42,15 @@ const SHARED_INSTANCE_LOG_TARGET: &str = "rns_transport::transport::links";
 /// the resource module.
 const RESOURCE_LOG_TARGET: &str = "rns_transport::resource";
 
+/// The target the responder side of the request layer logs under.
+const REQUEST_DISPATCH_LOG_TARGET: &str = "rns_transport::transport::request_dispatch";
+
 impl log::Log for TestLogger {
     fn enabled(&self, metadata: &log::Metadata) -> bool {
         metadata.target().starts_with("rns_transport::destination::link")
             || metadata.target() == SHARED_INSTANCE_LOG_TARGET
             || metadata.target() == RESOURCE_LOG_TARGET
+            || metadata.target() == REQUEST_DISPATCH_LOG_TARGET
     }
 
     fn log(&self, record: &log::Record) {
@@ -63,6 +70,13 @@ impl log::Log for TestLogger {
                 self.outcome_receiver_dropped
                     .lock()
                     .expect("dropped-outcome-receiver record store")
+                    .push(message);
+            }
+        } else if record.target() == REQUEST_DISPATCH_LOG_TARGET {
+            if message.contains("closed before transmit") {
+                self.closed_link_responses
+                    .lock()
+                    .expect("closed-link response record store")
                     .push(message);
             }
         } else if message.contains("dropped, dispatch") {
@@ -124,6 +138,19 @@ fn outcome_receiver_dropped_records() -> Vec<String> {
 /// the call it probes.
 fn closed_link_packet_warning_count() -> usize {
     TEST_LOG.closed_link_packet_warnings.lock().expect("closed-link packet warning store").len()
+}
+
+/// The responses the request layer dropped because `link_id` closed before transmit.
+fn closed_link_response_records_for(link_id: AddressHash) -> Vec<String> {
+    let needle = link_id.to_string();
+    TEST_LOG
+        .closed_link_responses
+        .lock()
+        .expect("closed-link response record store")
+        .iter()
+        .filter(|record| record.contains(&needle))
+        .cloned()
+        .collect()
 }
 
 #[tokio::test]

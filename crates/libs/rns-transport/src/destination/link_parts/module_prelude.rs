@@ -139,7 +139,7 @@ impl LinkStatus {
         *self == LinkStatus::Pending || *self == LinkStatus::Handshake
     }
 
-    fn can_exchange_data(self) -> bool {
+    pub(crate) fn can_exchange_data(self) -> bool {
         matches!(self, Self::Active)
     }
 

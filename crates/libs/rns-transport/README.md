@@ -385,7 +385,9 @@ the packet cache's reverse routes, Python's `reverse_table`
 and with them the fork's own announce cache tier and its interface-tunnel
 index, which have no Python twin;
 a queued disconnect is served before the reconnect behind it, so the flush
-never lands after that cycle's tunnel. While attached, the duplicate filter
+never lands after that cycle's tunnel, and a reconnect whose disconnect
+event was lost on a full channel runs the flush first.
+While attached, the duplicate filter
 inserts nothing and consults nothing (`RNS/Transport.py:1618-1627`): the
 owner deduplicates. The filter is skipped for packets arriving on the
 shared-instance interface, or everywhere when no interface is flagged, since

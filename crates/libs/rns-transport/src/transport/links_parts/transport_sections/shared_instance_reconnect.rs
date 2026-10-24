@@ -91,13 +91,20 @@ impl SharedInstanceReconnectConsumer {
     /// with it, after a detach, `stop_interface` or `stop`, so the first
     /// closed channel ends the task. A disconnect queued together with the
     /// reconnect that follows it is served first, so the flush of one drop
-    /// cycle always precedes that cycle's tunnel re-synthesis.
+    /// cycle always precedes that cycle's tunnel re-synthesis. The worker
+    /// emits the two in order from one task and sends each with `try_send`,
+    /// so the only skew possible is a disconnect dropped on a full channel
+    /// while its reconnect lands; a reconnect is only ever emitted after a
+    /// previous connection existed, so one arriving with no disconnect
+    /// served since the last reconnect is taken as that case and the flush
+    /// runs before the re-synthesis.
     #[deny(clippy::await_holding_invalid_type)]
     pub(super) async fn run(
         self,
         mut reconnects: mpsc::Receiver<AddressHash>,
         mut disconnects: mpsc::Receiver<AddressHash>,
     ) {
+        let mut disconnect_pending = false;
         loop {
             // Biased so a disconnect is never overtaken by the reconnect
             // queued right behind it.
@@ -109,11 +116,21 @@ impl SharedInstanceReconnectConsumer {
                         break;
                     }
                     self.on_disconnected().await;
+                    disconnect_pending = true;
                 }
                 reconnected = reconnects.recv() => {
                     if reconnected.is_none() {
                         break;
                     }
+                    if !disconnect_pending {
+                        log::debug!(
+                            "tp({}): shared instance iface={} reconnected without its disconnect event, flushing before the reconnect",
+                            self.name,
+                            self.iface
+                        );
+                        self.on_disconnected().await;
+                    }
+                    disconnect_pending = false;
                     self.on_reconnected().await;
                 }
             }

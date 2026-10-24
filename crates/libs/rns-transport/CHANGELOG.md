@@ -340,6 +340,14 @@ Removed) bullet of its own, marked as such.
   in `iface/auto_parts/default_multicast_discovery_address_sections/core_tests.rs`;
   the loopback fixtures in `iface/auto_runtime_parts/tests_sections/core_tests.rs`
   re-draw a discovery port of 65535.
+- The shared-instance reconnect consumer
+  (`links_parts/transport_sections/shared_instance_reconnect.rs`) runs the
+  drop flush before the tunnel re-synthesis when a reconnect event arrives
+  without the disconnect event of its cycle, the one skew the client
+  worker's `try_send` can produce when the disconnect channel is full;
+  before, the tables learned over the dropped connection survived such a
+  reconnect. The lost event is recorded at debug. Pinned by
+  `two_transport_shared_instance_storm.rs`.
 
 ## 0.15.1 - 2026-10-21
 

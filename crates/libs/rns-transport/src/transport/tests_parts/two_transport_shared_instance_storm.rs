@@ -1,10 +1,10 @@
 // Coverage for the reconnect consumer under a storm of restarts: six back-to-back restarts
 // of the TCP shared instance are each observed as one drop line followed by one reconnect
-// line, with no event lost (the pin of the proof in the consumer's rustdoc that a
-// disconnect is never dropped while its reconnect lands), and the drop flush sends no
-// close packet for a link that rode the dropped interface itself, so the restarted
-// instance receives no close for a link it never knew. Helpers come from the sibling
-// `tests_parts` files included into this module.
+// line, with no event lost: this pins the ordering and the loss-free service of the
+// disconnect and reconnect events at restart rate. The drop flush also sends no close
+// packet for a link that rode the dropped interface itself, so the restarted instance
+// receives no close for a link it never knew. Helpers come from the sibling `tests_parts`
+// files included into this module.
 
 const SHARED_INSTANCE_STORM_RESTARTS: usize = 6;
 
@@ -12,9 +12,15 @@ const SHARED_INSTANCE_STORM_RESTARTS: usize = 6;
 /// most one refused redial plus its 100 ms wait; a minute leaves room for a loaded host.
 const SHARED_INSTANCE_STORM_TIMEOUT: Duration = Duration::from_secs(60);
 
+/// The tail of the drop summary line, which the flush logs once per drop; the per-link
+/// `disconnected, close packet for link=... not sent` line shares the `disconnected,`
+/// prefix and must not count as a cycle.
+const SHARED_INSTANCE_STORM_DROP_SUMMARY: &str = "reverse route(s) cleared";
+
 /// The drop lines and the reconnect lines of `records`, counted in that order.
 fn shared_instance_storm_cycle_counts(records: &[String]) -> (usize, usize) {
-    let dropped = records.iter().filter(|record| record.contains("disconnected,")).count();
+    let dropped =
+        records.iter().filter(|record| record.contains(SHARED_INSTANCE_STORM_DROP_SUMMARY)).count();
     let reconnected = records
         .iter()
         .filter(|record| record.contains("reconnected, tunnel re-synthesized"))
@@ -67,7 +73,8 @@ async fn shared_instance_storm_drop_skips_the_close_packet_of_a_link_over_the_dr
         shared_instance_reconnect_open_link(&server, &mut client).await;
 
     let (restarted, mut restarted_announces, _) = shared_instance_reconnect_restart(server).await;
-    let record = shared_instance_probe10_await_debug_record(name, "disconnected,").await;
+    let record =
+        shared_instance_probe10_await_debug_record(name, SHARED_INSTANCE_STORM_DROP_SUMMARY).await;
     assert!(
         record.contains(
             "1 link(s) torn down (0 close packet(s) sent, 1 skipped on the dropped interface)"
@@ -133,7 +140,7 @@ async fn shared_instance_storm_of_restarts_loses_no_event() {
     let mut dropped_so_far = 0usize;
     let mut reconnected_so_far = 0usize;
     for record in &records {
-        if record.contains("disconnected,") {
+        if record.contains(SHARED_INSTANCE_STORM_DROP_SUMMARY) {
             dropped_so_far += 1;
         } else if record.contains("reconnected, tunnel re-synthesized") {
             reconnected_so_far += 1;

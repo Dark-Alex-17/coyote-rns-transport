@@ -82,3 +82,40 @@ async fn shared_instance_tcp_attach_registers_the_interface_mode_and_mtu_from_th
     timeout(STOP_TIMEOUT, transport.stop()).await.expect("stop completes");
     shared_instance_assert_never_warned(name);
 }
+
+/// The unix arm applies the same options: the mode and the MTU reach the iface manager for
+/// an attach over a filesystem socket. The unix client preflights its connect, so the
+/// attach needs a listening unix shared instance.
+#[cfg(unix)]
+#[tokio::test]
+#[deny(clippy::await_holding_invalid_type)]
+async fn shared_instance_unix_attach_registers_the_interface_mode_and_mtu_from_the_options() {
+    install_test_logger();
+    let name = "shared-instance-options-mode-mtu-unix";
+    let temp = tempfile::tempdir().expect("tempdir");
+    let (owner, unix_endpoint) = shared_instance_unix_owner(temp.path()).await;
+    let identity = PrivateIdentity::new_from_rand(OsRng);
+    let transport = Transport::new(TransportConfig::new(name, &identity, false));
+    let iface = transport
+        .attach_shared_instance(
+            SharedInstanceEndpoint::Unix(unix_endpoint),
+            SharedInstanceOptions::default()
+                .with_interface_mode(OptionsInterfaceMode::Gateway)
+                .with_mtu(1_024),
+        )
+        .await
+        .expect("attach to the unix shared instance");
+    shared_instance_assert_attached(&transport, iface).await;
+    let (mode, mtu) = {
+        let manager = transport.iface_manager();
+        let manager = manager.lock().await;
+        (manager.mode(&iface), manager.mtu(&iface))
+    };
+    assert_eq!(mode, Some(OptionsInterfaceMode::Gateway), "the mode reaches the manager");
+    assert_eq!(mtu, Some(1_024), "the MTU reaches the manager");
+    assert!(timeout(STOP_TIMEOUT, transport.detach_shared_instance()).await.expect("detach"));
+    shared_instance_assert_released(&transport, iface).await;
+    timeout(STOP_TIMEOUT, transport.stop()).await.expect("client stop completes");
+    timeout(STOP_TIMEOUT, owner.stop()).await.expect("unix shared instance stop completes");
+    shared_instance_assert_never_warned(name);
+}

@@ -108,6 +108,9 @@ impl ReticulumPacketDiskCache {
         Ok(removed)
     }
 
+    /// Writes the full list to `packet_hashlist.raw.tmp` beside the target and renames it
+    /// into place, so a reader (or a restart after a signal mid-write) sees either the old
+    /// list or the new one, never a truncated file.
     pub async fn save_packet_hashlist(
         &self,
         storage_path: impl AsRef<Path>,
@@ -117,7 +120,14 @@ impl ReticulumPacketDiskCache {
         for hash in hashes {
             payload.extend_from_slice(hash.as_slice());
         }
-        tokio::fs::write(storage_path.as_ref().join("packet_hashlist.raw"), payload).await
+        let path = storage_path.as_ref().join("packet_hashlist.raw");
+        let tmp_path = storage_path.as_ref().join("packet_hashlist.raw.tmp");
+        tokio::fs::write(&tmp_path, payload).await?;
+        #[cfg(windows)]
+        if tokio::fs::try_exists(&path).await? {
+            tokio::fs::remove_file(&path).await?;
+        }
+        tokio::fs::rename(&tmp_path, &path).await
     }
 
     pub async fn load_packet_hashlist(

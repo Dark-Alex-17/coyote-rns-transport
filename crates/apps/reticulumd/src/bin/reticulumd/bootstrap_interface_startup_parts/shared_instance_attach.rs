@@ -29,13 +29,17 @@ async fn attach_shared_instance_client(
         // Startup runs before any detach or stop, so a refused slot can only mean an
         // earlier entry already holds it.
         Err(RnsError::InvalidArgument) => {
+            let holder = transport
+                .shared_instance()
+                .map_or_else(|| "unknown".to_string(), |iface| iface.to_string());
             record_startup_failure(
                 record,
                 startup_failures,
                 label.to_string(),
                 iface.kind.clone(),
-                "a shared instance is already attached to this daemon (one per process); entry ignored"
-                    .to_string(),
+                format!(
+                    "a shared instance is already attached to this daemon (one per process); entry ignored iface={holder}"
+                ),
             );
             return None;
         }

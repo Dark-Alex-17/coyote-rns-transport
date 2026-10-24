@@ -373,9 +373,15 @@ interfaces = [
     assert_eq!(batch.startup_successes, 1);
     assert_eq!(batch.startup_failures.len(), 1);
     assert_eq!(batch.startup_failures[0].label, "second-client");
+    let holder = transport.shared_instance().expect("the first entry holds the slot");
     assert!(
         batch.startup_failures[0].error.contains("already attached"),
         "error={}",
+        batch.startup_failures[0].error
+    );
+    assert!(
+        batch.startup_failures[0].error.contains(&format!("iface={holder}")),
+        "the refusal names the holder: error={}",
         batch.startup_failures[0].error
     );
     let attached =
@@ -384,7 +390,8 @@ interfaces = [
     assert_slot_holds_attached_record(&transport, &records[0]).await;
     assert_eq!(runtime_field(&records[1], "startup_status"), Some("failed"));
     assert!(runtime_field(&records[1], "startup_error")
-        .is_some_and(|error| error.contains("already attached")));
+        .is_some_and(|error| error.contains("already attached")
+            && error.contains(&format!("iface={holder}"))));
 }
 
 /// A client-posture entry naming a remote host never reaches the attach: the daemon's

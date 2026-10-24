@@ -49,7 +49,7 @@ fork commit `08362717`; the
 `d9b5ad57`, `47350e23`, `9136c972` and `02316362`; the
 `shared-instance hardening` patch is fork commits `829c8e6d`, `d629ac08`,
 `cb818b0a`, `a55eaf6f`, `e4046601`, `0c553858`, `f5f8b639`, `6ecb0340`,
-`c78bdc7d`, `ca66c50d` and `00bd6579`.
+`c78bdc7d`, `ca66c50d`, `00bd6579`, `24cf2089` and `31ce6211`.
 
 | File | Patch |
 | --- | --- |
@@ -97,6 +97,7 @@ fork commit `08362717`; the
 | `crates/libs/rns-transport/CHANGELOG.md` | test hygiene, release tooling, ledger conventions, guard discipline, shared-instance hardening |
 | `crates/libs/rns-transport/README.md` | release tooling, guard discipline, shared-instance hardening |
 | `crates/libs/rns-transport/examples/tcp_connection_memory.rs` | guard discipline |
+| `crates/libs/rns-transport/src/destination/link_parts/link_sections/remove_channel_handler.rs` | shared-instance hardening |
 | `crates/libs/rns-transport/src/destination/link_parts/link_status_predicates_make_lifecycl.rs` | shared-instance hardening |
 | `crates/libs/rns-transport/src/destination/link_parts/link_status_predicates_make_lifecycl_sections/core_tests.rs` | shared-instance hardening |
 | `crates/libs/rns-transport/src/destination/link_parts/link_status_predicates_make_lifecycl_sections/teardown_sends_link_close_for_handshake_link_tests.rs` | shared-instance hardening |
@@ -195,10 +196,12 @@ fork commit `08362717`; the
 | `crates/libs/rns-transport/src/transport/tests_parts/two_transport_shared_instance_probe12.rs` | shared-instance hardening |
 | `crates/libs/rns-transport/src/transport/tests_parts/two_transport_shared_instance_probe13.rs` | shared-instance hardening |
 | `crates/libs/rns-transport/src/transport/tests_parts/two_transport_shared_instance_probe14.rs` | shared-instance hardening |
+| `crates/libs/rns-transport/src/transport/tests_parts/two_transport_shared_instance_probe15.rs` | shared-instance hardening |
 | `crates/libs/rns-transport/src/transport/tests_parts/two_transport_shared_instance_storm.rs` | shared-instance hardening |
 | `crates/libs/rns-transport/src/transport/tests_parts/two_transport_shared_instance_tasks.rs` | shared-instance hardening |
 | `crates/libs/rns-transport/src/transport/tunnels.rs` | shared-instance hardening |
 | `crates/libs/rns-transport/src/transport/wire.rs` | guard discipline |
+| `crates/libs/rns-transport/tests/breaking_changes_compile_fail.rs` | shared-instance hardening |
 | `crates/libs/rns-transport/tests/multicast_tx_guard.rs` | guard discipline |
 | `crates/libs/rns-transport/tests/outbound_outcome_api.rs` | test hygiene, shared-instance hardening |
 | `crates/libs/rns-transport/tests/tcp_client_reconnect.rs` | guard discipline |
@@ -838,7 +841,8 @@ span) and `kiss_parts/shared_receiver_lease_probe_tests.rs` (the
 per-receive lease of both shared receivers).
 
 Fork commits `829c8e6d`, `d629ac08`, `cb818b0a`, `a55eaf6f`, `e4046601`,
-`0c553858`, `f5f8b639`, `6ecb0340`, `c78bdc7d`, `ca66c50d` and `00bd6579`:
+`0c553858`, `f5f8b639`, `6ecb0340`, `c78bdc7d`, `ca66c50d`, `00bd6579`,
+`24cf2089` and `31ce6211`:
 H5, shared-instance hardening. The library behaviour changes are:
 `Transport::attach_shared_instance` refuses a `SharedInstanceEndpoint::Tcp`
 whose address is not loopback with the new
@@ -854,10 +858,12 @@ arriving on the interface flagged as the shared instance, or on every
 interface when none is flagged, where it was skipped on every interface
 (third); `Link::teardown` sends the LINKCLOSE packet for a link in
 `Handshake` as well as `Active` and `Stale`, and the drop flush inherits it
-(fourth); the reconnect consumer runs the drop flush before the tunnel
-re-synthesis when a reconnect event arrives without the disconnect event of
-its cycle, where the tables learned over the dropped connection used to
-survive (fifth); the drop flush sends no LINKCLOSE for a link that rode the
+(fourth), and building that LINKCLOSE no longer warns `can't create data
+packet for closed link` for a `Handshake` or `Stale` link (thirteenth); the
+reconnect consumer's rule that treated a reconnect event arriving without
+its disconnect as a lost disconnect and flushed first (fifth) is superseded
+by the thirteenth, which restores the plain biased loop and records the
+proof that the case cannot occur; the drop flush sends no LINKCLOSE for a link that rode the
 dropped interface itself, where the packet used to be queued on the
 client's channel and reach the restarted instance as a close for a link it
 never knew (sixth); and reticulumd's shared-instance client posture goes
@@ -866,8 +872,9 @@ flush and the reconnect re-announce, its unix and TCP shared-instance
 clients wait the library default 8 s after a drop instead of the clients'
 own 5 s, one shared instance per process is the rule and a second
 client-posture entry is a recorded startup failure naming the one already
-attached, a configured non-loopback shared-instance host is refused like
-any caller's, the per-interface `fixed_mtu`,
+attached, a configured non-loopback shared-instance host is refused by the
+daemon's own config before any attach, a host name such as `localhost`
+resolves to its IPv4 loopback address first (twelfth), the per-interface `fixed_mtu`,
 `force_shared_instance_bitrate` and mode reach the client through the
 options while the TCP client's `connect_timeout`, `max_reconnect_tries` and
 `prefer_ipv6` no longer apply to the attach, and the daemon's own
@@ -923,7 +930,8 @@ disconnect in `shared_instance_reconnect.rs` (`disconnect_pending`) so a
 reconnect that arrives without it flushes first and records the lost event
 at debug, adds `tests_parts/two_transport_shared_instance_storm.rs`
 (included from `transport/tests.rs`) with the lost-disconnect fixture and a
-storm of six restarts that loses no event, and adds the README clause. The
+storm of six restarts that loses no event, and adds the README clause; the
+thirteenth supersedes its consumer rule and its fixture. The
 sixth has the drop flush in `shared_instance_reconnect.rs` skip the close
 packet of a link whose interface is the dropped one
 (`close_packets_skipped`) and has the drop line read `N close packet(s)
@@ -960,7 +968,38 @@ patches that touched the README. The eleventh has
 substring match instead of a `printf | grep -q` pipe: with this section
 past the pipe buffer, `grep -q` exited on an early match while `printf` was
 still writing, and under `pipefail` the SIGPIPE read as an uncited commit,
-a different one on every loaded run. Pinned by
+a different one on every loaded run. The twelfth has reticulumd's
+`bootstrap_interface_startup_parts/shared_instance_attach.rs` resolve a
+shared-instance host name to every address and pick the IPv4 loopback
+first, then any IPv4 address, then the first resolved
+(`pick_shared_instance_tcp_addr`), where it took the resolver's first
+address and so could dial `[::1]` for `localhost` while the shared instance
+listened on `127.0.0.1`; it adds the picker's unit test, a `localhost`
+attach, the config-refuses-a-remote-host test and the `::1` attach to
+`shared_instance_attach_tests.rs`. The thirteenth restores the plain biased
+loop in `shared_instance_reconnect.rs` and replaces the fifth's rule with
+the proof in its rustdoc (two `mpsc::channel(8)` queues, the disconnect
+emitted before the reconnect each cycle, every queued disconnect served
+before any reconnect, so a disconnect is never dropped while its reconnect
+lands and the realistic storm loss is a reconnect, healed by the next one
+that lands; a per-cycle sequence number would change the
+`Sender<AddressHash>` payload and is deferred), removes the hand-built
+consumer fixture from `tests_parts/two_transport_shared_instance_storm.rs`
+and keeps the six-restart storm; adds `LinkStatus::can_build_packet` to
+`destination/link_parts/module_prelude.rs` and makes it the guard of
+`packet_with_context` in `link_sections/remove_channel_handler.rs`, so a
+LINKCLOSE built for a `Handshake` or `Stale` link no longer warns `can't
+create data packet for closed link`, pinned in
+`link_status_predicates_make_lifecycl_sections/core_tests.rs`; adopts
+`tests_parts/two_transport_shared_instance_probe15.rs` (included from
+`transport/tests.rs`), the no-consult case in
+`transport/inbound_processing_tests.rs` and the Unreleased migration pins
+in `tests/breaking_changes_compile_fail.rs`; and corrects the CHANGELOG
+and README prose (the proof replaces the lost-disconnect sentence, the
+daemon's own loopback refusal is named ahead of the library's, the
+`rns-rpc` bridge is no longer called the same shape, the register gains the
+dedup-gate row and the attach section names the remaining builders and
+getters). Pinned by
 `tests_parts/two_transport_shared_instance_endpoint_warn.rs`,
 `tests_parts/two_transport_shared_instance_options.rs`,
 `tests_parts/two_transport_shared_instance_probe10.rs`,
@@ -968,18 +1007,25 @@ a different one on every loaded run. Pinned by
 `tests_parts/two_transport_shared_instance_probe12.rs`,
 `tests_parts/two_transport_shared_instance_probe13.rs`,
 `tests_parts/two_transport_shared_instance_probe14.rs`,
-`tests_parts/two_transport_shared_instance_storm.rs` (the lost-disconnect
-flush, the skipped close packet and the storm of six restarts),
+`tests_parts/two_transport_shared_instance_probe15.rs` (the refusal wins
+over a held slot and over a stopped transport, and the error's `Display`
+names the rule),
+`tests_parts/two_transport_shared_instance_storm.rs` (the skipped close
+packet and the storm of six restarts),
 `tests_parts/two_transport_shared_instance_tasks.rs`,
 `tests_parts/two_transport_loopback_resources_outcome_probe.rs`,
-`transport/inbound_processing_tests.rs` (the two-interface dedup gate),
+`transport/inbound_processing_tests.rs` (the two-interface dedup gate and
+the no-consult case), `tests/breaking_changes_compile_fail.rs` (the
+Unreleased migrations),
 `link_status_predicates_make_lifecycl_sections/teardown_sends_link_close_for_handshake_link_tests.rs`
 and `link_status_predicates_make_lifecycl_sections/core_tests.rs`,
 `tests/outbound_outcome_api.rs`, the `iface/local.rs` test module and
 reticulumd's `bootstrap_interface_startup_parts/shared_instance_attach_tests.rs`
 (the attached record's interface fills the transport's slot and sets the
 connected posture for the TCP, `LocalClientInterface` TCP and unix arms;
-two client entries leave one attached record and one failure).
+two client entries leave one attached record and one failure; a remote
+host is refused by the config before any attach; `::1` and `localhost`
+attach, the latter on the IPv4 loopback address).
 
 ## 0.15.1 (upstream 0.14.0)
 

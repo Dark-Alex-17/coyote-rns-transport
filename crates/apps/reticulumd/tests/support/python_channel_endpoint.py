@@ -104,9 +104,14 @@ class MessageTest(MessageBase):
 
 
 class ChannelEndpoint:
-    def __init__(self, payload_kind: str, prove_all: bool = False):
+    def __init__(self, payload_kind: str, prove_all: bool = False, allow_identified: bool = False):
         self.payload_kind = payload_kind
         self.prove_all = prove_all
+        self.allow_identified = allow_identified
+        # Shared with the registered request handler by reference
+        # (RNS/Destination.py:397); Link.handle_request reads it at request
+        # time (RNS/Link.py:821), so identities appended later take effect.
+        self.allowed_list = []
         self.lock = threading.Lock()
         self.links = []
         self.received = []
@@ -192,10 +197,15 @@ class ChannelEndpoint:
             "multi-segment-response",
             "request-forms",
         ):
+            if self.allow_identified:
+                allow, allowed_list = RNS.Destination.ALLOW_LIST, self.allowed_list
+            else:
+                allow, allowed_list = RNS.Destination.ALLOW_ALL, None
             destination.register_request_handler(
                 request_forms.DEFAULT_REQUEST_PATH,
                 response_generator=self._on_request,
-                allow=RNS.Destination.ALLOW_ALL,
+                allow=allow,
+                allowed_list=allowed_list,
             )
         destination.set_link_established_callback(self._on_link_established)
         print("python_channel_endpoint: ready", file=sys.stderr, flush=True)
@@ -231,6 +241,14 @@ class ChannelEndpoint:
     def _on_link_established(self, link) -> None:
         print("python_channel_endpoint: link established", file=sys.stderr, flush=True)
         channel = link.get_channel()
+        if self.allow_identified:
+            def on_allowed_identified(_link, identity) -> None:
+                with self.lock:
+                    self.allowed_list.append(identity.hash)
+                channel.send(MessageTest("rust-identify", f"identified:{identity.hash.hex()}"))
+
+            link.set_remote_identified_callback(on_allowed_identified)
+
         if self.payload_kind == "identify":
             channel.register_message_type(MessageTest)
 
@@ -1037,6 +1055,7 @@ def main() -> int:
     parser.add_argument("--request-size", type=int, default=0)
     parser.add_argument("--identify", action="store_true")
     parser.add_argument("--prove-all", action="store_true")
+    parser.add_argument("--allow-identified", action="store_true")
     parser.add_argument("--request-timeout", type=float, default=None)
     parser.add_argument("--request-path", default=request_forms.DEFAULT_REQUEST_PATH)
     args = parser.parse_args()
@@ -1096,7 +1115,7 @@ def main() -> int:
 
     if args.config_dir is None:
         parser.error("--config-dir is required outside boundary-probe mode")
-    endpoint = ChannelEndpoint(args.payload_kind, args.prove_all)
+    endpoint = ChannelEndpoint(args.payload_kind, args.prove_all, args.allow_identified)
     destination = endpoint.start(args.config_dir)
     print(json.dumps({"ready": True, "destination_hash": destination.hash.hex()}), flush=True)
 

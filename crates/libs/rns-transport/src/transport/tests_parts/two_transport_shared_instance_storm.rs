@@ -1,7 +1,10 @@
 // Coverage for the reconnect consumer under a storm of restarts: six back-to-back restarts
 // of the TCP shared instance are each observed as one drop line followed by one reconnect
 // line, with no event lost: this pins the ordering and the loss-free service of the
-// disconnect and reconnect events at restart rate. The drop flush also sends no close
+// disconnect and reconnect events at restart rate. The fixture sits below the drop regime
+// by construction: each restart waits for the re-accept, so the two `mpsc::channel(8)`
+// queues never hold more than two events and none can be dropped here; the loss-free claim
+// is about ordering and service, not back-pressure. The drop flush also sends no close
 // packet for a link that rode the dropped interface itself, so the restarted instance
 // receives no close for a link it never knew. Helpers come from the sibling `tests_parts`
 // files included into this module.

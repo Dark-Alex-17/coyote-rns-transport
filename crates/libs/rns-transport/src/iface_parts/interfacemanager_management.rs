@@ -133,6 +133,8 @@ impl InterfaceManager {
             .is_some_and(|iface| iface.is_shared_instance)
     }
 
+    /// Whether any registered interface is flagged as the shared instance; the inbound
+    /// duplicate filter's per-interface skip falls back to every interface while this is false.
     pub fn has_shared_instance_interface(&self) -> bool {
         self.ifaces.iter().any(|iface| iface.is_shared_instance)
     }

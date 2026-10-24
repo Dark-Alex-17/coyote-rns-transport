@@ -4,16 +4,15 @@
 // PATCHSET narrative says why the joined form was wrong (it counted sites,
 // not tasks) and which patch undid it; the PATCHSET header confines the
 // joined form to the commits it lived in and says it shipped in no release;
-// the README row carries its two patch attributions; and the code-identifier
-// rule the allowance-reason probes share treats "e.g." and "i.e." as prose
-// while keeping dotted paths.
+// the README row carries every patch attribution that touched it; and the
+// code-identifier rule the allowance-reason probes share treats "e.g." and
+// "i.e." as prose while keeping dotted paths.
 
 /// The `## Unreleased` section of the crate changelog, whitespace-normalised.
 fn changelog_unreleased_flat() -> String {
     let changelog = read_repo_file("crates/libs/rns-transport/CHANGELOG.md");
-    let (_, rest) = changelog
-        .split_once("## Unreleased")
-        .expect("the CHANGELOG has an Unreleased section");
+    let (_, rest) =
+        changelog.split_once("## Unreleased").expect("the CHANGELOG has an Unreleased section");
     let section = rest.split("\n## ").next().unwrap_or(rest);
     section.split_whitespace().collect::<Vec<_>>().join(" ")
 }
@@ -55,9 +54,8 @@ fn patchset_thirty_ninth_narrative_no_longer_vouches_for_the_joined_form() {
     let (_, rest) = flat
         .split_once("The thirty-ninth has")
         .expect("the ledger narrates the thirty-ninth patch");
-    let (narrative, _) = rest
-        .split_once("The fortieth")
-        .expect("the fortieth narrative follows the thirty-ninth");
+    let (narrative, _) =
+        rest.split_once("The fortieth").expect("the fortieth narrative follows the thirty-ninth");
     assert!(
         narrative.contains("counted sites, not tasks"),
         "the narrative names the flawed premise, got {narrative:?}"
@@ -82,7 +80,10 @@ fn patchset_header_confines_the_joined_form_to_the_commits_it_lived_in() {
         .expect("the header has the behaviour sentence");
     let sentence = rest.split(';').next().unwrap_or(rest);
     for needle in ["thirty-ninth", "forty-third", "never in a release"] {
-        assert!(sentence.contains(needle), "the behaviour sentence says {needle:?}, got {sentence:?}");
+        assert!(
+            sentence.contains(needle),
+            "the behaviour sentence says {needle:?}, got {sentence:?}"
+        );
     }
 }
 
@@ -97,7 +98,8 @@ fn patchset_readme_row_is_attributed_to_every_patch_that_touched_it() {
         .find_map(|line| {
             let mut cells = line.trim_matches('|').split('|').map(str::trim);
             let file = cells.next().unwrap_or_default().trim_matches('`');
-            (file == "crates/libs/rns-transport/README.md").then(|| cells.next().unwrap_or_default())
+            (file == "crates/libs/rns-transport/README.md")
+                .then(|| cells.next().unwrap_or_default())
         })
         .expect("the README has a row");
     assert_eq!(readme, "release tooling, guard discipline, shared-instance hardening");

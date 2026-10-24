@@ -179,7 +179,8 @@ impl TunnelTable {
     /// Drops every tunnel with its paths and returns how many tunnels there
     /// were: Python's `Transport.tunnels = {}` (`RNS/Transport.py:3702`),
     /// and with them the interface-to-tunnel index, written by
-    /// `handle_tunnel` and read by `note_path`. Its Python twin is
+    /// `handle_tunnel`, pruned by `remove_stale` and read by `note_path`.
+    /// Its Python twin is
     /// `interface.tunnel_id` (`RNS/Transport.py:2827`, `:2834`, read at
     /// `:2467`), which `shared_connection_disappeared`
     /// (`RNS/Transport.py:3690-3702`) leaves set, so Python's `note_path` on

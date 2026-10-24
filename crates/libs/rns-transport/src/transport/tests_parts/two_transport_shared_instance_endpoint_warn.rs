@@ -1,9 +1,10 @@
 // Pins the loopback rule of a TCP attach: an endpoint whose address is not loopback is
 // refused with `SharedInstanceEndpointNotLoopback` before any lock is taken, with one
-// warning naming the address, and is attached only under `allow_remote_endpoint(true)`,
-// again with one warning per accepted attach, since Python's `LocalClientInterface`
-// connects to 127.0.0.1 only (`RNS/Interfaces/LocalInterface.py:109`); an attach refused by
-// the slot warns nothing. That a loopback attach never warns is pinned by
+// warning naming the address and the opt-in that would admit it, and is attached only
+// under `allow_remote_endpoint(true)`, again with one warning per accepted attach naming
+// the interface, since Python's `LocalClientInterface` connects to 127.0.0.1 only
+// (`RNS/Interfaces/LocalInterface.py:109`); an attach refused by the slot warns nothing.
+// That a loopback attach never warns is pinned by
 // `shared_instance_tcp_attach_logs_the_reconnect_wait_in_force_and_never_warns` in
 // `two_transport_shared_instance_probe5.rs`, read through the same record store. Helpers
 // come from the sibling `tests_parts` files included into this module.
@@ -66,6 +67,7 @@ async fn shared_instance_tcp_attach_to_a_non_loopback_endpoint_is_refused_by_def
     );
     assert!(line.contains("not a loopback address"), "says why: {line}");
     assert!(line.contains("attach refused"), "says what happened: {line}");
+    assert!(line.contains("allow_remote_endpoint"), "names the remedy: {line}");
     assert!(line.contains("RNS/Interfaces/LocalInterface.py:109"), "cites Python: {line}");
 
     let iface = transport
@@ -112,6 +114,7 @@ async fn shared_instance_tcp_attach_to_a_non_loopback_endpoint_under_the_opt_in_
         "names the endpoint: {line}"
     );
     assert!(line.contains("shared instance"), "is a shared-instance line: {line}");
+    assert!(line.contains(&format!("iface={iface}")), "names the attached interface: {line}");
     assert!(line.contains("not a loopback address"), "says why: {line}");
     assert!(line.contains("allow_remote_endpoint"), "names the opt-in: {line}");
     assert!(line.contains("RNS/Interfaces/LocalInterface.py:109"), "cites Python: {line}");

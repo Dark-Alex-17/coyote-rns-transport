@@ -108,6 +108,12 @@ async fn resolve_shared_instance_tcp_endpoint(
         .ok_or_else(|| format!("local attach endpoint={endpoint} resolved to no address"))
 }
 
+/// The loopback of the preferred family, then any address of it, then the other family in
+/// the same order, then the resolver's first answer. Only `prefer_ipv6` tries both
+/// families; the default order tries IPv4 alone, so `first()` is reached by an IPv6-only
+/// answer, which is `[::1]` itself or a non-loopback address the daemon's config validator
+/// (`host must be loopback for local`, `config_parts/interfaceconfig_sections/enabled.rs`)
+/// keeps out of a daemon config.
 fn pick_shared_instance_tcp_addr(addrs: &[SocketAddr], prefer_ipv6: bool) -> Option<SocketAddr> {
     let loopback_then_any = |is_family: fn(&SocketAddr) -> bool| {
         addrs

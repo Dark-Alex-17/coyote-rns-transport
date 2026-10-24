@@ -2,9 +2,10 @@
 // `attach_shared_instance`: `connect_timeout` and `max_reconnect_tries` still parse on the
 // `local` and `local_client` kinds (the config surface is unchanged) and `connect_timeout = 0`
 // is still refused, while the settings echo drops the two keys for those kinds and keeps
-// them for `tcp_client`; the reference TOML's `local` and `local_client` blocks no longer
-// advertise them. Pins the CHANGELOG's "the config still parses them and still rejects
-// `connect_timeout = 0`" and "no longer echoed in settings JSON for those kinds".
+// them for `tcp_client`, and echoes `prefer_ipv6`, the knob the client does honour; the
+// reference TOML's `local` and `local_client` blocks no longer advertise the two and do
+// advertise `prefer_ipv6`. Pins the CHANGELOG's "the config still parses them and still
+// rejects `connect_timeout = 0`" and "no longer echoed in settings JSON for those kinds".
 
 fn local_kind_with_knobs(kind: &str) -> InterfaceConfig {
     let input = format!(
@@ -48,6 +49,7 @@ fn settings_echo_drops_the_timeout_and_retry_knobs_for_local_kinds_only() {
         );
         assert_eq!(settings["host"], "127.0.0.1", "{kind}: the host is still echoed");
         assert_eq!(settings["port"], 37_428, "{kind}: the port is still echoed");
+        assert_eq!(settings["prefer_ipv6"], true, "{kind}: the honoured knob is echoed");
     }
 
     let input = r#"
@@ -94,7 +96,7 @@ fn reference_block(kind: &str) -> String {
 }
 
 #[test]
-fn reference_toml_local_blocks_advertise_no_timeout_or_retry_knob() {
+fn reference_toml_local_blocks_advertise_prefer_ipv6_and_no_timeout_or_retry_knob() {
     for kind in ["local", "local_client"] {
         let block = reference_block(kind);
         for knob in ["connect_timeout", "max_reconnect_tries"] {
@@ -103,6 +105,10 @@ fn reference_toml_local_blocks_advertise_no_timeout_or_retry_knob() {
                 "the reference TOML's {kind} block no longer advertises {knob}:\n{block}"
             );
         }
+        assert!(
+            block.contains("prefer_ipv6"),
+            "the reference TOML's {kind} block advertises prefer_ipv6:\n{block}"
+        );
     }
     let tcp_client = reference_block("tcp_client");
     for knob in ["connect_timeout", "max_reconnect_tries"] {

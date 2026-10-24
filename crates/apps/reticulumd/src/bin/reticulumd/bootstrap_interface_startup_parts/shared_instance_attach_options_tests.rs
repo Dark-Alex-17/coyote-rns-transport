@@ -2,7 +2,8 @@
 // `SharedInstanceOptions` the attach hands the library: the MTU and the forced bitrate are
 // read back through the options' public getters. The mode builder has no getter; that half
 // is pinned by the attach-backed `local_client_attach_registers_the_mode_and_mtu_from_the_entry`
-// in the parent module, which goes through the same function.
+// in the parent module, which goes through the same function. Also pins the
+// `pick_shared_instance_tcp_addr` arms the parent's pick tests leave out.
 
 use super::*;
 
@@ -38,4 +39,25 @@ interfaces = [
     let options = shared_instance_options_for(iface);
     assert_eq!(options.mtu(), Some(600), "the entry's mtu reaches the options");
     assert_eq!(options.forced_bitrate_bps(), Some(9600), "the entry's bitrate reaches the options");
+}
+
+/// Under the default order only IPv4 is tried, so an IPv6-only non-loopback answer falls
+/// through to the resolver's first answer (the daemon's config keeps such a host out, the
+/// pick itself does not); under `prefer_ipv6` an IPv4-only non-loopback answer is found by
+/// the IPv4 fallback order, not by that trailing arm.
+#[test]
+fn pick_uses_a_non_loopback_single_family_answer_as_is() {
+    let v6_remote: SocketAddr = "[fd00::1]:1".parse().expect("v6 remote");
+    let v4_remote: SocketAddr = "10.0.0.1:1".parse().expect("v4 remote");
+
+    assert_eq!(
+        pick_shared_instance_tcp_addr(&[v6_remote], false),
+        Some(v6_remote),
+        "an IPv6-only remote answer is the resolver's first answer under the default order"
+    );
+    assert_eq!(
+        pick_shared_instance_tcp_addr(&[v4_remote], true),
+        Some(v4_remote),
+        "an IPv4-only remote answer is reached through the IPv4 order under prefer_ipv6"
+    );
 }

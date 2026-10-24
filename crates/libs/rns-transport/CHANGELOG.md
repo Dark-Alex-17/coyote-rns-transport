@@ -68,6 +68,14 @@ Removed) bullet of its own, marked as such.
   clamps the wait to at least 1 ms at origin as the clients already did.
   Pinned by `two_transport_shared_instance_options.rs` and
   `two_transport_shared_instance_probe10.rs`.
+- Fork-only `LocalUnixClient` inspection getters `addr`, `mtu_value`,
+  `forced_bitrate_bps`, `reconnect_wait`, `reconnect_events_enabled` and
+  `disconnect_events_enabled` (`iface/local.rs`), the shape `TcpClient`
+  already exposes; and the shared-instance re-announce select
+  (`links_parts/transport_sections/shared_instance_reconnect.rs`) is
+  `biased` towards cancel, as the registration announce already was, so a
+  stop that lands with the delay is served first. Pinned by the
+  `iface/local.rs` test module.
 - Test-only: `tests/outbound_outcome_api.rs` describes the plain senders'
   argument lists as the ones from before this release instead of by a label
   from the fork's own planning, and

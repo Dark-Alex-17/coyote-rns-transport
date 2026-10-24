@@ -381,10 +381,13 @@ interface it rides, as Python's `Link.teardown` does for every such link
 the close from the wire, while a link that rode the dropped interface
 itself sends none, its peer being gone with the connection, and
 clears the path, announce, link and tunnel tables, the held announces and
-the packet cache's reverse routes, Python's `reverse_table`
+the packet cache's reverse routes, the received-packet entries that are
+Python's `reverse_table`
 (`RNS/Transport.py:3690-3702`, `RNS/Interfaces/LocalInterface.py:255-261`),
 and with them the fork's own announce cache tier and its interface-tunnel
-index, which have no Python twin;
+index, which have no Python twin; the entries of packets this node sent,
+the receipt guard that is Python's `receipts` list (`RNS/Transport.py:174`),
+stay;
 a queued disconnect is served before the reconnect behind it, so the flush
 never lands after that cycle's tunnel, and a reconnect whose disconnect
 event was lost on a full channel runs the flush first.

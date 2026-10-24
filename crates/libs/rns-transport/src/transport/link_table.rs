@@ -66,9 +66,11 @@ impl LinkTable {
 
     /// Drops every entry, validated or not, and returns how many there were:
     /// Python's `Transport.link_table = {}` (`RNS/Transport.py:3700`). This
-    /// covers Python's `link_table` alone; its `reverse_table`, the
-    /// proof-routing index, is the packet cache's
-    /// `clear_reverse_routes` (`RNS/Transport.py:2104-2109`).
+    /// covers Python's `link_table` alone; its `reverse_table`
+    /// (`RNS/Transport.py:2104-2109`) is the packet cache's received-packet
+    /// entries, which `clear_reverse_routes` empties, and not the entries
+    /// of packets this node sent, which are the receipt guard, Python's
+    /// `receipts` list (`RNS/Transport.py:174`).
     pub fn clear(&mut self) -> usize {
         let cleared = self.entries.len();
         self.entries.clear();

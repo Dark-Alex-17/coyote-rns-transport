@@ -406,6 +406,42 @@ impl LocalUnixClient {
         self
     }
 
+    /// The endpoint label, or the label given with a pre-supplied stream.
+    #[must_use]
+    pub fn addr(&self) -> &str {
+        &self.addr
+    }
+
+    /// The MTU in effect, after the 256-byte floor of [`Self::with_mtu`].
+    #[must_use]
+    pub fn mtu_value(&self) -> usize {
+        self.mtu
+    }
+
+    /// The forced bitrate, `None` unless a non-zero one was set.
+    #[must_use]
+    pub fn forced_bitrate_bps(&self) -> Option<u64> {
+        self.forced_bitrate_bps
+    }
+
+    /// The redial wait in effect, after the 1 ms floor of [`Self::with_reconnect_wait`].
+    #[must_use]
+    pub fn reconnect_wait(&self) -> Duration {
+        self.reconnect_wait
+    }
+
+    /// Whether a reconnect-event sender is installed.
+    #[must_use]
+    pub fn reconnect_events_enabled(&self) -> bool {
+        self.reconnect_events.is_some()
+    }
+
+    /// Whether a disconnect-event sender is installed.
+    #[must_use]
+    pub fn disconnect_events_enabled(&self) -> bool {
+        self.disconnect_events.is_some()
+    }
+
     pub async fn spawn(context: InterfaceContext<Self>) {
         let iface_stop = context.channel.stop.clone();
         let iface_address = context.channel.address;
@@ -604,6 +640,36 @@ mod tests {
         assert_eq!(endpoint, LocalUnixEndpoint::Abstract("rns/default".to_string()));
         assert_eq!(endpoint.label(), "@rns/default");
         assert!(endpoint.is_abstract());
+    }
+
+    #[test]
+    fn local_unix_client_getters_read_back_the_builder_values() {
+        let endpoint = LocalUnixEndpoint::from_config_value("@rns/getters");
+        let client = LocalUnixClient::new_connect(endpoint.clone());
+        assert_eq!(client.addr(), endpoint.label());
+        assert_eq!(client.mtu_value(), TcpClient::DEFAULT_MTU);
+        assert_eq!(client.forced_bitrate_bps(), None);
+        assert_eq!(client.reconnect_wait(), LocalUnixClient::DEFAULT_RECONNECT_WAIT);
+        assert!(!client.reconnect_events_enabled());
+        assert!(!client.disconnect_events_enabled());
+
+        let (reconnect_tx, _reconnect_rx) = tokio::sync::mpsc::channel(1);
+        let (disconnect_tx, _disconnect_rx) = tokio::sync::mpsc::channel(1);
+        let client = client
+            .with_mtu(100)
+            .with_forced_bitrate(9_600)
+            .with_reconnect_wait(Duration::from_millis(50))
+            .with_reconnect_events(reconnect_tx)
+            .with_disconnect_events(disconnect_tx);
+        assert_eq!(client.mtu_value(), 256);
+        assert_eq!(client.forced_bitrate_bps(), Some(9_600));
+        assert_eq!(client.reconnect_wait(), Duration::from_millis(50));
+        assert!(client.reconnect_events_enabled());
+        assert!(client.disconnect_events_enabled());
+
+        let client = client.with_forced_bitrate(0).with_reconnect_wait(Duration::ZERO);
+        assert_eq!(client.forced_bitrate_bps(), None);
+        assert_eq!(client.reconnect_wait(), Duration::from_millis(1));
     }
 
     #[cfg(any(target_os = "linux", target_os = "android"))]

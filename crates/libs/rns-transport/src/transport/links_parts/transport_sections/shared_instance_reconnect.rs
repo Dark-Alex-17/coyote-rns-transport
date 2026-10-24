@@ -171,7 +171,11 @@ impl SharedInstanceReconnectConsumer {
         }
         let consumer = self.clone();
         let reannounce = async move {
+            // Biased so a cancel that lands with the delay is served first, as
+            // the registration announce does; announce_reappeared re-checks the
+            // posture anyway.
             tokio::select! {
+                biased;
                 _ = consumer.cancel.cancelled() => {}
                 _ = tokio::time::sleep(
                     consumer.reconnect_wait + SHARED_INSTANCE_REAPPEARED_ANNOUNCE_GRACE
@@ -215,10 +219,13 @@ impl SharedInstanceReconnectConsumer {
     /// `active_links` and `pending_links` are `in_links` and `out_links`
     /// (both hold links in every status); `announce_table`, `path_table`
     /// and `tunnels` are the fields of the same name; `link_table` is the
-    /// field of that name alone, and `reverse_table`, the proof-routing
-    /// index, is the source notes and proof-destination index of the packet
-    /// cache, emptied by `clear_reverse_routes` while the duplicate-filter
-    /// hashes stay, as Python's `packet_hashlist` does;
+    /// field of that name alone, and `reverse_table` is the packet cache's
+    /// received-packet entries, the source notes and proof-destination
+    /// index entries that `clear_reverse_routes` empties, while the
+    /// duplicate-filter hashes stay, as Python's `packet_hashlist` does,
+    /// and the entries of packets this node sent stay too: they are the
+    /// receipt guard, Python's `receipts` list (`RNS/Transport.py:174`),
+    /// not part of `reverse_table`;
     /// `held_announces` are the held announces of `announce_limits`. The
     /// resource state of each closed link goes with it, as the link
     /// maintenance job does. Lock discipline follows

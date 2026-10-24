@@ -177,7 +177,10 @@ impl TunnelTable {
     }
 
     /// Drops every tunnel with its paths and returns how many tunnels there
-    /// were: Python's `Transport.tunnels = {}` (`RNS/Transport.py:3702`).
+    /// were: Python's `Transport.tunnels = {}` (`RNS/Transport.py:3702`),
+    /// and with them the fork's own interface-to-tunnel index, written by
+    /// `handle_tunnel` and read by `note_path`, which has no Python twin
+    /// (`RNS/Transport.py:3702` clears only `tunnels`).
     pub fn clear(&mut self) -> usize {
         let cleared = self.tunnels.len();
         self.tunnels.clear();

@@ -61,6 +61,11 @@ Removed) bullet of its own, marked as such.
   `two_transport_shared_instance_options.rs` (the mode and MTU reach the
   iface manager over the TCP and unix arms) and
   `two_transport_shared_instance_endpoint_warn.rs` (the opt-in).
+- Public getters `SharedInstanceOptions::mtu` and
+  `SharedInstanceOptions::forced_bitrate_bps` (`transport/shared_instance.rs`),
+  reading back what `with_mtu` and `with_forced_bitrate` stored. Pinned by
+  `two_transport_shared_instance_options.rs` and the daemon's
+  `bootstrap_interface_startup_parts::shared_instance_attach_options_tests`.
 - `LocalUnixClient` inspection getters `addr`, `mtu_value`,
   `forced_bitrate_bps`, `reconnect_wait`, `reconnect_events_enabled` and
   `disconnect_events_enabled` (`iface/local.rs`). Pinned by the
@@ -105,20 +110,20 @@ Removed) bullet of its own, marked as such.
   `attached shared instance iface=<hash> kind=<kind> reconnect_wait=<wait>`.
   Pinned by `two_transport_shared_instance_probe5.rs` and
   `two_transport_shared_instance_probe6.rs`.
-- Fork-only `SharedInstanceOptions` builders `with_mtu`, `with_forced_bitrate`
-  and `with_interface_mode` (`transport/shared_instance.rs`) reach the
-  spawned client and its iface-manager registration, and `with_reconnect_wait`
-  clamps the wait to at least 1 ms at origin as the clients already did.
-  Pinned by `two_transport_shared_instance_options.rs` and
-  `two_transport_shared_instance_probe10.rs`.
-- Fork-only `LocalUnixClient` inspection getters `addr`, `mtu_value`,
-  `forced_bitrate_bps`, `reconnect_wait`, `reconnect_events_enabled` and
-  `disconnect_events_enabled` (`iface/local.rs`), the shape `TcpClient`
-  already exposes; and the shared-instance re-announce select
+- The `SharedInstanceOptions` MTU, forced bitrate and interface mode
+  (`transport/shared_instance.rs`) reach the spawned client and its
+  iface-manager registration, and `with_reconnect_wait` clamps the wait to
+  at least 1 ms at origin as the clients already did. Pinned by
+  `two_transport_shared_instance_options.rs`,
+  `two_transport_shared_instance_probe10.rs` and
+  `two_transport_shared_instance_probe17.rs` (the forced bitrate paces the
+  first frame on a fresh stream).
+- The shared-instance re-announce select
   (`links_parts/transport_sections/shared_instance_reconnect.rs`) is
   `biased` towards cancel, as the registration announce already was, so a
-  stop that lands with the delay is served first. Pinned by the
-  `iface/local.rs` test module.
+  stop that lands with the delay is served first. Pinned by the six-restart
+  storm in `two_transport_shared_instance_storm.rs`, whose client stop lands
+  inside the last re-announce delay and completes inside the stop timeout.
 - Test-only: the lib test logger in
   `two_transport_loopback_requests_isolation.rs` admits the resource target
   and keeps its dropped-outcome-receiver lines;
@@ -131,7 +136,11 @@ Removed) bullet of its own, marked as such.
 - Test-only: the storm fixture in `two_transport_shared_instance_storm.rs`
   counts a cycle on the drop summary's `reverse route(s) cleared` tail, so
   a per-link close-packet line, which shares the `disconnected,` prefix,
-  cannot count as one; and `two_transport_shared_instance_options.rs` gains
+  cannot count as one, and its header says the fixture sits below the drop
+  regime by construction (each restart waits for the re-accept, so the two
+  `mpsc::channel(8)` queues never hold more than two events; the loss-free
+  claim is ordering and service, not back-pressure); and
+  `two_transport_shared_instance_options.rs` gains
   the `#[cfg(unix)]` twin of the mode-and-MTU pin, an attach over a
   filesystem socket whose mode and MTU reach the iface manager as the TCP
   arm's do.
@@ -178,7 +187,9 @@ Removed) bullet of its own, marked as such.
 - Release tooling, no library behaviour change: the ledger check's per-commit
   cite test is a bash substring match instead of a `printf | grep -q` pipe,
   which under `pipefail` read a SIGPIPE on a section longer than the pipe
-  buffer as an uncited commit; the README-row pin in
+  buffer as an uncited commit, and `semver-major-findings-check.sh` tests
+  each expected lint the same way, where its verdict read through a
+  `printf | grep -q` pipe before; the README-row pin in
   `fork_publish_contract_parts/lint_discipline_probe10.rs` names the
   shared-instance hardening patch too.
 - Ledger contracts, test-only: every patch-header hash in
@@ -377,12 +388,22 @@ Removed) bullet of its own, marked as such.
   the library's refusal is defence in depth behind it
   (the daemon does not set `allow_remote_endpoint`); the
   per-interface `fixed_mtu`, `force_shared_instance_bitrate` and mode reach
-  the client through the `SharedInstanceOptions` builders; `prefer_ipv6` is
+  the client through the `SharedInstanceOptions` builders, assembled by
+  `shared_instance_options_for` in
+  `bootstrap_interface_startup_parts::shared_instance_attach`; `prefer_ipv6` is
   honoured by the daemon's address pick
   (`bootstrap_interface_startup_parts::shared_instance_attach`: IPv6
   loopback first, then any IPv6, then the IPv4 order; the default is IPv4
   loopback first, as Python's `LocalClientInterface` connects to
-  `127.0.0.1` only, `RNS/Interfaces/LocalInterface.py:109`), while
+  `127.0.0.1` only, `RNS/Interfaces/LocalInterface.py:109`), advertised in
+  the reference TOML's `local` and `local_client` blocks
+  (`examples/interfaces-reference.toml`) and echoed in settings JSON for
+  those kinds (`config_parts::interfaceconfig_sections::enabled`); under
+  `--strict-interface-startup` the preflight dials the picked address, not
+  the host string, so a shared instance listening on the other loopback
+  family is a recorded startup failure naming that address instead of a
+  pass followed by an attach that never connects
+  (`bootstrap_interface_startup_parts::module_prelude`); while
   `connect_timeout` and `max_reconnect_tries`, which the shared-instance
   client has no setting for, are warned about at startup
   (`[daemon] <posture> name=<label> ignores <key>`), dropped from the
@@ -406,7 +427,17 @@ Removed) bullet of its own, marked as such.
   (`local_client_localhost_host_connects_to_the_ipv4_loopback_listener`);
   the pick with `prefer_ipv6`; the ignored-key list names the timeout and
   retry knobs only; the entry's mode and MTU reach the attached interface
-  (`local_client_attach_registers_the_mode_and_mtu_from_the_entry`)).
+  (`local_client_attach_registers_the_mode_and_mtu_from_the_entry`)),
+  `bootstrap_interface_startup_parts::shared_instance_attach_probe_tests`
+  (`prefer_ipv6` reaches the dial, observed as the accept on a `[::1]`-only
+  listener; one warning per ignored key; the forced bitrate paces the first
+  frame on the new stream; strict startup passes iff the picked family
+  listens),
+  `bootstrap_interface_startup_parts::shared_instance_attach_options_tests`
+  (the options an entry asks for; the single-family pick arms) and
+  `crates/apps/reticulumd/tests/config_parts/shared_instance_client_knobs.rs`
+  (parse, echo including `prefer_ipv6`, zero-timeout refusal, reference
+  TOML text).
 - No library behaviour change: the shared-instance reconnect consumer
   (`links_parts/transport_sections/shared_instance_reconnect.rs`) stays the
   plain biased loop and its rustdoc now carries the proof that a disconnect

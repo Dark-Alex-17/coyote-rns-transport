@@ -51,7 +51,8 @@ fork commit `08362717`; the
 `cb818b0a`, `a55eaf6f`, `e4046601`, `0c553858`, `f5f8b639`, `6ecb0340`,
 `c78bdc7d`, `ca66c50d`, `00bd6579`, `24cf2089`, `31ce6211`, `615d9e45`,
 `16850244`, `f8b74067`, `4d6d7280`, `320720af`, `ba84a543`, `597fb2b8`,
-`46f5cb21` and `59acbc9f`.
+`46f5cb21`, `59acbc9f`, `e19fc0ba`, `c0348634`, `0c49f2d9`, `a31cb1a0` and
+`91ba55f9`.
 
 | File | Patch |
 | --- | --- |
@@ -65,11 +66,15 @@ fork commit `08362717`; the
 | `crates/apps/reticulumd/src/bin/reticulumd/bootstrap_interface_startup.rs` | shared-instance hardening |
 | `crates/apps/reticulumd/src/bin/reticulumd/bootstrap_interface_startup_parts/module_prelude.rs` | shared-instance hardening |
 | `crates/apps/reticulumd/src/bin/reticulumd/bootstrap_interface_startup_parts/shared_instance_attach.rs` | shared-instance hardening |
+| `crates/apps/reticulumd/src/bin/reticulumd/bootstrap_interface_startup_parts/shared_instance_attach_options_tests.rs` | shared-instance hardening |
+| `crates/apps/reticulumd/src/bin/reticulumd/bootstrap_interface_startup_parts/shared_instance_attach_probe_tests.rs` | shared-instance hardening |
 | `crates/apps/reticulumd/src/bin/reticulumd/bootstrap_interface_startup_parts/shared_instance_attach_tests.rs` | shared-instance hardening |
 | `crates/apps/reticulumd/src/bin/reticulumd/bootstrap_transport.rs` | shared-instance hardening |
 | `crates/apps/reticulumd/src/bin/reticulumd/bridge_propagation.rs` | guard discipline |
 | `crates/apps/reticulumd/src/bin/reticulumd/tests/interface_hot_apply.rs` | guard discipline |
 | `crates/apps/reticulumd/src/config_parts/interfaceconfig_sections/enabled.rs` | shared-instance hardening |
+| `crates/apps/reticulumd/tests/config.rs` | shared-instance hardening |
+| `crates/apps/reticulumd/tests/config_parts/shared_instance_client_knobs.rs` | shared-instance hardening |
 | `crates/apps/reticulumd/tests/fork_publish_contract.rs` | release tooling, guard discipline |
 | `crates/apps/reticulumd/tests/fork_publish_contract_parts/ledger_contract.rs` | release tooling |
 | `crates/apps/reticulumd/tests/fork_publish_contract_parts/ledger_contract_fixtures.rs` | release tooling |
@@ -202,6 +207,7 @@ fork commit `08362717`; the
 | `crates/libs/rns-transport/src/transport/tests_parts/two_transport_shared_instance_probe14.rs` | shared-instance hardening |
 | `crates/libs/rns-transport/src/transport/tests_parts/two_transport_shared_instance_probe15.rs` | shared-instance hardening |
 | `crates/libs/rns-transport/src/transport/tests_parts/two_transport_shared_instance_probe16.rs` | shared-instance hardening |
+| `crates/libs/rns-transport/src/transport/tests_parts/two_transport_shared_instance_probe17.rs` | shared-instance hardening |
 | `crates/libs/rns-transport/src/transport/tests_parts/two_transport_shared_instance_probe5.rs` | shared-instance hardening |
 | `crates/libs/rns-transport/src/transport/tests_parts/two_transport_shared_instance_probe6.rs` | shared-instance hardening |
 | `crates/libs/rns-transport/src/transport/tests_parts/two_transport_shared_instance_storm.rs` | shared-instance hardening |
@@ -850,7 +856,8 @@ per-receive lease of both shared receivers).
 Fork commits `829c8e6d`, `d629ac08`, `cb818b0a`, `a55eaf6f`, `e4046601`,
 `0c553858`, `f5f8b639`, `6ecb0340`, `c78bdc7d`, `ca66c50d`, `00bd6579`,
 `24cf2089`, `31ce6211`, `615d9e45`, `16850244`, `f8b74067`, `4d6d7280`,
-`320720af`, `ba84a543`, `597fb2b8`, `46f5cb21` and `59acbc9f`:
+`320720af`, `ba84a543`, `597fb2b8`, `46f5cb21`, `59acbc9f`, `e19fc0ba`,
+`c0348634`, `0c49f2d9`, `a31cb1a0` and `91ba55f9`:
 H5, shared-instance hardening. The library behaviour changes are:
 `Transport::attach_shared_instance` refuses a `SharedInstanceEndpoint::Tcp`
 whose address is not loopback with the new
@@ -1076,7 +1083,62 @@ lines of `tests_parts/two_transport_shared_instance_probe6.rs` and
 `kind=` key and a long test name let `rustfmt` put on one line. The
 twenty-second writes the README's drop-flush paragraph (the `Handshake`
 LINKCLOSE would be inherited; `interface.tunnel_id` is the index's twin)
-and the register's responder-`Active`-on-prove row. Pinned by
+and the register's responder-`Active`-on-prove row. The twenty-third,
+test-only, adds three files: reticulumd's
+`bootstrap_interface_startup_parts/shared_instance_attach_probe_tests.rs`,
+mounted from `shared_instance_attach_tests.rs` (`prefer_ipv6` dials the
+`[::1]`-only listener for `localhost`; one startup warning per ignored key
+under either client posture and none without the knobs;
+`force_shared_instance_bitrate` paces the first frame on the new stream),
+`crates/apps/reticulumd/tests/config_parts/shared_instance_client_knobs.rs`,
+included by `tests/config.rs` (the two knobs still parse on the local
+kinds, `connect_timeout = 0` is still refused, the echo drops them for
+those kinds alone and the reference TOML's local blocks no longer advertise
+them), and `tests_parts/two_transport_shared_instance_probe17.rs` (the
+forced bitrate paces the first frame on a fresh stream), and points the
+header of `tests_parts/two_transport_shared_instance_options.rs` at it.
+The twenty-fourth has `startup_local_tcp_attach_endpoint` in
+`bootstrap_interface_startup_parts/module_prelude.rs` resolve and pick the
+address before the `--strict-interface-startup` preflight, which now dials
+the picked `SocketAddr` rather than the host string, whose
+`TcpStream::connect(&str)` tried every resolved family and so passed on a
+loopback the attach never dialled; two pins in
+`shared_instance_attach_probe_tests.rs` (a listener on the other loopback
+family alone is a recorded startup failure naming the picked address; the
+picked family listening passes and sees the accept). The twenty-fifth
+widens `SharedInstanceOptions::mtu` and
+`SharedInstanceOptions::forced_bitrate_bps` in `transport/shared_instance.rs`
+to `pub`, factors `shared_instance_options_for` out of
+`attach_shared_instance_client` in
+`bootstrap_interface_startup_parts/shared_instance_attach.rs` and pins it
+in the new `shared_instance_attach_options_tests.rs`, mounted next to the
+probe child (the client's default MTU and no forced bitrate on a bare
+entry; the entry's `mtu` and bitrate otherwise). The twenty-sixth
+advertises `prefer_ipv6` in the `local` and `local_client` blocks of
+`examples/interfaces-reference.toml`, echoes it for those kinds in
+`config_parts/interfaceconfig_sections/enabled.rs`, documents the pick
+order on `pick_shared_instance_tcp_addr` (loopback of the preferred family,
+any address of it, the other family likewise, then the resolver's first
+answer, reached by an IPv6-only answer under the default order) and pins
+the single-family non-loopback arms in
+`shared_instance_attach_options_tests.rs` and the advert and the echo in
+`shared_instance_client_knobs.rs`. The twenty-seventh tightens the
+endpoint-warn pins in
+`tests_parts/two_transport_shared_instance_endpoint_warn.rs` (the refusal
+names `allow_remote_endpoint`; the accepted-remote line names the
+interface), has `data_packet_into` in
+`link_sections/remove_channel_handler.rs` guard with
+`can_build_packet(PacketContext::None)` as `packet_with_context` does,
+documents `has_shared_instance_interface` in
+`iface_parts/interfacemanager_management.rs` (the duplicate filter's
+per-interface skip falls back to every interface while it is false) and
+`remove_stale`'s pruning of the interface-to-tunnel index in
+`transport/tunnels.rs`, says in the header of
+`tests_parts/two_transport_shared_instance_storm.rs` that the fixture sits
+below the drop regime by construction (each restart waits for the
+re-accept, so the two `mpsc::channel(8)` queues never hold more than two
+events), and has `lint_discipline_probe10.rs` say the README row carries
+every patch attribution that touched it. Pinned by
 `tests_parts/two_transport_shared_instance_endpoint_warn.rs`,
 `tests_parts/two_transport_shared_instance_options.rs`,
 `tests_parts/two_transport_shared_instance_probe10.rs`,
@@ -1090,6 +1152,8 @@ names the rule),
 `tests_parts/two_transport_shared_instance_probe16.rs` (the quiet
 `Handshake` LINKCLOSE with its data-packet positive control, and the lone
 reconnect that keeps the tables),
+`tests_parts/two_transport_shared_instance_probe17.rs` (the forced bitrate
+paces the first frame on a fresh stream),
 `tests_parts/two_transport_shared_instance_probe5.rs` and
 `tests_parts/two_transport_shared_instance_probe6.rs` (the `kind=` line),
 `tests_parts/two_transport_shared_instance_storm.rs` (the skipped close
@@ -1109,7 +1173,14 @@ two client entries leave one attached record and one failure; a remote
 host is refused by the config before any attach; `::1` and `localhost`
 attach, the latter on the IPv4 loopback address, whose listener sees the
 accept; the pick with and without `prefer_ipv6`; the ignored-key list; the
-mode and MTU on the attached interface).
+mode and MTU on the attached interface),
+`bootstrap_interface_startup_parts/shared_instance_attach_probe_tests.rs`
+(`prefer_ipv6` reaches the dial, one warning per ignored key, the forced
+bitrate paces the first frame, strict startup passes iff the picked family
+listens), `bootstrap_interface_startup_parts/shared_instance_attach_options_tests.rs`
+(the options an entry asks for; the single-family pick arms) and
+`crates/apps/reticulumd/tests/config_parts/shared_instance_client_knobs.rs`
+(parse, echo, zero-timeout refusal, reference TOML text).
 
 ## 0.15.1 (upstream 0.14.0)
 

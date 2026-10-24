@@ -178,9 +178,13 @@ impl TunnelTable {
 
     /// Drops every tunnel with its paths and returns how many tunnels there
     /// were: Python's `Transport.tunnels = {}` (`RNS/Transport.py:3702`),
-    /// and with them the fork's own interface-to-tunnel index, written by
-    /// `handle_tunnel` and read by `note_path`, which has no Python twin
-    /// (`RNS/Transport.py:3702` clears only `tunnels`).
+    /// and with them the interface-to-tunnel index, written by
+    /// `handle_tunnel` and read by `note_path`. Its Python twin is
+    /// `interface.tunnel_id` (`RNS/Transport.py:2827`, `:2834`, read at
+    /// `:2467`), which `shared_connection_disappeared`
+    /// (`RNS/Transport.py:3690-3702`) leaves set, so Python's `note_path` on
+    /// a vanished tunnel logs the `:2469` warning; the fork clears the index
+    /// too, so `note_path` does nothing instead.
     pub fn clear(&mut self) -> usize {
         let cleared = self.tunnels.len();
         self.tunnels.clear();

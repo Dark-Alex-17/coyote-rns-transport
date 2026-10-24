@@ -30,8 +30,10 @@ pub enum SharedInstanceEndpoint {
 /// `reconnect_wait` defaults to `LocalClientInterface.RECONNECT_WAIT`, 8 s
 /// (`RNS/Interfaces/LocalInterface.py:53-54`). A non-loopback
 /// [`SharedInstanceEndpoint::Tcp`] is refused unless
-/// [`Self::allow_remote_endpoint`] is set; the MTU, forced bitrate and
-/// interface mode default to the client's own.
+/// [`Self::allow_remote_endpoint`] is set, where loopback is recognised in
+/// any notation (`127.0.0.1`, `[::1]`, `[::ffff:127.0.0.1]`: the address is
+/// checked after `to_canonical()`); the MTU, forced bitrate and interface
+/// mode default to the client's own.
 #[derive(Debug, Clone)]
 pub struct SharedInstanceOptions {
     reconnect_wait: Duration,

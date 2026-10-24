@@ -164,8 +164,11 @@ pub(super) async fn preprocess_inbound_message(
     // this process is itself attached to a shared instance and has no local
     // child interfaces, the attached interface carries the same meaning.
     // The duplicate filter is skipped for packets the shared instance
-    // delivers; with no interface flagged (a posture set by hand) every
-    // interface is treated as the shared-instance one, as Python does.
+    // delivers; with no interface flagged, which happens when the posture
+    // was set by hand and when `Transport::stop_interface` took the attached
+    // interface (the posture and slot stay set, the flag goes with the
+    // interface), every interface is treated as the shared-instance one, as
+    // Python does.
     let (remove_shared_instance_hop, skip_duplicate_filter) = {
         let manager = iface_manager.lock().await;
         let from_shared_instance = manager.is_shared_instance(&message.address);

@@ -55,7 +55,7 @@ if ! printf '%s\n' "$summary" | grep -qE "(^|[^0-9])${expected} major and 0 mino
   fail "expected ${expected} major and 0 minor findings"
 fi
 for lint in "$@"; do
-  printf '%s\n' "$out" | grep -q -- "--- failure ${lint}:" || fail "expected lint ${lint} in the findings"
+  [[ "$out" == *"--- failure ${lint}:"* ]] || fail "expected lint ${lint} in the findings"
   echo "found ${lint}"
 done
 echo "semver ok: ${expected} major and 0 minor findings against ${baseline}"

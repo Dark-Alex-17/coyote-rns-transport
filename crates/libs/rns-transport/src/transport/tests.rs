@@ -75,6 +75,8 @@ include!("tests_parts/two_transport_loopback_resources.rs");
 
 include!("tests_parts/two_transport_loopback_resources_directions.rs");
 
+include!("tests_parts/prepared_broadcast_link_contract.rs");
+
 include!("tests_parts/resource_retry_link_lookup.rs");
 
 include!("tests_parts/two_transport_loopback_resources_retries.rs");

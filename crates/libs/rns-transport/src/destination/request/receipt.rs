@@ -143,7 +143,8 @@ pub enum RequestError {
     /// failure, receiver retry exhaustion or a remote cancel. Python
     /// (`RNS/Link.py:1435`) cancels the Resource when the receipt has
     /// failed; this is the other direction, which Python surfaces only
-    /// through the Resource's own failure callback.
+    /// through the Resource's own failure callback. Listed under Known
+    /// divergences from Python RNS in the crate README.
     #[error("the response resource failed before it completed")]
     Receive,
 }

@@ -265,7 +265,7 @@ when the peer refused the transfer: a refusal arrives as a receiver cancel
 carrying only the resource hash (`RNS/Resource.py:155-165`), so the sender
 never learns the peer's motive and `RejectReason::PeerCancelled` is the only
 variant; the enum is `non_exhaustive`, so a future variant is not a breaking
-change. `Cancelled` after
+change, and implements `Display`. `Cancelled` after
 `Transport::cancel_resource`. Every terminal path goes through one exit, so
 the outcome and the `ResourceEventKind` published for the hash cannot
 disagree. Dropping the outcome cancels nothing: the transfer runs on and
@@ -503,6 +503,13 @@ parity ledger; the `docs/status/*` matrices are not updated per fork task.
   `RequestError::Oversize`. Python rejects the response
   (`RNS/Link.py:874-876`) but the `DELIVERED` guard in `:1408` leaves that
   receipt pending.
+- A response Resource that fails in transfer (a part failure, receiver retry
+  exhaustion, a remote cancel) fails the receipt with
+  `RequestError::Receive`. Python surfaces that only through the Resource's
+  own failure callback and the receipt stays in its last status:
+  `request_resource_concluded` (`RNS/Link.py:1367`, failing at `:1377-1381`)
+  fails a receipt only for the request Resource, and `:1435` cancels a
+  response Resource only when the receipt is already `FAILED`.
 - After an over-limit response packet the receipt's `response_size()` and
   `response_transfer_size()` are left as they were. Python runs
   `update_sizes` before rejecting (`RNS/Link.py:868-871`).

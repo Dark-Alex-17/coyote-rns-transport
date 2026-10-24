@@ -98,6 +98,7 @@ fn outcome_enums_are_matchable_with_the_readme_wildcard_arm() {
     assert_eq!(reject_name(&RejectReason::PeerCancelled), "peer_cancelled");
     assert_eq!(error_name(&RnsError::NoPath), "no_path");
     assert_eq!(RnsError::NoPath.to_string(), "no path to destination");
+    assert_eq!(RejectReason::PeerCancelled.to_string(), "the peer cancelled the resource");
 }
 
 #[test]

@@ -14,6 +14,14 @@ pub enum RejectReason {
     PeerCancelled,
 }
 
+impl std::fmt::Display for RejectReason {
+    fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            RejectReason::PeerCancelled => formatter.write_str("the peer cancelled the resource"),
+        }
+    }
+}
+
 /// How an outbound resource stopped short of being proven. Fork-only:
 /// Python's sender has the one `Resource.FAILED` status
 /// (`RNS/Resource.py:151`, set at `:1102`) for every one of these.

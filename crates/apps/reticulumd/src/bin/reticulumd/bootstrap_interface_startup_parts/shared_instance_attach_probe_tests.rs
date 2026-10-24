@@ -55,14 +55,14 @@ async fn localhost_resolves_to_ipv6() -> bool {
     let mut addrs = match tokio::net::lookup_host("localhost:1").await {
         Ok(addrs) => addrs,
         Err(err) => {
-            eprintln!("skipping: localhost does not resolve on this host: {err}");
+            eprintln!("skipped: localhost does not resolve on this host: {err}");
             return false;
         }
     };
     if addrs.any(|addr| addr.is_ipv6()) {
         return true;
     }
-    eprintln!("skipping: localhost has no IPv6 address on this host");
+    eprintln!("skipped: localhost has no IPv6 address on this host");
     false
 }
 
@@ -80,7 +80,7 @@ async fn local_client_prefer_ipv6_dials_the_ipv6_loopback_listener_for_localhost
     let shared_listener = match tokio::net::TcpListener::bind("[::1]:0").await {
         Ok(listener) => listener,
         Err(err) => {
-            eprintln!("skipping: no IPv6 loopback on this host: {err}");
+            eprintln!("skipped: no IPv6 loopback on this host: {err}");
             return;
         }
     };
@@ -331,7 +331,7 @@ async fn strict_startup_passes_when_the_picked_family_listens() {
     let shared_listener = match tokio::net::TcpListener::bind("[::1]:0").await {
         Ok(listener) => listener,
         Err(err) => {
-            eprintln!("skipping: no IPv6 loopback on this host: {err}");
+            eprintln!("skipped: no IPv6 loopback on this host: {err}");
             return;
         }
     };

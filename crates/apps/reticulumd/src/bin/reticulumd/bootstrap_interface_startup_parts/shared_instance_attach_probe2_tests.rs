@@ -2,9 +2,10 @@
 // address (`resolve -> pick -> preflight`), from the consumer's side of the config: the
 // default pick (no `prefer_ipv6`) on a `localhost` host whose resolver answers both
 // families, a shared instance on the other loopback family, an IP-literal host under strict
-// startup, and the non-strict path, which must not preflight at all. Helpers
-// (`attach_test_args`, `test_transport`, `records_for`, `run_startup`,
-// `assert_slot_holds_attached_record`, `runtime_field`) come from the parent test module.
+// startup, the non-strict path, which must not preflight at all, and the `[::1]` pick fed
+// straight into the attach, which needs no resolver. Helpers (`attach_test_args`,
+// `test_transport`, `records_for`, `run_startup`, `assert_slot_holds_attached_record`,
+// `runtime_field`) come from the parent test module.
 
 use super::*;
 
@@ -16,7 +17,7 @@ async fn localhost_resolves_to_both_families() -> bool {
     let addrs: Vec<SocketAddr> = match tokio::net::lookup_host("localhost:1").await {
         Ok(addrs) => addrs.collect(),
         Err(err) => {
-            eprintln!("skipping: localhost does not resolve on this host: {err}");
+            eprintln!("skipped: localhost does not resolve on this host: {err}");
             return false;
         }
     };
@@ -25,7 +26,7 @@ async fn localhost_resolves_to_both_families() -> bool {
     if has_v4 && has_v6 {
         return true;
     }
-    eprintln!("skipping: localhost answers v4={has_v4} v6={has_v6} on this host, need both");
+    eprintln!("skipped: localhost answers v4={has_v4} v6={has_v6} on this host, need both");
     false
 }
 
@@ -33,7 +34,7 @@ async fn bind_ipv6_loopback_listener() -> Option<tokio::net::TcpListener> {
     match tokio::net::TcpListener::bind("[::1]:0").await {
         Ok(listener) => Some(listener),
         Err(err) => {
-            eprintln!("skipping: no IPv6 loopback on this host: {err}");
+            eprintln!("skipped: no IPv6 loopback on this host: {err}");
             None
         }
     }
@@ -174,4 +175,56 @@ interfaces = [
         dialled.is_err(),
         "the attach dials the picked [::1] only; the IPv4 listener must see no connection"
     );
+}
+
+/// The pick and the attach agree without a resolver in between: the `[::1]` that
+/// `pick_shared_instance_tcp_addr` returns for a both-families answer under `prefer_ipv6`,
+/// handed straight to `attach_shared_instance_client`, is what the spawned client dials,
+/// seen as the accept on a `[::1]`-only listener from an IPv6 loopback peer. The sibling
+/// pins go through `localhost` and skip where it has no AAAA record; this one cannot.
+#[tokio::test]
+async fn attach_dials_the_picked_ipv6_loopback_without_a_resolver() {
+    let Some(shared_listener) = bind_ipv6_loopback_listener().await else {
+        return;
+    };
+    let port = shared_listener.local_addr().expect("shared local addr").port();
+    let v4 = SocketAddr::from(([127, 0, 0, 1], port));
+    let v6 = SocketAddr::from((std::net::Ipv6Addr::LOCALHOST, port));
+    let picked =
+        pick_shared_instance_tcp_addr(&[v4, v6], true).expect("a non-empty answer yields a pick");
+    assert_eq!(picked, v6, "prefer_ipv6 picks the IPv6 loopback");
+    let config = DaemonConfig::from_toml(&format!(
+        r#"
+interfaces = [
+  {{ type = "LocalClientInterface", enabled = true, name = "pick-fed-v6", shared_instance_type = "tcp", host = "localhost", shared_instance_port = {port}, prefer_ipv6 = true }}
+]
+"#
+    ))
+    .expect("prefer_ipv6 parses on a local_client entry");
+    let transport = test_transport();
+    let mut records = records_for(&config);
+    let mut failures = Vec::new();
+
+    let attached = attach_shared_instance_client(
+        &transport,
+        SharedInstanceEndpoint::Tcp(picked),
+        &config.interfaces[0],
+        "pick-fed-v6",
+        &mut records[0],
+        &mut failures,
+    )
+    .await;
+
+    assert!(attached.is_some(), "the attach on the picked address succeeds");
+    assert!(failures.is_empty(), "failures={failures:?}");
+    let (_stream, peer) =
+        tokio::time::timeout(std::time::Duration::from_secs(5), shared_listener.accept())
+            .await
+            .expect("the client dials the [::1] listener within 5 s")
+            .expect("accept a connection");
+    assert!(
+        peer.ip().is_loopback() && peer.is_ipv6(),
+        "dialled from the IPv6 loopback, not {peer}"
+    );
+    assert_slot_holds_attached_record(&transport, &records[0]).await;
 }

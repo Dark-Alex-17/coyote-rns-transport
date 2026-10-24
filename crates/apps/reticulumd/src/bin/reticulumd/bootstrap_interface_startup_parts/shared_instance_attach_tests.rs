@@ -151,7 +151,7 @@ interfaces = [
 #[tokio::test]
 async fn local_client_localhost_host_connects_to_the_ipv4_loopback_listener() {
     if let Err(err) = tokio::net::lookup_host("localhost:1").await {
-        eprintln!("skipping: localhost does not resolve on this host: {err}");
+        eprintln!("skipped: localhost does not resolve on this host: {err}");
         return;
     }
     let shared_listener =
@@ -264,7 +264,7 @@ fn ignored_shared_instance_keys_names_the_timeout_and_retry_knobs_only() {
 #[tokio::test]
 async fn local_client_localhost_host_attaches_to_the_ipv4_shared_instance() {
     if let Err(err) = tokio::net::lookup_host("localhost:1").await {
-        eprintln!("skipping: localhost does not resolve on this host: {err}");
+        eprintln!("skipped: localhost does not resolve on this host: {err}");
         return;
     }
     let shared_listener =
@@ -425,7 +425,7 @@ async fn local_client_ipv6_loopback_host_attaches_without_the_opt_in() {
     let shared_listener = match std::net::TcpListener::bind("[::1]:0") {
         Ok(listener) => listener,
         Err(err) => {
-            eprintln!("skipping: no IPv6 loopback on this host: {err}");
+            eprintln!("skipped: no IPv6 loopback on this host: {err}");
             return;
         }
     };

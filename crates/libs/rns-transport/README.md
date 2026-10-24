@@ -398,9 +398,16 @@ live in the attach's consumer task. `Transport::stop` joins the tasks the
 client spawns (the delayed announces and the reconnect consumer) within its
 budget, so none runs on a stopped transport.
 
-A `Tcp` endpoint whose address is not loopback is accepted and warned about
-once at attach, since Python's `LocalClientInterface` connects to `127.0.0.1`
-only (`RNS/Interfaces/LocalInterface.py:109`).
+A `Tcp` endpoint whose address is not loopback is refused with
+`RnsError::SharedInstanceEndpointNotLoopback` before any lock is taken, with
+one warning, since Python's `LocalClientInterface` connects to `127.0.0.1`
+only (`RNS/Interfaces/LocalInterface.py:109`). Passing
+`SharedInstanceOptions::default().allow_remote_endpoint(true)` attaches it,
+again with one warning per attach, and grants the remote host the trust a
+local shared instance gets: it receives dedup delegation, since the duplicate
+filter is off while attached (`RNS/Transport.py:1618-1627`), and its stream
+drop flushes every table and tears down every link
+(`RNS/Transport.py:3690-3702`). Python has no remote option at all.
 
 A client that attaches, registers a destination with a request handler,
 announces it to the owner on demand and detaches, with `endpoint` the owner's
@@ -550,10 +557,11 @@ parity ledger; the `docs/status/*` matrices are not updated per fork task.
   never does (`RNS/Interfaces/LocalInterface.py` has no tunnel code;
   `wants_tunnel` is set by network-facing clients such as
   `RNS/Interfaces/TCPInterface.py:179`).
-- `attach_shared_instance` accepts any `SocketAddr` for a `Tcp` endpoint and
-  warns once at attach when the address is not loopback. Python's
-  `LocalClientInterface` connects to `127.0.0.1` only
-  (`RNS/Interfaces/LocalInterface.py:109`).
+- `attach_shared_instance` refuses a `Tcp` endpoint whose address is not
+  loopback by default and attaches it only under
+  `SharedInstanceOptions::allow_remote_endpoint(true)`, a fork extension:
+  Python's `LocalClientInterface` connects to `127.0.0.1` only and has no
+  remote option at all (`RNS/Interfaces/LocalInterface.py:109`).
 - The reverse-routing source notes live in the same cache as the duplicate
   filter, so a Data packet received while attached to a shared instance is
   treated as seen after a detach. Python's `add_packet_hash` guard

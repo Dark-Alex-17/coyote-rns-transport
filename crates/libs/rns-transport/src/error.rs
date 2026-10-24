@@ -25,4 +25,12 @@ pub enum RnsError {
     /// is not.
     #[error("no path to destination")]
     NoPath,
+    /// A `SharedInstanceEndpoint::Tcp` whose address is not loopback is
+    /// refused by `Transport::attach_shared_instance` unless the caller set
+    /// `SharedInstanceOptions::allow_remote_endpoint`. Python's
+    /// `LocalClientInterface` connects to `127.0.0.1` only
+    /// (`RNS/Interfaces/LocalInterface.py:109`); `[::1]` and
+    /// `[::ffff:127.0.0.1]` count as loopback here.
+    #[error("shared instance endpoint is not a loopback address")]
+    SharedInstanceEndpointNotLoopback,
 }

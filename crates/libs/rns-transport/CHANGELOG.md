@@ -10,8 +10,33 @@ Removed) bullet of its own, marked as such.
 
 ## Unreleased
 
+### Breaking
+
+- `Transport::attach_shared_instance` refuses a `SharedInstanceEndpoint::Tcp`
+  whose address is not loopback (`[::1]` and `[::ffff:127.0.0.1]` count as
+  loopback) with the new `RnsError::SharedInstanceEndpointNotLoopback`
+  (`error.rs`), before any lock is taken and with one warning, instead of
+  attaching it with a warning; Python's `LocalClientInterface` connects to
+  `127.0.0.1` only (`RNS/Interfaces/LocalInterface.py:109`). Migration:
+  callers attaching to a non-loopback TCP shared instance must call
+  `.allow_remote_endpoint(true)` on their `SharedInstanceOptions`
+  (`transport/shared_instance.rs`), which attaches it with one warning per
+  attach, now in key=value form (`endpoint=<addr>`), and grants the remote
+  host dedup delegation and the drop flush
+  (`links_parts/transport_sections/shared_instance.rs`). Pinned by
+  `two_transport_shared_instance_endpoint_warn.rs`,
+  `two_transport_shared_instance_probe12.rs`,
+  `two_transport_shared_instance_probe13.rs` and
+  `two_transport_shared_instance_probe14.rs`.
+
 ### Changed
 
+- Fork-only `SharedInstanceOptions` builders `with_mtu`, `with_forced_bitrate`
+  and `with_interface_mode` (`transport/shared_instance.rs`) reach the
+  spawned client and its iface-manager registration, and `with_reconnect_wait`
+  clamps the wait to at least 1 ms at origin as the clients already did.
+  Pinned by `two_transport_shared_instance_options.rs` and
+  `two_transport_shared_instance_probe10.rs`.
 - Test-only: `tests/outbound_outcome_api.rs` describes the plain senders'
   argument lists as the ones from before this release instead of by a label
   from the fork's own planning, and

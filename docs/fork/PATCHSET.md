@@ -49,7 +49,9 @@ fork commit `08362717`; the
 `d9b5ad57`, `47350e23`, `9136c972` and `02316362`; the
 `shared-instance hardening` patch is fork commits `829c8e6d`, `d629ac08`,
 `cb818b0a`, `a55eaf6f`, `e4046601`, `0c553858`, `f5f8b639`, `6ecb0340`,
-`c78bdc7d`, `ca66c50d`, `00bd6579`, `24cf2089`, `31ce6211` and `615d9e45`.
+`c78bdc7d`, `ca66c50d`, `00bd6579`, `24cf2089`, `31ce6211`, `615d9e45`,
+`16850244`, `f8b74067`, `4d6d7280`, `320720af`, `ba84a543`, `597fb2b8`,
+`46f5cb21` and `59acbc9f`.
 
 | File | Patch |
 | --- | --- |
@@ -58,6 +60,7 @@ fork commit `08362717`; the
 | `AGENTS.md` | ledger conventions |
 | `Cargo.toml` | guard discipline |
 | `crates/apps/reticulumd/Cargo.toml` | guard discipline |
+| `crates/apps/reticulumd/examples/interfaces-reference.toml` | shared-instance hardening |
 | `crates/apps/reticulumd/src/bin/reticulumd/announce_ingest.rs` | guard discipline |
 | `crates/apps/reticulumd/src/bin/reticulumd/bootstrap_interface_startup.rs` | shared-instance hardening |
 | `crates/apps/reticulumd/src/bin/reticulumd/bootstrap_interface_startup_parts/module_prelude.rs` | shared-instance hardening |
@@ -66,6 +69,7 @@ fork commit `08362717`; the
 | `crates/apps/reticulumd/src/bin/reticulumd/bootstrap_transport.rs` | shared-instance hardening |
 | `crates/apps/reticulumd/src/bin/reticulumd/bridge_propagation.rs` | guard discipline |
 | `crates/apps/reticulumd/src/bin/reticulumd/tests/interface_hot_apply.rs` | guard discipline |
+| `crates/apps/reticulumd/src/config_parts/interfaceconfig_sections/enabled.rs` | shared-instance hardening |
 | `crates/apps/reticulumd/tests/fork_publish_contract.rs` | release tooling, guard discipline |
 | `crates/apps/reticulumd/tests/fork_publish_contract_parts/ledger_contract.rs` | release tooling |
 | `crates/apps/reticulumd/tests/fork_publish_contract_parts/ledger_contract_fixtures.rs` | release tooling |
@@ -197,6 +201,9 @@ fork commit `08362717`; the
 | `crates/libs/rns-transport/src/transport/tests_parts/two_transport_shared_instance_probe13.rs` | shared-instance hardening |
 | `crates/libs/rns-transport/src/transport/tests_parts/two_transport_shared_instance_probe14.rs` | shared-instance hardening |
 | `crates/libs/rns-transport/src/transport/tests_parts/two_transport_shared_instance_probe15.rs` | shared-instance hardening |
+| `crates/libs/rns-transport/src/transport/tests_parts/two_transport_shared_instance_probe16.rs` | shared-instance hardening |
+| `crates/libs/rns-transport/src/transport/tests_parts/two_transport_shared_instance_probe5.rs` | shared-instance hardening |
+| `crates/libs/rns-transport/src/transport/tests_parts/two_transport_shared_instance_probe6.rs` | shared-instance hardening |
 | `crates/libs/rns-transport/src/transport/tests_parts/two_transport_shared_instance_storm.rs` | shared-instance hardening |
 | `crates/libs/rns-transport/src/transport/tests_parts/two_transport_shared_instance_tasks.rs` | shared-instance hardening |
 | `crates/libs/rns-transport/src/transport/tunnels.rs` | shared-instance hardening |
@@ -213,7 +220,7 @@ fork commit `08362717`; the
 | `tools/scripts/old-name-tracked-scan.sh` | release tooling |
 | `tools/scripts/patchset-ledger-check.sh` | release tooling, shared-instance hardening |
 | `tools/scripts/python-interop-classify.sh` | guard discipline |
-| `tools/scripts/semver-major-findings-check.sh` | release tooling |
+| `tools/scripts/semver-major-findings-check.sh` | release tooling, shared-instance hardening |
 | `tools/scripts/workspace-clippy-classify.sh` | release tooling, guard discipline |
 | `xtask/src/main.rs` | release tooling |
 | `xtask/src/main_parts/capture_platform_descriptor.rs` | release tooling |
@@ -842,7 +849,8 @@ per-receive lease of both shared receivers).
 
 Fork commits `829c8e6d`, `d629ac08`, `cb818b0a`, `a55eaf6f`, `e4046601`,
 `0c553858`, `f5f8b639`, `6ecb0340`, `c78bdc7d`, `ca66c50d`, `00bd6579`,
-`24cf2089`, `31ce6211` and `615d9e45`:
+`24cf2089`, `31ce6211`, `615d9e45`, `16850244`, `f8b74067`, `4d6d7280`,
+`320720af`, `ba84a543`, `597fb2b8`, `46f5cb21` and `59acbc9f`:
 H5, shared-instance hardening. The library behaviour changes are:
 `Transport::attach_shared_instance` refuses a `SharedInstanceEndpoint::Tcp`
 whose address is not loopback with the new
@@ -857,7 +865,11 @@ breaking); while attached, the duplicate filter is skipped only for packets
 arriving on the interface flagged as the shared instance, or on every
 interface when none is flagged, where it was skipped on every interface
 (third); `Link::teardown` sends the LINKCLOSE packet for a link in
-`Handshake` as well as `Active` and `Stale`, and the drop flush inherits it
+`Handshake` as well as `Active` and `Stale`, and the drop flush would
+inherit it, though no `in_links`/`out_links` entry is observable in
+`Handshake`: the responder proves, which makes it `Active`, before the
+insertion (`transport/path.rs:372` vs `:383`;
+`destination/link_parts/link_sections/new.rs:137-138`)
 (fourth), and building that LINKCLOSE no longer warns `can't create data
 packet for closed link` for a `Handshake` or `Stale` link (thirteenth); the
 reconnect consumer's rule that treated a reconnect event arriving without
@@ -876,8 +888,12 @@ attached, a configured non-loopback shared-instance host is refused by the
 daemon's own config before any attach, a host name such as `localhost`
 resolves to its IPv4 loopback address first (twelfth), the per-interface `fixed_mtu`,
 `force_shared_instance_bitrate` and mode reach the client through the
-options while the TCP client's `connect_timeout`, `max_reconnect_tries` and
-`prefer_ipv6` no longer apply to the attach, and the daemon's own
+options, `prefer_ipv6` drives the address pick (IPv6 loopback first, then
+any IPv6, then the IPv4 order) while `connect_timeout` and
+`max_reconnect_tries`, which the shared-instance client has no setting for,
+are warned about at startup, left out of the reference TOML's `local` and
+`local_client` blocks and no longer echoed in settings JSON for those kinds
+(nineteenth), and the daemon's own
 stream-reconnect tunnel synthesizer serves only its `tcp_client` and
 `backbone_client` interfaces (ninth). The fork-only `SharedInstanceOptions`
 builders `with_mtu`, `with_forced_bitrate` and `with_interface_mode` reach
@@ -1002,7 +1018,65 @@ and README prose (the proof replaces the lost-disconnect sentence, the
 daemon's own loopback refusal is named ahead of the library's, the
 `rns-rpc` bridge is no longer called the same shape, the register gains the
 dedup-gate row and the attach section names the remaining builders and
-getters). Pinned by
+getters). The fifteenth, test-only, adopts
+`tests_parts/two_transport_shared_instance_probe16.rs` (included from
+`transport/tests.rs`): a `Handshake` teardown builds its LINKCLOSE with no
+`can't create data packet for closed link` warning, with a data packet
+built from the same `Handshake` link as the positive control that still
+warns; and a reconnect served without its disconnect, the shape the fifth's
+rule read as a lost disconnect, re-synthesizes the tunnel, runs no flush,
+infers no lost event and keeps the learned path. That is the one pin of the
+thirteenth's reverted rule: both storm tests stay green under the fifth's
+consumer, so this fixture is what discriminates. The lib test logger in
+`tests_parts/two_transport_loopback_requests_isolation.rs` gains the
+closed-link packet warning family the count reads. The sixteenth has the
+attach debug line in `links_parts/transport_sections/shared_instance.rs`
+name the endpoint kind as `kind=`
+(`iface=<hash> kind=tcp reconnect_wait=<wait>`) where it used `endpoint=`,
+the key the warn lines use for the address, and re-pins the line's shape in
+`tests_parts/two_transport_shared_instance_probe5.rs` and
+`tests_parts/two_transport_shared_instance_probe6.rs`. The seventeenth,
+doc-only, corrects three rustdocs: the `TunnelTable::clear` doc in
+`transport/tunnels.rs` names the interface-to-tunnel index's Python twin,
+`interface.tunnel_id` (`RNS/Transport.py:2827`, `:2834`, read at `:2467`),
+which `shared_connection_disappeared` (`:3690-3702`) leaves set so Python's
+`note_path` on a vanished tunnel logs the `:2469` warning where the fork's
+does nothing; the no-flag arm comment in `transport/inbound_processing.rs`
+names both routes to it, a posture set by hand and `stop_interface` of the
+attached interface; and the `SharedInstanceOptions` doc in
+`transport/shared_instance.rs` says loopback is recognised in any notation
+after `to_canonical()`. The eighteenth, test-only, anchors the storm's
+cycle counter in `tests_parts/two_transport_shared_instance_storm.rs` on
+the drop summary's `reverse route(s) cleared` tail, since the per-link
+close-packet line shares the `disconnected,` prefix and must not count as a
+cycle, rewords the file header to say the storm pins the ordering and the
+loss-free service at restart rate, and adds the `#[cfg(unix)]` twin of the
+mode-and-MTU options pin to
+`tests_parts/two_transport_shared_instance_options.rs`. The nineteenth has
+reticulumd's `bootstrap_interface_startup_parts/shared_instance_attach.rs`
+honour `prefer_ipv6` in `pick_shared_instance_tcp_addr` (IPv6 loopback
+first, then any IPv6, then the IPv4 order) and warn at startup for
+`connect_timeout` and `max_reconnect_tries` (`ignored_shared_instance_keys`;
+`[daemon] <posture> name=<label> ignores <key>`), drops the two keys from
+the `local` and `local_client` blocks of `examples/interfaces-reference.toml`
+and from the settings JSON echo for those kinds in
+`config_parts/interfaceconfig_sections/enabled.rs`, deletes the dead
+`local | local_client` branch of `build_tcp_client_adapter` in
+`bootstrap_interface_startup_parts/module_prelude.rs` and retargets its
+bitrate test as `local_client_attach_registers_the_mode_and_mtu_from_the_entry`
+in `shared_instance_attach_tests.rs`, which also gains the `prefer_ipv6`
+pick, the ignored-key list and
+`local_client_localhost_host_connects_to_the_ipv4_loopback_listener` (a
+listener on `127.0.0.1` alone sees the accept). The twentieth has
+`tools/scripts/semver-major-findings-check.sh` test each expected lint with
+a bash substring match instead of `printf | grep -q`, the pipe shape the
+eleventh dropped from the ledger script. The twenty-first reflows two
+lines of `tests_parts/two_transport_shared_instance_probe6.rs` and
+`tests_parts/two_transport_shared_instance_probe16.rs` that the shorter
+`kind=` key and a long test name let `rustfmt` put on one line. The
+twenty-second writes the README's drop-flush paragraph (the `Handshake`
+LINKCLOSE would be inherited; `interface.tunnel_id` is the index's twin)
+and the register's responder-`Active`-on-prove row. Pinned by
 `tests_parts/two_transport_shared_instance_endpoint_warn.rs`,
 `tests_parts/two_transport_shared_instance_options.rs`,
 `tests_parts/two_transport_shared_instance_probe10.rs`,
@@ -1013,6 +1087,11 @@ getters). Pinned by
 `tests_parts/two_transport_shared_instance_probe15.rs` (the refusal wins
 over a held slot and over a stopped transport, and the error's `Display`
 names the rule),
+`tests_parts/two_transport_shared_instance_probe16.rs` (the quiet
+`Handshake` LINKCLOSE with its data-packet positive control, and the lone
+reconnect that keeps the tables),
+`tests_parts/two_transport_shared_instance_probe5.rs` and
+`tests_parts/two_transport_shared_instance_probe6.rs` (the `kind=` line),
 `tests_parts/two_transport_shared_instance_storm.rs` (the skipped close
 packet and the storm of six restarts),
 `tests_parts/two_transport_shared_instance_tasks.rs`,
@@ -1028,7 +1107,9 @@ reticulumd's `bootstrap_interface_startup_parts/shared_instance_attach_tests.rs`
 connected posture for the TCP, `LocalClientInterface` TCP and unix arms;
 two client entries leave one attached record and one failure; a remote
 host is refused by the config before any attach; `::1` and `localhost`
-attach, the latter on the IPv4 loopback address).
+attach, the latter on the IPv4 loopback address, whose listener sees the
+accept; the pick with and without `prefer_ipv6`; the ignored-key list; the
+mode and MTU on the attached interface).
 
 ## 0.15.1 (upstream 0.14.0)
 

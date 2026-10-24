@@ -36,8 +36,9 @@ Removed) bullet of its own, marked as such.
   from `resource/outcome.rs`; both were reserved with zero producers, and
   `PeerCancelled` is the only variant (the enum stays `non_exhaustive`).
   Migration: delete match arms naming them; a wildcard arm is already
-  required by `#[non_exhaustive]`. Pinned by
-  `tests/outbound_outcome_api.rs`.
+  required by `#[non_exhaustive]`. Pinned by `tests/outbound_outcome_api.rs`
+  and `tests/breaking_changes_compile_fail.rs` (a match arm naming either
+  variant no longer compiles; the wildcard-arm match does).
 
 - The storage-feature module `rns_transport::transport::test_bridge`
   (`InboundTestBridge`, `register`, `reset`, `deliver_outbound`) and its
@@ -45,7 +46,25 @@ Removed) bullet of its own, marked as such.
   workspace. Migration: callers move the thread-local bridge into their own
   test code; a thread-local bridge of similar purpose, closure-based and
   without the `InboundTestBridge` trait, lives in the `rns-rpc` crate as
-  `rns_rpc::transport::test_bridge`.
+  `rns_rpc::transport::test_bridge`. Pinned by
+  `tests/breaking_changes_compile_fail.rs` (the import fails with
+  `unresolved import`).
+
+### Added
+
+- `RnsError::SharedInstanceEndpointNotLoopback` (`error.rs`), the refusal
+  the `### Breaking` attach bullet describes; its `Display` names the rule.
+  Pinned by `two_transport_shared_instance_probe15.rs`.
+- `SharedInstanceOptions::allow_remote_endpoint`, `::with_mtu`,
+  `::with_forced_bitrate` and `::with_interface_mode`
+  (`transport/shared_instance.rs`). Pinned by
+  `two_transport_shared_instance_options.rs` (the mode and MTU reach the
+  iface manager over the TCP and unix arms) and
+  `two_transport_shared_instance_endpoint_warn.rs` (the opt-in).
+- `LocalUnixClient` inspection getters `addr`, `mtu_value`,
+  `forced_bitrate_bps`, `reconnect_wait`, `reconnect_events_enabled` and
+  `disconnect_events_enabled` (`iface/local.rs`). Pinned by the
+  `iface/local.rs` test module.
 
 ### Changed
 
@@ -65,15 +84,27 @@ Removed) bullet of its own, marked as such.
 - `Link::teardown` sends the LINKCLOSE packet for a link in `Handshake` too,
   not only `Active` and `Stale` (`destination/link_parts/module_prelude.rs`,
   `can_send_teardown`), as Python does for every status but `PENDING`
-  (`RNS/Link.py:668`); the shared-instance drop flush inherits it. Building
-  that LINKCLOSE (`link_sections/remove_channel_handler.rs`,
+  (`RNS/Link.py:668`); the shared-instance drop flush would inherit it; no
+  `in_links`/`out_links` entry is observable in `Handshake` because the
+  responder proves (which makes it `Active`) before insertion
+  (`transport/path.rs:372` vs `:383`). Building that LINKCLOSE
+  (`link_sections/remove_channel_handler.rs`,
   `packet_with_context`) no longer warns `can't create data packet for
   closed link` for a `Handshake` or `Stale` link: the guard is the new
   `can_build_packet`, which admits a LINKCLOSE from any status past
   `Pending` and anything else only while `Active`. Pinned by
-  `link_status_predicates_make_lifecycl_sections/teardown_sends_link_close_for_handshake_link_tests.rs`
-  and
-  `link_status_predicates_make_lifecycl_sections/core_tests.rs`.
+  `link_status_predicates_make_lifecycl_sections/teardown_sends_link_close_for_handshake_link_tests.rs`,
+  `link_status_predicates_make_lifecycl_sections/core_tests.rs` and
+  `two_transport_shared_instance_probe16.rs` (a `Handshake` teardown builds
+  its LINKCLOSE with no closed-link packet warning; a data packet from
+  `Handshake` still warns).
+- The attach debug line
+  (`links_parts/transport_sections/shared_instance.rs`) names the endpoint
+  kind as `kind=<tcp|unix>` where it used `endpoint=`, the key the attach's
+  warn lines use for the address:
+  `attached shared instance iface=<hash> kind=<kind> reconnect_wait=<wait>`.
+  Pinned by `two_transport_shared_instance_probe5.rs` and
+  `two_transport_shared_instance_probe6.rs`.
 - Fork-only `SharedInstanceOptions` builders `with_mtu`, `with_forced_bitrate`
   and `with_interface_mode` (`transport/shared_instance.rs`) reach the
   spawned client and its iface-manager registration, and `with_reconnect_wait`
@@ -97,6 +128,13 @@ Removed) bullet of its own, marked as such.
   pins that a shared-instance task aborted through its own handle is
   reported once at warn by `stop`, naming the cancellation, with the set
   drained.
+- Test-only: the storm fixture in `two_transport_shared_instance_storm.rs`
+  counts a cycle on the drop summary's `reverse route(s) cleared` tail, so
+  a per-link close-packet line, which shares the `disconnected,` prefix,
+  cannot count as one; and `two_transport_shared_instance_options.rs` gains
+  the `#[cfg(unix)]` twin of the mode-and-MTU pin, an attach over a
+  filesystem socket whose mode and MTU reach the iface manager as the TCP
+  arm's do.
 - Test-only: `tests/outbound_outcome_api.rs` describes the plain senders'
   argument lists as the ones from before this release instead of by a label
   from the fork's own planning, and
@@ -331,7 +369,7 @@ Removed) bullet of its own, marked as such.
   shared-instance clients wait the library default 8 s after a drop
   (`RNS/Interfaces/LocalInterface.py:54`) instead of the clients' own 5 s;
   one shared instance per process, as Python holds one
-  `LocalClientInterface` (`RNS/Reticulum.py:422-440`), so a second
+  `LocalClientInterface` (`RNS/Reticulum.py:422-441`), so a second
   client-posture entry is a recorded startup failure naming the one already
   attached; a configured non-loopback shared-instance host is refused by
   the daemon's own config (`host must be loopback for local`,
@@ -339,9 +377,21 @@ Removed) bullet of its own, marked as such.
   the library's refusal is defence in depth behind it
   (the daemon does not set `allow_remote_endpoint`); the
   per-interface `fixed_mtu`, `force_shared_instance_bitrate` and mode reach
-  the client through the `SharedInstanceOptions` builders, while the TCP
-  client's `connect_timeout`, `max_reconnect_tries` and `prefer_ipv6` no
-  longer apply to a shared-instance attach; and the daemon's own
+  the client through the `SharedInstanceOptions` builders; `prefer_ipv6` is
+  honoured by the daemon's address pick
+  (`bootstrap_interface_startup_parts::shared_instance_attach`: IPv6
+  loopback first, then any IPv6, then the IPv4 order; the default is IPv4
+  loopback first, as Python's `LocalClientInterface` connects to
+  `127.0.0.1` only, `RNS/Interfaces/LocalInterface.py:109`), while
+  `connect_timeout` and `max_reconnect_tries`, which the shared-instance
+  client has no setting for, are warned about at startup
+  (`[daemon] <posture> name=<label> ignores <key>`), dropped from the
+  reference TOML's `local` and `local_client` blocks
+  (`examples/interfaces-reference.toml`) and no longer echoed in settings
+  JSON for those kinds (`config_parts::interfaceconfig_sections::enabled`),
+  though the config still parses them and still rejects
+  `connect_timeout = 0`; the dead `local | local_client` branch of the
+  daemon's `build_tcp_client_adapter` is gone; and the daemon's own
   stream-reconnect tunnel synthesizer now serves only its `tcp_client` and
   `backbone_client` interfaces. Pinned by the daemon's
   `bootstrap_interface_startup_parts::shared_instance_attach_tests` (the
@@ -351,7 +401,12 @@ Removed) bullet of its own, marked as such.
   client-posture entry naming a remote host is refused by the config before
   any attach, and `::1` attaches without the opt-in; `localhost` resolves to
   the IPv4 loopback address when the name resolves to both families
-  (`local_client_localhost_host_resolves_to_the_ipv4_loopback_address`)).
+  (`local_client_localhost_host_resolves_to_the_ipv4_loopback_address`) and
+  a listener on `127.0.0.1` alone sees its accept
+  (`local_client_localhost_host_connects_to_the_ipv4_loopback_listener`);
+  the pick with `prefer_ipv6`; the ignored-key list names the timeout and
+  retry knobs only; the entry's mode and MTU reach the attached interface
+  (`local_client_attach_registers_the_mode_and_mtu_from_the_entry`)).
 - No library behaviour change: the shared-instance reconnect consumer
   (`links_parts/transport_sections/shared_instance_reconnect.rs`) stays the
   plain biased loop and its rustdoc now carries the proof that a disconnect
@@ -360,8 +415,12 @@ Removed) bullet of its own, marked as such.
   disconnect served before any reconnect, so the reconnect queue fills
   first); the realistic storm loss is a reconnect, healed by the next
   reconnect that lands; a per-cycle sequence number is deferred because it
-  would change the `Sender<AddressHash>` payload. Pinned by the six-restart
-  storm in `two_transport_shared_instance_storm.rs`.
+  would change the `Sender<AddressHash>` payload. Pinned by
+  `two_transport_shared_instance_probe16.rs` (a reconnect served without
+  its disconnect re-synthesizes the tunnel and keeps the tables; the storm
+  tests stay green under the reverted rule, so this is the discriminating
+  pin) and the six-restart storm in `two_transport_shared_instance_storm.rs`,
+  which pins the ordering and loss-free service at restart rate.
 - No library change: `tests/breaking_changes_compile_fail.rs` gains
   `unreleased_breaking_migrations_compile_and_the_shapes_they_replace_do_not`,
   which compiles the migrated consumer the `## Unreleased` `### Breaking`

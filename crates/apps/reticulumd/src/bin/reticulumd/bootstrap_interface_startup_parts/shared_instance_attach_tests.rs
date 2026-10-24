@@ -143,6 +143,48 @@ interfaces = [
     assert_slot_holds_attached_record(&transport, &records[0]).await;
 }
 
+/// The attach is asynchronous, so a filled slot and a recorded success say nothing about
+/// which address the spawned client dials: a pick of `[::1]` would leave the same slot and
+/// the same record while the client redials an address nobody listens on. What the user
+/// observes is the connection itself, so this is the shared instance's side of it: a
+/// listener on `127.0.0.1` alone, a `host = "localhost"` entry, and the accept arriving.
+#[tokio::test]
+async fn local_client_localhost_host_connects_to_the_ipv4_loopback_listener() {
+    if let Err(err) = tokio::net::lookup_host("localhost:1").await {
+        eprintln!("skipping: localhost does not resolve on this host: {err}");
+        return;
+    }
+    let shared_listener =
+        tokio::net::TcpListener::bind("127.0.0.1:0").await.expect("bind shared local instance");
+    let port = shared_listener.local_addr().expect("shared local addr").port();
+    let config = DaemonConfig::from_toml(&format!(
+        r#"
+interfaces = [
+  {{ type = "LocalClientInterface", enabled = true, name = "localhost-dial", shared_instance_type = "tcp", host = "localhost", shared_instance_port = {port} }}
+]
+"#
+    ))
+    .expect("localhost local_client config");
+    let args = attach_test_args();
+    let transport = test_transport();
+    let mut records = records_for(&config);
+
+    let batch = run_startup(&args, &config, &transport, &mut records).await;
+    assert_eq!(batch.startup_successes, 1);
+    assert!(batch.startup_failures.is_empty(), "failures={:?}", batch.startup_failures);
+
+    let (_stream, peer) =
+        tokio::time::timeout(std::time::Duration::from_secs(5), shared_listener.accept())
+            .await
+            .expect("the client dials the IPv4 loopback listener within 5 s")
+            .expect("accept the client's connection");
+    assert!(
+        peer.ip().is_loopback() && peer.is_ipv4(),
+        "the connection comes from the IPv4 loopback, not from {peer}"
+    );
+    assert_slot_holds_attached_record(&transport, &records[0]).await;
+}
+
 /// Taking the resolver's first answer would yield `[::1]:1` for the first case, so the pick
 /// has to look past it to the IPv4 loopback the shared instance listens on.
 #[test]
@@ -152,21 +194,71 @@ fn local_client_localhost_host_resolves_to_the_ipv4_loopback_address() {
     let v4_remote: SocketAddr = "10.0.0.1:1".parse().expect("v4 remote");
 
     assert_eq!(
-        pick_shared_instance_tcp_addr(&[v6_loopback, v4_loopback]),
+        pick_shared_instance_tcp_addr(&[v6_loopback, v4_loopback], false),
         Some(v4_loopback),
         "the IPv4 loopback wins over an earlier IPv6 loopback"
     );
     assert_eq!(
-        pick_shared_instance_tcp_addr(&[v6_loopback, v4_remote]),
+        pick_shared_instance_tcp_addr(&[v6_loopback, v4_remote], false),
         Some(v4_remote),
         "any IPv4 address wins over an earlier IPv6 one"
     );
     assert_eq!(
-        pick_shared_instance_tcp_addr(&[v6_loopback]),
+        pick_shared_instance_tcp_addr(&[v6_loopback], false),
         Some(v6_loopback),
         "an IPv6-only answer is used as is"
     );
-    assert_eq!(pick_shared_instance_tcp_addr(&[]), None);
+    assert_eq!(pick_shared_instance_tcp_addr(&[], false), None);
+}
+
+/// `prefer_ipv6` is the one knob a shared instance listening on `[::1]` alone needs: the
+/// IPv6 order mirrors the IPv4 one, and an IPv4-only answer still attaches.
+#[test]
+fn prefer_ipv6_picks_the_ipv6_address_ahead_of_the_ipv4_loopback() {
+    let v6_loopback: SocketAddr = "[::1]:1".parse().expect("v6 loopback");
+    let v6_remote: SocketAddr = "[fd00::1]:1".parse().expect("v6 remote");
+    let v4_loopback: SocketAddr = "127.0.0.1:1".parse().expect("v4 loopback");
+
+    assert_eq!(
+        pick_shared_instance_tcp_addr(&[v4_loopback, v6_loopback], true),
+        Some(v6_loopback),
+        "the IPv6 loopback wins over an earlier IPv4 loopback"
+    );
+    assert_eq!(
+        pick_shared_instance_tcp_addr(&[v4_loopback, v6_remote], true),
+        Some(v6_remote),
+        "any IPv6 address wins over an earlier IPv4 one"
+    );
+    assert_eq!(
+        pick_shared_instance_tcp_addr(&[v4_loopback], true),
+        Some(v4_loopback),
+        "an IPv4-only answer falls back to the IPv4 order"
+    );
+}
+
+#[test]
+fn ignored_shared_instance_keys_names_the_timeout_and_retry_knobs_only() {
+    let both = InterfaceConfig {
+        kind: "local_client".to_string(),
+        connect_timeout: Some(5),
+        max_reconnect_tries: Some(3),
+        ..InterfaceConfig::default()
+    };
+    assert_eq!(ignored_shared_instance_keys(&both), vec!["connect_timeout", "max_reconnect_tries"]);
+
+    let neither =
+        InterfaceConfig { kind: "local_client".to_string(), ..InterfaceConfig::default() };
+    assert!(ignored_shared_instance_keys(&neither).is_empty());
+
+    let honoured = InterfaceConfig {
+        kind: "local_client".to_string(),
+        prefer_ipv6: Some(true),
+        ..InterfaceConfig::default()
+    };
+    assert!(
+        ignored_shared_instance_keys(&honoured).is_empty(),
+        "prefer_ipv6 drives the address pick, so it is not an ignored key"
+    );
 }
 
 #[tokio::test]
@@ -195,6 +287,40 @@ interfaces = [
     assert_eq!(batch.startup_successes, 1);
     assert!(batch.startup_failures.is_empty(), "failures={:?}", batch.startup_failures);
     assert_slot_holds_attached_record(&transport, &records[0]).await;
+}
+
+/// The options built from the entry reach the manager through the attach, where the TCP
+/// client builder used to carry them.
+#[tokio::test]
+async fn local_client_attach_registers_the_mode_and_mtu_from_the_entry() {
+    let shared_listener =
+        std::net::TcpListener::bind("127.0.0.1:0").expect("bind shared local instance");
+    let port = shared_listener.local_addr().expect("shared local addr").port();
+    let config = DaemonConfig::from_toml(&format!(
+        r#"
+interfaces = [
+  {{ type = "LocalClientInterface", enabled = true, name = "gateway-client", shared_instance_type = "tcp", shared_instance_port = {port}, fixed_mtu = 1024, force_shared_instance_bitrate = 1000000, interface_mode = "gateway" }}
+]
+"#
+    ))
+    .expect("local_client options config");
+    let args = attach_test_args();
+    let transport = test_transport();
+    let mut records = records_for(&config);
+
+    let batch = run_startup(&args, &config, &transport, &mut records).await;
+
+    assert_eq!(batch.startup_successes, 1);
+    assert!(batch.startup_failures.is_empty(), "failures={:?}", batch.startup_failures);
+    assert_slot_holds_attached_record(&transport, &records[0]).await;
+    let attached = transport.shared_instance().expect("shared instance slot filled by attach");
+    let (mode, mtu) = {
+        let iface_manager = transport.iface_manager();
+        let manager = iface_manager.lock().await;
+        (manager.mode(&attached), manager.mtu(&attached))
+    };
+    assert_eq!(mode, Some(InterfaceMode::Gateway), "the interface mode reaches the manager");
+    assert_eq!(mtu, Some(1024), "the fixed MTU reaches the manager");
 }
 
 #[cfg(unix)]

@@ -170,8 +170,6 @@ impl InterfaceConfig {
                 insert_opt_string(&mut settings, "socket_path", self.socket_path.as_ref());
                 insert_opt_string(&mut settings, "host", self.host.as_ref());
                 insert_opt_u64(&mut settings, "port", self.port.map(u64::from));
-                insert_opt_u64(&mut settings, "connect_timeout", self.connect_timeout);
-                insert_opt_u64(&mut settings, "max_reconnect_tries", self.max_reconnect_tries);
                 insert_opt_u64(&mut settings, "mtu", self.mtu.map(|v| v as u64));
             }
             "pipe" => {

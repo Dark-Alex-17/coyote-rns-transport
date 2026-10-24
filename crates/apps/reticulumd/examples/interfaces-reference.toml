@@ -163,8 +163,6 @@ name = "local-shared-instance-example"
 # bind_ip = "127.0.0.1"               # compatibility alias for host
 # listen_port = 37428                 # compatibility alias for port
 # shared_instance_port = 37428        # compatibility alias for port
-# connect_timeout = 5
-# max_reconnect_tries = 0
 # mtu = 1064
 # fixed_mtu = 1064                    # compatibility alias for mtu
 # force_shared_instance_bitrate = 1000000000
@@ -179,8 +177,6 @@ name = "local-client-example"
 # socket_path = "@rns/default"
 # host = "127.0.0.1"
 # port = 37428
-# connect_timeout = 5
-# max_reconnect_tries = 0
 # mtu = 1064
 
 # Subprocess pipe interface that exchanges framed bytes over stdin/stdout.

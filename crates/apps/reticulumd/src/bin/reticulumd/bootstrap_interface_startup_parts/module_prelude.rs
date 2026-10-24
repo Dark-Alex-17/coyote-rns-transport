@@ -1664,11 +1664,6 @@ fn build_tcp_client_adapter(
     if let Some(mtu) = iface.mtu {
         adapter = adapter.with_mtu(mtu);
     }
-    if matches!(iface.kind.as_str(), "local" | "local_client") {
-        if let Some(bitrate_bps) = iface.force_shared_instance_bitrate {
-            adapter = adapter.with_forced_bitrate(bitrate_bps);
-        }
-    }
     if matches!(iface.kind.as_str(), "tcp_client" | "backbone_client") {
         if let Some(events) = stream_reconnect_events {
             adapter = adapter.with_reconnect_events(events);
@@ -1762,7 +1757,8 @@ async fn startup_local_tcp_attach_endpoint(
         }
     }
 
-    let addr = match resolve_shared_instance_tcp_endpoint(endpoint).await {
+    let prefer_ipv6 = iface.prefer_ipv6.unwrap_or(false);
+    let addr = match resolve_shared_instance_tcp_endpoint(endpoint, prefer_ipv6).await {
         Ok(addr) => addr,
         Err(err) => {
             record_startup_failure(
@@ -2064,26 +2060,6 @@ interfaces = [
         assert_eq!(adapter.max_reconnect_tries(), Some(3));
         assert!(adapter.prefer_ipv6());
         assert!(adapter.reconnect_events_enabled());
-    }
-
-    #[test]
-    fn local_client_builder_forces_shared_instance_bitrate() {
-        let iface = InterfaceConfig {
-            kind: "local_client".to_string(),
-            enabled: Some(true),
-            host: Some("127.0.0.1".to_string()),
-            port: Some(37_428),
-            bitrate: Some(1_000_000),
-            force_shared_instance_bitrate: Some(1_000_000),
-            ..InterfaceConfig::default()
-        };
-
-        let adapter = build_tcp_client_adapter("127.0.0.1:37428".to_string(), &iface, None);
-
-        assert_eq!(adapter.forced_bitrate_bps(), Some(1_000_000));
-        assert!(adapter.socket_tuning().is_empty());
-        assert!(!adapter.hdlc_liveness_enabled());
-        assert!(!adapter.reconnect_events_enabled());
     }
 
     #[test]

@@ -89,11 +89,14 @@ if ! diff <(printf '%s\n' "$changed") <(printf '%s\n' "$rows"); then
 fi
 
 # The ledger always writes eight-character hashes; %h would vary with the
-# clone's abbreviation width.
+# clone's abbreviation width. The cite test is a bash substring match, not a
+# pipe into grep -q: a section longer than the pipe buffer lets grep exit on
+# an early match while printf is still writing, and under pipefail that
+# SIGPIPE read as an uncited commit.
 missing=0
 while read -r hash; do
   short="${hash:0:8}"
-  if ! printf '%s\n' "$section" | grep -q "${tick}${short}${tick}"; then
+  if [[ "$section" != *"${tick}${short}${tick}"* ]]; then
     echo "uncited commit ${short}" >&2
     missing=1
   fi

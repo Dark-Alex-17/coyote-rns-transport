@@ -8,6 +8,13 @@ set -euo pipefail
 # declared 0.x minor bump would otherwise skip them all), then requires the
 # summary to report exactly <expected-major-count> major findings, 0 minor,
 # and every named lint to appear in the failure list. Exit 0 on match.
+#
+# cargo-semver-checks builds rustdoc JSON for the current and the baseline
+# crate under the active target dir, which is the same target/doc the rustdoc
+# gate writes. A fresh doc build there lets one side parse the other side's
+# JSON and report "no semver update required" for a changed API, so the run
+# gets its own target dir, semver-findings-check under the operator's
+# CARGO_TARGET_DIR when set and under target otherwise.
 
 usage() {
   echo "usage: $0 <baseline-rev> <expected-major-count> [lint ...]" >&2
@@ -38,7 +45,9 @@ expected=$((10#$expected))
 shift 2
 
 status=0
-out="$(CARGO_TERM_COLOR=never NO_COLOR=1 cargo semver-checks check-release -p coyote-rns-transport \
+semver_target_dir="${CARGO_TARGET_DIR:-$ROOT_DIR/target}/semver-findings-check"
+out="$(CARGO_TERM_COLOR=never NO_COLOR=1 CARGO_TARGET_DIR="$semver_target_dir" \
+  cargo semver-checks check-release -p coyote-rns-transport \
   --baseline-rev "$baseline" --release-type patch 2>&1)" || status=$?
 summary="$(printf '%s\n' "$out" | { grep -E 'Summary' || true; } | tail -1)"
 echo "$summary"

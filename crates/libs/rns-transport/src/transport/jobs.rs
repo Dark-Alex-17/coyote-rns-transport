@@ -408,7 +408,7 @@ pub(super) async fn manage_transport(
 /// (see `handle_resource_proof`). Path routing is only a fallback for a link
 /// without a bound interface.
 #[deny(clippy::await_holding_invalid_type)]
-async fn send_resource_retry(
+pub(super) async fn send_resource_retry(
     handler: &mut TransportHandler,
     iface: Option<AddressHash>,
     packet: Packet,
@@ -424,7 +424,7 @@ async fn send_resource_retry(
     };
     let link_id = packet.destination;
     let trace = handler.send(TxMessage { tx_type: TxMessageType::Direct(iface), packet }).await;
-    if trace.sent_ifaces == 0 {
+    if trace.sent_ifaces == 0 && trace.queued_ifaces == 0 {
         log::debug!(
             "[resource-diag] retry_not_dispatched node={} link={} iface={} trace={:?}",
             handler.config.name,

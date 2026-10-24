@@ -12,18 +12,19 @@ const SLOW_HANDLER_SLEEP: Duration = Duration::from_secs(30);
 /// Keeps the link's drop records, from the links target every record at `Warn` or above
 /// plus the debug lines of the shared-instance client, and from the resource target the
 /// dropped-outcome-receiver lines, from the link target the closed-link packet warnings,
-/// and from the request-dispatch target the responses dropped for a closed link. Tests
-/// share one process and `log::set_logger` installs once, so there must be exactly one
-/// logger in the binary and this is it; a record is attributed to a test by the link id,
-/// resource hash or `tp(<name>)` it names, and the quieter levels are kept only for the
-/// shared-instance and dropped-receiver lines so the stores stay small for the rest of
-/// the run.
+/// from the request-dispatch target the responses dropped for a closed link, and from the
+/// jobs target the resource-retry diagnostics. Tests share one process and
+/// `log::set_logger` installs once, so there must be exactly one logger in the binary and
+/// this is it; a record is attributed to a test by the link id, resource hash or
+/// `tp(<name>)` it names, and the quieter levels are kept only for the shared-instance,
+/// dropped-receiver, closed-link-response and resource-diag lines so the stores stay small.
 struct TestLogger {
     dropped_requests: StdMutex<Vec<String>>,
     shared_instance: StdMutex<Vec<(log::Level, String)>>,
     outcome_receiver_dropped: StdMutex<Vec<String>>,
     closed_link_packet_warnings: StdMutex<Vec<String>>,
     closed_link_responses: StdMutex<Vec<String>>,
+    resource_diag: StdMutex<Vec<String>>,
 }
 
 static TEST_LOG: TestLogger = TestLogger {
@@ -32,6 +33,7 @@ static TEST_LOG: TestLogger = TestLogger {
     outcome_receiver_dropped: StdMutex::new(Vec::new()),
     closed_link_packet_warnings: StdMutex::new(Vec::new()),
     closed_link_responses: StdMutex::new(Vec::new()),
+    resource_diag: StdMutex::new(Vec::new()),
 };
 
 /// The target `attach_shared_instance` and `detach_shared_instance` log under: their
@@ -45,12 +47,16 @@ const RESOURCE_LOG_TARGET: &str = "rns_transport::resource";
 /// The target the responder side of the request layer logs under.
 const REQUEST_DISPATCH_LOG_TARGET: &str = "rns_transport::transport::request_dispatch";
 
+/// The target the resource-retry worker logs its `[resource-diag]` lines under.
+const JOBS_LOG_TARGET: &str = "rns_transport::transport::jobs";
+
 impl log::Log for TestLogger {
     fn enabled(&self, metadata: &log::Metadata) -> bool {
         metadata.target().starts_with("rns_transport::destination::link")
             || metadata.target() == SHARED_INSTANCE_LOG_TARGET
             || metadata.target() == RESOURCE_LOG_TARGET
             || metadata.target() == REQUEST_DISPATCH_LOG_TARGET
+            || metadata.target() == JOBS_LOG_TARGET
     }
 
     fn log(&self, record: &log::Record) {
@@ -78,6 +84,10 @@ impl log::Log for TestLogger {
                     .lock()
                     .expect("closed-link response record store")
                     .push(message);
+            }
+        } else if record.target() == JOBS_LOG_TARGET {
+            if message.contains("[resource-diag]") {
+                self.resource_diag.lock().expect("resource-diag record store").push(message);
             }
         } else if message.contains("dropped, dispatch") {
             self.dropped_requests.lock().expect("dropped-request record store").push(message);
@@ -147,6 +157,20 @@ fn closed_link_response_records_for(link_id: AddressHash) -> Vec<String> {
         .closed_link_responses
         .lock()
         .expect("closed-link response record store")
+        .iter()
+        .filter(|record| record.contains(&needle))
+        .cloned()
+        .collect()
+}
+
+/// The `[resource-diag]` records the retry worker emitted for `link_id` so far, oldest
+/// first.
+fn resource_diag_records_for(link_id: AddressHash) -> Vec<String> {
+    let needle = link_id.to_string();
+    TEST_LOG
+        .resource_diag
+        .lock()
+        .expect("resource-diag record store")
         .iter()
         .filter(|record| record.contains(&needle))
         .cloned()

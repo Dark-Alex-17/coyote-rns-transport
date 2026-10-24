@@ -11,7 +11,8 @@ const SLOW_HANDLER_SLEEP: Duration = Duration::from_secs(30);
 
 /// Keeps the link's drop records, from the links target every record at `Warn` or above
 /// plus the debug lines of the shared-instance client, and from the resource target the
-/// dropped-outcome-receiver lines. Tests share one process and `log::set_logger` installs
+/// dropped-outcome-receiver lines, and from the link target the closed-link packet
+/// warnings. Tests share one process and `log::set_logger` installs
 /// once, so there must be exactly one logger in the binary and this is it; a record is
 /// attributed to a test by the link id, resource hash or `tp(<name>)` it names, and the
 /// quieter levels are kept only for the shared-instance and dropped-receiver lines so the
@@ -20,12 +21,14 @@ struct TestLogger {
     dropped_requests: StdMutex<Vec<String>>,
     shared_instance: StdMutex<Vec<(log::Level, String)>>,
     outcome_receiver_dropped: StdMutex<Vec<String>>,
+    closed_link_packet_warnings: StdMutex<Vec<String>>,
 }
 
 static TEST_LOG: TestLogger = TestLogger {
     dropped_requests: StdMutex::new(Vec::new()),
     shared_instance: StdMutex::new(Vec::new()),
     outcome_receiver_dropped: StdMutex::new(Vec::new()),
+    closed_link_packet_warnings: StdMutex::new(Vec::new()),
 };
 
 /// The target `attach_shared_instance` and `detach_shared_instance` log under: their
@@ -64,6 +67,11 @@ impl log::Log for TestLogger {
             }
         } else if message.contains("dropped, dispatch") {
             self.dropped_requests.lock().expect("dropped-request record store").push(message);
+        } else if message.contains("can't create data packet") {
+            self.closed_link_packet_warnings
+                .lock()
+                .expect("closed-link packet warning store")
+                .push(message);
         }
     }
 
@@ -109,6 +117,13 @@ fn shared_instance_records_for(transport_name: &str) -> Vec<(log::Level, String)
 /// Every dropped-outcome-receiver record emitted so far, oldest first.
 fn outcome_receiver_dropped_records() -> Vec<String> {
     TEST_LOG.outcome_receiver_dropped.lock().expect("dropped-outcome-receiver record store").clone()
+}
+
+/// How many `can't create data packet for closed link` warnings the link target has
+/// emitted so far; the message names no link, so a test reads the count before and after
+/// the call it probes.
+fn closed_link_packet_warning_count() -> usize {
+    TEST_LOG.closed_link_packet_warnings.lock().expect("closed-link packet warning store").len()
 }
 
 #[tokio::test]

@@ -219,7 +219,8 @@ Removed) bullet of its own, marked as such.
   `dedupe` field; no join over lock futures in the auto runtime;
   `link_table_cleanup` carries no stale `dead_code` allow),
   `fork_publish_contract_parts/lint_discipline_probe9.rs` (the progress
-  pin and its repeated-burst twin keep their deadlock-visible shape; the
+  pin and its repeated-burst twin keep their deadlock-visible shape and the
+  twin's depth cap; the
   supervisor's `dedupe` field points at the lock-order doc; no production
   source in any crate joins lock futures; the ledger census matches the
   tree) and

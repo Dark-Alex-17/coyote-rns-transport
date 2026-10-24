@@ -45,7 +45,7 @@ fork commit `08362717`; the
 `d36f611c`, `31299980`, `1b02e70a`, `1393cecd`, `4576a35e`, `57cd07fa`,
 `f0e02c44`, `10888bf2`, `b785306b`, `f2bdb2ac`, `23f196ea`, `a594ebb7`,
 `64f4fa37`, `b7ddb0ee`, `45d4a0dd`, `2997ad2a`, `9e1145fc`, `2293a968`,
-`d9b5ad57`, `47350e23` and `9136c972`.
+`d9b5ad57`, `47350e23`, `9136c972` and `02316362`.
 
 | File | Patch |
 | --- | --- |
@@ -343,8 +343,8 @@ Fork commits `f7be0f41`, `ae4f16d8`, `5f6c230f`, `e916ce9e`, `39d107b9`,
 `c6d28577`, `05989491`, `5366399d`, `b879fc9b`, `d36f611c`, `31299980`,
 `1b02e70a`, `1393cecd`, `4576a35e`, `57cd07fa`, `f0e02c44`, `10888bf2`,
 `b785306b`, `f2bdb2ac`, `23f196ea`, `a594ebb7`, `64f4fa37`, `b7ddb0ee`,
-`45d4a0dd`, `2997ad2a`, `9e1145fc`, `2293a968`, `d9b5ad57`, `47350e23` and
-`9136c972`:
+`45d4a0dd`, `2997ad2a`, `9e1145fc`, `2293a968`, `d9b5ad57`, `47350e23`,
+`9136c972` and `02316362`:
 H4, guard discipline. The library behaviour changes are: the two
 auto-interface peer-table fixes of the eighth and thirteenth commits; the
 pipe and serial pump fixes of the eighteenth (a panicking half no longer
@@ -748,8 +748,9 @@ thirty-ninth and fortieth narratives for its thirty-ninth pins (so a later
 narrative quoting the needles cannot vouch for them) and keep only the
 README row equality (the root ledger contract owns the every-row legend
 sweep); caps `tests_sections/peer_data_receive_loop_progress_probe.rs` at
-a backlog of sixty-four and ninety-six live datagrams per socket (under
-half the Linux default receive buffer), has a stalled round report whether
+a backlog of sixty-four and ninety-six live datagrams per socket (at most
+160 datagrams, about 120 KiB by kernel accounting, below the 208 KiB Linux
+default receive buffer), has a stalled round report whether
 it drained, whether its loops shut down and whether either mutex is still
 held, and names a loopback drop as the other cause in its assert; rewords
 the `peer_data_receive_loop_progress.rs` sender-registration comment (both
@@ -758,6 +759,9 @@ supervisor pointer rustdoc in `auto_runtime_parts/module_prelude.rs`.
 Against the joined form the capped twin fails five of five runs with every
 stalled round reporting both mutexes held; the sequential form passes five
 of five in under a second.
+The forty-ninth has `lint_discipline_probe9.rs` pin that cap (backlog plus
+live datagrams per socket at most 160) on the twin's shape test and has the
+twin's `drain_burst` rustdoc state the margin in the same terms.
 Pinned by
 `tcp_client/tests/tx_queue_survives_reconnect.rs`,
 `kiss_parts/tx_queue_survives_reconnect_tests.rs`,
@@ -788,7 +792,8 @@ allowance),
 lock-order-nest allowance, on the peer-data loop, with the order on the
 `dedupe` field; no join over lock futures in the auto runtime),
 `fork_publish_contract_parts/lint_discipline_probe9.rs` (the progress pin
-and its repeated-burst twin keep their deadlock-visible shape; the
+and its repeated-burst twin keep their deadlock-visible shape and the
+twin's depth cap; the
 supervisor's `dedupe` field points at the lock-order doc; no production
 source joins lock futures;
 the census sentence matches the tree),

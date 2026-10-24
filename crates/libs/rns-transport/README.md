@@ -401,10 +401,11 @@ filtering. The packet cache's other halves are still written: the
 source notes `handle_data` records for received Data packets share the cache
 and are seen as duplicates once the transport detaches, and the hash of each
 packet sent is the receipt guard. A transport whose connected posture is set
-directly, as reticulumd's own bootstrap does, rather than through
+directly with `set_connected_to_shared_instance` rather than through
 `attach_shared_instance` gets the registration announce, whose trigger is the
 posture alone, but not the reconnect re-announce and the drop flush, which
-live in the attach's consumer task. `Transport::stop` joins the tasks the
+live in the attach's consumer task; reticulumd's shared-instance client
+posture goes through the attach. `Transport::stop` joins the tasks the
 client spawns (the delayed announces and the reconnect consumer) within its
 budget, so none runs on a stopped transport.
 

@@ -22,6 +22,8 @@ use reticulum_daemon::config::{DaemonConfig, InterfaceConfig};
 
 use rns_rpc::InterfaceRecord;
 
+use rns_transport::error::RnsError;
+
 use rns_transport::hash::AddressHash;
 
 use rns_transport::iface::tcp_client::{TcpClient, TcpSocketTuning};
@@ -32,8 +34,9 @@ use rns_transport::iface::udp::UdpInterface;
 
 use rns_transport::iface::{IfaceRole, InterfaceMode};
 
-use rns_transport::transport::Transport;
+use rns_transport::transport::{SharedInstanceEndpoint, SharedInstanceOptions, Transport};
 
+use std::net::SocketAddr;
 use std::sync::Arc;
 use std::time::Duration;
 
@@ -42,7 +45,6 @@ pub(super) struct InterfaceStartupBatch {
     pub(super) startup_failures: Vec<InterfaceStartupFailure>,
     pub(super) seeded_hot_apply_interfaces: Vec<(String, InterfaceRecord, AddressHash)>,
     pub(super) tunnel_synth_ifaces: Vec<AddressHash>,
-    pub(super) connected_to_shared_instance: bool,
     pub(super) auto_runtime_refreshes: Vec<AutoRuntimeRefresh>,
     pub(super) auto_runtime_shutdowns: Vec<AutoRuntimeShutdown>,
     pub(super) pipe_runtime_refreshes: Vec<PipeRuntimeRefresh>,
@@ -274,7 +276,6 @@ where
     let mut startup_failures = Vec::new();
     let mut seeded_hot_apply_interfaces = Vec::new();
     let mut tunnel_synth_ifaces = Vec::new();
-    let mut connected_to_shared_instance = false;
     let mut auto_runtime_refreshes = Vec::new();
     let mut auto_runtime_shutdowns = Vec::new();
     let mut pipe_runtime_refreshes = Vec::new();
@@ -326,10 +327,10 @@ where
                     args,
                     iface,
                     &label,
+                    transport,
                     iface_manager,
                     &mut configured_interfaces[index],
                     &mut startup_failures,
-                    shared_reconnect_events.clone(),
                 )
                 .await
                 {
@@ -337,54 +338,40 @@ where
                         startup_successes += 1;
                         iface_manager.lock().await.set_shared_instance(local_iface, true);
                     }
-                    LocalUnixStartup::Attached(client_iface) => {
+                    LocalUnixStartup::Attached => {
                         startup_successes += 1;
-                        iface_manager.lock().await.set_shared_instance(client_iface, true);
-                        tunnel_synth_ifaces.push(client_iface);
-                        connected_to_shared_instance = true;
                     }
                     LocalUnixStartup::Failed => {}
                 }
             }
             "local_client" if iface.shared_instance_type.as_deref() == Some("unix") => {
-                match startup_local_unix_client_attach(
+                if startup_local_unix_client_attach(
                     args,
                     iface,
                     &label,
-                    iface_manager,
+                    transport,
                     &mut configured_interfaces[index],
                     &mut startup_failures,
-                    shared_reconnect_events.clone(),
                 )
                 .await
                 {
-                    LocalUnixStartup::Attached(client_iface) => {
-                        startup_successes += 1;
-                        iface_manager.lock().await.set_shared_instance(client_iface, true);
-                        tunnel_synth_ifaces.push(client_iface);
-                        connected_to_shared_instance = true;
-                    }
-                    LocalUnixStartup::Active(_) | LocalUnixStartup::Failed => {}
+                    startup_successes += 1;
                 }
             }
             "local" => {
                 if selected_tcp_server.local_attach_index == Some(index) {
-                    if let Some(client_iface) = startup_local_tcp_attach(
+                    if startup_local_tcp_attach(
                         args,
                         iface,
                         &label,
                         selected_tcp_server,
-                        iface_manager,
+                        transport,
                         &mut configured_interfaces[index],
                         &mut startup_failures,
-                        shared_reconnect_events.clone(),
                     )
                     .await
                     {
                         startup_successes += 1;
-                        iface_manager.lock().await.set_shared_instance(client_iface, true);
-                        tunnel_synth_ifaces.push(client_iface);
-                        connected_to_shared_instance = true;
                     }
                 } else if iface.synthetic_shared_instance
                     && selected_tcp_server.selected_index != Some(index)
@@ -393,10 +380,10 @@ where
                         args,
                         iface,
                         &label,
+                        transport,
                         iface_manager,
                         &mut configured_interfaces[index],
                         &mut startup_failures,
-                        shared_reconnect_events.clone(),
                     )
                     .await
                     {
@@ -404,11 +391,8 @@ where
                             startup_successes += 1;
                             iface_manager.lock().await.set_shared_instance(local_iface, true);
                         }
-                        LocalTcpSidecarStartup::Attached(client_iface) => {
+                        LocalTcpSidecarStartup::Attached => {
                             startup_successes += 1;
-                            iface_manager.lock().await.set_shared_instance(client_iface, true);
-                            tunnel_synth_ifaces.push(client_iface);
-                            connected_to_shared_instance = true;
                         }
                         LocalTcpSidecarStartup::Failed => {}
                     }
@@ -434,21 +418,17 @@ where
                 }
             }
             "local_client" => {
-                if let Some(client_iface) = startup_local_tcp_client_attach(
+                if startup_local_tcp_client_attach(
                     args,
                     iface,
                     &label,
-                    iface_manager,
+                    transport,
                     &mut configured_interfaces[index],
                     &mut startup_failures,
-                    shared_reconnect_events.clone(),
                 )
                 .await
                 {
                     startup_successes += 1;
-                    iface_manager.lock().await.set_shared_instance(client_iface, true);
-                    tunnel_synth_ifaces.push(client_iface);
-                    connected_to_shared_instance = true;
                 }
             }
             "tcp_client" | "backbone_client" => {
@@ -712,7 +692,6 @@ where
         startup_failures,
         seeded_hot_apply_interfaces,
         tunnel_synth_ifaces,
-        connected_to_shared_instance,
         auto_runtime_refreshes,
         auto_runtime_shutdowns,
         pipe_runtime_refreshes,
@@ -855,25 +834,24 @@ fn startup_tcp_server_record(
 #[cfg_attr(not(unix), allow(dead_code))]
 enum LocalUnixStartup {
     Active(AddressHash),
-    Attached(AddressHash),
+    Attached,
     Failed,
 }
 
 enum LocalTcpSidecarStartup {
     Active(AddressHash),
-    Attached(AddressHash),
+    Attached,
     Failed,
 }
 
-#[allow(clippy::too_many_arguments)]
 async fn startup_synthetic_local_tcp_sidecar(
     args: &Args,
     iface: &InterfaceConfig,
     label: &str,
+    transport: &Transport,
     iface_manager: &Arc<tokio::sync::Mutex<rns_transport::iface::InterfaceManager>>,
     record: &mut InterfaceRecord,
     startup_failures: &mut Vec<InterfaceStartupFailure>,
-    shared_reconnect_events: Option<tokio::sync::mpsc::Sender<AddressHash>>,
 ) -> LocalTcpSidecarStartup {
     let Some(port) = iface.port else {
         record_startup_failure(
@@ -901,19 +879,18 @@ async fn startup_synthetic_local_tcp_sidecar(
     };
     let bind_addr = tcp_bind_addr(host.as_str(), port);
     if tcp_bind_addr_is_in_use(&bind_addr) {
-        if let Some(client_iface) = startup_local_tcp_attach_endpoint(
+        if startup_local_tcp_attach_endpoint(
             args,
             iface,
             label,
             bind_addr.as_str(),
-            iface_manager,
+            transport,
             record,
             startup_failures,
-            shared_reconnect_events,
         )
         .await
         {
-            return LocalTcpSidecarStartup::Attached(client_iface);
+            return LocalTcpSidecarStartup::Attached;
         }
         return LocalTcpSidecarStartup::Failed;
     }
@@ -951,10 +928,10 @@ async fn startup_local_unix(
     args: &Args,
     iface: &InterfaceConfig,
     label: &str,
+    transport: &Transport,
     iface_manager: &Arc<tokio::sync::Mutex<rns_transport::iface::InterfaceManager>>,
     record: &mut InterfaceRecord,
     startup_failures: &mut Vec<InterfaceStartupFailure>,
-    shared_reconnect_events: Option<tokio::sync::mpsc::Sender<AddressHash>>,
 ) -> LocalUnixStartup {
     let Some(socket_path) = iface
         .socket_path
@@ -981,10 +958,9 @@ async fn startup_local_unix(
                 iface,
                 label,
                 endpoint,
-                iface_manager,
+                transport,
                 record,
                 startup_failures,
-                shared_reconnect_events,
             )
             .await;
         }
@@ -1033,16 +1009,14 @@ async fn startup_local_unix(
 }
 
 #[cfg(unix)]
-#[allow(clippy::too_many_arguments)]
 async fn startup_local_unix_attach(
     args: &Args,
     iface: &InterfaceConfig,
     label: &str,
     endpoint: rns_transport::iface::local::LocalUnixEndpoint,
-    iface_manager: &Arc<tokio::sync::Mutex<rns_transport::iface::InterfaceManager>>,
+    transport: &Transport,
     record: &mut InterfaceRecord,
     startup_failures: &mut Vec<InterfaceStartupFailure>,
-    shared_reconnect_events: Option<tokio::sync::mpsc::Sender<AddressHash>>,
 ) -> LocalUnixStartup {
     if args.strict_interface_startup {
         if let Err(err) = rns_transport::iface::local::preflight_unix_connect(&endpoint).await {
@@ -1057,34 +1031,19 @@ async fn startup_local_unix_attach(
         }
     }
 
-    let mode = iface.interface_mode().unwrap_or(InterfaceMode::Full);
-    let mut adapter = rns_transport::iface::local::LocalUnixClient::new_connect(endpoint.clone())
-        .with_mtu(iface.mtu.unwrap_or(TcpClient::DEFAULT_MTU));
-    if let Some(bitrate_bps) = iface.force_shared_instance_bitrate {
-        adapter = adapter.with_forced_bitrate(bitrate_bps);
-    }
-    if let Some(events) = shared_reconnect_events {
-        adapter = adapter.with_reconnect_events(events);
-    }
-    let client_iface = iface_manager.lock().await.spawn_as_with_mode(
-        adapter,
-        rns_transport::iface::local::LocalUnixClient::spawn,
-        IfaceRole::Unicast,
-        mode,
-    );
-    {
-        let mut manager = iface_manager.lock().await;
-        apply_interface_runtime_config(&mut manager, client_iface, iface);
-    }
-    log::info!(
-        "[daemon] local unix attached iface={} name={} socket_path={}",
-        client_iface,
+    match attach_shared_instance_client(
+        transport,
+        SharedInstanceEndpoint::Unix(endpoint),
+        iface,
         label,
-        endpoint.label()
-    );
-    let runtime_iface = client_iface.to_string();
-    mark_interface_startup_status(record, "attached", None, Some(runtime_iface.as_str()));
-    LocalUnixStartup::Attached(client_iface)
+        record,
+        startup_failures,
+    )
+    .await
+    {
+        Some(_) => LocalUnixStartup::Attached,
+        None => LocalUnixStartup::Failed,
+    }
 }
 
 #[cfg(not(unix))]
@@ -1092,10 +1051,10 @@ async fn startup_local_unix(
     _args: &Args,
     iface: &InterfaceConfig,
     label: &str,
+    _transport: &Transport,
     _iface_manager: &Arc<tokio::sync::Mutex<rns_transport::iface::InterfaceManager>>,
     record: &mut InterfaceRecord,
     startup_failures: &mut Vec<InterfaceStartupFailure>,
-    _shared_reconnect_events: Option<tokio::sync::mpsc::Sender<AddressHash>>,
 ) -> LocalUnixStartup {
     record_startup_failure(
         record,
@@ -1718,17 +1677,15 @@ fn build_tcp_client_adapter(
     adapter
 }
 
-#[allow(clippy::too_many_arguments)]
 async fn startup_local_tcp_attach(
     args: &Args,
     iface: &InterfaceConfig,
     label: &str,
     selected_tcp_server: &TcpServerSelection,
-    iface_manager: &Arc<tokio::sync::Mutex<rns_transport::iface::InterfaceManager>>,
+    transport: &Transport,
     record: &mut InterfaceRecord,
     startup_failures: &mut Vec<InterfaceStartupFailure>,
-    shared_reconnect_events: Option<tokio::sync::mpsc::Sender<AddressHash>>,
-) -> Option<AddressHash> {
+) -> bool {
     let Some(endpoint) = selected_tcp_server.local_attach_addr.as_deref() else {
         record_startup_failure(
             record,
@@ -1737,7 +1694,7 @@ async fn startup_local_tcp_attach(
             iface.kind.clone(),
             "local attach requires a selected shared-instance endpoint".to_string(),
         );
-        return None;
+        return false;
     };
 
     startup_local_tcp_attach_endpoint(
@@ -1745,10 +1702,9 @@ async fn startup_local_tcp_attach(
         iface,
         label,
         endpoint,
-        iface_manager,
+        transport,
         record,
         startup_failures,
-        shared_reconnect_events,
     )
     .await
 }
@@ -1757,11 +1713,10 @@ async fn startup_local_tcp_client_attach(
     args: &Args,
     iface: &InterfaceConfig,
     label: &str,
-    iface_manager: &Arc<tokio::sync::Mutex<rns_transport::iface::InterfaceManager>>,
+    transport: &Transport,
     record: &mut InterfaceRecord,
     startup_failures: &mut Vec<InterfaceStartupFailure>,
-    shared_reconnect_events: Option<tokio::sync::mpsc::Sender<AddressHash>>,
-) -> Option<AddressHash> {
+) -> bool {
     let (Some(host), Some(port)) = (iface.host.as_deref(), iface.port) else {
         record_startup_failure(
             record,
@@ -1770,7 +1725,7 @@ async fn startup_local_tcp_client_attach(
             iface.kind.clone(),
             "local_client attach requires host and port for startup".to_string(),
         );
-        return None;
+        return false;
     };
     let endpoint = format!("{}:{}", host, port);
     startup_local_tcp_attach_endpoint(
@@ -1778,25 +1733,22 @@ async fn startup_local_tcp_client_attach(
         iface,
         label,
         endpoint.as_str(),
-        iface_manager,
+        transport,
         record,
         startup_failures,
-        shared_reconnect_events,
     )
     .await
 }
 
-#[allow(clippy::too_many_arguments)]
 async fn startup_local_tcp_attach_endpoint(
     args: &Args,
     iface: &InterfaceConfig,
     label: &str,
     endpoint: &str,
-    iface_manager: &Arc<tokio::sync::Mutex<rns_transport::iface::InterfaceManager>>,
+    transport: &Transport,
     record: &mut InterfaceRecord,
     startup_failures: &mut Vec<InterfaceStartupFailure>,
-    shared_reconnect_events: Option<tokio::sync::mpsc::Sender<AddressHash>>,
-) -> Option<AddressHash> {
+) -> bool {
     if args.strict_interface_startup {
         if let Err(err) = strict_tcp_client_preflight(endpoint).await {
             record_startup_failure(
@@ -1806,34 +1758,33 @@ async fn startup_local_tcp_attach_endpoint(
                 iface.kind.clone(),
                 err,
             );
-            return None;
+            return false;
         }
     }
 
-    let mode = iface.interface_mode().unwrap_or(InterfaceMode::Full);
-    let mut adapter = build_tcp_client_adapter(endpoint.to_string(), iface, None);
-    if let Some(events) = shared_reconnect_events {
-        adapter = adapter.with_reconnect_events(events);
-    }
-    let client_iface = iface_manager.lock().await.spawn_as_with_mode(
-        adapter,
-        TcpClient::spawn,
-        IfaceRole::Unicast,
-        mode,
-    );
-    {
-        let mut manager = iface_manager.lock().await;
-        apply_interface_runtime_config(&mut manager, client_iface, iface);
-    }
-    log::info!(
-        "[daemon] local attached iface={} name={} endpoint={}",
-        client_iface,
+    let addr = match resolve_shared_instance_tcp_endpoint(endpoint).await {
+        Ok(addr) => addr,
+        Err(err) => {
+            record_startup_failure(
+                record,
+                startup_failures,
+                label.to_string(),
+                iface.kind.clone(),
+                err,
+            );
+            return false;
+        }
+    };
+    attach_shared_instance_client(
+        transport,
+        SharedInstanceEndpoint::Tcp(addr),
+        iface,
         label,
-        endpoint
-    );
-    let runtime_iface = client_iface.to_string();
-    mark_interface_startup_status(record, "attached", None, Some(runtime_iface.as_str()));
-    Some(client_iface)
+        record,
+        startup_failures,
+    )
+    .await
+    .is_some()
 }
 
 #[cfg(unix)]
@@ -1841,11 +1792,10 @@ async fn startup_local_unix_client_attach(
     args: &Args,
     iface: &InterfaceConfig,
     label: &str,
-    iface_manager: &Arc<tokio::sync::Mutex<rns_transport::iface::InterfaceManager>>,
+    transport: &Transport,
     record: &mut InterfaceRecord,
     startup_failures: &mut Vec<InterfaceStartupFailure>,
-    shared_reconnect_events: Option<tokio::sync::mpsc::Sender<AddressHash>>,
-) -> LocalUnixStartup {
+) -> bool {
     let Some(socket_path) = iface
         .socket_path
         .as_deref()
@@ -1859,20 +1809,14 @@ async fn startup_local_unix_client_attach(
             iface.kind.clone(),
             "local_client unix requires socket_path for startup".to_string(),
         );
-        return LocalUnixStartup::Failed;
+        return false;
     };
     let endpoint = rns_transport::iface::local::LocalUnixEndpoint::from_config_value(socket_path);
-    startup_local_unix_attach(
-        args,
-        iface,
-        label,
-        endpoint,
-        iface_manager,
-        record,
-        startup_failures,
-        shared_reconnect_events,
+    matches!(
+        startup_local_unix_attach(args, iface, label, endpoint, transport, record, startup_failures)
+            .await,
+        LocalUnixStartup::Attached
     )
-    .await
 }
 
 #[cfg(not(unix))]
@@ -1880,11 +1824,10 @@ async fn startup_local_unix_client_attach(
     _args: &Args,
     iface: &InterfaceConfig,
     label: &str,
-    _iface_manager: &Arc<tokio::sync::Mutex<rns_transport::iface::InterfaceManager>>,
+    _transport: &Transport,
     record: &mut InterfaceRecord,
     startup_failures: &mut Vec<InterfaceStartupFailure>,
-    _shared_reconnect_events: Option<tokio::sync::mpsc::Sender<AddressHash>>,
-) -> LocalUnixStartup {
+) -> bool {
     record_startup_failure(
         record,
         startup_failures,
@@ -1892,7 +1835,7 @@ async fn startup_local_unix_client_attach(
         iface.kind.clone(),
         "local_client unix shared_instance_type is only supported on unix platforms".to_string(),
     );
-    LocalUnixStartup::Failed
+    false
 }
 
 #[cfg(test)]

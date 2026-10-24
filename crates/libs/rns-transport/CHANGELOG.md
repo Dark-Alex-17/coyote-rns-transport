@@ -300,6 +300,33 @@ Removed) bullet of its own, marked as such.
   `fork_publish_contract_parts/lint_discipline_probe10.rs` (the ledger and
   changelog prose on the sequential lock order, read from the thirty-ninth
   narrative itself; the README row's attribution).
+- No library change: reticulumd's shared-instance client posture (a
+  `LocalInterface` whose socket or port is already held, a
+  `LocalClientInterface`, and the synthetic sidecar's attach) now goes
+  through `Transport::attach_shared_instance`
+  (`links_parts/transport_sections/shared_instance.rs`, options in
+  `transport/shared_instance.rs`) from the daemon's
+  `bootstrap_interface_startup_parts::shared_instance_attach`, instead of
+  spawning the unix or TCP client itself and setting the connected posture
+  by hand, so the daemon gains the attach's drop flush and reconnect
+  re-announce. Consequences for the daemon: its unix and TCP
+  shared-instance clients wait the library default 8 s after a drop
+  (`RNS/Interfaces/LocalInterface.py:54`) instead of the clients' own 5 s;
+  one shared instance per process, as Python holds one
+  `LocalClientInterface` (`RNS/Reticulum.py:422-440`), so a second
+  client-posture entry is a recorded startup failure naming the one already
+  attached; a configured non-loopback shared-instance host is refused like
+  any caller's (the daemon does not set `allow_remote_endpoint`); the
+  per-interface `fixed_mtu`, `force_shared_instance_bitrate` and mode reach
+  the client through the `SharedInstanceOptions` builders, while the TCP
+  client's `connect_timeout`, `max_reconnect_tries` and `prefer_ipv6` no
+  longer apply to a shared-instance attach; and the daemon's own
+  stream-reconnect tunnel synthesizer now serves only its `tcp_client` and
+  `backbone_client` interfaces. Pinned by the daemon's
+  `bootstrap_interface_startup_parts::shared_instance_attach_tests` (the
+  attached record's interface fills the transport's slot and sets the
+  connected posture for the TCP, `LocalClientInterface` TCP and unix arms;
+  two client entries leave one attached record and one failure).
 
 ### Removed
 

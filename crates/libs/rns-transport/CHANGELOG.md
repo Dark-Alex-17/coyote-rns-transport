@@ -173,7 +173,8 @@ Removed) bullet of its own, marked as such.
   load on a multi-thread runtime) and
   `tests_sections/peer_data_receive_loop_progress_probe.rs` (thirty bursts
   on eight sockets under CPU pressure each drain within two seconds and
-  their loops shut down).
+  their loops shut down; a stalled burst reports whether either mutex is
+  still held).
 - Lint tables, no library behaviour change: `clippy::await_holding_invalid_type`
   runs at its default level under the workspace clippy invocation; no
   lint table in the workspace mentions it any more, every test or example
@@ -218,11 +219,13 @@ Removed) bullet of its own, marked as such.
   `dedupe` field; no join over lock futures in the auto runtime;
   `link_table_cleanup` carries no stale `dead_code` allow),
   `fork_publish_contract_parts/lint_discipline_probe9.rs` (the progress
-  pin keeps its deadlock-visible shape; no production source in any crate
-  joins lock futures; the ledger census matches the tree) and
+  pin and its repeated-burst twin keep their deadlock-visible shape; the
+  supervisor's `dedupe` field points at the lock-order doc; no production
+  source in any crate joins lock futures; the ledger census matches the
+  tree) and
   `fork_publish_contract_parts/lint_discipline_probe10.rs` (the ledger and
-  changelog prose on the sequential lock order; every ledger row
-  attribution is a legend phrase).
+  changelog prose on the sequential lock order, read from the thirty-ninth
+  narrative itself; the README row's attribution).
 
 ### Removed
 

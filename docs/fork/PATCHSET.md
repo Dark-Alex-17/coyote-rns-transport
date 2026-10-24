@@ -45,7 +45,7 @@ fork commit `08362717`; the
 `d36f611c`, `31299980`, `1b02e70a`, `1393cecd`, `4576a35e`, `57cd07fa`,
 `f0e02c44`, `10888bf2`, `b785306b`, `f2bdb2ac`, `23f196ea`, `a594ebb7`,
 `64f4fa37`, `b7ddb0ee`, `45d4a0dd`, `2997ad2a`, `9e1145fc`, `2293a968`,
-`d9b5ad57` and `47350e23`.
+`d9b5ad57`, `47350e23` and `9136c972`.
 
 | File | Patch |
 | --- | --- |
@@ -343,7 +343,8 @@ Fork commits `f7be0f41`, `ae4f16d8`, `5f6c230f`, `e916ce9e`, `39d107b9`,
 `c6d28577`, `05989491`, `5366399d`, `b879fc9b`, `d36f611c`, `31299980`,
 `1b02e70a`, `1393cecd`, `4576a35e`, `57cd07fa`, `f0e02c44`, `10888bf2`,
 `b785306b`, `f2bdb2ac`, `23f196ea`, `a594ebb7`, `64f4fa37`, `b7ddb0ee`,
-`45d4a0dd`, `2997ad2a`, `9e1145fc`, `2293a968`, `d9b5ad57` and `47350e23`:
+`45d4a0dd`, `2997ad2a`, `9e1145fc`, `2293a968`, `d9b5ad57`, `47350e23` and
+`9136c972`:
 H4, guard discipline. The library behaviour changes are: the two
 auto-interface peer-table fixes of the eighth and thirteenth commits; the
 pipe and serial pump fixes of the eighteenth (a panicking half no longer
@@ -675,8 +676,9 @@ the pin is `tests_sections/peer_data_receive_loop_progress.rs` (included
 from `auto_runtime_parts/tests.rs`), a four-worker multi-thread test that
 blasts four loopback data sockets under one `spawn_peer_data_receive_loops`
 with four hundred datagrams at once and expects every `Processed` event
-within two seconds (the joined form fails this pin, the sequential form
-passes it). The forty-fourth adopts
+within two seconds (the joined form can fail this pin; the repeated-burst
+twin of the forty-sixth is the one it fails every time, and the sequential
+form passes both). The forty-fourth adopts
 `fork_publish_contract_parts/lint_discipline_probe8.rs` (included from
 `fork_publish_contract.rs`): exactly one production allowance claims the
 lock-order-nest category and it sits on `spawn_peer_data_receive_loop`,
@@ -725,12 +727,37 @@ prose and keeps dotted paths. It also tightens `lint_discipline_probe8.rs`
 after `Lock order:`, plus `only locker`; the dead `_probe` path skip is
 dropped), has the `peer_data_receive_loop_progress.rs` expect message name
 a loopback drop as the other cause and replaces its local plan fixture
-with `core_tests.rs`'s `plan_with_data_listener`, which now delegates to
-a new `plan_with_data_listeners(Vec<..>)`, adds one rustdoc line on
+with a new `core_tests.rs` `plan_with_data_listeners(Vec<..>)`, to which
+the existing `plan_with_data_listener` now delegates, adds one rustdoc line on
 `AutoPeerDataListenerSupervisor.dedupe` in `module_prelude.rs` pointing at
 the runtime field for the lock order, and has the
 `tests_parts/two_transport_loopback_lifecycle.rs` header also name
 `try_send_announce` surfacing the build error as `Err`.
+The forty-eighth (`9136c972`) has
+`fork_publish_contract_parts/lint_discipline_probe9.rs` pin the
+repeated-burst twin's shape (a multi-thread flavour, at least two workers,
+at least ten rounds, at least two sockets, `CpuPressure::start()`, the
+two-second bound and its include from `auto_runtime_parts/tests.rs`), pin
+the one-line `AutoPeerDataListenerSupervisor.dedupe` rustdoc that points at
+`AutoPeerDataReceiveLoopRuntime::dedupe` for the lock order, add the
+`try_send_announce` clause to the lifecycle header pin, drop the dead
+`_probe` path filters from both workspace-wide scans, skip intervening
+attributes when locating the marked fn, and name the leading-number parse;
+has `lint_discipline_probe10.rs` read only the slice between the
+thirty-ninth and fortieth narratives for its thirty-ninth pins (so a later
+narrative quoting the needles cannot vouch for them) and keep only the
+README row equality (the root ledger contract owns the every-row legend
+sweep); caps `tests_sections/peer_data_receive_loop_progress_probe.rs` at
+a backlog of sixty-four and ninety-six live datagrams per socket (under
+half the Linux default receive buffer), has a stalled round report whether
+it drained, whether its loops shut down and whether either mutex is still
+held, and names a loopback drop as the other cause in its assert; rewords
+the `peer_data_receive_loop_progress.rs` sender-registration comment (both
+locks are taken either way); and backticks the identifier in the
+supervisor pointer rustdoc in `auto_runtime_parts/module_prelude.rs`.
+Against the joined form the capped twin fails five of five runs with every
+stalled round reporting both mutexes held; the sequential form passes five
+of five in under a second.
 Pinned by
 `tcp_client/tests/tx_queue_survives_reconnect.rs`,
 `kiss_parts/tx_queue_survives_reconnect_tests.rs`,
@@ -740,7 +767,8 @@ Pinned by
 `tests_sections/peer_data_receive_loop_progress.rs` (four receive loops
 on one `state`/`dedupe` pair keep making progress under concurrent load),
 `tests_sections/peer_data_receive_loop_progress_probe.rs` (thirty bursts
-on eight sockets under CPU pressure each drain within two seconds),
+on eight sockets under CPU pressure each drain within two seconds; a
+stalled burst reports whether either mutex is still held),
 `tests_parts/two_transport_loopback_lifecycle.rs`,
 `pipe_tests_parts/transmit_panic.rs` and `serial_parts/run_serial_stream.rs`
 (the transmit-loop and reader panic pins),
@@ -760,10 +788,13 @@ allowance),
 lock-order-nest allowance, on the peer-data loop, with the order on the
 `dedupe` field; no join over lock futures in the auto runtime),
 `fork_publish_contract_parts/lint_discipline_probe9.rs` (the progress pin
-keeps its deadlock-visible shape; no production source joins lock futures;
+and its repeated-burst twin keep their deadlock-visible shape; the
+supervisor's `dedupe` field points at the lock-order doc; no production
+source joins lock futures;
 the census sentence matches the tree),
 `fork_publish_contract_parts/lint_discipline_probe10.rs` (the ledger and
-changelog prose on the lock order; every row attribution is a legend phrase),
+changelog prose on the lock order, read from the thirty-ninth narrative
+itself; the README row's attribution),
 `kiss_parts/ifac_runtime_tests.rs`,
 `kiss_parts/shared_receiver_lock_span_probe_tests.rs` (the wrapper lock
 span) and `kiss_parts/shared_receiver_lease_probe_tests.rs` (the

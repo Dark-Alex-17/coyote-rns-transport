@@ -56,13 +56,29 @@ async fn attach_shared_instance_client(
     Some(client_iface)
 }
 
+/// A host name resolves to every address of both families; the pick prefers the IPv4
+/// loopback, as Python's `LocalClientInterface` connects to `127.0.0.1` only
+/// (`RNS/Interfaces/LocalInterface.py:109`), so `localhost` reaches a shared instance
+/// listening on `127.0.0.1` even where the resolver lists `::1` first.
+/// `TcpStream::connect(&str)` used to try every address in turn; the attach takes one
+/// `SocketAddr`, so the choice is made here.
 async fn resolve_shared_instance_tcp_endpoint(endpoint: &str) -> Result<SocketAddr, String> {
     if let Ok(addr) = endpoint.parse::<SocketAddr>() {
         return Ok(addr);
     }
-    tokio::net::lookup_host(endpoint)
+    let addrs: Vec<SocketAddr> = tokio::net::lookup_host(endpoint)
         .await
         .map_err(|err| format!("local attach endpoint={endpoint} did not resolve err={err}"))?
-        .next()
+        .collect();
+    pick_shared_instance_tcp_addr(&addrs)
         .ok_or_else(|| format!("local attach endpoint={endpoint} resolved to no address"))
+}
+
+fn pick_shared_instance_tcp_addr(addrs: &[SocketAddr]) -> Option<SocketAddr> {
+    addrs
+        .iter()
+        .find(|addr| addr.is_ipv4() && addr.ip().is_loopback())
+        .or_else(|| addrs.iter().find(|addr| addr.is_ipv4()))
+        .or_else(|| addrs.first())
+        .copied()
 }

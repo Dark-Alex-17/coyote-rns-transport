@@ -1,7 +1,7 @@
 // Pins the shape of the attach debug line, not just its words: for a tcp and a unix
-// endpoint alike it is space-separated `key=value` tokens (`iface=`, `endpoint=`,
-// `reconnect_wait=`) with no comma separators, ending at the wait. A regression to the earlier
-// `endpoint={}, reconnect_wait={:?} ignored ...` form keeps every word and fails here.
+// endpoint alike it is space-separated `key=value` tokens (`iface=`, `kind=`,
+// `reconnect_wait=`) with no comma separators, ending at the wait. A regression to a
+// `kind={}, reconnect_wait={:?} ignored ...` form keeps every word and fails here.
 // Helpers come from the sibling `tests_parts` files included into this module.
 
 /// The tokens after `attached shared instance ` on the one attach line recorded for
@@ -24,11 +24,11 @@ fn shared_instance_attach_line_tokens(
     );
     assert!(!fields.contains("  "), "fields are separated by single spaces: {line}");
     let tokens: Vec<String> = fields.split(' ').map(str::to_owned).collect();
-    assert!(tokens.len() >= 3, "iface, endpoint and reconnect_wait tokens: {line}");
+    assert!(tokens.len() >= 3, "iface, kind and reconnect_wait tokens: {line}");
     assert_eq!(tokens[0], format!("iface={iface}"), "first token names the interface: {line}");
     assert_eq!(
         tokens[1],
-        format!("endpoint={kind}"),
+        format!("kind={kind}"),
         "second token names the endpoint kind: {line}"
     );
     let wait = tokens[2]
@@ -41,7 +41,7 @@ fn shared_instance_attach_line_tokens(
     tokens
 }
 
-/// The TCP attach line is `iface=<hash> endpoint=tcp reconnect_wait=<wait>`: three
+/// The TCP attach line is `iface=<hash> kind=tcp reconnect_wait=<wait>`: three
 /// space-separated `key=value` tokens ending at the wait, nothing else, since the
 /// `TcpClient` honours the wait.
 #[tokio::test]

@@ -166,7 +166,7 @@ impl Transport {
             );
         }
         log::debug!(
-            "tp({}): attached shared instance iface={} endpoint={} reconnect_wait={:?}",
+            "tp({}): attached shared instance iface={} kind={} reconnect_wait={:?}",
             self.name,
             iface,
             kind,

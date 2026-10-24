@@ -49,7 +49,7 @@ fork commit `08362717`; the
 `d9b5ad57`, `47350e23`, `9136c972` and `02316362`; the
 `shared-instance hardening` patch is fork commits `829c8e6d`, `d629ac08`,
 `cb818b0a`, `a55eaf6f`, `e4046601`, `0c553858`, `f5f8b639`, `6ecb0340`,
-`c78bdc7d`, `ca66c50d`, `00bd6579`, `24cf2089` and `31ce6211`.
+`c78bdc7d`, `ca66c50d`, `00bd6579`, `24cf2089`, `31ce6211` and `615d9e45`.
 
 | File | Patch |
 | --- | --- |
@@ -842,7 +842,7 @@ per-receive lease of both shared receivers).
 
 Fork commits `829c8e6d`, `d629ac08`, `cb818b0a`, `a55eaf6f`, `e4046601`,
 `0c553858`, `f5f8b639`, `6ecb0340`, `c78bdc7d`, `ca66c50d`, `00bd6579`,
-`24cf2089` and `31ce6211`:
+`24cf2089`, `31ce6211` and `615d9e45`:
 H5, shared-instance hardening. The library behaviour changes are:
 `Transport::attach_shared_instance` refuses a `SharedInstanceEndpoint::Tcp`
 whose address is not loopback with the new
@@ -990,7 +990,10 @@ and keeps the six-restart storm; adds `LinkStatus::can_build_packet` to
 `packet_with_context` in `link_sections/remove_channel_handler.rs`, so a
 LINKCLOSE built for a `Handshake` or `Stale` link no longer warns `can't
 create data packet for closed link`, pinned in
-`link_status_predicates_make_lifecycl_sections/core_tests.rs`; adopts
+`link_status_predicates_make_lifecycl_sections/core_tests.rs`, from which
+the fourteenth moves that pin to
+`teardown_sends_link_close_for_handshake_link_tests.rs` as its own test
+since the file sat at the module-size budget; adopts
 `tests_parts/two_transport_shared_instance_probe15.rs` (included from
 `transport/tests.rs`), the no-consult case in
 `transport/inbound_processing_tests.rs` and the Unreleased migration pins

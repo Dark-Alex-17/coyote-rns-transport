@@ -93,4 +93,27 @@ mod data_proof_tests {
         assert!(outbound.take_unproven_data_hash(&hash_for(1)));
         assert_eq!(outbound.unproven_data_hashes.len(), UNPROVEN_DATA_HASHES_CAP - 1);
     }
+
+    /// A restart begins a new session, so a proof for a packet of the old one must not match.
+    #[test]
+    fn a_restart_forgets_the_unproven_hashes() {
+        let (mut outbound, _, _, _) = linked_pair();
+        let packet = outbound.data_packet(b"old session").expect("data packet");
+        outbound.note_data_sent(packet.hash());
+
+        outbound.restart();
+
+        assert!(outbound.unproven_data_hashes.is_empty());
+    }
+
+    #[test]
+    fn a_close_forgets_the_unproven_hashes() {
+        let (mut outbound, _, _, _) = linked_pair();
+        let packet = outbound.data_packet(b"closing").expect("data packet");
+        outbound.note_data_sent(packet.hash());
+
+        outbound.close();
+
+        assert!(outbound.unproven_data_hashes.is_empty());
+    }
 }

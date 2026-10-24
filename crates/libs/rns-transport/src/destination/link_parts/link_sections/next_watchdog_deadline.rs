@@ -141,6 +141,7 @@ impl Link {
         }
         self.abandon_pending_requests();
         self.channel_rx_ring.clear();
+        self.unproven_data_hashes.clear();
         self.channel_open = false;
         self.status = LinkStatus::Closed;
         self.close_reason = Some(reason);
@@ -212,6 +213,7 @@ impl Link {
         }
         self.abandon_pending_requests();
         self.channel_rx_ring.clear();
+        self.unproven_data_hashes.clear();
         self.status = LinkStatus::Pending;
         self.close_reason = None;
         self.start_establishment();

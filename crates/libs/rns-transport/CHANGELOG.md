@@ -125,6 +125,12 @@ Removed) bullet of its own, marked as such.
   `fork_publish_contract_parts/ledger_contract_fixtures.rs`; the clone
   probes set a clone-local git identity and ignore one exported by the
   host, so they run the same on a host without one.
+- Release tooling, no library behaviour change: the ledger check's per-commit
+  cite test is a bash substring match instead of a `printf | grep -q` pipe,
+  which under `pipefail` read a SIGPIPE on a section longer than the pipe
+  buffer as an uncited commit; the README-row pin in
+  `fork_publish_contract_parts/lint_discipline_probe10.rs` names the
+  shared-instance hardening patch too.
 - Ledger contracts, test-only: every patch-header hash in
   `docs/fork/PATCHSET.md` must be named by its section's legend, the
   all-legend-hash and header-to-legend checks run over `## Unreleased` and

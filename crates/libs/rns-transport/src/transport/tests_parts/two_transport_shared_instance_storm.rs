@@ -1,9 +1,11 @@
 // Coverage for the reconnect consumer under event loss and under a storm of restarts: a
 // reconnect that arrives without the disconnect of its cycle (the client worker's
 // `try_send` dropped it on a full channel) still flushes the tables before the tunnel is
-// re-synthesized, and six back-to-back restarts of the TCP shared instance are each
-// observed as one drop line followed by one reconnect line, with no event lost. Helpers
-// come from the sibling `tests_parts` files included into this module.
+// re-synthesized, six back-to-back restarts of the TCP shared instance are each observed
+// as one drop line followed by one reconnect line, with no event lost, and the drop flush
+// sends no close packet for a link that rode the dropped interface itself, so the
+// restarted instance receives no close for a link it never knew. Helpers come from the
+// sibling `tests_parts` files included into this module.
 
 const SHARED_INSTANCE_STORM_RESTARTS: usize = 6;
 
@@ -104,6 +106,54 @@ async fn shared_instance_storm_reconnect_without_its_disconnect_flushes_first() 
 
     timeout(STOP_TIMEOUT, client.transport.stop()).await.expect("client stop completes");
     timeout(STOP_TIMEOUT, server.transport.stop()).await.expect("shared instance stop completes");
+}
+
+/// `shared_connection_disappeared` (`RNS/Transport.py:3690-3702`) tears the links down on
+/// a connection that is already gone. A link the client opened to the shared instance's
+/// own destination rides the dropped interface, so its close packet is skipped rather than
+/// queued for the restarted instance: the drop line counts it as skipped, the restarted
+/// instance holds no link once the client's re-announce has landed, and neither transport
+/// warns (every fixture's shared instance runs under the one name `shared-instance`, so
+/// that check spans them all). With the skip removed the client's channel still accepts
+/// the packet and the line counts it as sent.
+#[tokio::test]
+#[deny(clippy::await_holding_invalid_type)]
+async fn shared_instance_storm_drop_skips_the_close_packet_of_a_link_over_the_dropped_iface() {
+    install_test_logger();
+    let name = "shared-instance-storm-skipped-close";
+    let server = shared_instance_server().await;
+    let mut server_announces = server.transport.recv_announces().await;
+    let mut client = shared_instance_reconnect_client(name, &server).await;
+    server.await_accepted_connections(1).await;
+    shared_instance_assert_attached(&client.transport, client.iface).await;
+    let registered =
+        shared_instance_reconnect_register(&client, &mut server_announces, "registered").await;
+    let (_server_destination, _link_id) =
+        shared_instance_reconnect_open_link(&server, &mut client).await;
+
+    let (restarted, mut restarted_announces, _) = shared_instance_reconnect_restart(server).await;
+    let record = shared_instance_probe10_await_debug_record(name, "disconnected,").await;
+    assert!(
+        record.contains(
+            "1 link(s) torn down (0 close packet(s) sent, 1 skipped on the dropped interface)"
+        ),
+        "the link over the dropped interface sends no close packet: {record}"
+    );
+
+    shared_instance_reconnect_await_reannounces(&mut restarted_announces, vec![registered]).await;
+    restarted.await_tunneled_destinations(vec![registered]).await;
+    {
+        let handler = restarted.transport.get_handler();
+        let handler = handler.lock().await;
+        assert!(handler.in_links.is_empty(), "the restarted instance accepted no link");
+        assert!(handler.out_links.is_empty(), "the restarted instance opened no link");
+    }
+    shared_instance_assert_never_warned(name);
+
+    timeout(STOP_TIMEOUT, client.transport.stop()).await.expect("client stop completes");
+    timeout(STOP_TIMEOUT, restarted.transport.stop())
+        .await
+        .expect("restarted shared instance stop completes");
 }
 
 /// Six back-to-back restarts of the shared instance, each waited for up to the re-accept:

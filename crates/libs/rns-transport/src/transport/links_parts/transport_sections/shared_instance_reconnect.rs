@@ -229,11 +229,14 @@ impl SharedInstanceReconnectConsumer {
     /// taken out of both maps under the first handler guard and closed
     /// afterwards, so a link opened on the `Closed` event is not evicted by
     /// the clears that follow. A link riding the dropped interface itself
-    /// can at best queue its teardown on that interface; a close packet
-    /// that does not go out is recorded at debug. Every link that reaches
-    /// `Handshake`, `Active` or `Stale` has its ingress interface set by
-    /// its producer, the accept at `transport/path.rs` (`set_ingress_iface`)
-    /// or the proof at
+    /// sends no close packet: its peer is gone with the connection, and a
+    /// packet queued on the client's channel would only be flushed to the
+    /// restarted instance as a close for a link it never knew; such links
+    /// are counted as skipped in the drop line. A close packet on another
+    /// interface that does not go out is recorded at debug. Every link that
+    /// reaches `Handshake`, `Active` or `Stale` has its ingress interface
+    /// set by its producer, the accept at `transport/path.rs`
+    /// (`set_ingress_iface`) or the proof at
     /// `destination/link_parts/link_sections/handle_proof_packet.rs`
     /// (`get_or_insert`), so a teardown packet with no interface to ride is
     /// a defensive no-op.
@@ -278,7 +281,12 @@ impl SharedInstanceReconnectConsumer {
         };
         let reverse_routes = packet_cache.lock().await.clear_reverse_routes();
         let mut close_packets_sent = 0usize;
+        let mut close_packets_skipped = 0usize;
         for (iface, packet) in teardowns {
+            if iface == self.iface {
+                close_packets_skipped += 1;
+                continue;
+            }
             let link_id = packet.destination;
             let trace = super::request_dispatch::send_on_iface(&self.handler, iface, packet).await;
             if trace.sent_ifaces > 0 {
@@ -294,11 +302,12 @@ impl SharedInstanceReconnectConsumer {
             }
         }
         log::debug!(
-            "tp({}): shared instance iface={} disconnected, {} link(s) torn down ({} close packet(s) sent), {} path(s), {} announce(s), {} link table entr(ies), {} tunnel(s), {} held announce(s), {} reverse route(s) cleared",
+            "tp({}): shared instance iface={} disconnected, {} link(s) torn down ({} close packet(s) sent, {} skipped on the dropped interface), {} path(s), {} announce(s), {} link table entr(ies), {} tunnel(s), {} held announce(s), {} reverse route(s) cleared",
             self.name,
             self.iface,
             closed.len(),
             close_packets_sent,
+            close_packets_skipped,
             paths,
             announces,
             links,

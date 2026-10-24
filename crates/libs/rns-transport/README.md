@@ -378,7 +378,8 @@ opposed to a detach or a stop, tears down every active and pending link,
 sending a LINKCLOSE packet to the peer of each link past `Pending` on the
 interface it rides, as Python's `Link.teardown` does for every such link
 (`RNS/Link.py:657-668`), so a peer reached over another interface learns
-the close from the wire, and
+the close from the wire, while a link that rode the dropped interface
+itself sends none, its peer being gone with the connection, and
 clears the path, announce, link and tunnel tables, the held announces and
 the packet cache's reverse routes, Python's `reverse_table`
 (`RNS/Transport.py:3690-3702`, `RNS/Interfaces/LocalInterface.py:255-261`),

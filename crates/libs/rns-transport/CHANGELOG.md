@@ -348,6 +348,16 @@ Removed) bullet of its own, marked as such.
   before, the tables learned over the dropped connection survived such a
   reconnect. The lost event is recorded at debug. Pinned by
   `two_transport_shared_instance_storm.rs`.
+- The shared-instance drop flush
+  (`links_parts/transport_sections/shared_instance_reconnect.rs`) sends no
+  LINKCLOSE for a link that rode the dropped interface itself: Python's
+  `shared_connection_disappeared` (`RNS/Transport.py:3690-3702`) tears the
+  links down on a connection that is already gone, and the packet was being
+  queued on the client's channel and flushed to the restarted instance as a
+  close for a link it never knew. The drop line now reads
+  `N close packet(s) sent, M skipped on the dropped interface`. Pinned by
+  `two_transport_shared_instance_storm.rs` and
+  `two_transport_shared_instance_probe11.rs`.
 
 ## 0.15.1 - 2026-10-21
 

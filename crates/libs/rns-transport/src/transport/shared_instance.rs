@@ -126,13 +126,13 @@ impl SharedInstanceOptions {
         self.allow_remote_endpoint
     }
 
-    /// Fork-only: the MTU to apply to the client, if one was set.
-    pub(crate) fn mtu(&self) -> Option<usize> {
+    /// Fork-only: the MTU set with [`Self::with_mtu`], if any.
+    pub fn mtu(&self) -> Option<usize> {
         self.mtu
     }
 
-    /// Fork-only: the forced bitrate to apply to the client, if one was set.
-    pub(crate) fn forced_bitrate_bps(&self) -> Option<u64> {
+    /// Fork-only: the forced bitrate set with [`Self::with_forced_bitrate`], if any.
+    pub fn forced_bitrate_bps(&self) -> Option<u64> {
         self.forced_bitrate_bps
     }
 

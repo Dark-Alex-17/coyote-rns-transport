@@ -22,12 +22,7 @@ async fn attach_shared_instance_client(
             key
         );
     }
-    let mut options = SharedInstanceOptions::default()
-        .with_mtu(iface.mtu.unwrap_or(TcpClient::DEFAULT_MTU))
-        .with_interface_mode(iface.interface_mode().unwrap_or(InterfaceMode::Full));
-    if let Some(bitrate_bps) = iface.force_shared_instance_bitrate {
-        options = options.with_forced_bitrate(bitrate_bps);
-    }
+    let options = shared_instance_options_for(iface);
 
     let client_iface = match transport.attach_shared_instance(endpoint, options).await {
         Ok(client_iface) => client_iface,
@@ -64,6 +59,18 @@ async fn attach_shared_instance_client(
     let runtime_iface = client_iface.to_string();
     mark_interface_startup_status(record, "attached", None, Some(runtime_iface.as_str()));
     Some(client_iface)
+}
+
+/// The attach options an interface entry asks for: its `mtu` (the TCP client's default
+/// when absent), its mode (`Full` when absent) and its `force_shared_instance_bitrate`.
+fn shared_instance_options_for(iface: &InterfaceConfig) -> SharedInstanceOptions {
+    let mut options = SharedInstanceOptions::default()
+        .with_mtu(iface.mtu.unwrap_or(TcpClient::DEFAULT_MTU))
+        .with_interface_mode(iface.interface_mode().unwrap_or(InterfaceMode::Full));
+    if let Some(bitrate_bps) = iface.force_shared_instance_bitrate {
+        options = options.with_forced_bitrate(bitrate_bps);
+    }
+    options
 }
 
 /// The entry's keys the shared-instance client has no setting for; `prefer_ipv6` is not

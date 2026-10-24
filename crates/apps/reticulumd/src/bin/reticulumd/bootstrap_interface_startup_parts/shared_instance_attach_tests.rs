@@ -444,3 +444,6 @@ interfaces = [
 
 #[path = "shared_instance_attach_probe_tests.rs"]
 mod probe;
+
+#[path = "shared_instance_attach_options_tests.rs"]
+mod options;

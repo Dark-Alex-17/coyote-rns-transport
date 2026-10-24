@@ -1,11 +1,11 @@
 // Usage-pattern coverage around the owed-cancel seam of a receipt already receiving a
 // response Resource. A packet-form response is measured against `max_response_size` like
 // any other response (`RNS/Link.py:862-863`, `:1016-1017`): within the limit it resolves
-// the receipt `Ready` with its own sizes and nothing is cancelled (`:868-873`,
-// `:1437-1443`); over it, only the receipt the packet names fails `Oversize`, only that
-// receipt's response Resource is cancelled (`:876`, `:1435`), and a receipt with no
-// response Resource inbound owes no cancel at all. Helpers come from the sibling
-// `tests_parts` files.
+// the receipt `Ready` with its own sizes (`:868-873`, `:1437-1443`) and the response
+// Resource still inbound is cancelled rather than left to complete (`:897-912`); over it,
+// only the receipt the packet names fails `Oversize`, only that receipt's response Resource
+// is cancelled (`:876`, `:1435`), and a receipt with no response Resource inbound owes no
+// cancel at all. Helpers come from the sibling `tests_parts` files.
 
 /// A packet response the connector will measure as over `SIZES_TIGHT_LIMIT`.
 fn sizes_cancel_probe_oversize_envelope(id: RequestId) -> Vec<u8> {
@@ -35,11 +35,11 @@ async fn sizes_cancel_probe_receiving_receipt(
 
 /// A packet response within `max_response_size` for a receipt already `Receiving` resolves
 /// it `Ready` from the packet (`RNS/Link.py:873`, `:1437-1443`): the answer is the packet's,
-/// the sizes become the packed body's (`:868-869`), progress is full, and no receiver cancel
-/// goes back to the responder.
+/// the sizes become the packed body's (`:868-869`), progress is full, and one receiver
+/// cancel goes back to the responder for the response Resource still in flight.
 #[tokio::test]
 #[deny(clippy::await_holding_invalid_type)]
-async fn two_transport_loopback_request_resource_form_sizes_cancel_probe_in_limit_packet_resolves_a_receiving_receipt_without_a_cancel(
+async fn two_transport_loopback_request_resource_form_sizes_cancel_probe_in_limit_packet_resolves_a_receiving_receipt_and_cancels_its_resource(
 ) {
     let pair = loopback_request_pair("sizes-cancel-probe-in-limit-packet").await;
     let mut listener_tap = pair.handles.listener.transport.iface_rx();
@@ -73,8 +73,8 @@ async fn two_transport_loopback_request_resource_form_sizes_cancel_probe_in_limi
     sizes_assert_link_still_answers(&pair).await;
     assert_eq!(
         count_link_packets(&mut listener_tap, link_id, PacketContext::ResourceReceiverCancel),
-        0,
-        "a receipt answered within its limit cancels nothing"
+        1,
+        "a receipt answered by a packet cancels the response Resource still in flight"
     );
 }
 

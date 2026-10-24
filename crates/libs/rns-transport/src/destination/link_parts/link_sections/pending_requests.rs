@@ -45,8 +45,16 @@ impl Link {
     /// `Oversize` when it is over: the advertised `d` the gate read was the
     /// peer's claim, and an uncompressed response carries up to `t` bytes.
     /// Python trusts the advertisement (`RNS/Link.py:1049`). Returns the
-    /// response Resource an oversize receipt was receiving, for the caller
-    /// to cancel.
+    /// response Resource the receipt was receiving, for the caller to
+    /// cancel: the one an oversize receipt had inbound, or the one a packet
+    /// answered ahead of.
+    ///
+    /// Python's receipt is single-outcome: the packet sets READY
+    /// (`RNS/Link.py:873`) and removes the pending request (`:881-883`), so
+    /// the Resource's later conclusion finds nothing and is a no-op
+    /// (`:897-912`); that Resource runs to completion, since Python cancels
+    /// only a FAILED receipt's (`:1417-1435`). Here it is cancelled, so no
+    /// bytes the receipt no longer measures keep arriving after it resolved.
     #[deny(clippy::await_holding_invalid_type)]
     #[must_use = "the hashes are for the caller to cancel"]
     pub(crate) fn resolve_pending_request(
@@ -67,10 +75,14 @@ impl Link {
             return None;
         };
         log::debug!("link({}): request {} answered", self.id, id);
+        let overtaken = match &arrival {
+            ResponseArrival::Packet { .. } => pending.inbound_response(),
+            ResponseArrival::Resource { .. } => None,
+        };
         if let Some(cause) = pending.resolve(arrival) {
             log::debug!("link({}): response to {} could not be decoded: {cause}", self.id, id);
         }
-        None
+        overtaken
     }
 
     /// Fails the request `id` and drops its response size limit; the limit

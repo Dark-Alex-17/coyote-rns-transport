@@ -279,8 +279,8 @@ impl Link {
                                     // A refused packet owes one cancel: the record's own, for
                                     // a receipt-less id, or the receipt's, which is the only
                                     // holder of the hashes when a receipt owns the id. An
-                                    // accepted packet owes none: the size recheck in
-                                    // `resolve_pending_request` is for a Resource, not a packet.
+                                    // accepted packet owes the receipt's too, when a response
+                                    // Resource was still inbound for it.
                                     let receiving = if accepted {
                                         let arrival = ResponseArrival::Packet {
                                             envelope: plain_text,

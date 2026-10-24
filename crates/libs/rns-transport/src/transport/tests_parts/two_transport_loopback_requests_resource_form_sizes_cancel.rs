@@ -1,9 +1,10 @@
-// Loopback coverage for a receipt failed while its response Resource is inbound: the
+// Loopback coverage for a receipt resolved while its response Resource is inbound: the
 // response size limit is read, not spent, when a response Resource is admitted
 // (`RNS/Link.py:1046-1049`), so an over-limit response packet arriving while the receipt is
-// `Receiving` still fails it `Oversize` (`RNS/Link.py:874-876`), and the failed receipt's
-// response Resource is cancelled with a receiver cancel to the responder (`RNS/Link.py:1435`,
-// `RNS/Resource.py:1111-1116`). Helpers come from the sibling `tests_parts` files.
+// `Receiving` still fails it `Oversize` (`RNS/Link.py:874-876`). Whether the packet fails
+// the receipt or answers it, the response Resource it leaves behind is cancelled with a
+// receiver cancel to the responder (`RNS/Link.py:1435`, `RNS/Resource.py:1111-1116`).
+// Helpers come from the sibling `tests_parts` files.
 
 /// `d` of an unbacked response advertisement the tight limit admits.
 const SIZES_CANCEL_ADMITTED_D: u64 = (SIZES_TIGHT_LIMIT / 2) as u64;

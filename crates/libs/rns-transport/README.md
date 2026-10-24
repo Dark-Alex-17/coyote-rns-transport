@@ -510,10 +510,10 @@ parity ledger; the `docs/status/*` matrices are not updated per fork task.
   records `len(packb(body)) - 2` (`RNS/Link.py:1016-1017`).
 - An in-limit response packet for a receipt already `Receiving` a response
   Resource resolves the receipt `Ready` from the packet, as Python does
-  (`RNS/Link.py:873`, `:1437-1443`), and leaves that Resource to its
-  receiver's retry watchdog; when it completes, its size is not measured
-  against the limit and its `Complete` event is published. Python resolves
-  on the packet alone too, but never had a second transfer to account for.
+  (`RNS/Link.py:873`, `:1437-1443`), and cancels the response Resource still
+  in flight with a receiver cancel on the link. Python lets that Resource
+  run to completion and then discards it, since the pending request it
+  would have answered is already gone (`:897-912`).
 - A response record no receipt owns, for a request sent with
   `Link::request_packet*` or `Transport::send_request_resource*`, parks in
   `Receiving` between response segments with no clock; only the inbound

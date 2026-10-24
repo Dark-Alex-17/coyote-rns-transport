@@ -191,7 +191,7 @@ impl SharedInstanceReconnectConsumer {
     /// (`RNS/Interfaces/LocalInterface.py:255-261`): every active and
     /// pending link is torn down as `Link.teardown` does
     /// (`RNS/Transport.py:3692`, `:3695`, `RNS/Link.py:657-668`): a
-    /// LINKCLOSE packet goes to the peer of each active link on the
+    /// LINKCLOSE packet goes to the peer of each link past `Pending` on the
     /// interface the link rides, after every guard is released, and each
     /// link is closed with the reason of its own side (`:670-671`); the
     /// tables are emptied. Python's tables map to the fork's as follows:
@@ -214,9 +214,10 @@ impl SharedInstanceReconnectConsumer {
     /// the clears that follow. A link riding the dropped interface itself
     /// can at best queue its teardown on that interface; a close packet
     /// that does not go out is recorded at debug. Every link that reaches
-    /// `Active` or `Stale` has its ingress interface set by its producer,
-    /// the accept at `transport/path.rs` (`set_ingress_iface`) or the proof
-    /// at `destination/link_parts/link_sections/handle_proof_packet.rs`
+    /// `Handshake`, `Active` or `Stale` has its ingress interface set by
+    /// its producer, the accept at `transport/path.rs` (`set_ingress_iface`)
+    /// or the proof at
+    /// `destination/link_parts/link_sections/handle_proof_packet.rs`
     /// (`get_or_insert`), so a teardown packet with no interface to ride is
     /// a defensive no-op.
     #[deny(clippy::await_holding_invalid_type)]

@@ -148,8 +148,10 @@ impl LinkStatus {
         matches!(self, Self::Active | Self::Stale)
     }
 
+    /// Every status past `Pending` has a session cipher to encrypt the
+    /// LINKCLOSE with, which is Python's rule too (`RNS/Link.py:668`).
     fn can_send_teardown(self) -> bool {
-        matches!(self, Self::Active | Self::Stale)
+        matches!(self, Self::Handshake | Self::Active | Self::Stale)
     }
 }
 

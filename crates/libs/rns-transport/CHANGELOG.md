@@ -55,6 +55,13 @@ Removed) bullet of its own, marked as such.
   interface is known at `:1795-1799`) but a Python client brings up no other
   interface while attached (`RNS/Reticulum.py:745`). Pinned by
   `transport/inbound_processing_tests.rs`.
+- `Link::teardown` sends the LINKCLOSE packet for a link in `Handshake` too,
+  not only `Active` and `Stale` (`destination/link_parts/module_prelude.rs`,
+  `can_send_teardown`), as Python does for every status but `PENDING`
+  (`RNS/Link.py:668`); the shared-instance drop flush inherits it. Pinned by
+  `link_status_predicates_make_lifecycl_sections/teardown_sends_link_close_for_handshake_link_tests.rs`
+  and
+  `link_status_predicates_make_lifecycl_sections/core_tests.rs`.
 - Fork-only `SharedInstanceOptions` builders `with_mtu`, `with_forced_bitrate`
   and `with_interface_mode` (`transport/shared_instance.rs`) reach the
   spawned client and its iface-manager registration, and `with_reconnect_wait`

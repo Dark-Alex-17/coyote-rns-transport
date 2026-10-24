@@ -375,8 +375,8 @@ re-announced as a path response `reconnect_wait` plus 2 s later, if the
 transport is still attached then (`RNS/Transport.py:3705-3709`,
 `RNS/Interfaces/LocalInterface.py:178-181`). A dropped connection, as
 opposed to a detach or a stop, tears down every active and pending link,
-sending a LINKCLOSE packet to the peer of each active link on the interface
-it rides, as Python's `Link.teardown` does for active links
+sending a LINKCLOSE packet to the peer of each link past `Pending` on the
+interface it rides, as Python's `Link.teardown` does for every such link
 (`RNS/Link.py:657-668`), so a peer reached over another interface learns
 the close from the wire, and
 clears the path, announce, link and tunnel tables, the held announces and
@@ -572,10 +572,6 @@ parity ledger; the `docs/status/*` matrices are not updated per fork task.
   (`RNS/Transport.py:1618-1627`) keeps `packet_hashlist` empty of it, since
   `reverse_table` is a separate dict there, and the shared-instance drop
   flush keeps those notes' hashes in the cache too.
-- On the shared-instance drop, and in any `Link::teardown`, a link still in
-  `Handshake` is closed without a LINKCLOSE: `Link::teardown` builds the
-  packet only for `Active` and `Stale`. Python sends one for every status
-  but `PENDING` (`RNS/Link.py:668`).
 - The TCP shared-instance client redials at once after a drop that ended a
   connection of at least `MIN_STABLE_CONNECTION` (2 s), and after the first
   short-lived one; Python's `LocalClientInterface` sleeps `RECONNECT_WAIT`

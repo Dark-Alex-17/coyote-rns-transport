@@ -263,9 +263,9 @@ be built or the peer's requests put the sender in a failed state, and
 `LinkClosed` when the link went away under the transfer. `Rejected(reason)`
 when the peer refused the transfer: a refusal arrives as a receiver cancel
 carrying only the resource hash (`RNS/Resource.py:155-165`), so the sender
-never learns the peer's motive and the reason is always
-`RejectReason::PeerCancelled` in this release; `Oversize { limit }` and
-`Unknown` are reserved and no code path produces them. `Cancelled` after
+never learns the peer's motive and `RejectReason::PeerCancelled` is the only
+variant; the enum is `non_exhaustive`, so a future variant is not a breaking
+change. `Cancelled` after
 `Transport::cancel_resource`. Every terminal path goes through one exit, so
 the outcome and the `ResourceEventKind` published for the hash cannot
 disagree. Dropping the outcome cancels nothing: the transfer runs on and

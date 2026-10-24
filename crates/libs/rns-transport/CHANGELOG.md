@@ -29,6 +29,20 @@ Removed) bullet of its own, marked as such.
   `two_transport_shared_instance_probe13.rs` and
   `two_transport_shared_instance_probe14.rs`.
 
+- `RejectReason::Oversize { limit }` and `RejectReason::Unknown` are removed
+  from `resource/outcome.rs`; both were reserved with zero producers, and
+  `PeerCancelled` is the only variant (the enum stays `non_exhaustive`).
+  Migration: delete match arms naming them; a wildcard arm is already
+  required by `#[non_exhaustive]`. Pinned by
+  `tests/outbound_outcome_api.rs`.
+
+- The storage-feature module `rns_transport::transport::test_bridge`
+  (`InboundTestBridge`, `register`, `reset`, `deliver_outbound`) and its
+  declaration in `transport/mod.rs` are removed; it had no consumer in this
+  workspace. Migration: callers move the thread-local bridge into their own
+  test code; the same shape lives in the `rns-rpc` crate as
+  `rns_rpc::transport::test_bridge`.
+
 ### Changed
 
 - Fork-only `SharedInstanceOptions` builders `with_mtu`, `with_forced_bitrate`

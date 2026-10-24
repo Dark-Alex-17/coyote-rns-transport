@@ -93,9 +93,6 @@ pub use reticulum_path_store::{
     ReticulumPathTableRestoreSkipped,
 };
 
-#[cfg(feature = "storage")]
-pub mod test_bridge;
-
 // Transport-wide packet tracing remains off by default to keep runtime noise low.
 const PACKET_TRACE: bool = false;
 pub const PATHFINDER_M: usize = 128; // Max hops

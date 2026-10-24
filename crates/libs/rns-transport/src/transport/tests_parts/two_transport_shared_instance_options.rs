@@ -1,8 +1,9 @@
 // Pins the fork-only `SharedInstanceOptions` builders beyond `with_reconnect_wait`: each
 // getter reads back what its builder stored, the defaults are the client's own, and the
 // interface mode and the MTU reach the interface the attach registers with the iface
-// manager. The forced bitrate lives inside the spawned client, where the manager cannot
-// read it, so it is pinned at the getter only. Helpers come from the sibling `tests_parts`
+// manager. The forced bitrate is pinned at the getter here and at the wire by
+// `two_transport_shared_instance_probe17.rs`, where the first frame on a fresh stream
+// arrives no sooner than its paced delay. Helpers come from the sibling `tests_parts`
 // files included into this module; nothing answers on port 1 of the loopback address.
 
 use crate::iface::InterfaceMode as OptionsInterfaceMode;

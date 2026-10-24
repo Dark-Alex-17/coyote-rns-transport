@@ -441,3 +441,6 @@ interfaces = [
     assert!(batch.startup_failures.is_empty(), "failures={:?}", batch.startup_failures);
     assert_slot_holds_attached_record(&transport, &records[0]).await;
 }
+
+#[path = "shared_instance_attach_probe_tests.rs"]
+mod probe;

@@ -48,6 +48,24 @@ fn probe_warnings_containing(needle: &str) -> Vec<String> {
         .collect()
 }
 
+/// Whether `localhost` has an IPv6 answer on this host; the tests that steer the dial onto
+/// `[::1]` skip (with a note on stderr) where it has none, as the pick then falls back to
+/// the IPv4 loopback and the oracle has nothing to discriminate.
+async fn localhost_resolves_to_ipv6() -> bool {
+    let mut addrs = match tokio::net::lookup_host("localhost:1").await {
+        Ok(addrs) => addrs,
+        Err(err) => {
+            eprintln!("skipping: localhost does not resolve on this host: {err}");
+            return false;
+        }
+    };
+    if addrs.any(|addr| addr.is_ipv6()) {
+        return true;
+    }
+    eprintln!("skipping: localhost has no IPv6 address on this host");
+    false
+}
+
 /// `prefer_ipv6` is the one knob a shared instance listening on `[::1]` alone needs: with
 /// it set, `host = "localhost"` dials the IPv6 loopback, observed as the accept arriving on
 /// a `[::1]`-only listener. Without it the sibling pin
@@ -56,15 +74,7 @@ fn probe_warnings_containing(needle: &str) -> Vec<String> {
 /// read but not honoured.
 #[tokio::test]
 async fn local_client_prefer_ipv6_dials_the_ipv6_loopback_listener_for_localhost() {
-    let localhost_has_v6 = match tokio::net::lookup_host("localhost:1").await {
-        Ok(addrs) => addrs.filter(SocketAddr::is_ipv6).count() > 0,
-        Err(err) => {
-            eprintln!("skipping: localhost does not resolve on this host: {err}");
-            return;
-        }
-    };
-    if !localhost_has_v6 {
-        eprintln!("skipping: localhost has no IPv6 address on this host");
+    if !localhost_resolves_to_ipv6().await {
         return;
     }
     let shared_listener = match tokio::net::TcpListener::bind("[::1]:0").await {
@@ -262,4 +272,97 @@ interfaces = [
         "with force_shared_instance_bitrate = 400 the first frame arrived {arrival:?} after the \
          accept: the entry's bitrate did not reach the spawned client"
     );
+}
+
+/// Under `--strict-interface-startup` the preflight dials the address the attach will dial,
+/// not the host string: with `prefer_ipv6` the pick is `[::1]`, so a shared instance that
+/// listens on `127.0.0.1` alone is a recorded startup failure naming the picked address. A
+/// preflight on the string would connect to the IPv4 loopback and pass, leaving an attach
+/// that never connects.
+#[tokio::test]
+async fn strict_startup_preflights_the_picked_family_and_rejects_a_listener_on_the_other_one() {
+    if !localhost_resolves_to_ipv6().await {
+        return;
+    }
+    let shared_listener =
+        std::net::TcpListener::bind("127.0.0.1:0").expect("bind shared local instance");
+    let port = shared_listener.local_addr().expect("shared local addr").port();
+    let config = DaemonConfig::from_toml(&format!(
+        r#"
+interfaces = [
+  {{ type = "LocalClientInterface", enabled = true, name = "strict-other-family", shared_instance_type = "tcp", host = "localhost", shared_instance_port = {port}, prefer_ipv6 = true }}
+]
+"#
+    ))
+    .expect("prefer_ipv6 parses on a local_client entry");
+    let mut args = attach_test_args();
+    args.strict_interface_startup = true;
+    let transport = test_transport();
+    let mut records = records_for(&config);
+
+    let batch = run_startup(&args, &config, &transport, &mut records).await;
+
+    assert_eq!(batch.startup_successes, 0, "the IPv4-only listener is not the picked family");
+    assert_eq!(batch.startup_failures.len(), 1, "failures={:?}", batch.startup_failures);
+    let failure = &batch.startup_failures[0];
+    assert_eq!(failure.label, "strict-other-family");
+    assert!(
+        failure.error.contains("preflight connect failed")
+            || failure.error.contains("preflight connect timed out"),
+        "the preflight is what failed: {}",
+        failure.error
+    );
+    assert!(
+        failure.error.contains(&format!("[::1]:{port}")),
+        "the failure names the picked address: {}",
+        failure.error
+    );
+    assert!(transport.shared_instance().is_none(), "nothing was attached");
+    assert_eq!(runtime_field(&records[0], "startup_status"), Some("failed"));
+}
+
+/// The converse: the picked `[::1]` listens, strict startup passes, and the accept arrives
+/// from the IPv6 loopback peer the preflight dialled.
+#[tokio::test]
+async fn strict_startup_passes_when_the_picked_family_listens() {
+    if !localhost_resolves_to_ipv6().await {
+        return;
+    }
+    let shared_listener = match tokio::net::TcpListener::bind("[::1]:0").await {
+        Ok(listener) => listener,
+        Err(err) => {
+            eprintln!("skipping: no IPv6 loopback on this host: {err}");
+            return;
+        }
+    };
+    let port = shared_listener.local_addr().expect("shared local addr").port();
+    let config = DaemonConfig::from_toml(&format!(
+        r#"
+interfaces = [
+  {{ type = "LocalClientInterface", enabled = true, name = "strict-picked-family", shared_instance_type = "tcp", host = "localhost", shared_instance_port = {port}, prefer_ipv6 = true }}
+]
+"#
+    ))
+    .expect("prefer_ipv6 parses on a local_client entry");
+    let mut args = attach_test_args();
+    args.strict_interface_startup = true;
+    let transport = test_transport();
+    let mut records = records_for(&config);
+
+    let batch = run_startup(&args, &config, &transport, &mut records).await;
+    assert_eq!(batch.startup_successes, 1);
+    assert!(batch.startup_failures.is_empty(), "failures={:?}", batch.startup_failures);
+
+    // The preflight's own connection is dropped on return; the attach's is the first that
+    // stays up, and either way every accept here comes from the IPv6 loopback.
+    let (_stream, peer) =
+        tokio::time::timeout(std::time::Duration::from_secs(5), shared_listener.accept())
+            .await
+            .expect("the preflight or the client dials the IPv6 loopback listener within 5 s")
+            .expect("accept a connection");
+    assert!(
+        peer.ip().is_loopback() && peer.is_ipv6(),
+        "the connection comes from the IPv6 loopback, not from {peer}"
+    );
+    assert_slot_holds_attached_record(&transport, &records[0]).await;
 }

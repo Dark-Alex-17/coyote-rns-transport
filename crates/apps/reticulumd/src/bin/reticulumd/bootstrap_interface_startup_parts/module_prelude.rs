@@ -1744,19 +1744,6 @@ async fn startup_local_tcp_attach_endpoint(
     record: &mut InterfaceRecord,
     startup_failures: &mut Vec<InterfaceStartupFailure>,
 ) -> bool {
-    if args.strict_interface_startup {
-        if let Err(err) = strict_tcp_client_preflight(endpoint).await {
-            record_startup_failure(
-                record,
-                startup_failures,
-                label.to_string(),
-                iface.kind.clone(),
-                err,
-            );
-            return false;
-        }
-    }
-
     let prefer_ipv6 = iface.prefer_ipv6.unwrap_or(false);
     let addr = match resolve_shared_instance_tcp_endpoint(endpoint, prefer_ipv6).await {
         Ok(addr) => addr,
@@ -1771,6 +1758,21 @@ async fn startup_local_tcp_attach_endpoint(
             return false;
         }
     };
+    // The preflight dials the picked address, not the host string: `TcpStream::connect(&str)`
+    // would try every resolved family and pass on a loopback the attach never dials.
+    if args.strict_interface_startup {
+        if let Err(err) = strict_tcp_client_preflight(&addr.to_string()).await {
+            record_startup_failure(
+                record,
+                startup_failures,
+                label.to_string(),
+                iface.kind.clone(),
+                err,
+            );
+            return false;
+        }
+    }
+
     attach_shared_instance_client(
         transport,
         SharedInstanceEndpoint::Tcp(addr),

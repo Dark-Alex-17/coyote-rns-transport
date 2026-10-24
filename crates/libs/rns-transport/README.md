@@ -367,7 +367,8 @@ connection on, one that lasted under `MIN_STABLE_CONNECTION` (2 s); a
 connection that outlived the window resets the streak.
 `SharedInstanceOptions` also carries `with_mtu`, `with_forced_bitrate` and
 `with_interface_mode`, applied to the spawned client as the matching
-`TcpClient`/`LocalUnixClient` constructors would, and `LocalUnixClient`
+`TcpClient`/`LocalUnixClient` constructors would, with the `mtu` and
+`forced_bitrate_bps` getters reading the first two back; `LocalUnixClient`
 exposes `addr`, `mtu_value`, `forced_bitrate_bps`, `reconnect_wait`,
 `reconnect_events_enabled` and `disconnect_events_enabled` for inspection.
 While

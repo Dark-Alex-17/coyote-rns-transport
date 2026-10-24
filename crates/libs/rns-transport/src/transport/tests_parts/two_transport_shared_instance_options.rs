@@ -1,8 +1,9 @@
 // Pins the fork-only `SharedInstanceOptions` builders beyond `with_reconnect_wait`: each
 // getter reads back what its builder stored, the defaults are the client's own, and the
 // interface mode and the MTU reach the interface the attach registers with the iface
-// manager. The forced bitrate is pinned at the getter here and at the wire by
-// `two_transport_shared_instance_probe17.rs`, where the first frame on a fresh stream
+// manager. The forced bitrate is pinned at the getter here and at the wire on both arms,
+// TCP by `two_transport_shared_instance_probe17.rs` and unix by
+// `two_transport_shared_instance_probe17_unix.rs`, where the first frame on a fresh stream
 // arrives no sooner than its paced delay. Helpers come from the sibling `tests_parts`
 // files included into this module; nothing answers on port 1 of the loopback address.
 

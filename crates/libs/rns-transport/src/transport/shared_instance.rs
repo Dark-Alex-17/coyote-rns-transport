@@ -127,11 +127,13 @@ impl SharedInstanceOptions {
     }
 
     /// Fork-only: the MTU set with [`Self::with_mtu`], if any.
+    #[must_use]
     pub fn mtu(&self) -> Option<usize> {
         self.mtu
     }
 
     /// Fork-only: the forced bitrate set with [`Self::with_forced_bitrate`], if any.
+    #[must_use]
     pub fn forced_bitrate_bps(&self) -> Option<u64> {
         self.forced_bitrate_bps
     }

@@ -63,7 +63,8 @@ Removed) bullet of its own, marked as such.
   `two_transport_shared_instance_endpoint_warn.rs` (the opt-in).
 - Public getters `SharedInstanceOptions::mtu` and
   `SharedInstanceOptions::forced_bitrate_bps` (`transport/shared_instance.rs`),
-  reading back what `with_mtu` and `with_forced_bitrate` stored. Pinned by
+  reading back what `with_mtu` and `with_forced_bitrate` stored, both
+  `#[must_use]` as the builders are. Pinned by
   `two_transport_shared_instance_options.rs` and the daemon's
   `bootstrap_interface_startup_parts::shared_instance_attach_options_tests`.
 - `LocalUnixClient` inspection getters `addr`, `mtu_value`,
@@ -116,12 +117,13 @@ Removed) bullet of its own, marked as such.
   at least 1 ms at origin as the clients already did. Pinned by
   `two_transport_shared_instance_options.rs`,
   `two_transport_shared_instance_probe10.rs` and
-  `two_transport_shared_instance_probe17.rs` (the forced bitrate paces the
-  first frame on a fresh stream).
+  `two_transport_shared_instance_probe17.rs` with its unix twin
+  `two_transport_shared_instance_probe17_unix.rs` (the forced bitrate paces
+  the first frame on a fresh stream over the TCP and the unix arm).
 - The shared-instance re-announce select
   (`links_parts/transport_sections/shared_instance_reconnect.rs`) is
   `biased` towards cancel, as the registration announce already was, so a
-  stop that lands with the delay is served first. Pinned by the six-restart
+  stop that lands with the delay is served first. Exercised by the six-restart
   storm in `two_transport_shared_instance_storm.rs`, whose client stop lands
   inside the last re-announce delay and completes inside the stop timeout.
 - Test-only: the lib test logger in
@@ -192,6 +194,15 @@ Removed) bullet of its own, marked as such.
   `printf | grep -q` pipe before; the README-row pin in
   `fork_publish_contract_parts/lint_discipline_probe10.rs` names the
   shared-instance hardening patch too.
+- Release tooling, no library behaviour change:
+  `semver-major-findings-check.sh` runs `cargo semver-checks` under its own
+  `<CARGO_TARGET_DIR or target>/semver-findings-check` target dir. Both
+  placeholder builds wrote their rustdoc JSON to the workspace `target/doc`
+  the rustdoc gate also uses, where a fresh `cargo doc` let one side parse
+  the other side's JSON and report a false "no semver update required";
+  the runbook's patch form then passed on a changed API. Pinned by
+  `fork_publish_contract_parts/release_tooling_probe6.rs` with a recording
+  `cargo` stub, with and without an operator-set `CARGO_TARGET_DIR`.
 - Ledger contracts, test-only: every patch-header hash in
   `docs/fork/PATCHSET.md` must be named by its section's legend, the
   all-legend-hash and header-to-legend checks run over `## Unreleased` and
@@ -382,16 +393,15 @@ Removed) bullet of its own, marked as such.
   one shared instance per process, as Python holds one
   `LocalClientInterface` (`RNS/Reticulum.py:422-441`), so a second
   client-posture entry is a recorded startup failure naming the one already
-  attached; a configured non-loopback shared-instance host is refused by
-  the daemon's own config (`host must be loopback for local`,
+  attached (`iface=<hash>`); a configured non-loopback shared-instance host
+  is refused by the daemon's own config (`host must be loopback for local`,
   `config_parts::interfaceconfig_sections::enabled`) before any attach, so
-  the library's refusal is defence in depth behind it
-  (the daemon does not set `allow_remote_endpoint`); the
-  per-interface `fixed_mtu`, `force_shared_instance_bitrate` and mode reach
-  the client through the `SharedInstanceOptions` builders, assembled by
-  `shared_instance_options_for` in
-  `bootstrap_interface_startup_parts::shared_instance_attach`; `prefer_ipv6` is
-  honoured by the daemon's address pick
+  the library's refusal is defence in depth behind it (the daemon does not
+  set `allow_remote_endpoint`); the per-interface `fixed_mtu`,
+  `force_shared_instance_bitrate` and mode reach the client through the
+  `SharedInstanceOptions` builders, assembled by `shared_instance_options_for`
+  in `bootstrap_interface_startup_parts::shared_instance_attach`;
+  `prefer_ipv6` is honoured by the daemon's address pick
   (`bootstrap_interface_startup_parts::shared_instance_attach`: IPv6
   loopback first, then any IPv6, then the IPv4 order; the default is IPv4
   loopback first, as Python's `LocalClientInterface` connects to
@@ -433,6 +443,12 @@ Removed) bullet of its own, marked as such.
   listener; one warning per ignored key; the forced bitrate paces the first
   frame on the new stream; strict startup passes iff the picked family
   listens),
+  `bootstrap_interface_startup_parts::shared_instance_attach_probe2_tests`
+  (the default pick rejects an IPv6-only listener for `localhost`; an
+  IP-literal host passes strict startup and attaches; the lenient path never
+  preflights; the `[::1]` pick fed straight into the attach is dialled,
+  without a resolver, so the pin cannot skip where `localhost` has no AAAA
+  record),
   `bootstrap_interface_startup_parts::shared_instance_attach_options_tests`
   (the options an entry asks for; the single-family pick arms) and
   `crates/apps/reticulumd/tests/config_parts/shared_instance_client_knobs.rs`

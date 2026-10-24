@@ -250,6 +250,7 @@ impl TransportHandler {
     #[cfg(test)]
     pub(super) async fn filter_duplicate_packets(&self, packet: &Packet) -> bool {
         let in_link = self.in_links.get(&packet.destination).cloned();
+        // No arriving interface here, so the posture alone decides the skip.
         super::inbound_processing::filter_duplicate_packet(
             self.packet_cache.clone(),
             in_link,

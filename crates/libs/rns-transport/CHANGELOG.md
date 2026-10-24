@@ -45,6 +45,16 @@ Removed) bullet of its own, marked as such.
 
 ### Changed
 
+- While attached to a shared instance, the duplicate filter
+  (`transport/inbound_processing.rs`) is skipped only for packets arriving
+  on the interface flagged as the shared instance, or on every interface
+  when none is flagged, instead of on every interface unconditionally;
+  `InterfaceManager::has_shared_instance_interface`
+  (`iface_parts/interfacemanager_management.rs`) is the new query. Python
+  skips the filter process-wide (`RNS/Transport.py:1618-1627`, before the
+  interface is known at `:1795-1799`) but a Python client brings up no other
+  interface while attached (`RNS/Reticulum.py:745`). Pinned by
+  `transport/inbound_processing_tests.rs`.
 - Fork-only `SharedInstanceOptions` builders `with_mtu`, `with_forced_bitrate`
   and `with_interface_mode` (`transport/shared_instance.rs`) reach the
   spawned client and its iface-manager registration, and `with_reconnect_wait`

@@ -185,6 +185,46 @@ async fn shared_instance_client_accepts_the_same_packet_twice() {
     }
 }
 
+/// Python skips the filter process-wide while attached, but a Python client
+/// has no other interface up; a transport that does keeps filtering them.
+#[tokio::test]
+#[deny(clippy::await_holding_invalid_type)]
+async fn shared_instance_client_still_filters_duplicates_on_its_other_interfaces() {
+    let mut config = TransportConfig::default();
+    config.set_connected_to_shared_instance(true);
+    let transport = Transport::new(config);
+    let handler = transport.get_handler();
+    let (shared_iface, ordinary_iface) = {
+        let manager = transport.iface_manager();
+        let mut manager = manager.lock().await;
+        let shared_iface = *manager.new_channel(8).address();
+        let ordinary_iface = *manager.new_channel(8).address();
+        assert!(manager.set_shared_instance(shared_iface, true));
+        (shared_iface, ordinary_iface)
+    };
+
+    let mut via_shared = message(PacketType::Data, AddressHash::new_from_rand(OsRng));
+    via_shared.address = shared_iface;
+    for attempt in 1..=2 {
+        let (_, queued) =
+            preprocess_inbound_message(&handler, &transport.iface_messages_tx, via_shared.clone())
+                .await
+                .unwrap_or_else(|| panic!("shared iface attempt {attempt} must be accepted"));
+        assert!(!queued.packet_cache_inserted, "attempt {attempt} must not insert into the cache");
+    }
+
+    let mut via_ordinary = message(PacketType::Data, AddressHash::new_from_rand(OsRng));
+    via_ordinary.address = ordinary_iface;
+    let (_, queued) =
+        preprocess_inbound_message(&handler, &transport.iface_messages_tx, via_ordinary.clone())
+            .await
+            .expect("first packet on the ordinary iface must be accepted");
+    assert!(queued.packet_cache_inserted, "ordinary iface must insert into the cache");
+    let repeat =
+        preprocess_inbound_message(&handler, &transport.iface_messages_tx, via_ordinary).await;
+    assert!(repeat.is_none(), "repeat on the ordinary iface must be dropped as a duplicate");
+}
+
 /// README `## Attaching to a shared instance` and its "Known divergences" entry: the
 /// reverse-routing source note `handle_data` leaves for a Data packet received while
 /// attached shares the cache with the duplicate filter, so the same packet is treated as

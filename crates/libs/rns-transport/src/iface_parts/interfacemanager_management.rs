@@ -133,6 +133,10 @@ impl InterfaceManager {
             .is_some_and(|iface| iface.is_shared_instance)
     }
 
+    pub fn has_shared_instance_interface(&self) -> bool {
+        self.ifaces.iter().any(|iface| iface.is_shared_instance)
+    }
+
     /// Returns whether `address` is a client interface spawned by a local
     /// shared-instance parent.
     ///

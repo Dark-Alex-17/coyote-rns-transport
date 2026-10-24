@@ -387,7 +387,11 @@ index, which have no Python twin;
 a queued disconnect is served before the reconnect behind it, so the flush
 never lands after that cycle's tunnel. While attached, the duplicate filter
 inserts nothing and consults nothing (`RNS/Transport.py:1618-1627`): the
-owner deduplicates. The packet cache's other halves are still written: the
+owner deduplicates. The filter is skipped for packets arriving on the
+shared-instance interface, or everywhere when no interface is flagged, since
+a Python client brings up no other interface while attached
+(`RNS/Reticulum.py:745`) and this transport keeps its own interfaces
+filtering. The packet cache's other halves are still written: the
 source notes `handle_data` records for received Data packets share the cache
 and are seen as duplicates once the transport detaches, and the hash of each
 packet sent is the receipt guard. A transport whose connected posture is set

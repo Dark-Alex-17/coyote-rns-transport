@@ -33,8 +33,7 @@ fn shared_instance_probe16_handshake_responder() -> Link {
 /// plain data packet built from `Handshake` still raises it (the session key exists, so the
 /// packet builds), the LINKCLOSE of the same link's teardown does not.
 #[test]
-fn shared_instance_probe16_handshake_teardown_builds_its_close_without_the_closed_link_warning(
-) {
+fn shared_instance_probe16_handshake_teardown_builds_its_close_without_the_closed_link_warning() {
     install_test_logger();
     let mut inbound = shared_instance_probe16_handshake_responder();
 

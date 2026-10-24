@@ -26,11 +26,7 @@ fn shared_instance_attach_line_tokens(
     let tokens: Vec<String> = fields.split(' ').map(str::to_owned).collect();
     assert!(tokens.len() >= 3, "iface, kind and reconnect_wait tokens: {line}");
     assert_eq!(tokens[0], format!("iface={iface}"), "first token names the interface: {line}");
-    assert_eq!(
-        tokens[1],
-        format!("kind={kind}"),
-        "second token names the endpoint kind: {line}"
-    );
+    assert_eq!(tokens[1], format!("kind={kind}"), "second token names the endpoint kind: {line}");
     let wait = tokens[2]
         .strip_prefix("reconnect_wait=")
         .unwrap_or_else(|| panic!("third token is the reconnect wait as key=value: {line}"));

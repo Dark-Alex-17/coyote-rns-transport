@@ -11,27 +11,16 @@
             assert!(!status.can_exchange_data());
             assert!(!status.can_retry_channel_messages());
             assert_eq!(status.can_send_teardown(), status == LinkStatus::Handshake);
-            assert_eq!(
-                status.can_build_packet(PacketContext::LinkClose),
-                status == LinkStatus::Handshake
-            );
-            assert!(!status.can_build_packet(PacketContext::None));
         }
         assert!(LinkStatus::Active.can_exchange_data());
         assert!(LinkStatus::Active.can_retry_channel_messages());
         assert!(LinkStatus::Active.can_send_teardown());
-        assert!(LinkStatus::Active.can_build_packet(PacketContext::LinkClose));
-        assert!(LinkStatus::Active.can_build_packet(PacketContext::None));
         assert!(!LinkStatus::Stale.can_exchange_data());
         assert!(LinkStatus::Stale.can_retry_channel_messages());
         assert!(LinkStatus::Stale.can_send_teardown());
-        assert!(LinkStatus::Stale.can_build_packet(PacketContext::LinkClose));
-        assert!(!LinkStatus::Stale.can_build_packet(PacketContext::None));
         assert!(!LinkStatus::Closed.can_exchange_data());
         assert!(!LinkStatus::Closed.can_retry_channel_messages());
         assert!(!LinkStatus::Closed.can_send_teardown());
-        assert!(!LinkStatus::Closed.can_build_packet(PacketContext::LinkClose));
-        assert!(!LinkStatus::Closed.can_build_packet(PacketContext::None));
     }
 
     #[test]

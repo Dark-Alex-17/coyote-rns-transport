@@ -42,3 +42,23 @@ fn teardown_of_a_pending_initiator_sends_nothing() {
     assert!(pending.teardown().is_none());
     assert_eq!(pending.status(), LinkStatus::Closed);
 }
+
+/// The guard behind `packet_with_context`: a LINKCLOSE may be built from
+/// any status past `Pending` (`RNS/Link.py:668`), anything else only while
+/// `Active`, so a `Handshake` or `Stale` teardown builds its close without
+/// the closed-link warning.
+#[test]
+fn link_status_builds_a_link_close_from_any_status_past_pending() {
+    for status in [LinkStatus::Handshake, LinkStatus::Active, LinkStatus::Stale] {
+        assert!(status.can_build_packet(PacketContext::LinkClose), "{status:?}");
+    }
+    for status in [LinkStatus::Pending, LinkStatus::Closed] {
+        assert!(!status.can_build_packet(PacketContext::LinkClose), "{status:?}");
+    }
+    assert!(LinkStatus::Active.can_build_packet(PacketContext::None));
+    for status in
+        [LinkStatus::Pending, LinkStatus::Handshake, LinkStatus::Stale, LinkStatus::Closed]
+    {
+        assert!(!status.can_build_packet(PacketContext::None), "{status:?}");
+    }
+}

@@ -364,7 +364,13 @@ every redial, a dropped stream's first included, as Python's reconnect loop
 does (`RNS/Interfaces/LocalInterface.py:159-160`); the TCP client redials
 at once after a drop and sleeps it from the second consecutive short-lived
 connection on, one that lasted under `MIN_STABLE_CONNECTION` (2 s); a
-connection that outlived the window resets the streak. While
+connection that outlived the window resets the streak.
+`SharedInstanceOptions` also carries `with_mtu`, `with_forced_bitrate` and
+`with_interface_mode`, applied to the spawned client as the matching
+`TcpClient`/`LocalUnixClient` constructors would, and `LocalUnixClient`
+exposes `addr`, `mtu_value`, `forced_bitrate_bps`, `reconnect_wait`,
+`reconnect_events_enabled` and `disconnect_events_enabled` for inspection.
+While
 attached, a `SINGLE` destination is announced as a path
 response 0.25 s after `register_destination` (`RNS/Transport.py:2911-2916`,
 the context of `RNS/Destination.py:308-315`), and
@@ -389,8 +395,10 @@ index, which have no Python twin; the entries of packets this node sent,
 the receipt guard that is Python's `receipts` list (`RNS/Transport.py:174`),
 stay;
 a queued disconnect is served before the reconnect behind it, so the flush
-never lands after that cycle's tunnel, and a reconnect whose disconnect
-event was lost on a full channel runs the flush first.
+never lands after that cycle's tunnel, and since the client emits each
+cycle's disconnect before its reconnect into two equal-depth queues, a
+disconnect can never be lost while its reconnect lands (the realistic storm
+loss is a reconnect, healed by the next one that lands).
 While attached, the duplicate filter
 inserts nothing and consults nothing (`RNS/Transport.py:1618-1627`): the
 owner deduplicates. The filter is skipped for packets arriving on the
@@ -573,6 +581,11 @@ parity ledger; the `docs/status/*` matrices are not updated per fork task.
   `SharedInstanceOptions::allow_remote_endpoint(true)`, a fork extension:
   Python's `LocalClientInterface` connects to `127.0.0.1` only and has no
   remote option at all (`RNS/Interfaces/LocalInterface.py:109`).
+- While attached, the duplicate filter is skipped only for packets arriving
+  on the shared-instance interface (or everywhere when no interface is
+  flagged); the transport's other interfaces keep filtering, where a Python
+  client brings up no other interface at all (`RNS/Reticulum.py:745`), so
+  Python filters nothing in that mode (`RNS/Transport.py:1618-1627`).
 - The reverse-routing source notes live in the same cache as the duplicate
   filter, so a Data packet received while attached to a shared instance is
   treated as seen after a detach. Python's `add_packet_hash` guard

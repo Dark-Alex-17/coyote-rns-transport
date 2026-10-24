@@ -241,3 +241,5 @@ include!("tests_parts/two_transport_shared_instance_probe14.rs");
 include!("tests_parts/two_transport_shared_instance_storm.rs");
 
 include!("tests_parts/two_transport_shared_instance_options.rs");
+
+include!("tests_parts/two_transport_shared_instance_probe15.rs");

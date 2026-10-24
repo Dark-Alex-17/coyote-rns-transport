@@ -153,6 +153,16 @@ impl LinkStatus {
     fn can_send_teardown(self) -> bool {
         matches!(self, Self::Handshake | Self::Active | Self::Stale)
     }
+
+    /// The statuses that may build a packet of `context`: a LINKCLOSE from
+    /// any status past `Pending` (`RNS/Link.py:668`), anything else only
+    /// while `Active`.
+    fn can_build_packet(self, context: PacketContext) -> bool {
+        match context {
+            PacketContext::LinkClose => self.can_send_teardown(),
+            _ => self.can_exchange_data(),
+        }
+    }
 }
 
 pub type LinkId = AddressHash;

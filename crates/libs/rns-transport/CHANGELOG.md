@@ -26,8 +26,11 @@ Removed) bullet of its own, marked as such.
   (`links_parts/transport_sections/shared_instance.rs`). Pinned by
   `two_transport_shared_instance_endpoint_warn.rs`,
   `two_transport_shared_instance_probe12.rs`,
-  `two_transport_shared_instance_probe13.rs` and
-  `two_transport_shared_instance_probe14.rs`.
+  `two_transport_shared_instance_probe13.rs`,
+  `two_transport_shared_instance_probe14.rs` and
+  `two_transport_shared_instance_probe15.rs` (the refusal wins over a held
+  slot and over a stopped transport, and the error's `Display` names the
+  rule).
 
 - `RejectReason::Oversize { limit }` and `RejectReason::Unknown` are removed
   from `resource/outcome.rs`; both were reserved with zero producers, and
@@ -40,7 +43,8 @@ Removed) bullet of its own, marked as such.
   (`InboundTestBridge`, `register`, `reset`, `deliver_outbound`) and its
   declaration in `transport/mod.rs` are removed; it had no consumer in this
   workspace. Migration: callers move the thread-local bridge into their own
-  test code; the same shape lives in the `rns-rpc` crate as
+  test code; a thread-local bridge of similar purpose, closure-based and
+  without the `InboundTestBridge` trait, lives in the `rns-rpc` crate as
   `rns_rpc::transport::test_bridge`.
 
 ### Changed
@@ -54,11 +58,19 @@ Removed) bullet of its own, marked as such.
   skips the filter process-wide (`RNS/Transport.py:1618-1627`, before the
   interface is known at `:1795-1799`) but a Python client brings up no other
   interface while attached (`RNS/Reticulum.py:745`). Pinned by
-  `transport/inbound_processing_tests.rs`.
+  `transport/inbound_processing_tests.rs` (the shared-instance interface
+  accepts a repeat and inserts nothing, the other interfaces still filter,
+  and the shared-instance interface does not consult a cache entry an
+  ordinary interface inserted).
 - `Link::teardown` sends the LINKCLOSE packet for a link in `Handshake` too,
   not only `Active` and `Stale` (`destination/link_parts/module_prelude.rs`,
   `can_send_teardown`), as Python does for every status but `PENDING`
-  (`RNS/Link.py:668`); the shared-instance drop flush inherits it. Pinned by
+  (`RNS/Link.py:668`); the shared-instance drop flush inherits it. Building
+  that LINKCLOSE (`link_sections/remove_channel_handler.rs`,
+  `packet_with_context`) no longer warns `can't create data packet for
+  closed link` for a `Handshake` or `Stale` link: the guard is the new
+  `can_build_packet`, which admits a LINKCLOSE from any status past
+  `Pending` and anything else only while `Active`. Pinned by
   `link_status_predicates_make_lifecycl_sections/teardown_sends_link_close_for_handshake_link_tests.rs`
   and
   `link_status_predicates_make_lifecycl_sections/core_tests.rs`.
@@ -321,8 +333,11 @@ Removed) bullet of its own, marked as such.
   one shared instance per process, as Python holds one
   `LocalClientInterface` (`RNS/Reticulum.py:422-440`), so a second
   client-posture entry is a recorded startup failure naming the one already
-  attached; a configured non-loopback shared-instance host is refused like
-  any caller's (the daemon does not set `allow_remote_endpoint`); the
+  attached; a configured non-loopback shared-instance host is refused by
+  the daemon's own config (`host must be loopback for local`,
+  `config_parts::interfaceconfig_sections::enabled`) before any attach, so
+  the library's refusal is defence in depth behind it
+  (the daemon does not set `allow_remote_endpoint`); the
   per-interface `fixed_mtu`, `force_shared_instance_bitrate` and mode reach
   the client through the `SharedInstanceOptions` builders, while the TCP
   client's `connect_timeout`, `max_reconnect_tries` and `prefer_ipv6` no
@@ -332,7 +347,27 @@ Removed) bullet of its own, marked as such.
   `bootstrap_interface_startup_parts::shared_instance_attach_tests` (the
   attached record's interface fills the transport's slot and sets the
   connected posture for the TCP, `LocalClientInterface` TCP and unix arms;
-  two client entries leave one attached record and one failure).
+  two client entries leave one attached record and one failure; a
+  client-posture entry naming a remote host is refused by the config before
+  any attach, and `::1` attaches without the opt-in; `localhost` resolves to
+  the IPv4 loopback address when the name resolves to both families
+  (`local_client_localhost_host_resolves_to_the_ipv4_loopback_address`)).
+- No library behaviour change: the shared-instance reconnect consumer
+  (`links_parts/transport_sections/shared_instance_reconnect.rs`) stays the
+  plain biased loop and its rustdoc now carries the proof that a disconnect
+  event can never be lost while its reconnect lands (two `mpsc::channel(8)`
+  queues, disconnect emitted before reconnect each cycle, every queued
+  disconnect served before any reconnect, so the reconnect queue fills
+  first); the realistic storm loss is a reconnect, healed by the next
+  reconnect that lands; a per-cycle sequence number is deferred because it
+  would change the `Sender<AddressHash>` payload. Pinned by the six-restart
+  storm in `two_transport_shared_instance_storm.rs`.
+- No library change: `tests/breaking_changes_compile_fail.rs` gains
+  `unreleased_breaking_migrations_compile_and_the_shapes_they_replace_do_not`,
+  which compiles the migrated consumer the `## Unreleased` `### Breaking`
+  bullets describe and checks that the removed `RejectReason` variants, the
+  `transport::test_bridge` import and an `RnsError` match without a wildcard
+  fail with the promised diagnostics.
 
 ### Removed
 
@@ -390,14 +425,6 @@ Removed) bullet of its own, marked as such.
   in `iface/auto_parts/default_multicast_discovery_address_sections/core_tests.rs`;
   the loopback fixtures in `iface/auto_runtime_parts/tests_sections/core_tests.rs`
   re-draw a discovery port of 65535.
-- The shared-instance reconnect consumer
-  (`links_parts/transport_sections/shared_instance_reconnect.rs`) runs the
-  drop flush before the tunnel re-synthesis when a reconnect event arrives
-  without the disconnect event of its cycle, the one skew the client
-  worker's `try_send` can produce when the disconnect channel is full;
-  before, the tables learned over the dropped connection survived such a
-  reconnect. The lost event is recorded at debug. Pinned by
-  `two_transport_shared_instance_storm.rs`.
 - The shared-instance drop flush
   (`links_parts/transport_sections/shared_instance_reconnect.rs`) sends no
   LINKCLOSE for a link that rode the dropped interface itself: Python's

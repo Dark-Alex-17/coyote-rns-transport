@@ -252,7 +252,7 @@ impl Link {
     }
 
     fn packet_with_context(&self, data: &[u8], context: PacketContext) -> Result<Packet, RnsError> {
-        if !self.status.can_exchange_data() {
+        if !self.status.can_build_packet(context) {
             log::warn!("can't create data packet for closed link");
         }
 

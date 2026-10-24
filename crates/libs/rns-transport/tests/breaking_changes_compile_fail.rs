@@ -107,6 +107,75 @@ const REJECTED: &[(&str, &str, &str)] = &[
     ),
 ];
 
+/// The migrated shapes the `## Unreleased` `### Breaking` bullets tell a consumer to write:
+/// a `RejectReason` match with the wildcard arm `#[non_exhaustive]` already demands, an
+/// `RnsError` match that names the new `SharedInstanceEndpointNotLoopback` variant, the
+/// `allow_remote_endpoint(true)` opt-in on `SharedInstanceOptions`, and
+/// `RequestError::Oversize`, the different type the removal bullet says stays.
+const UNRELEASED_MIGRATED_CONSUMER: &str = r#"
+use rns_transport::destination::request::RequestError;
+use rns_transport::error::RnsError;
+use rns_transport::resource::RejectReason;
+use rns_transport::transport::SharedInstanceOptions;
+
+pub fn reject_name(reason: &RejectReason) -> &'static str {
+    match reason {
+        RejectReason::PeerCancelled => "peer_cancelled",
+        _ => "unknown",
+    }
+}
+
+pub fn not_loopback(error: &RnsError) -> bool {
+    match error {
+        RnsError::SharedInstanceEndpointNotLoopback => true,
+        _ => false,
+    }
+}
+
+pub fn remote_options() -> SharedInstanceOptions {
+    SharedInstanceOptions::default().allow_remote_endpoint(true)
+}
+
+pub fn request_oversize(error: &RequestError) -> bool {
+    matches!(error, RequestError::Oversize)
+}
+"#;
+
+/// Each shape the `## Unreleased` `### Breaking` bullets say no longer compiles, with the
+/// diagnostic fragment a consumer sees.
+const UNRELEASED_REJECTED: &[(&str, &str, &str)] = &[
+    (
+        "reject_reason_oversize_pattern",
+        "use rns_transport::resource::RejectReason;\n\
+         pub fn limit(reason: &RejectReason) -> Option<usize> {\n\
+             match reason { RejectReason::Oversize { limit } => Some(*limit), _ => None }\n\
+         }\n",
+        "no variant named `Oversize`",
+    ),
+    (
+        "reject_reason_unknown_pattern",
+        "use rns_transport::resource::RejectReason;\n\
+         pub fn unknown(reason: &RejectReason) -> bool {\n\
+             matches!(reason, RejectReason::Unknown)\n\
+         }\n",
+        "no variant, associated function, or constant named `Unknown`",
+    ),
+    (
+        "transport_test_bridge_import",
+        "use rns_transport::transport::test_bridge::InboundTestBridge;\n\
+         pub fn bridge() -> Option<Box<dyn InboundTestBridge>> { None }\n",
+        "unresolved import `rns_transport::transport::test_bridge`",
+    ),
+    (
+        "rns_error_match_without_wildcard",
+        "use rns_transport::error::RnsError;\n\
+         pub fn name(error: &RnsError) -> &'static str {\n\
+             match error { RnsError::SharedInstanceEndpointNotLoopback => \"not_loopback\" }\n\
+         }\n",
+        "non-exhaustive patterns",
+    ),
+];
+
 /// Scratch directory removed when the test ends, panic included.
 struct Scratch(PathBuf);
 
@@ -207,6 +276,40 @@ fn changelog_breaking_migrations_compile_and_the_shapes_they_replace_do_not() {
     let (deps, rlib) = working_rlib(&scratch.0);
     let mut unexpected = Vec::new();
     for (name, source, promised) in REJECTED {
+        let output = rustc(&scratch.0, &deps, &rlib, name, source);
+        let stderr = String::from_utf8_lossy(&output.stderr);
+        if output.status.success() {
+            unexpected.push(format!("{name}: compiled, but the CHANGELOG says it no longer does"));
+        } else if !stderr.contains(promised) {
+            unexpected.push(format!(
+                "{name}: failed, but not with the promised diagnostic {promised:?}:\n{stderr}"
+            ));
+        }
+    }
+    assert!(unexpected.is_empty(), "{}", unexpected.join("\n\n"));
+}
+
+/// The `## Unreleased` `### Breaking` bullets: the migrated consumer compiles, the removed
+/// `RejectReason` variants and the `transport::test_bridge` module no longer resolve, and
+/// the enum that gained `SharedInstanceEndpointNotLoopback` still demands a wildcard arm.
+#[test]
+fn unreleased_breaking_migrations_compile_and_the_shapes_they_replace_do_not() {
+    let scratch = Scratch::new();
+    let (deps, rlib) = working_rlib(&scratch.0);
+    let migrated = rustc(
+        &scratch.0,
+        &deps,
+        &rlib,
+        "unreleased_migrated_consumer",
+        UNRELEASED_MIGRATED_CONSUMER,
+    );
+    assert!(
+        migrated.status.success(),
+        "the migrated consumer from the Unreleased bullets should compile:\n{}",
+        String::from_utf8_lossy(&migrated.stderr)
+    );
+    let mut unexpected = Vec::new();
+    for (name, source, promised) in UNRELEASED_REJECTED {
         let output = rustc(&scratch.0, &deps, &rlib, name, source);
         let stderr = String::from_utf8_lossy(&output.stderr);
         if output.status.success() {

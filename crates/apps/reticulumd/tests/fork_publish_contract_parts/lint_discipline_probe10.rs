@@ -86,9 +86,9 @@ fn patchset_header_confines_the_joined_form_to_the_commits_it_lived_in() {
     }
 }
 
-/// The README row is attributed to both patches that touched it.
+/// The README row is attributed to every patch that touched it.
 #[test]
-fn patchset_readme_row_is_attributed_to_release_tooling_and_guard_discipline() {
+fn patchset_readme_row_is_attributed_to_every_patch_that_touched_it() {
     let ledger = read_repo_file("docs/fork/PATCHSET.md");
     let section = ledger_section(&ledger, "Unreleased").expect("an Unreleased ledger section");
     let readme = section
@@ -100,7 +100,7 @@ fn patchset_readme_row_is_attributed_to_release_tooling_and_guard_discipline() {
             (file == "crates/libs/rns-transport/README.md").then(|| cells.next().unwrap_or_default())
         })
         .expect("the README has a row");
-    assert_eq!(readme, "release tooling, guard discipline");
+    assert_eq!(readme, "release tooling, guard discipline, shared-instance hardening");
 }
 
 /// Latin abbreviations are prose, dotted paths and calls are identifiers,

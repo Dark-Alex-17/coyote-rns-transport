@@ -76,8 +76,9 @@
     /// datagram was processed within two seconds and every loop then shut
     /// down (a wedged loop never observes the shutdown signal); otherwise the
     /// `Err` records which of those failed and whether either mutex was still
-    /// held at that point. The per-socket depth stays far below the kernel's
-    /// default receive buffer so a stall is never a loopback drop.
+    /// held at that point. The per-socket depth (at most 160 datagrams, about
+    /// 120 KiB by kernel accounting) stays below the Linux default receive
+    /// buffer of 208 KiB, so a stall is a wedge rather than a loopback drop.
     async fn drain_burst(round: usize) -> Result<(), String> {
         const SOCKETS: usize = 8;
         const BACKLOG_PER_SOCKET: usize = 64;

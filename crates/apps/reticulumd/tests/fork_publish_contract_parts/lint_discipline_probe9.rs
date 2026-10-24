@@ -85,7 +85,8 @@ fn peer_data_progress_pin_keeps_the_shape_that_can_see_a_deadlock() {
 /// One burst on an idle machine hits the cross-thread window only sometimes;
 /// the twin makes the deadlock frequent with many independent rounds, several
 /// loops on several workers, CPU pressure and a bounded wait, and every one
-/// of those knobs is kept here.
+/// of those knobs is kept here. The per-socket depth is capped too: a stall
+/// must mean a wedge, never a datagram the kernel dropped on loopback.
 #[test]
 fn strong_progress_twin_keeps_the_shape_that_makes_the_deadlock_frequent() {
     let text = read_repo_file(PEER_DATA_PROGRESS_TWIN);
@@ -103,6 +104,15 @@ fn strong_progress_twin_keeps_the_shape_that_makes_the_deadlock_frequent() {
     assert!(rounds >= 10, "the rounds are the independent trials, got {rounds}");
     let sockets = number_after(&text, "const SOCKETS: usize =").expect("SOCKETS is a const");
     assert!(sockets >= 2, "a deadlock needs at least two receive loops, got {sockets}");
+    let backlog = number_after(&text, "const BACKLOG_PER_SOCKET: usize =")
+        .expect("BACKLOG_PER_SOCKET is a const");
+    let live =
+        number_after(&text, "const LIVE_PER_SOCKET: usize =").expect("LIVE_PER_SOCKET is a const");
+    assert!(
+        backlog + live <= 160,
+        "the per-socket depth stays below the Linux default receive buffer so a stall is never \
+         a loopback drop (found {backlog} + {live})"
+    );
     for needle in ["CpuPressure::start()", "spawn_peer_data_receive_loops(", "Duration::from_secs(2)"] {
         assert!(text.contains(needle), "the twin keeps {needle:?}");
     }

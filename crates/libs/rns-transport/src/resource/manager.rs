@@ -127,6 +127,7 @@ impl ResourceManager {
         // Enforce the inbound limits before any receiver state is created
         // (issue #514) — see advertisement_limits.rs.
         if advertisement_exceeds_inbound_limits(&advertisement, link.id()) {
+            self.record_rejected_advertisement(&advertisement, link.id());
             return;
         }
         if advertisement.total_segments > 1 {

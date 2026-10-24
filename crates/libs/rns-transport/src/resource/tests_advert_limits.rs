@@ -47,6 +47,27 @@ fn resource_manager_keeps_serving_the_link_after_dropping_an_oversized_advertise
     assert!(!responses.is_empty(), "follow-up advertisement requests parts");
 }
 
+/// Every over-cap advertisement a link sends is counted against that link,
+/// so the warn cadence can be derived from the count rather than logged on
+/// every drop.
+#[test]
+fn resource_manager_counts_rejected_advertisements_per_link() {
+    let (mut manager, mut link) = manager_with_test_link();
+    for seed in [7u8, 8u8] {
+        let mut oversized = advertisement_with(MAX_REFERENCE_ADVERTISED_TRANSFER_SIZE + 1, 1, 1);
+        oversized.hash = Hash::new_from_slice(&[seed; 32]);
+        oversized.original_hash = oversized.hash;
+        let packet = resource_packet(
+            PacketContext::ResourceAdvrtisement,
+            &oversized.pack().expect("advertisement"),
+            *link.id(),
+        );
+        assert!(manager.handle_packet(&packet, &mut link).is_empty());
+    }
+    assert!(manager.incoming.is_empty());
+    assert_eq!(manager.link_stats[link.id()].rejected_advertisements, 2);
+}
+
 /// The decode cap is exactly three times `MAX_EFFICIENT_SIZE`, as in
 /// RNS/Resource.py:1374: an advertised `t` at the cap is admitted and `t`
 /// one byte above it is dropped without a reply.

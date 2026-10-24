@@ -30,7 +30,8 @@ per fork task.
 
 Every file changed since the `0.15.1` release and the patch each change
 belongs to. Patch ids: H1 is test hygiene, H2 is release tooling, H3 is
-ledger conventions, H4 is guard discipline. The `test hygiene` patch is
+ledger conventions, H4 is guard discipline, H5 is shared-instance
+hardening. The `test hygiene` patch is
 fork commit `08362717`; the
 `release tooling` patch is fork commits `7e63de1a`, `7fbc97cb`, `fbd4da9d`,
 `f206f31c`, `8e3e587f`, `0e034698`, `3008c9fb`, `72a3a4ab`, `b48e5d81`,
@@ -45,7 +46,10 @@ fork commit `08362717`; the
 `d36f611c`, `31299980`, `1b02e70a`, `1393cecd`, `4576a35e`, `57cd07fa`,
 `f0e02c44`, `10888bf2`, `b785306b`, `f2bdb2ac`, `23f196ea`, `a594ebb7`,
 `64f4fa37`, `b7ddb0ee`, `45d4a0dd`, `2997ad2a`, `9e1145fc`, `2293a968`,
-`d9b5ad57`, `47350e23`, `9136c972` and `02316362`.
+`d9b5ad57`, `47350e23`, `9136c972` and `02316362`; the
+`shared-instance hardening` patch is fork commits `829c8e6d`, `d629ac08`,
+`cb818b0a`, `a55eaf6f`, `e4046601`, `0c553858`, `f5f8b639`, `6ecb0340`,
+`c78bdc7d`, `ca66c50d` and `00bd6579`.
 
 | File | Patch |
 | --- | --- |
@@ -55,13 +59,18 @@ fork commit `08362717`; the
 | `Cargo.toml` | guard discipline |
 | `crates/apps/reticulumd/Cargo.toml` | guard discipline |
 | `crates/apps/reticulumd/src/bin/reticulumd/announce_ingest.rs` | guard discipline |
+| `crates/apps/reticulumd/src/bin/reticulumd/bootstrap_interface_startup.rs` | shared-instance hardening |
+| `crates/apps/reticulumd/src/bin/reticulumd/bootstrap_interface_startup_parts/module_prelude.rs` | shared-instance hardening |
+| `crates/apps/reticulumd/src/bin/reticulumd/bootstrap_interface_startup_parts/shared_instance_attach.rs` | shared-instance hardening |
+| `crates/apps/reticulumd/src/bin/reticulumd/bootstrap_interface_startup_parts/shared_instance_attach_tests.rs` | shared-instance hardening |
+| `crates/apps/reticulumd/src/bin/reticulumd/bootstrap_transport.rs` | shared-instance hardening |
 | `crates/apps/reticulumd/src/bin/reticulumd/bridge_propagation.rs` | guard discipline |
 | `crates/apps/reticulumd/src/bin/reticulumd/tests/interface_hot_apply.rs` | guard discipline |
 | `crates/apps/reticulumd/tests/fork_publish_contract.rs` | release tooling, guard discipline |
 | `crates/apps/reticulumd/tests/fork_publish_contract_parts/ledger_contract.rs` | release tooling |
 | `crates/apps/reticulumd/tests/fork_publish_contract_parts/ledger_contract_fixtures.rs` | release tooling |
 | `crates/apps/reticulumd/tests/fork_publish_contract_parts/lint_discipline_probe.rs` | guard discipline |
-| `crates/apps/reticulumd/tests/fork_publish_contract_parts/lint_discipline_probe10.rs` | guard discipline |
+| `crates/apps/reticulumd/tests/fork_publish_contract_parts/lint_discipline_probe10.rs` | guard discipline, shared-instance hardening |
 | `crates/apps/reticulumd/tests/fork_publish_contract_parts/lint_discipline_probe2.rs` | guard discipline |
 | `crates/apps/reticulumd/tests/fork_publish_contract_parts/lint_discipline_probe3.rs` | guard discipline |
 | `crates/apps/reticulumd/tests/fork_publish_contract_parts/lint_discipline_probe4.rs` | guard discipline |
@@ -85,9 +94,14 @@ fork commit `08362717`; the
 | `crates/libs/meshchat-api/src/chat.rs` | guard discipline |
 | `crates/libs/meshchat-api/src/control.rs` | guard discipline |
 | `crates/libs/meshchat-api/src/lib.rs` | guard discipline |
-| `crates/libs/rns-transport/CHANGELOG.md` | test hygiene, release tooling, ledger conventions, guard discipline |
-| `crates/libs/rns-transport/README.md` | release tooling, guard discipline |
+| `crates/libs/rns-transport/CHANGELOG.md` | test hygiene, release tooling, ledger conventions, guard discipline, shared-instance hardening |
+| `crates/libs/rns-transport/README.md` | release tooling, guard discipline, shared-instance hardening |
 | `crates/libs/rns-transport/examples/tcp_connection_memory.rs` | guard discipline |
+| `crates/libs/rns-transport/src/destination/link_parts/link_status_predicates_make_lifecycl.rs` | shared-instance hardening |
+| `crates/libs/rns-transport/src/destination/link_parts/link_status_predicates_make_lifecycl_sections/core_tests.rs` | shared-instance hardening |
+| `crates/libs/rns-transport/src/destination/link_parts/link_status_predicates_make_lifecycl_sections/teardown_sends_link_close_for_handshake_link_tests.rs` | shared-instance hardening |
+| `crates/libs/rns-transport/src/destination/link_parts/module_prelude.rs` | shared-instance hardening |
+| `crates/libs/rns-transport/src/error.rs` | shared-instance hardening |
 | `crates/libs/rns-transport/src/iface/auto_parts/default_multicast_discovery_address_sections/core_tests.rs` | guard discipline |
 | `crates/libs/rns-transport/src/iface/auto_parts/module_prelude.rs` | guard discipline |
 | `crates/libs/rns-transport/src/iface/auto_runtime_parts/autoruntimeplan_sections/runtime_json.rs` | guard discipline |
@@ -110,7 +124,7 @@ fork commit `08362717`; the
 | `crates/libs/rns-transport/src/iface/kiss_parts/shared_receiver_lease_probe_tests.rs` | guard discipline |
 | `crates/libs/rns-transport/src/iface/kiss_parts/shared_receiver_lock_span_probe_tests.rs` | guard discipline |
 | `crates/libs/rns-transport/src/iface/kiss_parts/tx_queue_survives_reconnect_tests.rs` | guard discipline |
-| `crates/libs/rns-transport/src/iface/local.rs` | guard discipline |
+| `crates/libs/rns-transport/src/iface/local.rs` | guard discipline, shared-instance hardening |
 | `crates/libs/rns-transport/src/iface/local/tests/tx_queue_survives_reconnect.rs` | guard discipline |
 | `crates/libs/rns-transport/src/iface/lora_parts/ifac_runtime_tests.rs` | guard discipline |
 | `crates/libs/rns-transport/src/iface/lora_parts/lorainterface.rs` | guard discipline |
@@ -141,42 +155,60 @@ fork commit `08362717`; the
 | `crates/libs/rns-transport/src/iface/weave.rs` | guard discipline |
 | `crates/libs/rns-transport/src/iface/weave_ifac_runtime_tests.rs` | guard discipline |
 | `crates/libs/rns-transport/src/iface/weave_management_handle_tests.rs` | guard discipline |
+| `crates/libs/rns-transport/src/iface_parts/interfacemanager_management.rs` | shared-instance hardening |
 | `crates/libs/rns-transport/src/iface_types.rs` | guard discipline |
+| `crates/libs/rns-transport/src/resource/outcome.rs` | shared-instance hardening |
 | `crates/libs/rns-transport/src/transport/announce.rs` | guard discipline |
 | `crates/libs/rns-transport/src/transport/core.rs` | guard discipline |
-| `crates/libs/rns-transport/src/transport/handler.rs` | guard discipline |
+| `crates/libs/rns-transport/src/transport/handler.rs` | guard discipline, shared-instance hardening |
 | `crates/libs/rns-transport/src/transport/handler_parts/path_request.rs` | guard discipline |
-| `crates/libs/rns-transport/src/transport/inbound_processing.rs` | guard discipline |
-| `crates/libs/rns-transport/src/transport/inbound_processing_tests.rs` | guard discipline |
+| `crates/libs/rns-transport/src/transport/inbound_processing.rs` | guard discipline, shared-instance hardening |
+| `crates/libs/rns-transport/src/transport/inbound_processing_tests.rs` | guard discipline, shared-instance hardening |
 | `crates/libs/rns-transport/src/transport/jobs.rs` | guard discipline |
 | `crates/libs/rns-transport/src/transport/jobs_parts/link_maintenance.rs` | guard discipline |
 | `crates/libs/rns-transport/src/transport/jobs_parts/link_table_cleanup.rs` | guard discipline |
+| `crates/libs/rns-transport/src/transport/link_table.rs` | shared-instance hardening |
 | `crates/libs/rns-transport/src/transport/links_parts/transport_sections/close_channel.rs` | guard discipline |
 | `crates/libs/rns-transport/src/transport/links_parts/transport_sections/path_table.rs` | guard discipline |
 | `crates/libs/rns-transport/src/transport/links_parts/transport_sections/reset_out_link.rs` | guard discipline |
 | `crates/libs/rns-transport/src/transport/links_parts/transport_sections/resource_reader.rs` | guard discipline |
+| `crates/libs/rns-transport/src/transport/links_parts/transport_sections/shared_instance.rs` | shared-instance hardening |
 | `crates/libs/rns-transport/src/transport/links_parts/transport_sections/shared_instance_announce.rs` | guard discipline |
+| `crates/libs/rns-transport/src/transport/links_parts/transport_sections/shared_instance_reconnect.rs` | shared-instance hardening |
 | `crates/libs/rns-transport/src/transport/links_parts/transportchannel.rs` | guard discipline |
-| `crates/libs/rns-transport/src/transport/mod.rs` | guard discipline |
+| `crates/libs/rns-transport/src/transport/mod.rs` | guard discipline, shared-instance hardening |
 | `crates/libs/rns-transport/src/transport/next_hop_metrics.rs` | guard discipline |
 | `crates/libs/rns-transport/src/transport/path.rs` | guard discipline |
 | `crates/libs/rns-transport/src/transport/request_dispatch.rs` | guard discipline |
 | `crates/libs/rns-transport/src/transport/resource_wire.rs` | guard discipline |
 | `crates/libs/rns-transport/src/transport/resource_wire_parts/proof.rs` | guard discipline |
 | `crates/libs/rns-transport/src/transport/reticulum_path_store.rs` | guard discipline |
-| `crates/libs/rns-transport/src/transport/tests.rs` | guard discipline |
+| `crates/libs/rns-transport/src/transport/shared_instance.rs` | shared-instance hardening |
+| `crates/libs/rns-transport/src/transport/tests.rs` | guard discipline, shared-instance hardening |
 | `crates/libs/rns-transport/src/transport/tests_parts/two_transport_loopback_lifecycle.rs` | guard discipline |
+| `crates/libs/rns-transport/src/transport/tests_parts/two_transport_loopback_requests_isolation.rs` | shared-instance hardening |
+| `crates/libs/rns-transport/src/transport/tests_parts/two_transport_loopback_resources_outcome_probe.rs` | shared-instance hardening |
+| `crates/libs/rns-transport/src/transport/tests_parts/two_transport_shared_instance_endpoint_warn.rs` | shared-instance hardening |
+| `crates/libs/rns-transport/src/transport/tests_parts/two_transport_shared_instance_options.rs` | shared-instance hardening |
+| `crates/libs/rns-transport/src/transport/tests_parts/two_transport_shared_instance_probe10.rs` | shared-instance hardening |
+| `crates/libs/rns-transport/src/transport/tests_parts/two_transport_shared_instance_probe11.rs` | shared-instance hardening |
+| `crates/libs/rns-transport/src/transport/tests_parts/two_transport_shared_instance_probe12.rs` | shared-instance hardening |
+| `crates/libs/rns-transport/src/transport/tests_parts/two_transport_shared_instance_probe13.rs` | shared-instance hardening |
+| `crates/libs/rns-transport/src/transport/tests_parts/two_transport_shared_instance_probe14.rs` | shared-instance hardening |
+| `crates/libs/rns-transport/src/transport/tests_parts/two_transport_shared_instance_storm.rs` | shared-instance hardening |
+| `crates/libs/rns-transport/src/transport/tests_parts/two_transport_shared_instance_tasks.rs` | shared-instance hardening |
+| `crates/libs/rns-transport/src/transport/tunnels.rs` | shared-instance hardening |
 | `crates/libs/rns-transport/src/transport/wire.rs` | guard discipline |
 | `crates/libs/rns-transport/tests/multicast_tx_guard.rs` | guard discipline |
-| `crates/libs/rns-transport/tests/outbound_outcome_api.rs` | test hygiene |
+| `crates/libs/rns-transport/tests/outbound_outcome_api.rs` | test hygiene, shared-instance hardening |
 | `crates/libs/rns-transport/tests/tcp_client_reconnect.rs` | guard discipline |
 | `crates/libs/rns-transport/tests/tcp_connection_memory.rs` | guard discipline |
-| `docs/fork/PATCHSET.md` | test hygiene, release tooling, ledger conventions, guard discipline |
+| `docs/fork/PATCHSET.md` | test hygiene, release tooling, ledger conventions, guard discipline, shared-instance hardening |
 | `docs/runbooks/release-runbook.md` | release tooling |
 | `docs/status/reticulum-parity-matrix.md` | ledger conventions |
 | `tools/scripts/cross-target-clippy-classify.sh` | guard discipline |
 | `tools/scripts/old-name-tracked-scan.sh` | release tooling |
-| `tools/scripts/patchset-ledger-check.sh` | release tooling |
+| `tools/scripts/patchset-ledger-check.sh` | release tooling, shared-instance hardening |
 | `tools/scripts/python-interop-classify.sh` | guard discipline |
 | `tools/scripts/semver-major-findings-check.sh` | release tooling |
 | `tools/scripts/workspace-clippy-classify.sh` | release tooling, guard discipline |
@@ -804,6 +836,150 @@ itself; the README row's attribution),
 `kiss_parts/shared_receiver_lock_span_probe_tests.rs` (the wrapper lock
 span) and `kiss_parts/shared_receiver_lease_probe_tests.rs` (the
 per-receive lease of both shared receivers).
+
+Fork commits `829c8e6d`, `d629ac08`, `cb818b0a`, `a55eaf6f`, `e4046601`,
+`0c553858`, `f5f8b639`, `6ecb0340`, `c78bdc7d`, `ca66c50d` and `00bd6579`:
+H5, shared-instance hardening. The library behaviour changes are:
+`Transport::attach_shared_instance` refuses a `SharedInstanceEndpoint::Tcp`
+whose address is not loopback with the new
+`RnsError::SharedInstanceEndpointNotLoopback`, before any lock is taken and
+with one warning, where it used to attach it with a warning; a caller that
+sets `SharedInstanceOptions::allow_remote_endpoint(true)` gets the old
+attach with one warning per attach, now in key=value form (first,
+breaking); `RejectReason::Oversize` and `RejectReason::Unknown` are gone
+from `resource/outcome.rs`, and the storage-feature module
+`transport::test_bridge` is gone with its declaration (second, both
+breaking); while attached, the duplicate filter is skipped only for packets
+arriving on the interface flagged as the shared instance, or on every
+interface when none is flagged, where it was skipped on every interface
+(third); `Link::teardown` sends the LINKCLOSE packet for a link in
+`Handshake` as well as `Active` and `Stale`, and the drop flush inherits it
+(fourth); the reconnect consumer runs the drop flush before the tunnel
+re-synthesis when a reconnect event arrives without the disconnect event of
+its cycle, where the tables learned over the dropped connection used to
+survive (fifth); the drop flush sends no LINKCLOSE for a link that rode the
+dropped interface itself, where the packet used to be queued on the
+client's channel and reach the restarted instance as a close for a link it
+never knew (sixth); and reticulumd's shared-instance client posture goes
+through `Transport::attach_shared_instance`, so the daemon gains the drop
+flush and the reconnect re-announce, its unix and TCP shared-instance
+clients wait the library default 8 s after a drop instead of the clients'
+own 5 s, one shared instance per process is the rule and a second
+client-posture entry is a recorded startup failure naming the one already
+attached, a configured non-loopback shared-instance host is refused like
+any caller's, the per-interface `fixed_mtu`,
+`force_shared_instance_bitrate` and mode reach the client through the
+options while the TCP client's `connect_timeout`, `max_reconnect_tries` and
+`prefer_ipv6` no longer apply to the attach, and the daemon's own
+stream-reconnect tunnel synthesizer serves only its `tcp_client` and
+`backbone_client` interfaces (ninth). The fork-only `SharedInstanceOptions`
+builders `with_mtu`, `with_forced_bitrate` and `with_interface_mode` reach
+the spawned client and `with_reconnect_wait` clamps at origin (first), and
+`LocalUnixClient` gains inspection getters (seventh); everything else keeps
+its behaviour. The first commit adds
+`RnsError::SharedInstanceEndpointNotLoopback` to `error.rs`, has the attach
+in `links_parts/transport_sections/shared_instance.rs` refuse a
+non-loopback TCP endpoint and warn in key=value form (`endpoint=<addr>`)
+for one the options admit, gives `SharedInstanceOptions`
+(`transport/shared_instance.rs`) `allow_remote_endpoint`, `with_mtu`,
+`with_forced_bitrate` and `with_interface_mode` and has
+`with_reconnect_wait` clamp its wait to at least 1 ms at origin as the
+clients already did; rewrites
+`tests_parts/two_transport_shared_instance_endpoint_warn.rs` around the
+refusal and the admitted warn, has `two_transport_shared_instance_probe12.rs`,
+`two_transport_shared_instance_probe13.rs` and
+`two_transport_shared_instance_probe14.rs` opt in, pins the clamp in
+`two_transport_shared_instance_probe10.rs`, adds
+`two_transport_shared_instance_options.rs` (included from
+`transport/tests.rs`), and gives the README its shared-instance paragraph
+and the register row. The second removes `RejectReason::Oversize` and
+`RejectReason::Unknown` from `resource/outcome.rs` (both reserved with no
+producer; `PeerCancelled` is the one variant and the enum stays
+`non_exhaustive`), deletes the storage-feature `transport/test_bridge.rs`
+(`InboundTestBridge`, `register`, `reset`, `deliver_outbound`) and its
+declaration in `transport/mod.rs`, drops the two arms from
+`tests/outbound_outcome_api.rs` and rewords the README outcome sentence;
+the deleted `transport/test_bridge.rs` is no longer in the tree and so has
+no row in the table above. `cargo semver-checks` against `v0.15.1` reports
+four major findings and no minor: `enum_variant_missing` for the two
+variants, `function_missing` for `reset`, `register` and
+`deliver_outbound`, `module_missing` for `test_bridge` and `trait_missing`
+for `InboundTestBridge`. The third gates the duplicate filter in
+`transport/inbound_processing.rs` per arriving interface
+(`skip_duplicate_filter`), adds `InterfaceManager::has_shared_instance_interface`
+to `iface_parts/interfacemanager_management.rs`, updates the test caller in
+`transport/handler.rs`, adds a two-interface fixture to
+`transport/inbound_processing_tests.rs` and the sentence to the README. The
+fourth has `can_send_teardown` in `destination/link_parts/module_prelude.rs`
+admit `Handshake`, splits the pin in
+`link_status_predicates_make_lifecycl_sections/core_tests.rs`, adds
+`link_status_predicates_make_lifecycl_sections/teardown_sends_link_close_for_handshake_link_tests.rs`
+(included from `link_parts/link_status_predicates_make_lifecycl.rs`),
+rewords the drop-flush rustdoc in
+`links_parts/transport_sections/shared_instance_reconnect.rs` and the
+README sentence to say every link past `Pending`, and removes the README
+register row that had recorded the gap. The fifth tracks the pending
+disconnect in `shared_instance_reconnect.rs` (`disconnect_pending`) so a
+reconnect that arrives without it flushes first and records the lost event
+at debug, adds `tests_parts/two_transport_shared_instance_storm.rs`
+(included from `transport/tests.rs`) with the lost-disconnect fixture and a
+storm of six restarts that loses no event, and adds the README clause. The
+sixth has the drop flush in `shared_instance_reconnect.rs` skip the close
+packet of a link whose interface is the dropped one
+(`close_packets_skipped`) and has the drop line read `N close packet(s)
+sent, M skipped on the dropped interface`, re-pins
+`two_transport_shared_instance_probe11.rs` on the new line, adds the
+skipped-close fixture to the storm file and the README clause. The seventh
+gives `LocalUnixClient` (`iface/local.rs`) the inspection getters `addr`,
+`mtu_value`, `forced_bitrate_bps`, `reconnect_wait`,
+`reconnect_events_enabled` and `disconnect_events_enabled` with a pin in
+its test module, makes the re-announce select in
+`shared_instance_reconnect.rs` `biased` towards cancel, rewords the
+`reverse_table` wording in `transport/link_table.rs`,
+`shared_instance_reconnect.rs` and the README (the received-packet entries,
+not the receipt guard), extends the `TunnelTable::clear` rustdoc in
+`transport/tunnels.rs` with the interface-to-tunnel index and the
+`log_shared_instance_task_join_failed` rustdoc in
+`links_parts/transport_sections/shared_instance.rs` with the aborted-handle
+case. The eighth, test-only, has the lib test logger in
+`tests_parts/two_transport_loopback_requests_isolation.rs` admit the
+resource target and keep its dropped-outcome-receiver lines, pins in
+`two_transport_loopback_resources_outcome_probe.rs` that a verdict whose
+receiver was dropped is recorded once at debug, and pins in
+`two_transport_shared_instance_tasks.rs` that a task aborted through its own
+handle is reported once at warn by `stop`. The ninth adds
+`bootstrap_interface_startup_parts/shared_instance_attach.rs` and
+`shared_instance_attach_tests.rs` to reticulumd, routes the five
+client-posture arms of `bootstrap_interface_startup_parts/module_prelude.rs`
+through it, includes both from `bootstrap_interface_startup.rs`, drops the
+connected-flag plumbing from `bootstrap_transport.rs` and adds the README
+sentence. The tenth widens the README row pin in
+`fork_publish_contract_parts/lint_discipline_probe10.rs` to the three
+patches that touched the README. The eleventh has
+`tools/scripts/patchset-ledger-check.sh` test each commit cite with a bash
+substring match instead of a `printf | grep -q` pipe: with this section
+past the pipe buffer, `grep -q` exited on an early match while `printf` was
+still writing, and under `pipefail` the SIGPIPE read as an uncited commit,
+a different one on every loaded run. Pinned by
+`tests_parts/two_transport_shared_instance_endpoint_warn.rs`,
+`tests_parts/two_transport_shared_instance_options.rs`,
+`tests_parts/two_transport_shared_instance_probe10.rs`,
+`tests_parts/two_transport_shared_instance_probe11.rs`,
+`tests_parts/two_transport_shared_instance_probe12.rs`,
+`tests_parts/two_transport_shared_instance_probe13.rs`,
+`tests_parts/two_transport_shared_instance_probe14.rs`,
+`tests_parts/two_transport_shared_instance_storm.rs` (the lost-disconnect
+flush, the skipped close packet and the storm of six restarts),
+`tests_parts/two_transport_shared_instance_tasks.rs`,
+`tests_parts/two_transport_loopback_resources_outcome_probe.rs`,
+`transport/inbound_processing_tests.rs` (the two-interface dedup gate),
+`link_status_predicates_make_lifecycl_sections/teardown_sends_link_close_for_handshake_link_tests.rs`
+and `link_status_predicates_make_lifecycl_sections/core_tests.rs`,
+`tests/outbound_outcome_api.rs`, the `iface/local.rs` test module and
+reticulumd's `bootstrap_interface_startup_parts/shared_instance_attach_tests.rs`
+(the attached record's interface fills the transport's slot and sets the
+connected posture for the TCP, `LocalClientInterface` TCP and unix arms;
+two client entries leave one attached record and one failure).
 
 ## 0.15.1 (upstream 0.14.0)
 

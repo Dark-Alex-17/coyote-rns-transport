@@ -187,8 +187,17 @@ async fn serve_with_intervals(
     loop {
         tokio::select! {
             _ = announce_timer.tick() => {
-                runtime.transport.send_announce(&runtime.destination, Some(&runtime.announce_app_data)).await;
-                runtime.transport.send_announce(&runtime.git_destination, Some(&runtime.announce_app_data)).await;
+                let app_data = Some(runtime.announce_app_data.as_slice());
+                if let Err(error) = runtime.transport.try_send_announce(&runtime.destination, app_data).await {
+                    if !runtime.silent {
+                        eprintln!("rngit: page announce not sent: {error}");
+                    }
+                }
+                if let Err(error) = runtime.transport.try_send_announce(&runtime.git_destination, app_data).await {
+                    if !runtime.silent {
+                        eprintln!("rngit: git announce not sent: {error}");
+                    }
+                }
             }
             _ = cleanup_timer.tick() => {
                 let candidates = runtime.node.lock().await.active_page_link_ids();

@@ -355,7 +355,9 @@ fn spawn_destination_announce_scheduler(
         let mut interval = tokio::time::interval(Duration::from_secs(interval_secs));
         loop {
             interval.tick().await;
-            transport.send_announce(&destination, app_data.as_deref()).await;
+            if let Err(error) = transport.try_send_announce(&destination, app_data.as_deref()).await {
+                log::warn!("[daemon] scheduled destination announce not sent: {error}");
+            }
         }
     });
 }

@@ -284,7 +284,9 @@ async fn close_inbound_link(transport: &Transport, link_id: AddressHash) {
 }
 
 async fn announce(runtime: &Runtime) {
-    runtime.transport.send_announce(&runtime.destination, None).await;
+    if let Err(error) = runtime.transport.try_send_announce(&runtime.destination, None).await {
+        log::warn!("rnsh announce not sent: {error}");
+    }
 }
 
 async fn spawn_interfaces(transport: &Arc<Transport>, cli: &Cli) -> Vec<TcpRuntimeStatusHandle> {

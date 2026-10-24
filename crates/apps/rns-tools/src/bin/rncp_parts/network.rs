@@ -178,7 +178,11 @@ pub(crate) async fn operation_timeout(runtime: &Runtime) -> Duration {
 }
 
 pub(crate) async fn announce(runtime: &Runtime) {
-    runtime.transport.send_announce(&runtime.destination, None).await;
+    if let Err(error) = runtime.transport.try_send_announce(&runtime.destination, None).await {
+        if !runtime.silent {
+            eprintln!("rncp: announce not sent: {error}");
+        }
+    }
 }
 
 pub(crate) fn read_file(path: &std::path::Path) -> io::Result<Vec<u8>> {

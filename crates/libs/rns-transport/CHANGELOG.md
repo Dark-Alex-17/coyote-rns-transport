@@ -76,6 +76,15 @@ Removed) bullet of its own, marked as such.
   `biased` towards cancel, as the registration announce already was, so a
   stop that lands with the delay is served first. Pinned by the
   `iface/local.rs` test module.
+- Test-only: the lib test logger in
+  `two_transport_loopback_requests_isolation.rs` admits the resource target
+  and keeps its dropped-outcome-receiver lines;
+  `two_transport_loopback_resources_outcome_probe.rs` pins that a verdict
+  whose receiver was dropped is recorded once at debug with the resource
+  hash, the link and the verdict; and `two_transport_shared_instance_tasks.rs`
+  pins that a shared-instance task aborted through its own handle is
+  reported once at warn by `stop`, naming the cancellation, with the set
+  drained.
 - Test-only: `tests/outbound_outcome_api.rs` describes the plain senders'
   argument lists as the ones from before this release instead of by a label
   from the fork's own planning, and

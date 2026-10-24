@@ -2,7 +2,8 @@
 // announce still waiting out its quarter second when the stop runs sees the cancel and
 // never reaches the shared instance, and the reconnect consumer of an attach ends with the
 // stop; the task set is empty either way. A task that ended by panic is reported once at
-// warn under the transport's name and the stop still completes. Also pins the test
+// warn under the transport's name and the stop still completes, and so is a task aborted
+// through its own handle, the other join error a stop can observe. Also pins the test
 // logger's shared-instance store: a warning on the links target is kept whether or not it
 // names the shared instance. Helpers come from the sibling `tests_parts` files included
 // into this module.
@@ -157,6 +158,45 @@ async fn shared_instance_stop_warns_once_for_a_task_that_ended_by_panic_and_stil
     assert!(
         warned[0].1.starts_with(&format!("tp({name}): ")),
         "the warning opens with the transport's name: {}",
+        warned[0].1
+    );
+}
+
+/// A shared-instance task aborted by a holder of its handle joins as a cancelled
+/// `JoinError`; `stop` reports it once at warn, naming the cancellation, and drains the
+/// set. The in-crate spawner drops the handle, so this is the path a panic does not cover.
+#[tokio::test]
+#[deny(clippy::await_holding_invalid_type)]
+async fn shared_instance_stop_warns_once_for_a_task_aborted_through_its_handle() {
+    install_test_logger();
+    let name = "shared-instance-tasks-abort";
+    let identity = PrivateIdentity::new_from_rand(OsRng);
+    let transport = Transport::new(TransportConfig::new(name, &identity, false));
+    let handle = transport
+        .shared_instance_tasks
+        .lock()
+        .expect("shared-instance task set")
+        .spawn(std::future::pending::<()>());
+    handle.abort();
+    tokio::time::sleep(LOOPBACK_POLL).await;
+    assert_eq!(shared_instance_task_count(&transport), 1, "the aborted task is still tracked");
+
+    timeout(STOP_TIMEOUT, transport.stop())
+        .await
+        .expect("stop completes with an aborted task in the set");
+    assert_eq!(shared_instance_task_count(&transport), 0, "stop drained the set");
+
+    let warned: Vec<_> = shared_instance_records_for(name)
+        .into_iter()
+        .filter(|(level, record)| {
+            *level == log::Level::Warn
+                && record.contains("shared instance task did not finish cleanly during stop")
+        })
+        .collect();
+    assert_eq!(warned.len(), 1, "one warning per aborted task, under tp({name}): {warned:?}");
+    assert!(
+        warned[0].1.contains("cancelled"),
+        "the warning carries tokio's cancellation reason: {}",
         warned[0].1
     );
 }

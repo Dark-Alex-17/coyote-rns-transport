@@ -48,19 +48,12 @@ pub(super) async fn validated_receipt_hash(
     if packet.header.destination_type == DestinationType::Link
         && matches!(packet.context, PacketContext::LinkProof | PacketContext::None)
     {
-        let mut link = handler
-            .in_links
-            .get(&packet.destination)
-            .cloned()
-            .or_else(|| handler.out_links.get(&packet.destination).cloned());
-        if link.is_none() {
-            for candidate in handler.out_links.values() {
-                if *candidate.lock().await.id() == packet.destination {
-                    link = Some(candidate.clone());
-                    break;
-                }
-            }
-        }
+        let link = super::resource_wire::link_by_id(
+            &handler.in_links,
+            &handler.out_links,
+            &packet.destination,
+        )
+        .await;
         if let Some(link) = link {
             let link = link.lock().await;
             return match link.validate_packet_proof(packet) {

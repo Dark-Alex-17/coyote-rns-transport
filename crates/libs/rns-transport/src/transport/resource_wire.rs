@@ -383,16 +383,16 @@ async fn link_for_resource_packet(
 
 type LinkMap = HashMap<AddressHash, Arc<Mutex<Link>>>;
 
-/// `in_links` is keyed by link id but `out_links` by destination hash, so an
-/// initiator-side link is only found by scanning `out_links` for the id after
-/// the keyed lookups miss.
+/// `in_links` is keyed by link id but `out_links` by destination hash, so a
+/// listener-side link is a keyed lookup and an initiator-side link is found
+/// by scanning `out_links` for the id.
 #[deny(clippy::await_holding_invalid_type)]
 pub(super) async fn link_by_id(
     in_links: &LinkMap,
     out_links: &LinkMap,
     link_id: &AddressHash,
 ) -> Option<Arc<Mutex<Link>>> {
-    let mut link = in_links.get(link_id).cloned().or_else(|| out_links.get(link_id).cloned());
+    let mut link = in_links.get(link_id).cloned();
     if link.is_none() {
         for candidate in out_links.values() {
             if *candidate.lock().await.id() == *link_id {

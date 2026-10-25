@@ -12,37 +12,26 @@ const RETRY_STALL: Duration = Duration::from_secs(5);
 /// (capacity 1024) cannot lag and every packet that landed is counted.
 const SMALL_RESOURCE_LEN: usize = 4 * 1024;
 
-/// Holds `handler`'s lock for `stall`, which blocks that transport's inbound processing and
-/// its own retry worker while the peer's workers keep running. Signals `stalled` once the
-/// lock is held. Runs on a blocking thread so the guard is held across a plain sleep, never
-/// across an await.
-fn stall_handler(
-    handler: Arc<Mutex<TransportHandler>>,
-    stalled: tokio::sync::oneshot::Sender<()>,
-    stall: Duration,
-) {
-    let _guard = handler.blocking_lock();
-    let _ = stalled.send(());
-    std::thread::sleep(stall);
-}
-
 /// Spawns a `RETRY_STALL` stall against `transport` and returns once the lock is held.
 #[deny(clippy::await_holding_invalid_type)]
 async fn stall_transport(transport: &Transport) -> tokio::task::JoinHandle<()> {
     stall_transport_for(transport, RETRY_STALL).await
 }
 
-/// Spawns a stall of `stall` against `transport` and returns once the lock is held.
+/// Holds `transport`'s handler lock for `stall`, which blocks its inbound processing and its
+/// own retry worker while the peer's workers keep running, and returns once the lock is
+/// held. The stall is the released form with a timer on the release.
 #[deny(clippy::await_holding_invalid_type)]
 async fn stall_transport_for(
     transport: &Transport,
     stall: Duration,
 ) -> tokio::task::JoinHandle<()> {
-    let (stalled_tx, stalled_rx) = tokio::sync::oneshot::channel();
-    let handler = transport.get_handler();
-    let stall = tokio::task::spawn_blocking(move || stall_handler(handler, stalled_tx, stall));
-    stalled_rx.await.expect("stall task acquired the handler lock");
-    stall
+    let (stalled, release) = stall_transport_until_released(transport).await;
+    tokio::spawn(async move {
+        tokio::time::sleep(stall).await;
+        let _ = release.send(());
+    });
+    stalled
 }
 
 /// Counts packets for `link_id` with `context` that reached the tapped interface. The tap

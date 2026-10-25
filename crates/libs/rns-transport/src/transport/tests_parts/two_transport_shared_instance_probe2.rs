@@ -217,61 +217,14 @@ async fn shared_instance_stop_with_the_handler_wedged_still_forgets_the_slot_wit
     timeout(STOP_TIMEOUT, server.transport.stop()).await.expect("shared instance stop completes");
 }
 
-/// Removing the attached interface through the generic `stop_interface` leaves the slot set
-/// (as its rustdoc says): the transport still refuses a new attach until
-/// `detach_shared_instance` clears the stale slot, after which a fresh attach succeeds.
+/// `stop_interface` leaves the slot set, as its rustdoc says; the shared body lives beside
+/// the `remove_interface` twin.
 #[tokio::test]
 #[deny(clippy::await_holding_invalid_type)]
 async fn shared_instance_removed_through_stop_interface_keeps_the_slot_until_detach() {
-    let server = shared_instance_server().await;
-    let client = shared_instance_client("shared-instance-stop-iface", &server).await;
-    server.await_accepted_connections(1).await;
-    shared_instance_assert_attached(&client.transport, client.iface).await;
-
-    assert!(
-        timeout(STOP_TIMEOUT, client.transport.stop_interface(client.iface))
-            .await
-            .expect("stop_interface completes"),
-        "stop_interface finds the attached interface"
-    );
-    assert!(
-        !client.transport.interface_hashes().await.contains(&client.iface),
-        "the interface is gone"
-    );
-    assert_eq!(
-        client.transport.shared_instance(),
-        Some(client.iface),
-        "stop_interface leaves the slot set"
-    );
-    assert!(
-        client.transport.connected_to_shared_instance().await,
-        "stop_interface leaves the client posture set"
-    );
-    let refused = client
-        .transport
-        .attach_shared_instance(server.endpoint(), SharedInstanceOptions::default())
-        .await;
-    assert!(
-        matches!(refused, Err(RnsError::InvalidArgument)),
-        "the stale slot still counts as held: {refused:?}"
-    );
-
-    let detached = timeout(STOP_TIMEOUT, client.transport.detach_shared_instance())
-        .await
-        .expect("detach completes on a stale slot");
-    assert!(detached, "detach reports the stale slot");
-    shared_instance_assert_released(&client.transport, client.iface).await;
-
-    let fresh = client
-        .transport
-        .attach_shared_instance(server.endpoint(), SharedInstanceOptions::default())
-        .await
-        .expect("a fresh attach succeeds once the stale slot is cleared");
-    assert_ne!(fresh, client.iface, "the fresh attach spawns a new interface");
-    server.await_accepted_connections(2).await;
-    shared_instance_assert_attached(&client.transport, fresh).await;
-
-    timeout(STOP_TIMEOUT, client.transport.stop()).await.expect("client stop completes");
-    shared_instance_assert_released(&client.transport, fresh).await;
-    timeout(STOP_TIMEOUT, server.transport.stop()).await.expect("shared instance stop completes");
+    shared_instance_removed_keeps_the_slot_until_detach(
+        "shared-instance-stop-iface",
+        SharedInstanceRemoval::StopInterface,
+    )
+    .await;
 }

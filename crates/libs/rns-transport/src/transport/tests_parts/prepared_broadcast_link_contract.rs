@@ -1,9 +1,11 @@
 // `send_prepared_packet_broadcast_with_trace` hands a packet straight to the interfaces and
-// skips the transport's send bookkeeping. That is what its caller wants for pre-encrypted
-// opportunistic traffic, and it is why the API is documented as unfit for link packets: a
-// link Data packet sent this way leaves no packet-cache entry, so nothing on this side will
-// later match a proof or a duplicate against it. This test pins that contract next to the
-// link send path that does record the hash. Helpers come from the sibling `tests_parts` files.
+// skips the transport's send bookkeeping for every destination type. That is what its caller
+// wants for pre-encrypted opportunistic traffic, whose proofs it matches itself by the hash in
+// the trace, and it is why the API is unfit for anything the transport should track: a packet
+// sent this way leaves no packet-cache entry, so nothing on this side will later match a proof
+// or a duplicate against it. These tests pin that contract for a link packet, next to the link
+// send path that does record the hash, and for a Single packet built the way the opportunistic
+// caller builds one. Helpers come from the sibling `tests_parts` files.
 
 #[deny(clippy::await_holding_invalid_type)]
 async fn packet_cache_holds(transport: &Transport, hash: &Hash) -> bool {
@@ -36,5 +38,35 @@ async fn prepared_broadcast_does_not_record_a_link_packet() {
     assert!(
         packet_cache_holds(transport, &recorded_hash).await,
         "the link send path records the hash the peer will prove"
+    );
+}
+
+/// The Single-destination twin of the link test. The function cannot fail this test without
+/// also recording link packets, so it documents the contract rather than guarding a fix.
+#[tokio::test]
+#[deny(clippy::await_holding_invalid_type)]
+async fn prepared_broadcast_does_not_record_a_single_packet() {
+    let pair = loopback_link_pair("prepared-broadcast-single").await;
+    let transport = &pair.connector.transport;
+
+    let prepared = Packet {
+        header: Header {
+            header_type: HeaderType::Type1,
+            propagation_type: crate::packet::PropagationType::Broadcast,
+            destination_type: DestinationType::Single,
+            packet_type: PacketType::Data,
+            ..Header::default()
+        },
+        destination: AddressHash::new_from_rand(OsRng),
+        data: PacketDataBuffer::new_from_slice(b"opportunistic ciphertext"),
+        ..Packet::default()
+    };
+    let prepared_hash = prepared.hash();
+    let trace = transport.send_prepared_packet_broadcast_with_trace(prepared).await;
+    assert!(trace.outcome.is_sent(), "the broadcast reaches the connector's interface");
+    assert_eq!(trace.packet_hash, Some(prepared_hash));
+    assert!(
+        !packet_cache_holds(transport, &prepared_hash).await,
+        "a prepared Single broadcast is not recorded either; its caller matches the proof"
     );
 }

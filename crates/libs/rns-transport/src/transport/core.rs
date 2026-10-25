@@ -306,10 +306,12 @@ impl Transport {
     }
 
     /// Broadcasts a packet the caller has already prepared (encrypted and hashed) on every
-    /// interface, bypassing the transport's send bookkeeping. For non-link packets only: a
-    /// `DestinationType::Link` packet sent this way is not recorded in the packet cache or on
-    /// its link, so no proof, request or duplicate tracking applies to it. Use `send_packet*`
-    /// or the link send APIs for link traffic.
+    /// interface, bypassing the transport's send bookkeeping entirely. Nothing sent this way
+    /// is recorded, whatever its destination type: no packet-cache entry for the receipt
+    /// guard, no link bookkeeping, so the transport's own proof, request and duplicate
+    /// tracking never applies to it. It exists for prepared packets whose proofs the caller
+    /// matches on its own, by the hash in the returned trace. Use `send_packet*` or the
+    /// link send APIs when the transport should track the packet.
     #[allow(clippy::await_holding_invalid_type)] // TASK-026: iface_manager guard spans the broadcast send; no handler guard is taken, see TransportHandler lock discipline
     pub async fn send_prepared_packet_broadcast_with_trace(
         &self,

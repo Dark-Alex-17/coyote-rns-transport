@@ -7,6 +7,7 @@ use std::path::{Path, PathBuf};
 use std::sync::atomic::{AtomicU64, Ordering};
 
 static HASHLIST_TMP_COUNTER: AtomicU64 = AtomicU64::new(0);
+const HASHLIST_FILE: &str = "packet_hashlist.raw";
 const HASHLIST_TMP_PREFIX: &str = "packet_hashlist.raw.tmp-";
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -112,13 +113,13 @@ impl ReticulumPacketDiskCache {
         Ok(removed)
     }
 
-    /// Writes the full list to a `packet_hashlist.raw.tmp-<pid>-<n>` file beside the target
-    /// and renames it into place, so a reader (or a restart after a signal mid-write) sees
-    /// either the old list or the new one, never a truncated file. The temporary name is
-    /// unique per call so that concurrent saves (the debounced persistence worker and a
-    /// shutdown flush) never rename each other's file out from under them. A failed save
-    /// removes its own temporary; one orphaned by a crash mid-write is swept by the next
-    /// [`Self::load_packet_hashlist`].
+    /// Writes the full list to a `packet_hashlist.raw.tmp-<pid>-<n>` file beside
+    /// `packet_hashlist.raw` and renames it into place, so a reader (or a restart after a
+    /// signal mid-write) sees either the old list or the new one, never a truncated file.
+    /// The temporary name is unique per call so that concurrent saves (the debounced
+    /// persistence worker and a shutdown flush) never rename each other's file out from
+    /// under them. A failed save removes its own temporary; one orphaned by a crash
+    /// mid-write is swept by the next [`Self::load_packet_hashlist`].
     pub async fn save_packet_hashlist(
         &self,
         storage_path: impl AsRef<Path>,
@@ -128,7 +129,7 @@ impl ReticulumPacketDiskCache {
         for hash in hashes {
             payload.extend_from_slice(hash.as_slice());
         }
-        let path = storage_path.as_ref().join("packet_hashlist.raw");
+        let path = storage_path.as_ref().join(HASHLIST_FILE);
         let tmp_path = storage_path.as_ref().join(format!(
             "{HASHLIST_TMP_PREFIX}{}-{}",
             std::process::id(),
@@ -144,6 +145,9 @@ impl ReticulumPacketDiskCache {
         written
     }
 
+    /// Removes the temporaries a crashed save left behind. One that cannot be removed is
+    /// warned about and left in place rather than failing the caller, since the list beside
+    /// it is still readable; only a directory that cannot be listed is an error.
     async fn remove_orphaned_hashlist_temporaries(storage_path: &Path) -> io::Result<()> {
         let mut entries = match tokio::fs::read_dir(storage_path).await {
             Ok(entries) => entries,
@@ -153,10 +157,13 @@ impl ReticulumPacketDiskCache {
         while let Some(entry) = entries.next_entry().await? {
             if entry.file_name().to_string_lossy().starts_with(HASHLIST_TMP_PREFIX) {
                 // Another process on the same storage may have swept it first.
-                match tokio::fs::remove_file(entry.path()).await {
+                let path = entry.path();
+                match tokio::fs::remove_file(&path).await {
                     Ok(()) => {}
                     Err(error) if error.kind() == io::ErrorKind::NotFound => {}
-                    Err(error) => return Err(error),
+                    Err(error) => {
+                        log::warn!("packet hashlist orphan {} not removed: {error}", path.display())
+                    }
                 }
             }
         }
@@ -165,13 +172,14 @@ impl ReticulumPacketDiskCache {
 
     /// Reads the list back, first sweeping temporaries a crashed save left behind. Loading
     /// happens once at startup before any save in this process, so every temporary present
-    /// at that point is an orphan.
+    /// at that point is an orphan; one the sweep cannot remove is warned about and left,
+    /// and the list still loads.
     pub async fn load_packet_hashlist(
         &self,
         storage_path: impl AsRef<Path>,
     ) -> io::Result<Vec<Hash>> {
         Self::remove_orphaned_hashlist_temporaries(storage_path.as_ref()).await?;
-        let raw_path = storage_path.as_ref().join("packet_hashlist.raw");
+        let raw_path = storage_path.as_ref().join(HASHLIST_FILE);
         match tokio::fs::read(&raw_path).await {
             Ok(payload) => {
                 return Ok(payload

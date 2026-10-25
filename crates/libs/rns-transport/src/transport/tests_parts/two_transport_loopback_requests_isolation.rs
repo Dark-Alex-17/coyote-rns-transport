@@ -13,7 +13,8 @@ const SLOW_HANDLER_SLEEP: Duration = Duration::from_secs(30);
 /// plus the debug lines of the shared-instance client, and from the resource target the
 /// dropped-outcome-receiver lines and the rejected-advertisement warnings, from the link
 /// target the closed-link packet warnings, from the request-dispatch target the responses
-/// dropped for a closed link, and from the jobs target the resource-retry diagnostics.
+/// dropped for a closed link, from the jobs target the resource-retry diagnostics, and from
+/// the packet disk cache the warnings about hashlist orphans the sweep could not remove.
 /// Tests share one process and
 /// `log::set_logger` installs once, so there must be exactly one logger in the binary and
 /// this is it; a record is attributed to a test by the link id, resource hash or
@@ -27,6 +28,7 @@ struct TestLogger {
     closed_link_packet_warnings: StdMutex<Vec<String>>,
     closed_link_responses: StdMutex<Vec<String>>,
     resource_diag: StdMutex<Vec<String>>,
+    hashlist_orphan_warnings: StdMutex<Vec<String>>,
 }
 
 static TEST_LOG: TestLogger = TestLogger {
@@ -37,6 +39,7 @@ static TEST_LOG: TestLogger = TestLogger {
     closed_link_packet_warnings: StdMutex::new(Vec::new()),
     closed_link_responses: StdMutex::new(Vec::new()),
     resource_diag: StdMutex::new(Vec::new()),
+    hashlist_orphan_warnings: StdMutex::new(Vec::new()),
 };
 
 /// The target `attach_shared_instance` and `detach_shared_instance` log under: their
@@ -53,6 +56,9 @@ const REQUEST_DISPATCH_LOG_TARGET: &str = "rns_transport::transport::request_dis
 /// The target the resource-retry worker logs its `[resource-diag]` lines under.
 const JOBS_LOG_TARGET: &str = "rns_transport::transport::jobs";
 
+/// The target the packet hashlist orphan sweep warns under.
+const PACKET_DISK_CACHE_LOG_TARGET: &str = "rns_transport::transport::packet_disk_cache";
+
 impl log::Log for TestLogger {
     fn enabled(&self, metadata: &log::Metadata) -> bool {
         metadata.target().starts_with("rns_transport::destination::link")
@@ -60,6 +66,7 @@ impl log::Log for TestLogger {
             || metadata.target() == RESOURCE_LOG_TARGET
             || metadata.target() == REQUEST_DISPATCH_LOG_TARGET
             || metadata.target() == JOBS_LOG_TARGET
+            || metadata.target() == PACKET_DISK_CACHE_LOG_TARGET
     }
 
     fn log(&self, record: &log::Record) {
@@ -96,6 +103,13 @@ impl log::Log for TestLogger {
         } else if record.target() == JOBS_LOG_TARGET {
             if message.contains("[resource-diag]") {
                 self.resource_diag.lock().expect("resource-diag record store").push(message);
+            }
+        } else if record.target() == PACKET_DISK_CACHE_LOG_TARGET {
+            if record.level() == log::Level::Warn && message.contains("packet hashlist orphan") {
+                self.hashlist_orphan_warnings
+                    .lock()
+                    .expect("hashlist orphan warning store")
+                    .push(message);
             }
         } else if message.contains("dropped, dispatch") {
             self.dropped_requests.lock().expect("dropped-request record store").push(message);
@@ -194,6 +208,20 @@ fn resource_diag_records_for(link_id: AddressHash) -> Vec<String> {
         .resource_diag
         .lock()
         .expect("resource-diag record store")
+        .iter()
+        .filter(|record| record.contains(&needle))
+        .cloned()
+        .collect()
+}
+
+/// The warnings the packet hashlist sweep emitted so far for the orphan at `orphan`, oldest
+/// first; the path is unique per test storage, so it attributes a record to its test.
+fn hashlist_orphan_warnings_for(orphan: &std::path::Path) -> Vec<String> {
+    let needle = orphan.display().to_string();
+    TEST_LOG
+        .hashlist_orphan_warnings
+        .lock()
+        .expect("hashlist orphan warning store")
         .iter()
         .filter(|record| record.contains(&needle))
         .cloned()

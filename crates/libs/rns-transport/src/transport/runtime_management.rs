@@ -132,6 +132,7 @@ impl Transport {
         Ok(hashes.len())
     }
 
+    #[deny(clippy::await_holding_invalid_type)]
     pub async fn restore_packet_hashlist<P: AsRef<Path>>(
         &self,
         storage_path: P,

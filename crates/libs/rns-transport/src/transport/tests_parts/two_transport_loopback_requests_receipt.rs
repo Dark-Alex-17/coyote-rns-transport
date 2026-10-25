@@ -19,10 +19,6 @@ const LEGACY_MTU: usize = crate::destination::link::LEGACY_RETICULUM_MTU;
 /// A response body that takes a few hundred parts over `LEGACY_MTU`.
 const MANY_PARTS_LEN: usize = 64 * 1024;
 
-/// Long enough to tell two successive status changes apart on the `watch`, short enough not
-/// to approach any timeout.
-const HANDLER_DELAY: Duration = Duration::from_millis(300);
-
 /// A handler that answers nothing, so every request to it stays pending (`RNS/Link.py:844`).
 fn silent_handler(
 ) -> impl Fn(InboundRequest) -> std::future::Ready<Option<RequestResponse>> + Send + Sync {

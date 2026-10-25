@@ -7,9 +7,10 @@
 // the README row carries every patch attribution that touched it; and the
 // code-identifier rule the allowance-reason probes share treats "e.g." and
 // "i.e." as prose while keeping dotted paths. Both 0.16.0 sections describe
-// the probe9 census pin in its split form. Released sections are frozen,
-// so the literal 0.16.0 label is the anchor rather than the newest heading,
-// and the negative pins guard that released section against tampering.
+// the probe9 census pin in its split form and cite the frozen-sections
+// probe with its byte-for-byte rule. Released sections are frozen, so the
+// literal 0.16.0 label is the anchor rather than the newest heading, and
+// the negative pins guard that released section against tampering.
 
 /// The `## 0.16.0` section of the crate changelog, whitespace-normalised.
 fn changelog_0_16_0_flat() -> String {
@@ -145,7 +146,8 @@ fn patchset_forty_sixth_narrative_states_the_lease_spec_split() {
 /// older wording that promised the ledger census always matches the tree is
 /// gone. The pinned-by list is the last place either section cites probe9
 /// with a parenthetical. The superseded phrases are assembled so a search
-/// for them across the tree finds only the ledgers.
+/// for them across the tree finds only the ledgers and probe9's own
+/// Unreleased live-compare message.
 #[test]
 fn ledgers_0_16_0_describe_the_split_census_pin() {
     let superseded =
@@ -156,7 +158,7 @@ fn ledgers_0_16_0_describe_the_split_census_pin() {
         let (_, rest) = flat
             .rsplit_once("lint_discipline_probe9.rs` (")
             .unwrap_or_else(|| panic!("the {name} 0.16.0 section cites probe9 with a parenthetical"));
-        let parenthetical = rest.split(')').next().unwrap_or(rest);
+        let parenthetical = &rest[..rest.find(')').unwrap_or(rest.len())];
         assert!(
             parenthetical.contains("equals the census the tree carries"),
             "the {name} probe9 parenthetical states the split census pin, got {parenthetical:?}"
@@ -168,6 +170,43 @@ fn ledgers_0_16_0_describe_the_split_census_pin() {
             );
         }
     }
+}
+
+/// Both 0.16.0 sections cite the frozen-sections probe and state its rule:
+/// the CHANGELOG names the file and, after it, the byte-for-byte and
+/// README-bullets clauses; the ledger has the file's table row under the
+/// release patch and a narrative sentence naming where it is included from.
+#[test]
+fn ledgers_0_16_0_cite_the_frozen_sections_probe() {
+    let changelog = changelog_0_16_0_flat();
+    let (_, rest) = changelog
+        .split_once("`fork_publish_contract_parts/release_frozen_sections_probe.rs`")
+        .expect("the CHANGELOG 0.16.0 section names the frozen-sections probe");
+    for needle in ["byte for byte", "keeps its bullets"] {
+        assert!(
+            rest.contains(needle),
+            "the CHANGELOG states the frozen-sections rule with {needle:?} after the file name"
+        );
+    }
+
+    let patchset = patchset_0_16_0_flat();
+    assert!(
+        patchset.contains(
+            "| `crates/apps/reticulumd/tests/fork_publish_contract_parts/\
+             release_frozen_sections_probe.rs` | release 0.16.0 |"
+        ),
+        "the ledger's 0.16.0 table attributes the frozen-sections probe to the release patch"
+    );
+    let (_, rest) = patchset
+        .split_once(
+            "release_frozen_sections_probe.rs`, included from \
+             `crates/apps/reticulumd/tests/fork_publish_contract.rs`"
+        )
+        .expect("the ledger narrative names the frozen-sections probe and its include site");
+    assert!(
+        rest.contains("byte for byte"),
+        "the ledger narrative states the byte-for-byte rule after the include site"
+    );
 }
 
 /// Latin abbreviations are prose, dotted paths and calls are identifiers,

@@ -4,12 +4,12 @@
 // wait); the `dedupe` field names its only locker and that locker is the fn
 // under the nest marker; the supervisor's `dedupe` field points at that
 // rustdoc; no production source in any crate joins lock futures; every
-// census the ledger states adds up and the one an Unreleased section states
-// equals the census the tree carries; the probe sources and auto runtime
-// test sections are ASCII and their headers carry no task or lane
-// references; and the lifecycle header names each pin its file holds.
-// Needles are assembled so this file never contains the attribute or marker
-// text the sibling probes scan for.
+// census sentence the ledger states adds up and the one an Unreleased
+// section states equals the census the tree carries; the probe sources and
+// auto runtime test sections are ASCII and their headers carry no task or
+// lane references; and the lifecycle header names each pin its file holds.
+// Needles are assembled so this file never contains the attribute or
+// marker text the sibling probes scan for.
 
 /// The regression pin for the peer-data lock order.
 const PEER_DATA_PROGRESS_PIN: &str = "crates/libs/rns-transport/src/iface/auto_runtime_parts/tests_sections/peer_data_receive_loop_progress.rs";

@@ -59,7 +59,7 @@ fn release_sections(text: &str) -> Vec<(&str, &str)> {
     let mut offset = 0;
     for line in text.split_inclusive('\n') {
         if let Some(rest) = line.strip_prefix("## ") {
-            let label = rest.split(' ').next().unwrap_or(rest).trim_end();
+            let label = rest[..rest.find(' ').unwrap_or(rest.len())].trim_end();
             if label.starts_with(|c: char| c.is_ascii_digit()) {
                 starts.push((offset, label));
             } else if !starts.is_empty() {

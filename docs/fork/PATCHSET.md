@@ -1818,9 +1818,8 @@ release section's Python-in-the-loop proof rows.
 
 Fork commits `c281063e`, `a6ad4884`, `1a39183c`, `e14ead8d`, `44c19d48`,
 `5b9f69a8`, `704cd444`, `4ebfcc62` and `4e40639e`: release 0.16.0. The
-first retargets
-the promotion-sensitive pins to the literal 0.16.0 label, since a released
-section is frozen:
+first retargets the promotion-sensitive pins to the literal 0.16.0 label,
+since a released section is frozen:
 `crates/apps/reticulumd/tests/fork_publish_contract_parts/ledger_contract.rs`
 expects the full-hash and bullet-cite contracts to cover `0.16.0` and
 `0.15.1`,

@@ -74,7 +74,8 @@ async fn outcome_resolves_failed_link_closed_when_the_link_is_torn_down() {
 #[tokio::test]
 #[deny(clippy::await_holding_invalid_type)]
 async fn outcome_resolves_rejected_peer_cancelled_under_a_receiver_cap() {
-    let pair = loopback_link_pair_with_request_limit("outcome-reject", REJECT_REQUEST_LIMIT).await;
+    let pair =
+        loopback_link_pair_with_request_limit("outcome-reject", Some(REJECT_REQUEST_LIMIT)).await;
     let mut sender_events = pair.connector.transport.resource_events();
     let mut receiver_events = pair.listener.transport.resource_events();
 
@@ -94,23 +95,13 @@ async fn outcome_resolves_rejected_peer_cancelled_under_a_receiver_cap() {
     let verdict = timeout(RESOURCE_TIMEOUT, outcome).await.expect("outcome resolved");
     assert_eq!(verdict, OutboundResult::Rejected(RejectReason::PeerCancelled));
 
-    let rejected = await_resource_event(&mut sender_events, |event| {
-        event.hash == resource_hash
-            && matches!(
-                event.kind,
-                ResourceEventKind::OutboundRejected { .. }
-                    | ResourceEventKind::OutboundComplete
-                    | ResourceEventKind::OutboundFailed
-            )
-    })
-    .await;
+    let rejected = await_outbound_terminal(&mut sender_events, resource_hash).await;
     assert!(
         matches!(
-            rejected.kind,
+            rejected,
             ResourceEventKind::OutboundRejected { reason: RejectReason::PeerCancelled }
         ),
-        "the event stream agrees with the outcome, got {:?}",
-        rejected.kind
+        "the event stream agrees with the outcome, got {rejected:?}"
     );
     assert_no_further_complete(&mut receiver_events, pair.link_id).await;
 }

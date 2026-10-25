@@ -26,6 +26,26 @@ async fn await_resource_event(
     .expect("timed out waiting for the resource event")
 }
 
+/// The kind of the sender's terminal event for the outbound resource `hash`:
+/// `OutboundComplete`, `OutboundFailed` or `OutboundRejected`, whichever comes first.
+#[deny(clippy::await_holding_invalid_type)]
+async fn await_outbound_terminal(
+    events: &mut broadcast::Receiver<ResourceEvent>,
+    hash: Hash,
+) -> ResourceEventKind {
+    await_resource_event(events, |event| {
+        event.hash == hash
+            && matches!(
+                event.kind,
+                ResourceEventKind::OutboundComplete
+                    | ResourceEventKind::OutboundFailed
+                    | ResourceEventKind::OutboundRejected { .. }
+            )
+    })
+    .await
+    .kind
+}
+
 /// Drains the receiver until `Complete` for `link_id` arrives, returning it together with
 /// the highest `total_segments` seen on the way.
 #[deny(clippy::await_holding_invalid_type)]
@@ -170,20 +190,10 @@ async fn response_resource_round_trip(payload_len: usize, expected_segments: u32
     assert_eq!(complete.data.len(), payload.len(), "received length");
     assert!(complete.data == payload, "received bytes match the sent payload");
 
-    let outbound = await_resource_event(&mut sender_events, |event| {
-        event.hash == resource_hash
-            && matches!(
-                event.kind,
-                ResourceEventKind::OutboundComplete
-                    | ResourceEventKind::OutboundFailed
-                    | ResourceEventKind::OutboundRejected { .. }
-            )
-    })
-    .await;
+    let outbound = await_outbound_terminal(&mut sender_events, resource_hash).await;
     assert!(
-        matches!(outbound.kind, ResourceEventKind::OutboundComplete),
-        "sender should finish cleanly, got {:?}",
-        outbound.kind
+        matches!(outbound, ResourceEventKind::OutboundComplete),
+        "sender should finish cleanly, got {outbound:?}"
     );
 
     assert_no_further_complete(&mut receiver_events, link_id).await;

@@ -60,22 +60,15 @@ async fn shared_instance_await_interface_count(transport: &Transport, count: usi
     }
 }
 
-/// A client attached over `endpoint` with default options, its announce receiver subscribed
-/// before the attach.
+/// A client attached over `endpoint` with default options.
 #[cfg(unix)]
 #[deny(clippy::await_holding_invalid_type)]
 async fn shared_instance_attach_client(
     name: &str,
     endpoint: &SharedInstanceEndpoint,
 ) -> SharedInstanceClient {
-    let identity = PrivateIdentity::new_from_rand(OsRng);
-    let transport = Transport::new(TransportConfig::new(name, &identity, false));
-    let announces = transport.recv_announces().await;
-    let iface = transport
-        .attach_shared_instance(endpoint.clone(), SharedInstanceOptions::default())
+    shared_instance_client_with_options(name, endpoint.clone(), SharedInstanceOptions::default())
         .await
-        .expect("attach to the shared instance");
-    SharedInstanceClient { transport, announces, iface }
 }
 
 /// The unix flavour is the same posture as TCP: each client sends at hops 0, the shared

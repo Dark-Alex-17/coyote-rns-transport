@@ -12,14 +12,31 @@ struct LoopbackLinkPair {
 
 #[deny(clippy::await_holding_invalid_type)]
 async fn loopback_link_pair(aspect: &str) -> LoopbackLinkPair {
+    loopback_link_pair_with_request_limit(aspect, None).await
+}
+
+/// Like `loopback_link_pair`, with an inbound request-size limit armed on the listener's
+/// destination before the link opens when `request_limit` is set.
+#[deny(clippy::await_holding_invalid_type)]
+async fn loopback_link_pair_with_request_limit(
+    aspect: &str,
+    request_limit: Option<usize>,
+) -> LoopbackLinkPair {
     let listener = listener("loopback-listener", TcpClient::DEFAULT_MTU).await;
     let mut connector =
         connector("loopback-connector", listener.port, TcpClient::DEFAULT_MTU).await;
     listener.await_accepted_connections(1).await;
     let mut in_events = listener.transport.in_link_events();
 
-    let (_destination, desc) =
+    let (destination, desc) =
         register_in_destination(&listener.transport, "loopback", aspect).await;
+    if let Some(limit) = request_limit {
+        destination
+            .lock()
+            .await
+            .set_max_request_size(limit)
+            .expect("request-size limit armed");
+    }
     let learned = learn_announce(&mut connector.announces, &desc.address_hash).await;
     let (_link, link_id) = open_link(&connector.transport, learned).await;
     let activated = await_event(&mut in_events, |event| {
@@ -59,20 +76,10 @@ async fn assert_transfer_completes(
     assert_eq!(complete.data.len(), payload.len(), "received length");
     assert!(complete.data == payload, "received bytes match the sent payload");
 
-    let outbound = await_resource_event(sender_events, |event| {
-        event.hash == resource_hash
-            && matches!(
-                event.kind,
-                ResourceEventKind::OutboundComplete
-                    | ResourceEventKind::OutboundFailed
-                    | ResourceEventKind::OutboundRejected { .. }
-            )
-    })
-    .await;
+    let outbound = await_outbound_terminal(sender_events, resource_hash).await;
     assert!(
-        matches!(outbound.kind, ResourceEventKind::OutboundComplete),
-        "sender should finish cleanly, got {:?}",
-        outbound.kind
+        matches!(outbound, ResourceEventKind::OutboundComplete),
+        "sender should finish cleanly, got {outbound:?}"
     );
     complete
 }

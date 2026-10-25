@@ -21,10 +21,8 @@ async fn reticulum_path_table_restore_skips_malformed_cached_announce_entry() {
     let restored_iface = *restored.iface_manager().lock().await.new_channel(16).address();
     assert_eq!(restored_iface, iface, "test relies on deterministic iface hashes");
 
-    let restore_report = restored
-        .restore_reticulum_path_table_report(temp.path())
-        .await
-        .expect("restore");
+    let restore_report =
+        restored.restore_reticulum_path_table_report(temp.path()).await.expect("restore");
     assert_eq!(restore_report.restored_active_paths, 1);
     assert_eq!(restore_report.skipped.active_invalid_cached_announce, 1);
     assert_eq!(restore_report.restored_identities.len(), 1);
@@ -65,10 +63,8 @@ async fn reticulum_path_table_restore_skips_missing_cached_announce_entry() {
     let restored_iface = *restored.iface_manager().lock().await.new_channel(16).address();
     assert_eq!(restored_iface, iface, "test relies on deterministic iface hashes");
 
-    let restore_report = restored
-        .restore_reticulum_path_table_report(temp.path())
-        .await
-        .expect("restore");
+    let restore_report =
+        restored.restore_reticulum_path_table_report(temp.path()).await.expect("restore");
     assert_eq!(restore_report.restored_active_paths, 1);
     assert_eq!(restore_report.skipped.active_missing_cached_announce, 1);
     assert_eq!(restore_report.restored_identities.len(), 1);
@@ -104,10 +100,8 @@ async fn reticulum_path_table_restore_skips_mismatched_cached_announce_destinati
     let restored_iface = *restored.iface_manager().lock().await.new_channel(16).address();
     assert_eq!(restored_iface, iface, "test relies on deterministic iface hashes");
 
-    let restore_report = restored
-        .restore_reticulum_path_table_report(temp.path())
-        .await
-        .expect("restore");
+    let restore_report =
+        restored.restore_reticulum_path_table_report(temp.path()).await.expect("restore");
     assert_eq!(restore_report.restored_active_paths, 1);
     assert_eq!(restore_report.skipped.active_mismatched_cached_announce, 1);
     assert_eq!(restore_report.restored_identities.len(), 1);
@@ -156,10 +150,8 @@ async fn reticulum_tunnel_table_restore_skips_malformed_cached_announce_entry() 
         restored.iface_manager().lock().await.full_hash(&restored_iface).expect("iface hash");
     assert_eq!(restored_iface_hash, iface_hash, "test relies on deterministic iface hashes");
 
-    let restore_report = restored
-        .restore_reticulum_path_table_report(temp.path())
-        .await
-        .expect("restore");
+    let restore_report =
+        restored.restore_reticulum_path_table_report(temp.path()).await.expect("restore");
     assert_eq!(restore_report.restored_active_paths, 0);
     assert_eq!(restore_report.skipped.tunnel_invalid_cached_announce, 1);
     assert_eq!(restore_report.restored_identities.len(), 1);
@@ -226,10 +218,8 @@ async fn reticulum_tunnel_table_restore_skips_missing_cached_announce_entry() {
         restored.iface_manager().lock().await.full_hash(&restored_iface).expect("iface hash");
     assert_eq!(restored_iface_hash, iface_hash, "test relies on deterministic iface hashes");
 
-    let restore_report = restored
-        .restore_reticulum_path_table_report(temp.path())
-        .await
-        .expect("restore");
+    let restore_report =
+        restored.restore_reticulum_path_table_report(temp.path()).await.expect("restore");
     assert_eq!(restore_report.restored_active_paths, 0);
     assert_eq!(restore_report.skipped.tunnel_missing_cached_announce, 1);
     assert_eq!(restore_report.restored_identities.len(), 1);
@@ -291,10 +281,8 @@ async fn reticulum_tunnel_table_restore_skips_mismatched_cached_announce_destina
         restored.iface_manager().lock().await.full_hash(&restored_iface).expect("iface hash");
     assert_eq!(restored_iface_hash, iface_hash, "test relies on deterministic iface hashes");
 
-    let restore_report = restored
-        .restore_reticulum_path_table_report(temp.path())
-        .await
-        .expect("restore");
+    let restore_report =
+        restored.restore_reticulum_path_table_report(temp.path()).await.expect("restore");
     assert_eq!(restore_report.restored_active_paths, 0);
     assert_eq!(restore_report.skipped.tunnel_mismatched_cached_announce, 1);
     assert_eq!(restore_report.restored_identities.len(), 1);
@@ -326,7 +314,11 @@ struct CachedPathSeed {
     destination: AddressHash,
 }
 
-async fn learn_cached_path(transport: &Transport, iface: AddressHash, aspect: &str) -> CachedPathSeed {
+async fn learn_cached_path(
+    transport: &Transport,
+    iface: AddressHash,
+    aspect: &str,
+) -> CachedPathSeed {
     let remote_identity = PrivateIdentity::new_from_rand(OsRng);
     let mut remote_destination =
         SingleInputDestination::new(remote_identity, DestinationName::new("lxmf", aspect));

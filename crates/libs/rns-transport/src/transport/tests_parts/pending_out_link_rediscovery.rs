@@ -40,7 +40,10 @@ async fn closed_pending_out_link_expires_path_and_requests_rediscovery_like_pyth
         .expect("rediscovery path request should be queued")
         .expect("tx channel open");
     assert_eq!(rediscovery.tx_type, crate::iface::TxMessageType::Broadcast(None));
-    assert_eq!(&rediscovery.packet.data.as_slice()[..ADDRESS_HASH_SIZE], destination_hash.as_slice());
+    assert_eq!(
+        &rediscovery.packet.data.as_slice()[..ADDRESS_HASH_SIZE],
+        destination_hash.as_slice()
+    );
 }
 
 #[tokio::test]
@@ -190,9 +193,7 @@ async fn aged_pending_out_link_repeats_without_rediscovery_until_closed_like_pyt
         .await
         .expect("initial link request should be queued")
         .expect("tx channel open");
-    link.lock()
-        .await
-        .set_request_time_for_test(std::time::Instant::now() - Duration::from_secs(7));
+    link.lock().await.set_request_time_for_test(std::time::Instant::now() - Duration::from_secs(7));
 
     super::jobs::handle_check_links(handler.lock().await).await;
 
@@ -279,7 +280,10 @@ async fn timed_out_routed_link_marks_one_hop_path_unresponsive_and_requests_redi
         .expect("rediscovery path request should be sent on alternate ifaces")
         .expect("tx channel open");
     assert_eq!(rediscovery.tx_type, crate::iface::TxMessageType::Broadcast(Some(blocked_iface)));
-    assert_eq!(&rediscovery.packet.data.as_slice()[..ADDRESS_HASH_SIZE], destination_hash.as_slice());
+    assert_eq!(
+        &rediscovery.packet.data.as_slice()[..ADDRESS_HASH_SIZE],
+        destination_hash.as_slice()
+    );
     assert_ne!(blocked_iface, alternate_iface);
 }
 
@@ -354,7 +358,10 @@ async fn timed_out_routed_link_expires_one_hop_path_for_non_transport_boundary_i
         .expect("rediscovery path request should be sent on alternate ifaces")
         .expect("tx channel open");
     assert_eq!(rediscovery.tx_type, crate::iface::TxMessageType::Broadcast(Some(blocked_iface)));
-    assert_eq!(&rediscovery.packet.data.as_slice()[..ADDRESS_HASH_SIZE], destination_hash.as_slice());
+    assert_eq!(
+        &rediscovery.packet.data.as_slice()[..ADDRESS_HASH_SIZE],
+        destination_hash.as_slice()
+    );
 }
 
 #[tokio::test]
@@ -432,6 +439,9 @@ async fn timed_out_routed_links_dedupe_path_requests_by_destination_and_keep_blo
         .expect("one blocked-interface rediscovery path request should be queued")
         .expect("tx channel open");
     assert_eq!(rediscovery.tx_type, crate::iface::TxMessageType::Broadcast(Some(blocked_iface)));
-    assert_eq!(&rediscovery.packet.data.as_slice()[..ADDRESS_HASH_SIZE], destination_hash.as_slice());
+    assert_eq!(
+        &rediscovery.packet.data.as_slice()[..ADDRESS_HASH_SIZE],
+        destination_hash.as_slice()
+    );
     assert!(alternate_channel.tx_channel.try_recv().is_err());
 }

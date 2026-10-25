@@ -348,14 +348,10 @@ async fn handle_inbound_for_test_accepts_python_style_link_proof_with_none_conte
     let (tx, _) = tokio::sync::broadcast::channel(4);
     let mut outbound = Link::new(destination, tx.clone());
     let request = outbound.request();
-    let mut inbound =
-        Link::new_from_request(&request, signer.sign_key().clone(), destination, tx)
-            .expect("link request should parse");
+    let mut inbound = Link::new_from_request(&request, signer.sign_key().clone(), destination, tx)
+        .expect("link request should parse");
     let iface = AddressHash::new_from_rand(OsRng);
-    assert!(matches!(
-        outbound.handle_packet(&inbound.prove(), iface),
-        LinkHandleResult::Activated
-    ));
+    assert!(matches!(outbound.handle_packet(&inbound.prove(), iface), LinkHandleResult::Activated));
 
     let packet = outbound.data_packet(b"python proof context").expect("link packet");
     let mut proof = match inbound.handle_packet(&packet, iface) {
@@ -585,10 +581,7 @@ async fn routed_link_request_preserves_python_default_mtu_signalling_when_ifaces
     data.safe_write(requester.as_identity().verifying_key.as_bytes());
     data.safe_write(&[0x20, 0x01, 0xF4]);
     let request = Packet {
-        header: Header {
-            packet_type: PacketType::LinkRequest,
-            ..Default::default()
-        },
+        header: Header { packet_type: PacketType::LinkRequest, ..Default::default() },
         destination: destination_hash,
         context: PacketContext::None,
         data,

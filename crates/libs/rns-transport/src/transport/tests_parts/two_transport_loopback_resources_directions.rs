@@ -31,24 +31,14 @@ async fn loopback_link_pair_with_request_limit(
     let (destination, desc) =
         register_in_destination(&listener.transport, "loopback", aspect).await;
     if let Some(limit) = request_limit {
-        destination
-            .lock()
-            .await
-            .set_max_request_size(limit)
-            .expect("request-size limit armed");
+        destination.lock().await.set_max_request_size(limit).expect("request-size limit armed");
     }
     let learned = learn_announce(&mut connector.announces, &desc.address_hash).await;
     let (_link, link_id) = open_link(&connector.transport, learned).await;
-    let activated = await_event(&mut in_events, |event| {
-        matches!(event.event, LinkEvent::Activated)
-    })
-    .await;
+    let activated =
+        await_event(&mut in_events, |event| matches!(event.event, LinkEvent::Activated)).await;
     assert_eq!(activated.id, link_id, "both ends share one link id");
-    LoopbackLinkPair {
-        listener,
-        connector,
-        link_id,
-    }
+    LoopbackLinkPair { listener, connector, link_id }
 }
 
 fn random_payload(len: usize) -> Vec<u8> {
@@ -68,8 +58,7 @@ async fn assert_transfer_completes(
     payload: &[u8],
     expected_segments: u32,
 ) -> ResourceComplete {
-    let (complete, segments_seen) =
-        await_complete_with_segments(receiver_events, link_id).await;
+    let (complete, segments_seen) = await_complete_with_segments(receiver_events, link_id).await;
     assert_eq!(complete.hash, resource_hash, "receiver reports the sender's resource hash");
     assert_eq!(segments_seen, Some(expected_segments), "segment count on the receiver");
     let complete = complete_payload(complete);
@@ -162,9 +151,8 @@ async fn two_transport_loopback_resources_back_to_back_on_one_link() {
     let mut receiver_events = pair.connector.transport.resource_events();
 
     let mut hashes = Vec::new();
-    for (index, request_tag) in [&b"loopback-first"[..], &b"loopback-second"[..]]
-        .into_iter()
-        .enumerate()
+    for (index, request_tag) in
+        [&b"loopback-first"[..], &b"loopback-second"[..]].into_iter().enumerate()
     {
         let payload = random_payload(MAX_EFFICIENT_SIZE + 64 * 1024);
         solicit_response(&pair.connector.transport, &pair.link_id, request_tag).await;

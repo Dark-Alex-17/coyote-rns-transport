@@ -47,7 +47,10 @@ async fn enabled_shared_child_routes_remote_link_request_only_to_next_hop() {
     assert_eq!(forwarded.packet.header.packet_type, PacketType::LinkRequest);
     assert_eq!(forwarded.packet.header.header_type, HeaderType::Type1);
     assert_eq!(forwarded.packet.transport, None);
-    assert!(matches!(parent_channel.tx_channel.try_recv(), Err(tokio::sync::mpsc::error::TryRecvError::Empty)));
+    assert!(matches!(
+        parent_channel.tx_channel.try_recv(),
+        Err(tokio::sync::mpsc::error::TryRecvError::Empty)
+    ));
     assert_ne!(child, sibling);
 }
 
@@ -96,6 +99,9 @@ async fn disabled_shared_child_routes_remote_link_request_only_to_next_hop() {
     assert_eq!(forwarded.packet.header.packet_type, PacketType::LinkRequest);
     assert_eq!(forwarded.packet.header.header_type, HeaderType::Type1);
     assert_eq!(forwarded.packet.transport, None);
-    assert!(matches!(parent_channel.tx_channel.try_recv(), Err(tokio::sync::mpsc::error::TryRecvError::Empty)));
+    assert!(matches!(
+        parent_channel.tx_channel.try_recv(),
+        Err(tokio::sync::mpsc::error::TryRecvError::Empty)
+    ));
     assert_ne!(child, sibling);
 }

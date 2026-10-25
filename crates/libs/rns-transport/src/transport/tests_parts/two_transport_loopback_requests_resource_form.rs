@@ -144,8 +144,7 @@ async fn two_transport_loopback_request_resource_form_oversize_response_advertis
 /// assembled bytes, the same value `RNS/Link.py:504` records on the requester.
 #[tokio::test]
 #[deny(clippy::await_holding_invalid_type)]
-async fn two_transport_loopback_request_resource_form_id_is_recomputed_from_the_assembled_bytes(
-) {
+async fn two_transport_loopback_request_resource_form_id_is_recomputed_from_the_assembled_bytes() {
     let pair = loopback_request_pair("request-resource-form-id").await;
     let mut resource_events = pair.handles.connector.transport.resource_events();
     let link_id = pair.handles.link_id;
@@ -169,8 +168,8 @@ async fn two_transport_loopback_request_resource_form_id_is_recomputed_from_the_
 /// way it answers a packet: raw data in the resource, msgpack metadata beside it.
 #[tokio::test]
 #[deny(clippy::await_holding_invalid_type)]
-async fn two_transport_loopback_request_resource_form_file_response_carries_raw_data_and_metadata(
-) {
+async fn two_transport_loopback_request_resource_form_file_response_carries_raw_data_and_metadata()
+{
     let pair = loopback_request_pair("request-resource-form-file").await;
     let mut resource_events = pair.handles.connector.transport.resource_events();
     let link_id = pair.handles.link_id;

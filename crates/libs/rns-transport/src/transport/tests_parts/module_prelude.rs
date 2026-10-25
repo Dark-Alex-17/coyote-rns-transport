@@ -51,15 +51,18 @@ async fn link_in_payload_is_forwarded_to_received_data() {
     let address_hash = AddressHash::new_from_rand(OsRng);
     let payload = LinkPayload::new_from_slice(b"hello");
 
-    assert!(transport
-        .link_in_event_tx
-        .send(LinkEventData {
-            id: link_id,
-            address_hash,
-            event: LinkEvent::Data(Box::new(payload)),
-            close_reason: None,
-        })
-        .is_ok(), "link input forwarder remains subscribed");
+    assert!(
+        transport
+            .link_in_event_tx
+            .send(LinkEventData {
+                id: link_id,
+                address_hash,
+                event: LinkEvent::Data(Box::new(payload)),
+                close_reason: None,
+            })
+            .is_ok(),
+        "link input forwarder remains subscribed"
+    );
 
     let received = timeout(Duration::from_millis(200), rx.recv())
         .await
@@ -83,15 +86,18 @@ async fn link_out_payload_is_forwarded_to_received_data() {
     let address_hash = AddressHash::new_from_rand(OsRng);
     let payload = LinkPayload::new_from_slice(b"outbound");
 
-    assert!(transport
-        .link_out_event_tx
-        .send(LinkEventData {
-            id: link_id,
-            address_hash,
-            event: LinkEvent::Data(Box::new(payload)),
-            close_reason: None,
-        })
-        .is_ok(), "link output forwarder remains subscribed");
+    assert!(
+        transport
+            .link_out_event_tx
+            .send(LinkEventData {
+                id: link_id,
+                address_hash,
+                event: LinkEvent::Data(Box::new(payload)),
+                close_reason: None,
+            })
+            .is_ok(),
+        "link output forwarder remains subscribed"
+    );
 
     let received = timeout(Duration::from_millis(200), rx.recv())
         .await
@@ -527,7 +533,8 @@ async fn roaming_iface_delays_known_path_response_when_next_hop_differs() {
     assert_eq!(response.response_to_iface, Some(requesting_iface));
     assert_eq!(response.hops, 2);
     assert_eq!(response.packet.context, PacketContext::PathResponse);
-    let response_delay = response.timeout.checked_duration_since(before_request).unwrap_or_default();
+    let response_delay =
+        response.timeout.checked_duration_since(before_request).unwrap_or_default();
     assert!(
         response_delay >= super::announce_table::PATH_RESPONSE_ROAMING_GRACE,
         "roaming known-path responses should wait the extra Python roaming grace"
@@ -585,10 +592,8 @@ async fn reticulum_path_table_persistence_restores_route_and_identity_from_cache
     let restored = Transport::new(restored_config);
     let restored_iface = *restored.iface_manager().lock().await.new_channel(16).address();
     assert_eq!(restored_iface, iface, "test relies on deterministic iface hashes");
-    let restore_report = restored
-        .restore_reticulum_path_table_report(temp.path())
-        .await
-        .expect("restore");
+    let restore_report =
+        restored.restore_reticulum_path_table_report(temp.path()).await.expect("restore");
     assert_eq!(restore_report.restored_active_paths, 1);
     assert_eq!(restore_report.restored_identities.len(), 1);
     assert_eq!(restore_report.restored_identities[0].destination, destination);
@@ -719,10 +724,8 @@ async fn reticulum_path_table_restore_skips_when_connected_to_shared_instance() 
     let restored_iface = *restored.iface_manager().lock().await.new_channel(16).address();
     assert_eq!(restored_iface, iface, "test relies on deterministic iface hashes");
 
-    let restore_report = restored
-        .restore_reticulum_path_table_report(temp.path())
-        .await
-        .expect("restore");
+    let restore_report =
+        restored.restore_reticulum_path_table_report(temp.path()).await.expect("restore");
     assert_eq!(restore_report.restored_active_paths, 0);
     assert!(
         !restored.has_path(&destination).await,
@@ -772,10 +775,8 @@ async fn reticulum_path_table_restore_skips_expired_python_path_entries() {
     let restored_iface = *restored.iface_manager().lock().await.new_channel(16).address();
     assert_eq!(restored_iface, iface, "test relies on deterministic iface hashes");
 
-    let restore_report = restored
-        .restore_reticulum_path_table_report(temp.path())
-        .await
-        .expect("restore");
+    let restore_report =
+        restored.restore_reticulum_path_table_report(temp.path()).await.expect("restore");
     assert_eq!(restore_report.restored_active_paths, 0);
     assert_eq!(restore_report.skipped.active_expired, 1);
     assert!(
@@ -999,10 +1000,8 @@ async fn reticulum_tunnel_table_restore_skips_expired_python_tunnel_paths() {
         restored.iface_manager().lock().await.full_hash(&restored_iface).expect("iface hash");
     assert_eq!(restored_iface_hash, iface_hash, "test relies on deterministic iface hashes");
 
-    let restore_report = restored
-        .restore_reticulum_path_table_report(temp.path())
-        .await
-        .expect("restore");
+    let restore_report =
+        restored.restore_reticulum_path_table_report(temp.path()).await.expect("restore");
     assert_eq!(restore_report.restored_active_paths, 0);
     assert_eq!(restore_report.skipped.tunnel_expired, 1);
 
@@ -1248,13 +1247,8 @@ async fn ingress_control_false_bypasses_unknown_announce_holding() {
         DestinationName::new("lxmf", "delivery"),
     );
     let second_announce = second_destination.announce(OsRng, None).expect("second announce");
-    handle_announce(
-        &second_announce,
-        handler.lock().await,
-        iface,
-        crate::iface::IfaceSource::None,
-    )
-    .await;
+    handle_announce(&second_announce, handler.lock().await, iface, crate::iface::IfaceSource::None)
+        .await;
 
     timeout(Duration::from_millis(200), announce_rx.recv())
         .await

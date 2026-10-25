@@ -37,7 +37,8 @@ async fn default_proof_strategy_never_generates_a_delivery_proof() {
     let sender_config = TransportConfig::new("sender", &sender_identity, true);
     let sender_transport = Transport::new(sender_config);
     let mut sender_iface = sender_transport.iface_manager().lock().await.new_channel(8);
-    let receiver_announce = own_destination.lock().await.announce(OsRng, None).expect("valid announce");
+    let receiver_announce =
+        own_destination.lock().await.announce(OsRng, None).expect("valid announce");
     handle_announce(
         &receiver_announce,
         sender_transport.get_handler().lock().await,
@@ -68,7 +69,8 @@ async fn default_proof_strategy_never_generates_a_delivery_proof() {
 #[tokio::test]
 async fn request_size_limit_does_not_reject_ordinary_single_packets() {
     let receiver_identity = PrivateIdentity::new_from_rand(OsRng);
-    let receiver_transport = Transport::new(TransportConfig::new("receiver", &receiver_identity, true));
+    let receiver_transport =
+        Transport::new(TransportConfig::new("receiver", &receiver_identity, true));
     let receiver_iface = receiver_transport.iface_manager().lock().await.new_channel(8);
     let own_destination = receiver_transport
         .add_destination(receiver_identity.clone(), DestinationName::new("lxmf", "delivery"))
@@ -80,7 +82,8 @@ async fn request_size_limit_does_not_reject_ordinary_single_packets() {
     let sender_identity = PrivateIdentity::new_from_rand(OsRng);
     let sender_transport = Transport::new(TransportConfig::new("sender", &sender_identity, true));
     let mut sender_iface = sender_transport.iface_manager().lock().await.new_channel(8);
-    let receiver_announce = own_destination.lock().await.announce(OsRng, None).expect("valid announce");
+    let receiver_announce =
+        own_destination.lock().await.announce(OsRng, None).expect("valid announce");
     handle_announce(
         &receiver_announce,
         sender_transport.get_handler().lock().await,
@@ -102,7 +105,12 @@ async fn request_size_limit_does_not_reject_ordinary_single_packets() {
         .expect("tx channel open");
     assert_eq!(sent.packet.context, PacketContext::None);
 
-    handle_data(&sent.packet, receiver_iface.address, receiver_transport.get_handler().lock().await).await;
+    handle_data(
+        &sent.packet,
+        receiver_iface.address,
+        receiver_transport.get_handler().lock().await,
+    )
+    .await;
 
     let delivered = timeout(Duration::from_millis(200), received.recv())
         .await
@@ -135,7 +143,8 @@ async fn proof_strategy_all_generates_a_valid_delivery_proof() {
     let sender_config = TransportConfig::new("sender", &sender_identity, true);
     let sender_transport = Transport::new(sender_config);
     let mut sender_iface = sender_transport.iface_manager().lock().await.new_channel(8);
-    let receiver_announce = own_destination.lock().await.announce(OsRng, None).expect("valid announce");
+    let receiver_announce =
+        own_destination.lock().await.announce(OsRng, None).expect("valid announce");
     handle_announce(
         &receiver_announce,
         sender_transport.get_handler().lock().await,
@@ -180,16 +189,26 @@ async fn proof_strategy_all_generates_a_valid_delivery_proof() {
     // proving destination's own real address hash — needed for proofs that
     // traverse a Transport/relay hop back to the sender. See wire.rs's own
     // "meshage fork" comment on this proof_packet construction.
-    assert_eq!(proof_message.packet.destination, AddressHash::new_from_hash(&encrypted_packet_hash));
+    assert_eq!(
+        proof_message.packet.destination,
+        AddressHash::new_from_hash(&encrypted_packet_hash)
+    );
     assert_eq!(proof_message.packet.data.len(), HASH_SIZE + ed25519_dalek::SIGNATURE_LENGTH);
-    assert_eq!(&proof_message.packet.data.as_slice()[..HASH_SIZE], encrypted_packet_hash.to_bytes().as_slice());
+    assert_eq!(
+        &proof_message.packet.data.as_slice()[..HASH_SIZE],
+        encrypted_packet_hash.to_bytes().as_slice()
+    );
 
     // The proof is only actually useful if it independently verifies
     // against the receiver's own public key — assert that directly, not
     // just "some bytes came back."
     let signature_bytes = &proof_message.packet.data.as_slice()[HASH_SIZE..];
-    let signature = ed25519_dalek::Signature::from_slice(signature_bytes).expect("valid signature bytes");
-    assert!(receiver_identity.as_identity().verify(&encrypted_packet_hash.to_bytes(), &signature).is_ok());
+    let signature =
+        ed25519_dalek::Signature::from_slice(signature_bytes).expect("valid signature bytes");
+    assert!(receiver_identity
+        .as_identity()
+        .verify(&encrypted_packet_hash.to_bytes(), &signature)
+        .is_ok());
 
     // Close the loop: feed the proof back into the sender's own inbound
     // handling and confirm its `ReceiptHandler` actually fires — this is
@@ -220,7 +239,8 @@ async fn proof_strategy_app_with_true_callback_generates_a_delivery_proof() {
     let sender_config = TransportConfig::new("sender", &sender_identity, true);
     let sender_transport = Transport::new(sender_config);
     let mut sender_iface = sender_transport.iface_manager().lock().await.new_channel(8);
-    let receiver_announce = own_destination.lock().await.announce(OsRng, None).expect("valid announce");
+    let receiver_announce =
+        own_destination.lock().await.announce(OsRng, None).expect("valid announce");
     handle_announce(
         &receiver_announce,
         sender_transport.get_handler().lock().await,
@@ -271,7 +291,8 @@ async fn proof_strategy_app_with_false_callback_never_generates_a_delivery_proof
     let sender_config = TransportConfig::new("sender", &sender_identity, true);
     let sender_transport = Transport::new(sender_config);
     let mut sender_iface = sender_transport.iface_manager().lock().await.new_channel(8);
-    let receiver_announce = own_destination.lock().await.announce(OsRng, None).expect("valid announce");
+    let receiver_announce =
+        own_destination.lock().await.announce(OsRng, None).expect("valid announce");
     handle_announce(
         &receiver_announce,
         sender_transport.get_handler().lock().await,
@@ -296,7 +317,10 @@ async fn proof_strategy_app_with_false_callback_never_generates_a_delivery_proof
     handle_data(&sent.packet, receiver_iface.address, receiver_handler.lock().await).await;
 
     let outcome = timeout(Duration::from_millis(100), receiver_iface.tx_channel.recv()).await;
-    assert!(outcome.is_err(), "a proof-requested callback returning false must not generate a delivery proof");
+    assert!(
+        outcome.is_err(),
+        "a proof-requested callback returning false must not generate a delivery proof"
+    );
 }
 
 #[tokio::test]
@@ -321,7 +345,11 @@ async fn non_data_or_non_single_packets_never_generate_a_delivery_proof() {
     own_destination.lock().await.set_proof_strategy(ProofStrategy::All);
 
     let packet = Packet {
-        header: Header { packet_type: PacketType::Data, destination_type: DestinationType::Single, ..Default::default() },
+        header: Header {
+            packet_type: PacketType::Data,
+            destination_type: DestinationType::Single,
+            ..Default::default()
+        },
         destination: own_hash,
         context: PacketContext::KeepAlive,
         data: PacketDataBuffer::new_from_slice(&[0xFFu8]),

@@ -21,8 +21,10 @@ async fn ingress_route_iface_registers_virtual_route_on_multicast() {
     let handler = transport.get_handler();
 
     // Local destination the request targets → the request is accepted.
-    let server_dest =
-        SingleInputDestination::new(PrivateIdentity::new_from_rand(OsRng), DestinationName::new("lxmf", "delivery"));
+    let server_dest = SingleInputDestination::new(
+        PrivateIdentity::new_from_rand(OsRng),
+        DestinationName::new("lxmf", "delivery"),
+    );
     let dest_desc = server_dest.desc;
     handler
         .lock()
@@ -57,8 +59,10 @@ async fn ingress_route_iface_passes_through_on_non_multicast() {
 
     // Accepted (local destination) so the pass-through is due to the iface not
     // being multicast, not the acceptance gate.
-    let server_dest =
-        SingleInputDestination::new(PrivateIdentity::new_from_rand(OsRng), DestinationName::new("lxmf", "delivery"));
+    let server_dest = SingleInputDestination::new(
+        PrivateIdentity::new_from_rand(OsRng),
+        DestinationName::new("lxmf", "delivery"),
+    );
     let dest_desc = server_dest.desc;
     handler
         .lock()
@@ -90,8 +94,10 @@ async fn inbound_link_request_to_unknown_destination_does_not_register() {
     let handler = transport.get_handler();
 
     // A link request targeting a destination we neither host nor have a path to.
-    let unknown_dest =
-        SingleInputDestination::new(PrivateIdentity::new_from_rand(OsRng), DestinationName::new("lxmf", "delivery"));
+    let unknown_dest = SingleInputDestination::new(
+        PrivateIdentity::new_from_rand(OsRng),
+        DestinationName::new("lxmf", "delivery"),
+    );
     let request_packet = link_request_to(unknown_dest.desc);
 
     let peer = peer_addr(4242);
@@ -124,8 +130,10 @@ async fn inbound_link_request_pins_in_link_to_unicast_route() {
     let handler = transport.get_handler();
 
     // Register a local service (input) destination the client will link to.
-    let server_dest =
-        SingleInputDestination::new(PrivateIdentity::new_from_rand(OsRng), DestinationName::new("lxmf", "delivery"));
+    let server_dest = SingleInputDestination::new(
+        PrivateIdentity::new_from_rand(OsRng),
+        DestinationName::new("lxmf", "delivery"),
+    );
     let dest_desc = server_dest.desc;
     handler
         .lock()

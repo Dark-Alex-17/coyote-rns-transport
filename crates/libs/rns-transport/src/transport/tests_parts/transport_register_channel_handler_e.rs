@@ -110,7 +110,10 @@ async fn identified_inbound_link(
         Link::new_from_request(&peer_side.request(), signer.sign_key().clone(), destination, tx)
             .expect("link request should parse");
     let iface = AddressHash::new_from_rand(OsRng);
-    assert!(matches!(peer_side.handle_packet(&inbound.prove(), iface), LinkHandleResult::Activated));
+    assert!(matches!(
+        peer_side.handle_packet(&inbound.prove(), iface),
+        LinkHandleResult::Activated
+    ));
     let identify = peer_side
         .identify_packet(&identify_payload_for(&peer, inbound.id()))
         .expect("identify packet");

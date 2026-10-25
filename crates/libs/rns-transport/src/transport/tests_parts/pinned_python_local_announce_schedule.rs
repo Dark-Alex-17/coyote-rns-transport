@@ -32,11 +32,7 @@ async fn pinned_python_local_client_schedule_matches_production_worker_tick() {
     );
 
     let constants = String::from_utf8_lossy(&output.stdout);
-    let values: Vec<&str> = constants
-        .trim()
-        .split(',')
-        .take(3)
-        .collect();
+    let values: Vec<&str> = constants.trim().split(',').take(3).collect();
     let numeric_values: Vec<u64> = values
         .iter()
         .map(|value| value.parse().expect("Python schedule value is an integer"))

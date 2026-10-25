@@ -24,13 +24,15 @@ async fn held_udp_announce_preserves_peer_source_for_unicast_route() {
         DestinationName::new("lxmf", "delivery"),
     );
     let first_announce = first_destination.announce(OsRng, None).expect("first announce");
-    assert!(super::announce::admit_announce_before_queue(
-        &first_announce,
-        &handler,
-        iface,
-        crate::iface::IfaceSource::Udp(first_peer),
-    )
-    .await);
+    assert!(
+        super::announce::admit_announce_before_queue(
+            &first_announce,
+            &handler,
+            iface,
+            crate::iface::IfaceSource::Udp(first_peer),
+        )
+        .await
+    );
     handle_announce(
         &first_announce,
         handler.lock().await,
@@ -62,13 +64,15 @@ async fn held_udp_announce_preserves_peer_source_for_unicast_route() {
         DestinationName::new("lxmf", "delivery"),
     );
     let held_announce = held_destination.announce(OsRng, None).expect("held announce");
-    assert!(!super::announce::admit_announce_before_queue(
-        &held_announce,
-        &handler,
-        iface,
-        crate::iface::IfaceSource::Udp(held_peer),
-    )
-    .await);
+    assert!(
+        !super::announce::admit_announce_before_queue(
+            &held_announce,
+            &handler,
+            iface,
+            crate::iface::IfaceSource::Udp(held_peer),
+        )
+        .await
+    );
     assert!(matches!(
         announce_rx.try_recv(),
         Err(tokio::sync::broadcast::error::TryRecvError::Empty)

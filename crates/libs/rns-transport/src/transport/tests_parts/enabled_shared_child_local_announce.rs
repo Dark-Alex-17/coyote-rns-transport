@@ -1,11 +1,7 @@
 #[tokio::test]
 async fn enabled_shared_daemon_does_not_transit_announce_for_local_destination() {
     let identity = PrivateIdentity::new_from_rand(OsRng);
-    let transport = Transport::new(TransportConfig::new(
-        "enabled-local-announce",
-        &identity,
-        true,
-    ));
+    let transport = Transport::new(TransportConfig::new("enabled-local-announce", &identity, true));
     let (mut parent_channel, local_client, sibling_client) = {
         let manager = transport.iface_manager();
         let mut manager = manager.lock().await;
@@ -22,22 +18,11 @@ async fn enabled_shared_daemon_does_not_transit_announce_for_local_destination()
     };
 
     let destination = transport
-        .add_destination(
-            identity,
-            DestinationName::new("lxmf", "enabled-local-announce"),
-        )
+        .add_destination(identity, DestinationName::new("lxmf", "enabled-local-announce"))
         .await;
-    let announce = destination
-        .lock()
-        .await
-        .announce(OsRng, None)
-        .expect("local announce");
+    let announce = destination.lock().await.announce(OsRng, None).expect("local announce");
     let destination_hash = announce.destination;
-    let inbound = RxMessage {
-        address: local_client,
-        packet: announce,
-        source: IfaceSource::None,
-    };
+    let inbound = RxMessage { address: local_client, packet: announce, source: IfaceSource::None };
     let (_, queued) = super::inbound_processing::preprocess_inbound_message(
         &transport.get_handler(),
         &transport.iface_messages_tx,

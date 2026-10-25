@@ -152,10 +152,8 @@ async fn response_resource_round_trip(payload_len: usize, expected_segments: u32
         register_in_destination(&listener.transport, "loopback", "resource").await;
     let learned = learn_announce(&mut connector.announces, &desc.address_hash).await;
     let (_link, link_id) = open_link(&connector.transport, learned).await;
-    let activated = await_event(&mut in_events, |event| {
-        matches!(event.event, LinkEvent::Activated)
-    })
-    .await;
+    let activated =
+        await_event(&mut in_events, |event| matches!(event.event, LinkEvent::Activated)).await;
     assert_eq!(activated.id, link_id, "both ends share one link id");
 
     let mut sender_events = listener.transport.resource_events();

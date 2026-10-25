@@ -48,18 +48,10 @@ async fn free_loopback_port() -> u16 {
 /// Polls `condition` until it holds; on timeout the panic carries `detail()` so a bind or
 /// connect failure recorded in the interface status is visible instead of a bare timeout.
 #[deny(clippy::await_holding_invalid_type)]
-async fn wait_until(
-    what: &str,
-    mut condition: impl FnMut() -> bool,
-    detail: impl Fn() -> String,
-) {
+async fn wait_until(what: &str, mut condition: impl FnMut() -> bool, detail: impl Fn() -> String) {
     let deadline = Instant::now() + LOOPBACK_TIMEOUT;
     while !condition() {
-        assert!(
-            Instant::now() < deadline,
-            "timed out waiting for {what}: {}",
-            detail()
-        );
+        assert!(Instant::now() < deadline, "timed out waiting for {what}: {}", detail());
         tokio::time::sleep(LOOPBACK_POLL).await;
     }
 }
@@ -79,11 +71,7 @@ async fn listener(name: &str, client_mtu: usize) -> LoopbackListener {
         || status.to_json().to_string(),
     )
     .await;
-    LoopbackListener {
-        transport,
-        port,
-        status,
-    }
+    LoopbackListener { transport, port, status }
 }
 
 #[deny(clippy::await_holding_invalid_type)]
@@ -210,10 +198,8 @@ async fn two_transport_loopback_exchanges_data_both_ways() {
 
     let mut out_events = connector.transport.out_link_events();
     let (_link, link_id) = open_link(&connector.transport, learned).await;
-    let activated = await_event(&mut in_events, |event| {
-        matches!(event.event, LinkEvent::Activated)
-    })
-    .await;
+    let activated =
+        await_event(&mut in_events, |event| matches!(event.event, LinkEvent::Activated)).await;
     assert_eq!(activated.id, link_id, "both ends share one link id");
 
     let report = connector

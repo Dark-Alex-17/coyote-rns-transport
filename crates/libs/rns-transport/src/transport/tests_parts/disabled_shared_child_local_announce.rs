@@ -20,18 +20,11 @@ async fn disabled_shared_daemon_does_not_transit_announce_for_local_destination(
     };
 
     let destination = transport
-        .add_destination(
-            identity,
-            DestinationName::new("lxmf", "disabled-local-announce"),
-        )
+        .add_destination(identity, DestinationName::new("lxmf", "disabled-local-announce"))
         .await;
     let announce = destination.lock().await.announce(OsRng, None).expect("local announce");
     let destination_hash = announce.destination;
-    let inbound = RxMessage {
-        address: local_client,
-        packet: announce,
-        source: IfaceSource::None,
-    };
+    let inbound = RxMessage { address: local_client, packet: announce, source: IfaceSource::None };
     let (_, queued) = super::inbound_processing::preprocess_inbound_message(
         &transport.get_handler(),
         &transport.iface_messages_tx,

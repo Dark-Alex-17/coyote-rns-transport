@@ -46,20 +46,10 @@ async fn loopback_link_handles_with_mtu(aspect: &str, mtu: usize) -> LoopbackLin
         register_in_destination(&listener.transport, "loopback", aspect).await;
     let learned = learn_announce(&mut connector.announces, &desc.address_hash).await;
     let (link, link_id) = open_link(&connector.transport, learned).await;
-    let activated = await_event(&mut in_events, |event| {
-        matches!(event.event, LinkEvent::Activated)
-    })
-    .await;
+    let activated =
+        await_event(&mut in_events, |event| matches!(event.event, LinkEvent::Activated)).await;
     assert_eq!(activated.id, link_id, "both ends share one link id");
-    LoopbackLinkHandles {
-        listener,
-        connector,
-        destination,
-        link,
-        link_id,
-        desc,
-        in_events,
-    }
+    LoopbackLinkHandles { listener, connector, destination, link, link_id, desc, in_events }
 }
 
 /// Sends one plain Data packet in each direction over the pair's link and checks delivery.
@@ -88,10 +78,9 @@ async fn exchange_data_both_ways(pair: &mut LoopbackLinkHandles) {
         .send_to_in_links_with_report(&pair.desc.address_hash, b"pong after advert")
         .await;
     assert_sent_on_one_link(report, "inbound");
-    let outbound = await_event(&mut out_events, |event| {
-        event.id == link_id && is_plain_data(&event.event)
-    })
-    .await;
+    let outbound =
+        await_event(&mut out_events, |event| event.id == link_id && is_plain_data(&event.event))
+            .await;
     assert_eq!(data_bytes(outbound), b"pong after advert");
 }
 
@@ -134,9 +123,7 @@ async fn two_transport_loopback_stop_releases_listener_and_is_idempotent() {
     let pair = loopback_link_handles("stop").await;
     let port = pair.listener.port;
 
-    timeout(STOP_TIMEOUT, pair.listener.transport.stop())
-        .await
-        .expect("listener stop completes");
+    timeout(STOP_TIMEOUT, pair.listener.transport.stop()).await.expect("listener stop completes");
 
     assert!(
         pair.listener.transport.interface_hashes().await.is_empty(),
@@ -154,9 +141,7 @@ async fn two_transport_loopback_stop_releases_listener_and_is_idempotent() {
     timeout(STOP_TIMEOUT, pair.listener.transport.stop())
         .await
         .expect("a second stop is a no-op that still returns");
-    timeout(STOP_TIMEOUT, pair.connector.transport.stop())
-        .await
-        .expect("connector stop completes");
+    timeout(STOP_TIMEOUT, pair.connector.transport.stop()).await.expect("connector stop completes");
 }
 
 #[tokio::test]
@@ -282,7 +267,8 @@ async fn two_transport_loopback_drops_oversized_advertisement_and_keeps_link_usa
         )
         .expect("advertisement fits a link packet")
     };
-    let outcome = pair.connector.transport.send_link_packet_on_bound_iface(&pair.link, packet).await;
+    let outcome =
+        pair.connector.transport.send_link_packet_on_bound_iface(&pair.link, packet).await;
     assert_eq!(outcome, SendPacketOutcome::SentDirect, "advertisement reaches the wire");
 
     exchange_data_both_ways(&mut pair).await;

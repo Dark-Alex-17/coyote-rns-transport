@@ -33,10 +33,7 @@ async fn announce_with_drifted_identity_is_rejected_without_overwrite() {
     handle_announce(&announce, handler.lock().await, iface, crate::iface::IfaceSource::None).await;
 
     assert!(
-        matches!(
-            announce_rx.try_recv(),
-            Err(tokio::sync::broadcast::error::TryRecvError::Empty)
-        ),
+        matches!(announce_rx.try_recv(), Err(tokio::sync::broadcast::error::TryRecvError::Empty)),
         "drifted announce must not emit an announce event"
     );
 
@@ -67,9 +64,7 @@ async fn reannounce_with_rotated_app_data_is_accepted() {
     let remote_identity = PrivateIdentity::new_from_rand(OsRng);
     let mut remote_destination =
         SingleInputDestination::new(remote_identity, DestinationName::new("lxmf", "delivery"));
-    let first = remote_destination
-        .announce(OsRng, Some(b"stamp-cost-16"))
-        .expect("first announce");
+    let first = remote_destination.announce(OsRng, Some(b"stamp-cost-16")).expect("first announce");
 
     handle_announce(&first, handler.lock().await, iface, crate::iface::IfaceSource::None).await;
     timeout(Duration::from_millis(200), announce_rx.recv())

@@ -56,12 +56,9 @@ async fn responder_proof_does_not_wait_for_unrelated_inbound_link() {
     };
 
     let _unrelated_guard = unrelated.lock().await;
-    tokio::time::timeout(
-        std::time::Duration::from_secs(1),
-        handle_proof(proof, handler, iface),
-    )
-    .await
-    .expect("proof handling must not lock an unrelated inbound link");
+    tokio::time::timeout(std::time::Duration::from_secs(1), handle_proof(proof, handler, iface))
+        .await
+        .expect("proof handling must not lock an unrelated inbound link");
 
     assert_eq!(
         transport.channel_message_state(&link_id, sequence).await.expect("state"),

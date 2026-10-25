@@ -71,13 +71,9 @@ async fn two_transport_loopback_resources_advertisement_retry_skips_gone_link() 
     let removed = forget_out_links(&pair.connector.transport).await;
     assert_eq!(removed, 1, "the connector held exactly the one link under test");
 
-    let first = await_link_packets(
-        &mut listener_tap,
-        pair.link_id,
-        PacketContext::ResourceAdvrtisement,
-        1,
-    )
-    .await;
+    let first =
+        await_link_packets(&mut listener_tap, pair.link_id, PacketContext::ResourceAdvrtisement, 1)
+            .await;
     assert_eq!(
         first, 1,
         "only the advertisement dispatched while the link existed reaches the listener"
@@ -100,11 +96,8 @@ async fn two_transport_loopback_resources_advertisement_retry_skips_gone_link() 
         outbound.kind
     );
 
-    let stray = count_link_packets(
-        &mut listener_tap,
-        pair.link_id,
-        PacketContext::ResourceAdvrtisement,
-    );
+    let stray =
+        count_link_packets(&mut listener_tap, pair.link_id, PacketContext::ResourceAdvrtisement);
     assert_eq!(
         stray, 0,
         "no advertisement retry may reach the listener after the link is gone; saw {stray}"

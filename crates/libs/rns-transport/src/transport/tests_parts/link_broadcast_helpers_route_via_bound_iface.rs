@@ -37,13 +37,17 @@ fn activated_link_pair(destination: DestinationDesc, signer: &PrivateIdentity) -
 async fn send_to_out_links_reaches_the_links_bound_interface() {
     let local_identity = PrivateIdentity::new_from_rand(OsRng);
     let transport = Transport::new(TransportConfig::new("test", &local_identity, false));
-    let mut channel = transport.iface_manager().lock().await.new_channel_with_role(8, IfaceRole::Unicast);
+    let mut channel =
+        transport.iface_manager().lock().await.new_channel_with_role(8, IfaceRole::Unicast);
     let iface = *channel.address();
 
     let signer = PrivateIdentity::new_from_rand(OsRng);
     let identity = *signer.as_identity();
-    let destination =
-        DestinationDesc { identity, address_hash: identity.address_hash, name: DestinationName::new("lxmf", "delivery") };
+    let destination = DestinationDesc {
+        identity,
+        address_hash: identity.address_hash,
+        name: DestinationName::new("lxmf", "delivery"),
+    };
     let (mut outbound, _inbound) = activated_link_pair(destination, &signer);
     // The Active handshake above used a synthetic iface id, not the real
     // registered `channel` — rebind to the real one so the send below has
@@ -51,7 +55,12 @@ async fn send_to_out_links_reaches_the_links_bound_interface() {
     // `ingress_iface` from whichever interface the proof actually arrived on.
     outbound.set_ingress_iface(iface);
     let link_id = *outbound.id();
-    transport.get_handler().lock().await.out_links.insert(destination.address_hash, Arc::new(Mutex::new(outbound)));
+    transport
+        .get_handler()
+        .lock()
+        .await
+        .out_links
+        .insert(destination.address_hash, Arc::new(Mutex::new(outbound)));
 
     let report = transport
         .send_to_out_links_with_report(&destination.address_hash, b"broadcast payload")
@@ -90,9 +99,8 @@ async fn send_to_out_links_reports_dispatch_failure_for_unregistered_bound_iface
         .out_links
         .insert(destination.address_hash, Arc::new(Mutex::new(outbound)));
 
-    let report = transport
-        .send_to_out_links_with_report(&destination.address_hash, b"undeliverable")
-        .await;
+    let report =
+        transport.send_to_out_links_with_report(&destination.address_hash, b"undeliverable").await;
 
     assert!(!report.is_complete());
     assert_eq!(report.matched_links, 1);
@@ -104,16 +112,25 @@ async fn send_to_out_links_reports_dispatch_failure_for_unregistered_bound_iface
 async fn send_channel_to_out_links_reaches_the_links_bound_interface() {
     let local_identity = PrivateIdentity::new_from_rand(OsRng);
     let transport = Transport::new(TransportConfig::new("test", &local_identity, false));
-    let mut channel = transport.iface_manager().lock().await.new_channel_with_role(8, IfaceRole::Unicast);
+    let mut channel =
+        transport.iface_manager().lock().await.new_channel_with_role(8, IfaceRole::Unicast);
     let iface = *channel.address();
 
     let signer = PrivateIdentity::new_from_rand(OsRng);
     let identity = *signer.as_identity();
-    let destination =
-        DestinationDesc { identity, address_hash: identity.address_hash, name: DestinationName::new("lxmf", "delivery") };
+    let destination = DestinationDesc {
+        identity,
+        address_hash: identity.address_hash,
+        name: DestinationName::new("lxmf", "delivery"),
+    };
     let (mut outbound, _inbound) = activated_link_pair(destination, &signer);
     outbound.set_ingress_iface(iface);
-    transport.get_handler().lock().await.out_links.insert(destination.address_hash, Arc::new(Mutex::new(outbound)));
+    transport
+        .get_handler()
+        .lock()
+        .await
+        .out_links
+        .insert(destination.address_hash, Arc::new(Mutex::new(outbound)));
 
     transport.send_channel_to_out_links(&destination.address_hash, b"channel payload").await;
 
@@ -129,13 +146,17 @@ async fn send_channel_to_out_links_reaches_the_links_bound_interface() {
 async fn send_to_in_links_reaches_the_links_bound_interface() {
     let local_identity = PrivateIdentity::new_from_rand(OsRng);
     let transport = Transport::new(TransportConfig::new("test", &local_identity, false));
-    let mut channel = transport.iface_manager().lock().await.new_channel_with_role(8, IfaceRole::Unicast);
+    let mut channel =
+        transport.iface_manager().lock().await.new_channel_with_role(8, IfaceRole::Unicast);
     let iface = *channel.address();
 
     let signer = PrivateIdentity::new_from_rand(OsRng);
     let identity = *signer.as_identity();
-    let destination =
-        DestinationDesc { identity, address_hash: identity.address_hash, name: DestinationName::new("lxmf", "delivery") };
+    let destination = DestinationDesc {
+        identity,
+        address_hash: identity.address_hash,
+        name: DestinationName::new("lxmf", "delivery"),
+    };
     let (_outbound, mut inbound) = activated_link_pair(destination, &signer);
     inbound.set_ingress_iface(iface);
     let link_id = *inbound.id();
@@ -155,16 +176,25 @@ async fn send_to_in_links_reaches_the_links_bound_interface() {
 async fn send_to_all_out_links_skips_inactive_links_and_reaches_active_ones() {
     let local_identity = PrivateIdentity::new_from_rand(OsRng);
     let transport = Transport::new(TransportConfig::new("test", &local_identity, false));
-    let mut channel = transport.iface_manager().lock().await.new_channel_with_role(8, IfaceRole::Unicast);
+    let mut channel =
+        transport.iface_manager().lock().await.new_channel_with_role(8, IfaceRole::Unicast);
     let iface = *channel.address();
 
     let signer = PrivateIdentity::new_from_rand(OsRng);
     let identity = *signer.as_identity();
-    let destination =
-        DestinationDesc { identity, address_hash: identity.address_hash, name: DestinationName::new("lxmf", "delivery") };
+    let destination = DestinationDesc {
+        identity,
+        address_hash: identity.address_hash,
+        name: DestinationName::new("lxmf", "delivery"),
+    };
     let (mut outbound, _inbound) = activated_link_pair(destination, &signer);
     outbound.set_ingress_iface(iface);
-    transport.get_handler().lock().await.out_links.insert(destination.address_hash, Arc::new(Mutex::new(outbound)));
+    transport
+        .get_handler()
+        .lock()
+        .await
+        .out_links
+        .insert(destination.address_hash, Arc::new(Mutex::new(outbound)));
 
     // A second, never-activated (Pending) link must be skipped, not just
     // silently dropped at send time — it should never even build a packet.
@@ -177,7 +207,12 @@ async fn send_to_all_out_links_skips_inactive_links_and_reaches_active_ones() {
     };
     let (tx, _) = tokio::sync::broadcast::channel(8);
     let pending = Link::new(other_destination, tx);
-    transport.get_handler().lock().await.out_links.insert(other_destination.address_hash, Arc::new(Mutex::new(pending)));
+    transport
+        .get_handler()
+        .lock()
+        .await
+        .out_links
+        .insert(other_destination.address_hash, Arc::new(Mutex::new(pending)));
 
     transport.send_to_all_out_links(b"fan-out payload").await;
 

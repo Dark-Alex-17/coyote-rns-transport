@@ -363,6 +363,17 @@ pub(super) async fn send_response_resource(
     // See `send_resource_observed`: prepared off the handler lock.
     let prepared = {
         let link_guard = link.lock().await;
+        // The MTU lookup above released the link; a close that landed in
+        // between has zeroed the derived key, and encrypting with it would
+        // put an undecryptable advertisement on the wire.
+        if !link_guard.status().can_exchange_data() {
+            log::debug!(
+                "tp: response {} dropped, link {} closed before transmit",
+                super::diag::bytes_to_hex(&request_id),
+                link_id
+            );
+            return Err(RnsError::ConnectionError);
+        }
         // See `resource_wire.rs`: the negotiated link MTU, not the local
         // interface alone, is what a fragment has to fit through.
         let interface_mtu = interface_mtu.min(link_guard.link_mtu());

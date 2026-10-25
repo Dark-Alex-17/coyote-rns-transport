@@ -142,7 +142,7 @@ async fn two_transport_loopback_request_resource_form_sizes_probe12_in_limit_pac
             event.link_id == link_id
                 && matches!(
                     &event.kind,
-                    ResourceEventKind::InboundFailed(failure) if failure.reason.contains("cancel")
+                    ResourceEventKind::InboundFailed(failure) if failure.reason == "cancelled"
                 )
         }),
     )

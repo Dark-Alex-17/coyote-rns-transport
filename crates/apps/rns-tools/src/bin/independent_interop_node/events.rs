@@ -338,6 +338,7 @@ mod tests {
     /// destinations read their own announce, a link reports the latest announce for its
     /// destination, and a destination that never announced reads null.
     #[tokio::test]
+    #[deny(clippy::await_holding_invalid_type)]
     async fn record_link_event_reads_the_latest_announce_flag_of_the_links_destination() {
         let identity = PrivateIdentity::new_from_rand(OsRng);
         let transport = Transport::new(TransportConfig::new("interop-probe", &identity, false));

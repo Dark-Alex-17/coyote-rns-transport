@@ -51,6 +51,11 @@ fn spawn_announce_collector(transport: Arc<Transport>, state: SharedState) {
             let description = event.destination.lock().await.desc;
             state.known_destinations.write().await.insert(description.address_hash, description);
             state
+                .announce_path_response
+                .write()
+                .await
+                .insert(description.address_hash, event.is_path_response);
+            state
                 .record(json!({
                     "type": "announce",
                     "destination_hash": address_hex(&description.address_hash),
@@ -107,9 +112,11 @@ async fn record_link_event(
     event: LinkEventData,
     outbound: bool,
 ) {
+    let is_path_response =
+        state.announce_path_response.read().await.get(&event.address_hash).copied();
     let snapshot = {
         let mut links = state.links.write().await;
-        merge_link_snapshot(&mut links, &event, outbound)
+        merge_link_snapshot(&mut links, &event, outbound, is_path_response)
     };
     state.record(json!({"type": "link", "event": snapshot})).await;
     if matches!(event.event, LinkEvent::Activated) {
@@ -157,6 +164,7 @@ fn merge_link_snapshot(
     links: &mut HashMap<AddressHash, Value>,
     event: &LinkEventData,
     outbound: bool,
+    is_path_response: Option<bool>,
 ) -> Value {
     let event_name = link_event_name(event);
     let snapshot = links.entry(event.id).or_insert_with(|| {
@@ -164,10 +172,7 @@ fn merge_link_snapshot(
             "link_id": address_hex(&event.id),
             "destination_hash": address_hex(&event.address_hash),
             "direction": if outbound { "outbound" } else { "inbound" },
-            // The transport's PathEntry (rns-transport transport/path_table.rs)
-            // does not keep the context of the announce that created the path,
-            // so a path-response path cannot be told from an unsolicited one.
-            "is_path_response": Value::Null,
+            "is_path_response": is_path_response,
             "states": [],
         })
     });
@@ -266,32 +271,58 @@ mod tests {
         let mut links = HashMap::new();
         let id = AddressHash::new_from_rand(OsRng);
         let activated = link_event(id, LinkEvent::Activated);
-        merge_link_snapshot(&mut links, &activated, true);
+        merge_link_snapshot(&mut links, &activated, true, Some(false));
         let data = link_event(id, LinkEvent::Data(Box::new(LinkPayload::new())));
-        let snapshot = merge_link_snapshot(&mut links, &data, true);
+        let snapshot = merge_link_snapshot(&mut links, &data, true, Some(false));
 
         assert_eq!(snapshot["state"], "data");
         assert_eq!(snapshot["states"], json!(["activated", "data"]));
         assert_eq!(snapshot["link_id"], address_hex(&id));
         assert_eq!(snapshot["destination_hash"], address_hex(&activated.address_hash));
         assert_eq!(snapshot["direction"], "outbound");
-        assert!(snapshot["is_path_response"].is_null());
+        assert_eq!(snapshot["is_path_response"], false);
         assert_eq!(links.len(), 1);
+    }
+
+    #[test]
+    fn link_snapshot_reports_a_path_response_announce() {
+        let mut links = HashMap::new();
+        let id = AddressHash::new_from_rand(OsRng);
+        let snapshot = merge_link_snapshot(
+            &mut links,
+            &link_event(id, LinkEvent::Activated),
+            true,
+            Some(true),
+        );
+
+        assert_eq!(snapshot["is_path_response"], true);
+    }
+
+    #[test]
+    fn link_snapshot_is_null_without_an_announce_for_the_destination() {
+        let mut links = HashMap::new();
+        let id = AddressHash::new_from_rand(OsRng);
+        let snapshot =
+            merge_link_snapshot(&mut links, &link_event(id, LinkEvent::Activated), false, None);
+
+        assert!(snapshot["is_path_response"].is_null());
     }
 
     #[test]
     fn link_snapshot_history_drops_the_oldest_past_the_cap() {
         let mut links = HashMap::new();
         let id = AddressHash::new_from_rand(OsRng);
-        merge_link_snapshot(&mut links, &link_event(id, LinkEvent::Activated), false);
+        merge_link_snapshot(&mut links, &link_event(id, LinkEvent::Activated), false, None);
         for _ in 0..LINK_STATE_HISTORY_CAP {
             merge_link_snapshot(
                 &mut links,
                 &link_event(id, LinkEvent::Data(Box::new(LinkPayload::new()))),
                 false,
+                None,
             );
         }
-        let snapshot = merge_link_snapshot(&mut links, &link_event(id, LinkEvent::Closed), false);
+        let snapshot =
+            merge_link_snapshot(&mut links, &link_event(id, LinkEvent::Closed), false, None);
 
         let states = snapshot["states"].as_array().expect("states array");
         assert_eq!(states.len(), LINK_STATE_HISTORY_CAP);

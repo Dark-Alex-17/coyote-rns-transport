@@ -57,8 +57,8 @@ fork commit `08362717`; the
 `81c9ed73`, `faacb7fd`, `9877bb6e`, `5631defa`, `1f321d0d`, `8f6b847c`,
 `218d784a`, `dbe495ca`, `4783f1ef`, `db4c5a5e`, `44962a96`, `ce8ed659`,
 `9865dbdd`, `e5ba2807`, `1b04a361`, `f890dbf9`, `fd6322b5`, `05975d7d`,
-`5cca182d`, `42f988ce`, `f2ea78f9`, `6c5ca548`, `012f7337` and
-`63bbbc87`.
+`5cca182d`, `42f988ce`, `f2ea78f9`, `6c5ca548`, `012f7337`, `63bbbc87`
+and `2c89e7ba`.
 
 | File | Patch |
 | --- | --- |
@@ -1343,7 +1343,7 @@ Fork commits `985bd5bd`, `81c9ed73`, `faacb7fd`, `9877bb6e`, `5631defa`,
 `1f321d0d`, `8f6b847c`, `218d784a`, `dbe495ca`, `4783f1ef`, `db4c5a5e`,
 `44962a96`, `ce8ed659`, `9865dbdd`, `e5ba2807`, `1b04a361`, `f890dbf9`,
 `fd6322b5`, `05975d7d`, `5cca182d`, `42f988ce`, `f2ea78f9`, `6c5ca548`,
-`012f7337` and `63bbbc87`: H6, carried hygiene. The library behaviour
+`012f7337`, `63bbbc87` and `2c89e7ba`: H6, carried hygiene. The library behaviour
 changes are: an inbound resource cancel, hash update, part or
 split-segment advertisement reaches only a transfer on the link it
 arrived on (first); a rejected resource advertisement is counted per link
@@ -1541,7 +1541,9 @@ verbatim and with the advertisement helper include they use, into
 twenty-fifth is test-only: rustfmt over the 37 include!'d fixtures under
 `transport/tests_parts/` that failed `rustfmt --check`; the diff is line
 joins and splits plus five single-expression closure bodies losing their
-braces, with the token stream otherwise identical.
+braces, with the token stream otherwise identical. The twenty-sixth is a
+style-only rustfmt pass over the hoisted
+`resource/sender_parts/collision_free_hash.rs` (one type alias re-joined).
 
 ## 0.15.1 (upstream 0.14.0)
 

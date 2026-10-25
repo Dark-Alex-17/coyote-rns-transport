@@ -24,7 +24,11 @@ async fn tcp_client_cancel_interrupts_an_in_flight_connect() {
     let task = tokio::spawn(TcpClient::spawn(context));
 
     tokio::time::sleep(Duration::from_millis(200)).await;
-    assert_eq!(runtime_status.to_json()["stream_state"].as_str(), Some("connecting"));
+    assert_eq!(
+        runtime_status.to_json()["stream_state"].as_str(),
+        Some("connecting"),
+        "the connect to TEST-NET-1 must still be in flight (a fast failure would not exercise the cancel arm)"
+    );
     cancel.cancel();
 
     tokio::time::timeout(Duration::from_secs(2), task)
@@ -42,7 +46,11 @@ async fn tcp_client_iface_stop_interrupts_an_in_flight_connect() {
     let task = tokio::spawn(TcpClient::spawn(context));
 
     tokio::time::sleep(Duration::from_millis(200)).await;
-    assert_eq!(runtime_status.to_json()["stream_state"].as_str(), Some("connecting"));
+    assert_eq!(
+        runtime_status.to_json()["stream_state"].as_str(),
+        Some("connecting"),
+        "the connect to TEST-NET-1 must still be in flight (a fast failure would not exercise the cancel arm)"
+    );
     iface_stop.cancel();
 
     tokio::time::timeout(Duration::from_secs(2), task)

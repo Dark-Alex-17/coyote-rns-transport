@@ -11,6 +11,11 @@ async fn transport_stop_cancels_a_client_connect_still_in_flight() {
     transport.iface_manager().lock().await.spawn(client, TcpClient::spawn);
 
     tokio::time::sleep(Duration::from_millis(200)).await;
+    assert_eq!(
+        status.to_json()["stream_state"].as_str(),
+        Some("connecting"),
+        "the connect to TEST-NET-1 must still be in flight (a fast failure would not exercise the cancel arm)"
+    );
     assert_eq!(transport.interface_hashes().await.len(), 1, "client is attached before stop");
 
     timeout(Duration::from_secs(4), transport.stop())

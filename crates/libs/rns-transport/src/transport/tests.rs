@@ -105,6 +105,7 @@ include!("tests_parts/two_transport_loopback_requests.rs");
 include!("tests_parts/two_transport_loopback_requests_isolation.rs");
 
 include!("tests_parts/request_dispatch_closed_link.rs");
+include!("tests_parts/request_dispatch_closed_link_probe.rs");
 
 include!("tests_parts/two_transport_loopback_requests_probe.rs");
 

@@ -346,7 +346,14 @@ pub(super) async fn send_response_resource(
     metadata: Option<Vec<u8>>,
     auto_compress: bool,
 ) -> Result<(Hash, OutboundOutcome), RnsError> {
-    let link = find_any_link(handler, link_id).await.ok_or(RnsError::InvalidArgument)?;
+    let Some(link) = find_any_link(handler, link_id).await else {
+        log::debug!(
+            "tp: response {} dropped, link {} is gone",
+            super::diag::bytes_to_hex(&request_id),
+            link_id
+        );
+        return Err(RnsError::InvalidArgument);
+    };
     let iface = {
         let link_guard = link.lock().await;
         if !link_guard.status().can_exchange_data() {
@@ -368,7 +375,7 @@ pub(super) async fn send_response_resource(
         // put an undecryptable advertisement on the wire.
         if !link_guard.status().can_exchange_data() {
             log::debug!(
-                "tp: response {} dropped, link {} closed before transmit",
+                "tp: response {} dropped, link {} closed before transmit (after MTU lookup)",
                 super::diag::bytes_to_hex(&request_id),
                 link_id
             );

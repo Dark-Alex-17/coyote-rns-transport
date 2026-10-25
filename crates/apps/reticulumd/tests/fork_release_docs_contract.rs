@@ -707,7 +707,9 @@ fn top_level_bullets(markdown: &str) -> Vec<String> {
 /// that records 0.15.0 adding it must say so in the same bullet: a reader of
 /// the register must not be left believing the `CODEX_REVIEW_ENABLED`
 /// variable still gates anything. Every mention of the variable in the README
-/// sits in such a bullet; a mention in free prose has no removal note.
+/// sits in such a bullet; a mention in free prose has no removal note. The
+/// bullet names 0.16.0 as the release whose `### Removed` records it, now
+/// that the release exists, rather than describing it by position.
 #[test]
 fn readme_names_the_codex_variable_only_in_a_bullet_that_says_removed() {
     let readme = read_repo_file("crates/libs/rns-transport/README.md");
@@ -725,7 +727,15 @@ fn readme_names_the_codex_variable_only_in_a_bullet_that_says_removed() {
             unwrapped.contains("workflow was removed"),
             "a README bullet naming CODEX_REVIEW_ENABLED should say the workflow was removed:\n{bullet}"
         );
+        assert!(
+            unwrapped.contains("records it under `### Removed` in 0.16.0"),
+            "a README bullet naming CODEX_REVIEW_ENABLED should name 0.16.0 as the release that records the removal:\n{bullet}"
+        );
     }
+    assert!(
+        !readme.contains("first release after 0.15.1"),
+        "the README should name 0.16.0 rather than describe it as the release after 0.15.1"
+    );
     let mentions_in_bullets: usize =
         codex_bullets.iter().map(|bullet| bullet.matches("CODEX_REVIEW_ENABLED").count()).sum();
     assert_eq!(

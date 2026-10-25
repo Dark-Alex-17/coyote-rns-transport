@@ -321,8 +321,9 @@ fn unreleased_census_sentence_matches_the_measured_production_allowances() {
 }
 
 /// Probe sources and auto runtime test sections are ASCII, and no probe
-/// header carries a task or round reference: the files describe the contract
-/// they pin, not the lane that wrote them.
+/// header under `fork_publish_contract_parts/` carries a task or round
+/// reference, whichever contract the probe covers: the files describe the
+/// contract they pin, not the lane that wrote them.
 #[test]
 fn probe_sources_and_test_sections_are_ascii_with_lane_free_headers() {
     let task_token = concat!("TASK", "-");
@@ -340,7 +341,7 @@ fn probe_sources_and_test_sections_are_ascii_with_lane_free_headers() {
         if !text.is_ascii() {
             non_ascii.push(path.clone());
         }
-        if path.contains("lint_discipline_probe") {
+        if path.contains("fork_publish_contract_parts/") && path.contains("_probe") {
             let header = leading_comment_block(&text);
             if header.contains(task_token) || lane_tokens.iter().any(|t| header.contains(t)) {
                 lane_refs.push(path.clone());

@@ -6,7 +6,8 @@
 // joined form to the commits it lived in and says it shipped in no release;
 // the README row carries every patch attribution that touched it; and the
 // code-identifier rule the allowance-reason probes share treats "e.g." and
-// "i.e." as prose while keeping dotted paths. Released sections are frozen,
+// "i.e." as prose while keeping dotted paths. Both 0.16.0 sections describe
+// the probe9 census pin in its split form. Released sections are frozen,
 // so the literal 0.16.0 label is the anchor rather than the newest heading,
 // and the negative pins guard that released section against tampering.
 
@@ -137,6 +138,36 @@ fn patchset_forty_sixth_narrative_states_the_lease_spec_split() {
             .contains("spec 1 drives the pass and the handoff, spec 2 the queued wait"),
         "the CHANGELOG states the same spec split"
     );
+}
+
+/// Both 0.16.0 sections describe the probe9 census pin as it is after the
+/// split: the live comparison holds only for an Unreleased section, so the
+/// older wording that promised the ledger census always matches the tree is
+/// gone. The pinned-by list is the last place either section cites probe9
+/// with a parenthetical. The superseded phrases are assembled so a search
+/// for them across the tree finds only the ledgers.
+#[test]
+fn ledgers_0_16_0_describe_the_split_census_pin() {
+    let superseded =
+        [concat!("census ", "matches the tree"), concat!("census sentence ", "matches the tree")];
+    for (name, flat) in
+        [("PATCHSET", patchset_0_16_0_flat()), ("CHANGELOG", changelog_0_16_0_flat())]
+    {
+        let (_, rest) = flat
+            .rsplit_once("lint_discipline_probe9.rs` (")
+            .unwrap_or_else(|| panic!("the {name} 0.16.0 section cites probe9 with a parenthetical"));
+        let parenthetical = rest.split(')').next().unwrap_or(rest);
+        assert!(
+            parenthetical.contains("equals the census the tree carries"),
+            "the {name} probe9 parenthetical states the split census pin, got {parenthetical:?}"
+        );
+        for phrase in superseded {
+            assert!(
+                !flat.contains(phrase),
+                "the {name} 0.16.0 section no longer says {phrase:?}"
+            );
+        }
+    }
 }
 
 /// Latin abbreviations are prose, dotted paths and calls are identifiers,

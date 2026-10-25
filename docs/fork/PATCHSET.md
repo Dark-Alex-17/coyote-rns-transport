@@ -60,7 +60,7 @@ fork commit `08362717`; the
 `5cca182d`, `42f988ce`, `f2ea78f9`, `6c5ca548`, `012f7337`, `63bbbc87`,
 `2c89e7ba`, `f6c0b59c`, `842feae6`, `c296bb84`, `ceccaeb1`, `22961b3b`,
 `71c9e7c6`, `eb45dc62`, `8b3e02eb`, `e1804e1c`, `07c1fe37`, `cbe20719`,
-`90ec6e86`, `a2333881`, `18452f13` and `4072932d`.
+`90ec6e86`, `a2333881`, `18452f13`, `4072932d` and `50db3da3`.
 
 | File | Patch |
 | --- | --- |
@@ -95,7 +95,7 @@ fork commit `08362717`; the
 | `crates/apps/reticulumd/tests/fork_publish_contract_parts/ledger_contract.rs` | release tooling |
 | `crates/apps/reticulumd/tests/fork_publish_contract_parts/ledger_contract_fixtures.rs` | release tooling |
 | `crates/apps/reticulumd/tests/fork_publish_contract_parts/lint_discipline_probe.rs` | guard discipline |
-| `crates/apps/reticulumd/tests/fork_publish_contract_parts/lint_discipline_probe10.rs` | guard discipline, shared-instance hardening |
+| `crates/apps/reticulumd/tests/fork_publish_contract_parts/lint_discipline_probe10.rs` | guard discipline, shared-instance hardening, carried hygiene |
 | `crates/apps/reticulumd/tests/fork_publish_contract_parts/lint_discipline_probe11.rs` | carried hygiene |
 | `crates/apps/reticulumd/tests/fork_publish_contract_parts/lint_discipline_probe12.rs` | carried hygiene |
 | `crates/apps/reticulumd/tests/fork_publish_contract_parts/lint_discipline_probe2.rs` | guard discipline |
@@ -1360,8 +1360,8 @@ Fork commits `985bd5bd`, `81c9ed73`, `faacb7fd`, `9877bb6e`, `5631defa`,
 `fd6322b5`, `05975d7d`, `5cca182d`, `42f988ce`, `f2ea78f9`, `6c5ca548`,
 `012f7337`, `63bbbc87`, `2c89e7ba`, `f6c0b59c`, `842feae6`, `c296bb84`,
 `ceccaeb1`, `22961b3b`, `71c9e7c6`, `eb45dc62`, `8b3e02eb`, `e1804e1c`,
-`07c1fe37`, `cbe20719`, `90ec6e86`, `a2333881`, `18452f13` and
-`4072932d`: H6, carried hygiene. The library behaviour
+`07c1fe37`, `cbe20719`, `90ec6e86`, `a2333881`, `18452f13`, `4072932d` and
+`50db3da3`: H6, carried hygiene. The library behaviour
 changes are: an inbound resource cancel, hash update, part or
 split-segment advertisement reaches only a transfer on the link it
 arrived on (first); a rejected resource advertisement is counted per link
@@ -1728,7 +1728,10 @@ this patch touched carry its phrase, the publish contract's pin on the
 README row (`fork_publish_contract_parts/lint_discipline_probe10.rs`)
 follows, and the README's `RejectReason` sentence and the in-limit packet
 register row (now citing `handle_response`, `RNS/Link.py:857-866`) are
-reworded.
+reworded. The forty-second is test-only: the announce-flag test in
+`independent_interop_node/events.rs` carries the fn-level guard deny its
+siblings carry, and the probe12 cancel test matches the `cancelled` reason
+exactly.
 
 ## 0.15.1 (upstream 0.14.0)
 

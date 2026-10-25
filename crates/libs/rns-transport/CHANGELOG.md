@@ -535,7 +535,8 @@ Removed) bullet of its own, marked as such.
   sends `0.0` instead of Nil, matching Python's `time.time()`, and pins the
   trailing-byte and reserved-marker refusals.
 - No library change: the fire-and-forget `Transport::send_announce` calls
-  in the apps, 18 sites across nine files, move to `try_send_announce`
+  in the apps (19 calls at 18 sites across nine files, two rngit calls folded
+  into one loop), move to `try_send_announce`
   (`transport/core.rs`, itself unchanged), so a failed announce build is
   reported with the role that asked for it instead of the library's
   context-free warn: reticulumd's
@@ -625,7 +626,7 @@ Removed) bullet of its own, marked as such.
 - Test-only, fixtures deduplicated: `await_outbound_terminal` moves from
   `tests_parts/two_transport_loopback_requests_resource_form_probe.rs` into
   `tests_parts/two_transport_loopback_resources.rs` and replaces the inline
-  matcher at the five sender-terminal sites that spelled it (one in that
+  matcher at the six sender-terminal sites that spelled it (two in that
   fixture, one in `two_transport_loopback_resources_directions.rs`, two in
   `two_transport_loopback_resources_reject.rs` and one in
   `two_transport_loopback_resources_outcome.rs`);

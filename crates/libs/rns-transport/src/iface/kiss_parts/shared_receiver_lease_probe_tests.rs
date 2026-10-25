@@ -1,12 +1,12 @@
 // Test code holds guards across awaits on purpose.
 #![allow(clippy::await_holding_invalid_type)]
-// Spec-first probes of the shared-receiver KISS entry point after the
-// per-receive restore (`ReceiverLease`):
+// Pins of the shared-receiver KISS entry point, which leases each shared
+// receiver per receive (`ReceiverLease`):
 //
 // 1. "the guard spans only this recv": while a co-consumer HOLDS the tx
 //    receiver lock, the stream still decodes inbound frames and still obeys
-//    cancellation. A per-pass lock (the shape before the owned-receiver
-//    change) parks the whole loop on the mutex, so neither happens.
+//    cancellation. A per-pass lock parks the whole loop on the mutex, so
+//    neither happens.
 // 2. baseline-equivalent co-consumer semantics: a co-consumer that takes the
 //    lock after a pass consumes the next queued packet itself, the stream
 //    does not transmit it, and the stream resumes transmitting once the

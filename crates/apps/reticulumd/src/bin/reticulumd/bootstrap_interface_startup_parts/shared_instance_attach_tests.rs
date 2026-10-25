@@ -261,34 +261,6 @@ fn ignored_shared_instance_keys_names_the_timeout_and_retry_knobs_only() {
     );
 }
 
-#[tokio::test]
-async fn local_client_localhost_host_attaches_to_the_ipv4_shared_instance() {
-    if let Err(err) = tokio::net::lookup_host("localhost:1").await {
-        eprintln!("skipped: localhost does not resolve on this host: {err}");
-        return;
-    }
-    let shared_listener =
-        std::net::TcpListener::bind("127.0.0.1:0").expect("bind shared local instance");
-    let port = shared_listener.local_addr().expect("shared local addr").port();
-    let config = DaemonConfig::from_toml(&format!(
-        r#"
-interfaces = [
-  {{ type = "LocalClientInterface", enabled = true, name = "localhost-client", shared_instance_type = "tcp", host = "localhost", shared_instance_port = {port} }}
-]
-"#
-    ))
-    .expect("localhost local_client config");
-    let args = attach_test_args();
-    let transport = test_transport();
-    let mut records = records_for(&config);
-
-    let batch = run_startup(&args, &config, &transport, &mut records).await;
-
-    assert_eq!(batch.startup_successes, 1);
-    assert!(batch.startup_failures.is_empty(), "failures={:?}", batch.startup_failures);
-    assert_slot_holds_attached_record(&transport, &records[0]).await;
-}
-
 /// The options built from the entry reach the manager through the attach, where the TCP
 /// client builder used to carry them.
 #[tokio::test]

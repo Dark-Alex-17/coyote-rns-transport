@@ -1,9 +1,9 @@
-// Usage probe written from the CHANGELOG Unreleased sentence: "once a weave
-// driver has stopped, `WeaveManagementHandle::try_set_remote_display`
-// reports the closed queue at once instead of buffering commands nobody will
-// read". Driven through the public surface only: a `WeaveInterface` on a
-// device that does not exist, spawned and stopped through the
-// `InterfaceManager`, with the handle taken the way an operator would.
+// Pins the CHANGELOG claim that "once a weave driver has stopped,
+// `WeaveManagementHandle::try_set_remote_display` reports the closed queue at
+// once instead of buffering commands nobody will read". Driven through the
+// public surface only: a `WeaveInterface` on a device that does not exist,
+// spawned and stopped through the `InterfaceManager`, with the handle taken
+// the way an operator would.
 
 /// Before spawn the `WeaveInterface` value holds the receiver, so a command
 /// queues for the driver to read once the port opens; after `stop_interface`

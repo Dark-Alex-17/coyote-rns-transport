@@ -1103,9 +1103,9 @@ fn contracts_job(workflow: &str, name: &str) -> String {
 }
 
 /// Every `crates/libs/rns-transport/tests/*.rs` target runs on the
-/// pull-request path, not only the compile-fail harness, and the fork
-/// patch-set ledger is checked against the release tags, which the script
-/// can only see on a full-history checkout.
+/// pull-request path, including the breaking-change compile-fail harness,
+/// and the fork patch-set ledger is checked against the release tags, which
+/// the script can only see on a full-history checkout.
 #[test]
 fn pull_request_ci_runs_every_external_rns_transport_test_target() {
     let ci = read_repo_file(".github/workflows/ci.yml");
@@ -1127,10 +1127,10 @@ fn pull_request_ci_runs_every_external_rns_transport_test_target() {
 
 /// The `contracts` job of `ci-full.yml` is the twin of the one in `ci.yml`:
 /// every step the pull-request workflow runs (the docs build, the fork
-/// publish and release-docs contracts, the breaking-change compile-fail
-/// harness, the external test targets, the patch-set ledger check) runs
-/// there too, on the same full-history checkout the ledger check needs, so
-/// the dispatch workflow cannot pass on a tree the PR workflow would reject.
+/// publish and release-docs contracts, the external test targets, the
+/// patch-set ledger check) runs there too, on the same full-history checkout
+/// the ledger check needs, so the dispatch workflow cannot pass on a tree the
+/// PR workflow would reject.
 #[test]
 fn ci_full_contracts_job_runs_every_contract_step_ci_runs() {
     let ci = read_repo_file(".github/workflows/ci.yml");
@@ -1140,8 +1140,8 @@ fn ci_full_contracts_job_runs_every_contract_step_ci_runs() {
     let steps: Vec<&str> =
         ci_job.lines().filter(|line| line.trim_start().starts_with("run: ")).collect();
     assert!(
-        steps.len() >= 5,
-        "ci.yml's contracts job should run at least five steps, got {steps:?}"
+        steps.len() >= 4,
+        "ci.yml's contracts job should run at least four steps, got {steps:?}"
     );
     for step in steps {
         assert!(ci_full_job.contains(step), "ci-full.yml's contracts job should carry {step:?}");

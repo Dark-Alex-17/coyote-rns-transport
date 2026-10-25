@@ -11,8 +11,5 @@ mod ifac_runtime_tests;
 #[path = "kiss_parts/shared_receiver_lease_probe_tests.rs"]
 mod shared_receiver_lease_probe_tests;
 #[cfg(test)]
-#[path = "kiss_parts/shared_receiver_lock_span_probe_tests.rs"]
-mod shared_receiver_lock_span_probe_tests;
-#[cfg(test)]
 #[path = "kiss_parts/tx_queue_survives_reconnect_tests.rs"]
 mod tx_queue_survives_reconnect_tests;

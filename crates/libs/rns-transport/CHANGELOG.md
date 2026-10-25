@@ -301,10 +301,9 @@ Removed) bullet of its own, marked as such.
   passes; drivers in this crate call `run_kiss_stream_owned`, and both
   now feed one loop over a private `ReceiverLease`
   (`iface/kiss_parts/kisstcpclientinterface.rs`; the idle hold and its
-  release on stop are observed by `iface/kiss_parts/ifac_runtime_tests.rs`,
-  a queued locker served across a transmit pass by
-  `iface/kiss_parts/shared_receiver_lock_span_probe_tests.rs`, and the
-  per-receive span by `iface/kiss_parts/shared_receiver_lease_probe_tests.rs`:
+  release on stop are observed by `iface/kiss_parts/ifac_runtime_tests.rs`
+  and the per-receive span, including a queued locker served across a
+  transmit pass, by `iface/kiss_parts/shared_receiver_lease_probe_tests.rs`:
   a co-consumer holding the tx lock parks neither inbound decoding nor
   cancellation, a co-consumer that takes the lock after a pass consumes
   the next queued packet itself and the stream resumes once it releases,
@@ -689,6 +688,24 @@ Removed) bullet of its own, marked as such.
   `None` and call `assert_no_further_complete` themselves, as the
   directions tests already did; and the two inline sender-terminal match
   blocks in those two fixtures are `await_outbound_terminal` calls.
+- No library behaviour change (run hygiene): the kiss lock-span fixture
+  `shared_receiver_lock_span_probe_tests` is removed, its scenario (a
+  locker queued behind the running stream is served across one transmit
+  pass) being the first half of spec 1 in
+  `iface/kiss_parts/shared_receiver_lease_probe_tests.rs`; the reticulumd
+  attach test that checked only the filled slot for a `host = "localhost"`
+  entry is removed in favour of its sibling that also accepts the
+  connection on the IPv4 loopback listener
+  (`bootstrap_interface_startup_parts::shared_instance_attach_tests`); the
+  `contracts` job of `ci.yml` and `ci-full.yml` drops its named
+  compile-fail step, `cargo test -p coyote-rns-transport --tests` already
+  running `tests/breaking_changes_compile_fail.rs` (pin updated in
+  `crates/apps/reticulumd/tests/fork_publish_contract.rs`,
+  `ci_full_contracts_job_runs_every_contract_step_ci_runs`); and three
+  test-file comments drop their change-history wording
+  (`two_transport_shared_instance_probe16.rs`,
+  `iface/weave_management_handle_tests.rs`,
+  `iface/kiss_parts/shared_receiver_lease_probe_tests.rs`).
 
 ### Removed
 

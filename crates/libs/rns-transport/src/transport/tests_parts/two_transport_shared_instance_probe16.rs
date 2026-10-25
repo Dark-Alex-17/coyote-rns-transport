@@ -5,9 +5,8 @@
 // positive control here. And the CHANGELOG and the README say the reconnect consumer
 // "stays the plain biased loop": a reconnect served with no disconnect before it
 // re-synthesizes the tunnel and flushes nothing, so the tables learned over the connection
-// survive it; the fixture that pinned the opposite (the reverted "flush first" rule) is
-// gone, and this is the pin of what replaced it. Helpers come from the sibling
-// `tests_parts` files included into this module.
+// survive it; this is the pin of that rule. Helpers come from the sibling `tests_parts`
+// files included into this module.
 
 /// A responder that has derived its session cipher from the request but has not yet
 /// proved: `Handshake`, the status Python still sends the LINKCLOSE from
@@ -58,9 +57,8 @@ fn shared_instance_probe16_handshake_teardown_builds_its_close_without_the_close
 }
 
 /// The consumer is built by hand on a client attached to a live shared instance and fed a
-/// reconnect alone, the shape the reverted rule read as a lost disconnect: the plain loop
-/// re-synthesizes the tunnel, runs no flush, records no lost event and the learned path is
-/// still there afterwards.
+/// reconnect alone, with no disconnect before it: the plain loop re-synthesizes the tunnel,
+/// runs no flush, records no lost event and the learned path is still there afterwards.
 #[tokio::test]
 #[deny(clippy::await_holding_invalid_type)]
 async fn shared_instance_probe16_reconnect_without_its_disconnect_keeps_the_tables() {

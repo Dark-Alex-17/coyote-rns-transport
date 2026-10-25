@@ -24,6 +24,7 @@ include!("tests_parts/receipt_handler_on_shared_transport.rs");
 include!("tests_parts/tunnel_restore_freshness.rs");
 
 include!("tests_parts/held_udp_announce_preserves_peer_sou.rs");
+include!("tests_parts/send_packet_outcome_and_resource_request_responses.rs");
 
 include!("tests_parts/roaming_path_response_suppression.rs");
 

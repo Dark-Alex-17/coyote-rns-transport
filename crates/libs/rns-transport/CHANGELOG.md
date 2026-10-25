@@ -401,7 +401,8 @@ Removed) bullet of its own, marked as such.
   census the tree carries) and
   `fork_publish_contract_parts/lint_discipline_probe10.rs` (the ledger and
   changelog prose on the sequential lock order, read from the thirty-ninth
-  narrative itself; the README row's attribution).
+  narrative itself; the README row's attribution; the probe9 parentheticals
+  of both 0.16.0 sections state the split census pin).
 - No library change: reticulumd's shared-instance client posture (a
   `LocalInterface` whose socket or port is already held, a
   `LocalClientInterface`, and the synthetic sidecar's attach) now goes

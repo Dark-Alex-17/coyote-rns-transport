@@ -64,10 +64,10 @@ fork commit `08362717`; the
 `c926a2e6`, `93d28bc6`, `95467e04` and `a30aa093`; the
 `Python-in-the-loop identify allow-list interop` patch is the
 carried-hygiene cell fork commits `9865dbdd` and `eb45dc62` add, named so
-the release's Python-in-the-loop proof row is attributed to it; the
+the release's Python-in-the-loop proof rows are attributed to it; the
 `release 0.16.0` patch carries no other id and is fork commits `c281063e`,
-`a6ad4884`, `1a39183c`, `e14ead8d`, `44c19d48`, `5b9f69a8`, `704cd444` and
-`4ebfcc62`.
+`a6ad4884`, `1a39183c`, `e14ead8d`, `44c19d48`, `5b9f69a8`, `704cd444`,
+`4ebfcc62` and `4e40639e`.
 
 | File | Patch |
 | --- | --- |
@@ -985,7 +985,8 @@ up, and the one an Unreleased section states equals the census the tree
 carries),
 `fork_publish_contract_parts/lint_discipline_probe10.rs` (the ledger and
 changelog prose on the lock order, read from the thirty-ninth narrative
-itself; the README row's attribution),
+itself; the README row's attribution; the probe9 parentheticals of both
+0.16.0 sections state the split census pin),
 `kiss_parts/ifac_runtime_tests.rs` and
 `kiss_parts/shared_receiver_lease_probe_tests.rs` (the per-receive lease
 of both shared receivers, including a queued locker served across a
@@ -1816,7 +1817,8 @@ the `--allow-identified` flag of
 release section's Python-in-the-loop proof rows.
 
 Fork commits `c281063e`, `a6ad4884`, `1a39183c`, `e14ead8d`, `44c19d48`,
-`5b9f69a8`, `704cd444` and `4ebfcc62`: release 0.16.0. The first retargets
+`5b9f69a8`, `704cd444`, `4ebfcc62` and `4e40639e`: release 0.16.0. The
+first retargets
 the promotion-sensitive pins to the literal 0.16.0 label, since a released
 section is frozen:
 `crates/apps/reticulumd/tests/fork_publish_contract_parts/ledger_contract.rs`
@@ -1877,7 +1879,16 @@ its per-release constant pairs. The eighth rewords the probe9
 parentheticals of the 0.16.0 sections to the split census pin, names the
 root test file in the Python-in-the-loop patch header, and has the 0.15.0
 register of `crates/libs/rns-transport/README.md` name 0.16.0 as the
-release that records the Codex workflow removal.
+release that records the Codex workflow removal. The ninth pins the
+eighth's wording:
+`crates/apps/reticulumd/tests/fork_publish_contract_parts/lint_discipline_probe10.rs`
+reads the probe9 parenthetical of both 0.16.0 sections and refuses the
+superseded census phrases,
+`crates/apps/reticulumd/tests/fork_release_docs_contract.rs` asks the Codex
+bullet to name 0.16.0 and refuses the by-position wording, and the
+lane-free-header scan in
+`crates/apps/reticulumd/tests/fork_publish_contract_parts/lint_discipline_probe9.rs`
+covers every probe file under `fork_publish_contract_parts/`.
 
 ## 0.15.1 (upstream 0.14.0)
 

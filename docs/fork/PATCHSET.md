@@ -67,7 +67,7 @@ carried-hygiene cell fork commits `9865dbdd` and `eb45dc62` add, named so
 the release's Python-in-the-loop proof rows are attributed to it; the
 `release 0.16.0` patch carries no other id and is fork commits `c281063e`,
 `a6ad4884`, `1a39183c`, `e14ead8d`, `44c19d48`, `5b9f69a8`, `704cd444`,
-`4ebfcc62`, `4e40639e` and `129c96ed`.
+`4ebfcc62`, `4e40639e`, `129c96ed` and `6f5cb046`.
 
 | File | Patch |
 | --- | --- |
@@ -115,6 +115,7 @@ the release's Python-in-the-loop proof rows are attributed to it; the
 | `crates/apps/reticulumd/tests/fork_publish_contract_parts/lint_discipline_probe8.rs` | guard discipline |
 | `crates/apps/reticulumd/tests/fork_publish_contract_parts/lint_discipline_probe9.rs` | guard discipline, release 0.16.0 |
 | `crates/apps/reticulumd/tests/fork_publish_contract_parts/release_frozen_sections_probe.rs` | release 0.16.0 |
+| `crates/apps/reticulumd/tests/fork_publish_contract_parts/release_frozen_sections_probe2.rs` | release 0.16.0 |
 | `crates/apps/reticulumd/tests/fork_publish_contract_parts/release_tooling_probe.rs` | release tooling |
 | `crates/apps/reticulumd/tests/fork_publish_contract_parts/release_tooling_probe2.rs` | release tooling |
 | `crates/apps/reticulumd/tests/fork_publish_contract_parts/release_tooling_probe3.rs` | release tooling |
@@ -1821,9 +1822,9 @@ the `--allow-identified` flag of
 release section's Python-in-the-loop proof rows.
 
 Fork commits `c281063e`, `a6ad4884`, `1a39183c`, `e14ead8d`, `44c19d48`,
-`5b9f69a8`, `704cd444`, `4ebfcc62`, `4e40639e` and `129c96ed`: release
-0.16.0. The first retargets the promotion-sensitive pins to the literal
-0.16.0 label, since a released section is frozen:
+`5b9f69a8`, `704cd444`, `4ebfcc62`, `4e40639e`, `129c96ed` and `6f5cb046`:
+release 0.16.0. The first retargets the promotion-sensitive pins to the
+literal 0.16.0 label, since a released section is frozen:
 `crates/apps/reticulumd/tests/fork_publish_contract_parts/ledger_contract.rs`
 expects the full-hash and bullet-cite contracts to cover `0.16.0` and
 `0.15.1`,
@@ -1900,10 +1901,27 @@ README-bullets clauses after it, and asks this ledger's 0.16.0 section for
 the probe's table row and the narrative sentence that names its include
 site; alongside, the split-census rustdoc no longer claims a tree-wide
 search for the superseded phrases finds only the ledgers (probe9's own
-live-compare message matches too), the two no-op fallbacks after a split in
-`lint_discipline_probe10.rs` and `release_frozen_sections_probe.rs` become
-find-based slices, and the probe9 header says census sentence as both
-ledgers do.
+live-compare message matches too), two no-op fallbacks after a split (one
+in `lint_discipline_probe10.rs`, one in `release_frozen_sections_probe.rs`)
+become find-based slices, and the probe9 header says census sentence as
+both ledgers do. The eleventh adds
+`crates/apps/reticulumd/tests/fork_publish_contract_parts/release_frozen_sections_probe2.rs`,
+included from `crates/apps/reticulumd/tests/fork_publish_contract.rs`:
+synthetic ledgers state what the two slicers behind the frozen-sections
+pins do at the boundaries the rule names (an `## Unreleased` heading is
+not a release, a non-release heading below the releases closes the last
+one, the last release runs to the end of the file, and a README block
+stops at the next `What <version> carries` marker or `## ` heading), and
+the newest release section of each ledger is the crate manifest version
+with no Unreleased stub above it;
+`crates/apps/reticulumd/tests/fork_release_docs_contract.rs` reads the
+`### Removed` subsection of the CHANGELOG 0.16.0 section for the one
+bullet that records the Codex review workflow the README 0.15.0 register
+points at; `lint_discipline_probe10.rs` refuses the pre-split census
+wording the forty-sixth guard-discipline narrative carried, and that
+narrative now says where the live compare went; and the header of
+`release_frozen_sections_probe.rs` says the ledger script refuses on the
+no-tag precondition the probe skips on.
 
 ## 0.15.1 (upstream 0.14.0)
 

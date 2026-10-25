@@ -97,7 +97,11 @@ Removed) bullet of its own, marked as such.
   `## <version>` section of this CHANGELOG and of the patch-set ledger that
   existed at the newest reachable fork tag reads byte for byte as it did
   there, in order and contiguous, and the README patch-list block of that
-  release keeps its bullets.
+  release keeps its bullets;
+  `fork_publish_contract_parts/release_frozen_sections_probe2.rs` states on
+  synthetic ledgers where those section and block slicers start and stop,
+  and ties the newest release section of both ledgers to the crate manifest
+  version.
 - While attached to a shared instance, the duplicate filter
   (`transport/inbound_processing.rs`) is skipped only for packets arriving
   on the interface flagged as the shared instance, or on every interface
@@ -403,7 +407,8 @@ Removed) bullet of its own, marked as such.
   changelog prose on the sequential lock order, read from the thirty-ninth
   narrative itself; the README row's attribution; the probe9 parentheticals
   of both 0.16.0 sections state the split census pin; both 0.16.0 sections
-  cite the frozen-sections probe).
+  cite the frozen-sections probe; the forty-sixth guard-discipline
+  narrative carries no pre-split census wording).
 - No library change: reticulumd's shared-instance client posture (a
   `LocalInterface` whose socket or port is already held, a
   `LocalClientInterface`, and the synthetic sidecar's attach) now goes
@@ -735,7 +740,9 @@ Removed) bullet of its own, marked as such.
   `pull_request_ci_runs_the_publish_contract`); the crate README
   `What 0.15.0 carries` register notes the removal (pinned by
   `crates/apps/reticulumd/tests/fork_release_docs_contract.rs`,
-  `readme_names_the_codex_variable_only_in_a_bullet_that_says_removed`).
+  `readme_names_the_codex_variable_only_in_a_bullet_that_says_removed`, and
+  `changelog_0_16_0_removed_records_the_codex_workflow_the_readme_points_at`
+  reads this bullet back from the release notes the README points at).
 - No library behaviour change: the `await_holding_invalid_type = "allow"`
   entries of the workspace and `reticulumd` lint tables; the lint runs at
   its default level and no tracked manifest may mention it (pinned by

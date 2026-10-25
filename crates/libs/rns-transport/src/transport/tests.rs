@@ -60,6 +60,7 @@ include!("tests_parts/plain_group_packet_duplicates.rs");
 include!("tests_parts/duplicate_filter_python_matrix.rs");
 include!("tests_parts/packet_replay_restart.rs");
 include!("tests_parts/packet_hashlist_flush.rs");
+include!("tests_parts/resource_advert_reject_warn_cadence.rs");
 include!("tests_parts/accepted_child_ifac_rotation.rs");
 
 include!("tests_parts/reticulum_runtime_management.rs");

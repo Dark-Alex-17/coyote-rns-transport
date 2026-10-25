@@ -11,9 +11,10 @@ const SLOW_HANDLER_SLEEP: Duration = Duration::from_secs(30);
 
 /// Keeps the link's drop records, from the links target every record at `Warn` or above
 /// plus the debug lines of the shared-instance client, and from the resource target the
-/// dropped-outcome-receiver lines, from the link target the closed-link packet warnings,
-/// from the request-dispatch target the responses dropped for a closed link, and from the
-/// jobs target the resource-retry diagnostics. Tests share one process and
+/// dropped-outcome-receiver lines and the rejected-advertisement warnings, from the link
+/// target the closed-link packet warnings, from the request-dispatch target the responses
+/// dropped for a closed link, and from the jobs target the resource-retry diagnostics.
+/// Tests share one process and
 /// `log::set_logger` installs once, so there must be exactly one logger in the binary and
 /// this is it; a record is attributed to a test by the link id, resource hash or
 /// `tp(<name>)` it names, and the quieter levels are kept only for the shared-instance,
@@ -22,6 +23,7 @@ struct TestLogger {
     dropped_requests: StdMutex<Vec<String>>,
     shared_instance: StdMutex<Vec<(log::Level, String)>>,
     outcome_receiver_dropped: StdMutex<Vec<String>>,
+    rejected_advertisement_warns: StdMutex<Vec<(log::Level, String)>>,
     closed_link_packet_warnings: StdMutex<Vec<String>>,
     closed_link_responses: StdMutex<Vec<String>>,
     resource_diag: StdMutex<Vec<String>>,
@@ -31,6 +33,7 @@ static TEST_LOG: TestLogger = TestLogger {
     dropped_requests: StdMutex::new(Vec::new()),
     shared_instance: StdMutex::new(Vec::new()),
     outcome_receiver_dropped: StdMutex::new(Vec::new()),
+    rejected_advertisement_warns: StdMutex::new(Vec::new()),
     closed_link_packet_warnings: StdMutex::new(Vec::new()),
     closed_link_responses: StdMutex::new(Vec::new()),
     resource_diag: StdMutex::new(Vec::new()),
@@ -77,6 +80,11 @@ impl log::Log for TestLogger {
                     .lock()
                     .expect("dropped-outcome-receiver record store")
                     .push(message);
+            } else if message.contains("rejecting resource advertisement over inbound limits") {
+                self.rejected_advertisement_warns
+                    .lock()
+                    .expect("rejected-advertisement record store")
+                    .push((record.level(), message));
             }
         } else if record.target() == REQUEST_DISPATCH_LOG_TARGET {
             if message.contains("closed before transmit") {
@@ -141,6 +149,20 @@ fn shared_instance_records_for(transport_name: &str) -> Vec<(log::Level, String)
 /// Every dropped-outcome-receiver record emitted so far, oldest first.
 fn outcome_receiver_dropped_records() -> Vec<String> {
     TEST_LOG.outcome_receiver_dropped.lock().expect("dropped-outcome-receiver record store").clone()
+}
+
+/// The rejected-advertisement records the resource manager emitted for `link_id` so far,
+/// oldest first, with the level each was logged at.
+fn rejected_advertisement_records_for(link_id: AddressHash) -> Vec<(log::Level, String)> {
+    let needle = link_id.to_string();
+    TEST_LOG
+        .rejected_advertisement_warns
+        .lock()
+        .expect("rejected-advertisement record store")
+        .iter()
+        .filter(|(_, record)| record.contains(&needle))
+        .cloned()
+        .collect()
 }
 
 /// How many `can't create data packet for closed link` warnings the link target has

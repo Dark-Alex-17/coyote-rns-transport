@@ -1,9 +1,10 @@
 // Loopback coverage for a response whose link closed while the handler ran. The response
 // layer looks the link up after the handler returns and drops the response when the link
-// closed in between. Before that lookup existed the packet build only warned about the
+// closed in between, whether the closed link is still in the tables or a maintenance tick
+// has already swept it. Before that lookup existed the packet build only warned about the
 // closed link and carried on: `finalize_local_close` had reset the session key to
-// `DerivedKey::new_empty()`, so the response was encrypted under the all-zero key and
-// sent anyway. Helpers come from the sibling `tests_parts` files.
+// `DerivedKey::new_empty()`, so the response was encrypted under the all-zero key and sent
+// anyway. Helpers come from the sibling `tests_parts` files.
 
 /// A handler that closes the responder's own `link` before answering with `response`, so
 /// the answer reaches the response layer after the close.
@@ -46,7 +47,7 @@ async fn assert_response_dropped_without_packet_warning(pair: &LoopbackRequestPa
     assert_eq!(
         closed_link_packet_warning_count(),
         before,
-        "a response for a link closed before transmit builds no packet"
+        "a response for a link that closed during the handler builds no packet"
     );
     let dropped = closed_link_response_records_for(link_id);
     assert_eq!(dropped.len(), 1, "the drop is recorded once: {dropped:?}");

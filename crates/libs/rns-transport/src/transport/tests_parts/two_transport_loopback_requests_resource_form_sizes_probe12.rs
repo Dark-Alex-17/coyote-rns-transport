@@ -1,14 +1,13 @@
 // Usage-pattern coverage of the receipt-less twin of `..._sizes_cancel_probe.rs`: a packet
 // response within `max_response_size` for a record already receiving its response Resource.
-// Written from the public contract: the packet is measured like any other response
-// (`RNS/Link.py:862-863`), within the limit it answers the request and is posted as
-// `LinkEvent::Data(Response)`, and the inbound Resource is left to its own retry watchdog
-// rather than cancelled (`RNS/Link.py:873`, `:1437-1443`), so no receiver cancel goes back
-// to the responder. The record is spent by the answer, so a later advertisement under the
-// id is one the link no longer solicits and is dropped without a reject
-// (`RNS/Link.py:1046-1056`). When the Resource the record was receiving is a real one, it
-// still assembles and its `Complete` reaches `resource_events()`: nothing withholds a
-// response no record bounds. Helpers come from the sibling `tests_parts` files.
+// The packet is measured like any other response (`RNS/Link.py:862-863`); within the limit
+// it answers the request and is posted as `LinkEvent::Data(Response)`. A packet that wins
+// cancels the Resource it overtook, for receipt-owned and receipt-less records alike: one
+// receiver cancel goes back to the responder and the connector publishes the transfer's
+// `InboundFailed("cancelled")`, so no `Complete` under the id ever reaches
+// `resource_events()`. The record is spent by the answer, so a later advertisement under
+// the id is one the link no longer solicits and is dropped without a reject
+// (`RNS/Link.py:1046-1056`). Helpers come from the sibling `tests_parts` files.
 
 /// Bytes of the real response Resource the second test receives over the legacy MTU: many
 /// parts, so a packet response can land while it is still inbound.
@@ -137,23 +136,26 @@ async fn two_transport_loopback_request_resource_form_sizes_probe12_in_limit_pac
         1,
         "the packet answer cancels the inbound response Resource it overtook"
     );
-    let settled = tokio::time::timeout(Duration::from_millis(500), async {
-        loop {
-            match events.recv().await {
-                Ok(event) => {
-                    if let (true, ResourceEventKind::Complete(complete)) =
-                        (event.link_id == link_id, &event.kind)
-                    {
-                        if complete.request_id.as_deref() == Some(id.as_bytes().as_slice()) {
-                            return;
-                        }
-                    }
-                }
-                Err(broadcast::error::RecvError::Lagged(_)) => {}
-                Err(broadcast::error::RecvError::Closed) => std::future::pending::<()>().await,
+    tokio::time::timeout(
+        Duration::from_secs(5),
+        await_resource_event(&mut events, |event| {
+            event.link_id == link_id
+                && matches!(
+                    &event.kind,
+                    ResourceEventKind::InboundFailed(failure) if failure.reason.contains("cancel")
+                )
+        }),
+    )
+    .await
+    .expect("the overtaken response Resource is reported cancelled");
+    let completed = std::iter::from_fn(|| events.try_recv().ok())
+        .filter(|event| event.link_id == link_id)
+        .filter(|event| match &event.kind {
+            ResourceEventKind::Complete(complete) => {
+                complete.request_id.as_deref() == Some(id.as_bytes().as_slice())
             }
-        }
-    })
-    .await;
-    assert!(settled.is_err(), "the cancelled response Resource never completes");
+            _ => false,
+        })
+        .count();
+    assert_eq!(completed, 0, "the cancelled response Resource never completes");
 }

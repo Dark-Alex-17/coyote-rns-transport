@@ -87,7 +87,7 @@ impl log::Log for TestLogger {
                     .push((record.level(), message));
             }
         } else if record.target() == REQUEST_DISPATCH_LOG_TARGET {
-            if message.contains("closed before transmit") {
+            if message.contains("closed before transmit") || message.contains("is gone") {
                 self.closed_link_responses
                     .lock()
                     .expect("closed-link response record store")
@@ -172,7 +172,8 @@ fn closed_link_packet_warning_count() -> usize {
     TEST_LOG.closed_link_packet_warnings.lock().expect("closed-link packet warning store").len()
 }
 
-/// The responses the request layer dropped because `link_id` closed before transmit.
+/// The responses the request layer dropped because `link_id` closed before transmit or
+/// had already been swept from the link tables when the handler answered.
 fn closed_link_response_records_for(link_id: AddressHash) -> Vec<String> {
     let needle = link_id.to_string();
     TEST_LOG

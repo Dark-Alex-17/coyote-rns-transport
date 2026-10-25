@@ -505,11 +505,11 @@ parity ledger; the `docs/status/*` matrices are not updated per fork task.
   receipt pending.
 - A response Resource that fails in transfer (a part failure, receiver retry
   exhaustion, a remote cancel) fails the receipt with
-  `RequestError::Receive`. Python surfaces that only through the Resource's
-  own failure callback and the receipt stays in its last status:
-  `request_resource_concluded` (`RNS/Link.py:1367`, failing at `:1377-1381`)
-  fails a receipt only for the request Resource, and `:1435` cancels a
-  response Resource only when the receipt is already `FAILED`.
+  `RequestError::Receive` in every status. Python routes the failed Resource
+  through `request_timed_out` (`RNS/Link.py:914-918`), whose `DELIVERED`
+  guard (`:1398`) fails only a receipt no progress callback has yet moved
+  to `RECEIVING` (`:1420`); a receipt already `RECEIVING` stays there with
+  the failure visible only through the Resource's own callback.
 - After an over-limit response packet the receipt's `response_size()` and
   `response_transfer_size()` are left as they were. Python runs
   `update_sizes` before rejecting (`RNS/Link.py:868-871`).

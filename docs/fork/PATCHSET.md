@@ -61,12 +61,12 @@ fork commit `08362717`; the
 `2c89e7ba`, `f6c0b59c`, `842feae6`, `c296bb84`, `ceccaeb1`, `22961b3b`,
 `71c9e7c6`, `eb45dc62`, `8b3e02eb`, `e1804e1c`, `07c1fe37`, `cbe20719`,
 `90ec6e86`, `a2333881`, `18452f13`, `4072932d`, `50db3da3`, `a284f96a`,
-`c926a2e6` and `93d28bc6`.
+`c926a2e6`, `93d28bc6` and `95467e04`.
 
 | File | Patch |
 | --- | --- |
-| `.github/workflows/ci-full.yml` | release tooling |
-| `.github/workflows/ci.yml` | release tooling |
+| `.github/workflows/ci-full.yml` | release tooling, carried hygiene |
+| `.github/workflows/ci.yml` | release tooling, carried hygiene |
 | `AGENTS.md` | ledger conventions |
 | `Cargo.toml` | guard discipline |
 | `crates/apps/reticulumd/Cargo.toml` | guard discipline |
@@ -79,7 +79,7 @@ fork commit `08362717`; the
 | `crates/apps/reticulumd/src/bin/reticulumd/bootstrap_interface_startup_parts/shared_instance_attach_options_tests.rs` | shared-instance hardening |
 | `crates/apps/reticulumd/src/bin/reticulumd/bootstrap_interface_startup_parts/shared_instance_attach_probe2_tests.rs` | shared-instance hardening |
 | `crates/apps/reticulumd/src/bin/reticulumd/bootstrap_interface_startup_parts/shared_instance_attach_probe_tests.rs` | shared-instance hardening |
-| `crates/apps/reticulumd/src/bin/reticulumd/bootstrap_interface_startup_parts/shared_instance_attach_tests.rs` | shared-instance hardening |
+| `crates/apps/reticulumd/src/bin/reticulumd/bootstrap_interface_startup_parts/shared_instance_attach_tests.rs` | shared-instance hardening, carried hygiene |
 | `crates/apps/reticulumd/src/bin/reticulumd/bootstrap_parts/configure_startup_rpc_token_auth.rs` | carried hygiene |
 | `crates/apps/reticulumd/src/bin/reticulumd/bootstrap_parts/module_core.rs` | carried hygiene |
 | `crates/apps/reticulumd/src/bin/reticulumd/bootstrap_transport.rs` | shared-instance hardening |
@@ -170,12 +170,11 @@ fork commit `08362717`; the
 | `crates/libs/rns-transport/src/iface/auto_runtime_parts/tests_sections/peer_route_table_expiry.rs` | guard discipline |
 | `crates/libs/rns-transport/src/iface/auto_runtime_parts/tests_sections/peer_route_table_probe.rs` | guard discipline, carried hygiene |
 | `crates/libs/rns-transport/src/iface/i2p.rs` | guard discipline |
-| `crates/libs/rns-transport/src/iface/kiss.rs` | guard discipline |
+| `crates/libs/rns-transport/src/iface/kiss.rs` | guard discipline, carried hygiene |
 | `crates/libs/rns-transport/src/iface/kiss_parts/ifac_runtime_tests.rs` | guard discipline |
 | `crates/libs/rns-transport/src/iface/kiss_parts/kisstcpclientinterface.rs` | guard discipline |
 | `crates/libs/rns-transport/src/iface/kiss_parts/module_prelude.rs` | guard discipline |
-| `crates/libs/rns-transport/src/iface/kiss_parts/shared_receiver_lease_probe_tests.rs` | guard discipline |
-| `crates/libs/rns-transport/src/iface/kiss_parts/shared_receiver_lock_span_probe_tests.rs` | guard discipline |
+| `crates/libs/rns-transport/src/iface/kiss_parts/shared_receiver_lease_probe_tests.rs` | guard discipline, carried hygiene |
 | `crates/libs/rns-transport/src/iface/kiss_parts/tx_queue_survives_reconnect_tests.rs` | guard discipline |
 | `crates/libs/rns-transport/src/iface/local.rs` | guard discipline, shared-instance hardening |
 | `crates/libs/rns-transport/src/iface/local/tests/tx_queue_survives_reconnect.rs` | guard discipline |
@@ -208,7 +207,7 @@ fork commit `08362717`; the
 | `crates/libs/rns-transport/src/iface/udp.rs` | guard discipline |
 | `crates/libs/rns-transport/src/iface/weave.rs` | guard discipline |
 | `crates/libs/rns-transport/src/iface/weave_ifac_runtime_tests.rs` | guard discipline |
-| `crates/libs/rns-transport/src/iface/weave_management_handle_tests.rs` | guard discipline |
+| `crates/libs/rns-transport/src/iface/weave_management_handle_tests.rs` | guard discipline, carried hygiene |
 | `crates/libs/rns-transport/src/iface_parts/interfacemanager_management.rs` | shared-instance hardening |
 | `crates/libs/rns-transport/src/iface_types.rs` | guard discipline |
 | `crates/libs/rns-transport/src/resource.rs` | carried hygiene |
@@ -326,7 +325,7 @@ fork commit `08362717`; the
 | `crates/libs/rns-transport/src/transport/tests_parts/two_transport_shared_instance_probe13.rs` | shared-instance hardening |
 | `crates/libs/rns-transport/src/transport/tests_parts/two_transport_shared_instance_probe14.rs` | shared-instance hardening |
 | `crates/libs/rns-transport/src/transport/tests_parts/two_transport_shared_instance_probe15.rs` | shared-instance hardening |
-| `crates/libs/rns-transport/src/transport/tests_parts/two_transport_shared_instance_probe16.rs` | shared-instance hardening |
+| `crates/libs/rns-transport/src/transport/tests_parts/two_transport_shared_instance_probe16.rs` | shared-instance hardening, carried hygiene |
 | `crates/libs/rns-transport/src/transport/tests_parts/two_transport_shared_instance_probe17.rs` | shared-instance hardening |
 | `crates/libs/rns-transport/src/transport/tests_parts/two_transport_shared_instance_probe17_unix.rs` | shared-instance hardening |
 | `crates/libs/rns-transport/src/transport/tests_parts/two_transport_shared_instance_probe2.rs` | carried hygiene |
@@ -526,8 +525,8 @@ leaves the other waiting); `WeaveManagementHandle::try_set_remote_display`
 reporting the closed queue at once after the driver has stopped where it
 used to buffer up to the channel capacity (fifth); a pipe or serial
 transmit-task panic ending the interface instead of respawning it without
-a transmit side (fifth, settled by the thirty-first after the fifteenth's
-poll-level panic adapter was rejected); and the auto interface's unicast
+a transmit side (fifth, settled by the thirty-first, which replaced the
+fifteenth's poll-level panic adapter); and the auto interface's unicast
 discovery port stepping down to 65534 when the discovery port is 65535
 where it used to overflow (thirty-second). Everything else keeps its
 behaviour (the thirty-ninth's one-await lock form, which let two peer-data
@@ -706,7 +705,7 @@ thirtieth adopts
 `lint_discipline_probe6.rs` (the stderr tail of the classify script, a
 listed macOS name tolerated on `TIMEOUT`, the codeless-error arms) and
 teaches the discipline probe that `_tests_parts/` directories are test
-code. The thirty-first applies the ruling against the fifteenth's
+code. The thirty-first replaces the fifteenth's
 adapter: the pipe and serial transmit loops are spawned tasks again that
 carry the receiver in and hand it back through their `JoinHandle`, the
 pump still finishes on whichever half ends first, and a transmit-task
@@ -1364,7 +1363,7 @@ Fork commits `985bd5bd`, `81c9ed73`, `faacb7fd`, `9877bb6e`, `5631defa`,
 `012f7337`, `63bbbc87`, `2c89e7ba`, `f6c0b59c`, `842feae6`, `c296bb84`,
 `ceccaeb1`, `22961b3b`, `71c9e7c6`, `eb45dc62`, `8b3e02eb`, `e1804e1c`,
 `07c1fe37`, `cbe20719`, `90ec6e86`, `a2333881`, `18452f13`, `4072932d`,
-`50db3da3`, `a284f96a`, `c926a2e6` and `93d28bc6`: H6, carried hygiene. The library behaviour
+`50db3da3`, `a284f96a`, `c926a2e6`, `93d28bc6` and `95467e04`: H6, carried hygiene. The library behaviour
 changes are: an inbound resource cancel, hash update, part or
 split-segment advertisement reaches only a transfer on the link it
 arrived on (first); a rejected resource advertisement is counted per link
@@ -1772,7 +1771,19 @@ interval and keep-alive constants in `transport/mod.rs` go;
 `handle_inbound_for_test` (`transport/core.rs`) is documented as public
 API; probe11 says the futures combinators poll in declaration order and
 classifies a definition by `fn ` ahead of the match; and probe12 drops the
-sanctioned-path clause the test-path skip already covers.
+sanctioned-path clause the test-path skip already covers. The forty-sixth
+is the run-closing hygiene pass over the whole batch, test-only: it
+removes `iface/kiss_parts/shared_receiver_lock_span_probe_tests.rs` (and
+its mount in `iface/kiss.rs`), whose queued-locker scenario is the first
+half of spec 1 in `shared_receiver_lease_probe_tests.rs`; removes the
+slot-only `host = "localhost"` attach test from
+`shared_instance_attach_tests.rs`, whose accept-oracle sibling subsumes it;
+drops the named compile-fail step from the `contracts` job of both
+workflows, the crate test-targets step already running that harness
+(`fork_publish_contract.rs` now asks for four steps); and rewords three
+test-file comments (`two_transport_shared_instance_probe16.rs`,
+`weave_management_handle_tests.rs`, `shared_receiver_lease_probe_tests.rs`)
+to state the contract rather than the change history.
 
 ## 0.15.1 (upstream 0.14.0)
 

@@ -51,7 +51,10 @@ fn resource_manager_ignores_a_proof_from_another_link() {
         &mut link_b,
     );
     assert!(responses.is_empty());
-    assert!(manager.outgoing.contains_key(&resource_hash), "another link's proof leaves the sender");
+    assert!(
+        manager.outgoing.contains_key(&resource_hash),
+        "another link's proof leaves the sender"
+    );
     assert!(manager.drain_events().is_empty(), "another link's proof concludes nothing");
 
     let responses = manager.handle_packet(

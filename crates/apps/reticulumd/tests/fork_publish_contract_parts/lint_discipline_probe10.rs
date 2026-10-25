@@ -102,7 +102,10 @@ fn patchset_readme_row_is_attributed_to_every_patch_that_touched_it() {
                 .then(|| cells.next().unwrap_or_default())
         })
         .expect("the README has a row");
-    assert_eq!(readme, "release tooling, guard discipline, shared-instance hardening");
+    assert_eq!(
+        readme,
+        "release tooling, guard discipline, shared-instance hardening, carried hygiene"
+    );
 }
 
 /// Latin abbreviations are prose, dotted paths and calls are identifiers,

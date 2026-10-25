@@ -112,7 +112,7 @@ fork commit `08362717`; the
 | `crates/apps/reticulumd/tests/fork_publish_contract_parts/release_tooling_probe5.rs` | release tooling |
 | `crates/apps/reticulumd/tests/fork_publish_contract_parts/release_tooling_probe6.rs` | shared-instance hardening |
 | `crates/apps/reticulumd/tests/fork_release_docs_contract.rs` | release tooling |
-| `crates/apps/reticulumd/tests/python_channel_interop.rs` | guard discipline |
+| `crates/apps/reticulumd/tests/python_channel_interop.rs` | guard discipline, carried hygiene |
 | `crates/apps/reticulumd/tests/python_channel_interop_parts/multi_segment_python_interop.rs` | test hygiene |
 | `crates/apps/reticulumd/tests/python_channel_interop_parts/python_request_late_reply.rs` | carried hygiene |
 | `crates/apps/reticulumd/tests/python_channel_interop_parts/rust_identify_python_allow_list.rs` | carried hygiene |
@@ -132,8 +132,8 @@ fork commit `08362717`; the
 | `crates/libs/meshchat-api/src/chat.rs` | guard discipline |
 | `crates/libs/meshchat-api/src/control.rs` | guard discipline |
 | `crates/libs/meshchat-api/src/lib.rs` | guard discipline |
-| `crates/libs/rns-transport/CHANGELOG.md` | test hygiene, release tooling, ledger conventions, guard discipline, shared-instance hardening |
-| `crates/libs/rns-transport/README.md` | release tooling, guard discipline, shared-instance hardening |
+| `crates/libs/rns-transport/CHANGELOG.md` | test hygiene, release tooling, ledger conventions, guard discipline, shared-instance hardening, carried hygiene |
+| `crates/libs/rns-transport/README.md` | release tooling, guard discipline, shared-instance hardening, carried hygiene |
 | `crates/libs/rns-transport/examples/tcp_connection_memory.rs` | guard discipline |
 | `crates/libs/rns-transport/src/destination/link_parts/link.rs` | carried hygiene |
 | `crates/libs/rns-transport/src/destination/link_parts/link_sections/data_proof_tests.rs` | carried hygiene |
@@ -147,7 +147,7 @@ fork commit `08362717`; the
 | `crates/libs/rns-transport/src/destination/link_parts/link_status_predicates_make_lifecycl.rs` | shared-instance hardening |
 | `crates/libs/rns-transport/src/destination/link_parts/link_status_predicates_make_lifecycl_sections/core_tests.rs` | shared-instance hardening |
 | `crates/libs/rns-transport/src/destination/link_parts/link_status_predicates_make_lifecycl_sections/teardown_sends_link_close_for_handshake_link_tests.rs` | shared-instance hardening |
-| `crates/libs/rns-transport/src/destination/link_parts/module_prelude.rs` | shared-instance hardening |
+| `crates/libs/rns-transport/src/destination/link_parts/module_prelude.rs` | shared-instance hardening, carried hygiene |
 | `crates/libs/rns-transport/src/destination/request/receipt.rs` | carried hygiene |
 | `crates/libs/rns-transport/src/error.rs` | shared-instance hardening |
 | `crates/libs/rns-transport/src/hash.rs` | carried hygiene |
@@ -155,7 +155,7 @@ fork commit `08362717`; the
 | `crates/libs/rns-transport/src/iface/auto_parts/default_multicast_discovery_address_sections/core_tests.rs` | guard discipline |
 | `crates/libs/rns-transport/src/iface/auto_parts/module_prelude.rs` | guard discipline |
 | `crates/libs/rns-transport/src/iface/auto_runtime_parts/autoruntimeplan_sections/runtime_json.rs` | guard discipline |
-| `crates/libs/rns-transport/src/iface/auto_runtime_parts/autoruntimeplan_sections/send_due_multicast_peer_announces_wi.rs` | guard discipline |
+| `crates/libs/rns-transport/src/iface/auto_runtime_parts/autoruntimeplan_sections/send_due_multicast_peer_announces_wi.rs` | guard discipline, carried hygiene |
 | `crates/libs/rns-transport/src/iface/auto_runtime_parts/autoruntimeplan_sections/spawn_peer_data_receive_loop.rs` | guard discipline |
 | `crates/libs/rns-transport/src/iface/auto_runtime_parts/module_prelude.rs` | guard discipline |
 | `crates/libs/rns-transport/src/iface/auto_runtime_parts/module_prelude_sections/transport_bridge.rs` | guard discipline |
@@ -166,7 +166,7 @@ fork commit `08362717`; the
 | `crates/libs/rns-transport/src/iface/auto_runtime_parts/tests_sections/peer_data_receive_loop_progress.rs` | guard discipline |
 | `crates/libs/rns-transport/src/iface/auto_runtime_parts/tests_sections/peer_data_receive_loop_progress_probe.rs` | guard discipline |
 | `crates/libs/rns-transport/src/iface/auto_runtime_parts/tests_sections/peer_route_table_expiry.rs` | guard discipline |
-| `crates/libs/rns-transport/src/iface/auto_runtime_parts/tests_sections/peer_route_table_probe.rs` | guard discipline |
+| `crates/libs/rns-transport/src/iface/auto_runtime_parts/tests_sections/peer_route_table_probe.rs` | guard discipline, carried hygiene |
 | `crates/libs/rns-transport/src/iface/i2p.rs` | guard discipline |
 | `crates/libs/rns-transport/src/iface/kiss.rs` | guard discipline |
 | `crates/libs/rns-transport/src/iface/kiss_parts/ifac_runtime_tests.rs` | guard discipline |
@@ -198,7 +198,7 @@ fork commit `08362717`; the
 | `crates/libs/rns-transport/src/iface/serial_parts/module_prelude.rs` | guard discipline |
 | `crates/libs/rns-transport/src/iface/serial_parts/run_serial_stream.rs` | guard discipline |
 | `crates/libs/rns-transport/src/iface/serial_parts/transmit_join_probe_tests.rs` | guard discipline |
-| `crates/libs/rns-transport/src/iface/tcp_client.rs` | guard discipline |
+| `crates/libs/rns-transport/src/iface/tcp_client.rs` | guard discipline, carried hygiene |
 | `crates/libs/rns-transport/src/iface/tcp_client/tests/connect_cancel.rs` | carried hygiene |
 | `crates/libs/rns-transport/src/iface/tcp_client/tests/tx_queue_survives_reconnect.rs` | guard discipline |
 | `crates/libs/rns-transport/src/iface/tcp_client_memory_tests.rs` | guard discipline |
@@ -216,7 +216,7 @@ fork commit `08362717`; the
 | `crates/libs/rns-transport/src/resource/manager_polling.rs` | carried hygiene |
 | `crates/libs/rns-transport/src/resource/manager_proof.rs` | carried hygiene |
 | `crates/libs/rns-transport/src/resource/manager_segments.rs` | carried hygiene |
-| `crates/libs/rns-transport/src/resource/outcome.rs` | shared-instance hardening |
+| `crates/libs/rns-transport/src/resource/outcome.rs` | shared-instance hardening, carried hygiene |
 | `crates/libs/rns-transport/src/resource/sender.rs` | carried hygiene |
 | `crates/libs/rns-transport/src/resource/sender_parts/collision_free_hash.rs` | carried hygiene |
 | `crates/libs/rns-transport/src/resource/tests.rs` | carried hygiene |
@@ -227,7 +227,7 @@ fork commit `08362717`; the
 | `crates/libs/rns-transport/src/transport/announce.rs` | guard discipline |
 | `crates/libs/rns-transport/src/transport/core.rs` | guard discipline, carried hygiene |
 | `crates/libs/rns-transport/src/transport/core_parts/stop_interface.rs` | carried hygiene |
-| `crates/libs/rns-transport/src/transport/handler.rs` | guard discipline, shared-instance hardening |
+| `crates/libs/rns-transport/src/transport/handler.rs` | guard discipline, shared-instance hardening, carried hygiene |
 | `crates/libs/rns-transport/src/transport/handler_parts/path_request.rs` | guard discipline |
 | `crates/libs/rns-transport/src/transport/handler_parts/unicast_gc.rs` | carried hygiene |
 | `crates/libs/rns-transport/src/transport/inbound_processing.rs` | guard discipline, shared-instance hardening |
@@ -244,13 +244,13 @@ fork commit `08362717`; the
 | `crates/libs/rns-transport/src/transport/links_parts/transport_sections/shared_instance_announce.rs` | guard discipline |
 | `crates/libs/rns-transport/src/transport/links_parts/transport_sections/shared_instance_reconnect.rs` | shared-instance hardening |
 | `crates/libs/rns-transport/src/transport/links_parts/transportchannel.rs` | guard discipline |
-| `crates/libs/rns-transport/src/transport/mod.rs` | guard discipline, shared-instance hardening |
+| `crates/libs/rns-transport/src/transport/mod.rs` | guard discipline, shared-instance hardening, carried hygiene |
 | `crates/libs/rns-transport/src/transport/mod_parts/transport.rs` | carried hygiene |
 | `crates/libs/rns-transport/src/transport/next_hop_metrics.rs` | guard discipline |
 | `crates/libs/rns-transport/src/transport/packet_disk_cache.rs` | carried hygiene |
 | `crates/libs/rns-transport/src/transport/path.rs` | guard discipline |
-| `crates/libs/rns-transport/src/transport/request_dispatch.rs` | guard discipline |
-| `crates/libs/rns-transport/src/transport/resource_wire.rs` | guard discipline |
+| `crates/libs/rns-transport/src/transport/request_dispatch.rs` | guard discipline, carried hygiene |
+| `crates/libs/rns-transport/src/transport/resource_wire.rs` | guard discipline, carried hygiene |
 | `crates/libs/rns-transport/src/transport/resource_wire_parts/proof.rs` | guard discipline |
 | `crates/libs/rns-transport/src/transport/reticulum_path_store.rs` | guard discipline |
 | `crates/libs/rns-transport/src/transport/runtime_management.rs` | carried hygiene |
@@ -292,7 +292,7 @@ fork commit `08362717`; the
 | `crates/libs/rns-transport/src/transport/tests_parts/tcp_connect_cancel.rs` | carried hygiene |
 | `crates/libs/rns-transport/src/transport/tests_parts/transport_register_channel_handler_e.rs` | carried hygiene |
 | `crates/libs/rns-transport/src/transport/tests_parts/two_transport_loopback.rs` | carried hygiene |
-| `crates/libs/rns-transport/src/transport/tests_parts/two_transport_loopback_lifecycle.rs` | guard discipline |
+| `crates/libs/rns-transport/src/transport/tests_parts/two_transport_loopback_lifecycle.rs` | guard discipline, carried hygiene |
 | `crates/libs/rns-transport/src/transport/tests_parts/two_transport_loopback_lifecycle_probe.rs` | carried hygiene |
 | `crates/libs/rns-transport/src/transport/tests_parts/two_transport_loopback_requests_isolation.rs` | shared-instance hardening, carried hygiene |
 | `crates/libs/rns-transport/src/transport/tests_parts/two_transport_loopback_requests_probe.rs` | carried hygiene |
@@ -336,7 +336,7 @@ fork commit `08362717`; the
 | `crates/libs/rns-transport/src/transport/wire_receipt.rs` | carried hygiene |
 | `crates/libs/rns-transport/tests/breaking_changes_compile_fail.rs` | shared-instance hardening |
 | `crates/libs/rns-transport/tests/multicast_tx_guard.rs` | guard discipline |
-| `crates/libs/rns-transport/tests/outbound_outcome_api.rs` | test hygiene, shared-instance hardening |
+| `crates/libs/rns-transport/tests/outbound_outcome_api.rs` | test hygiene, shared-instance hardening, carried hygiene |
 | `crates/libs/rns-transport/tests/tcp_client_reconnect.rs` | guard discipline |
 | `crates/libs/rns-transport/tests/tcp_connection_memory.rs` | guard discipline |
 | `docs/fork/PATCHSET.md` | test hygiene, release tooling, ledger conventions, guard discipline, shared-instance hardening |

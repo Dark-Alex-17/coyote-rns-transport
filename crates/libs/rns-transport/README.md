@@ -265,7 +265,7 @@ when the peer refused the transfer: a refusal arrives as a receiver cancel
 carrying only the resource hash (`RNS/Resource.py:155-165`), so the sender
 never learns the peer's motive and `RejectReason::PeerCancelled` is the only
 variant; the enum is `non_exhaustive`, so a future variant is not a breaking
-change, and implements `Display`. `Cancelled` after
+change; it implements `Display`. `Cancelled` after
 `Transport::cancel_resource`. Every terminal path goes through one exit, so
 the outcome and the `ResourceEventKind` published for the hash cannot
 disagree. Dropping the outcome cancels nothing: the transfer runs on and
@@ -517,12 +517,12 @@ parity ledger; the `docs/status/*` matrices are not updated per fork task.
   records `len(packb(body)) - 2` (`RNS/Link.py:1016-1017`).
 - An in-limit response packet for a receipt already `Receiving` a response
   Resource resolves the receipt `Ready` from the packet, as Python does
-  (`RNS/Link.py:873`, `:1437-1443`), and cancels the response Resource still
-  in flight with a receiver cancel on the link. Python lets that Resource
-  run to completion and then discards it, since the pending request it
-  would have answered is already gone (`:897-912`). The same holds for a
-  response record no receipt owns: the packet that answers it cancels the
-  Resource the record was receiving.
+  (`RNS/Link.py:857-866` `handle_response`, `:873`, `:1437-1443`), and
+  cancels the response Resource still in flight with a receiver cancel on
+  the link. Python lets that Resource run to completion and then discards
+  it, since the pending request it would have answered is already gone
+  (`:897-912`). The same holds for a response record no receipt owns: the
+  packet that answers it cancels the Resource the record was receiving.
 - A response record no receipt owns, for a request sent with
   `Link::request_packet*` or `Transport::send_request_resource*`, parks in
   `Receiving` between response segments with no clock; only the inbound

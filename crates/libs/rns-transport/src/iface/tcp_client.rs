@@ -1213,13 +1213,19 @@ impl TcpClient {
                             .lock()
                             .expect("tcp runtime status mutex poisoned")
                             .mark_connecting();
-                        tokio::time::timeout(
-                            connect_timeout,
-                            connect_tcp_stream(addr.clone(), prefer_ipv6),
-                        )
-                        .await
-                        .map_err(|_| RnsError::ConnectionError)
-                        .and_then(|result| result.map_err(|_| RnsError::ConnectionError))
+                        tokio::select! {
+                            biased;
+                            _ = context.cancel.cancelled() => break,
+                            _ = iface_stop.cancelled() => break,
+                            connected = tokio::time::timeout(
+                                connect_timeout,
+                                connect_tcp_stream(addr.clone(), prefer_ipv6),
+                            ) => connected
+                                .map_err(|_| RnsError::ConnectionError)
+                                .and_then(|result| {
+                                    result.map_err(|_| RnsError::ConnectionError)
+                                }),
+                        }
                     }
                 }
             };

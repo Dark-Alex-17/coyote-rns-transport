@@ -82,7 +82,9 @@ async fn read_some(peer_stream: &mut tokio::io::DuplexStream, what: &str) -> Vec
 }
 
 /// Spec 1: a co-consumer holding the tx lock does not stop inbound decoding
-/// or cancellation; the guard spans only the stream's own `recv`.
+/// or cancellation; the guard spans only the stream's own `recv`. The idle
+/// pin in `ifac_runtime_tests.rs` is satisfied by a life-of-stream hold too;
+/// crossing a transmit pass with a locker queued is what discriminates.
 #[tokio::test]
 async fn kiss_stream_with_ifac_keeps_reading_and_cancelling_while_a_co_consumer_holds_the_tx_lock()
 {

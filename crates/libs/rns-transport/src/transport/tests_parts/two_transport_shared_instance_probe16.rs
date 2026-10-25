@@ -113,6 +113,8 @@ async fn shared_instance_probe16_reconnect_without_its_disconnect_keeps_the_tabl
         !records.iter().any(|record| record.contains("disconnected,")),
         "no flush ran for a reconnect that arrived alone: {records:?}"
     );
+    // The plain loop never infers a lost event from a reconnect alone; this guards against a
+    // lost-event heuristic reappearing with that wording.
     assert!(
         !records.iter().any(|record| record.contains("without its disconnect")),
         "the plain loop infers no lost event: {records:?}"

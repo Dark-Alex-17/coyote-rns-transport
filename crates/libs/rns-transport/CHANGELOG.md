@@ -688,27 +688,28 @@ Removed) bullet of its own, marked as such.
   `None` and call `assert_no_further_complete` themselves, as the
   directions tests already did; and the two inline sender-terminal match
   blocks in those two fixtures are `await_outbound_terminal` calls.
-- No library behaviour change (run hygiene): the kiss lock-span fixture
-  `shared_receiver_lock_span_probe_tests` is removed, its scenario (a
-  locker queued behind the running stream is served across one transmit
-  pass) being the first half of spec 1 in
-  `iface/kiss_parts/shared_receiver_lease_probe_tests.rs`; the reticulumd
-  attach test that checked only the filled slot for a `host = "localhost"`
-  entry is removed in favour of its sibling that also accepts the
-  connection on the IPv4 loopback listener
-  (`bootstrap_interface_startup_parts::shared_instance_attach_tests`); the
-  `contracts` job of `ci.yml` and `ci-full.yml` drops its named
-  compile-fail step, `cargo test -p coyote-rns-transport --tests` already
-  running `tests/breaking_changes_compile_fail.rs` (pin updated in
-  `crates/apps/reticulumd/tests/fork_publish_contract.rs`,
-  `ci_full_contracts_job_runs_every_contract_step_ci_runs`); and three
-  test-file comments drop their change-history wording
+- No library behaviour change (run hygiene): the reticulumd attach test
+  that checked only the filled slot for a `host = "localhost"` entry is
+  removed in favour of its sibling that also accepts the connection on the
+  IPv4 loopback listener
+  (`bootstrap_interface_startup_parts::shared_instance_attach_tests`), and
+  three test-file comments drop their change-history wording
   (`two_transport_shared_instance_probe16.rs`,
   `iface/weave_management_handle_tests.rs`,
   `iface/kiss_parts/shared_receiver_lease_probe_tests.rs`).
 
 ### Removed
 
+- No library behaviour change (run hygiene): the kiss lock-span fixture
+  `shared_receiver_lock_span_probe_tests`, whose scenario (a locker queued
+  behind the running stream is served across one transmit pass) is
+  reproduced by `iface/kiss_parts/shared_receiver_lease_probe_tests.rs`
+  (spec 1 drives the pass and the handoff, spec 2 the queued wait); and the
+  named compile-fail step of the `contracts` job in `ci.yml` and
+  `ci-full.yml`, `cargo test -p coyote-rns-transport --tests` already
+  running `tests/breaking_changes_compile_fail.rs` (pin updated in
+  `crates/apps/reticulumd/tests/fork_publish_contract.rs`,
+  `ci_full_contracts_job_runs_every_contract_step_ci_runs`).
 - No library behaviour change: the Codex pull-request review workflow, which
   was opt-in through a repository variable that was never set, and its clause
   in the publish contract; the pin keeps the `ci.yml` clauses

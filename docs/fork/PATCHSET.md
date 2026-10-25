@@ -973,10 +973,10 @@ the census sentence matches the tree),
 `fork_publish_contract_parts/lint_discipline_probe10.rs` (the ledger and
 changelog prose on the lock order, read from the thirty-ninth narrative
 itself; the README row's attribution),
-`kiss_parts/ifac_runtime_tests.rs`,
-`kiss_parts/shared_receiver_lock_span_probe_tests.rs` (the wrapper lock
-span) and `kiss_parts/shared_receiver_lease_probe_tests.rs` (the
-per-receive lease of both shared receivers).
+`kiss_parts/ifac_runtime_tests.rs` and
+`kiss_parts/shared_receiver_lease_probe_tests.rs` (the per-receive lease
+of both shared receivers, including a queued locker served across a
+transmit pass).
 
 Fork commits `829c8e6d`, `d629ac08`, `cb818b0a`, `a55eaf6f`, `e4046601`,
 `0c553858`, `f5f8b639`, `6ecb0340`, `c78bdc7d`, `ca66c50d`, `00bd6579`,

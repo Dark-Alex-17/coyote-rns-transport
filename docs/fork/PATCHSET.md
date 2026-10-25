@@ -59,7 +59,7 @@ fork commit `08362717`; the
 `9865dbdd`, `e5ba2807`, `1b04a361`, `f890dbf9`, `fd6322b5`, `05975d7d`,
 `5cca182d`, `42f988ce`, `f2ea78f9`, `6c5ca548`, `012f7337`, `63bbbc87`,
 `2c89e7ba`, `f6c0b59c`, `842feae6`, `c296bb84`, `ceccaeb1`, `22961b3b`,
-`71c9e7c6`, `eb45dc62`, `8b3e02eb`, `e1804e1c` and `07c1fe37`.
+`71c9e7c6`, `eb45dc62`, `8b3e02eb`, `e1804e1c`, `07c1fe37` and `cbe20719`.
 
 | File | Patch |
 | --- | --- |
@@ -1356,8 +1356,8 @@ Fork commits `985bd5bd`, `81c9ed73`, `faacb7fd`, `9877bb6e`, `5631defa`,
 `44962a96`, `ce8ed659`, `9865dbdd`, `e5ba2807`, `1b04a361`, `f890dbf9`,
 `fd6322b5`, `05975d7d`, `5cca182d`, `42f988ce`, `f2ea78f9`, `6c5ca548`,
 `012f7337`, `63bbbc87`, `2c89e7ba`, `f6c0b59c`, `842feae6`, `c296bb84`,
-`ceccaeb1`, `22961b3b`, `71c9e7c6`, `eb45dc62`, `8b3e02eb`, `e1804e1c` and
-`07c1fe37`: H6, carried hygiene. The library behaviour
+`ceccaeb1`, `22961b3b`, `71c9e7c6`, `eb45dc62`, `8b3e02eb`, `e1804e1c`,
+`07c1fe37` and `cbe20719`: H6, carried hygiene. The library behaviour
 changes are: an inbound resource cancel, hash update, part or
 split-segment advertisement reaches only a transfer on the link it
 arrived on (first); a rejected resource advertisement is counted per link
@@ -1665,7 +1665,9 @@ being the one sanctioned call. The thirty-sixth has reticulumd's
 (`bootstrap_parts/configure_startup_rpc_token_auth.rs`) take the role its
 two callers in `bootstrap_parts/module_core.rs` pass, so an undelivered
 scheduled announce warns as `propagation` or `control` like the sibling
-warns of the twelfth.
+warns of the twelfth. The thirty-seventh is a style-only rustfmt pass over
+the new `resource/tests_link_scope_outbound.rs` fixture (one call
+re-wrapped).
 
 ## 0.15.1 (upstream 0.14.0)
 

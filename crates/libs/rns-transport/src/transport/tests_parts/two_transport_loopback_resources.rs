@@ -124,6 +124,40 @@ fn complete_payload(event: ResourceEvent) -> ResourceComplete {
     }
 }
 
+/// Checks one receiver-side `Complete` plus the sender's clean terminal event for a
+/// transfer that was dispatched as `resource_hash`. `expected_segments` is `None` for a
+/// single-segment transfer, which emits no `SegmentComplete` at all.
+#[deny(clippy::await_holding_invalid_type)]
+async fn assert_transfer_completes(
+    sender_events: &mut broadcast::Receiver<ResourceEvent>,
+    receiver_events: &mut broadcast::Receiver<ResourceEvent>,
+    link_id: AddressHash,
+    resource_hash: Hash,
+    payload: &[u8],
+    expected_segments: Option<u32>,
+) -> ResourceComplete {
+    let (complete, segments_seen) = await_complete_with_segments(receiver_events, link_id).await;
+    assert_eq!(complete.hash, resource_hash, "receiver reports the sender's resource hash");
+    match expected_segments {
+        Some(expected) => {
+            assert_eq!(segments_seen, Some(expected), "segment count on the receiver")
+        }
+        None => {
+            assert_eq!(segments_seen, None, "a single-segment transfer emits no SegmentComplete")
+        }
+    }
+    let complete = complete_payload(complete);
+    assert_eq!(complete.data.len(), payload.len(), "received length");
+    assert!(complete.data == payload, "received bytes match the sent payload");
+
+    let outbound = await_outbound_terminal(sender_events, resource_hash).await;
+    assert!(
+        matches!(outbound, ResourceEventKind::OutboundComplete),
+        "sender should finish cleanly, got {outbound:?}"
+    );
+    complete
+}
+
 /// Sends a small request Resource under `request_id` from `requester` and returns its hash,
 /// so that a response the peer sends under that id is solicited: a response advertisement
 /// whose `q` matches no pending request is dropped (`RNS/Link.py:1046-1047`). The bytes are

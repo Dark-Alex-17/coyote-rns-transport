@@ -80,20 +80,10 @@ async fn two_transport_loopback_resources_advertisement_retry_skips_gone_link() 
     );
     stall.await.expect("stall task finished");
 
-    let outbound = await_resource_event(&mut sender_events, |event| {
-        event.hash == resource_hash
-            && matches!(
-                event.kind,
-                ResourceEventKind::OutboundComplete
-                    | ResourceEventKind::OutboundFailed
-                    | ResourceEventKind::OutboundRejected { .. }
-            )
-    })
-    .await;
+    let outbound = await_outbound_terminal(&mut sender_events, resource_hash).await;
     assert!(
-        matches!(outbound.kind, ResourceEventKind::OutboundFailed),
-        "a Resource whose link is gone must fail once its retries are spent, got {:?}",
-        outbound.kind
+        matches!(outbound, ResourceEventKind::OutboundFailed),
+        "a Resource whose link is gone must fail once its retries are spent, got {outbound:?}"
     );
 
     let stray =
@@ -123,12 +113,14 @@ async fn two_transport_loopback_resources_advertisement_retry_skips_gone_link() 
         .send_resource(&fresh_link_id, payload.clone(), None)
         .await
         .expect("resource dispatched on the fresh link");
-    assert_small_transfer_completes(
+    assert_transfer_completes(
         &mut sender_events,
         &mut receiver_events,
         fresh_link_id,
         resource_hash,
         &payload,
+        None,
     )
     .await;
+    assert_no_further_complete(&mut receiver_events, fresh_link_id).await;
 }

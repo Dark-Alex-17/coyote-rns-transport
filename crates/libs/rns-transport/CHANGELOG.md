@@ -88,8 +88,9 @@ Removed) bullet of its own, marked as such.
   under the README policy: `### Breaking` above lists the loopback-only
   shared-instance default, the removed `RejectReason` variants and the
   removed `transport::test_bridge` module, each with its migration;
-  `cargo semver-checks` against `v0.15.1` reports exactly those four major
-  findings. The release contracts are pinned by
+  `cargo semver-checks` against `v0.15.1` reports exactly four major
+  findings, all from the two removals (the loopback default is a behaviour
+  change the tool cannot see). The release contracts are pinned by
   `crates/apps/reticulumd/tests/fork_publish_contract.rs` and
   `fork_release_docs_contract.rs`.
 - While attached to a shared instance, the duplicate filter

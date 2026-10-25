@@ -7,7 +7,8 @@
 // the README row carries every patch attribution that touched it; and the
 // code-identifier rule the allowance-reason probes share treats "e.g." and
 // "i.e." as prose while keeping dotted paths. Released sections are frozen,
-// so the literal 0.16.0 label is the anchor rather than the newest heading.
+// so the literal 0.16.0 label is the anchor rather than the newest heading,
+// and the negative pins guard that released section against tampering.
 
 /// The `## 0.16.0` section of the crate changelog, whitespace-normalised.
 fn changelog_0_16_0_flat() -> String {
@@ -108,6 +109,33 @@ fn patchset_readme_row_is_attributed_to_every_patch_that_touched_it() {
         readme,
         "release tooling, guard discipline, shared-instance hardening, carried hygiene, \
          release 0.16.0"
+    );
+}
+
+/// The forty-sixth narrative and the CHANGELOG agree on how the lease probe
+/// reproduces the removed lock-span scenario: spec 1 the pass and the
+/// handoff, spec 2 the queued wait, not a half of spec 1.
+#[test]
+fn patchset_forty_sixth_narrative_states_the_lease_spec_split() {
+    let flat = patchset_0_16_0_flat();
+    let (_, rest) = flat
+        .split_once("The forty-sixth is the run-closing hygiene pass")
+        .expect("the ledger narrates the forty-sixth carried-hygiene commit");
+    let (narrative, _) = rest
+        .split_once("The forty-seventh")
+        .expect("the forty-seventh narrative follows the forty-sixth");
+    assert!(
+        narrative.contains("spec 1 the pass and the handoff, spec 2 the queued wait"),
+        "the narrative splits the scenario across the two specs, got {narrative:?}"
+    );
+    assert!(
+        !narrative.contains("first half of spec 1"),
+        "the narrative no longer confines the scenario to a half of spec 1"
+    );
+    assert!(
+        changelog_0_16_0_flat()
+            .contains("spec 1 drives the pass and the handoff, spec 2 the queued wait"),
+        "the CHANGELOG states the same spec split"
     );
 }
 

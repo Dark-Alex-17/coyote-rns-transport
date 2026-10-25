@@ -735,6 +735,67 @@ fn readme_names_the_codex_variable_only_in_a_bullet_that_says_removed() {
     );
 }
 
+/// The README patch list opens with the 0.16.0 block and keeps the 0.15.1 and
+/// 0.15.0 blocks below it as history: the 0.16.0 block names every item of
+/// the release, and the two 0.15.1 sentences it supersedes (the no-op
+/// duplicate filter and the once-per-attach warning) survive verbatim in the
+/// 0.15.1 block rather than being edited away.
+#[test]
+fn readme_patch_list_opens_with_the_0_16_0_block_and_keeps_the_0_15_1_paragraph() {
+    let readme = read_repo_file("crates/libs/rns-transport/README.md");
+    let patch_list = crate_readme_section(&readme, "Patch list")
+        .split_whitespace()
+        .collect::<Vec<_>>()
+        .join(" ");
+    let marker_0_16_0 = "What `0.16.0` carries on top of `0.15.1`:";
+    let marker_0_15_1 = "What `0.15.1` carries on top of `0.15.0`:";
+    let marker_0_15_0 = "What `0.15.0` carries on top of `0.14.1`:";
+    let at_0_16_0 = patch_list
+        .find(marker_0_16_0)
+        .expect("the README patch list should open with the 0.16.0 block");
+    let at_0_15_1 =
+        patch_list.find(marker_0_15_1).expect("the README patch list should keep the 0.15.1 block");
+    let at_0_15_0 =
+        patch_list.find(marker_0_15_0).expect("the README patch list should keep the 0.15.0 block");
+    assert!(
+        at_0_16_0 < at_0_15_1 && at_0_15_1 < at_0_15_0,
+        "the README patch list should run 0.16.0, then 0.15.1, then 0.15.0"
+    );
+
+    let block_0_16_0 = &patch_list[at_0_16_0..at_0_15_1];
+    for needle in [
+        "SharedInstanceEndpointNotLoopback",
+        "allow_remote_endpoint(true)",
+        "replaces the 0.15.1 once-per-attach warning",
+        "RejectReason::{Oversize, Unknown}",
+        "transport::test_bridge",
+        "replacing the 0.15.1 rule that it consulted nothing while attached",
+        "LINKCLOSE a `Handshake` teardown",
+        "attach_shared_instance",
+        "clippy::await_holding_invalid_type",
+        "Codex review workflow",
+        "receipt-less records",
+        "packet hashlist flush",
+        "`TcpClient` connect is cancel-aware",
+    ] {
+        assert!(
+            block_0_16_0.contains(needle),
+            "the README 0.16.0 block should still say {needle:?}:\n{block_0_16_0}"
+        );
+    }
+
+    let block_0_15_1 = &patch_list[at_0_15_1..at_0_15_0];
+    for superseded in [
+        "inserts nothing and consults nothing while attached",
+        "A warning, once per attach, when a `Tcp` shared-instance endpoint is not loopback.",
+    ] {
+        assert!(
+            block_0_15_1.contains(superseded),
+            "the README 0.15.1 block should keep its superseded sentence {superseded:?} as history:\n{block_0_15_1}"
+        );
+    }
+}
+
 /// Every `rust` snippet in the crate README is pinned verbatim by one of the
 /// public-API test files, so a README edit that drifts from what compiles and
 /// runs turns this test red. `use` lines are left to the compiler of those

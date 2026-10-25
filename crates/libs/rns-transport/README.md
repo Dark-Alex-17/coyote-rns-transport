@@ -684,12 +684,11 @@ of `0.15.1`:
   arriving on the shared-instance interface (everywhere when no interface is
   flagged), replacing the 0.15.1 rule that it consulted nothing while
   attached.
-- The LINKCLOSE a `Handshake` teardown now sends, and the reconnect consumer
-  that flushes only on a seen disconnect.
+- The LINKCLOSE a `Handshake` teardown now sends.
 - The reticulumd migration: the daemon attaches through
-  `attach_shared_instance` (IPv4-loopback-first host pick, `prefer_ipv6`, the
-  ignored `connect_timeout` and `max_reconnect_tries` keys warned about and
-  stripped from the reference TOML).
+  `attach_shared_instance` (a loopback-first host pick in the family
+  `prefer_ipv6` selects, the ignored `connect_timeout` and
+  `max_reconnect_tries` keys warned about and stripped from the reference TOML).
 - `clippy::await_holding_invalid_type` live at its default level across the
   workspace; the remaining production holds carry fn-level allowances whose
   comments name the guard and the await, and the classify scripts gate them.

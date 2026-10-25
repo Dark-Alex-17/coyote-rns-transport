@@ -66,7 +66,7 @@ fork commit `08362717`; the
 carried-hygiene cell fork commits `9865dbdd` and `eb45dc62` add, named so
 the release's Python-in-the-loop proof row is attributed to it; the
 `release 0.16.0` patch carries no other id and is fork commits `c281063e`,
-`a6ad4884`, `1a39183c`, `e14ead8d` and `44c19d48`.
+`a6ad4884`, `1a39183c`, `e14ead8d`, `44c19d48` and `5b9f69a8`.
 
 | File | Patch |
 | --- | --- |
@@ -120,14 +120,14 @@ the release's Python-in-the-loop proof row is attributed to it; the
 | `crates/apps/reticulumd/tests/fork_publish_contract_parts/release_tooling_probe5.rs` | release tooling |
 | `crates/apps/reticulumd/tests/fork_publish_contract_parts/release_tooling_probe6.rs` | shared-instance hardening |
 | `crates/apps/reticulumd/tests/fork_release_docs_contract.rs` | release tooling, release 0.16.0 |
-| `crates/apps/reticulumd/tests/python_channel_interop.rs` | guard discipline, carried hygiene |
+| `crates/apps/reticulumd/tests/python_channel_interop.rs` | guard discipline, carried hygiene, Python-in-the-loop identify allow-list interop |
 | `crates/apps/reticulumd/tests/python_channel_interop_parts/multi_segment_python_interop.rs` | test hygiene |
 | `crates/apps/reticulumd/tests/python_channel_interop_parts/python_request_late_reply.rs` | carried hygiene |
 | `crates/apps/reticulumd/tests/python_channel_interop_parts/rust_identify_python_allow_list.rs` | carried hygiene, Python-in-the-loop identify allow-list interop |
 | `crates/apps/reticulumd/tests/python_channel_interop_parts/rust_to_python_raw_resource_roundtri.rs` | carried hygiene |
 | `crates/apps/reticulumd/tests/python_channel_interop_parts/rust_to_python_request_receipt.rs` | carried hygiene |
 | `crates/apps/reticulumd/tests/python_tcp_ifac_lifecycle.rs` | guard discipline |
-| `crates/apps/reticulumd/tests/support/python_channel_endpoint.py` | carried hygiene |
+| `crates/apps/reticulumd/tests/support/python_channel_endpoint.py` | carried hygiene, Python-in-the-loop identify allow-list interop |
 | `crates/apps/rns-tools/Cargo.toml` | release 0.16.0 |
 | `crates/apps/rns-tools/src/bin/independent_interop_node/events.rs` | carried hygiene |
 | `crates/apps/rns-tools/src/bin/independent_interop_node/model.rs` | carried hygiene |
@@ -1811,9 +1811,9 @@ the `--allow-identified` flag of
 `crates/apps/reticulumd/tests/support/python_channel_endpoint.py`), the
 release section's Python-in-the-loop proof row.
 
-Fork commits `c281063e`, `a6ad4884`, `1a39183c`, `e14ead8d` and `44c19d48`:
-release 0.16.0. The first retargets the promotion-sensitive pins to the literal
-0.16.0 label, since a released section is frozen:
+Fork commits `c281063e`, `a6ad4884`, `1a39183c`, `e14ead8d`, `44c19d48` and
+`5b9f69a8`: release 0.16.0. The first retargets the promotion-sensitive pins
+to the literal 0.16.0 label, since a released section is frozen:
 `crates/apps/reticulumd/tests/fork_publish_contract_parts/ledger_contract.rs`
 expects the full-hash and bullet-cite contracts to cover `0.16.0` and
 `0.15.1`,
@@ -1849,7 +1849,15 @@ patch-list order, the 0.16.0 block's items and the surviving 0.15.1
 sentences, and
 `crates/apps/reticulumd/tests/fork_publish_contract_parts/lint_discipline_probe10.rs`
 pins the forty-sixth narrative's spec split. The ledger promotion itself
-names the Python-in-the-loop identify allow-list interop patch above.
+names the Python-in-the-loop identify allow-list interop patch above. The
+sixth splits the probe9 census pin in
+`crates/apps/reticulumd/tests/fork_publish_contract_parts/lint_discipline_probe9.rs`:
+every ledger census sentence must be arithmetically consistent, and the
+live production count is compared only against an Unreleased section that
+states one, so a later marker retirement never asks for an edit to a
+released section; and the README register pin in
+`crates/apps/reticulumd/tests/fork_release_docs_contract.rs` names the
+reticulumd-migration bullet by its own words.
 
 ## 0.15.1 (upstream 0.14.0)
 

@@ -4,6 +4,10 @@ use rmpv::Value;
 use std::collections::BTreeSet;
 use std::io;
 use std::path::{Path, PathBuf};
+use std::sync::atomic::{AtomicU64, Ordering};
+
+static HASHLIST_TMP_COUNTER: AtomicU64 = AtomicU64::new(0);
+const HASHLIST_TMP_PREFIX: &str = "packet_hashlist.raw.tmp-";
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct CachedPacket {
@@ -108,9 +112,13 @@ impl ReticulumPacketDiskCache {
         Ok(removed)
     }
 
-    /// Writes the full list to `packet_hashlist.raw.tmp` beside the target and renames it
-    /// into place, so a reader (or a restart after a signal mid-write) sees either the old
-    /// list or the new one, never a truncated file.
+    /// Writes the full list to a `packet_hashlist.raw.tmp-<pid>-<n>` file beside the target
+    /// and renames it into place, so a reader (or a restart after a signal mid-write) sees
+    /// either the old list or the new one, never a truncated file. The temporary name is
+    /// unique per call so that concurrent saves (the debounced persistence worker and a
+    /// shutdown flush) never rename each other's file out from under them. A failed save
+    /// removes its own temporary; one orphaned by a crash mid-write is swept by the next
+    /// [`Self::load_packet_hashlist`].
     pub async fn save_packet_hashlist(
         &self,
         storage_path: impl AsRef<Path>,
@@ -121,19 +129,43 @@ impl ReticulumPacketDiskCache {
             payload.extend_from_slice(hash.as_slice());
         }
         let path = storage_path.as_ref().join("packet_hashlist.raw");
-        let tmp_path = storage_path.as_ref().join("packet_hashlist.raw.tmp");
-        tokio::fs::write(&tmp_path, payload).await?;
-        #[cfg(windows)]
-        if tokio::fs::try_exists(&path).await? {
-            tokio::fs::remove_file(&path).await?;
+        let tmp_path = storage_path.as_ref().join(format!(
+            "{HASHLIST_TMP_PREFIX}{}-{}",
+            std::process::id(),
+            HASHLIST_TMP_COUNTER.fetch_add(1, Ordering::Relaxed)
+        ));
+        let written = match tokio::fs::write(&tmp_path, payload).await {
+            Ok(()) => tokio::fs::rename(&tmp_path, &path).await,
+            Err(error) => Err(error),
+        };
+        if written.is_err() {
+            let _ = tokio::fs::remove_file(&tmp_path).await;
         }
-        tokio::fs::rename(&tmp_path, &path).await
+        written
     }
 
+    async fn remove_orphaned_hashlist_temporaries(storage_path: &Path) -> io::Result<()> {
+        let mut entries = match tokio::fs::read_dir(storage_path).await {
+            Ok(entries) => entries,
+            Err(error) if error.kind() == io::ErrorKind::NotFound => return Ok(()),
+            Err(error) => return Err(error),
+        };
+        while let Some(entry) = entries.next_entry().await? {
+            if entry.file_name().to_string_lossy().starts_with(HASHLIST_TMP_PREFIX) {
+                tokio::fs::remove_file(entry.path()).await?;
+            }
+        }
+        Ok(())
+    }
+
+    /// Reads the list back, first sweeping temporaries a crashed save left behind. Loading
+    /// happens once at startup before any save in this process, so every temporary present
+    /// at that point is an orphan.
     pub async fn load_packet_hashlist(
         &self,
         storage_path: impl AsRef<Path>,
     ) -> io::Result<Vec<Hash>> {
+        Self::remove_orphaned_hashlist_temporaries(storage_path.as_ref()).await?;
         let raw_path = storage_path.as_ref().join("packet_hashlist.raw");
         match tokio::fs::read(&raw_path).await {
             Ok(payload) => {

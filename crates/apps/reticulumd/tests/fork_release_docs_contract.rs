@@ -772,6 +772,7 @@ fn readme_patch_list_opens_with_the_0_16_0_block_and_keeps_the_0_15_1_paragraph(
         "replacing the 0.15.1 rule that it consulted nothing while attached",
         "LINKCLOSE a `Handshake` teardown",
         "The reticulumd migration",
+        "in the family `prefer_ipv6` selects",
         "clippy::await_holding_invalid_type",
         "Codex review workflow",
         "receipt-less records",
@@ -783,6 +784,10 @@ fn readme_patch_list_opens_with_the_0_16_0_block_and_keeps_the_0_15_1_paragraph(
             "the README 0.16.0 block should still say {needle:?}:\n{block_0_16_0}"
         );
     }
+    assert!(
+        !block_0_16_0.contains("flushes only on a seen disconnect"),
+        "the README 0.16.0 block should no longer attribute the reconnect consumer to this release:\n{block_0_16_0}"
+    );
 
     let block_0_15_1 = &patch_list[at_0_15_1..at_0_15_0];
     for superseded in [

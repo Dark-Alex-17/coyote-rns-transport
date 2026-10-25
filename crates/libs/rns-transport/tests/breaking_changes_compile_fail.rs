@@ -6,6 +6,9 @@
 //! `rustc` the way cargo does, against the `librns_transport` rlib this very test binary
 //! linked, and checks that each rejected snippet fails with the promised diagnostic while
 //! the migrated counterpart compiles. No extra dependency, no nested cargo, no shared lock.
+//! Each release with a `### Breaking` subsection has its own pair of snippet constants:
+//! `MIGRATED_CONSUMER` and `REJECTED` for 0.15.0, `V0_16_0_MIGRATED_CONSUMER` and
+//! `V0_16_0_REJECTED` for 0.16.0.
 
 use std::fs;
 use std::path::{Path, PathBuf};

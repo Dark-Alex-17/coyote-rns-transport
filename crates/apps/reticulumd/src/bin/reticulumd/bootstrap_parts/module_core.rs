@@ -579,6 +579,7 @@ pub(super) async fn bootstrap(args: Args) -> BootstrapContext {
                     spawn_destination_announce_scheduler(
                         transport.clone(),
                         destination.clone(),
+                        "propagation",
                         propagation_app_data,
                         interval_secs,
                     );
@@ -589,6 +590,7 @@ pub(super) async fn bootstrap(args: Args) -> BootstrapContext {
                     spawn_destination_announce_scheduler(
                         transport.clone(),
                         destination.clone(),
+                        "control",
                         None,
                         interval_secs,
                     );

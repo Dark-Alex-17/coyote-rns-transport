@@ -745,6 +745,42 @@ fn readme_names_the_codex_variable_only_in_a_bullet_that_says_removed() {
     );
 }
 
+/// The README's Codex bullet sends the reader to `### Removed` in the 0.16.0
+/// release notes; that pointer resolves: the CHANGELOG `## 0.16.0` section has
+/// a `### Removed` subsection and one of its top-level bullets records the
+/// Codex review workflow. Read from the CHANGELOG, not from the README, so a
+/// release note that moved or dropped the bullet turns this red while the
+/// README-only pin above stays green.
+#[test]
+fn changelog_0_16_0_removed_records_the_codex_workflow_the_readme_points_at() {
+    let changelog = read_repo_file("crates/libs/rns-transport/CHANGELOG.md");
+    let lines: Vec<&str> = changelog.lines().collect();
+    let start = lines
+        .iter()
+        .position(|line| line.starts_with("## 0.16.0"))
+        .expect("CHANGELOG should have a `## 0.16.0` heading");
+    let end = lines[start + 1..]
+        .iter()
+        .position(|line| line.starts_with("## "))
+        .map_or(lines.len(), |p| start + 1 + p);
+    let section = &lines[start + 1..end];
+    let removed_start = section
+        .iter()
+        .position(|line| *line == "### Removed")
+        .expect("the 0.16.0 release notes should have a `### Removed` subsection")
+        + 1;
+    let removed_end = section[removed_start..]
+        .iter()
+        .position(|line| line.starts_with("### "))
+        .map_or(section.len(), |p| removed_start + p);
+    let removed = section[removed_start..removed_end].join("\n");
+    let codex: Vec<String> = top_level_bullets(&removed)
+        .into_iter()
+        .filter(|bullet| bullet.contains("Codex") && bullet.contains("review workflow"))
+        .collect();
+    assert_eq!(codex.len(), 1, "exactly one `### Removed` bullet of 0.16.0 records the Codex review workflow, got {codex:?}");
+}
+
 /// The README patch list opens with the 0.16.0 block and keeps the 0.15.1 and
 /// 0.15.0 blocks below it as history: the 0.16.0 block names every item of
 /// the release, and the two 0.15.1 sentences it supersedes (the no-op

@@ -1180,3 +1180,5 @@ include!("fork_publish_contract_parts/lint_discipline_probe11.rs");
 include!("fork_publish_contract_parts/lint_discipline_probe12.rs");
 
 include!("fork_publish_contract_parts/release_frozen_sections_probe.rs");
+
+include!("fork_publish_contract_parts/release_frozen_sections_probe2.rs");

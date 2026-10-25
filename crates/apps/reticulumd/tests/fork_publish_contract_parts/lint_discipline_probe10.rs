@@ -144,20 +144,28 @@ fn patchset_forty_sixth_narrative_states_the_lease_spec_split() {
 /// Both 0.16.0 sections describe the probe9 census pin as it is after the
 /// split: the live comparison holds only for an Unreleased section, so the
 /// older wording that promised the ledger census always matches the tree is
-/// gone. The pinned-by list is the last place either section cites probe9
-/// with a parenthetical. The superseded phrases are assembled so a search
-/// for them across the tree finds only the ledgers and probe9's own
-/// Unreleased live-compare message.
+/// gone, and so is the forty-sixth guard-discipline narrative's pre-split
+/// form (the census sentence equals the measured allowances), which that
+/// narrative now qualifies with where the live compare went. The pinned-by
+/// list is the last place either section cites probe9 with a parenthetical.
+/// The superseded phrases are assembled so a search for them across the
+/// tree finds only the ledgers and probe9's own Unreleased live-compare
+/// message.
 #[test]
 fn ledgers_0_16_0_describe_the_split_census_pin() {
-    let superseded =
-        [concat!("census ", "matches the tree"), concat!("census sentence ", "matches the tree")];
+    let superseded = [
+        concat!("census ", "matches the tree"),
+        concat!("census sentence ", "matches the tree"),
+        concat!("equals the measured ", "production allowances"),
+    ];
     for (name, flat) in
         [("PATCHSET", patchset_0_16_0_flat()), ("CHANGELOG", changelog_0_16_0_flat())]
     {
         let (_, rest) = flat
             .rsplit_once("lint_discipline_probe9.rs` (")
-            .unwrap_or_else(|| panic!("the {name} 0.16.0 section cites probe9 with a parenthetical"));
+            .unwrap_or_else(|| {
+                panic!("the {name} 0.16.0 section cites probe9 with a parenthetical")
+            });
         let parenthetical = &rest[..rest.find(')').unwrap_or(rest.len())];
         assert!(
             parenthetical.contains("equals the census the tree carries"),

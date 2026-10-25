@@ -894,10 +894,13 @@ passes), and adopts `fork_publish_contract_parts/lint_discipline_probe9.rs`
 shape that can see a deadlock (several sockets, a multi-thread runtime, a
 bounded wait); the `dedupe` field rustdoc names the only locker and that
 name resolves to the fn under the nest marker; no production source in
-any crate joins lock futures; the census sentence above equals the
-measured production allowances and their split; the probe sources and
-auto-runtime test sections are ASCII with headers that cite no task or
-lane; and the lifecycle fixture header names each pin its file holds. The
+any crate joins lock futures; the census sentence above adds up and,
+while it stood in an Unreleased section, matched the measured production
+allowances and their split (the live compare has since been confined to
+an Unreleased census, see the sixth narrative of the release 0.16.0 patch
+below); the probe sources and auto-runtime test sections are ASCII with
+headers that cite no task or lane; and the lifecycle fixture header names
+each pin its file holds. The
 forty-seventh adopts `fork_publish_contract_parts/lint_discipline_probe10.rs`
 (included from `fork_publish_contract.rs`): the CHANGELOG Unreleased entry
 describes the sequential order under its allowance and no longer vouches

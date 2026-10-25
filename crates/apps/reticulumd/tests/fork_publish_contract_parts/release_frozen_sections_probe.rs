@@ -9,7 +9,7 @@
 // promotion that edits history instead of adding to it turns red here while
 // the structural ledger contracts (which only see the current tree) stay green.
 // They skip, in so many words, on a checkout with no reachable fork tag, the
-// same precondition the zero-argument ledger script has.
+// precondition the zero-argument ledger script refuses on.
 
 /// The newest `coyote-rns-transport-v<major>.<minor>.<patch>` tag that is an
 /// ancestor of HEAD, with its parsed version; `None` when there is none.

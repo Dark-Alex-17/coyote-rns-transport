@@ -120,3 +120,20 @@ fn resource_receiver_refuses_advertised_data_size_over_the_inbound_cap() {
         "d = cap creates a receiver"
     );
 }
+
+/// An advertisement the receiver constructor refuses, here `d` one byte over the
+/// inbound data cap, is charged to the link like one the manager's own guards drop,
+/// so it shares the same warn cadence instead of warning on every advertisement.
+#[test]
+fn resource_manager_counts_an_advertisement_the_receiver_refuses() {
+    let (mut manager, mut link) = manager_with_test_link();
+    let over = advertisement_with(1, MAX_INBOUND_RESOURCE_TRANSFER_SIZE + 1, 1);
+    let packet = resource_packet(
+        PacketContext::ResourceAdvrtisement,
+        &over.pack().expect("advertisement"),
+        *link.id(),
+    );
+    assert!(manager.handle_packet(&packet, &mut link).is_empty());
+    assert!(manager.incoming.is_empty(), "a refused advertisement creates no receiver");
+    assert_eq!(manager.link_stats[link.id()].rejected_advertisements, 1);
+}

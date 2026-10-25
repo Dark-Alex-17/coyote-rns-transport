@@ -120,7 +120,8 @@ impl ResourceManager {
     fn take_cancelled_incoming(&mut self, segment_hash: Hash) -> Option<ResourceEvent> {
         let receiver = self.incoming.remove(&segment_hash)?;
         let original_hash = receiver.original_hash;
-        Some(self.take_inbound_segments(original_hash, "cancelled").unwrap_or_else(|| {
+        let assembly = self.take_inbound_segments(original_hash, &receiver.link_id, "cancelled");
+        Some(assembly.unwrap_or_else(|| {
             ResourceEvent {
                 hash: original_hash,
                 link_id: receiver.link_id,
@@ -155,12 +156,7 @@ impl ResourceManager {
         if event.is_some() {
             return CancelledResponse { receiver_in_flight: true, event };
         }
-        let event = self
-            .incoming_segments
-            .get(&original_hash)
-            .is_some_and(|assembly| assembly.link_id == *link_id)
-            .then(|| self.take_inbound_segments(original_hash, "cancelled"))
-            .flatten();
+        let event = self.take_inbound_segments(original_hash, link_id, "cancelled");
         CancelledResponse { receiver_in_flight: false, event }
     }
 }

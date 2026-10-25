@@ -24,7 +24,7 @@ impl ResourceManager {
         for (hash, original_hash, link_id, progress) in failed {
             log::warn!("resource transfer failed link={link_id} hash={hash} reason=retry_limit_exhausted");
             self.incoming.remove(&hash);
-            if !self.fail_inbound_segments(original_hash, "retry_limit_exhausted") {
+            if !self.fail_inbound_segments(original_hash, &link_id, "retry_limit_exhausted") {
                 self.events.push(ResourceEvent {
                     hash: original_hash,
                     link_id,

@@ -42,7 +42,9 @@ fn advertisement_exceeds_inbound_limits(
 impl ResourceManager {
     /// Counts the drop against the link and warns on the first one and on
     /// every 64th after that, so a peer that keeps offering over-cap
-    /// resources stays visible without one warn per advertisement.
+    /// resources stays visible without one warn per advertisement. Covers
+    /// both the manager's own guards and the bounds the receiver constructor
+    /// re-checks, so every dropped advertisement shares one count.
     fn record_rejected_advertisement(
         &mut self,
         advertisement: &ResourceAdvertisement,
@@ -54,10 +56,11 @@ impl ResourceManager {
         if count == 1 || count.is_multiple_of(64) {
             log::warn!(
                 "rejecting resource advertisement over inbound limits \
-                 link={} hash={} transfer_size={} parts={} rejected={}",
+                 link={} hash={} transfer_size={} data_size={} parts={} rejected={}",
                 link_id,
                 advertisement.hash,
                 advertisement.transfer_size,
+                advertisement.data_size,
                 advertisement.parts,
                 count
             );

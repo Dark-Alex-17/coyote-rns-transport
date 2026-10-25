@@ -173,8 +173,8 @@ impl ResourceManager {
             ResourceReceiver::new_with_mtu(&advertisement, *link.id(), interface_mtu)
         };
         let Ok(mut receiver) = receiver else {
-            log::warn!("rejecting unreasonable advertisement");
             log::debug!("[resource-diag] reject_advertisement unreasonable");
+            self.record_rejected_advertisement(&advertisement, link.id());
             return;
         };
         let adv_now = Instant::now();
@@ -234,7 +234,11 @@ impl ResourceManager {
             request.hashmap_exhausted,
             self.outgoing.contains_key(&request.resource_hash)
         );
-        if let Some(sender) = self.outgoing.get_mut(&request.resource_hash) {
+        let sender = self
+            .outgoing
+            .get_mut(&request.resource_hash)
+            .filter(|sender| sender.link_id == *link.id());
+        if let Some(sender) = sender {
             sender.handle_request_into(&request, link, responses);
             log::debug!(
                 "[resource-diag] request_responses link={} hash={} responses={}",
@@ -390,7 +394,7 @@ impl ResourceManager {
         if let Some((hash, original_hash, link_id, progress, reason)) = failed {
             log::warn!("resource transfer failed link={link_id} hash={hash} reason={reason}");
             self.incoming.remove(&hash);
-            if !self.fail_inbound_segments(original_hash, reason) {
+            if !self.fail_inbound_segments(original_hash, &link_id, reason) {
                 self.events.push(ResourceEvent {
                     hash: original_hash,
                     link_id,
@@ -455,7 +459,7 @@ impl ResourceManager {
                     // keyed by the original hash. The initiator cancel names
                     // the in-flight segment, so remove and report that assembly.
                     let original_hash = receiver.original_hash;
-                    if !self.fail_inbound_segments(original_hash, "remote_cancelled") {
+                    if !self.fail_inbound_segments(original_hash, link_id, "remote_cancelled") {
                         self.events.push(ResourceEvent {
                             hash: original_hash,
                             link_id: receiver.link_id,

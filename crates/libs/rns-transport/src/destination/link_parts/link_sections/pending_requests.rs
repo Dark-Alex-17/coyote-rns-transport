@@ -50,11 +50,13 @@ impl Link {
     /// answered ahead of.
     ///
     /// Python's receipt is single-outcome: the packet sets READY
-    /// (`RNS/Link.py:873`) and removes the pending request (`:881-883`), so
-    /// the Resource's later conclusion finds nothing and is a no-op
-    /// (`:897-912`); that Resource runs to completion, since Python cancels
-    /// only a FAILED receipt's (`:1417-1435`). Here it is cancelled, so no
-    /// bytes the receipt no longer measures keep arriving after it resolved.
+    /// (`RNS/Link.py:873`, the `response_received` transition at
+    /// `:1437-1443`) and removes the pending request (`:881-883`), so the
+    /// Resource's later conclusion enters `handle_response` (`:857-866`),
+    /// finds nothing and is a no-op (`:897-912`); that Resource runs to
+    /// completion, since Python cancels only a FAILED receipt's
+    /// (`:1417-1435`). Here it is cancelled, so no bytes the receipt no
+    /// longer measures keep arriving after it resolved.
     #[deny(clippy::await_holding_invalid_type)]
     #[must_use = "the hashes are for the caller to cancel"]
     pub(crate) fn resolve_pending_request(

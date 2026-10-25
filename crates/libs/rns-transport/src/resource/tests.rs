@@ -1296,6 +1296,7 @@ mod tests {
     include!("tests_timeouts_cleanup.rs");
     include!("tests_timeouts_lifecycle.rs");
     include!("tests_link_scope.rs");
+    include!("tests_link_scope_outbound.rs");
     include!("tests_collision.rs");
     include!("tests_fault_injection.rs");
     include!("tests_reader.rs");

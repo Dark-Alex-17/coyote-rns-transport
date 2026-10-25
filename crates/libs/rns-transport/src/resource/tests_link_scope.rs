@@ -195,3 +195,79 @@ fn resource_manager_ignores_a_split_segment_from_another_link() {
     );
     assert!(manager.drain_events().is_empty(), "another link's segment 2 reports nothing");
 }
+
+/// An initiator cancel on one link tears down only that link's transfer. Link a has
+/// segment 1 assembled and segment 2 in flight; link b is admitted a one-segment
+/// resource whose hash is link a's original hash, then cancels it. Link b's receiver
+/// goes and is reported under link b; link a's assembly and in-flight segment stay.
+#[test]
+fn resource_manager_keeps_a_split_assembly_through_another_links_initiator_cancel() {
+    let (mut manager, mut link_a) = manager_with_test_link();
+    let mut link_b = second_test_link();
+    let first_data = b"first-segment";
+    let second_data = b"second-segment";
+    let total = (first_data.len() + second_data.len()) as u64;
+    let (first_adv, first_part) = split_test_segment(first_data, None, 1, 2, total);
+    let original_hash = first_adv.hash;
+    let first_packet = resource_packet(
+        PacketContext::ResourceAdvrtisement,
+        &first_adv.pack().expect("first advertisement"),
+        *link_a.id(),
+    );
+    assert_eq!(manager.handle_packet(&first_packet, &mut link_a).len(), 1);
+    assert_eq!(
+        manager
+            .handle_packet(
+                &resource_packet(PacketContext::Resource, &first_part, *link_a.id()),
+                &mut link_a
+            )
+            .len(),
+        1,
+        "the first segment is proven on link a"
+    );
+    let (second_adv, _) = split_test_segment(second_data, Some(original_hash), 2, 2, total);
+    let second_packet = resource_packet(
+        PacketContext::ResourceAdvrtisement,
+        &second_adv.pack().expect("second advertisement"),
+        *link_a.id(),
+    );
+    assert_eq!(manager.handle_packet(&second_packet, &mut link_a).len(), 1);
+    manager.drain_events();
+    assert!(manager.incoming_segments.contains_key(&original_hash), "segment 1 is assembled");
+    assert!(manager.incoming.contains_key(&second_adv.hash), "segment 2 is in flight");
+
+    let forged = ResourceAdvertisement {
+        transfer_size: 1,
+        data_size: 1,
+        parts: 1,
+        hash: original_hash,
+        random_hash: [0u8; RANDOM_HASH_SIZE],
+        original_hash,
+        segment_index: 1,
+        total_segments: 1,
+        request_id: None,
+        flags: 0,
+        hashmap: vec![0u8; MAPHASH_LEN],
+    };
+    let forged_packet = resource_packet(
+        PacketContext::ResourceAdvrtisement,
+        &forged.pack().expect("forged advertisement"),
+        *link_b.id(),
+    );
+    assert_eq!(manager.handle_packet(&forged_packet, &mut link_b).len(), 1, "admitted on link b");
+    manager.drain_events();
+
+    let cancel = resource_packet(
+        PacketContext::ResourceInitiatorCancel,
+        original_hash.as_slice(),
+        *link_b.id(),
+    );
+    assert!(manager.handle_packet(&cancel, &mut link_b).is_empty());
+    assert!(!manager.incoming.contains_key(&original_hash), "link b's receiver is gone");
+    assert!(manager.incoming_segments.contains_key(&original_hash), "link a's assembly stays");
+    assert!(manager.incoming.contains_key(&second_adv.hash), "link a's segment 2 stays");
+    let events = manager.drain_events();
+    assert_eq!(events.len(), 1, "only link b's receiver is reported: {events:?}");
+    assert_eq!(events[0].link_id, *link_b.id(), "the failure is link b's");
+    assert!(matches!(events[0].kind, ResourceEventKind::InboundFailed(_)));
+}

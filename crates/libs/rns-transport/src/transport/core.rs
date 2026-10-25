@@ -400,6 +400,11 @@ impl Transport {
         }
     }
 
+    /// Test seam: runs only the receipt-validation half of inbound processing
+    /// on `packet` and invokes the registered receipt handler for a valid
+    /// proof. It bypasses dedup, routing and link handling, so it is not a
+    /// substitute for delivering a packet through an interface. Kept public
+    /// for the integration tests of embedding crates.
     #[allow(clippy::await_holding_invalid_type)] // TASK-026: handler guard spans the job by design, see TransportHandler lock discipline
     pub async fn handle_inbound_for_test(&self, packet: Packet) {
         let (receipt, receipt_handler) = {

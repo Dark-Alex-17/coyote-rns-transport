@@ -790,7 +790,6 @@ impl AutoDiscoveryListenerSupervisor {
         Ok(())
     }
 
-    #[allow(dead_code)]
     pub async fn remove_listener(&mut self, ifname: &str) -> bool {
         let Some(teardown) = self.take_listener(ifname) else {
             return false;
@@ -827,7 +826,6 @@ impl AutoDiscoveryListenerSupervisor {
         self.pending_stops.len()
     }
 
-    #[allow(dead_code)]
     pub async fn shutdown_all(&mut self) {
         self.take_all_listeners().finish().await;
     }
@@ -959,7 +957,6 @@ impl AutoPeerDataListenerSupervisor {
         Ok(bind_addr)
     }
 
-    #[allow(dead_code)]
     pub async fn remove_listener(&mut self, ifname: &str) -> bool {
         let Some(teardown) = self.take_listener(ifname) else {
             return false;
@@ -1026,7 +1023,6 @@ impl AutoPeerDataListenerSupervisor {
         self.pending_stops.len()
     }
 
-    #[allow(dead_code)]
     pub async fn restart_link_local_listener(
         &mut self,
         update: &AutoLinkLocalAddressUpdate,
@@ -1046,7 +1042,6 @@ impl AutoPeerDataListenerSupervisor {
         Ok(bind_addr)
     }
 
-    #[allow(dead_code)]
     pub async fn shutdown_all(&mut self) {
         self.take_all_listeners().finish().await;
     }

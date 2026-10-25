@@ -99,3 +99,24 @@ fn resource_manager_advert_cap_sits_at_three_times_max_efficient_size() {
     assert!(manager.incoming.contains_key(&at_cap.hash), "t = cap creates a receiver");
     assert!(!responses.is_empty(), "t = cap requests parts");
 }
+
+/// The advertised `d` is bounded on its own: a small `t` does not get a
+/// receiver past the 64 MiB inbound data cap, and `d` exactly at the cap is
+/// still admitted.
+#[test]
+fn resource_receiver_refuses_advertised_data_size_over_the_inbound_cap() {
+    let link_id = AddressHash::new_from_slice(&[9u8; 32]);
+    assert_eq!(MAX_INBOUND_RESOURCE_TRANSFER_SIZE, 64 * 1024 * 1024);
+
+    let over = advertisement_with(1, MAX_INBOUND_RESOURCE_TRANSFER_SIZE + 1, 1);
+    assert!(matches!(
+        ResourceReceiver::new_with_mtu(&over, link_id, DEFAULT_RESOURCE_INTERFACE_MTU),
+        Err(RnsError::InvalidArgument)
+    ));
+
+    let at_cap = advertisement_with(1, MAX_INBOUND_RESOURCE_TRANSFER_SIZE, 1);
+    assert!(
+        ResourceReceiver::new_with_mtu(&at_cap, link_id, DEFAULT_RESOURCE_INTERFACE_MTU).is_ok(),
+        "d = cap creates a receiver"
+    );
+}

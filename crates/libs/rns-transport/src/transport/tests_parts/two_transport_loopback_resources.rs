@@ -81,6 +81,22 @@ async fn assert_no_further_complete(
     }
 }
 
+/// Drains whatever has already been published and fails on any event, of any kind, that
+/// names `hash`: a rejected resource must leave no trace on the rejecting side.
+fn assert_no_event_for(events: &mut broadcast::Receiver<ResourceEvent>, hash: Hash) {
+    loop {
+        match events.try_recv() {
+            Ok(event) => assert!(
+                event.hash != hash,
+                "unexpected resource event for {hash}: {:?}",
+                event.kind
+            ),
+            Err(TryRecvError::Lagged(_)) => continue,
+            Err(TryRecvError::Empty) | Err(TryRecvError::Closed) => return,
+        }
+    }
+}
+
 fn complete_payload(event: ResourceEvent) -> ResourceComplete {
     match event.kind {
         ResourceEventKind::Complete(complete) => complete,

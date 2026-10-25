@@ -1302,6 +1302,7 @@ mod tests {
     include!("tests_advert_limits.rs");
     include!("tests_advert_kat.rs");
     include!("tests_outcome.rs");
+    include!("tests_confirm_advertised.rs");
 
     fn resource_packet(context: PacketContext, payload: &[u8], destination: AddressHash) -> Packet {
         Packet {

@@ -94,6 +94,7 @@ include!("tests_parts/two_transport_loopback_resources_reject_response.rs");
 include!("tests_parts/two_transport_loopback_lifecycle.rs");
 
 include!("tests_parts/two_transport_loopback_lifecycle_probe.rs");
+include!("tests_parts/tcp_connect_cancel.rs");
 
 include!("tests_parts/two_transport_loopback_requests.rs");
 

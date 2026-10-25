@@ -94,6 +94,9 @@ async fn two_transport_loopback_resources_reject_then_recover_on_same_link() {
         "the oversize request is rejected, got {:?}",
         rejected.kind
     );
+    // The connector only hears the reject after the listener has sent it, so
+    // anything the listener published for the rejected hash is already here.
+    assert_no_event_for(&mut receiver_events, rejected_hash);
 
     let payload = random_payload(ACCEPTED_REQUEST_LEN);
     let request_id = b"loopback-accepted".to_vec();
@@ -127,6 +130,7 @@ async fn two_transport_loopback_resources_reject_then_recover_on_same_link() {
         "the accepted request finishes cleanly, got {:?}",
         outbound.kind
     );
+    assert_no_event_for(&mut receiver_events, rejected_hash);
 
     let iface = tapped_link_iface(&mut listener_tap, pair.link_id);
     let stopped = timeout(STOP_INTERFACE_TIMEOUT, pair.listener.transport.stop_interface(iface))

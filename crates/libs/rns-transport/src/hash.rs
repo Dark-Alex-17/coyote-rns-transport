@@ -217,6 +217,20 @@ mod tests {
         ));
     }
 
+    // `u8::from_str_radix` accepts a leading `+`, so a pairwise parser would
+    // take these; the hex decoder must not.
+    #[test]
+    fn address_hex_string_rejects_plus_prefixed_pairs_of_correct_length() {
+        let all_plus = "+1".repeat(ADDRESS_HASH_SIZE);
+        let one_plus = format!("+{}", "0".repeat(ADDRESS_HASH_SIZE * 2 - 1));
+        for input in [all_plus, one_plus] {
+            assert!(matches!(
+                AddressHash::new_from_hex_string(&input),
+                Err(RnsError::IncorrectHash)
+            ));
+        }
+    }
+
     #[test]
     fn address_hex_string_rejects_multibyte_char_at_end_and_four_byte_char_in_middle() {
         // The two-byte char starts on the second-to-last byte, straddling the last pair.

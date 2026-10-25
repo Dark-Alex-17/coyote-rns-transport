@@ -1442,6 +1442,8 @@ mod tests {
     // Test code holds guards across awaits on purpose.
     #![allow(clippy::await_holding_invalid_type)]
 
+    #[path = "connect_cancel.rs"]
+    mod connect_cancel;
     #[path = "issue_614_reconnected_stream.rs"]
     mod issue_614_reconnected_stream;
     #[path = "tx_queue_survives_reconnect.rs"]

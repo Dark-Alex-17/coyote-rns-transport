@@ -56,6 +56,21 @@ fn public_identity_hex_constructor_rejects_multibyte_char_of_correct_byte_length
     ));
 }
 
+// `u8::from_str_radix` accepts a leading `+`, so a pairwise parser would
+// take these; the hex decoder must not.
+#[test]
+fn identity_hex_constructors_reject_plus_prefixed_pairs_of_correct_length() {
+    let all_plus = "+1".repeat(HEX_IDENTITY_LENGTH / 2);
+    let one_plus = format!("+{}", "0".repeat(HEX_IDENTITY_LENGTH - 1));
+    for input in [all_plus, one_plus] {
+        assert!(matches!(Identity::new_from_hex_string(&input), Err(RnsError::IncorrectHash)));
+        assert!(matches!(
+            PrivateIdentity::new_from_hex_string(&input),
+            Err(RnsError::IncorrectHash)
+        ));
+    }
+}
+
 /// The two-byte char starts on the second-to-last byte, so the last two-byte slice is the
 /// one that would straddle a char boundary.
 fn multibyte_hex_at_end_of_correct_byte_length() -> String {

@@ -61,7 +61,7 @@ fork commit `08362717`; the
 `2c89e7ba`, `f6c0b59c`, `842feae6`, `c296bb84`, `ceccaeb1`, `22961b3b`,
 `71c9e7c6`, `eb45dc62`, `8b3e02eb`, `e1804e1c`, `07c1fe37`, `cbe20719`,
 `90ec6e86`, `a2333881`, `18452f13`, `4072932d`, `50db3da3`, `a284f96a`,
-`c926a2e6`, `93d28bc6` and `95467e04`.
+`c926a2e6`, `93d28bc6`, `95467e04` and `a30aa093`.
 
 | File | Patch |
 | --- | --- |
@@ -1363,7 +1363,8 @@ Fork commits `985bd5bd`, `81c9ed73`, `faacb7fd`, `9877bb6e`, `5631defa`,
 `012f7337`, `63bbbc87`, `2c89e7ba`, `f6c0b59c`, `842feae6`, `c296bb84`,
 `ceccaeb1`, `22961b3b`, `71c9e7c6`, `eb45dc62`, `8b3e02eb`, `e1804e1c`,
 `07c1fe37`, `cbe20719`, `90ec6e86`, `a2333881`, `18452f13`, `4072932d`,
-`50db3da3`, `a284f96a`, `c926a2e6`, `93d28bc6` and `95467e04`: H6, carried hygiene. The library behaviour
+`50db3da3`, `a284f96a`, `c926a2e6`, `93d28bc6`, `95467e04` and
+`a30aa093`: H6, carried hygiene. The library behaviour
 changes are: an inbound resource cancel, hash update, part or
 split-segment advertisement reaches only a transfer on the link it
 arrived on (first); a rejected resource advertisement is counted per link
@@ -1783,7 +1784,12 @@ workflows, the crate test-targets step already running that harness
 (`fork_publish_contract.rs` now asks for four steps); and rewords three
 test-file comments (`two_transport_shared_instance_probe16.rs`,
 `weave_management_handle_tests.rs`, `shared_receiver_lease_probe_tests.rs`)
-to state the contract rather than the change history.
+to state the contract rather than the change history. The forty-seventh
+answers the review of the forty-sixth, test-only: spec 1 of
+`shared_receiver_lease_probe_tests.rs` says what it discriminates beside
+the idle pin, the probe16 negative assert states its contract, the weave
+handle header paraphrases the CHANGELOG without quote marks, and the
+CHANGELOG files the deleted fixture and CI step under Removed.
 
 ## 0.15.1 (upstream 0.14.0)
 

@@ -55,14 +55,14 @@ fn sizes_probe12_assert_still_inbound(
 }
 
 /// A receipt-less record under `SIZES_TIGHT_LIMIT` receiving an unbacked response: a packet
-/// response within the limit answers it, is posted on the link events, and cancels nothing;
-/// the inbound Resource stays with its retry watchdog. The record is spent: an
+/// response within the limit answers it, is posted on the link events, and cancels the
+/// inbound Resource it overtook with one receiver cancel. The record is spent: an
 /// advertisement over the limit under the same id is dropped without a reject, where a
 /// record still receiving would have refused it with a receiver cancel. The link still
 /// answers.
 #[tokio::test]
 #[deny(clippy::await_holding_invalid_type)]
-async fn two_transport_loopback_request_resource_form_sizes_probe12_in_limit_packet_answers_a_receiving_receipt_less_record_without_a_cancel(
+async fn two_transport_loopback_request_resource_form_sizes_probe12_in_limit_packet_answers_a_receiving_receipt_less_record_and_cancels_its_resource(
 ) {
     let mut pair = loopback_request_pair("sizes-probe12-in-limit-packet-receipt-less").await;
     let mut listener_tap = pair.handles.listener.transport.iface_rx();
@@ -78,14 +78,14 @@ async fn two_transport_loopback_request_resource_form_sizes_probe12_in_limit_pac
     sizes_assert_link_still_answers(&pair).await;
     assert_eq!(
         count_link_packets(&mut listener_tap, link_id, PacketContext::ResourceReceiverCancel),
-        0,
-        "a record answered within its limit cancels nothing: the inbound Resource is left to \
-         its retry watchdog"
+        1,
+        "a record answered by a packet cancels the response Resource it overtook"
     );
 
     // The answer spent the record: an over-limit advertisement under the id is no longer
     // solicited, so it is dropped, not refused. A record still receiving would answer it with
-    // a receiver cancel for the advertised transfer and another for the partial assembly.
+    // a receiver cancel for the advertised transfer and another for the partial assembly;
+    // the one cancel counted above is the only one on the wire.
     let over = sizes_cancel_unbacked_response_advertisement(id, SIZES_TIGHT_LIMIT as u64 + 1);
     inject_advertisement_from_listener(&pair, &over).await;
     sizes_assert_link_still_answers(&pair).await;
@@ -98,12 +98,12 @@ async fn two_transport_loopback_request_resource_form_sizes_probe12_in_limit_pac
 
 /// A receipt-less record whose response is a real many-part Resource over the legacy MTU:
 /// a packet response within the limit, sent while the Resource is inbound, answers the
-/// request on the link events, the Resource goes on to assemble and its `Complete` reaches
-/// `resource_events()` naming the id, and no receiver cancel goes back. The link still
+/// request on the link events and cancels the Resource it overtook: one receiver cancel
+/// goes back and no `Complete` naming the id reaches `resource_events()`. The link still
 /// answers.
 #[tokio::test]
 #[deny(clippy::await_holding_invalid_type)]
-async fn two_transport_loopback_request_resource_form_sizes_probe12_in_limit_packet_leaves_a_real_inbound_response_to_complete(
+async fn two_transport_loopback_request_resource_form_sizes_probe12_in_limit_packet_cancels_a_real_inbound_response(
 ) {
     let mut pair =
         loopback_request_pair_with_mtu("sizes-probe12-in-limit-packet-real-resource", LEGACY_MTU)
@@ -131,11 +131,29 @@ async fn two_transport_loopback_request_resource_form_sizes_probe12_in_limit_pac
     let answer = rmpv::Value::from("answered by a packet while the resource is inbound");
     sizes_probe12_answer_with_a_packet(&mut pair, id, &answer).await;
 
-    sizes_probe10_await_response_complete(&mut events, link_id, id).await;
     sizes_assert_link_still_answers(&pair).await;
     assert_eq!(
         count_link_packets(&mut listener_tap, link_id, PacketContext::ResourceReceiverCancel),
-        0,
-        "the inbound response Resource is left alone and completes"
+        1,
+        "the packet answer cancels the inbound response Resource it overtook"
     );
+    let settled = tokio::time::timeout(Duration::from_millis(500), async {
+        loop {
+            match events.recv().await {
+                Ok(event) => {
+                    if let (true, ResourceEventKind::Complete(complete)) =
+                        (event.link_id == link_id, &event.kind)
+                    {
+                        if complete.request_id.as_deref() == Some(id.as_bytes().as_slice()) {
+                            return;
+                        }
+                    }
+                }
+                Err(broadcast::error::RecvError::Lagged(_)) => {}
+                Err(broadcast::error::RecvError::Closed) => std::future::pending::<()>().await,
+            }
+        }
+    })
+    .await;
+    assert!(settled.is_err(), "the cancelled response Resource never completes");
 }

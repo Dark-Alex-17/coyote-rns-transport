@@ -203,9 +203,9 @@ impl Link {
     }
 
     /// [`Self::take_response_limit_if_allowed`] that hands the response
-    /// Resource a refusing record was receiving to the caller to cancel. An
-    /// admitted packet leaves that Resource to run, as it does for a
-    /// receipt.
+    /// Resource a refusing record was receiving to the caller to cancel. The
+    /// admitting arm hands nothing back: the arrival this gate admits is that
+    /// Resource itself (`transport/resource_wire.rs`).
     #[deny(clippy::await_holding_invalid_type)]
     #[must_use = "the hashes are for the caller to cancel"]
     pub(crate) fn take_response_limit(
@@ -218,6 +218,26 @@ impl Link {
         };
         let allowed = entry.limit.is_none_or(|limit| response_size <= limit);
         (allowed, if allowed { None } else { entry.into_receiving() })
+    }
+
+    /// [`Self::take_response_limit`] for a response packet: whether the
+    /// packet is admitted or refused, the record is spent, so the response
+    /// Resource it was receiving comes back for the caller to cancel. A
+    /// receipt-owned record holds no hashes (the receipt does); a record no
+    /// receipt owns holds the ones an admitted packet overtook, the twin of
+    /// `resolve_pending_request` on the receipt path.
+    #[deny(clippy::await_holding_invalid_type)]
+    #[must_use = "the hashes are for the caller to cancel"]
+    pub(crate) fn take_response_limit_for_packet(
+        &mut self,
+        request_id: &[u8],
+        response_size: usize,
+    ) -> (bool, Option<InboundResponseHashes>) {
+        let Some(entry) = self.pending_response_limits.remove(request_id) else {
+            return (true, None);
+        };
+        let allowed = entry.limit.is_none_or(|limit| response_size <= limit);
+        (allowed, entry.into_receiving())
     }
 
     pub fn clear_response_size_limit(&mut self, request_id: &[u8]) {

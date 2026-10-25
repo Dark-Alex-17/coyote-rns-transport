@@ -266,7 +266,9 @@ impl Link {
                         match response_envelope_metadata(plain_text) {
                             Some((id, response_size)) => {
                                 let (accepted, refused_while_receiving) = match &id {
-                                    Some(id) => self.take_response_limit(id, response_size),
+                                    Some(id) => {
+                                        self.take_response_limit_for_packet(id, response_size)
+                                    }
                                     // A legacy-length id is not gated on the packet path:
                                     // Python's response packet is keyed by the 16-byte receipt
                                     // id alone (`RNS/Link.py:857-884`). Its response is measured
@@ -276,11 +278,10 @@ impl Link {
                                 self.owed_response_cancels.extend(refused_while_receiving);
                                 if let Some(id) = id {
                                     let id = RequestId::new(id);
-                                    // A refused packet owes one cancel: the record's own, for
-                                    // a receipt-less id, or the receipt's, which is the only
-                                    // holder of the hashes when a receipt owns the id. An
-                                    // accepted packet owes the receipt's too, when a response
-                                    // Resource was still inbound for it.
+                                    // Either way the packet owes one cancel for a response
+                                    // Resource still inbound: the record's own, for a
+                                    // receipt-less id, or the receipt's, which is the only
+                                    // holder of the hashes when a receipt owns the id.
                                     let receiving = if accepted {
                                         let arrival = ResponseArrival::Packet {
                                             envelope: plain_text,

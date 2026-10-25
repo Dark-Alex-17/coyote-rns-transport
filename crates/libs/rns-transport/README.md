@@ -520,7 +520,9 @@ parity ledger; the `docs/status/*` matrices are not updated per fork task.
   (`RNS/Link.py:873`, `:1437-1443`), and cancels the response Resource still
   in flight with a receiver cancel on the link. Python lets that Resource
   run to completion and then discards it, since the pending request it
-  would have answered is already gone (`:897-912`).
+  would have answered is already gone (`:897-912`). The same holds for a
+  response record no receipt owns: the packet that answers it cancels the
+  Resource the record was receiving.
 - A response record no receipt owns, for a request sent with
   `Link::request_packet*` or `Transport::send_request_resource*`, parks in
   `Receiving` between response segments with no clock; only the inbound

@@ -78,8 +78,8 @@ mod response_record_tests {
         assert!(link.take_owed_response_cancels().is_empty(), "handed over once");
     }
 
-    /// The crate-private writer hands the receiving Resource back only when it refuses the
-    /// packet; an admitted packet leaves the inbound Resource to run, as a receipt does.
+    /// The Resource-arrival gate hands the receiving Resource back only when it refuses:
+    /// the arrival it admits is that Resource itself.
     #[test]
     fn take_response_limit_hands_back_the_receiving_resource_only_on_refusal() {
         let (mut link, _, _, _) = linked_pair();
@@ -91,6 +91,21 @@ mod response_record_tests {
         assert_eq!(link.take_response_limit(b"refused", 11), (false, Some(hashes(1, 3))));
         assert_eq!(link.take_response_limit(b"admitted", 10), (true, None));
         assert!(link.take_owed_response_cancels().is_empty(), "the caller routes the hashes");
+        assert_eq!(link.response_size_allowed(b"admitted", 1), None, "removed all the same");
+    }
+
+    /// The packet-path twin hands the receiving Resource back whether it admits or refuses:
+    /// a packet that wins spends the record, and the Resource it overtook is cancelled.
+    #[test]
+    fn take_response_limit_for_packet_hands_back_the_receiving_resource_either_way() {
+        let (mut link, _, _, _) = linked_pair();
+        link.expect_response(b"refused", Some(10));
+        link.mark_pending_request_receiving(b"refused", &response_segment(hash(1), hash(3)));
+        link.expect_response(b"admitted", Some(10));
+        link.mark_pending_request_receiving(b"admitted", &response_segment(hash(2), hash(4)));
+
+        assert_eq!(link.take_response_limit_for_packet(b"refused", 11), (false, Some(hashes(1, 3))));
+        assert_eq!(link.take_response_limit_for_packet(b"admitted", 10), (true, Some(hashes(2, 4))));
         assert_eq!(link.response_size_allowed(b"admitted", 1), None, "removed all the same");
     }
 

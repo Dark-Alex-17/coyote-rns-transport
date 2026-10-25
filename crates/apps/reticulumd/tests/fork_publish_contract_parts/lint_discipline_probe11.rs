@@ -3,9 +3,9 @@
 // `futures` is a dependency of the transport and daemon crates, so the
 // same hazard is writable as `futures::future::join(a.lock(), b.lock())`,
 // `join3`, `join_all` or their `try_` twins. Those park the first-won guard
-// inside the combinator while the other lock pends and rotate the poll
-// order exactly like the macro does, so no production source may do it
-// either.
+// inside the combinator while the other lock pends; the macro also rotates
+// its poll order, the combinators poll in declaration order, and either way
+// two guards are acquired concurrently, so no production source may do it either.
 
 /// Free-function combinators that poll several futures concurrently and
 /// keep the finished ones' output (a guard) parked until all are done.
@@ -26,14 +26,16 @@ const JOIN_FUNCTIONS: [&str; 10] = [
 /// path-qualified), not as a method such as `Path::join` / `JoinHandle::join`
 /// and not as a definition.
 fn calls_join_function(line: &str) -> bool {
-    let trimmed = line.trim_start();
-    if trimmed.starts_with("fn ") || trimmed.starts_with("pub fn ") || trimmed.starts_with("//") {
+    if line.trim_start().starts_with("//") {
         return false;
     }
     JOIN_FUNCTIONS.iter().any(|name| {
         line.match_indices(name).any(|(at, _)| {
-            let before = line[..at].chars().next_back();
-            !matches!(before, Some(c) if c == '.' || c == '_' || c.is_ascii_alphanumeric())
+            let before = &line[..at];
+            if before.contains("fn ") {
+                return false;
+            }
+            !matches!(before.chars().next_back(), Some(c) if c == '.' || c == '_' || c.is_ascii_alphanumeric())
         })
     })
 }
@@ -82,6 +84,7 @@ fn join_function_classifier_separates_free_calls_from_methods_and_definitions() 
         "let path = dir.join(name);",
         "thread.join().expect(\"worker\");",
         "fn join(&self) -> Result<(), Error> {",
+        "    pub(crate) fn join_all(futures: Vec<F>) -> JoinAll<F> {",
         "// join(a.lock(), b.lock()) would park a guard",
         "let rejoin(x) = y;",
     ] {

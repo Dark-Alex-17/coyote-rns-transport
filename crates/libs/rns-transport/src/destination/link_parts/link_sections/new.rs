@@ -265,7 +265,7 @@ impl Link {
                     } else if packet.context == PacketContext::Response {
                         match response_envelope_metadata(plain_text) {
                             Some((id, response_size)) => {
-                                let (accepted, refused_while_receiving) = match &id {
+                                let (accepted, receiving_record_hashes) = match &id {
                                     Some(id) => {
                                         self.take_response_limit_for_packet(id, response_size)
                                     }
@@ -275,7 +275,7 @@ impl Link {
                                     // only when it arrives as a Resource (`resource_wire.rs`).
                                     None => (true, None),
                                 };
-                                self.owed_response_cancels.extend(refused_while_receiving);
+                                self.owed_response_cancels.extend(receiving_record_hashes);
                                 if let Some(id) = id {
                                     let id = RequestId::new(id);
                                     // Either way the packet owes one cancel for a response

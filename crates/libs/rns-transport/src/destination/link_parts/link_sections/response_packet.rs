@@ -196,9 +196,9 @@ impl Link {
         request_id: &[u8],
         response_size: usize,
     ) -> bool {
-        let (allowed, refused_while_receiving) =
+        let (allowed, receiving_record_hashes) =
             self.take_response_limit(request_id, response_size);
-        self.owed_response_cancels.extend(refused_while_receiving);
+        self.owed_response_cancels.extend(receiving_record_hashes);
         allowed
     }
 

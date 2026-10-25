@@ -172,7 +172,9 @@ impl ResourceManager {
     ) -> Option<ResourceEvent> {
         let on_link = self.incoming_segments.get(&original_hash)?.link_id == *link_id;
         let assembly = on_link.then(|| self.incoming_segments.remove(&original_hash)).flatten()?;
-        log::warn!("split resource assembly failed hash={original_hash} reason={reason}");
+        log::warn!(
+            "split resource assembly failed hash={original_hash} reason={reason} link={link_id}"
+        );
         Some(ResourceEvent {
             hash: original_hash,
             link_id: assembly.link_id,

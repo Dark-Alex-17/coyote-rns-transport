@@ -71,6 +71,13 @@ Removed) bullet of its own, marked as such.
   `forced_bitrate_bps`, `reconnect_wait`, `reconnect_events_enabled` and
   `disconnect_events_enabled` (`iface/local.rs`). Pinned by the
   `iface/local.rs` test module.
+- `RejectReason` implements `Display` (`resource/outcome.rs`);
+  `PeerCancelled` renders as `the peer cancelled the resource`. The
+  `RequestError::Receive` rustdoc (`destination/request/receipt.rs`) points
+  at the crate README divergence register, which gains the row: a response
+  Resource that fails in transfer fails the receipt here, where Python leaves
+  the receipt in its last status (`RNS/Link.py:1367`, `:1377-1381`, `:1435`).
+  Pinned by the `to_string` assertion in `tests/outbound_outcome_api.rs`.
 
 ### Changed
 
@@ -474,6 +481,144 @@ Removed) bullet of its own, marked as such.
   bullets describe and checks that the removed `RejectReason` variants, the
   `transport::test_bridge` import and an `RnsError` match without a wildcard
   fail with the promised diagnostics.
+- No library behaviour change: the rustdoc on
+  `Transport::send_prepared_packet_broadcast_with_trace` (`transport/core.rs`)
+  states its contract: a send for already-prepared, non-link packets that
+  goes straight to the interface manager and records nothing in the packet
+  cache or the link tables, so no proof, request or duplicate tracking
+  applies to a link packet sent through it. Pinned by
+  `tests_parts/prepared_broadcast_link_contract.rs` (a link Data packet sent
+  both ways over a loopback pair leaves its hash in the packet cache only
+  through the link send path).
+- No library behaviour change: `transport/wire_receipt.rs` resolves the link
+  of a proof through `resource_wire::link_by_id` instead of its own copy of
+  the keyed-lookup-then-scan, and that helper (`transport/resource_wire.rs`)
+  drops its `out_links.get(link_id)` step, which never hit because
+  `out_links` is keyed by destination hash; the id scan is the
+  initiator-side path.
+- No library behaviour change: four blocks move byte for byte into new
+  `include!`'d part files so their parents stay under the module size cap:
+  the `Transport` struct into `transport/mod_parts/transport.rs`,
+  `TransportHandler::gc_unicast_ifaces` into
+  `transport/handler_parts/unicast_gc.rs`, `Transport::stop_interface` into
+  `transport/core_parts/stop_interface.rs` and the collision-free hash
+  selection into `resource/sender_parts/collision_free_hash.rs`.
+- No library behaviour change: six `#[allow(dead_code)]` that suppressed
+  nothing are gone (`request_path` in `transport/handler.rs`, which the link
+  maintenance jobs call; `remove_listener` and `shutdown_all` on both auto
+  listener supervisors and `restart_link_local_listener` on the peer-data
+  one in
+  `iface/auto_runtime_parts/autoruntimeplan_sections/send_due_multicast_peer_announces_wi.rs`,
+  all public), and `Transport::handle_inbound_for_test` (`transport/core.rs`)
+  is documented as the test seam it is: the receipt-validation half of
+  inbound processing only, bypassing dedup, routing and link handling.
+- No library behaviour change: the link-scope tests move from
+  `resource/tests_timeouts_lifecycle.rs` into `resource/tests_link_scope.rs`
+  and the two rns-tools announce sites in `rngit_parts/network.rs` and
+  `independent_interop_node/node.rs` fold into fewer lines, so every module
+  this release touched stays within the size cap.
+- No library change: reticulumd's `parse_control_request_payload`
+  (`inbound_control_parts::module_core`) decodes control requests through
+  `RequestFrame::decode` (`destination/request/frame.rs`), which bounds
+  depth and lengths before allocating, refuses trailing bytes and reserved
+  markers and enforces the `[f64, bin16, data]` shape, instead of reading
+  the payload with `rmp_serde` and hand-checking the array, which accepted
+  trailing bytes and did not bound nesting depth; the decoder refuses a
+  non-f64 `requested_at`, so the daemon's control-request fixture
+  (`inbound_control_parts::test_validated_peer_links_sections::core_tests`)
+  sends `0.0` instead of Nil, matching Python's `time.time()`, and pins the
+  trailing-byte and reserved-marker refusals.
+- No library change: the 19 fire-and-forget `Transport::send_announce` calls
+  in the apps move to `try_send_announce` (`transport/core.rs`, itself
+  unchanged), so a failed announce build is reported with the role that
+  asked for it instead of the library's context-free warn: reticulumd's
+  `announce_worker` (discovery announce, named by interface),
+  `bridge_announce` (delivery, propagation, control and probe announces),
+  `bridge_service_identity`, `bootstrap_parts::module_core` and
+  `bootstrap_parts::configure_startup_rpc_token_auth` warn; rns-tools'
+  `rncp_parts/network.rs` and `rngit_parts/network.rs` print under the
+  tool's silent flag, `rnsh_parts/network.rs` warns and the
+  `independent_interop_node/node.rs` announce RPC returns the build error.
+- No library change: the rns-tools independent interop node's `links`
+  snapshot (`independent_interop_node/events.rs`) merges each link event
+  into the first-seen entry instead of replacing it, so a data event no
+  longer erases the activated record for the same link: the identity fields
+  stay, `state` moves, a `states` history keeps the last 16 event names, and
+  an `is_path_response` field is emitted as null because the transport's
+  `PathEntry` does not record the announce context that created the path.
+- Test-only: a Python-in-the-loop cell in which a Rust client identifies on
+  a link and a Python request handler registered with `ALLOW_LIST` answers
+  only the identified peer
+  (`python_channel_interop_parts/rust_identify_python_allow_list.rs`: a
+  request before identifying gets no reply, the same link gets one after);
+  the endpoint `tests/support/python_channel_endpoint.py` gains the opt-in
+  `--allow-identified` flag that registers the handler over a list filled
+  from the remote-identified callback.
+- Test-only pins: `ResourceSender::confirm_advertised` keeps the serve-time
+  timestamps once a part was served and clamps the awaiting-proof retry
+  budget (`resource/tests_confirm_advertised.rs`); the rejecting side of an
+  oversize request Resource publishes no resource event for the rejected
+  hash (`tests_parts/two_transport_loopback_resources_reject.rs`, helper in
+  `tests_parts/two_transport_loopback_resources.rs`); `ResourceReceiver`
+  refuses an advertised `data_size` above 64 MiB on its own
+  (`resource/tests_advert_limits.rs`); the `AddressHash` and `Identity` hex
+  parsers refuse plus-prefixed pairs (`hash.rs`, `identity/tests.rs`); and
+  the connect-cancel pins named under `### Fixed`.
+- Test-only: the publish contract gains
+  `fork_publish_contract_parts/lint_discipline_probe11.rs`, the
+  free-function spelling of the two-guard rule (no production source hands
+  lock futures to `futures::future::join`, `join3`, `join_all` or their
+  `try_` twins), and the three auto-interface tests in
+  `iface/auto_runtime_parts/tests_sections/peer_route_table_probe.rs` and
+  `iface/auto_runtime_parts/tests_sections/auto_peer_route_origination.rs`
+  that spawned a peer data tx loop and dropped its shutdown sender now shut
+  the loop down and join it under a one second timeout.
+- Test-only, weaker twins consolidated: the `remove_interface` and
+  `stop_interface` slot tests share one body in
+  `tests_parts/two_transport_shared_instance_probe4.rs`, selected by
+  `SharedInstanceRemoval` and called from
+  `two_transport_shared_instance_probe2.rs`; the single-receipt test of
+  `two_transport_loopback_requests_resource_form_sizes_cancel.rs` is gone,
+  its two-receipt twin in the sizes-cancel probe being a strict superset;
+  the prove-all interop test in
+  `python_channel_interop_parts/rust_to_python_request_receipt.rs` is gone
+  in favour of the late-reply twin in `python_request_late_reply.rs`, whose
+  proof wait moves into `await_python_proof_of`; probe3 and probe4 share the
+  stop-versus-attach scaffold `shared_instance_attach_inside_a_stop`
+  (`two_transport_shared_instance_probe3.rs`); `stall_transport_for` in
+  `two_transport_loopback_resources_retries.rs` is re-expressed on
+  `stall_transport_until_released` with a timed release and `stall_handler`
+  is gone; and `rust_to_python_raw_resource_roundtri.rs` folds its two
+  inline sha2 report checks into `assert_python_response_report`.
+- Test-only: the four exact status-order fixtures in
+  `tests_parts/two_transport_loopback_requests_receipt_orders.rs` gate the
+  responder on `observe_statuses_releasing_at` (the resource-form requests
+  release once the subscriber has read `Delivered`, the packet-form ones
+  once it has read `Sent`) instead of sleeping a 300 ms `HANDLER_DELAY`,
+  which `two_transport_loopback_requests_receipt.rs` drops.
+- Test-only, fixtures deduplicated: `await_outbound_terminal` moves from
+  `tests_parts/two_transport_loopback_requests_resource_form_probe.rs` into
+  `tests_parts/two_transport_loopback_resources.rs` and replaces the inline
+  matcher at the five sender-terminal sites that spelled it (one in that
+  fixture, one in `two_transport_loopback_resources_directions.rs`, two in
+  `two_transport_loopback_resources_reject.rs` and one in
+  `two_transport_loopback_resources_outcome.rs`);
+  `loopback_link_pair_with_request_limit` takes an `Option<usize>` in the
+  directions fixture with `loopback_link_pair` as its thin wrapper, deleting
+  the reject copy; and `shared_instance_client_with_options` in
+  `tests_parts/two_transport_shared_instance.rs` serves
+  `two_transport_shared_instance_probe2.rs` and
+  `two_transport_shared_instance_reconnect.rs`.
+- Test-only: the six tests unrelated to
+  `tests_parts/held_udp_announce_preserves_peer_sou.rs` (send outcome,
+  duplicate filter and resource-request responses) move, bodies verbatim
+  and with the advertisement helper include they use, into
+  `tests_parts/send_packet_outcome_and_resource_request_responses.rs`.
+- Test-only: rustfmt over the 37 `include!`'d fixtures under
+  `transport/tests_parts/` (`tests_parts/module_prelude.rs` among them) that
+  failed `rustfmt --check`; the diff is line joins and splits plus five
+  single-expression closure bodies losing their braces, with the token
+  stream otherwise identical.
 
 ### Removed
 
@@ -541,6 +686,81 @@ Removed) bullet of its own, marked as such.
   `N close packet(s) sent, M skipped on the dropped interface`. Pinned by
   `two_transport_shared_instance_storm.rs` and
   `two_transport_shared_instance_probe11.rs`.
+- Inbound resource lookups are scoped to the link the packet arrived on
+  (`resource/manager.rs`): the split-segment expected-segment check in
+  admission, the hash update, the part loop and both `cancel_into` arms,
+  which now take the link id from the dispatcher, require the entry's
+  `link_id` to match; before, inbound receivers and segment assemblies were
+  keyed by hash alone, so a peer naming a sibling link's resource hash could
+  tear down or alias that link's assembly, and a receiver cancel reached an
+  outgoing resource on any link the same way. Pinned by the two cross-link
+  cancel cases in `resource/tests_link_scope.rs`.
+- A rejected inbound resource advertisement is counted on its link in
+  `LinkStats::rejected_advertisements` (`resource.rs`) and warned on the
+  first and on every 64th
+  (`ResourceManager::record_rejected_advertisement`); the transfer-size
+  warn branch in `resource/advertisement_limits.rs`, which the smaller
+  reference cap ahead of it made unreachable, is gone and the part-count
+  line is a debug line, so an over-cap peer is visible at warn level without
+  one warn per advertisement. Pinned by
+  `resource_manager_counts_rejected_advertisements_per_link` in
+  `resource/tests_advert_limits.rs`.
+- An in-limit response packet for a receipt already `Receiving` cancels the
+  response Resource still in flight: `resolve_pending_request`
+  (`link_sections/pending_requests.rs`) hands the receipt's inbound response
+  back on the packet arm as it did on the oversize arm, and the link
+  (`link_sections/new.rs`) queues it as an owed receiver cancel the
+  transport sends on the same packet; before, that Resource ran to
+  completion unmeasured and published its `Complete` event. Python's
+  receipt is single-outcome (the packet sets READY, `RNS/Link.py:873`, and
+  removes the pending request, `:881-883`), so the Resource's later
+  conclusion is a no-op (`:897-912`) and it runs to completion; only a
+  FAILED receipt's Resource is cancelled (`:1417-1435`). The crate README
+  register row says so. Pinned by
+  `link_sections/pending_requests_resolve_tests.rs` and
+  `tests_parts/two_transport_loopback_requests_resource_form_sizes_cancel_probe.rs`,
+  whose in-limit case now expects one receiver cancel where it expected
+  none.
+- `Link::restart` and the local close (`finalize_local_close` in
+  `link_sections/next_watchdog_deadline.rs`) clear `unproven_data_hashes`
+  with the other per-session state, so a hash recorded for a data packet of
+  a finished session cannot match a late proof after the link restarted or
+  closed. Pinned by `link_sections/data_proof_tests.rs`.
+- `send_packet_response` and `send_response_resource`
+  (`transport/request_dispatch.rs`) read the link status under the guard
+  they already hold and drop a response whose link is no longer `Active`
+  with a debug line, where they built the packet regardless and
+  `packet_with_context` warned about the closed link and failed at
+  encryption; the resource form returns `ConnectionError`, as it does when
+  the advertisement never leaves. `LinkStatus::can_exchange_data`
+  (`link_parts/module_prelude.rs`) is `pub(crate)` for it. Pinned by
+  `tests_parts/request_dispatch_closed_link.rs`.
+- The resource retry worker (`send_resource_retry` in `transport/jobs.rs`)
+  records `retry_not_dispatched` only when
+  `sent_ifaces == 0 && queued_ifaces == 0`, the pairing the delivery-proof
+  dispatch already used, where it fired on `sent_ifaces == 0` alone; the fn
+  is `pub(super)` for the transport tests and the shared test logger in
+  `tests_parts/two_transport_loopback_requests_isolation.rs` admits the jobs
+  target. Pinned by `tests_parts/resource_retry_dispatch.rs` (an interface
+  that matches nothing records the miss; a link without a bound interface
+  still leaves through path routing).
+- `Transport::save_packet_hashlist` (`transport/runtime_management.rs`)
+  clones the packet cache out of the handler guard, drops the guard and
+  awaits the cache lock in a statement of its own, where it used `try_lock`
+  under the handler guard and failed `packet cache is busy` whenever an
+  inbound packet was in flight at shutdown, so the hashlist was not written;
+  and `ReticulumPacketDiskCache::save_packet_hashlist`
+  (`transport/packet_disk_cache.rs`) writes `packet_hashlist.raw.tmp` and
+  renames it over the target, so a reader or a restart after a signal
+  mid-write sees the old list or the new one, never a truncated file. Pinned
+  by `tests_parts/packet_hashlist_flush.rs`.
+- The `TcpClient` connect await (`iface/tcp_client.rs`) sits in the same
+  biased `select!` as the reconnect back-off, cancel arms first, so
+  `Transport::stop` on a client whose connect is in flight against a
+  black-holed endpoint returns inside the stop budget instead of after the
+  full connect timeout (5 s by default); no guard is held across the await.
+  Pinned by `iface/tcp_client/tests/connect_cancel.rs` (cancel and iface
+  stop each end the worker within 2 s) and `tests_parts/tcp_connect_cancel.rs`.
 
 ## 0.15.1 - 2026-10-21
 

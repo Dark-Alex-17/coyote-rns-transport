@@ -31,7 +31,7 @@ per fork task.
 Every file changed since the `0.15.1` release and the patch each change
 belongs to. Patch ids: H1 is test hygiene, H2 is release tooling, H3 is
 ledger conventions, H4 is guard discipline, H5 is shared-instance
-hardening. The `test hygiene` patch is
+hardening, H6 is carried hygiene. The `test hygiene` patch is
 fork commit `08362717`; the
 `release tooling` patch is fork commits `7e63de1a`, `7fbc97cb`, `fbd4da9d`,
 `f206f31c`, `8e3e587f`, `0e034698`, `3008c9fb`, `72a3a4ab`, `b48e5d81`,
@@ -53,7 +53,12 @@ fork commit `08362717`; the
 `16850244`, `f8b74067`, `4d6d7280`, `320720af`, `ba84a543`, `597fb2b8`,
 `46f5cb21`, `59acbc9f`, `e19fc0ba`, `c0348634`, `0c49f2d9`, `a31cb1a0`,
 `91ba55f9`, `b4e0cf47`, `6d6f7aa8`, `f55e9ab2`, `03639529` and
-`ea67d176`.
+`ea67d176`; the `carried hygiene` patch is fork commits `985bd5bd`,
+`81c9ed73`, `faacb7fd`, `9877bb6e`, `5631defa`, `1f321d0d`, `8f6b847c`,
+`218d784a`, `dbe495ca`, `4783f1ef`, `db4c5a5e`, `44962a96`, `ce8ed659`,
+`9865dbdd`, `e5ba2807`, `1b04a361`, `f890dbf9`, `fd6322b5`, `05975d7d`,
+`5cca182d`, `42f988ce`, `f2ea78f9`, `6c5ca548`, `012f7337` and
+`63bbbc87`.
 
 | File | Patch |
 | --- | --- |
@@ -64,6 +69,7 @@ fork commit `08362717`; the
 | `crates/apps/reticulumd/Cargo.toml` | guard discipline |
 | `crates/apps/reticulumd/examples/interfaces-reference.toml` | shared-instance hardening |
 | `crates/apps/reticulumd/src/bin/reticulumd/announce_ingest.rs` | guard discipline |
+| `crates/apps/reticulumd/src/bin/reticulumd/announce_worker.rs` | carried hygiene |
 | `crates/apps/reticulumd/src/bin/reticulumd/bootstrap_interface_startup.rs` | shared-instance hardening |
 | `crates/apps/reticulumd/src/bin/reticulumd/bootstrap_interface_startup_parts/module_prelude.rs` | shared-instance hardening |
 | `crates/apps/reticulumd/src/bin/reticulumd/bootstrap_interface_startup_parts/shared_instance_attach.rs` | shared-instance hardening |
@@ -71,8 +77,14 @@ fork commit `08362717`; the
 | `crates/apps/reticulumd/src/bin/reticulumd/bootstrap_interface_startup_parts/shared_instance_attach_probe2_tests.rs` | shared-instance hardening |
 | `crates/apps/reticulumd/src/bin/reticulumd/bootstrap_interface_startup_parts/shared_instance_attach_probe_tests.rs` | shared-instance hardening |
 | `crates/apps/reticulumd/src/bin/reticulumd/bootstrap_interface_startup_parts/shared_instance_attach_tests.rs` | shared-instance hardening |
+| `crates/apps/reticulumd/src/bin/reticulumd/bootstrap_parts/configure_startup_rpc_token_auth.rs` | carried hygiene |
+| `crates/apps/reticulumd/src/bin/reticulumd/bootstrap_parts/module_core.rs` | carried hygiene |
 | `crates/apps/reticulumd/src/bin/reticulumd/bootstrap_transport.rs` | shared-instance hardening |
+| `crates/apps/reticulumd/src/bin/reticulumd/bridge_announce.rs` | carried hygiene |
 | `crates/apps/reticulumd/src/bin/reticulumd/bridge_propagation.rs` | guard discipline |
+| `crates/apps/reticulumd/src/bin/reticulumd/bridge_service_identity.rs` | carried hygiene |
+| `crates/apps/reticulumd/src/bin/reticulumd/inbound_control_parts/module_core.rs` | carried hygiene |
+| `crates/apps/reticulumd/src/bin/reticulumd/inbound_control_parts/test_validated_peer_links_sections/core_tests.rs` | carried hygiene |
 | `crates/apps/reticulumd/src/bin/reticulumd/tests/interface_hot_apply.rs` | guard discipline |
 | `crates/apps/reticulumd/src/config_parts/interfaceconfig_sections/enabled.rs` | shared-instance hardening |
 | `crates/apps/reticulumd/tests/config.rs` | shared-instance hardening |
@@ -82,6 +94,7 @@ fork commit `08362717`; the
 | `crates/apps/reticulumd/tests/fork_publish_contract_parts/ledger_contract_fixtures.rs` | release tooling |
 | `crates/apps/reticulumd/tests/fork_publish_contract_parts/lint_discipline_probe.rs` | guard discipline |
 | `crates/apps/reticulumd/tests/fork_publish_contract_parts/lint_discipline_probe10.rs` | guard discipline, shared-instance hardening |
+| `crates/apps/reticulumd/tests/fork_publish_contract_parts/lint_discipline_probe11.rs` | carried hygiene |
 | `crates/apps/reticulumd/tests/fork_publish_contract_parts/lint_discipline_probe2.rs` | guard discipline |
 | `crates/apps/reticulumd/tests/fork_publish_contract_parts/lint_discipline_probe3.rs` | guard discipline |
 | `crates/apps/reticulumd/tests/fork_publish_contract_parts/lint_discipline_probe4.rs` | guard discipline |
@@ -99,7 +112,17 @@ fork commit `08362717`; the
 | `crates/apps/reticulumd/tests/fork_release_docs_contract.rs` | release tooling |
 | `crates/apps/reticulumd/tests/python_channel_interop.rs` | guard discipline |
 | `crates/apps/reticulumd/tests/python_channel_interop_parts/multi_segment_python_interop.rs` | test hygiene |
+| `crates/apps/reticulumd/tests/python_channel_interop_parts/python_request_late_reply.rs` | carried hygiene |
+| `crates/apps/reticulumd/tests/python_channel_interop_parts/rust_identify_python_allow_list.rs` | carried hygiene |
+| `crates/apps/reticulumd/tests/python_channel_interop_parts/rust_to_python_raw_resource_roundtri.rs` | carried hygiene |
+| `crates/apps/reticulumd/tests/python_channel_interop_parts/rust_to_python_request_receipt.rs` | carried hygiene |
 | `crates/apps/reticulumd/tests/python_tcp_ifac_lifecycle.rs` | guard discipline |
+| `crates/apps/reticulumd/tests/support/python_channel_endpoint.py` | carried hygiene |
+| `crates/apps/rns-tools/src/bin/independent_interop_node/events.rs` | carried hygiene |
+| `crates/apps/rns-tools/src/bin/independent_interop_node/node.rs` | carried hygiene |
+| `crates/apps/rns-tools/src/bin/rncp_parts/network.rs` | carried hygiene |
+| `crates/apps/rns-tools/src/bin/rngit_parts/network.rs` | carried hygiene |
+| `crates/apps/rns-tools/src/bin/rnsh_parts/network.rs` | carried hygiene |
 | `crates/libs/lxmf-sdk/src/backend/zmq_pipeline/transport.rs` | guard discipline |
 | `crates/libs/lxmf-sdk/src/backend/zmq_pipeline/tests/mod.rs` | guard discipline |
 | `crates/libs/lxmf-sdk/src/client/async_ops.rs` | guard discipline |
@@ -109,12 +132,21 @@ fork commit `08362717`; the
 | `crates/libs/rns-transport/CHANGELOG.md` | test hygiene, release tooling, ledger conventions, guard discipline, shared-instance hardening |
 | `crates/libs/rns-transport/README.md` | release tooling, guard discipline, shared-instance hardening |
 | `crates/libs/rns-transport/examples/tcp_connection_memory.rs` | guard discipline |
+| `crates/libs/rns-transport/src/destination/link_parts/link.rs` | carried hygiene |
+| `crates/libs/rns-transport/src/destination/link_parts/link_sections/data_proof_tests.rs` | carried hygiene |
+| `crates/libs/rns-transport/src/destination/link_parts/link_sections/new.rs` | carried hygiene |
+| `crates/libs/rns-transport/src/destination/link_parts/link_sections/next_watchdog_deadline.rs` | carried hygiene |
+| `crates/libs/rns-transport/src/destination/link_parts/link_sections/pending_requests.rs` | carried hygiene |
+| `crates/libs/rns-transport/src/destination/link_parts/link_sections/pending_requests_resolve_tests.rs` | carried hygiene |
 | `crates/libs/rns-transport/src/destination/link_parts/link_sections/remove_channel_handler.rs` | shared-instance hardening |
 | `crates/libs/rns-transport/src/destination/link_parts/link_status_predicates_make_lifecycl.rs` | shared-instance hardening |
 | `crates/libs/rns-transport/src/destination/link_parts/link_status_predicates_make_lifecycl_sections/core_tests.rs` | shared-instance hardening |
 | `crates/libs/rns-transport/src/destination/link_parts/link_status_predicates_make_lifecycl_sections/teardown_sends_link_close_for_handshake_link_tests.rs` | shared-instance hardening |
 | `crates/libs/rns-transport/src/destination/link_parts/module_prelude.rs` | shared-instance hardening |
+| `crates/libs/rns-transport/src/destination/request/receipt.rs` | carried hygiene |
 | `crates/libs/rns-transport/src/error.rs` | shared-instance hardening |
+| `crates/libs/rns-transport/src/hash.rs` | carried hygiene |
+| `crates/libs/rns-transport/src/identity/tests.rs` | carried hygiene |
 | `crates/libs/rns-transport/src/iface/auto_parts/default_multicast_discovery_address_sections/core_tests.rs` | guard discipline |
 | `crates/libs/rns-transport/src/iface/auto_parts/module_prelude.rs` | guard discipline |
 | `crates/libs/rns-transport/src/iface/auto_runtime_parts/autoruntimeplan_sections/runtime_json.rs` | guard discipline |
@@ -124,6 +156,7 @@ fork commit `08362717`; the
 | `crates/libs/rns-transport/src/iface/auto_runtime_parts/module_prelude_sections/transport_bridge.rs` | guard discipline |
 | `crates/libs/rns-transport/src/iface/auto_runtime_parts/tests.rs` | guard discipline |
 | `crates/libs/rns-transport/src/iface/auto_runtime_parts/tests_sections/auto_peer_data_transport_bridge_regi.rs` | guard discipline |
+| `crates/libs/rns-transport/src/iface/auto_runtime_parts/tests_sections/auto_peer_route_origination.rs` | carried hygiene |
 | `crates/libs/rns-transport/src/iface/auto_runtime_parts/tests_sections/core_tests.rs` | guard discipline |
 | `crates/libs/rns-transport/src/iface/auto_runtime_parts/tests_sections/peer_data_receive_loop_progress.rs` | guard discipline |
 | `crates/libs/rns-transport/src/iface/auto_runtime_parts/tests_sections/peer_data_receive_loop_progress_probe.rs` | guard discipline |
@@ -161,6 +194,7 @@ fork commit `08362717`; the
 | `crates/libs/rns-transport/src/iface/serial_parts/run_serial_stream.rs` | guard discipline |
 | `crates/libs/rns-transport/src/iface/serial_parts/transmit_join_probe_tests.rs` | guard discipline |
 | `crates/libs/rns-transport/src/iface/tcp_client.rs` | guard discipline |
+| `crates/libs/rns-transport/src/iface/tcp_client/tests/connect_cancel.rs` | carried hygiene |
 | `crates/libs/rns-transport/src/iface/tcp_client/tests/tx_queue_survives_reconnect.rs` | guard discipline |
 | `crates/libs/rns-transport/src/iface/tcp_client_memory_tests.rs` | guard discipline |
 | `crates/libs/rns-transport/src/iface/tcp_server.rs` | guard discipline |
@@ -170,11 +204,22 @@ fork commit `08362717`; the
 | `crates/libs/rns-transport/src/iface/weave_management_handle_tests.rs` | guard discipline |
 | `crates/libs/rns-transport/src/iface_parts/interfacemanager_management.rs` | shared-instance hardening |
 | `crates/libs/rns-transport/src/iface_types.rs` | guard discipline |
+| `crates/libs/rns-transport/src/resource.rs` | carried hygiene |
+| `crates/libs/rns-transport/src/resource/advertisement_limits.rs` | carried hygiene |
+| `crates/libs/rns-transport/src/resource/manager.rs` | carried hygiene |
 | `crates/libs/rns-transport/src/resource/outcome.rs` | shared-instance hardening |
+| `crates/libs/rns-transport/src/resource/sender.rs` | carried hygiene |
+| `crates/libs/rns-transport/src/resource/sender_parts/collision_free_hash.rs` | carried hygiene |
+| `crates/libs/rns-transport/src/resource/tests.rs` | carried hygiene |
+| `crates/libs/rns-transport/src/resource/tests_advert_limits.rs` | carried hygiene |
+| `crates/libs/rns-transport/src/resource/tests_confirm_advertised.rs` | carried hygiene |
+| `crates/libs/rns-transport/src/resource/tests_link_scope.rs` | carried hygiene |
 | `crates/libs/rns-transport/src/transport/announce.rs` | guard discipline |
 | `crates/libs/rns-transport/src/transport/core.rs` | guard discipline |
+| `crates/libs/rns-transport/src/transport/core_parts/stop_interface.rs` | carried hygiene |
 | `crates/libs/rns-transport/src/transport/handler.rs` | guard discipline, shared-instance hardening |
 | `crates/libs/rns-transport/src/transport/handler_parts/path_request.rs` | guard discipline |
+| `crates/libs/rns-transport/src/transport/handler_parts/unicast_gc.rs` | carried hygiene |
 | `crates/libs/rns-transport/src/transport/inbound_processing.rs` | guard discipline, shared-instance hardening |
 | `crates/libs/rns-transport/src/transport/inbound_processing_tests.rs` | guard discipline, shared-instance hardening |
 | `crates/libs/rns-transport/src/transport/jobs.rs` | guard discipline |
@@ -190,17 +235,71 @@ fork commit `08362717`; the
 | `crates/libs/rns-transport/src/transport/links_parts/transport_sections/shared_instance_reconnect.rs` | shared-instance hardening |
 | `crates/libs/rns-transport/src/transport/links_parts/transportchannel.rs` | guard discipline |
 | `crates/libs/rns-transport/src/transport/mod.rs` | guard discipline, shared-instance hardening |
+| `crates/libs/rns-transport/src/transport/mod_parts/transport.rs` | carried hygiene |
 | `crates/libs/rns-transport/src/transport/next_hop_metrics.rs` | guard discipline |
+| `crates/libs/rns-transport/src/transport/packet_disk_cache.rs` | carried hygiene |
 | `crates/libs/rns-transport/src/transport/path.rs` | guard discipline |
 | `crates/libs/rns-transport/src/transport/request_dispatch.rs` | guard discipline |
 | `crates/libs/rns-transport/src/transport/resource_wire.rs` | guard discipline |
 | `crates/libs/rns-transport/src/transport/resource_wire_parts/proof.rs` | guard discipline |
 | `crates/libs/rns-transport/src/transport/reticulum_path_store.rs` | guard discipline |
+| `crates/libs/rns-transport/src/transport/runtime_management.rs` | carried hygiene |
 | `crates/libs/rns-transport/src/transport/shared_instance.rs` | shared-instance hardening |
 | `crates/libs/rns-transport/src/transport/tests.rs` | guard discipline, shared-instance hardening |
+| `crates/libs/rns-transport/src/transport/tests_parts/announce_broadcast_policy.rs` | carried hygiene |
+| `crates/libs/rns-transport/src/transport/tests_parts/announce_identity_drift.rs` | carried hygiene |
+| `crates/libs/rns-transport/src/transport/tests_parts/announce_table_retransmission_gate.rs` | carried hygiene |
+| `crates/libs/rns-transport/src/transport/tests_parts/blackhole_path_eviction.rs` | carried hygiene |
+| `crates/libs/rns-transport/src/transport/tests_parts/blackholed_path_restore.rs` | carried hygiene |
+| `crates/libs/rns-transport/src/transport/tests_parts/disabled_shared_child_local_announce.rs` | carried hygiene |
+| `crates/libs/rns-transport/src/transport/tests_parts/disabled_transport_shared_child_local_destination.rs` | carried hygiene |
+| `crates/libs/rns-transport/src/transport/tests_parts/enabled_shared_child_local_announce.rs` | carried hygiene |
+| `crates/libs/rns-transport/src/transport/tests_parts/enabled_transport_shared_child_local_destination.rs` | carried hygiene |
+| `crates/libs/rns-transport/src/transport/tests_parts/encrypted_resource_control_packet.rs` | carried hygiene |
+| `crates/libs/rns-transport/src/transport/tests_parts/expired_route_restart_recovery.rs` | carried hygiene |
+| `crates/libs/rns-transport/src/transport/tests_parts/held_udp_announce_preserves_peer_sou.rs` | carried hygiene |
+| `crates/libs/rns-transport/src/transport/tests_parts/inbound_link_request_registers_unicast.rs` | carried hygiene |
+| `crates/libs/rns-transport/src/transport/tests_parts/inbound_proof_link_selection.rs` | carried hygiene |
+| `crates/libs/rns-transport/src/transport/tests_parts/link_broadcast_helpers_route_via_bound_iface.rs` | carried hygiene |
+| `crates/libs/rns-transport/src/transport/tests_parts/module_prelude.rs` | carried hygiene |
+| `crates/libs/rns-transport/src/transport/tests_parts/ordinary_proof_duplicate.rs` | carried hygiene |
+| `crates/libs/rns-transport/src/transport/tests_parts/packet_hashlist_flush.rs` | carried hygiene |
+| `crates/libs/rns-transport/src/transport/tests_parts/packet_replay_restart.rs` | carried hygiene |
+| `crates/libs/rns-transport/src/transport/tests_parts/pending_out_link_establishment_timeout.rs` | carried hygiene |
+| `crates/libs/rns-transport/src/transport/tests_parts/pending_out_link_rediscovery.rs` | carried hygiene |
+| `crates/libs/rns-transport/src/transport/tests_parts/pinned_python_local_announce_schedule.rs` | carried hygiene |
+| `crates/libs/rns-transport/src/transport/tests_parts/prepared_broadcast_link_contract.rs` | carried hygiene |
+| `crates/libs/rns-transport/src/transport/tests_parts/request_dispatch_closed_link.rs` | carried hygiene |
+| `crates/libs/rns-transport/src/transport/tests_parts/resource_retry_dispatch.rs` | carried hygiene |
+| `crates/libs/rns-transport/src/transport/tests_parts/reticulum_path_restore_bad_cache.rs` | carried hygiene |
+| `crates/libs/rns-transport/src/transport/tests_parts/reticulum_runtime_management.rs` | carried hygiene |
+| `crates/libs/rns-transport/src/transport/tests_parts/rns_1_5_ingress_admission.rs` | carried hygiene |
+| `crates/libs/rns-transport/src/transport/tests_parts/send_packet_outcome_and_resource_request_responses.rs` | carried hygiene |
+| `crates/libs/rns-transport/src/transport/tests_parts/shared_child_remote_link_request.rs` | carried hygiene |
+| `crates/libs/rns-transport/src/transport/tests_parts/shared_owner_unknown_link_request.rs` | carried hygiene |
+| `crates/libs/rns-transport/src/transport/tests_parts/single_destination_delivery_proof.rs` | carried hygiene |
+| `crates/libs/rns-transport/src/transport/tests_parts/tcp_connect_cancel.rs` | carried hygiene |
+| `crates/libs/rns-transport/src/transport/tests_parts/transport_register_channel_handler_e.rs` | carried hygiene |
+| `crates/libs/rns-transport/src/transport/tests_parts/two_transport_loopback.rs` | carried hygiene |
 | `crates/libs/rns-transport/src/transport/tests_parts/two_transport_loopback_lifecycle.rs` | guard discipline |
+| `crates/libs/rns-transport/src/transport/tests_parts/two_transport_loopback_lifecycle_probe.rs` | carried hygiene |
 | `crates/libs/rns-transport/src/transport/tests_parts/two_transport_loopback_requests_isolation.rs` | shared-instance hardening |
+| `crates/libs/rns-transport/src/transport/tests_parts/two_transport_loopback_requests_probe.rs` | carried hygiene |
+| `crates/libs/rns-transport/src/transport/tests_parts/two_transport_loopback_requests_receipt.rs` | carried hygiene |
+| `crates/libs/rns-transport/src/transport/tests_parts/two_transport_loopback_requests_receipt_orders.rs` | carried hygiene |
+| `crates/libs/rns-transport/src/transport/tests_parts/two_transport_loopback_requests_resource_form.rs` | carried hygiene |
+| `crates/libs/rns-transport/src/transport/tests_parts/two_transport_loopback_requests_resource_form_probe.rs` | carried hygiene |
+| `crates/libs/rns-transport/src/transport/tests_parts/two_transport_loopback_requests_resource_form_sizes_cancel.rs` | carried hygiene |
+| `crates/libs/rns-transport/src/transport/tests_parts/two_transport_loopback_requests_resource_form_sizes_cancel_probe.rs` | carried hygiene |
+| `crates/libs/rns-transport/src/transport/tests_parts/two_transport_loopback_requests_routing.rs` | carried hygiene |
+| `crates/libs/rns-transport/src/transport/tests_parts/two_transport_loopback_resources.rs` | carried hygiene |
+| `crates/libs/rns-transport/src/transport/tests_parts/two_transport_loopback_resources_directions.rs` | carried hygiene |
+| `crates/libs/rns-transport/src/transport/tests_parts/two_transport_loopback_resources_gone_link.rs` | carried hygiene |
+| `crates/libs/rns-transport/src/transport/tests_parts/two_transport_loopback_resources_outcome.rs` | carried hygiene |
 | `crates/libs/rns-transport/src/transport/tests_parts/two_transport_loopback_resources_outcome_probe.rs` | shared-instance hardening |
+| `crates/libs/rns-transport/src/transport/tests_parts/two_transport_loopback_resources_reject.rs` | carried hygiene |
+| `crates/libs/rns-transport/src/transport/tests_parts/two_transport_loopback_resources_retries.rs` | carried hygiene |
+| `crates/libs/rns-transport/src/transport/tests_parts/two_transport_shared_instance.rs` | carried hygiene |
 | `crates/libs/rns-transport/src/transport/tests_parts/two_transport_shared_instance_endpoint_warn.rs` | shared-instance hardening |
 | `crates/libs/rns-transport/src/transport/tests_parts/two_transport_shared_instance_options.rs` | shared-instance hardening |
 | `crates/libs/rns-transport/src/transport/tests_parts/two_transport_shared_instance_probe10.rs` | shared-instance hardening |
@@ -212,12 +311,17 @@ fork commit `08362717`; the
 | `crates/libs/rns-transport/src/transport/tests_parts/two_transport_shared_instance_probe16.rs` | shared-instance hardening |
 | `crates/libs/rns-transport/src/transport/tests_parts/two_transport_shared_instance_probe17.rs` | shared-instance hardening |
 | `crates/libs/rns-transport/src/transport/tests_parts/two_transport_shared_instance_probe17_unix.rs` | shared-instance hardening |
+| `crates/libs/rns-transport/src/transport/tests_parts/two_transport_shared_instance_probe2.rs` | carried hygiene |
+| `crates/libs/rns-transport/src/transport/tests_parts/two_transport_shared_instance_probe3.rs` | carried hygiene |
+| `crates/libs/rns-transport/src/transport/tests_parts/two_transport_shared_instance_probe4.rs` | carried hygiene |
 | `crates/libs/rns-transport/src/transport/tests_parts/two_transport_shared_instance_probe5.rs` | shared-instance hardening |
 | `crates/libs/rns-transport/src/transport/tests_parts/two_transport_shared_instance_probe6.rs` | shared-instance hardening |
+| `crates/libs/rns-transport/src/transport/tests_parts/two_transport_shared_instance_reconnect.rs` | carried hygiene |
 | `crates/libs/rns-transport/src/transport/tests_parts/two_transport_shared_instance_storm.rs` | shared-instance hardening |
 | `crates/libs/rns-transport/src/transport/tests_parts/two_transport_shared_instance_tasks.rs` | shared-instance hardening |
 | `crates/libs/rns-transport/src/transport/tunnels.rs` | shared-instance hardening |
 | `crates/libs/rns-transport/src/transport/wire.rs` | guard discipline |
+| `crates/libs/rns-transport/src/transport/wire_receipt.rs` | carried hygiene |
 | `crates/libs/rns-transport/tests/breaking_changes_compile_fail.rs` | shared-instance hardening |
 | `crates/libs/rns-transport/tests/multicast_tx_guard.rs` | guard discipline |
 | `crates/libs/rns-transport/tests/outbound_outcome_api.rs` | test hygiene, shared-instance hardening |
@@ -1234,6 +1338,210 @@ strict preflight order; the `[::1]` pick fed straight into the attach),
 (the options an entry asks for; the single-family pick arms) and
 `crates/apps/reticulumd/tests/config_parts/shared_instance_client_knobs.rs`
 (parse, echo, zero-timeout refusal, reference TOML text).
+
+Fork commits `985bd5bd`, `81c9ed73`, `faacb7fd`, `9877bb6e`, `5631defa`,
+`1f321d0d`, `8f6b847c`, `218d784a`, `dbe495ca`, `4783f1ef`, `db4c5a5e`,
+`44962a96`, `ce8ed659`, `9865dbdd`, `e5ba2807`, `1b04a361`, `f890dbf9`,
+`fd6322b5`, `05975d7d`, `5cca182d`, `42f988ce`, `f2ea78f9`, `6c5ca548`,
+`012f7337` and `63bbbc87`: H6, carried hygiene. The library behaviour
+changes are: an inbound resource cancel, hash update, part or
+split-segment advertisement reaches only a transfer on the link it
+arrived on (first); a rejected resource advertisement is counted per link
+and warned on the first and every 64th, where the only warn for it sat in
+a branch that could not run (second); an in-limit response packet for a receipt
+already `Receiving` cancels the response Resource still in flight instead
+of leaving it to complete (third); a link restart or close forgets the
+unproven data hashes (fourth); a response whose link is no longer `Active`
+is dropped before a packet is built (fifth); a resource retry is recorded
+as not dispatched only when no interface sent or queued it (sixth); the
+packet hashlist flush waits for the packet cache and replaces the file by
+rename (seventh); and the `TcpClient` connect await breaks out on cancel
+(eighteenth). `RejectReason` gains `Display` (eleventh). In the apps,
+reticulumd control requests decode through `RequestFrame::decode`
+(tenth), the app announce sites report a failed announce build with the
+role that asked for it (twelfth) and the rns-tools independent interop
+node merges link snapshots instead of replacing them (thirteenth).
+Everything else keeps its behaviour. The first commit makes every lookup
+in the packet path of `resource/manager.rs` require the entry's `link_id`
+to equal the arriving link's: the split-segment expected-segment check in
+admission, the hash update, the part loop and both `cancel_into` arms,
+which now take the link id from the dispatcher; before, inbound receivers
+and segment assemblies were keyed by hash alone, so a peer naming a
+sibling link's resource hash could tear down or alias that link's
+assembly, and a receiver cancel for an outgoing resource was open the
+same way. Pinned by the two cross-link cancel cases in
+`resource/tests_link_scope.rs` (written into
+`resource/tests_timeouts_lifecycle.rs` and moved by the seventeenth). The
+second drops from `resource/advertisement_limits.rs` the transfer-size
+warn branch that the smaller reference cap ahead of it made unreachable,
+turns the part-count line into a debug line, and has
+`ResourceManager::record_rejected_advertisement` count each drop in
+`LinkStats::rejected_advertisements` (`resource.rs`), warning on the first
+and on every 64th. Pinned by
+`resource_manager_counts_rejected_advertisements_per_link` in
+`resource/tests_advert_limits.rs`. The third has `resolve_pending_request`
+(`link_sections/pending_requests.rs`) hand back the receipt's inbound
+response Resource on the packet arm as well as the oversize one, so the
+accepted-packet arm of `link_sections/new.rs`, which already queues what
+that fn returns as an owed cancel the transport sends on the same packet,
+now owes it too; Python's receipt is
+single-outcome, the packet sets READY (`RNS/Link.py:873`) and removes the
+pending request (`:881-883`), the Resource's later conclusion finds
+nothing (`:897-912`) and only a FAILED receipt's Resource is cancelled
+(`:1417-1435`), so the crate README register row is rewritten to say the
+Resource is cancelled here. Pinned by
+`link_sections/pending_requests_resolve_tests.rs` and by
+`tests_parts/two_transport_loopback_requests_resource_form_sizes_cancel_probe.rs`,
+whose in-limit case now expects one receiver cancel where it expected
+none. The fourth has `Link::restart` and `finalize_local_close`
+(`link_sections/next_watchdog_deadline.rs`) clear `unproven_data_hashes`
+beside the other per-session state, so a hash recorded for a finished
+session cannot match a late proof. Pinned by
+`link_sections/data_proof_tests.rs`. The fifth has `send_packet_response`
+and `send_response_resource` (`transport/request_dispatch.rs`) read the
+link status under the guard they already hold and drop the response with
+a debug line when `LinkStatus::can_exchange_data` (widened to `pub(crate)`
+in `link_parts/module_prelude.rs`) is false; the resource form returns
+`ConnectionError`, as it does when the advertisement never leaves. Pinned
+by `tests_parts/request_dispatch_closed_link.rs`. The sixth has
+`send_resource_retry` (`transport/jobs.rs`) log `retry_not_dispatched`
+only when `sent_ifaces == 0 && queued_ifaces == 0`, the pairing the
+delivery-proof dispatch already used, opens the fn to the transport tests
+as `pub(super)`, and teaches the shared `TestLogger` in
+`tests_parts/two_transport_loopback_requests_isolation.rs` the jobs
+target. Pinned by `tests_parts/resource_retry_dispatch.rs` (an interface
+that matches nothing records the miss; a link without a bound interface
+still leaves through path routing). The seventh has
+`Transport::save_packet_hashlist` (`transport/runtime_management.rs`)
+clone the packet cache out of the handler guard and await its lock in a
+statement of its own, where it used `try_lock` under the handler guard
+and failed `packet cache is busy` whenever an inbound packet was in
+flight, and has `ReticulumPacketDiskCache::save_packet_hashlist`
+(`transport/packet_disk_cache.rs`) write `packet_hashlist.raw.tmp` and
+rename it over the target. Pinned by
+`tests_parts/packet_hashlist_flush.rs`. The eighth documents
+`Transport::send_prepared_packet_broadcast_with_trace` (`transport/core.rs`)
+as the send for already-prepared, non-link packets that records nothing
+in the packet cache or the link tables; the body is unchanged. Pinned by
+`tests_parts/prepared_broadcast_link_contract.rs`. The ninth has
+`transport/wire_receipt.rs` resolve proof links through
+`resource_wire::link_by_id` instead of its own copy of the lookup, and
+drops from that helper (`transport/resource_wire.rs`) the
+`out_links.get(link_id)` step, which never hit because `out_links` is
+keyed by destination hash. The tenth has reticulumd's
+`parse_control_request_payload`
+(`src/bin/reticulumd/inbound_control_parts/module_core.rs`) decode through
+`RequestFrame::decode`, which bounds depth and lengths before allocating
+and refuses trailing bytes and reserved markers, where `rmp_serde` had
+accepted trailing bytes; the control-request fixture in
+`inbound_control_parts/test_validated_peer_links_sections/core_tests.rs`
+sends an f64 `requested_at` instead of Nil and pins the trailing-byte and
+reserved-marker refusals. The eleventh implements `Display` for
+`RejectReason` (`resource/outcome.rs`), points the `RequestError::Receive`
+rustdoc (`destination/request/receipt.rs`) at the crate README register,
+and adds that register row: a response Resource failing in transfer fails
+the receipt here, where Python leaves the receipt in its last status
+(`RNS/Link.py:1367`, `:1377-1381`, `:1435`). Pinned by the `to_string`
+assertion in `tests/outbound_outcome_api.rs`. The twelfth moves the 19
+app `send_announce` calls across nine files to `try_send_announce`, so a
+failed announce build is reported with the role that asked for it:
+reticulumd's `announce_worker.rs`, `bridge_announce.rs`,
+`bridge_service_identity.rs`, `bootstrap_parts/module_core.rs` and
+`bootstrap_parts/configure_startup_rpc_token_auth.rs` warn, rns-tools'
+`rncp_parts/network.rs` and `rngit_parts/network.rs` print under the
+silent flag, `rnsh_parts/network.rs` warns and
+`independent_interop_node/node.rs` returns the error from its announce
+RPC; `send_announce` itself is unchanged. The thirteenth has the
+independent interop node's `links` snapshot
+(`independent_interop_node/events.rs`) merge each event into the
+first-seen entry: identity fields stay, `state` moves, a `states` history
+keeps the last 16 event names, and an `is_path_response` field is emitted
+as null because the transport's `PathEntry` does not record the announce
+context that created the path. The fourteenth is a test-only
+Python-in-the-loop cell: the Python endpoint
+(`tests/support/python_channel_endpoint.py`) gains `--allow-identified`,
+which registers the request handler with `ALLOW_LIST` over a list filled
+from the remote-identified callback, and
+`python_channel_interop_parts/rust_identify_python_allow_list.rs` sends a
+request before identifying, sees Python stay silent, identifies and gets
+the reply on the same link. The fifteenth hoists four blocks byte for
+byte into new part files under the module cap: the `Transport` struct
+into `transport/mod_parts/transport.rs`, `gc_unicast_ifaces` into
+`transport/handler_parts/unicast_gc.rs`, `stop_interface` into
+`transport/core_parts/stop_interface.rs` and the collision-free hash
+selection into `resource/sender_parts/collision_free_hash.rs`. The
+sixteenth removes six `#[allow(dead_code)]` that suppressed nothing
+(`request_path` in `transport/handler.rs`; `remove_listener` and
+`shutdown_all` on both listener supervisors and
+`restart_link_local_listener` on the peer-data one in
+`iface/auto_runtime_parts/autoruntimeplan_sections/send_due_multicast_peer_announces_wi.rs`,
+all still public) and documents `handle_inbound_for_test`
+(`transport/core.rs`) as the test seam it is. The seventeenth keeps the
+touched modules under the size cap: the link-scope tests move into
+`resource/tests_link_scope.rs` (included from `resource/tests.rs`) and
+the two rns-tools announce sites of the twelfth fold into fewer lines.
+The eighteenth puts the `TcpClient` connect (`iface/tcp_client.rs`) in
+the same biased `select!` as the reconnect back-off, cancel arms first,
+so `Transport::stop` on a client whose connect is in flight against a
+black-holed endpoint returns at once instead of after the connect
+timeout. Pinned by the nineteenth's `iface/tcp_client/tests/connect_cancel.rs`
+and `tests_parts/tcp_connect_cancel.rs`. The nineteenth is test-only:
+besides the connect-cancel pins it adds `resource/tests_confirm_advertised.rs`
+(`confirm_advertised` keeps the serve-time timestamps once a part was
+served and clamps the awaiting-proof retry budget), the no-event check on
+the rejecting side in `tests_parts/two_transport_loopback_resources_reject.rs`
+(helper in `tests_parts/two_transport_loopback_resources.rs`), the 64 MiB
+`data_size` refusal in `resource/tests_advert_limits.rs`, and the
+plus-prefixed hex pair refusals in `hash.rs` and `identity/tests.rs`. The
+twentieth is test-only: the publish contract gains
+`fork_publish_contract_parts/lint_discipline_probe11.rs`, the
+free-function `join`/`join3`/`join_all` twin of the macro lock sweep, and
+the three auto-interface tests in
+`iface/auto_runtime_parts/tests_sections/peer_route_table_probe.rs` and
+`auto_peer_route_origination.rs` that left a peer data tx loop running
+now shut it down and join it under a one second timeout. The
+twenty-first is test-only and consolidates weaker twins: the
+`remove_interface` and `stop_interface` slot tests share one body in
+`tests_parts/two_transport_shared_instance_probe4.rs` selected by
+`SharedInstanceRemoval` and called from
+`two_transport_shared_instance_probe2.rs`; the single-receipt test of
+`two_transport_loopback_requests_resource_form_sizes_cancel.rs` goes,
+its two-receipt probe twin being a strict superset; the prove-all interop
+test in `python_channel_interop_parts/rust_to_python_request_receipt.rs`
+goes in favour of the late-reply twin in `python_request_late_reply.rs`,
+whose proof wait moves into `await_python_proof_of`; probe3 and probe4
+share `shared_instance_attach_inside_a_stop`; `stall_transport_for` in
+`two_transport_loopback_resources_retries.rs` is re-expressed on
+`stall_transport_until_released` with a timed release and `stall_handler`
+goes; and `rust_to_python_raw_resource_roundtri.rs` folds its two inline
+sha2 report checks into `assert_python_response_report`. The
+twenty-second is test-only: the four exact status-order fixtures in
+`tests_parts/two_transport_loopback_requests_receipt_orders.rs` gate the
+responder on `observe_statuses_releasing_at` (release once the subscriber
+has read `Delivered` for the resource form, `Sent` for the packet form)
+instead of a 300 ms `HANDLER_DELAY`, which
+`two_transport_loopback_requests_receipt.rs` drops. The twenty-third is
+test-only and dedups fixtures: `await_outbound_terminal` moves from
+`two_transport_loopback_requests_resource_form_probe.rs` into
+`two_transport_loopback_resources.rs` and replaces the inline matcher at
+five sender-terminal sites (one in that fixture, one in
+`two_transport_loopback_resources_directions.rs`, two in
+`two_transport_loopback_resources_reject.rs` and one in
+`two_transport_loopback_resources_outcome.rs`);
+`loopback_link_pair_with_request_limit` takes an `Option<usize>` in the
+directions fixture with `loopback_link_pair` as its wrapper, deleting the
+reject copy; and `shared_instance_client_with_options` in
+`two_transport_shared_instance.rs` serves
+`two_transport_shared_instance_probe2.rs` and
+`two_transport_shared_instance_reconnect.rs`. The twenty-fourth is
+test-only: the six tests unrelated to
+`tests_parts/held_udp_announce_preserves_peer_sou.rs` move, bodies
+verbatim and with the advertisement helper include they use, into
+`tests_parts/send_packet_outcome_and_resource_request_responses.rs`. The
+twenty-fifth is test-only: rustfmt over the 37 include!'d fixtures under
+`transport/tests_parts/` that failed `rustfmt --check`; the diff is line
+joins and splits plus five single-expression closure bodies losing their
+braces, with the token stream otherwise identical.
 
 ## 0.15.1 (upstream 0.14.0)
 

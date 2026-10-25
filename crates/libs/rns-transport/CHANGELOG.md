@@ -502,22 +502,30 @@ Removed) bullet of its own, marked as such.
   `out_links` is keyed by destination hash; the id scan is the
   initiator-side path.
 - No library behaviour change: four blocks move into new `include!`'d part
-  files so their parents stay under the module size cap, three of them byte
-  for byte and the fourth re-joined by a later rustfmt pass (one type alias):
+  files so their parents stay under the module size cap, token-identical to
+  the bodies they replace (the hoisted files are rustfmt-canonical, so the
+  one type alias in the fourth re-joins onto a single line; a newly created
+  `include!`'d file may be rustfmt-canonical where its parent was not):
   the `Transport` struct into `transport/mod_parts/transport.rs`,
   `TransportHandler::gc_unicast_ifaces` into
   `transport/handler_parts/unicast_gc.rs`, `Transport::stop_interface` into
   `transport/core_parts/stop_interface.rs` and the collision-free hash
   selection into `resource/sender_parts/collision_free_hash.rs`.
-- No library behaviour change: six `#[allow(dead_code)]` that suppressed
+- No library behaviour change: ten `#[allow(dead_code)]` that suppressed
   nothing are gone (`request_path` in `transport/handler.rs`, which the link
   maintenance jobs call; `remove_listener` and `shutdown_all` on both auto
   listener supervisors and `restart_link_local_listener` on the peer-data
   one in
   `iface/auto_runtime_parts/autoruntimeplan_sections/send_due_multicast_peer_announces_wi.rs`,
-  all public), and `Transport::handle_inbound_for_test` (`transport/core.rs`)
+  all public; the four on the live link-check, link-cleanup, link-repeat
+  and keep-alive-request constants in `transport/mod.rs`), the
+  response-limit locals in `link_sections/new.rs` and
+  `link_sections/response_packet.rs` are named `receiving_record_hashes`
+  (the record hashes owed a cancel, not refusals), and
+  `Transport::handle_inbound_for_test` (`transport/core.rs`)
   is documented as the test seam it is: the receipt-validation half of
-  inbound processing only, bypassing dedup, routing and link handling.
+  inbound processing only, bypassing dedup, routing and link handling, and
+  as public API whose narrowing would be a breaking change.
 - No library behaviour change: the link-scope tests move from
   `resource/tests_timeouts_lifecycle.rs` into `resource/tests_link_scope.rs`
   and the two rns-tools announce sites in `rngit_parts/network.rs` and
@@ -552,7 +560,8 @@ Removed) bullet of its own, marked as such.
   Pinned by `fork_publish_contract_parts/lint_discipline_probe12.rs`: no
   production source under `crates/apps/` calls the bare `send_announce`,
   the test helper `tests/support/python_channel_events.rs` being the one
-  sanctioned call.
+  sanctioned call (the test-path skip already covers it, so the probe pins
+  its name without exempting it).
 - No library change: the rns-tools independent interop node's `links`
   snapshot (`independent_interop_node/events.rs`) merges each link event
   into the first-seen entry instead of replacing it, so a data event no
@@ -595,7 +604,9 @@ Removed) bullet of its own, marked as such.
   `fork_publish_contract_parts/lint_discipline_probe11.rs`, the
   free-function spelling of the two-guard rule (no production source hands
   lock futures to `futures::future::join`, `join3`, `join_all` or their
-  `try_` twins), and the three auto-interface tests in
+  `try_` twins; its header says the combinators poll in declaration order
+  where only the macro rotates, and a definition is one with `fn ` ahead of
+  the match), and the three auto-interface tests in
   `iface/auto_runtime_parts/tests_sections/peer_route_table_probe.rs` and
   `iface/auto_runtime_parts/tests_sections/auto_peer_route_origination.rs`
   that spawned a peer data tx loop and dropped its shutdown sender now shut
@@ -626,7 +637,7 @@ Removed) bullet of its own, marked as such.
 - Test-only, fixtures deduplicated: `await_outbound_terminal` moves from
   `tests_parts/two_transport_loopback_requests_resource_form_probe.rs` into
   `tests_parts/two_transport_loopback_resources.rs` and replaces the inline
-  matcher at the six sender-terminal sites that spelled it (two in that
+  matcher at the five sender-terminal sites that spelled it (one in that
   fixture, one in `two_transport_loopback_resources_directions.rs`, two in
   `two_transport_loopback_resources_reject.rs` and one in
   `two_transport_loopback_resources_outcome.rs`);
@@ -642,7 +653,8 @@ Removed) bullet of its own, marked as such.
   and with the advertisement helper include they use, into
   `tests_parts/send_packet_outcome_and_resource_request_responses.rs`.
 - Test-only: rustfmt over the 37 `include!`'d fixtures under
-  `transport/tests_parts/` (`tests_parts/module_prelude.rs` among them) that
+  `transport/tests_parts/` (`tests_parts/module_prelude.rs` among them; the
+  38th was split first) that
   failed `rustfmt --check`; the diff is line joins and splits plus five
   single-expression closure bodies losing their braces, with the token
   stream otherwise identical.
@@ -797,8 +809,15 @@ Removed) bullet of its own, marked as such.
   first, so a close landing in that window is refused the same way instead
   of encrypting the advertisement under the zeroed key.
   `LinkStatus::can_exchange_data` (`link_parts/module_prelude.rs`) is
-  `pub(crate)` for it. Pinned by `tests_parts/request_dispatch_closed_link.rs`,
-  whose oracle admits the swept-link arm a maintenance tick can take.
+  `pub(crate)` for it. Every drop logs at debug: the swept-link arm says
+  `is gone`, the two status gates `closed before transmit`, the second
+  tagged `(after MTU lookup)`. Pinned by
+  `tests_parts/request_dispatch_closed_link.rs`, whose oracle admits the
+  swept-link arm a maintenance tick can take, and
+  `tests_parts/request_dispatch_closed_link_probe.rs` (a close landing
+  inside the MTU lookup, forced by holding the interface manager the lookup
+  needs, is refused with `ConnectionError`, recorded once and publishes no
+  resource event; the same stall on a live link sends).
 - The resource retry worker (`send_resource_retry` in `transport/jobs.rs`)
   records `retry_not_dispatched` only when
   `sent_ifaces == 0 && queued_ifaces == 0`, the pairing the delivery-proof
@@ -823,14 +842,20 @@ Removed) bullet of its own, marked as such.
   temporary away and fail with `NotFound`; a failed save removes its own
   temporary, `load_packet_hashlist` sweeps the `packet_hashlist.raw.tmp-*`
   orphans a crash left (an orphan another process sharing the storage
-  removed first is not an error; any other `remove_file` failure still
-  fails the load), and the Windows pre-remove is gone since rename replaces
-  the target there too. Pinned by
+  removed first is not an error; one `remove_file` cannot remove is warned
+  about, with its path, and left in place while the list beside it still
+  loads), and the Windows pre-remove is gone since rename replaces
+  the target there too; `Transport::restore_packet_hashlist` carries the
+  fn-level `await_holding_invalid_type` deny its save twin has. Pinned by
   `tests_parts/packet_hashlist_flush.rs` (the flush after an inbound packet,
   two saves under `tokio::join!`, a stranger's `packet_hashlist.raw.tmp`
-  left with its bytes untouched, the error-path removal and the load sweep)
-  and `tests_parts/packet_hashlist_flush_probe.rs` (an orphan beside no
-  saved list; a storage directory that does not exist yet).
+  left with its bytes untouched, the error-path removal and the load sweep),
+  `tests_parts/packet_hashlist_flush_probe.rs` (an orphan beside no
+  saved list; a storage directory that does not exist yet) and
+  `tests_parts/packet_hashlist_flush_probe2.rs` (a directory carrying the
+  temporary prefix beside a saved list: the load warns once, through a
+  packet-disk-cache store on the shared test logger, and returns the list;
+  it loads without a further warning once the entry is gone).
 - The `TcpClient` connect await (`iface/tcp_client.rs`) sits in a biased
   `select!` over the two cancel tokens, the transport cancel and the
   interface stop, with the cancel arms ahead of the timed connect, so
@@ -839,7 +864,10 @@ Removed) bullet of its own, marked as such.
   full connect timeout (5 s by default); no guard is held across the await.
   Pinned by `iface/tcp_client/tests/connect_cancel.rs` (the runtime status
   reads `connecting` before the cancel; cancel and iface stop each end the
-  worker within 2 s) and `tests_parts/tcp_connect_cancel.rs`.
+  worker within 2 s) and `tests_parts/tcp_connect_cancel.rs` (the same
+  `connecting` check ahead of `Transport::stop`); all three say in their
+  assert message that a fast failure against TEST-NET-1 would not exercise
+  the cancel arm.
 - Split-assembly teardown and outbound serving are scoped to the link:
   `fail_inbound_segments` and `take_inbound_segments`
   (`resource/manager_segments.rs`) and `take_cancelled_incoming`
@@ -857,7 +885,8 @@ Removed) bullet of its own, marked as such.
   data cap, a malformed segmentation header, the parts bound) is counted and
   warned through `record_rejected_advertisement` like the manager's own
   guards, and that warn names `data_size` beside `transfer_size`
-  (`resource/advertisement_limits.rs`). Pinned by the cross-link part and
+  (`resource/advertisement_limits.rs`); the split-assembly failure warn
+  names the link beside the hash and reason. Pinned by the cross-link part and
   split-segment cases in `resource/tests_link_scope.rs`,
   `resource/tests_link_scope_outbound.rs` (another link's request earns no
   parts and its proof concludes nothing; the same packets on the sender's

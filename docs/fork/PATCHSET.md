@@ -60,7 +60,8 @@ fork commit `08362717`; the
 `5cca182d`, `42f988ce`, `f2ea78f9`, `6c5ca548`, `012f7337`, `63bbbc87`,
 `2c89e7ba`, `f6c0b59c`, `842feae6`, `c296bb84`, `ceccaeb1`, `22961b3b`,
 `71c9e7c6`, `eb45dc62`, `8b3e02eb`, `e1804e1c`, `07c1fe37`, `cbe20719`,
-`90ec6e86`, `a2333881`, `18452f13`, `4072932d` and `50db3da3`.
+`90ec6e86`, `a2333881`, `18452f13`, `4072932d`, `50db3da3`, `a284f96a`,
+`c926a2e6` and `93d28bc6`.
 
 | File | Patch |
 | --- | --- |
@@ -277,12 +278,14 @@ fork commit `08362717`; the
 | `crates/libs/rns-transport/src/transport/tests_parts/ordinary_proof_duplicate.rs` | carried hygiene |
 | `crates/libs/rns-transport/src/transport/tests_parts/packet_hashlist_flush.rs` | carried hygiene |
 | `crates/libs/rns-transport/src/transport/tests_parts/packet_hashlist_flush_probe.rs` | carried hygiene |
+| `crates/libs/rns-transport/src/transport/tests_parts/packet_hashlist_flush_probe2.rs` | carried hygiene |
 | `crates/libs/rns-transport/src/transport/tests_parts/packet_replay_restart.rs` | carried hygiene |
 | `crates/libs/rns-transport/src/transport/tests_parts/pending_out_link_establishment_timeout.rs` | carried hygiene |
 | `crates/libs/rns-transport/src/transport/tests_parts/pending_out_link_rediscovery.rs` | carried hygiene |
 | `crates/libs/rns-transport/src/transport/tests_parts/pinned_python_local_announce_schedule.rs` | carried hygiene |
 | `crates/libs/rns-transport/src/transport/tests_parts/prepared_broadcast_link_contract.rs` | carried hygiene |
 | `crates/libs/rns-transport/src/transport/tests_parts/request_dispatch_closed_link.rs` | carried hygiene |
+| `crates/libs/rns-transport/src/transport/tests_parts/request_dispatch_closed_link_probe.rs` | carried hygiene |
 | `crates/libs/rns-transport/src/transport/tests_parts/resource_advert_reject_warn_cadence.rs` | carried hygiene |
 | `crates/libs/rns-transport/src/transport/tests_parts/resource_retry_dispatch.rs` | carried hygiene |
 | `crates/libs/rns-transport/src/transport/tests_parts/reticulum_path_restore_bad_cache.rs` | carried hygiene |
@@ -1360,8 +1363,8 @@ Fork commits `985bd5bd`, `81c9ed73`, `faacb7fd`, `9877bb6e`, `5631defa`,
 `fd6322b5`, `05975d7d`, `5cca182d`, `42f988ce`, `f2ea78f9`, `6c5ca548`,
 `012f7337`, `63bbbc87`, `2c89e7ba`, `f6c0b59c`, `842feae6`, `c296bb84`,
 `ceccaeb1`, `22961b3b`, `71c9e7c6`, `eb45dc62`, `8b3e02eb`, `e1804e1c`,
-`07c1fe37`, `cbe20719`, `90ec6e86`, `a2333881`, `18452f13`, `4072932d` and
-`50db3da3`: H6, carried hygiene. The library behaviour
+`07c1fe37`, `cbe20719`, `90ec6e86`, `a2333881`, `18452f13`, `4072932d`,
+`50db3da3`, `a284f96a`, `c926a2e6` and `93d28bc6`: H6, carried hygiene. The library behaviour
 changes are: an inbound resource cancel, hash update, part or
 split-segment advertisement reaches only a transfer on the link it
 arrived on (first); a rejected resource advertisement is counted per link
@@ -1381,7 +1384,8 @@ constructor refuses joins the per-link count (twenty-eighth); a response
 record no receipt owns cancels its overtaken Resource as a receipt's does
 (twenty-ninth); each hashlist save writes its own temporary file
 (thirtieth); and the load-time orphan sweep tolerates an orphan another
-process removed first (fortieth). `RejectReason` gains `Display` (eleventh). In the apps,
+process removed first (fortieth) and warns about, instead of failing the
+load on, one it cannot remove (forty-third). `RejectReason` gains `Display` (eleventh). In the apps,
 reticulumd control requests decode through `RequestFrame::decode`
 (tenth), the app announce sites report a failed announce build with the
 role that asked for it (twelfth, thirty-sixth) and the rns-tools
@@ -1495,8 +1499,8 @@ which registers the request handler with `ALLOW_LIST` over a list filled
 from the remote-identified callback, and
 `python_channel_interop_parts/rust_identify_python_allow_list.rs` sends a
 request before identifying, sees Python stay silent, identifies and gets
-the reply on the same link. The fifteenth hoists four blocks byte for
-byte into new part files under the module cap: the `Transport` struct
+the reply on the same link. The fifteenth hoists four blocks token for
+token into new part files under the module cap: the `Transport` struct
 into `transport/mod_parts/transport.rs`, `gc_unicast_ifaces` into
 `transport/handler_parts/unicast_gc.rs`, `stop_interface` into
 `transport/core_parts/stop_interface.rs` and the collision-free hash
@@ -1574,11 +1578,16 @@ test-only: the six tests unrelated to
 verbatim and with the advertisement helper include they use, into
 `tests_parts/send_packet_outcome_and_resource_request_responses.rs`. The
 twenty-fifth is test-only: rustfmt over the 37 include!'d fixtures under
-`transport/tests_parts/` that failed `rustfmt --check`; the diff is line
+`transport/tests_parts/` that failed `rustfmt --check` (the 38th was split
+first); the diff is line
 joins and splits plus five single-expression closure bodies losing their
 braces, with the token stream otherwise identical. The twenty-sixth is a
 style-only rustfmt pass over the hoisted
-`resource/sender_parts/collision_free_hash.rs` (one type alias re-joined).
+`resource/sender_parts/collision_free_hash.rs` (one type alias re-joined):
+the hoisted part files are rustfmt-canonical and token-identical to the
+bodies they replace, which is the sense in which the hoists are byte for
+byte; a newly created include!'d file may be rustfmt-canonical where its
+parent was not.
 The twenty-seventh is test-only: it adopts
 `tests_parts/resource_advert_reject_warn_cadence.rs` (65 over-cap
 advertisements on one loopback link warn exactly twice, at `rejected=1`
@@ -1722,8 +1731,8 @@ list; a storage directory that does not exist yet) and the announce-flag
 test in `independent_interop_node/events.rs`; the one arm is
 `remove_orphaned_hashlist_temporaries` (`transport/packet_disk_cache.rs`)
 treating a `NotFound` from `remove_file` as success, since another process
-sharing the storage may have swept the orphan first, other errors still
-failing the load. The forty-first is docs and a test pin: the ledger rows
+sharing the storage may have swept the orphan first, other errors
+failing the load until the forty-third. The forty-first is docs and a test pin: the ledger rows
 this patch touched carry its phrase, the publish contract's pin on the
 README row (`fork_publish_contract_parts/lint_discipline_probe10.rs`)
 follows, and the README's `RejectReason` sentence and the in-limit packet
@@ -1731,7 +1740,39 @@ register row (now citing `handle_response`, `RNS/Link.py:857-866`) are
 reworded. The forty-second is test-only: the announce-flag test in
 `independent_interop_node/events.rs` carries the fn-level guard deny its
 siblings carry, and the probe12 cancel test matches the `cancelled` reason
-exactly.
+exactly. The forty-third is the one behaviour change of the close-out:
+`remove_orphaned_hashlist_temporaries` (`transport/packet_disk_cache.rs`)
+warns, with the path, about an orphan `remove_file` cannot remove and
+carries on, where it failed the whole load and hid the valid list beside
+the orphan; the file name is `HASHLIST_FILE`, and
+`Transport::restore_packet_hashlist` (`transport/runtime_management.rs`)
+carries the fn-level `await_holding_invalid_type` deny its save twin has.
+Pinned by `tests_parts/packet_hashlist_flush_probe2.rs` (a directory
+carrying the temporary prefix beside a saved list: the load warns once and
+returns the list; it loads without a further warning once the entry is
+gone), through a packet-disk-cache warn store on the shared `TestLogger`
+in `tests_parts/two_transport_loopback_requests_isolation.rs`. The
+forty-fourth is test-only but for log lines: it adopts
+`tests_parts/request_dispatch_closed_link_probe.rs` (a close landing
+inside the MTU lookup of `send_response_resource`, forced by holding the
+interface manager the lookup needs, is refused with `ConnectionError`,
+recorded once and publishes no resource event; the same stall on a live
+link sends); `send_response_resource` (`transport/request_dispatch.rs`)
+logs the swept-link arm as `is gone` beside the two `closed before
+transmit` gates, the second tagged `(after MTU lookup)`, so every drop
+lands in the test store; and the three connect-cancel tests
+(`iface/tcp_client/tests/connect_cancel.rs`,
+`tests_parts/tcp_connect_cancel.rs`) assert the `connecting` precondition
+with a message saying a fast failure against TEST-NET-1 would not exercise
+the cancel arm. The forty-fifth is hygiene: the split-assembly failure
+warn (`resource/manager_segments.rs`) names the link; the response-limit
+locals in `link_sections/new.rs` and `link_sections/response_packet.rs`
+are `receiving_record_hashes`; the four `#[allow(dead_code)]` on live
+interval and keep-alive constants in `transport/mod.rs` go;
+`handle_inbound_for_test` (`transport/core.rs`) is documented as public
+API; probe11 says the futures combinators poll in declaration order and
+classifies a definition by `fn ` ahead of the match; and probe12 drops the
+sanctioned-path clause the test-path skip already covers.
 
 ## 0.15.1 (upstream 0.14.0)
 

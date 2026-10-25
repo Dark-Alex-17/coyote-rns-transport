@@ -978,8 +978,9 @@ lock-order-nest allowance, on the peer-data loop, with the order on the
 and its repeated-burst twin keep their deadlock-visible shape and the
 twin's depth cap; the
 supervisor's `dedupe` field points at the lock-order doc; no production
-source joins lock futures;
-the census sentence matches the tree),
+source joins lock futures; every census sentence the ledger states adds
+up, and the one an Unreleased section states equals the census the tree
+carries),
 `fork_publish_contract_parts/lint_discipline_probe10.rs` (the ledger and
 changelog prose on the lock order, read from the thirty-ninth narrative
 itself; the README row's attribution),
@@ -1806,10 +1807,11 @@ Fork commits `9865dbdd` and `eb45dc62`: Python-in-the-loop identify
 allow-list interop. The fourteenth and thirty-third carried-hygiene commits
 above: a Rust client identifies against a Python request handler whose
 `allowed_list` names it
-(`crates/apps/reticulumd/tests/python_channel_interop_parts/rust_identify_python_allow_list.rs`,
+(`crates/apps/reticulumd/tests/python_channel_interop_parts/rust_identify_python_allow_list.rs`
+included from `crates/apps/reticulumd/tests/python_channel_interop.rs`,
 the `--allow-identified` flag of
 `crates/apps/reticulumd/tests/support/python_channel_endpoint.py`), the
-release section's Python-in-the-loop proof row.
+release section's Python-in-the-loop proof rows.
 
 Fork commits `c281063e`, `a6ad4884`, `1a39183c`, `e14ead8d`, `44c19d48` and
 `5b9f69a8`: release 0.16.0. The first retargets the promotion-sensitive pins

@@ -391,8 +391,9 @@ Removed) bullet of its own, marked as such.
   pin and its repeated-burst twin keep their deadlock-visible shape and the
   twin's depth cap; the
   supervisor's `dedupe` field points at the lock-order doc; no production
-  source in any crate joins lock futures; the ledger census matches the
-  tree) and
+  source in any crate joins lock futures; every census sentence the ledger
+  states adds up, and the one an Unreleased section states equals the
+  census the tree carries) and
   `fork_publish_contract_parts/lint_discipline_probe10.rs` (the ledger and
   changelog prose on the sequential lock order, read from the thirty-ninth
   narrative itself; the README row's attribution).

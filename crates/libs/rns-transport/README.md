@@ -749,7 +749,7 @@ What `0.15.0` carries on top of `0.14.1`:
   PR CI, the old-name walk skipping dot-directories, and RNS citations on
   every public request-layer and outcome item. The Codex workflow was
   removed after 0.15.1; the crate CHANGELOG records it under `### Removed`
-  in the first release after 0.15.1.
+  in 0.16.0.
 
 The `0.14.1` patches (link-close stdout, bound-interface segment dispatch,
 reject outside the link lock, sender before advertisement, hex parsers,

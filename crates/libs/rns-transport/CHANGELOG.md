@@ -75,9 +75,11 @@ Removed) bullet of its own, marked as such.
   `PeerCancelled` renders as `the peer cancelled the resource`. The
   `RequestError::Receive` rustdoc (`destination/request/receipt.rs`) points
   at the crate README divergence register, which gains the row: a response
-  Resource that fails in transfer fails the receipt here, where Python leaves
-  the receipt in its last status (`RNS/Link.py:1367`, `:1377-1381`, `:1435`).
-  Pinned by the `to_string` assertion in `tests/outbound_outcome_api.rs`.
+  Resource that fails in transfer fails the receipt here in every status,
+  where Python routes it through `request_timed_out` (`RNS/Link.py:914-918`),
+  whose guard (`:1398`) fails only a receipt still `DELIVERED` and leaves
+  one a progress callback already moved to `RECEIVING` (`:1420`). Pinned by the
+  `to_string` assertion in `tests/outbound_outcome_api.rs`.
 
 ### Changed
 
@@ -483,7 +485,7 @@ Removed) bullet of its own, marked as such.
   fail with the promised diagnostics.
 - No library behaviour change: the rustdoc on
   `Transport::send_prepared_packet_broadcast_with_trace` (`transport/core.rs`)
-  states its contract: a send for already-prepared, non-link packets that
+  states its contract: a send for already-prepared packets that
   goes straight to the interface manager and records nothing in the packet
   cache or the link tables, whatever the destination type, so the
   transport's own proof, request and duplicate tracking never applies to a
@@ -555,14 +557,17 @@ Removed) bullet of its own, marked as such.
   into the first-seen entry instead of replacing it, so a data event no
   longer erases the activated record for the same link: the identity fields
   stay, `state` moves, a `states` history keeps the last 16 event names, and
-  an `is_path_response` field reports the flag of the latest announce for
-  the link's destination (`SharedState::announce_path_response` in
+  an `is_path_response` field reports the flag of the announce most recently
+  seen for the link's destination when the link's first event creates the
+  entry (`SharedState::announce_path_response` in
   `independent_interop_node/model.rs`, written by the announce collector
   under a short guard and read by the link collector before it takes the
-  links lock), null only for a destination that never announced. Pinned by
+  links lock), null when no announce for the destination had been seen.
+  Pinned by
   the merge tests in `independent_interop_node/events.rs` (first-seen
   identity, the `states` history, `true`, `false` and the never-announced
-  null).
+  null) and its announce-flag test (two links read their own destination's
+  announce, a never-announced destination reads null).
 - Test-only: a Python-in-the-loop cell in which a Rust client identifies on
   a link and a Python request handler registered with `ALLOW_LIST` answers
   only the identified peer
@@ -647,6 +652,17 @@ Removed) bullet of its own, marked as such.
   header of `tests_parts/request_dispatch_closed_link.rs` says what the
   pre-gate path did (the response went out encrypted under the all-zero
   session key) where it claimed the build failed at encryption.
+- Test-only, oracles hardened: both tests in
+  `iface/tcp_client/tests/connect_cancel.rs` deny
+  `clippy::await_holding_invalid_type` and assert the runtime status reads
+  `connecting` before the cancel, so they prove an in-flight connect was
+  interrupted; the shared test logger in
+  `tests_parts/two_transport_loopback_requests_isolation.rs` records the
+  `is gone` drop beside `closed before transmit`, since a maintenance tick
+  can sweep the closed link before the handler of
+  `tests_parts/request_dispatch_closed_link.rs` answers; and the header of
+  `tests_parts/two_transport_loopback_requests_resource_form_sizes_probe12.rs`
+  states the cancel contract where it described the superseded one.
 - No library behaviour change: `send_resource_retry` (`transport/jobs.rs`)
   carries one comment saying `queued_ifaces` counts paced announces and
   stays zero for a Direct retry.
@@ -775,9 +791,13 @@ Removed) bullet of its own, marked as such.
   since `finalize_local_close` had reset the session key to the empty key,
   the response was encrypted under the all-zero key and sent anyway; the
   resource form returns `ConnectionError`, as it does when
-  the advertisement never leaves. `LinkStatus::can_exchange_data`
-  (`link_parts/module_prelude.rs`) is `pub(crate)` for it. Pinned by
-  `tests_parts/request_dispatch_closed_link.rs`.
+  the advertisement never leaves, and re-checks the status at the top of
+  its second link guard, the one taken after the MTU lookup released the
+  first, so a close landing in that window is refused the same way instead
+  of encrypting the advertisement under the zeroed key.
+  `LinkStatus::can_exchange_data` (`link_parts/module_prelude.rs`) is
+  `pub(crate)` for it. Pinned by `tests_parts/request_dispatch_closed_link.rs`,
+  whose oracle admits the swept-link arm a maintenance tick can take.
 - The resource retry worker (`send_resource_retry` in `transport/jobs.rs`)
   records `retry_not_dispatched` only when
   `sent_ifaces == 0 && queued_ifaces == 0`, the pairing the delivery-proof
@@ -801,19 +821,24 @@ Removed) bullet of its own, marked as such.
   persistence worker and the shutdown flush) no longer rename each other's
   temporary away and fail with `NotFound`; a failed save removes its own
   temporary, `load_packet_hashlist` sweeps the `packet_hashlist.raw.tmp-*`
-  orphans a crash left, and the Windows pre-remove is gone since rename
-  replaces the target there too. Pinned by
+  orphans a crash left (an orphan another process sharing the storage
+  removed first is not an error; any other `remove_file` failure still
+  fails the load), and the Windows pre-remove is gone since rename replaces
+  the target there too. Pinned by
   `tests_parts/packet_hashlist_flush.rs` (the flush after an inbound packet,
   two saves under `tokio::join!`, a stranger's `packet_hashlist.raw.tmp`
-  left with its bytes untouched, the error-path removal and the load sweep).
+  left with its bytes untouched, the error-path removal and the load sweep)
+  and `tests_parts/packet_hashlist_flush_probe.rs` (an orphan beside no
+  saved list; a storage directory that does not exist yet).
 - The `TcpClient` connect await (`iface/tcp_client.rs`) sits in a biased
   `select!` over the two cancel tokens, the transport cancel and the
   interface stop, with the cancel arms ahead of the timed connect, so
   `Transport::stop` on a client whose connect is in flight against a
   black-holed endpoint returns inside the stop budget instead of after the
   full connect timeout (5 s by default); no guard is held across the await.
-  Pinned by `iface/tcp_client/tests/connect_cancel.rs` (cancel and iface
-  stop each end the worker within 2 s) and `tests_parts/tcp_connect_cancel.rs`.
+  Pinned by `iface/tcp_client/tests/connect_cancel.rs` (the runtime status
+  reads `connecting` before the cancel; cancel and iface stop each end the
+  worker within 2 s) and `tests_parts/tcp_connect_cancel.rs`.
 - Split-assembly teardown and outbound serving are scoped to the link:
   `fail_inbound_segments` and `take_inbound_segments`
   (`resource/manager_segments.rs`) and `take_cancelled_incoming`
@@ -828,18 +853,22 @@ Removed) bullet of its own, marked as such.
   to the link it arrived on (`resource/manager.rs`, `resource/manager_proof.rs`),
   so a sibling link can neither draw parts nor conclude a transfer it does
   not own. An advertisement the receiver constructor refuses (the 64 MiB
-  data cap, the parts bound) is counted and warned through
-  `record_rejected_advertisement` like the manager's own guards, and that
-  warn names `data_size` beside `transfer_size`
+  data cap, a malformed segmentation header, the parts bound) is counted and
+  warned through `record_rejected_advertisement` like the manager's own
+  guards, and that warn names `data_size` beside `transfer_size`
   (`resource/advertisement_limits.rs`). Pinned by the cross-link part and
   split-segment cases in `resource/tests_link_scope.rs`,
   `resource/tests_link_scope_outbound.rs` (another link's request earns no
   parts and its proof concludes nothing; the same packets on the sender's
   own link are served), the refused-advertisement count in
-  `resource/tests_advert_limits.rs` and the warn cadence over a loopback
+  `resource/tests_advert_limits.rs`, the warn cadence over a loopback
   pair in `tests_parts/resource_advert_reject_warn_cadence.rs` (65 over-cap
   advertisements warn at `rejected=1` and `rejected=64`, a second link
-  starts its own count, no rejection creates receiver state).
+  starts its own count, no rejection creates receiver state) and the
+  aliasing-receiver cases in `resource/tests_link_scope_probe.rs` (a
+  receiver on one link naming another link's split assembly fails through
+  the retry sweep and through the local response cancel, and the assembly
+  it named completes).
 - A response record no receipt owns is cancelled by the packet that answers
   it, as a receipt's is: the packet arm of `link_sections/new.rs` spends the
   record through `take_response_limit_for_packet`
@@ -851,7 +880,9 @@ Removed) bullet of its own, marked as such.
   record kinds. Pinned by `link_sections/response_record_tests.rs` and the
   two pins in
   `tests_parts/two_transport_loopback_requests_resource_form_sizes_probe12.rs`,
-  which now expect one receiver cancel where they expected none.
+  which now expect one receiver cancel where they expected none, the
+  real-resource one waiting for the overtaken transfer's `InboundFailed`
+  cancel event and then finding no `Complete` under the id.
 
 ## 0.15.1 - 2026-10-21
 

@@ -59,7 +59,8 @@ fork commit `08362717`; the
 `9865dbdd`, `e5ba2807`, `1b04a361`, `f890dbf9`, `fd6322b5`, `05975d7d`,
 `5cca182d`, `42f988ce`, `f2ea78f9`, `6c5ca548`, `012f7337`, `63bbbc87`,
 `2c89e7ba`, `f6c0b59c`, `842feae6`, `c296bb84`, `ceccaeb1`, `22961b3b`,
-`71c9e7c6`, `eb45dc62`, `8b3e02eb`, `e1804e1c`, `07c1fe37` and `cbe20719`.
+`71c9e7c6`, `eb45dc62`, `8b3e02eb`, `e1804e1c`, `07c1fe37`, `cbe20719`,
+`90ec6e86`, `a2333881`, `18452f13` and `4072932d`.
 
 | File | Patch |
 | --- | --- |
@@ -224,6 +225,7 @@ fork commit `08362717`; the
 | `crates/libs/rns-transport/src/resource/tests_confirm_advertised.rs` | carried hygiene |
 | `crates/libs/rns-transport/src/resource/tests_link_scope.rs` | carried hygiene |
 | `crates/libs/rns-transport/src/resource/tests_link_scope_outbound.rs` | carried hygiene |
+| `crates/libs/rns-transport/src/resource/tests_link_scope_probe.rs` | carried hygiene |
 | `crates/libs/rns-transport/src/transport/announce.rs` | guard discipline |
 | `crates/libs/rns-transport/src/transport/core.rs` | guard discipline, carried hygiene |
 | `crates/libs/rns-transport/src/transport/core_parts/stop_interface.rs` | carried hygiene |
@@ -274,6 +276,7 @@ fork commit `08362717`; the
 | `crates/libs/rns-transport/src/transport/tests_parts/module_prelude.rs` | carried hygiene |
 | `crates/libs/rns-transport/src/transport/tests_parts/ordinary_proof_duplicate.rs` | carried hygiene |
 | `crates/libs/rns-transport/src/transport/tests_parts/packet_hashlist_flush.rs` | carried hygiene |
+| `crates/libs/rns-transport/src/transport/tests_parts/packet_hashlist_flush_probe.rs` | carried hygiene |
 | `crates/libs/rns-transport/src/transport/tests_parts/packet_replay_restart.rs` | carried hygiene |
 | `crates/libs/rns-transport/src/transport/tests_parts/pending_out_link_establishment_timeout.rs` | carried hygiene |
 | `crates/libs/rns-transport/src/transport/tests_parts/pending_out_link_rediscovery.rs` | carried hygiene |
@@ -339,7 +342,7 @@ fork commit `08362717`; the
 | `crates/libs/rns-transport/tests/outbound_outcome_api.rs` | test hygiene, shared-instance hardening, carried hygiene |
 | `crates/libs/rns-transport/tests/tcp_client_reconnect.rs` | guard discipline |
 | `crates/libs/rns-transport/tests/tcp_connection_memory.rs` | guard discipline |
-| `docs/fork/PATCHSET.md` | test hygiene, release tooling, ledger conventions, guard discipline, shared-instance hardening |
+| `docs/fork/PATCHSET.md` | test hygiene, release tooling, ledger conventions, guard discipline, shared-instance hardening, carried hygiene |
 | `docs/runbooks/release-runbook.md` | release tooling |
 | `docs/status/reticulum-parity-matrix.md` | ledger conventions |
 | `tools/scripts/cross-target-clippy-classify.sh` | guard discipline |
@@ -1357,7 +1360,8 @@ Fork commits `985bd5bd`, `81c9ed73`, `faacb7fd`, `9877bb6e`, `5631defa`,
 `fd6322b5`, `05975d7d`, `5cca182d`, `42f988ce`, `f2ea78f9`, `6c5ca548`,
 `012f7337`, `63bbbc87`, `2c89e7ba`, `f6c0b59c`, `842feae6`, `c296bb84`,
 `ceccaeb1`, `22961b3b`, `71c9e7c6`, `eb45dc62`, `8b3e02eb`, `e1804e1c`,
-`07c1fe37` and `cbe20719`: H6, carried hygiene. The library behaviour
+`07c1fe37`, `cbe20719`, `90ec6e86`, `a2333881`, `18452f13` and
+`4072932d`: H6, carried hygiene. The library behaviour
 changes are: an inbound resource cancel, hash update, part or
 split-segment advertisement reaches only a transfer on the link it
 arrived on (first); a rejected resource advertisement is counted per link
@@ -1366,7 +1370,8 @@ a branch that could not run (second); an in-limit response packet for a receipt
 already `Receiving` cancels the response Resource still in flight instead
 of leaving it to complete (third); a link restart or close forgets the
 unproven data hashes (fourth); a response whose link is no longer `Active`
-is dropped before a packet is built (fifth); a resource retry is recorded
+is dropped before a packet is built (fifth), the resource form under its
+second link guard too (thirty-eighth); a resource retry is recorded
 as not dispatched only when no interface sent or queued it (sixth); the
 packet hashlist flush waits for the packet cache and replaces the file by
 rename (seventh); the `TcpClient` connect await breaks out on cancel
@@ -1374,13 +1379,15 @@ rename (seventh); the `TcpClient` connect await breaks out on cancel
 served, only on the link that owns it, and an advertisement the receiver
 constructor refuses joins the per-link count (twenty-eighth); a response
 record no receipt owns cancels its overtaken Resource as a receipt's does
-(twenty-ninth); and each hashlist save writes its own temporary file
-(thirtieth). `RejectReason` gains `Display` (eleventh). In the apps,
+(twenty-ninth); each hashlist save writes its own temporary file
+(thirtieth); and the load-time orphan sweep tolerates an orphan another
+process removed first (fortieth). `RejectReason` gains `Display` (eleventh). In the apps,
 reticulumd control requests decode through `RequestFrame::decode`
 (tenth), the app announce sites report a failed announce build with the
 role that asked for it (twelfth, thirty-sixth) and the rns-tools
 independent interop node merges link snapshots instead of replacing them
-(thirteenth) and reports `is_path_response` from the latest announce
+(thirteenth) and reports `is_path_response` from the announce most
+recently seen for the link's destination when the link is first recorded
 (thirty-second).
 Everything else keeps its behaviour. The first commit makes every lookup
 in the packet path of `resource/manager.rs` require the entry's `link_id`
@@ -1423,8 +1430,10 @@ and `send_response_resource` (`transport/request_dispatch.rs`) read the
 link status under the guard they already hold and drop the response with
 a debug line when `LinkStatus::can_exchange_data` (widened to `pub(crate)`
 in `link_parts/module_prelude.rs`) is false; the resource form returns
-`ConnectionError`, as it does when the advertisement never leaves. Pinned
-by `tests_parts/request_dispatch_closed_link.rs`. The sixth has
+`ConnectionError`, as it does when the advertisement never leaves (the
+thirty-eighth repeats the check under the resource form's second guard).
+Pinned by `tests_parts/request_dispatch_closed_link.rs`, whose oracle the
+thirty-ninth widens to the swept-link arm. The sixth has
 `send_resource_retry` (`transport/jobs.rs`) log `retry_not_dispatched`
 only when `sent_ifaces == 0 && queued_ifaces == 0`, the pairing the
 delivery-proof dispatch already used, opens the fn to the transport tests
@@ -1454,10 +1463,11 @@ keyed by destination hash. The tenth has reticulumd's
 (`src/bin/reticulumd/inbound_control_parts/module_core.rs`) decode through
 `RequestFrame::decode`, which bounds depth and lengths before allocating
 and refuses trailing bytes and reserved markers, where `rmp_serde` had
-accepted trailing bytes; the control-request fixture in
+accepted trailing bytes, and refuses a `requested_at` that is not
+`float64`, so the control-request fixture in
 `inbound_control_parts/test_validated_peer_links_sections/core_tests.rs`
-sends an f64 `requested_at` instead of Nil and pins the trailing-byte and
-reserved-marker refusals. The eleventh implements `Display` for
+sends an f64 `requested_at` instead of Nil; it also pins the trailing-byte
+and reserved-marker refusals. The eleventh implements `Display` for
 `RejectReason` (`resource/outcome.rs`), points the `RequestError::Receive`
 rustdoc (`destination/request/receipt.rs`) at the crate README register,
 and adds that register row: a response Resource failing in transfer fails
@@ -1500,13 +1510,17 @@ all still public) and documents `handle_inbound_for_test`
 (`transport/core.rs`) as the test seam it is. The seventeenth keeps the
 touched modules under the size cap: the link-scope tests move into
 `resource/tests_link_scope.rs` (included from `resource/tests.rs`) and
-the two rns-tools announce sites of the twelfth fold into fewer lines.
+the two rns-tools announce sites of the twelfth fold into fewer lines,
+rngit's page and git calls becoming one loop, so the twelfth's 19 call
+expressions are 18 sites from here on.
 The eighteenth puts the `TcpClient` connect (`iface/tcp_client.rs`) in
 a biased `select!` over the two cancel tokens, cancel arms ahead of the
 timed connect, so `Transport::stop` on a client whose connect is in
 flight against a black-holed endpoint returns inside the stop budget
 instead of after the connect timeout. Pinned by the nineteenth's `iface/tcp_client/tests/connect_cancel.rs`
-and `tests_parts/tcp_connect_cancel.rs`. The nineteenth is test-only:
+(which from the thirty-ninth on asserts the runtime status reads
+`connecting` before the cancel lands) and
+`tests_parts/tcp_connect_cancel.rs`. The nineteenth is test-only:
 besides the connect-cancel pins it adds `resource/tests_confirm_advertised.rs`
 (`confirm_advertised` keeps the serve-time timestamps once a part was
 served and clamps the awaiting-proof retry budget), the no-event check on
@@ -1585,8 +1599,9 @@ gate and the callers in `resource/manager.rs` and
 on one link could name any original hash, and failing or cancelling it
 removed whatever assembly sat under that hash, another link's included,
 and reported the failure under that link. The same commit counts an
-advertisement the receiver constructor refuses (the 64 MiB data cap, the
-parts bound) through `record_rejected_advertisement` like the manager's
+advertisement the receiver constructor refuses (the 64 MiB data cap, a
+malformed segmentation header, the parts bound) through
+`record_rejected_advertisement` like the manager's
 own guards, with `data_size` beside `transfer_size` in the warn
 (`resource/manager.rs`, `resource/advertisement_limits.rs`); serves a
 `ResourceRequest` or `ResourceProof` only when the sender belongs to the
@@ -1599,8 +1614,9 @@ rustdoc (`link_sections/pending_requests.rs`) with the
 `resource/tests_link_scope.rs`, the new
 `resource/tests_link_scope_outbound.rs` (another link's request earns no
 parts and its proof concludes nothing; the same packets on the sender's
-own link are served) and the refused-advertisement count in
-`resource/tests_advert_limits.rs`. The twenty-ninth has the packet arm of
+own link are served), the refused-advertisement count in
+`resource/tests_advert_limits.rs` and, from the fortieth, the aliasing
+receiver cases in `resource/tests_link_scope_probe.rs`. The twenty-ninth has the packet arm of
 `link_sections/new.rs` spend a response record through the new
 `take_response_limit_for_packet` (`link_sections/response_packet.rs`),
 which hands back the Resource the record was receiving whether it admits
@@ -1611,7 +1627,8 @@ it admits is that Resource itself, and the README register row says the
 rule covers both record kinds. Pinned by
 `link_sections/response_record_tests.rs` and the two pins in
 `tests_parts/two_transport_loopback_requests_resource_form_sizes_probe12.rs`,
-which flip from no cancel to one. The thirtieth has
+which flip from no cancel to one (the thirty-ninth has the real-resource
+pin wait for the overtaken transfer's cancel event). The thirtieth has
 `ReticulumPacketDiskCache::save_packet_hashlist`
 (`transport/packet_disk_cache.rs`) write `packet_hashlist.raw.tmp-<pid>-<n>`
 from a process-wide counter, where the debounced persistence worker and
@@ -1622,7 +1639,9 @@ save removes its own temporary, `load_packet_hashlist` sweeps the
 pre-remove goes since rename replaces the target there too. Pinned by
 `tests_parts/packet_hashlist_flush.rs` (two saves under `tokio::join!`, a
 stranger's `packet_hashlist.raw.tmp` left with its bytes untouched, the
-error-path removal and the load sweep). The thirty-first is rustdoc and a
+error-path removal and the load sweep) and, from the fortieth, the
+first-boot sweep shapes in `tests_parts/packet_hashlist_flush_probe.rs`.
+The thirty-first is rustdoc and a
 test: `Transport::send_prepared_packet_broadcast_with_trace`
 (`transport/core.rs`) now says nothing sent through it is recorded,
 whatever the destination type, where the eighth singled out link packets,
@@ -1630,14 +1649,16 @@ and names its caller as the one matching proofs by the hash in the trace;
 `tests_parts/prepared_broadcast_link_contract.rs` gains a
 `DestinationType::Single` twin built the way the opportunistic sender
 builds its packet. The thirty-second has the independent interop node's
-`links` snapshot report `is_path_response` from the latest announce for
-the link's destination: `SharedState` (`independent_interop_node/model.rs`)
+`links` snapshot report `is_path_response` from the announce most
+recently seen for the link's destination at the moment the link's first
+event creates its entry: `SharedState` (`independent_interop_node/model.rs`)
 gains `announce_path_response`, the announce collector in
 `independent_interop_node/events.rs` writes each `AnnounceEvent`'s flag
 under a short guard and the link collector reads it before taking the
-links lock; the field is null only for a destination that never
-announced, where the thirteenth emitted null for every link on the claim
-that the transport did not expose the flag. The thirty-third is test and
+links lock; the field is null only when no announce for the destination
+had been seen, where the thirteenth emitted null for every link on the claim
+that the transport did not expose the flag. Pinned from the fortieth by
+the announce-flag test in `independent_interop_node/events.rs`. The thirty-third is test and
 comment only: `python_channel_interop_parts/rust_identify_python_allow_list.rs`
 cites `RNS/Link.py:820-822` and `:853-855` where it pointed one line
 early at both; the header of `tests_parts/request_dispatch_closed_link.rs`
@@ -1667,7 +1688,47 @@ two callers in `bootstrap_parts/module_core.rs` pass, so an undelivered
 scheduled announce warns as `propagation` or `control` like the sibling
 warns of the twelfth. The thirty-seventh is a style-only rustfmt pass over
 the new `resource/tests_link_scope_outbound.rs` fixture (one call
-re-wrapped).
+re-wrapped). The thirty-eighth has `send_response_resource`
+(`transport/request_dispatch.rs`) re-check `can_exchange_data` at the top
+of its second link guard, the one taken after the MTU lookup released the
+first, and return `ConnectionError` with the fifth's debug line when a
+close landed in between, where it encrypted the advertisement under the
+key `finalize_local_close` had zeroed; the window sits between two lock
+acquisitions in one async fn and has no deterministic pin, the fifth's
+loopback cases covering the common path. The thirty-ninth is test and
+doc only: both tests in `iface/tcp_client/tests/connect_cancel.rs`
+deny `clippy::await_holding_invalid_type` and assert the runtime status
+reads `connecting` before the cancel, so they prove an in-flight connect
+was interrupted; the shared `TestLogger` in
+`tests_parts/two_transport_loopback_requests_isolation.rs` records the
+`is gone` arm beside `closed before transmit`, since a maintenance tick
+can sweep the closed link before the handler of
+`tests_parts/request_dispatch_closed_link.rs` answers; the header of
+`tests_parts/two_transport_loopback_requests_resource_form_sizes_probe12.rs`
+states the cancel contract of the twenty-ninth and its real-resource test
+waits for the overtaken transfer's `InboundFailed` cancel event and then
+drains `resource_events()` for a `Complete` under the id, where a 500 ms
+negative wait had passed on the pre-fix code as well; and the
+`RequestError::Receive` rustdoc (`destination/request/receipt.rs`) and the
+README register row cite the response arm, `request_timed_out`
+(`RNS/Link.py:914-918`) failing only a receipt still `DELIVERED` (`:1398`)
+and leaving a `RECEIVING` one (`:1420`), where the eleventh cited the
+request-Resource arm. The fortieth is test-only but for one arm: it adopts
+`resource/tests_link_scope_probe.rs` (a receiver on one link aliasing
+another link's split assembly fails through the retry sweep and through
+the local response cancel while the assembly it named completes),
+`tests_parts/packet_hashlist_flush_probe.rs` (an orphan beside no saved
+list; a storage directory that does not exist yet) and the announce-flag
+test in `independent_interop_node/events.rs`; the one arm is
+`remove_orphaned_hashlist_temporaries` (`transport/packet_disk_cache.rs`)
+treating a `NotFound` from `remove_file` as success, since another process
+sharing the storage may have swept the orphan first, other errors still
+failing the load. The forty-first is docs and a test pin: the ledger rows
+this patch touched carry its phrase, the publish contract's pin on the
+README row (`fork_publish_contract_parts/lint_discipline_probe10.rs`)
+follows, and the README's `RejectReason` sentence and the in-limit packet
+register row (now citing `handle_response`, `RNS/Link.py:857-866`) are
+reworded.
 
 ## 0.15.1 (upstream 0.14.0)
 

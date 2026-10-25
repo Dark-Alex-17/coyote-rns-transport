@@ -66,7 +66,8 @@ fork commit `08362717`; the
 carried-hygiene cell fork commits `9865dbdd` and `eb45dc62` add, named so
 the release's Python-in-the-loop proof row is attributed to it; the
 `release 0.16.0` patch carries no other id and is fork commits `c281063e`,
-`a6ad4884`, `1a39183c`, `e14ead8d`, `44c19d48` and `5b9f69a8`.
+`a6ad4884`, `1a39183c`, `e14ead8d`, `44c19d48`, `5b9f69a8`, `704cd444` and
+`4ebfcc62`.
 
 | File | Patch |
 | --- | --- |
@@ -113,6 +114,7 @@ the release's Python-in-the-loop proof row is attributed to it; the
 | `crates/apps/reticulumd/tests/fork_publish_contract_parts/lint_discipline_probe7.rs` | guard discipline |
 | `crates/apps/reticulumd/tests/fork_publish_contract_parts/lint_discipline_probe8.rs` | guard discipline |
 | `crates/apps/reticulumd/tests/fork_publish_contract_parts/lint_discipline_probe9.rs` | guard discipline, release 0.16.0 |
+| `crates/apps/reticulumd/tests/fork_publish_contract_parts/release_frozen_sections_probe.rs` | release 0.16.0 |
 | `crates/apps/reticulumd/tests/fork_publish_contract_parts/release_tooling_probe.rs` | release tooling |
 | `crates/apps/reticulumd/tests/fork_publish_contract_parts/release_tooling_probe2.rs` | release tooling |
 | `crates/apps/reticulumd/tests/fork_publish_contract_parts/release_tooling_probe3.rs` | release tooling |
@@ -1813,9 +1815,10 @@ the `--allow-identified` flag of
 `crates/apps/reticulumd/tests/support/python_channel_endpoint.py`), the
 release section's Python-in-the-loop proof rows.
 
-Fork commits `c281063e`, `a6ad4884`, `1a39183c`, `e14ead8d`, `44c19d48` and
-`5b9f69a8`: release 0.16.0. The first retargets the promotion-sensitive pins
-to the literal 0.16.0 label, since a released section is frozen:
+Fork commits `c281063e`, `a6ad4884`, `1a39183c`, `e14ead8d`, `44c19d48`,
+`5b9f69a8`, `704cd444` and `4ebfcc62`: release 0.16.0. The first retargets
+the promotion-sensitive pins to the literal 0.16.0 label, since a released
+section is frozen:
 `crates/apps/reticulumd/tests/fork_publish_contract_parts/ledger_contract.rs`
 expects the full-hash and bullet-cite contracts to cover `0.16.0` and
 `0.15.1`,
@@ -1859,7 +1862,22 @@ live production count is compared only against an Unreleased section that
 states one, so a later marker retirement never asks for an edit to a
 released section; and the README register pin in
 `crates/apps/reticulumd/tests/fork_release_docs_contract.rs` names the
-reticulumd-migration bullet by its own words.
+reticulumd-migration bullet by its own words. The seventh adds
+`crates/apps/reticulumd/tests/fork_publish_contract_parts/release_frozen_sections_probe.rs`,
+included from `crates/apps/reticulumd/tests/fork_publish_contract.rs`:
+every `## <version>` section of the crate CHANGELOG and of this ledger that
+existed at the newest fork tag reachable from HEAD must still read byte for
+byte as it did there, in order and contiguous, and the README patch-list
+block of that release keeps its bullets; the README register pin in
+`crates/apps/reticulumd/tests/fork_release_docs_contract.rs` also asks for
+the `prefer_ipv6` host-pick wording and refuses the superseded
+reconnect-consumer clause, and the header of
+`crates/libs/rns-transport/tests/breaking_changes_compile_fail.rs` names
+its per-release constant pairs. The eighth rewords the probe9
+parentheticals of the 0.16.0 sections to the split census pin, names the
+root test file in the Python-in-the-loop patch header, and has the 0.15.0
+register of `crates/libs/rns-transport/README.md` name 0.16.0 as the
+release that records the Codex workflow removal.
 
 ## 0.15.1 (upstream 0.14.0)
 

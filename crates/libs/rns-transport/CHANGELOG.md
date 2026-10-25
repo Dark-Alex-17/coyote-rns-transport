@@ -92,7 +92,12 @@ Removed) bullet of its own, marked as such.
   findings, all from the two removals (the loopback default is a behaviour
   change the tool cannot see). The release contracts are pinned by
   `crates/apps/reticulumd/tests/fork_publish_contract.rs` and
-  `fork_release_docs_contract.rs`.
+  `fork_release_docs_contract.rs`, and the frozen-section rule by
+  `fork_publish_contract_parts/release_frozen_sections_probe.rs`: every
+  `## <version>` section of this CHANGELOG and of the patch-set ledger that
+  existed at the newest reachable fork tag reads byte for byte as it did
+  there, in order and contiguous, and the README patch-list block of that
+  release keeps its bullets.
 - While attached to a shared instance, the duplicate filter
   (`transport/inbound_processing.rs`) is skipped only for packets arriving
   on the interface flagged as the shared instance, or on every interface

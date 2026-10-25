@@ -4,12 +4,7 @@
 /// same rolling window that the Python reference uses. The generic inputs keep
 /// the collision path deterministically testable without weakening production
 /// randomness or making a collision likely in normal transfers.
-type CollisionFreeHashSelection = (
-    [u8; RANDOM_HASH_SIZE],
-    Vec<[u8; MAPHASH_LEN]>,
-    Hash,
-    Hash,
-);
+type CollisionFreeHashSelection = ([u8; RANDOM_HASH_SIZE], Vec<[u8; MAPHASH_LEN]>, Hash, Hash);
 
 fn select_collision_free_random_hash<F, H>(
     identity_payload: &[u8],

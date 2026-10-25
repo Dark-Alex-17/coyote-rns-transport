@@ -3,11 +3,11 @@
 // them see a deadlock (several loops, a multi-thread runtime, a bounded
 // wait); the `dedupe` field names its only locker and that locker is the fn
 // under the nest marker; the supervisor's `dedupe` field points at that
-// rustdoc; no production source in any crate joins lock futures; the census
-// the ledger states equals the census the tree carries; the probe sources
-// and auto runtime test sections are ASCII and their headers carry no task
-// or lane references; and the lifecycle header names each pin its file
-// holds.
+// rustdoc; no production source in any crate joins lock futures; every
+// census the ledger states adds up and the one an Unreleased section states
+// equals the census the tree carries; the probe sources and auto runtime
+// test sections are ASCII and their headers carry no task or lane
+// references; and the lifecycle header names each pin its file holds.
 // Needles are assembled so this file never contains the attribute or marker
 // text the sibling probes scan for.
 
@@ -39,6 +39,29 @@ fn number_after(text: &str, key: &str) -> Option<usize> {
     let (_, rest) = text.split_once(key)?;
     let digits: String = rest.trim_start().chars().take_while(|c| c.is_ascii_digit()).collect();
     digits.parse().ok()
+}
+
+/// The `(total, transport, app)` a ledger section's census sentence states,
+/// in the shape `back to <total> ... (<transport> in `rns-transport`, <app>
+/// in the app crates)`; `None` when the section states no census. A section
+/// that names the `rns-transport` split without the rest of the shape is a
+/// malformed census, not a missing one, so that panics.
+fn ledger_census(section: &str) -> Option<(usize, usize, usize)> {
+    let flat = section.split_whitespace().collect::<Vec<_>>().join(" ");
+    let (before, after) = flat.rsplit_once(" in `rns-transport`, ")?;
+    let transport: usize = before
+        .rsplit('(')
+        .next()
+        .and_then(|tail| tail.trim().parse().ok())
+        .expect("a transport count precedes `rns-transport`");
+    // With an empty key, number_after reads the number the remainder opens with.
+    let app = number_after(after, "").expect("an app count follows");
+    assert!(after.trim_start().contains("in the app crates"), "the split names the app crates");
+    let total = before
+        .rsplit_once("back to ")
+        .and_then(|(_, tail)| number_after(tail, ""))
+        .expect("a restored total precedes the split");
+    Some((total, transport, app))
 }
 
 /// A deadlock between two receive loops needs two loops on two worker
@@ -246,12 +269,34 @@ fn no_production_source_in_any_crate_joins_lock_futures() {
     assert!(offenders.is_empty(), "production code joins lock futures at {offenders:?}");
 }
 
-/// The PATCHSET census sentence states the production allowance count and
-/// its split; both equal what the tree carries, so the ledger cannot vouch
-/// for a count the code no longer has. The 0.16.0 section is frozen once
-/// released, so its literal label is the anchor.
+/// Every PATCHSET census sentence splits its total by crate, and the split
+/// adds up to the total in every section that states one. Released sections
+/// are frozen, so this arithmetic is all they are held to.
 #[test]
-fn ledger_census_sentence_matches_the_measured_production_allowances() {
+fn ledger_census_sentences_are_arithmetically_consistent() {
+    let ledger = read_repo_file("docs/fork/PATCHSET.md");
+    let labels: Vec<&str> = ledger
+        .lines()
+        .filter_map(|line| line.strip_prefix("## ")?.split_once(" (upstream ").map(|(l, _)| l))
+        .collect();
+    for label in labels {
+        let section = ledger_section(&ledger, label)
+            .unwrap_or_else(|| panic!("the `## {label}` heading should open a ledger section"));
+        let Some((total, transport, app)) = ledger_census(section) else { continue };
+        assert_eq!(
+            transport + app,
+            total,
+            "the {label} census split ({transport} + {app}) adds up to its total"
+        );
+    }
+}
+
+/// The census an Unreleased section states equals what the tree carries, so
+/// the ledger cannot vouch for a count the code no longer has. The live
+/// comparison re-arms when the next cycle's ledger opens a section that
+/// states a census; released sections are checked for arithmetic only.
+#[test]
+fn unreleased_census_sentence_matches_the_measured_production_allowances() {
     let mut transport = 0_usize;
     let mut app = 0_usize;
     for path in tracked_rust_sources() {
@@ -266,29 +311,12 @@ fn ledger_census_sentence_matches_the_measured_production_allowances() {
         }
     }
     let ledger = read_repo_file("docs/fork/PATCHSET.md");
-    let section = ledger_section(&ledger, "0.16.0").expect("the 0.16.0 ledger section");
-    let flat = section.split_whitespace().collect::<Vec<_>>().join(" ");
-    let (before, after) = flat
-        .rsplit_once(" in `rns-transport`, ")
-        .expect("the census sentence splits the count by crate");
-    let stated_transport: usize = before
-        .rsplit('(')
-        .next()
-        .and_then(|tail| tail.trim().parse().ok())
-        .expect("a transport count precedes `rns-transport`");
-    // With an empty key, number_after reads the number the remainder opens with.
-    let stated_app = number_after(after, "").expect("an app count follows");
-    assert!(after.trim_start().contains("in the app crates"), "the split names the app crates");
+    let Some(section) = ledger_section(&ledger, "Unreleased") else { return };
+    let Some((total, stated_transport, stated_app)) = ledger_census(section) else { return };
     assert_eq!(
-        (stated_transport, stated_app),
-        (transport, app),
-        "the ledger census split matches the tree"
-    );
-    let total_phrase = format!("back to {} ", transport + app);
-    assert!(
-        flat.contains(&total_phrase),
-        "the ledger states the restored total {} ('{total_phrase}')",
-        transport + app
+        (total, stated_transport, stated_app),
+        (transport + app, transport, app),
+        "the Unreleased census matches the tree"
     );
 }
 

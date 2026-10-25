@@ -771,7 +771,7 @@ fn readme_patch_list_opens_with_the_0_16_0_block_and_keeps_the_0_15_1_paragraph(
         "transport::test_bridge",
         "replacing the 0.15.1 rule that it consulted nothing while attached",
         "LINKCLOSE a `Handshake` teardown",
-        "attach_shared_instance",
+        "The reticulumd migration",
         "clippy::await_holding_invalid_type",
         "Codex review workflow",
         "receipt-less records",

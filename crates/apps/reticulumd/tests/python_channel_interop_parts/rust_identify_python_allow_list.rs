@@ -4,9 +4,9 @@ const ALLOW_LIST_REQUEST_PATH: &str = "/test/request";
 /// empty `allowed_list` that it fills from `set_remote_identified_callback`
 /// (`RNS/Link.py:1248`). `register_request_handler` stores the list by
 /// reference (`RNS/Destination.py:397`) and `Link.handle_request` consults it
-/// when each request arrives (`RNS/Link.py:819-822`), so the same link is
+/// when each request arrives (`RNS/Link.py:820-822`), so the same link is
 /// refused before identifying and answered after. A refused request draws no
-/// reply: the `else` branch at `RNS/Link.py:851-853` only logs at DEBUG.
+/// reply: the `else` branch at `RNS/Link.py:853-855` only logs at DEBUG.
 #[tokio::test]
 #[ignore = "requires local Python Reticulum checkout"]
 async fn rust_identify_python_allow_list_answers_only_the_identified_peer() {

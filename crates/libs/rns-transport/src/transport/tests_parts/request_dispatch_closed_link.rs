@@ -1,7 +1,9 @@
 // Loopback coverage for a response whose link closed while the handler ran. The response
-// layer looks the link up after the handler returns, so a link that closed in between must
-// be dropped at that lookup, not discovered when the packet build warns about a closed
-// link and then fails at encryption. Helpers come from the sibling `tests_parts` files.
+// layer looks the link up after the handler returns and drops the response when the link
+// closed in between. Before that lookup existed the packet build only warned about the
+// closed link and carried on: `finalize_local_close` had reset the session key to
+// `DerivedKey::new_empty()`, so the response was encrypted under the all-zero key and
+// sent anyway. Helpers come from the sibling `tests_parts` files.
 
 /// A handler that closes the responder's own `link` before answering with `response`, so
 /// the answer reaches the response layer after the close.

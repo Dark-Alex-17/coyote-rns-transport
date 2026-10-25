@@ -424,6 +424,8 @@ pub(super) async fn send_resource_retry(
     };
     let link_id = packet.destination;
     let trace = handler.send(TxMessage { tx_type: TxMessageType::Direct(iface), packet }).await;
+    // queued_ifaces counts paced announces and stays zero for a Direct retry; the
+    // clause only mirrors the delivery-proof check in wire.rs.
     if trace.sent_ifaces == 0 && trace.queued_ifaces == 0 {
         log::debug!(
             "[resource-diag] retry_not_dispatched node={} link={} iface={} trace={:?}",

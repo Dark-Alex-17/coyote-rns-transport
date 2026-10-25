@@ -2,7 +2,7 @@
 // LINKCLOSE of a `Handshake` teardown "no longer warns `can't create data packet for closed link`",
 // so a consumer tearing down a half-built link sees the close packet and a quiet log; the
 // warning stays for a plain data packet built before the link is `Active`, which is the
-// positive control here. And the CHANGELOG and the README say the reconnect consumer
+// positive control here. And the CHANGELOG says the reconnect consumer
 // "stays the plain biased loop": a reconnect served with no disconnect before it
 // re-synthesizes the tunnel and flushes nothing, so the tables learned over the connection
 // survive it; this is the pin of that rule. Helpers come from the sibling `tests_parts`

@@ -113,7 +113,9 @@ fn strong_progress_twin_keeps_the_shape_that_makes_the_deadlock_frequent() {
         "the per-socket depth stays below the Linux default receive buffer so a stall is never \
          a loopback drop (found {backlog} + {live})"
     );
-    for needle in ["CpuPressure::start()", "spawn_peer_data_receive_loops(", "Duration::from_secs(2)"] {
+    for needle in
+        ["CpuPressure::start()", "spawn_peer_data_receive_loops(", "Duration::from_secs(2)"]
+    {
         assert!(text.contains(needle), "the twin keeps {needle:?}");
     }
     let root = read_repo_file(AUTO_RUNTIME_TESTS_ROOT);
@@ -246,7 +248,8 @@ fn no_production_source_in_any_crate_joins_lock_futures() {
 
 /// The PATCHSET census sentence states the production allowance count and
 /// its split; both equal what the tree carries, so the ledger cannot vouch
-/// for a count the code no longer has.
+/// for a count the code no longer has. The 0.16.0 section is frozen once
+/// released, so its literal label is the anchor.
 #[test]
 fn ledger_census_sentence_matches_the_measured_production_allowances() {
     let mut transport = 0_usize;
@@ -263,7 +266,7 @@ fn ledger_census_sentence_matches_the_measured_production_allowances() {
         }
     }
     let ledger = read_repo_file("docs/fork/PATCHSET.md");
-    let section = ledger_section(&ledger, "Unreleased").expect("an Unreleased ledger section");
+    let section = ledger_section(&ledger, "0.16.0").expect("the 0.16.0 ledger section");
     let flat = section.split_whitespace().collect::<Vec<_>>().join(" ");
     let (before, after) = flat
         .rsplit_once(" in `rns-transport`, ")
@@ -324,14 +327,24 @@ fn probe_sources_and_test_sections_are_ascii_with_lane_free_headers() {
 /// three announce and outbound pins, and each named pin exists as a test.
 #[test]
 fn lifecycle_fixture_header_names_the_announce_and_outbound_pins_it_holds() {
-    let path = "crates/libs/rns-transport/src/transport/tests_parts/two_transport_loopback_lifecycle.rs";
+    let path =
+        "crates/libs/rns-transport/src/transport/tests_parts/two_transport_loopback_lifecycle.rs";
     let text = read_repo_file(path);
     let header = leading_comment_block(&text);
     let pins = [
         ("buildable announce", "fn send_announce_hands_a_buildable_announce_to_the_interface("),
-        ("pathless outbound packet broadcast", "fn outbound_without_a_path_broadcasts_when_configured("),
-        ("dropped when broadcast is off", "fn outbound_without_a_path_sends_nothing_when_broadcast_is_off("),
-        ("`try_send_announce` surfacing the build error as `Err`", "fn try_send_announce_reports_the_build_error("),
+        (
+            "pathless outbound packet broadcast",
+            "fn outbound_without_a_path_broadcasts_when_configured(",
+        ),
+        (
+            "dropped when broadcast is off",
+            "fn outbound_without_a_path_sends_nothing_when_broadcast_is_off(",
+        ),
+        (
+            "`try_send_announce` surfacing the build error as `Err`",
+            "fn try_send_announce_reports_the_build_error(",
+        ),
     ];
     for (phrase, test_fn) in pins {
         assert!(header.contains(phrase), "{path} header names the pin {phrase:?}, got {header:?}");

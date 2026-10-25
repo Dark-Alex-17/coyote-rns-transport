@@ -107,12 +107,12 @@ const REJECTED: &[(&str, &str, &str)] = &[
     ),
 ];
 
-/// The migrated shapes the `## Unreleased` `### Breaking` bullets tell a consumer to write:
+/// The migrated shapes the `## 0.16.0` `### Breaking` bullets tell a consumer to write:
 /// a `RejectReason` match with the wildcard arm `#[non_exhaustive]` already demands, an
 /// `RnsError` match that names the new `SharedInstanceEndpointNotLoopback` variant, the
 /// `allow_remote_endpoint(true)` opt-in on `SharedInstanceOptions`, and
 /// `RequestError::Oversize`, the different type the removal bullet says stays.
-const UNRELEASED_MIGRATED_CONSUMER: &str = r#"
+const V0_16_0_MIGRATED_CONSUMER: &str = r#"
 use rns_transport::destination::request::RequestError;
 use rns_transport::error::RnsError;
 use rns_transport::resource::RejectReason;
@@ -141,9 +141,9 @@ pub fn request_oversize(error: &RequestError) -> bool {
 }
 "#;
 
-/// Each shape the `## Unreleased` `### Breaking` bullets say no longer compiles, with the
+/// Each shape the `## 0.16.0` `### Breaking` bullets say no longer compiles, with the
 /// diagnostic fragment a consumer sees.
-const UNRELEASED_REJECTED: &[(&str, &str, &str)] = &[
+const V0_16_0_REJECTED: &[(&str, &str, &str)] = &[
     (
         "reject_reason_oversize_pattern",
         "use rns_transport::resource::RejectReason;\n\
@@ -289,27 +289,22 @@ fn changelog_breaking_migrations_compile_and_the_shapes_they_replace_do_not() {
     assert!(unexpected.is_empty(), "{}", unexpected.join("\n\n"));
 }
 
-/// The `## Unreleased` `### Breaking` bullets: the migrated consumer compiles, the removed
+/// The `## 0.16.0` `### Breaking` bullets: the migrated consumer compiles, the removed
 /// `RejectReason` variants and the `transport::test_bridge` module no longer resolve, and
 /// the enum that gained `SharedInstanceEndpointNotLoopback` still demands a wildcard arm.
 #[test]
-fn unreleased_breaking_migrations_compile_and_the_shapes_they_replace_do_not() {
+fn v0_16_0_breaking_migrations_compile_and_the_shapes_they_replace_do_not() {
     let scratch = Scratch::new();
     let (deps, rlib) = working_rlib(&scratch.0);
-    let migrated = rustc(
-        &scratch.0,
-        &deps,
-        &rlib,
-        "unreleased_migrated_consumer",
-        UNRELEASED_MIGRATED_CONSUMER,
-    );
+    let migrated =
+        rustc(&scratch.0, &deps, &rlib, "v0_16_0_migrated_consumer", V0_16_0_MIGRATED_CONSUMER);
     assert!(
         migrated.status.success(),
-        "the migrated consumer from the Unreleased bullets should compile:\n{}",
+        "the migrated consumer from the 0.16.0 bullets should compile:\n{}",
         String::from_utf8_lossy(&migrated.stderr)
     );
     let mut unexpected = Vec::new();
-    for (name, source, promised) in UNRELEASED_REJECTED {
+    for (name, source, promised) in V0_16_0_REJECTED {
         let output = rustc(&scratch.0, &deps, &rlib, name, source);
         let stderr = String::from_utf8_lossy(&output.stderr);
         if output.status.success() {

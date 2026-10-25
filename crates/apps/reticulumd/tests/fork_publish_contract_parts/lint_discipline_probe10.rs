@@ -1,34 +1,36 @@
 // Pins on the ledger and changelog prose around the sequential peer-data
-// lock order: the CHANGELOG Unreleased entry describes the sequential form
+// lock order: the CHANGELOG 0.16.0 entry describes the sequential form
 // under its fn-level allowance and no longer vouches for the joined one; the
 // PATCHSET narrative says why the joined form was wrong (it counted sites,
 // not tasks) and which patch undid it; the PATCHSET header confines the
 // joined form to the commits it lived in and says it shipped in no release;
 // the README row carries every patch attribution that touched it; and the
 // code-identifier rule the allowance-reason probes share treats "e.g." and
-// "i.e." as prose while keeping dotted paths.
+// "i.e." as prose while keeping dotted paths. Released sections are frozen,
+// so the literal 0.16.0 label is the anchor rather than the newest heading.
 
-/// The `## Unreleased` section of the crate changelog, whitespace-normalised.
-fn changelog_unreleased_flat() -> String {
+/// The `## 0.16.0` section of the crate changelog, whitespace-normalised.
+fn changelog_0_16_0_flat() -> String {
     let changelog = read_repo_file("crates/libs/rns-transport/CHANGELOG.md");
-    let (_, rest) =
-        changelog.split_once("## Unreleased").expect("the CHANGELOG has an Unreleased section");
+    let (_, rest) = changelog
+        .split_once("\n## 0.16.0 - ")
+        .expect("the CHANGELOG has a released 0.16.0 section");
     let section = rest.split("\n## ").next().unwrap_or(rest);
     section.split_whitespace().collect::<Vec<_>>().join(" ")
 }
 
-/// The `## Unreleased` section of the patch-set ledger, whitespace-normalised.
-fn patchset_unreleased_flat() -> String {
+/// The `## 0.16.0` section of the patch-set ledger, whitespace-normalised.
+fn patchset_0_16_0_flat() -> String {
     let ledger = read_repo_file("docs/fork/PATCHSET.md");
-    let section = ledger_section(&ledger, "Unreleased").expect("an Unreleased ledger section");
+    let section = ledger_section(&ledger, "0.16.0").expect("the 0.16.0 ledger section");
     section.split_whitespace().collect::<Vec<_>>().join(" ")
 }
 
 /// The CHANGELOG describes the sequential lock order under its allowance
 /// and carries neither of the two claims the joined form once made.
 #[test]
-fn changelog_unreleased_names_the_sequential_lock_order_under_its_allowance() {
-    let flat = changelog_unreleased_flat();
+fn changelog_0_16_0_names_the_sequential_lock_order_under_its_allowance() {
+    let flat = changelog_0_16_0_flat();
     assert!(
         flat.contains(
             "keeps taking `state` and then `dedupe` in sequence under a fn-level allowance"
@@ -50,7 +52,7 @@ fn changelog_unreleased_names_the_sequential_lock_order_under_its_allowance() {
 /// repeating the claim the premise rested on.
 #[test]
 fn patchset_thirty_ninth_narrative_no_longer_vouches_for_the_joined_form() {
-    let flat = patchset_unreleased_flat();
+    let flat = patchset_0_16_0_flat();
     let (_, rest) = flat
         .split_once("The thirty-ninth has")
         .expect("the ledger narrates the thirty-ninth patch");
@@ -74,7 +76,7 @@ fn patchset_thirty_ninth_narrative_no_longer_vouches_for_the_joined_form() {
 /// between the patch that introduced it and the one that undid it.
 #[test]
 fn patchset_header_confines_the_joined_form_to_the_commits_it_lived_in() {
-    let flat = patchset_unreleased_flat();
+    let flat = patchset_0_16_0_flat();
     let (_, rest) = flat
         .split_once("Everything else keeps its behaviour")
         .expect("the header has the behaviour sentence");
@@ -91,7 +93,7 @@ fn patchset_header_confines_the_joined_form_to_the_commits_it_lived_in() {
 #[test]
 fn patchset_readme_row_is_attributed_to_every_patch_that_touched_it() {
     let ledger = read_repo_file("docs/fork/PATCHSET.md");
-    let section = ledger_section(&ledger, "Unreleased").expect("an Unreleased ledger section");
+    let section = ledger_section(&ledger, "0.16.0").expect("the 0.16.0 ledger section");
     let readme = section
         .lines()
         .filter(|line| line.starts_with("| `"))
@@ -104,7 +106,8 @@ fn patchset_readme_row_is_attributed_to_every_patch_that_touched_it() {
         .expect("the README has a row");
     assert_eq!(
         readme,
-        "release tooling, guard discipline, shared-instance hardening, carried hygiene"
+        "release tooling, guard discipline, shared-instance hardening, carried hygiene, \
+         release 0.16.0"
     );
 }
 

@@ -22,8 +22,8 @@ async fn peer_first_heard_on_both_sockets_at_once_receives_each_broadcast_once()
     let channel = iface_manager.lock().await.new_channel_with_role(8, IfaceRole::Multicast);
     let runtime = AutoInterfaceTransportRuntime::from_channel(channel, Arc::clone(&iface_manager));
     let (bridge, tx_channel) = runtime.split();
-    let (_shutdown_tx, shutdown_rx) = tokio::sync::watch::channel(false);
-    let _tx_handle =
+    let (shutdown_tx, shutdown_rx) = tokio::sync::watch::channel(false);
+    let tx_handle =
         plan.spawn_peer_data_transport_tx_loop(bridge.clone(), tx_channel, shutdown_rx);
     let our_data_socket =
         Arc::new(tokio::net::UdpSocket::bind("127.0.0.1:0").await.expect("bind our data socket"));
@@ -93,4 +93,10 @@ async fn peer_first_heard_on_both_sockets_at_once_receives_each_broadcast_once()
     let hashes = iface_manager.lock().await.interface_hashes();
     assert_eq!(hashes.len(), 2, "host plus exactly one virtual peer iface: {hashes:?}");
     assert!(hashes.contains(&discovered));
+
+    shutdown_tx.send(true).expect("send shutdown");
+    tokio::time::timeout(std::time::Duration::from_secs(1), tx_handle)
+        .await
+        .expect("tx loop shutdown timeout")
+        .expect("tx loop task");
 }

@@ -133,8 +133,8 @@
         let runtime =
             AutoInterfaceTransportRuntime::from_channel(channel, Arc::clone(&iface_manager));
         let (bridge, tx_channel) = runtime.split();
-        let (_shutdown_tx, shutdown_rx) = tokio::sync::watch::channel(false);
-        let _tx_handle =
+        let (shutdown_tx, shutdown_rx) = tokio::sync::watch::channel(false);
+        let tx_handle =
             plan.spawn_peer_data_transport_tx_loop(bridge.clone(), tx_channel, shutdown_rx);
         let our_data_socket = Arc::new(
             tokio::net::UdpSocket::bind("127.0.0.1:0").await.expect("bind our data socket"),
@@ -185,6 +185,12 @@
             Some(&outbound),
             "the reply must arrive on the peer's data port, not the port it sent from"
         );
+
+        shutdown_tx.send(true).expect("send shutdown");
+        tokio::time::timeout(std::time::Duration::from_secs(1), tx_handle)
+            .await
+            .expect("tx loop shutdown timeout")
+            .expect("tx loop task");
     }
 
     // Python spawns a transmit-capable interface the moment a peering announce
@@ -202,8 +208,8 @@
         let runtime =
             AutoInterfaceTransportRuntime::from_channel(channel, Arc::clone(&iface_manager));
         let (bridge, tx_channel) = runtime.split();
-        let (_shutdown_tx, shutdown_rx) = tokio::sync::watch::channel(false);
-        let _tx_handle =
+        let (shutdown_tx, shutdown_rx) = tokio::sync::watch::channel(false);
+        let tx_handle =
             plan.spawn_peer_data_transport_tx_loop(bridge.clone(), tx_channel, shutdown_rx);
         // Drive the same seam the runtime's supervisor task drives, so the
         // socket lookup and the event filtering are covered, not just the
@@ -260,4 +266,10 @@
             Some(&announce),
             "a peer known only from discovery must still be reachable"
         );
+
+        shutdown_tx.send(true).expect("send shutdown");
+        tokio::time::timeout(std::time::Duration::from_secs(1), tx_handle)
+            .await
+            .expect("tx loop shutdown timeout")
+            .expect("tx loop task");
     }

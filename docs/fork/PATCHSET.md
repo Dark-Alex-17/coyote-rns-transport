@@ -62,10 +62,11 @@ fork commit `08362717`; the
 `71c9e7c6`, `eb45dc62`, `8b3e02eb`, `e1804e1c`, `07c1fe37`, `cbe20719`,
 `90ec6e86`, `a2333881`, `18452f13`, `4072932d`, `50db3da3`, `a284f96a`,
 `c926a2e6`, `93d28bc6`, `95467e04` and `a30aa093`; the
-`Python-in-the-loop identify allow-list interop` patch carries no other id
-and is fork commits `9865dbdd` and `eb45dc62`; the `release 0.16.0` patch
-carries no other id and is fork commits `c281063e`, `a6ad4884`, `1a39183c`
-and `e14ead8d`.
+`Python-in-the-loop identify allow-list interop` patch is the
+carried-hygiene cell fork commits `9865dbdd` and `eb45dc62` add, named so
+the release's Python-in-the-loop proof row is attributed to it; the
+`release 0.16.0` patch carries no other id and is fork commits `c281063e`,
+`a6ad4884`, `1a39183c`, `e14ead8d` and `44c19d48`.
 
 | File | Patch |
 | --- | --- |
@@ -118,7 +119,7 @@ and `e14ead8d`.
 | `crates/apps/reticulumd/tests/fork_publish_contract_parts/release_tooling_probe4.rs` | release tooling |
 | `crates/apps/reticulumd/tests/fork_publish_contract_parts/release_tooling_probe5.rs` | release tooling |
 | `crates/apps/reticulumd/tests/fork_publish_contract_parts/release_tooling_probe6.rs` | shared-instance hardening |
-| `crates/apps/reticulumd/tests/fork_release_docs_contract.rs` | release tooling |
+| `crates/apps/reticulumd/tests/fork_release_docs_contract.rs` | release tooling, release 0.16.0 |
 | `crates/apps/reticulumd/tests/python_channel_interop.rs` | guard discipline, carried hygiene |
 | `crates/apps/reticulumd/tests/python_channel_interop_parts/multi_segment_python_interop.rs` | test hygiene |
 | `crates/apps/reticulumd/tests/python_channel_interop_parts/python_request_late_reply.rs` | carried hygiene |
@@ -1801,8 +1802,17 @@ the idle pin, the probe16 negative assert states its contract, the weave
 handle header paraphrases the CHANGELOG without quote marks, and the
 CHANGELOG files the deleted fixture and CI step under Removed.
 
-Fork commits `c281063e`, `a6ad4884`, `1a39183c` and `e14ead8d`: release
-0.16.0. The first retargets the promotion-sensitive pins to the literal
+Fork commits `9865dbdd` and `eb45dc62`: Python-in-the-loop identify
+allow-list interop. The fourteenth and thirty-third carried-hygiene commits
+above: a Rust client identifies against a Python request handler whose
+`allowed_list` names it
+(`crates/apps/reticulumd/tests/python_channel_interop_parts/rust_identify_python_allow_list.rs`,
+the `--allow-identified` flag of
+`crates/apps/reticulumd/tests/support/python_channel_endpoint.py`), the
+release section's Python-in-the-loop proof row.
+
+Fork commits `c281063e`, `a6ad4884`, `1a39183c`, `e14ead8d` and `44c19d48`:
+release 0.16.0. The first retargets the promotion-sensitive pins to the literal
 0.16.0 label, since a released section is frozen:
 `crates/apps/reticulumd/tests/fork_publish_contract_parts/ledger_contract.rs`
 expects the full-hash and bullet-cite contracts to cover `0.16.0` and
@@ -1829,7 +1839,17 @@ promotes `## Unreleased` to `## 0.16.0 - 2026-10-25` in the crate
 renamed with its test. The fourth adds the 0.16.0 paragraph to the
 `## Patch list` of `crates/libs/rns-transport/README.md`, folding it into
 the intro sentence and leaving the 0.15.1 block as a standalone paragraph
-with its bullets unchanged.
+with its bullets unchanged. The fifth tightens the register: the README
+0.16.0 block drops the reconnect-consumer clause (that consumer is
+unchanged since 0.15.1) and describes the host pick as loopback-first in
+the family `prefer_ipv6` selects, the CHANGELOG version bullet attributes
+the four semver findings to the two removals,
+`crates/apps/reticulumd/tests/fork_release_docs_contract.rs` pins the
+patch-list order, the 0.16.0 block's items and the surviving 0.15.1
+sentences, and
+`crates/apps/reticulumd/tests/fork_publish_contract_parts/lint_discipline_probe10.rs`
+pins the forty-sixth narrative's spec split. The ledger promotion itself
+names the Python-in-the-loop identify allow-list interop patch above.
 
 ## 0.15.1 (upstream 0.14.0)
 

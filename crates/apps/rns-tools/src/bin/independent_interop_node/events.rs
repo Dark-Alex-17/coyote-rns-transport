@@ -256,6 +256,8 @@ mod tests {
     use super::*;
     use rand_core::OsRng;
     use rns_transport::destination::link::LinkPayload;
+    use rns_transport::identity::PrivateIdentity;
+    use rns_transport::transport::TransportConfig;
 
     fn link_event(id: AddressHash, event: LinkEvent) -> LinkEventData {
         LinkEventData {
@@ -329,5 +331,63 @@ mod tests {
         assert_eq!(states[0], "data");
         assert_eq!(states[LINK_STATE_HISTORY_CAP - 1], "closed");
         assert_eq!(snapshot["state"], "closed");
+    }
+
+    /// The link collector reads the flag the announce collector stored under the link's
+    /// destination, which the merge tests above inject by hand: two links to two
+    /// destinations read their own announce, a link reports the latest announce for its
+    /// destination, and a destination that never announced reads null.
+    #[tokio::test]
+    async fn record_link_event_reads_the_latest_announce_flag_of_the_links_destination() {
+        let identity = PrivateIdentity::new_from_rand(OsRng);
+        let transport = Transport::new(TransportConfig::new("interop-probe", &identity, false));
+        let state = SharedState::new(
+            "interop-probe".to_string(),
+            AddressHash::new_from_rand(OsRng),
+            AddressHash::new_from_rand(OsRng),
+        );
+        let path_response_destination = AddressHash::new_from_rand(OsRng);
+        let unsolicited_destination = AddressHash::new_from_rand(OsRng);
+        let silent_destination = AddressHash::new_from_rand(OsRng);
+        {
+            let mut flags = state.announce_path_response.write().await;
+            // The destination announced unsolicited first and as a path response later.
+            flags.insert(path_response_destination, false);
+            flags.insert(path_response_destination, true);
+            flags.insert(unsolicited_destination, false);
+        }
+
+        let mut links = Vec::new();
+        for destination in [path_response_destination, unsolicited_destination, silent_destination]
+        {
+            let id = AddressHash::new_from_rand(OsRng);
+            let event = LinkEventData {
+                id,
+                address_hash: destination,
+                event: LinkEvent::Data(Box::new(LinkPayload::new())),
+                close_reason: None,
+            };
+            record_link_event(&transport, &state, event, true).await;
+            links.push(id);
+        }
+
+        let snapshots = state.links.read().await;
+        assert_eq!(snapshots.len(), 3);
+        assert_eq!(
+            snapshots[&links[0]]["is_path_response"], true,
+            "the latest announce for the destination was a path response"
+        );
+        assert_eq!(
+            snapshots[&links[1]]["is_path_response"], false,
+            "another destination's unsolicited announce is read for its own link"
+        );
+        assert!(
+            snapshots[&links[2]]["is_path_response"].is_null(),
+            "a destination that never announced reads null"
+        );
+        assert_eq!(
+            snapshots[&links[0]]["destination_hash"],
+            address_hex(&path_response_destination)
+        );
     }
 }

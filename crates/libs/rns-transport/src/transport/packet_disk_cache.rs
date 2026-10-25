@@ -152,7 +152,12 @@ impl ReticulumPacketDiskCache {
         };
         while let Some(entry) = entries.next_entry().await? {
             if entry.file_name().to_string_lossy().starts_with(HASHLIST_TMP_PREFIX) {
-                tokio::fs::remove_file(entry.path()).await?;
+                // Another process on the same storage may have swept it first.
+                match tokio::fs::remove_file(entry.path()).await {
+                    Ok(()) => {}
+                    Err(error) if error.kind() == io::ErrorKind::NotFound => {}
+                    Err(error) => return Err(error),
+                }
             }
         }
         Ok(())

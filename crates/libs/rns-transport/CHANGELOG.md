@@ -8,7 +8,7 @@ no library behaviour (a test-only change such as a fixture hardening or a
 test hygiene pass, release tooling, CI) is a Changed (or, for a deleted file,
 Removed) bullet of its own, marked as such.
 
-## Unreleased
+## 0.16.0 - 2026-10-25
 
 ### Breaking
 
@@ -83,6 +83,15 @@ Removed) bullet of its own, marked as such.
 
 ### Changed
 
+- The crate version is `0.16.0`; the discovery announce carries it in the
+  `TRANSPORT_VERS` field (`discovery/announce.rs`). The bump is a minor one
+  under the README policy: `### Breaking` above lists the loopback-only
+  shared-instance default, the removed `RejectReason` variants and the
+  removed `transport::test_bridge` module, each with its migration;
+  `cargo semver-checks` against `v0.15.1` reports exactly those four major
+  findings. The release contracts are pinned by
+  `crates/apps/reticulumd/tests/fork_publish_contract.rs` and
+  `fork_release_docs_contract.rs`.
 - While attached to a shared instance, the duplicate filter
   (`transport/inbound_processing.rs`) is skipped only for packets arriving
   on the interface flagged as the shared instance, or on every interface
@@ -477,8 +486,8 @@ Removed) bullet of its own, marked as such.
   pin) and the six-restart storm in `two_transport_shared_instance_storm.rs`,
   which pins the ordering and loss-free service at restart rate.
 - No library change: `tests/breaking_changes_compile_fail.rs` gains
-  `unreleased_breaking_migrations_compile_and_the_shapes_they_replace_do_not`,
-  which compiles the migrated consumer the `## Unreleased` `### Breaking`
+  `v0_16_0_breaking_migrations_compile_and_the_shapes_they_replace_do_not`,
+  which compiles the migrated consumer the `## 0.16.0` `### Breaking`
   bullets describe and checks that the removed `RejectReason` variants, the
   `transport::test_bridge` import and an `RnsError` match without a wildcard
   fail with the promised diagnostics.

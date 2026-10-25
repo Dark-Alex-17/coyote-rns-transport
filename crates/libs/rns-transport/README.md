@@ -668,8 +668,41 @@ full `refs/tags/coyote-rns-transport-v<version>` ref, and
 
 `docs/fork/PATCHSET.md` is the single per-release ledger of every file changed
 since the previous release, with the commit that changed it and the upstream
-site; earlier sections carry the earlier patches. What `0.15.1` carries on top
-of `0.15.0`:
+site; earlier sections carry the earlier patches. What `0.16.0` carries on top
+of `0.15.1`:
+
+- The loopback-only shared-instance default: `attach_shared_instance` refuses
+  a non-loopback `Tcp` endpoint with
+  `RnsError::SharedInstanceEndpointNotLoopback` unless
+  `SharedInstanceOptions::allow_remote_endpoint(true)` opts in, which
+  replaces the 0.15.1 once-per-attach warning (the opt-in keeps the warning,
+  in key=value form).
+- The removals: `RejectReason::{Oversize, Unknown}` and the storage-feature
+  `transport::test_bridge` module, with the migrations under `### Breaking`
+  in `CHANGELOG.md`.
+- The per-interface duplicate-filter gate: the filter is skipped for packets
+  arriving on the shared-instance interface (everywhere when no interface is
+  flagged), replacing the 0.15.1 rule that it consulted nothing while
+  attached.
+- The LINKCLOSE a `Handshake` teardown now sends, and the reconnect consumer
+  that flushes only on a seen disconnect.
+- The reticulumd migration: the daemon attaches through
+  `attach_shared_instance` (IPv4-loopback-first host pick, `prefer_ipv6`, the
+  ignored `connect_timeout` and `max_reconnect_tries` keys warned about and
+  stripped from the reference TOML).
+- `clippy::await_holding_invalid_type` live at its default level across the
+  workspace; the remaining production holds carry fn-level allowances whose
+  comments name the guard and the await, and the classify scripts gate them.
+- Release tooling: the four `tools/scripts/*.sh` release checks with their
+  contract probes, the `coyote-rns-transport-v*` tag arm of the xtask
+  bundle's version check, and the removal of the Codex review workflow.
+- Carried hygiene: in-limit Response packets cancel the overtaken Resource
+  for receipt-less records too, the packet hashlist flush writes a unique
+  temp file and sweeps orphans on load, `TcpClient` connect is cancel-aware,
+  inbound resource lookups are link-scoped, and the request-layer send
+  wrappers refuse a non-Active link.
+
+What `0.15.1` carries on top of `0.15.0`:
 
 - The shared-instance client: `Transport::attach_shared_instance` and
   `detach_shared_instance`, `SharedInstanceEndpoint` and

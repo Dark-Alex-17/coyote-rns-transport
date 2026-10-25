@@ -67,7 +67,7 @@ carried-hygiene cell fork commits `9865dbdd` and `eb45dc62` add, named so
 the release's Python-in-the-loop proof rows are attributed to it; the
 `release 0.16.0` patch carries no other id and is fork commits `c281063e`,
 `a6ad4884`, `1a39183c`, `e14ead8d`, `44c19d48`, `5b9f69a8`, `704cd444`,
-`4ebfcc62` and `4e40639e`.
+`4ebfcc62`, `4e40639e` and `129c96ed`.
 
 | File | Patch |
 | --- | --- |
@@ -986,7 +986,8 @@ carries),
 `fork_publish_contract_parts/lint_discipline_probe10.rs` (the ledger and
 changelog prose on the lock order, read from the thirty-ninth narrative
 itself; the README row's attribution; the probe9 parentheticals of both
-0.16.0 sections state the split census pin),
+0.16.0 sections state the split census pin; both 0.16.0 sections cite the
+frozen-sections probe),
 `kiss_parts/ifac_runtime_tests.rs` and
 `kiss_parts/shared_receiver_lease_probe_tests.rs` (the per-receive lease
 of both shared receivers, including a queued locker served across a
@@ -1817,9 +1818,9 @@ the `--allow-identified` flag of
 release section's Python-in-the-loop proof rows.
 
 Fork commits `c281063e`, `a6ad4884`, `1a39183c`, `e14ead8d`, `44c19d48`,
-`5b9f69a8`, `704cd444`, `4ebfcc62` and `4e40639e`: release 0.16.0. The
-first retargets the promotion-sensitive pins to the literal 0.16.0 label,
-since a released section is frozen:
+`5b9f69a8`, `704cd444`, `4ebfcc62`, `4e40639e` and `129c96ed`: release
+0.16.0. The first retargets the promotion-sensitive pins to the literal
+0.16.0 label, since a released section is frozen:
 `crates/apps/reticulumd/tests/fork_publish_contract_parts/ledger_contract.rs`
 expects the full-hash and bullet-cite contracts to cover `0.16.0` and
 `0.15.1`,
@@ -1887,7 +1888,19 @@ superseded census phrases,
 bullet to name 0.16.0 and refuses the by-position wording, and the
 lane-free-header scan in
 `crates/apps/reticulumd/tests/fork_publish_contract_parts/lint_discipline_probe9.rs`
-covers every probe file under `fork_publish_contract_parts/`.
+covers every probe file under `fork_publish_contract_parts/`. The tenth
+pins the ledger citations of the frozen-sections probe:
+`crates/apps/reticulumd/tests/fork_publish_contract_parts/lint_discipline_probe10.rs`
+asks the CHANGELOG 0.16.0 section to name
+`release_frozen_sections_probe.rs` and state its byte-for-byte and
+README-bullets clauses after it, and asks this ledger's 0.16.0 section for
+the probe's table row and the narrative sentence that names its include
+site; alongside, the split-census rustdoc no longer claims a tree-wide
+search for the superseded phrases finds only the ledgers (probe9's own
+live-compare message matches too), the two no-op fallbacks after a split in
+`lint_discipline_probe10.rs` and `release_frozen_sections_probe.rs` become
+find-based slices, and the probe9 header says census sentence as both
+ledgers do.
 
 ## 0.15.1 (upstream 0.14.0)
 

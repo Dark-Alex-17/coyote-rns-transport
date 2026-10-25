@@ -26,7 +26,7 @@ parity rows this file plus the crate README `## Known divergences from
 Python RNS` are the parity ledger; `docs/status/*` matrices are not updated
 per fork task.
 
-## Unreleased (upstream 0.14.0)
+## 0.16.0 (upstream 0.14.0)
 
 Every file changed since the `0.15.1` release and the patch each change
 belongs to. Patch ids: H1 is test hygiene, H2 is release tooling, H3 is
@@ -61,15 +61,20 @@ fork commit `08362717`; the
 `2c89e7ba`, `f6c0b59c`, `842feae6`, `c296bb84`, `ceccaeb1`, `22961b3b`,
 `71c9e7c6`, `eb45dc62`, `8b3e02eb`, `e1804e1c`, `07c1fe37`, `cbe20719`,
 `90ec6e86`, `a2333881`, `18452f13`, `4072932d`, `50db3da3`, `a284f96a`,
-`c926a2e6`, `93d28bc6`, `95467e04` and `a30aa093`.
+`c926a2e6`, `93d28bc6`, `95467e04` and `a30aa093`; the
+`Python-in-the-loop identify allow-list interop` patch carries no other id
+and is fork commits `9865dbdd` and `eb45dc62`; the `release 0.16.0` patch
+carries no other id and is fork commits `c281063e`, `a6ad4884`, `1a39183c`
+and `e14ead8d`.
 
 | File | Patch |
 | --- | --- |
 | `.github/workflows/ci-full.yml` | release tooling, carried hygiene |
 | `.github/workflows/ci.yml` | release tooling, carried hygiene |
 | `AGENTS.md` | ledger conventions |
-| `Cargo.toml` | guard discipline |
-| `crates/apps/reticulumd/Cargo.toml` | guard discipline |
+| `Cargo.lock` | release 0.16.0 |
+| `Cargo.toml` | guard discipline, release 0.16.0 |
+| `crates/apps/reticulumd/Cargo.toml` | guard discipline, release 0.16.0 |
 | `crates/apps/reticulumd/examples/interfaces-reference.toml` | shared-instance hardening |
 | `crates/apps/reticulumd/src/bin/reticulumd/announce_ingest.rs` | guard discipline |
 | `crates/apps/reticulumd/src/bin/reticulumd/announce_worker.rs` | carried hygiene |
@@ -92,11 +97,11 @@ fork commit `08362717`; the
 | `crates/apps/reticulumd/src/config_parts/interfaceconfig_sections/enabled.rs` | shared-instance hardening |
 | `crates/apps/reticulumd/tests/config.rs` | shared-instance hardening |
 | `crates/apps/reticulumd/tests/config_parts/shared_instance_client_knobs.rs` | shared-instance hardening |
-| `crates/apps/reticulumd/tests/fork_publish_contract.rs` | release tooling, guard discipline, shared-instance hardening, carried hygiene |
-| `crates/apps/reticulumd/tests/fork_publish_contract_parts/ledger_contract.rs` | release tooling |
+| `crates/apps/reticulumd/tests/fork_publish_contract.rs` | release tooling, guard discipline, shared-instance hardening, carried hygiene, release 0.16.0 |
+| `crates/apps/reticulumd/tests/fork_publish_contract_parts/ledger_contract.rs` | release tooling, release 0.16.0 |
 | `crates/apps/reticulumd/tests/fork_publish_contract_parts/ledger_contract_fixtures.rs` | release tooling |
 | `crates/apps/reticulumd/tests/fork_publish_contract_parts/lint_discipline_probe.rs` | guard discipline |
-| `crates/apps/reticulumd/tests/fork_publish_contract_parts/lint_discipline_probe10.rs` | guard discipline, shared-instance hardening, carried hygiene |
+| `crates/apps/reticulumd/tests/fork_publish_contract_parts/lint_discipline_probe10.rs` | guard discipline, shared-instance hardening, carried hygiene, release 0.16.0 |
 | `crates/apps/reticulumd/tests/fork_publish_contract_parts/lint_discipline_probe11.rs` | carried hygiene |
 | `crates/apps/reticulumd/tests/fork_publish_contract_parts/lint_discipline_probe12.rs` | carried hygiene |
 | `crates/apps/reticulumd/tests/fork_publish_contract_parts/lint_discipline_probe2.rs` | guard discipline |
@@ -106,7 +111,7 @@ fork commit `08362717`; the
 | `crates/apps/reticulumd/tests/fork_publish_contract_parts/lint_discipline_probe6.rs` | guard discipline |
 | `crates/apps/reticulumd/tests/fork_publish_contract_parts/lint_discipline_probe7.rs` | guard discipline |
 | `crates/apps/reticulumd/tests/fork_publish_contract_parts/lint_discipline_probe8.rs` | guard discipline |
-| `crates/apps/reticulumd/tests/fork_publish_contract_parts/lint_discipline_probe9.rs` | guard discipline |
+| `crates/apps/reticulumd/tests/fork_publish_contract_parts/lint_discipline_probe9.rs` | guard discipline, release 0.16.0 |
 | `crates/apps/reticulumd/tests/fork_publish_contract_parts/release_tooling_probe.rs` | release tooling |
 | `crates/apps/reticulumd/tests/fork_publish_contract_parts/release_tooling_probe2.rs` | release tooling |
 | `crates/apps/reticulumd/tests/fork_publish_contract_parts/release_tooling_probe3.rs` | release tooling |
@@ -117,11 +122,12 @@ fork commit `08362717`; the
 | `crates/apps/reticulumd/tests/python_channel_interop.rs` | guard discipline, carried hygiene |
 | `crates/apps/reticulumd/tests/python_channel_interop_parts/multi_segment_python_interop.rs` | test hygiene |
 | `crates/apps/reticulumd/tests/python_channel_interop_parts/python_request_late_reply.rs` | carried hygiene |
-| `crates/apps/reticulumd/tests/python_channel_interop_parts/rust_identify_python_allow_list.rs` | carried hygiene |
+| `crates/apps/reticulumd/tests/python_channel_interop_parts/rust_identify_python_allow_list.rs` | carried hygiene, Python-in-the-loop identify allow-list interop |
 | `crates/apps/reticulumd/tests/python_channel_interop_parts/rust_to_python_raw_resource_roundtri.rs` | carried hygiene |
 | `crates/apps/reticulumd/tests/python_channel_interop_parts/rust_to_python_request_receipt.rs` | carried hygiene |
 | `crates/apps/reticulumd/tests/python_tcp_ifac_lifecycle.rs` | guard discipline |
 | `crates/apps/reticulumd/tests/support/python_channel_endpoint.py` | carried hygiene |
+| `crates/apps/rns-tools/Cargo.toml` | release 0.16.0 |
 | `crates/apps/rns-tools/src/bin/independent_interop_node/events.rs` | carried hygiene |
 | `crates/apps/rns-tools/src/bin/independent_interop_node/model.rs` | carried hygiene |
 | `crates/apps/rns-tools/src/bin/independent_interop_node/node.rs` | carried hygiene |
@@ -134,9 +140,11 @@ fork commit `08362717`; the
 | `crates/libs/meshchat-api/src/chat.rs` | guard discipline |
 | `crates/libs/meshchat-api/src/control.rs` | guard discipline |
 | `crates/libs/meshchat-api/src/lib.rs` | guard discipline |
-| `crates/libs/rns-transport/CHANGELOG.md` | test hygiene, release tooling, ledger conventions, guard discipline, shared-instance hardening, carried hygiene |
-| `crates/libs/rns-transport/README.md` | release tooling, guard discipline, shared-instance hardening, carried hygiene |
+| `crates/libs/rns-transport/CHANGELOG.md` | test hygiene, release tooling, ledger conventions, guard discipline, shared-instance hardening, carried hygiene, release 0.16.0 |
+| `crates/libs/rns-transport/Cargo.toml` | release 0.16.0 |
+| `crates/libs/rns-transport/README.md` | release tooling, guard discipline, shared-instance hardening, carried hygiene, release 0.16.0 |
 | `crates/libs/rns-transport/examples/tcp_connection_memory.rs` | guard discipline |
+| `crates/libs/rns-transport/fuzz/Cargo.lock` | release 0.16.0 |
 | `crates/libs/rns-transport/src/destination/link_parts/link.rs` | carried hygiene |
 | `crates/libs/rns-transport/src/destination/link_parts/link_sections/data_proof_tests.rs` | carried hygiene |
 | `crates/libs/rns-transport/src/destination/link_parts/link_sections/new.rs` | carried hygiene |
@@ -325,7 +333,7 @@ fork commit `08362717`; the
 | `crates/libs/rns-transport/src/transport/tests_parts/two_transport_shared_instance_probe13.rs` | shared-instance hardening |
 | `crates/libs/rns-transport/src/transport/tests_parts/two_transport_shared_instance_probe14.rs` | shared-instance hardening |
 | `crates/libs/rns-transport/src/transport/tests_parts/two_transport_shared_instance_probe15.rs` | shared-instance hardening |
-| `crates/libs/rns-transport/src/transport/tests_parts/two_transport_shared_instance_probe16.rs` | shared-instance hardening, carried hygiene |
+| `crates/libs/rns-transport/src/transport/tests_parts/two_transport_shared_instance_probe16.rs` | shared-instance hardening, carried hygiene, release 0.16.0 |
 | `crates/libs/rns-transport/src/transport/tests_parts/two_transport_shared_instance_probe17.rs` | shared-instance hardening |
 | `crates/libs/rns-transport/src/transport/tests_parts/two_transport_shared_instance_probe17_unix.rs` | shared-instance hardening |
 | `crates/libs/rns-transport/src/transport/tests_parts/two_transport_shared_instance_probe2.rs` | carried hygiene |
@@ -339,12 +347,13 @@ fork commit `08362717`; the
 | `crates/libs/rns-transport/src/transport/tunnels.rs` | shared-instance hardening |
 | `crates/libs/rns-transport/src/transport/wire.rs` | guard discipline |
 | `crates/libs/rns-transport/src/transport/wire_receipt.rs` | carried hygiene |
-| `crates/libs/rns-transport/tests/breaking_changes_compile_fail.rs` | shared-instance hardening |
+| `crates/libs/rns-transport/tests/breaking_changes_compile_fail.rs` | shared-instance hardening, release 0.16.0 |
 | `crates/libs/rns-transport/tests/multicast_tx_guard.rs` | guard discipline |
 | `crates/libs/rns-transport/tests/outbound_outcome_api.rs` | test hygiene, shared-instance hardening, carried hygiene |
 | `crates/libs/rns-transport/tests/tcp_client_reconnect.rs` | guard discipline |
 | `crates/libs/rns-transport/tests/tcp_connection_memory.rs` | guard discipline |
-| `docs/fork/PATCHSET.md` | test hygiene, release tooling, ledger conventions, guard discipline, shared-instance hardening, carried hygiene |
+| `docs/fork/PATCHSET.md` | test hygiene, release tooling, ledger conventions, guard discipline, shared-instance hardening, carried hygiene, release 0.16.0 |
+| `docs/getting-started.md` | release 0.16.0 |
 | `docs/runbooks/release-runbook.md` | release tooling |
 | `docs/status/reticulum-parity-matrix.md` | ledger conventions |
 | `tools/scripts/cross-target-clippy-classify.sh` | guard discipline |
@@ -1775,8 +1784,9 @@ classifies a definition by `fn ` ahead of the match; and probe12 drops the
 sanctioned-path clause the test-path skip already covers. The forty-sixth
 is the run-closing hygiene pass over the whole batch, test-only: it
 removes `iface/kiss_parts/shared_receiver_lock_span_probe_tests.rs` (and
-its mount in `iface/kiss.rs`), whose queued-locker scenario is the first
-half of spec 1 in `shared_receiver_lease_probe_tests.rs`; removes the
+its mount in `iface/kiss.rs`), whose queued-locker scenario
+`shared_receiver_lease_probe_tests.rs` reproduces (spec 1 the pass and
+the handoff, spec 2 the queued wait); removes the
 slot-only `host = "localhost"` attach test from
 `shared_instance_attach_tests.rs`, whose accept-oracle sibling subsumes it;
 drops the named compile-fail step from the `contracts` job of both
@@ -1790,6 +1800,36 @@ answers the review of the forty-sixth, test-only: spec 1 of
 the idle pin, the probe16 negative assert states its contract, the weave
 handle header paraphrases the CHANGELOG without quote marks, and the
 CHANGELOG files the deleted fixture and CI step under Removed.
+
+Fork commits `c281063e`, `a6ad4884`, `1a39183c` and `e14ead8d`: release
+0.16.0. The first retargets the promotion-sensitive pins to the literal
+0.16.0 label, since a released section is frozen:
+`crates/apps/reticulumd/tests/fork_publish_contract_parts/ledger_contract.rs`
+expects the full-hash and bullet-cite contracts to cover `0.16.0` and
+`0.15.1`,
+`crates/apps/reticulumd/tests/fork_publish_contract_parts/lint_discipline_probe9.rs`
+and
+`crates/apps/reticulumd/tests/fork_publish_contract_parts/lint_discipline_probe10.rs`
+read the `0.16.0` ledger and changelog sections (probe10 expects the
+README row to carry `release 0.16.0`),
+`crates/libs/rns-transport/tests/breaking_changes_compile_fail.rs` names
+its migrated consumer and rejected shapes after 0.16.0, and the header of
+`crates/libs/rns-transport/src/transport/tests_parts/two_transport_shared_instance_probe16.rs`
+stops attributing the biased-loop wording to the README. The second bumps
+the crate version to 0.16.0 at every manifest, consumer-snippet and
+contract-test site (`Cargo.toml`, `crates/libs/rns-transport/Cargo.toml`,
+`crates/apps/reticulumd/Cargo.toml`, `crates/apps/rns-tools/Cargo.toml`,
+the snippet in `crates/libs/rns-transport/README.md` and
+`docs/getting-started.md`, the two pins in
+`crates/apps/reticulumd/tests/fork_publish_contract.rs`) and regenerates
+`Cargo.lock` and `crates/libs/rns-transport/fuzz/Cargo.lock`. The third
+promotes `## Unreleased` to `## 0.16.0 - 2026-10-25` in the crate
+`CHANGELOG.md` with a version bullet at the head of `### Changed`, the
+`### Breaking` subsection first, and the compile-fail cross-reference
+renamed with its test. The fourth adds the 0.16.0 paragraph to the
+`## Patch list` of `crates/libs/rns-transport/README.md`, folding it into
+the intro sentence and leaving the 0.15.1 block as a standalone paragraph
+with its bullets unchanged.
 
 ## 0.15.1 (upstream 0.14.0)
 

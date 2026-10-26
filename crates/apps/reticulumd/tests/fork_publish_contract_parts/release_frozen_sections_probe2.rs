@@ -69,12 +69,13 @@ fn readme_patch_block_bullets_stops_at_the_next_block_or_heading() {
     assert_eq!(readme_patch_block_bullets(readme, "0.15.1"), "- c");
 }
 
-/// Whether a ledger may carry an `## Unreleased` stub above the newest
-/// release. Between releases the manifest version equals the newest fork tag
-/// reachable from HEAD and the stub collects the work since that tag; in a
-/// release tree the manifest version is newer than that tag and the stub must
-/// already be promoted. Returns `None` when the ledger is acceptable and the
-/// reason otherwise. Without a reachable tag the ledger is accepted, as the
+/// Whether a ledger may carry an `## Unreleased` stub, and where. The stub
+/// sits above the `## <manifest version>` section, never below it. Between
+/// releases the manifest version equals the newest fork tag reachable from
+/// HEAD and the stub collects the work since that tag; in a release tree the
+/// manifest version is newer than that tag and the stub must already be
+/// promoted. Returns `None` when the ledger is acceptable and the reason
+/// otherwise. Without a reachable tag the ledger is accepted, as the
 /// frozen-sections pins skip on such a checkout.
 #[cfg(unix)]
 fn unreleased_stub_violation(
@@ -83,7 +84,15 @@ fn unreleased_stub_violation(
     newest_tag_version: Option<&str>,
 ) -> Option<String> {
     let newest_tag_version = newest_tag_version?;
-    if !ledger.contains("\n## Unreleased") || manifest_version == newest_tag_version {
+    let stub = ledger.find("\n## Unreleased")?;
+    let release = ledger.find(&format!("\n## {manifest_version}"));
+    if release.is_some_and(|release| stub > release) {
+        return Some(format!(
+            "the `## Unreleased` stub should sit above the `## {manifest_version}` section, \
+             not below it"
+        ));
+    }
+    if manifest_version == newest_tag_version {
         return None;
     }
     Some(format!(
@@ -129,16 +138,22 @@ fn newest_ledger_sections_are_the_crate_manifest_version() {
 
 /// Between releases, with the manifest at the newest reachable tag, a stub
 /// above the release is acceptable; once the manifest moves past that tag the
-/// same stub names a release tree that still carries unpromoted work.
+/// same stub names a release tree that still carries unpromoted work. A stub
+/// below the release is a violation even between releases.
 #[cfg(unix)]
 #[test]
-fn unreleased_stub_is_admitted_only_while_the_manifest_is_at_the_newest_tag() {
+fn unreleased_stub_sits_above_the_release_and_is_admitted_only_at_the_newest_tag() {
     let ledger = "# Changelog\n\nintro\n\n## Unreleased\n\n### Added\n\n- pending\n\n\
                   ## 0.16.0 - 2026-10-25\n\n### Breaking\n\n- x\n";
     assert_eq!(unreleased_stub_violation(ledger, "0.16.0", Some("0.16.0")), None);
     let reason = unreleased_stub_violation(ledger, "0.17.0", Some("0.16.0"))
         .expect("a stub in a release tree is a violation");
     assert!(reason.contains("0.17.0") && reason.contains("0.16.0"), "{reason}");
+    let below = "# Changelog\n\n## 0.16.0 - 2026-10-25\n\n### Breaking\n\n- x\n\n\
+                 ## Unreleased\n\n- pending\n";
+    let reason = unreleased_stub_violation(below, "0.16.0", Some("0.16.0"))
+        .expect("a stub below the release is a violation");
+    assert!(reason.contains("above"), "{reason}");
 }
 
 /// A ledger without a stub is acceptable whether or not the manifest has

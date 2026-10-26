@@ -757,7 +757,12 @@ Removed) bullet of its own, marked as such.
   now reports `local_client_count` and the test waits for the re-attached
   Rust local client before the single announce, and reserves a dedicated
   `instance_control_port`. Cites under `crates/apps/lxmf-cli/tests` now
-  resolve in `crates/apps/reticulumd/tests/fork_publish_contract.rs`.
+  resolve in `crates/apps/reticulumd/tests/fork_publish_contract.rs`. The
+  last two shared-instance owners in the same target
+  (`crates/apps/lxmf-cli/tests/python_lxmd_remote_relay_parts/ifac_shared_instance.rs`
+  and the application-and-restart test in `shared_instance_daemon.rs`)
+  also reserve an `instance_control_port` instead of binding Reticulum's
+  default, which a user `rnsd` on the host may hold.
 
 ### Removed
 

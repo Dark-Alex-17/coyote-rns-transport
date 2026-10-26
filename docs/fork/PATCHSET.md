@@ -67,7 +67,8 @@ carried-hygiene cell fork commits `9865dbdd` and `eb45dc62` add, named so
 the release's Python-in-the-loop proof rows are attributed to it; the
 `release 0.16.0` patch carries no other id and is fork commits `c281063e`,
 `a6ad4884`, `1a39183c`, `e14ead8d`, `44c19d48`, `5b9f69a8`, `704cd444`,
-`4ebfcc62`, `4e40639e`, `129c96ed`, `6f5cb046`, `95298884` and `7b168319`.
+`4ebfcc62`, `4e40639e`, `129c96ed`, `6f5cb046`, `95298884`, `7b168319` and
+`00c419a0`.
 
 | File | Patch |
 | --- | --- |
@@ -77,9 +78,11 @@ the release's Python-in-the-loop proof rows are attributed to it; the
 | `Cargo.lock` | release 0.16.0 |
 | `Cargo.toml` | guard discipline, release 0.16.0 |
 | `crates/apps/lxmf-cli/tests/python_lxmd_remote_relay.rs` | release 0.16.0 |
+| `crates/apps/lxmf-cli/tests/python_lxmd_remote_relay_parts/ifac_shared_instance.rs` | release 0.16.0 |
 | `crates/apps/lxmf-cli/tests/python_lxmd_remote_relay_parts/python_router_restart.rs` | release 0.16.0 |
 | `crates/apps/lxmf-cli/tests/python_lxmd_remote_relay_parts/shared_instance_daemon.rs` | release 0.16.0 |
 | `crates/apps/lxmf-cli/tests/python_lxmd_remote_relay_parts/shared_instance_two_peer_relay.rs` | release 0.16.0 |
+| `crates/apps/lxmf-cli/tests/support/python_lxmd_remote_relay_parts/module_prelude.rs` | release 0.16.0 |
 | `crates/apps/lxmf-cli/tests/support/python_lxmd_remote_relay_parts/status_hash.rs` | release 0.16.0 |
 | `crates/apps/lxmf-cli/tests/support/python_lxmf_endpoint.py` | release 0.16.0 |
 | `crates/apps/reticulumd/Cargo.toml` | guard discipline, release 0.16.0 |
@@ -1833,7 +1836,7 @@ release section's Python-in-the-loop proof rows.
 
 Fork commits `c281063e`, `a6ad4884`, `1a39183c`, `e14ead8d`, `44c19d48`,
 `5b9f69a8`, `704cd444`, `4ebfcc62`, `4e40639e`, `129c96ed`, `6f5cb046`,
-`95298884` and `7b168319`:
+`95298884`, `7b168319` and `00c419a0`:
 release 0.16.0. The first retargets the promotion-sensitive pins to the
 literal 0.16.0 label, since a released section is frozen:
 `crates/apps/reticulumd/tests/fork_publish_contract_parts/ledger_contract.rs`
@@ -2000,7 +2003,18 @@ extend the release-notes cite roots with `crates/apps/lxmf-cli/tests` so
 the bullet for this change resolves, and
 `docs/goals/reticulum-reference-parity-605/evidence/609-transport-local-shared.md`
 and `docs/status/reticulum-parity-matrix.md` describe the two-relay shape
-and the re-attach wait.
+and the re-attach wait. The fourteenth gives the last two Python
+shared-instance owners in the same test target a reserved
+`instance_control_port`:
+`crates/apps/lxmf-cli/tests/python_lxmd_remote_relay_parts/ifac_shared_instance.rs`
+and the application-and-restart test in
+`crates/apps/lxmf-cli/tests/python_lxmd_remote_relay_parts/shared_instance_daemon.rs`
+bound Reticulum's default control port, so a user `rnsd` on the same
+host made the owner exit at startup with the address in use and both
+tests failed before any traffic flowed. With no caller left for the
+no-port variant, the shared-instance config writer in
+`crates/apps/lxmf-cli/tests/support/python_lxmd_remote_relay_parts/module_prelude.rs`
+keeps only the form that takes the control port.
 
 ## 0.15.1 (upstream 0.14.0)
 

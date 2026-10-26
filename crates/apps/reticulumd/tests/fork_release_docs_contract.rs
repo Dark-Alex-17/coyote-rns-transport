@@ -602,6 +602,32 @@ fn crate_readme_shared_instance_section_cites_the_parity_lines() {
     }
 }
 
+/// The link-opening section describes `Transport::destination_desc` the way
+/// the accessor behaves: what it returns, the identity accessor it agrees
+/// with, the truncated name hash it stores and the comparison that suits it,
+/// the path expiry it survives, the deregistration that removes it, and the
+/// link call that takes the desc.
+#[test]
+fn crate_readme_link_section_describes_destination_desc() {
+    let readme = read_repo_file("crates/libs/rns-transport/README.md");
+    let section = crate_readme_section(&readme, "Opening links and admitting resources");
+    for claim in [
+        "`Transport::destination_desc`",
+        "`Option<DestinationDesc>`",
+        "`Transport::destination_identity`",
+        "`DestinationName::new_from_hash_slice`",
+        "`as_name_hash_slice()`",
+        "`Transport::expire_path`",
+        "`Transport::deregister_destination`",
+        "`Transport::link`",
+    ] {
+        assert!(
+            section.contains(claim),
+            "the link-opening section should mention {claim}:\n{section}"
+        );
+    }
+}
+
 /// A release whose minor digit moved against the previous release heading
 /// carries breaking changes, and the README sends consumers to `### Breaking`
 /// in the CHANGELOG for them: that subsection must open the release section

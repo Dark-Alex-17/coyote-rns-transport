@@ -108,6 +108,11 @@ fn newest_ledger_sections_are_the_crate_manifest_version() {
         .and_then(|rest| rest.strip_suffix('"'))
         .expect("the crate manifest states its version on one line");
     let newest_tag = newest_reachable_fork_tag();
+    if newest_tag.is_none() {
+        eprintln!(
+            "skipping the stub rule: no coyote-rns-transport-v* tag reachable from HEAD in this checkout"
+        );
+    }
     for relative in ["crates/libs/rns-transport/CHANGELOG.md", "docs/fork/PATCHSET.md"] {
         let text = read_repo_file(relative);
         let sections = release_sections(&text);

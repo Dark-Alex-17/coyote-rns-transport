@@ -7,9 +7,10 @@
 // state what each slicer must do at the boundaries the rule names: an
 // `## Unreleased` heading is not a release, a non-release heading below the
 // releases closes the last one, and a README block ends at the next
-// `What \`` marker or `## ` heading, whichever comes first. The last pin ties
-// the newest section label of each ledger to the crate manifest version, the
-// promotion rule the version-site pins state by literal.
+// `What \`` marker or `## ` heading, whichever comes first. The last pins tie
+// the newest release section of each ledger to the crate manifest version,
+// the promotion rule the version-site pins state by literal, and admit an
+// `## Unreleased` stub above it only between releases.
 
 /// A ledger with an `## Unreleased` stub above two releases and a
 /// non-release heading below them splits into exactly the two releases, each
@@ -68,10 +69,35 @@ fn readme_patch_block_bullets_stops_at_the_next_block_or_heading() {
     assert_eq!(readme_patch_block_bullets(readme, "0.15.1"), "- c");
 }
 
+/// Whether a ledger may carry an `## Unreleased` stub above the newest
+/// release. Between releases the manifest version equals the newest fork tag
+/// reachable from HEAD and the stub collects the work since that tag; in a
+/// release tree the manifest version is newer than that tag and the stub must
+/// already be promoted. Returns `None` when the ledger is acceptable and the
+/// reason otherwise. Without a reachable tag the ledger is accepted, as the
+/// frozen-sections pins skip on such a checkout.
+#[cfg(unix)]
+fn unreleased_stub_violation(
+    ledger: &str,
+    manifest_version: &str,
+    newest_tag_version: Option<&str>,
+) -> Option<String> {
+    let newest_tag_version = newest_tag_version?;
+    if !ledger.contains("\n## Unreleased") || manifest_version == newest_tag_version {
+        return None;
+    }
+    Some(format!(
+        "an `## Unreleased` stub may sit above the `## {manifest_version}` section only while \
+         {manifest_version} is the newest reachable fork tag, which is {newest_tag_version}"
+    ))
+}
+
 /// The newest release section of each ledger is the crate manifest version:
-/// a version bump and the ledger promotions land together, and no
-/// `## Unreleased` stub sits above the release. Derived from `Cargo.toml`
-/// rather than a literal, so it also holds for the next promotion.
+/// a version bump and the ledger promotions land together. An `## Unreleased`
+/// stub may sit above the release only between releases, while the manifest
+/// version is still the newest reachable fork tag; a release tree carries
+/// none. Derived from `Cargo.toml` and the reachable tags rather than a
+/// literal, so it also holds for the next promotion.
 #[cfg(unix)]
 #[test]
 fn newest_ledger_sections_are_the_crate_manifest_version() {
@@ -81,6 +107,7 @@ fn newest_ledger_sections_are_the_crate_manifest_version() {
         .find_map(|line| line.strip_prefix("version = \""))
         .and_then(|rest| rest.strip_suffix('"'))
         .expect("the crate manifest states its version on one line");
+    let newest_tag = newest_reachable_fork_tag();
     for relative in ["crates/libs/rns-transport/CHANGELOG.md", "docs/fork/PATCHSET.md"] {
         let text = read_repo_file(relative);
         let sections = release_sections(&text);
@@ -89,9 +116,35 @@ fn newest_ledger_sections_are_the_crate_manifest_version() {
             Some(version),
             "{relative} should open with the `## {version}` release section"
         );
-        assert!(
-            !text.contains("\n## Unreleased"),
-            "{relative} should carry no `## Unreleased` stub once the release is cut"
-        );
+        let violation =
+            unreleased_stub_violation(&text, version, newest_tag.as_ref().map(|(_, v)| v.as_str()));
+        assert_eq!(violation, None, "{relative}");
     }
+}
+
+/// Between releases, with the manifest at the newest reachable tag, a stub
+/// above the release is acceptable; once the manifest moves past that tag the
+/// same stub names a release tree that still carries unpromoted work.
+#[cfg(unix)]
+#[test]
+fn unreleased_stub_is_admitted_only_while_the_manifest_is_at_the_newest_tag() {
+    let ledger = "# Changelog\n\nintro\n\n## Unreleased\n\n### Added\n\n- pending\n\n\
+                  ## 0.16.0 - 2026-10-25\n\n### Breaking\n\n- x\n";
+    assert_eq!(unreleased_stub_violation(ledger, "0.16.0", Some("0.16.0")), None);
+    let reason = unreleased_stub_violation(ledger, "0.17.0", Some("0.16.0"))
+        .expect("a stub in a release tree is a violation");
+    assert!(reason.contains("0.17.0") && reason.contains("0.16.0"), "{reason}");
+}
+
+/// A ledger without a stub is acceptable whether or not the manifest has
+/// moved past the newest reachable tag, and so is any ledger on a checkout
+/// with no reachable fork tag, where the frozen-sections pins skip.
+#[cfg(unix)]
+#[test]
+fn unreleased_stub_rule_passes_without_a_stub_and_skips_without_a_tag() {
+    let released = "# Changelog\n\nintro\n\n## 0.16.0 - 2026-10-25\n\n### Breaking\n\n- x\n";
+    assert_eq!(unreleased_stub_violation(released, "0.16.0", Some("0.16.0")), None);
+    assert_eq!(unreleased_stub_violation(released, "0.17.0", Some("0.16.0")), None);
+    let stubbed = "# Changelog\n\n## Unreleased\n\n- pending\n\n## 0.16.0 - 2026-10-25\n\n- x\n";
+    assert_eq!(unreleased_stub_violation(stubbed, "0.17.0", None), None);
 }

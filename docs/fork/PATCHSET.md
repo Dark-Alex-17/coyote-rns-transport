@@ -30,8 +30,8 @@ per fork task.
 
 Every file changed since the `0.16.0` release and the patch each change
 belongs to. Patch ids: J1 is destination lookup. The `destination lookup`
-patch is fork commits `5246fc9c`, `d2f871f7`, `15278355`, `e8e64626` and
-`20d67e43`.
+patch is fork commits `5246fc9c`, `d2f871f7`, `15278355`, `e8e64626`,
+`20d67e43`, `1c74645b` and `49a5b27f`.
 
 | File | Patch |
 | --- | --- |
@@ -41,12 +41,14 @@ patch is fork commits `5246fc9c`, `d2f871f7`, `15278355`, `e8e64626` and
 | `crates/libs/rns-transport/CHANGELOG.md` | destination lookup |
 | `crates/libs/rns-transport/README.md` | destination lookup |
 | `crates/libs/rns-transport/src/transport/links_parts/transport_sections/close_channel.rs` | destination lookup |
+| `crates/libs/rns-transport/src/transport/tests_parts/reticulum_path_restore_destination_desc_probe.rs` | destination lookup |
 | `crates/libs/rns-transport/src/transport/tests_parts/two_transport_destination_desc.rs` | destination lookup |
 | `crates/libs/rns-transport/src/transport/tests_parts/two_transport_destination_desc_probe.rs` | destination lookup |
 | `crates/libs/rns-transport/src/transport/tests.rs` | destination lookup |
 | `docs/fork/PATCHSET.md` | destination lookup |
 
-Fork commits `5246fc9c`, `d2f871f7`, `15278355`, `e8e64626` and `20d67e43`:
+Fork commits `5246fc9c`, `d2f871f7`, `15278355`, `e8e64626`, `20d67e43`,
+`1c74645b` and `49a5b27f`:
 J1, destination lookup. `5246fc9c` adds `Transport::destination_desc`
 beside `destination_identity` in
 `links_parts/transport_sections/close_channel.rs`: the same lookup in the
@@ -67,7 +69,14 @@ the accessor returns, checks the zero-padded name, and shows
 it skips the stub rule for want of a reachable fork tag. `20d67e43` records
 the restore of a cached path table as the map's other fill site in the
 accessor's rustdoc, qualifies the README's link claim with the path it still
-needs, and adds the test-only Changed bullet to the crate CHANGELOG. No
+needs, and adds the test-only Changed bullet to the crate CHANGELOG.
+`1c74645b` adds `reticulum_path_restore_destination_desc_probe.rs`, which
+shows a restored path table filling the map with the announced identity and
+a desc that has outlived `expire_path` still refused by `link` with `NoPath`.
+`49a5b27f` moves the map lookup both accessors share into a private
+`single_out_destination` helper in `close_channel.rs`, names the restore
+fill site in the README and CHANGELOG prose, and pins the README's
+`DestinationName::new` contrast in `fork_release_docs_contract.rs`. No
 library behaviour changes beyond the new accessor.
 
 ## 0.16.0 (upstream 0.14.0)

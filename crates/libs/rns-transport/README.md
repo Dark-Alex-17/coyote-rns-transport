@@ -314,8 +314,8 @@ stores it, not the full hash `DestinationName::new` computes, so compare
 names with `as_name_hash_slice()` rather than against a freshly built
 `DestinationName`. The entry outlives `Transport::expire_path`, which
 touches only the path table, and is removed only by
-`Transport::deregister_destination`. The desc is enough to open a link with
-`Transport::link`.
+`Transport::deregister_destination`. The desc is the argument
+`Transport::link` takes, though the link still needs a path as described above.
 
 `AnnounceEvent::is_path_response` is true for an announce the destination
 sent in answer to a path request, which it files under

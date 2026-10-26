@@ -441,9 +441,10 @@ impl Transport {
     /// Returns the description of a destination learned from an announce.
     ///
     /// The result is `Some` exactly when `destination_identity` is `Some`: both
-    /// read the same map, which is filled when an announce is accepted. The
-    /// returned `name` is the announce's truncated name hash as the receiver
-    /// stores it through `DestinationName::new_from_hash_slice` (the first
+    /// read the same map, which is filled when an announce is accepted or a
+    /// cached path table is restored. The returned `name` is the announce's
+    /// truncated name hash as the receiver stores it through
+    /// `DestinationName::new_from_hash_slice` (the first
     /// `NAME_HASH_LENGTH` bytes, zero-padded), not the full hash
     /// `DestinationName::new` computes, so callers compare names with
     /// `as_name_hash_slice()`. Only `deregister_destination` prunes the map;

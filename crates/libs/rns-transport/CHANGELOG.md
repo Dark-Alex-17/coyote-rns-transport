@@ -20,7 +20,20 @@ Removed) bullet of its own, marked as such.
   `DestinationName::new_from_hash_slice` stores it, so callers compare names
   with `as_name_hash_slice()`. The entry survives `expire_path`, which
   touches only the path table, and is pruned only by
-  `deregister_destination`. Pinned by `two_transport_destination_desc.rs`.
+  `deregister_destination`. Pinned by `two_transport_destination_desc.rs`
+  and `two_transport_destination_desc_probe.rs`, which also covers the
+  `deregister_destination` prune and opening a link with the returned desc.
+
+### Changed
+
+- Ledger contracts, test-only: the full-hash ledger pin covers the open
+  `## Unreleased` section (`fork_publish_contract_parts/ledger_contract.rs`),
+  the manifest-version pin admits an `## Unreleased` stub above the
+  manifest-version section only while the manifest version is the newest
+  fork tag reachable from HEAD and a release tree carries none
+  (`fork_publish_contract_parts/release_frozen_sections_probe2.rs`), and the
+  crate README's description of `Transport::destination_desc` is pinned
+  (`fork_release_docs_contract.rs`).
 
 ## 0.16.0 - 2026-10-25
 

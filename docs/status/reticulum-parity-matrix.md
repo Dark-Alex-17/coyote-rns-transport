@@ -619,12 +619,13 @@ extend the physical or public-network evidence boundary.
   mistaken for multi-process Python shared-instance interop evidence. A pinned
   Python shared-instance smoke now records
   `evidence_scope = "python_shared_instance_tcp_unix_attach_announce_payload_and_lifecycle"` after
-  `reticulumd` attaches to real Python Reticulum shared instances over TCP and
-  Linux abstract Unix sockets. Pinned Python peers assert exact UTF-8 announce
+  one `reticulumd` per Python shared instance attaches to its real Python
+  Reticulum shared instance, one over TCP and one over Linux abstract Unix
+  sockets. Pinned Python peers assert exact UTF-8 announce
   `app_data` in both directions on both transports, alongside traffic-client
   `announced_count` and shared-server `local_client_rxb_total`/`local_client_txb_total` counters; that
-  process smoke now also SIGINT-stops `reticulumd`, observes its AF_UNIX client
-  disappear from the Python shared instance, restarts the daemon, and checks
+  process smoke now also SIGINT-stops each `reticulumd`, observes its client
+  disappear from its Python shared instance, restarts that daemon, and checks
   the configured interface returns to `attached`. This remains selected Linux
   software evidence, not daemon application-level packet consumption, broad
   application-level shared-instance traffic, physical-interface, or cross-platform parity. Independent rns-rs evidence

@@ -21,12 +21,21 @@ mkdir -p "$LOG_DIR"
 
 # Boundary phrase preserved for contract tests: does not prove broad application-level shared-instance traffic parity.
 RUN_DIR="$(mktemp -d "${LOG_DIR}/run.XXXXXX")"
-RUST_CONFIG_PATH="${RUN_DIR}/reticulumd-local-python-shared.toml"
-DB_PATH="${RUN_DIR}/reticulum.db"
-RPC_UNIX="${RUN_DIR}/rpc.sock"
-RETICULUMD_LOG="${RUN_DIR}/reticulumd.log"
-RNSTATUS_JSON="${RUN_DIR}/rnstatus.json"
-RNSTATUS_HUMAN="${RUN_DIR}/rnstatus.txt"
+# A daemon attaches exactly one shared instance, so each Python shared instance gets its own
+# reticulumd. Each daemon also gets its own directory: reticulumd keeps its packet hashlist,
+# path table and service identities beside the database it is given.
+RET_DIR_TCP="${RUN_DIR}/reticulumd-tcp"
+RET_DIR_UNIX="${RUN_DIR}/reticulumd-unix"
+RUST_CONFIG_PATH_TCP="${RET_DIR_TCP}/reticulumd-local-python-shared.toml"
+RUST_CONFIG_PATH_UNIX="${RET_DIR_UNIX}/reticulumd-local-python-shared.toml"
+DB_PATH_TCP="${RET_DIR_TCP}/reticulum.db"
+DB_PATH_UNIX="${RET_DIR_UNIX}/reticulum.db"
+RETICULUMD_LOG_TCP="${RET_DIR_TCP}/reticulumd.log"
+RETICULUMD_LOG_UNIX="${RET_DIR_UNIX}/reticulumd.log"
+RNSTATUS_JSON_TCP="${RET_DIR_TCP}/rnstatus.json"
+RNSTATUS_JSON_UNIX="${RET_DIR_UNIX}/rnstatus.json"
+RNSTATUS_HUMAN_TCP="${RET_DIR_TCP}/rnstatus.txt"
+RNSTATUS_HUMAN_UNIX="${RET_DIR_UNIX}/rnstatus.txt"
 PY_TCP_CONFIG_DIR="${RUN_DIR}/python-tcp"
 PY_UNIX_CONFIG_DIR="${RUN_DIR}/python-unix"
 PY_TCP_TRAFFIC_CONFIG_DIR="${RUN_DIR}/python-tcp-traffic"
@@ -43,8 +52,9 @@ PY_TCP_PORT_FILE="${RUN_DIR}/python-shared-tcp.port"
 PY_UNIX_INSTANCE="codex-py-shared-$$"
 UNIX_TEARDOWN_RESTART_VERIFIED=false
 TCP_TEARDOWN_RESTART_VERIFIED=false
-mkdir -p "$PY_TCP_CONFIG_DIR" "$PY_UNIX_CONFIG_DIR" "$PY_TCP_TRAFFIC_CONFIG_DIR" "$PY_UNIX_TRAFFIC_CONFIG_DIR"
-: >"$RETICULUMD_LOG"
+mkdir -p "$RET_DIR_TCP" "$RET_DIR_UNIX" "$PY_TCP_CONFIG_DIR" "$PY_UNIX_CONFIG_DIR" "$PY_TCP_TRAFFIC_CONFIG_DIR" "$PY_UNIX_TRAFFIC_CONFIG_DIR"
+: >"$RETICULUMD_LOG_TCP"
+: >"$RETICULUMD_LOG_UNIX"
 : >"$PY_TCP_LOG"
 : >"$PY_UNIX_LOG"
 : >"$PY_TCP_TRAFFIC_LOG"
@@ -55,25 +65,20 @@ if [[ ! -f "${RETICULUM_PY_REPO}/RNS/Reticulum.py" ]]; then
   exit 1
 fi
 
-if [[ -z "${RPC_ADDR:-}" ]]; then
-  RPC_ADDR="$(
-    python3 - <<'PY'
-import socket
-with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as sock:
-    sock.bind(("127.0.0.1", 0))
-    print(f"127.0.0.1:{sock.getsockname()[1]}")
-PY
-  )"
-fi
-
-PY_TCP_PORT="$(
+# Three free loopback ports, held open until all are chosen so no two picks collide.
+read -r RPC_PORT_TCP RPC_PORT_UNIX PY_TCP_PORT < <(
   python3 - <<'PY'
 import socket
-with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as sock:
+socks = [socket.socket(socket.AF_INET, socket.SOCK_STREAM) for _ in range(3)]
+for sock in socks:
     sock.bind(("127.0.0.1", 0))
-    print(sock.getsockname()[1])
+print(" ".join(str(sock.getsockname()[1]) for sock in socks))
+for sock in socks:
+    sock.close()
 PY
-)"
+)
+RPC_ADDR_TCP="127.0.0.1:${RPC_PORT_TCP}"
+RPC_ADDR_UNIX="127.0.0.1:${RPC_PORT_UNIX}"
 printf '%s\n' "$PY_TCP_PORT" >"$PY_TCP_PORT_FILE"
 
 cat >"${PY_TCP_CONFIG_DIR}/config" <<EOF
@@ -127,7 +132,7 @@ EOF
 write_report() {
   local status="$1"
   local reason="${2:-}"
-  python3 - <<'PY' "$REPORT_PATH" "$status" "$reason" "$RPC_ADDR" "$RUN_DIR" "$RUST_CONFIG_PATH" "$RETICULUMD_LOG" "$RNSTATUS_JSON" "$RNSTATUS_HUMAN" "$RETICULUM_PY_REPO" "$PY_TCP_CONFIG_DIR" "$PY_UNIX_CONFIG_DIR" "$PY_TCP_TRAFFIC_CONFIG_DIR" "$PY_UNIX_TRAFFIC_CONFIG_DIR" "$PY_TCP_LOG" "$PY_UNIX_LOG" "$PY_TCP_TRAFFIC_LOG" "$PY_UNIX_TRAFFIC_LOG" "$PY_TCP_STATE" "$PY_UNIX_STATE" "$PY_TCP_TRAFFIC_STATE" "$PY_UNIX_TRAFFIC_STATE" "$PY_TCP_PORT" "$PY_UNIX_INSTANCE" "$UNIX_TEARDOWN_RESTART_VERIFIED" "$TCP_TEARDOWN_RESTART_VERIFIED"
+  python3 - <<'PY' "$REPORT_PATH" "$status" "$reason" "$RUN_DIR" "$RPC_ADDR_TCP" "$RPC_UNIX_TCP" "$DB_PATH_TCP" "$RUST_CONFIG_PATH_TCP" "$RETICULUMD_LOG_TCP" "$RNSTATUS_JSON_TCP" "$RNSTATUS_HUMAN_TCP" "$RPC_ADDR_UNIX" "$RPC_UNIX_UNIX" "$DB_PATH_UNIX" "$RUST_CONFIG_PATH_UNIX" "$RETICULUMD_LOG_UNIX" "$RNSTATUS_JSON_UNIX" "$RNSTATUS_HUMAN_UNIX" "$RETICULUM_PY_REPO" "$PY_TCP_CONFIG_DIR" "$PY_UNIX_CONFIG_DIR" "$PY_TCP_TRAFFIC_CONFIG_DIR" "$PY_UNIX_TRAFFIC_CONFIG_DIR" "$PY_TCP_LOG" "$PY_UNIX_LOG" "$PY_TCP_TRAFFIC_LOG" "$PY_UNIX_TRAFFIC_LOG" "$PY_TCP_STATE" "$PY_UNIX_STATE" "$PY_TCP_TRAFFIC_STATE" "$PY_UNIX_TRAFFIC_STATE" "$PY_TCP_PORT" "$PY_UNIX_INSTANCE" "$UNIX_TEARDOWN_RESTART_VERIFIED" "$TCP_TEARDOWN_RESTART_VERIFIED"
 import json
 import pathlib
 import subprocess
@@ -137,12 +142,21 @@ import sys
     report_path,
     status,
     reason,
-    rpc_addr,
     run_dir,
-    rust_config_path,
-    reticulumd_log,
-    rnstatus_json,
-    rnstatus_human,
+    tcp_rpc_addr,
+    tcp_rpc_unix,
+    tcp_db_path,
+    tcp_rust_config_path,
+    tcp_reticulumd_log,
+    tcp_rnstatus_json,
+    tcp_rnstatus_human,
+    unix_rpc_addr,
+    unix_rpc_unix,
+    unix_db_path,
+    unix_rust_config_path,
+    unix_reticulumd_log,
+    unix_rnstatus_json,
+    unix_rnstatus_human,
     reticulum_py_repo,
     py_tcp_config_dir,
     py_unix_config_dir,
@@ -160,7 +174,7 @@ import sys
     py_unix_instance,
     unix_teardown_restart_verified,
     tcp_teardown_restart_verified,
-) = sys.argv[1:27]
+) = sys.argv[1:36]
 
 def read_json(path):
     value_path = pathlib.Path(path)
@@ -171,12 +185,12 @@ def read_json(path):
     except Exception as exc:
         return {"parse_error": str(exc)}
 
-def read_interfaces(path):
-    payload = read_json(path)
+def read_interfaces(rnstatus_json_by_name):
     rows = {}
-    if not isinstance(payload, dict):
-        return rows
-    for expected in ["local-python-tcp-attach", "local-python-unix-attach"]:
+    for expected, path in rnstatus_json_by_name.items():
+        payload = read_json(path)
+        if not isinstance(payload, dict):
+            continue
         row = next(
             (
                 item
@@ -199,6 +213,21 @@ def read_interfaces(path):
             }
     return rows
 
+def daemon_report(rpc_addr, rpc_unix, db_path, rust_config_path, reticulumd_log, rnstatus_json, rnstatus_human):
+    entry = {
+        "rpc_addr": rpc_addr,
+        "rpc_unix": rpc_unix,
+        "db_path": db_path,
+        "rust_config_path": rust_config_path,
+        "reticulumd_log": reticulumd_log,
+        "rnstatus_json": rnstatus_json,
+        "rnstatus_human": rnstatus_human,
+    }
+    human_path = pathlib.Path(rnstatus_human)
+    if human_path.exists():
+        entry["human_summary"] = human_path.read_text(encoding="utf-8", errors="replace")
+    return entry
+
 try:
     py_revision = subprocess.check_output(
         ["git", "-C", reticulum_py_repo, "rev-parse", "HEAD"],
@@ -212,9 +241,11 @@ report = {
     "status": status,
     "evidence_scope": "python_shared_instance_tcp_unix_attach_announce_payload_and_lifecycle",
     "product_boundary": (
-        "This proves reticulumd LocalClientInterface attaches to real pinned "
-        "Python Reticulum shared instances over TCP and Linux abstract Unix "
-        "sockets, and that Python-origin announces move across the shared "
+        "This proves two reticulumd daemons, one per pinned Python Reticulum shared instance "
+        "(a daemon attaches exactly one shared instance, as a Python process holds one), "
+        "attach a LocalClientInterface to real pinned Python Reticulum shared instances "
+        "over TCP and Linux abstract Unix sockets, and that "
+        "Python-origin announces move across the shared "
         "instance fanout toward attached local clients with exact payloads "
         "observed between Python peers. Both transports observe graceful "
         "reticulumd client teardown and reattachment after daemon restart; "
@@ -223,12 +254,27 @@ report = {
         "traffic parity."
     ),
     "reason": reason or None,
-    "rpc_addr": rpc_addr,
     "run_dir": run_dir,
-    "rust_config_path": rust_config_path,
-    "reticulumd_log": reticulumd_log,
-    "rnstatus_json": rnstatus_json,
-    "rnstatus_human": rnstatus_human,
+    "daemons": {
+        "tcp": daemon_report(
+            tcp_rpc_addr,
+            tcp_rpc_unix,
+            tcp_db_path,
+            tcp_rust_config_path,
+            tcp_reticulumd_log,
+            tcp_rnstatus_json,
+            tcp_rnstatus_human,
+        ),
+        "unix": daemon_report(
+            unix_rpc_addr,
+            unix_rpc_unix,
+            unix_db_path,
+            unix_rust_config_path,
+            unix_reticulumd_log,
+            unix_rnstatus_json,
+            unix_rnstatus_human,
+        ),
+    },
     "reticulum_py_repo": reticulum_py_repo,
     "python_rns_revision": py_revision,
     "python_tcp_config_dir": py_tcp_config_dir,
@@ -247,11 +293,13 @@ report = {
     "python_unix_socket_path": f"@rns/{py_unix_instance}",
     "unix_teardown_restart_verified": unix_teardown_restart_verified == "true",
     "tcp_teardown_restart_verified": tcp_teardown_restart_verified == "true",
-    "interfaces": read_interfaces(rnstatus_json),
+    "interfaces": read_interfaces(
+        {
+            "local-python-tcp-attach": tcp_rnstatus_json,
+            "local-python-unix-attach": unix_rnstatus_json,
+        }
+    ),
 }
-human_path = pathlib.Path(rnstatus_human)
-if human_path.exists():
-    report["human_summary"] = human_path.read_text(encoding="utf-8", errors="replace")
 pathlib.Path(report_path).write_text(
     json.dumps(report, indent=2, sort_keys=True) + "\n",
     encoding="utf-8",
@@ -261,25 +309,14 @@ PY
 
 cleanup() {
   local status=$?
-  if [[ -n "${RET_PID:-}" ]]; then
-    kill "$RET_PID" >/dev/null 2>&1 || true
-    wait "$RET_PID" >/dev/null 2>&1 || true
-  fi
-  if [[ -n "${PY_TCP_PID:-}" ]]; then
-    kill "$PY_TCP_PID" >/dev/null 2>&1 || true
-    wait "$PY_TCP_PID" >/dev/null 2>&1 || true
-  fi
-  if [[ -n "${PY_UNIX_PID:-}" ]]; then
-    kill "$PY_UNIX_PID" >/dev/null 2>&1 || true
-    wait "$PY_UNIX_PID" >/dev/null 2>&1 || true
-  fi
-  if [[ -n "${PY_TCP_TRAFFIC_PID:-}" ]]; then
-    kill "$PY_TCP_TRAFFIC_PID" >/dev/null 2>&1 || true
-    wait "$PY_TCP_TRAFFIC_PID" >/dev/null 2>&1 || true
-  fi
-  if [[ -n "${PY_UNIX_TRAFFIC_PID:-}" ]]; then
-    kill "$PY_UNIX_TRAFFIC_PID" >/dev/null 2>&1 || true
-    wait "$PY_UNIX_TRAFFIC_PID" >/dev/null 2>&1 || true
+  local pid
+  for pid in "${RET_PID_TCP:-}" "${RET_PID_UNIX:-}" "${PY_TCP_PID:-}" "${PY_UNIX_PID:-}" "${PY_TCP_TRAFFIC_PID:-}" "${PY_UNIX_TRAFFIC_PID:-}"; do
+    [[ -n "$pid" ]] || continue
+    kill "$pid" >/dev/null 2>&1 || true
+    wait "$pid" >/dev/null 2>&1 || true
+  done
+  if [[ -n "${RPC_UNIX_DIR:-}" ]]; then
+    rm -rf "$RPC_UNIX_DIR"
   fi
   if [[ $status -ne 0 ]]; then
     echo "[local-interface-python-shared-smoke] failed; logs=${RUN_DIR}" >&2
@@ -287,9 +324,15 @@ cleanup() {
 }
 trap cleanup EXIT
 
+# The RPC unix sockets live in a short /tmp dir: the daemon binds each one through a
+# staging path beside it, and a socket path longer than sun_path (107 bytes) fails to bind.
+RPC_UNIX_DIR="$(mktemp -d /tmp/rns-shared-smoke-rpc.XXXXXX)"
+RPC_UNIX_TCP="${RPC_UNIX_DIR}/tcp.sock"
+RPC_UNIX_UNIX="${RPC_UNIX_DIR}/unix.sock"
+
 fail() {
   local msg="$1"
-  echo "[local-interface-python-shared-smoke] ERROR: ${msg}" | tee -a "$RETICULUMD_LOG" >&2
+  echo "[local-interface-python-shared-smoke] ERROR: ${msg}" | tee -a "$RETICULUMD_LOG_TCP" "$RETICULUMD_LOG_UNIX" >&2
   write_report "fail" "$msg"
   exit 1
 }
@@ -493,7 +536,7 @@ PY
 wait_for_python_ready "$PY_TCP_STATE" "$PY_TCP_PID" "TCP"
 wait_for_python_ready "$PY_UNIX_STATE" "$PY_UNIX_PID" "Unix"
 
-cat >"$RUST_CONFIG_PATH" <<EOF
+cat >"$RUST_CONFIG_PATH_TCP" <<EOF
 [[interfaces]]
 type = "LocalClientInterface"
 enabled = true
@@ -503,7 +546,9 @@ host = "127.0.0.1"
 port = ${PY_TCP_PORT}
 fixed_mtu = 262144
 force_shared_instance_bitrate = 1000000
+EOF
 
+cat >"$RUST_CONFIG_PATH_UNIX" <<EOF
 [[interfaces]]
 type = "LocalClientInterface"
 enabled = true
@@ -517,29 +562,42 @@ EOF
 cargo build -p reticulumd --bin reticulumd --quiet
 cargo build -p rns-tools --bin rnstatus-rs --quiet
 
-"${ROOT_DIR}/target/debug/reticulumd" \
-  --rpc "$RPC_ADDR" \
-  --rpc-unix "$RPC_UNIX" \
-  --db "$DB_PATH" \
-  --config "$RUST_CONFIG_PATH" \
-  --strict-interface-startup >"$RETICULUMD_LOG" 2>&1 &
-RET_PID=$!
-TRAFFIC_STARTED=false
-
 start_reticulumd() {
+  local kind="$1"
+  local suffix="${kind^^}"
+  local rpc_addr="RPC_ADDR_${suffix}"
+  local rpc_unix="RPC_UNIX_${suffix}"
+  local db_path="DB_PATH_${suffix}"
+  local config_path="RUST_CONFIG_PATH_${suffix}"
+  local log_path="RETICULUMD_LOG_${suffix}"
   "${ROOT_DIR}/target/debug/reticulumd" \
-    --rpc "$RPC_ADDR" \
-    --rpc-unix "$RPC_UNIX" \
-    --db "$DB_PATH" \
-    --config "$RUST_CONFIG_PATH" \
-    --strict-interface-startup >>"$RETICULUMD_LOG" 2>&1 &
-  RET_PID=$!
+    --rpc "${!rpc_addr}" \
+    --rpc-unix "${!rpc_unix}" \
+    --db "${!db_path}" \
+    --config "${!config_path}" \
+    --strict-interface-startup >>"${!log_path}" 2>&1 &
+  printf -v "RET_PID_${suffix}" '%s' "$!"
 }
 
+rnstatus_snapshot() {
+  local kind="$1"
+  local suffix="${kind^^}"
+  local rpc_addr="RPC_ADDR_${suffix}"
+  local json_path="RNSTATUS_JSON_${suffix}"
+  local human_path="RNSTATUS_HUMAN_${suffix}"
+  local log_path="RETICULUMD_LOG_${suffix}"
+  "${ROOT_DIR}/target/debug/rnstatus-rs" --rpc "${!rpc_addr}" --json >"${!json_path}" 2>>"${!log_path}" \
+    && "${ROOT_DIR}/target/debug/rnstatus-rs" --rpc "${!rpc_addr}" >"${!human_path}" 2>>"${!log_path}"
+}
+
+start_reticulumd tcp
+start_reticulumd unix
+TRAFFIC_STARTED=false
+
 verify_unix_detach_and_restart() {
-  kill -INT "$RET_PID"
-  wait "$RET_PID"
-  RET_PID=""
+  kill -INT "$RET_PID_UNIX"
+  wait "$RET_PID_UNIX"
+  RET_PID_UNIX=""
 
   local teardown_deadline=$((SECONDS + 15))
   while (( SECONDS < teardown_deadline )); do
@@ -564,14 +622,14 @@ PY
     fail "Python Unix shared instance did not observe reticulumd client teardown"
   fi
 
-  start_reticulumd
+  start_reticulumd unix
   local restart_deadline=$((SECONDS + TIMEOUT_SECS))
   while (( SECONDS < restart_deadline )); do
-    if ! kill -0 "$RET_PID" >/dev/null 2>&1; then
+    if ! kill -0 "$RET_PID_UNIX" >/dev/null 2>&1; then
       fail "reticulumd exited during Unix shared-instance restart"
     fi
-    if "${ROOT_DIR}/target/debug/rnstatus-rs" --rpc "$RPC_ADDR" --json >"$RNSTATUS_JSON" 2>>"$RETICULUMD_LOG" \
-      && python3 - <<'PY' "$RNSTATUS_JSON" "$PY_UNIX_STATE"
+    if rnstatus_snapshot unix \
+      && python3 - <<'PY' "$RNSTATUS_JSON_UNIX" "$PY_UNIX_STATE"
 import json
 import sys
 status_path, state_path = sys.argv[1:3]
@@ -592,9 +650,9 @@ PY
 }
 
 verify_tcp_detach_and_restart() {
-  kill -INT "$RET_PID"
-  wait "$RET_PID"
-  RET_PID=""
+  kill -INT "$RET_PID_TCP"
+  wait "$RET_PID_TCP"
+  RET_PID_TCP=""
 
   local teardown_deadline=$((SECONDS + 15))
   while (( SECONDS < teardown_deadline )); do
@@ -619,14 +677,14 @@ PY
     fail "Python TCP shared instance did not observe reticulumd client teardown"
   fi
 
-  start_reticulumd
+  start_reticulumd tcp
   local restart_deadline=$((SECONDS + TIMEOUT_SECS))
   while (( SECONDS < restart_deadline )); do
-    if ! kill -0 "$RET_PID" >/dev/null 2>&1; then
+    if ! kill -0 "$RET_PID_TCP" >/dev/null 2>&1; then
       fail "reticulumd exited during TCP shared-instance restart"
     fi
-    if "${ROOT_DIR}/target/debug/rnstatus-rs" --rpc "$RPC_ADDR" --json >"$RNSTATUS_JSON" 2>>"$RETICULUMD_LOG" \
-      && python3 - <<'PY' "$RNSTATUS_JSON" "$PY_TCP_STATE"
+    if rnstatus_snapshot tcp \
+      && python3 - <<'PY' "$RNSTATUS_JSON_TCP" "$PY_TCP_STATE"
 import json
 import sys
 status_path, state_path = sys.argv[1:3]
@@ -647,25 +705,32 @@ PY
 }
 
 while (( SECONDS < deadline )); do
-  if ! kill -0 "$RET_PID" >/dev/null 2>&1; then
-    fail "reticulumd exited before Python shared-instance attach status became healthy"
+  if ! kill -0 "$RET_PID_TCP" >/dev/null 2>&1; then
+    fail "reticulumd exited before Python shared-instance attach status became healthy (tcp)"
   fi
-  if "${ROOT_DIR}/target/debug/rnstatus-rs" --rpc "$RPC_ADDR" --json >"$RNSTATUS_JSON" 2>>"$RETICULUMD_LOG" \
-    && "${ROOT_DIR}/target/debug/rnstatus-rs" --rpc "$RPC_ADDR" >"$RNSTATUS_HUMAN" 2>>"$RETICULUMD_LOG"; then
-    if [[ "$TRAFFIC_STARTED" == false ]] && python3 - <<'PY' "$RNSTATUS_JSON" "$PY_TCP_STATE" "$PY_UNIX_STATE"
+  if ! kill -0 "$RET_PID_UNIX" >/dev/null 2>&1; then
+    fail "reticulumd exited before Python shared-instance attach status became healthy (unix)"
+  fi
+  if grep -q "bind private rpc unix socket" "$RETICULUMD_LOG_TCP"; then
+    fail "reticulumd could not bind its private RPC unix socket (tcp)"
+  fi
+  if grep -q "bind private rpc unix socket" "$RETICULUMD_LOG_UNIX"; then
+    fail "reticulumd could not bind its private RPC unix socket (unix)"
+  fi
+  if rnstatus_snapshot tcp && rnstatus_snapshot unix; then
+    if [[ "$TRAFFIC_STARTED" == false ]] && python3 - <<'PY' "$RNSTATUS_JSON_TCP" "$RNSTATUS_JSON_UNIX" "$PY_TCP_STATE" "$PY_UNIX_STATE"
 import json
 import sys
 
-json_path, tcp_state_path, unix_state_path = sys.argv[1:4]
-payload = json.load(open(json_path, "r", encoding="utf-8"))
-states = [
-    json.load(open(tcp_state_path, "r", encoding="utf-8")),
-    json.load(open(unix_state_path, "r", encoding="utf-8")),
-]
-for state in states:
+tcp_json_path, unix_json_path, tcp_state_path, unix_state_path = sys.argv[1:5]
+for json_path, state_path, name in [
+    (tcp_json_path, tcp_state_path, "local-python-tcp-attach"),
+    (unix_json_path, unix_state_path, "local-python-unix-attach"),
+]:
+    state = json.load(open(state_path, "r", encoding="utf-8"))
     if (state.get("local_client_count") or 0) < 1:
         raise SystemExit(1)
-for name in ["local-python-tcp-attach", "local-python-unix-attach"]:
+    payload = json.load(open(json_path, "r", encoding="utf-8"))
     row = next(
         (
             item
@@ -686,24 +751,28 @@ PY
       TRAFFIC_STARTED=true
     fi
 
-    if python3 - <<'PY' "$RNSTATUS_JSON" "$RNSTATUS_HUMAN" "$PY_TCP_STATE" "$PY_UNIX_STATE" "$PY_TCP_TRAFFIC_STATE" "$PY_UNIX_TRAFFIC_STATE" "$PY_TCP_PORT" "$PY_UNIX_INSTANCE"
+    if python3 - <<'PY' "$RNSTATUS_JSON_TCP" "$RNSTATUS_JSON_UNIX" "$RNSTATUS_HUMAN_TCP" "$RNSTATUS_HUMAN_UNIX" "$PY_TCP_STATE" "$PY_UNIX_STATE" "$PY_TCP_TRAFFIC_STATE" "$PY_UNIX_TRAFFIC_STATE" "$PY_TCP_PORT" "$PY_UNIX_INSTANCE"
 import json
 import pathlib
 import sys
 
 (
-    json_path,
-    human_path,
+    tcp_json_path,
+    unix_json_path,
+    tcp_human_path,
+    unix_human_path,
     tcp_state_path,
     unix_state_path,
     tcp_traffic_state_path,
     unix_traffic_state_path,
     tcp_port_raw,
     unix_instance,
-) = sys.argv[1:9]
+) = sys.argv[1:11]
 for path in [
-    json_path,
-    human_path,
+    tcp_json_path,
+    unix_json_path,
+    tcp_human_path,
+    unix_human_path,
     tcp_state_path,
     unix_state_path,
     tcp_traffic_state_path,
@@ -712,19 +781,17 @@ for path in [
     if not pathlib.Path(path).exists():
         raise SystemExit(1)
 tcp_port = int(tcp_port_raw)
-payload = json.load(open(json_path, "r", encoding="utf-8"))
-human = open(human_path, "r", encoding="utf-8", errors="replace").read()
 tcp_state = json.load(open(tcp_state_path, "r", encoding="utf-8"))
 unix_state = json.load(open(unix_state_path, "r", encoding="utf-8"))
 tcp_traffic_state = json.load(open(tcp_traffic_state_path, "r", encoding="utf-8"))
 unix_traffic_state = json.load(open(unix_traffic_state_path, "r", encoding="utf-8"))
 
-interfaces = payload.get("interfaces", [])
-expected = {
-    "local-python-tcp-attach": ("tcp", "127.0.0.1", tcp_port, None),
-    "local-python-unix-attach": ("unix", None, None, f"@rns/{unix_instance}"),
-}
-for name, (shared_type, host, port, socket_path) in expected.items():
+expected = [
+    (tcp_json_path, tcp_human_path, "local-python-tcp-attach", "tcp", "127.0.0.1", tcp_port, None),
+    (unix_json_path, unix_human_path, "local-python-unix-attach", "unix", None, None, f"@rns/{unix_instance}"),
+]
+for json_path, human_path, name, shared_type, host, port, socket_path in expected:
+    interfaces = json.load(open(json_path, "r", encoding="utf-8")).get("interfaces", [])
     row = next(
         (
             item
@@ -752,6 +819,10 @@ for name, (shared_type, host, port, socket_path) in expected.items():
     runtime_iface = runtime.get("iface") or runtime.get("runtime_iface")
     if not isinstance(runtime_iface, str) or not runtime_iface:
         raise SystemExit(1)
+    human = open(human_path, "r", encoding="utf-8", errors="replace").read()
+    for token in [name, " local_client ", " attached"]:
+        if token not in human:
+            raise SystemExit(1)
 
 for state in [tcp_state, unix_state]:
     if (state.get("local_client_count") or 0) < 2:
@@ -775,14 +846,6 @@ for label, state, shared_state in [
     if f"codex-local-python-shared-payload:python-to-shared:{label}" not in shared_state.get("received_payloads", []):
         raise SystemExit(1)
     if "codex-local-python-shared-payload:shared-to-python" not in state.get("received_payloads", []):
-        raise SystemExit(1)
-for token in [
-    "local-python-tcp-attach",
-    "local-python-unix-attach",
-    " local_client ",
-    " attached",
-]:
-    if token not in human:
         raise SystemExit(1)
 PY
     then

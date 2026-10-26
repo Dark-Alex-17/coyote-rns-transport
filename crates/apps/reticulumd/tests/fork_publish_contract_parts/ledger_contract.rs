@@ -205,7 +205,7 @@ fn released_notes_bullets_each_cite_a_pinning_file() {
         assert!(
             unresolved.is_empty(),
             "every file cited in the {version} release notes should exist under the crate, the \
-             reticulumd tests or the rns-tools sources:\n{}",
+             reticulumd tests, the rns-tools sources or the lxmf-cli tests:\n{}",
             unresolved.join("\n")
         );
     }

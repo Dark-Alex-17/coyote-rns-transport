@@ -79,6 +79,33 @@ pub fn wait_for_known_path_without_announce(
     ))
 }
 
+pub fn wait_for_python_local_client_count(
+    control_port: u16,
+    expected: usize,
+    label: &str,
+) -> Result<(), String> {
+    let deadline = Instant::now() + Duration::from_secs(60);
+    let mut last_status = "status was not queried".to_string();
+    while Instant::now() < deadline {
+        match python_control_call(control_port, "status", None) {
+            Ok(status) => {
+                let count = status["reticulum"]["local_client_count"]
+                    .as_u64()
+                    .and_then(|count| usize::try_from(count).ok());
+                if count.is_some_and(|count| count >= expected) {
+                    return Ok(());
+                }
+                last_status = status.to_string();
+            }
+            Err(err) => last_status = format!("control error: {err}"),
+        }
+        thread::sleep(WAIT_POLL_INTERVAL);
+    }
+    Err(format!(
+        "{label} did not report at least {expected} attached local client(s) on control port {control_port}; last status: {last_status}"
+    ))
+}
+
 pub fn wait_for_inbound_message(rpc_port: u16, expected_content: &str) -> Result<(), String> {
     let deadline = Instant::now() + TEST_TIMEOUT;
     while Instant::now() < deadline {

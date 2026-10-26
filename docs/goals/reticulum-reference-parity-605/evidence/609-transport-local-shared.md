@@ -267,15 +267,18 @@ remain outside that result.
 ## Two-peer shared-instance recovery after Rust daemon replacement
 
 `python_shared_instance_two_peer_relay_recovers_after_daemon_restart_e2e`
-starts two independent pinned-Python shared-instance peers and attaches both as
-local clients to one transport-enabled Rust relay. LXMF messages pass in both
-directions before the fault. The Python sender arms a one-shot software fault
-that drops the next LXMF DATA/NONE packet for peer B and submits an
-opportunistic message through its real pinned `LXMRouter` queue. The test waits
-until the packet has been dropped and verifies the message remains nonterminal
-after exactly one delivery attempt. It then replaces the Rust daemon while the
-Python endpoints and queued message remain alive. After both peers re-announce
-and the replacement relay relearns their paths, the fault harness observes an
+starts two independent pinned-Python shared-instance peers and two
+transport-enabled Rust relays, each attached as a local client to one Python
+shared instance and bridged to each other over a Rust TCP uplink (one Rust
+daemon attaches to at most one shared instance, matching Python). LXMF
+messages pass in both directions before the fault. The Python sender arms a
+one-shot software fault that drops the next LXMF DATA/NONE packet for peer B
+and submits an opportunistic message through its real pinned `LXMRouter`
+queue. The test waits until the packet has been dropped and verifies the
+message remains nonterminal after exactly one delivery attempt. It then
+replaces both Rust daemons while the Python endpoints and queued message remain
+alive. After both peers re-announce and the replacement relays relearn their
+paths over the re-established uplink, the fault harness observes an
 LXMF packet for that destination pass the sender's normal Reticulum outbound
 path; peer B receives exactly one copy and peer A observes terminal
 `DELIVERED` with at least two attempts. The normal pinned retry code and
@@ -312,6 +315,9 @@ same delivery identity, RNS config, and storage directory. It confirms the
 first message's exact transient ID remains a `has_message()` hit after restart,
 then proves fresh production-path Rust→Python delivery reaches Rust's terminal
 `delivered` receipt with one Python callback; a Python→Rust reply also succeeds.
+After the Python restart the test waits for the Python shared instance to
+report the re-attached Rust local client before the single post-restart
+announce, so the announce cannot land inside the Rust client's reconnect wait.
 The test does not replay the old network packet, so packet/proof duplicate
 handling across restart remains unclaimed.
 

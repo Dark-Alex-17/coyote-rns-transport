@@ -768,14 +768,17 @@ fn cited_source_files(section: &str) -> Vec<&str> {
 }
 
 /// The cites that name no file under the crate tree, the reticulumd interop
-/// tests or the rns-tools sources, either as a repo-relative path or as a
-/// path suffix.
+/// tests, the rns-tools sources or the lxmf-cli tests, either as a
+/// repo-relative path or as a path suffix.
 fn unresolved_source_cites<'a>(cited: &[&'a str]) -> Vec<&'a str> {
     let root = repo_root();
     let mut tree: Vec<String> = Vec::new();
-    for subtree in
-        ["crates/libs/rns-transport", "crates/apps/reticulumd/tests", "crates/apps/rns-tools/src"]
-    {
+    for subtree in [
+        "crates/libs/rns-transport",
+        "crates/apps/reticulumd/tests",
+        "crates/apps/rns-tools/src",
+        "crates/apps/lxmf-cli/tests",
+    ] {
         visit_text_files(&root, &root.join(subtree), &mut |path| {
             let relative = path.strip_prefix(&root).unwrap_or(path);
             tree.push(relative.to_string_lossy().replace('\\', "/"));
@@ -821,7 +824,7 @@ fn release_notes_cite_files_that_exist_in_the_tree() {
     assert!(
         unresolved.is_empty(),
         "every file cited in the {version} release notes should exist under the crate, the \
-         reticulumd tests or the rns-tools sources:\n{}",
+         reticulumd tests, the rns-tools sources or the lxmf-cli tests:\n{}",
         unresolved.join("\n")
     );
 }
@@ -859,7 +862,7 @@ fn unreleased_notes_cite_files_that_exist_in_the_tree() {
     assert!(
         unresolved.is_empty(),
         "every file cited in the Unreleased release notes should exist under the crate, the \
-         reticulumd tests or the rns-tools sources:\n{}",
+         reticulumd tests, the rns-tools sources or the lxmf-cli tests:\n{}",
         unresolved.join("\n")
     );
 }

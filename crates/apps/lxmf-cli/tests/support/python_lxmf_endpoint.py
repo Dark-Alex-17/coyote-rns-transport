@@ -455,6 +455,9 @@ class EndpointState:
                     getattr(self.reticulum, "is_connected_to_shared_instance", False)
                 ),
                 "shared_instance_type": getattr(self.reticulum, "shared_instance_type", None),
+                "local_client_count": len(
+                    getattr(RNS.Transport, "local_client_interfaces", [])
+                ),
             },
             "link": self._link_snapshot(),
         }

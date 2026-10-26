@@ -50,9 +50,11 @@ fn python_lxmf_router_delivery_cache_survives_process_restart_e2e() {
     let shared_instance = ReservedPort::reserve();
     let rust_rpc = ReservedPort::reserve();
     let python_control = ReservedPort::reserve();
+    let rns_control = ReservedPort::reserve();
     let shared_instance_port = shared_instance.port();
     let rust_rpc_port = rust_rpc.port();
     let python_control_port = python_control.port();
+    let rns_control_port = rns_control.port();
     let rust_dir = temp.path().join("rust-client");
     let python_storage = temp.path().join("python-router-storage");
     let python_rns = temp.path().join("python-rns");
@@ -65,7 +67,11 @@ fn python_lxmf_router_delivery_cache_survives_process_restart_e2e() {
             &[local_client_interface("python-shared", shared_instance_port)],
         ),
     );
-    write_python_shared_instance_rns_config(&python_rns, shared_instance_port);
+    write_python_shared_instance_rns_config_with_control_port(
+        &python_rns,
+        shared_instance_port,
+        rns_control_port,
+    );
 
     let mut python_node = Some(spawn_python_endpoint(
         &python_bin,
@@ -77,7 +83,7 @@ fn python_lxmf_router_delivery_cache_survives_process_restart_e2e() {
         &python_rns,
         &python_storage,
         python_control_port,
-        &mut [python_control, shared_instance],
+        &mut [python_control, shared_instance, rns_control],
     ));
     let mut rust_node = None;
     let outcome: Result<(), String> = (|| {
@@ -205,6 +211,7 @@ fn python_lxmf_router_delivery_cache_survives_process_restart_e2e() {
         }
 
         require_attached_local_client(rust_rpc_port, "Rust client after Python restart")?;
+        wait_for_python_local_client_count(python_control_port, 1, "Python LXMRouter after restart")?;
         python_control_call(python_control_port, "announce", None)?;
         rpc_call(rust_rpc_port, "announce_now", None)?;
         wait_for_known_path_without_announce(rust_rpc_port, &initial_destination)?;

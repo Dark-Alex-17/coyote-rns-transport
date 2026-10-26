@@ -31,7 +31,7 @@ per fork task.
 Every file changed since the `0.16.0` release and the patch each change
 belongs to. Patch ids: J1 is destination lookup. The `destination lookup`
 patch is fork commits `5246fc9c`, `d2f871f7`, `15278355`, `e8e64626`,
-`20d67e43`, `1c74645b` and `49a5b27f`.
+`20d67e43`, `1c74645b`, `49a5b27f` and `fad0f72e`.
 
 | File | Patch |
 | --- | --- |
@@ -44,11 +44,12 @@ patch is fork commits `5246fc9c`, `d2f871f7`, `15278355`, `e8e64626`,
 | `crates/libs/rns-transport/src/transport/tests_parts/reticulum_path_restore_destination_desc_probe.rs` | destination lookup |
 | `crates/libs/rns-transport/src/transport/tests_parts/two_transport_destination_desc.rs` | destination lookup |
 | `crates/libs/rns-transport/src/transport/tests_parts/two_transport_destination_desc_probe.rs` | destination lookup |
+| `crates/libs/rns-transport/src/transport/tests_parts/two_transport_destination_desc_probe2.rs` | destination lookup |
 | `crates/libs/rns-transport/src/transport/tests.rs` | destination lookup |
 | `docs/fork/PATCHSET.md` | destination lookup |
 
 Fork commits `5246fc9c`, `d2f871f7`, `15278355`, `e8e64626`, `20d67e43`,
-`1c74645b` and `49a5b27f`:
+`1c74645b`, `49a5b27f` and `fad0f72e`:
 J1, destination lookup. `5246fc9c` adds `Transport::destination_desc`
 beside `destination_identity` in
 `links_parts/transport_sections/close_channel.rs`: the same lookup in the
@@ -76,7 +77,11 @@ a desc that has outlived `expire_path` still refused by `link` with `NoPath`.
 `49a5b27f` moves the map lookup both accessors share into a private
 `single_out_destination` helper in `close_channel.rs`, names the restore
 fill site in the README and CHANGELOG prose, and pins the README's
-`DestinationName::new` contrast in `fork_release_docs_contract.rs`. No
+`DestinationName::new` contrast in `fork_release_docs_contract.rs`, and
+renames the loopback test to say it survives `expire_path`. `fad0f72e` adds
+`two_transport_destination_desc_probe2.rs`, which resolves two announced
+peers to their own entries through the shared lookup and calls the two
+accessors concurrently. No
 library behaviour changes beyond the new accessor.
 
 ## 0.16.0 (upstream 0.14.0)

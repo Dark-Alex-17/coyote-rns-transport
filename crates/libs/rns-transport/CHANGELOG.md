@@ -18,15 +18,17 @@ Removed) bullet of its own, marked as such.
   (`links_parts/transport_sections/close_channel.rs`, beside
   `destination_identity`); it is `Some` exactly when `destination_identity`
   is `Some`. The desc's `name` is the announce's truncated name hash as
-  `DestinationName::new_from_hash_slice` stores it, so callers compare names
-  with `as_name_hash_slice()`. The entry survives `expire_path`, which
+  `DestinationName::new_from_hash_slice` stores it (zero-padded, not the
+  full hash `DestinationName::new` computes), so callers compare names with
+  `as_name_hash_slice()`. The entry survives `expire_path`, which
   touches only the path table, and is pruned only by
   `deregister_destination`. Pinned by `two_transport_destination_desc.rs`
   and `two_transport_destination_desc_probe.rs`, which also covers the
   `deregister_destination` prune and opening a link with the returned desc,
-  and by `reticulum_path_restore_destination_desc_probe.rs` for the restore
-  fill site and for the link still needing a path once the desc has outlived
-  `expire_path`.
+  by `reticulum_path_restore_destination_desc_probe.rs` for the restore fill
+  site and for the link still needing a path once the desc has outlived
+  `expire_path`, and by `two_transport_destination_desc_probe2.rs` for two
+  announced peers resolving to their own entries.
 
 ### Changed
 

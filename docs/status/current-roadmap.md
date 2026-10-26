@@ -205,9 +205,10 @@ transport policy differences, and platform validation remain open.
 The #609 software slice now additionally proves that attached shared-
 instance clients defer duplicate filtering to their owner and that standalone
 transports suppress identical LinkRequests. A two-peer pinned-Python test drops
-the first queued opportunistic LXMF packet, replaces the Rust relay while the
-Python queue remains live, and verifies a retry traverses the replacement relay
-and is delivered exactly once. A pinned-Python
+the first queued opportunistic LXMF packet, replaces both Rust relays (one
+transport-enabled relay per Python shared instance, bridged over a Rust TCP
+uplink) while the Python queue remains live, and verifies a retry traverses the
+replacement relays and is delivered exactly once. A pinned-Python
 clean-close trace over TCP verifies that Python `Link.teardown()` reaches the
 Rust caller as `INITIATOR_CLOSED`. Channel retry exhaustion also has a
 pinned-Python localhost TCP trace: the test drops delivery proofs, observes all
@@ -1540,9 +1541,10 @@ without being requeued after restore. A real-socket TCP carrier regression
 also proves redial preserves interface identity and resumes bidirectional
 HDLC packet traffic. A two-peer pinned-Python shared-instance test also
 exchanges LXMF in both directions, injects a one-shot drop on the first
-opportunistic LXMF data packet, replaces the Rust daemon while that message
-remains queued, and verifies a matching retry packet traverses the replacement
-relay and is delivered exactly once; fresh RNS links and raw packets then pass
+opportunistic LXMF data packet, replaces both Rust relays (one transport-enabled
+relay per Python shared instance, bridged over a Rust TCP uplink) while that
+message remains queued, and verifies a matching retry packet traverses the
+replacement relays and is delivered exactly once; fresh RNS links and raw packets then pass
 in both directions. A focused Python/Rust process regression now verifies the
 pinned `LXMRouter` delivered-ID cache remains a `has_message()` hit after a
 graceful Python process restart with stable identity/storage, while new

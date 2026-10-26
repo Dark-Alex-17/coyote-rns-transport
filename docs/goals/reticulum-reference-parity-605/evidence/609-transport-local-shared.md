@@ -260,7 +260,7 @@ covers a newer cached path response superseding scheduled announce state.
 The real-socket carrier reconnect regression below verifies packet resumption.
 The two-peer shared-instance daemon-replacement trace now also proves one
 faulted opportunistic LXMF attempt is retried through the replacement Rust
-relay and delivered exactly once. Broader packet/proof duplicate handling,
+relays and delivered exactly once. Broader packet/proof duplicate handling,
 Python `LXMRouter` process-restart persistence, and direct/resource retry modes
 remain outside that result.
 
@@ -286,21 +286,23 @@ schedule are unchanged. Fresh Python RNS links and raw link packets then pass
 in both directions.
 
 ```text
-RETICULUM_PY_REPO=/home/pgiuseppe/Documents/LXMF-rs-issue-605/.tmp/python-refs/Reticulum \
-LXMF_PY_REPO=/home/pgiuseppe/Documents/LXMF-rs-issue-605/.tmp/python-refs/LXMF LXMF_PYTHON_BIN=python3 \
+RETICULUM_PY_REPO=... LXMF_PY_REPO=... LXMF_PYTHON_BIN=... \
   cargo test -p lxmf-cli --test python_lxmd_remote_relay \
   python_shared_instance_two_peer_relay_recovers_after_daemon_restart_e2e \
   -- --ignored --nocapture --test-threads=1
-# 2 consecutive passes; each passed with 0 failures (5.79s and 5.80s)
+# 3 isolated passes, each 1 passed, 0 failed (7.4s, 11.0s, 7.4s)
+# full target minus python_to_rust_lxmd_relay_remote_path_e2e:
+#   16 passed, 0 failed (159.42s)
 ```
 
-Verified on Rust test base `77edf207627909f416783efb41eca6039d46f9ab`,
-Reticulum `99de23c040d507e3fefca19e87b182302902725d`, and LXMF
+Verified on Rust test base `1ac076b3`,
+Reticulum `ea98db4f53dcf0defc0e71a16e60d28b1229c4e6`, and LXMF
 `727830cefda83d9c6e3982b48675425f3f988f9c`. This proves a bounded
-shared-instance opportunistic LXMF retry through one replaced Rust relay. It
-does not prove persistence across a Python LXMRouter process restart,
-direct/resource retry modes, deeper multi-relay replacement, or broader
-packet/proof duplicate classes; the #609 row stays partial.
+shared-instance opportunistic LXMF retry through two replaced Rust relays (one
+per Python shared instance, bridged over a Rust TCP uplink). It does not prove
+persistence across a Python LXMRouter process restart, direct/resource retry
+modes, deeper multi-relay replacement, or broader packet/proof duplicate
+classes; the #609 row stays partial.
 
 ## Python LXMRouter delivered-ID cache across process restart
 
@@ -322,16 +324,16 @@ The test does not replay the old network packet, so packet/proof duplicate
 handling across restart remains unclaimed.
 
 ```text
-RETICULUM_PY_REPO=/home/pgiuseppe/Documents/LXMF-rs-issue-605/.tmp/python-refs/Reticulum \
-LXMF_PY_REPO=/home/pgiuseppe/Documents/LXMF-rs-issue-605/.tmp/python-refs/LXMF LXMF_PYTHON_BIN=python3 \
+RETICULUM_PY_REPO=... LXMF_PY_REPO=... LXMF_PYTHON_BIN=... \
   cargo test -p lxmf-cli --test python_lxmd_remote_relay \
   python_lxmf_router_delivery_cache_survives_process_restart_e2e \
   -- --ignored --nocapture --test-threads=1
-# Two isolated passes; latest: 1 passed, 0 failed, 10 filtered out; 7.59s
+# 1 isolated pass: 1 passed, 0 failed (10.7s); also in the full target run above
 ```
 
-Verified against LXMF `727830cefda83d9c6e3982b48675425f3f988f9c` and Reticulum
-`99de23c040d507e3fefca19e87b182302902725d`. This closes only the supported
+Verified on Rust test base `1ac076b3` against LXMF
+`727830cefda83d9c6e3982b48675425f3f988f9c` and Reticulum
+`ea98db4f53dcf0defc0e71a16e60d28b1229c4e6`. This closes only the supported
 delivered-ID cache restore and post-restart traffic slice; queued Python
 outbound persistence is not a reference contract, and broader #609 transport,
 retry, duplicate-packet, and multi-relay acceptance remains open.
@@ -621,8 +623,9 @@ and ordinary LinkRequest duplicate suppression through that forwarding path.
 Attached shared-instance mode also now accepts duplicate data for owner-side
 filtering, matching the pinned reference. The two-peer shared-instance trace
 also verifies path relearning, fresh links, and raw packets in both directions
-after replacing the Rust daemon. It does not cover post-restart LXMF queue
-retry/delivery, deeper multi-relay replacement, or broader packet/proof
+after replacing both Rust daemons, plus one opportunistic LXMF retry delivered
+through the replacement relays. It does not cover direct/resource LXMF retry
+modes, deeper multi-relay replacement, or broader packet/proof
 duplicate classes. Those cases and the remaining transport matrix are still
 required before this row can be promoted; scheduled-to-cached announce
 persistence and direct carrier redial are covered by the focused transport

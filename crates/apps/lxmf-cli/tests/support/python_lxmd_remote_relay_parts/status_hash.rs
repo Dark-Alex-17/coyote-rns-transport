@@ -79,6 +79,10 @@ pub fn wait_for_known_path_without_announce(
     ))
 }
 
+/// Waits until the Python shared instance reports at least `expected` attached
+/// local clients; the count is live (Python drops a LocalClientInterface when its
+/// client disconnects), so call this against a known baseline such as a freshly
+/// started Python process.
 pub fn wait_for_python_local_client_count(
     control_port: u16,
     expected: usize,

@@ -796,9 +796,9 @@ fn unresolved_source_cites<'a>(cited: &[&'a str]) -> Vec<&'a str> {
 /// Release-note bullets under the current `## <version>` heading of the crate
 /// CHANGELOG end in a test clause that names the file pinning the behaviour.
 /// Every backticked `.rs` / `.py` path cited in that section must resolve to
-/// a file in the crate tree, the reticulumd interop tests or the rns-tools
-/// sources, so a renamed or deleted test file cannot leave the release notes
-/// pointing at nothing.
+/// a file in the crate tree, the reticulumd interop tests, the lxmf-cli tests
+/// or the rns-tools sources, so a renamed or deleted test file cannot leave
+/// the release notes pointing at nothing.
 #[test]
 fn release_notes_cite_files_that_exist_in_the_tree() {
     let version = crate_version();
@@ -1185,3 +1185,5 @@ include!("fork_publish_contract_parts/lint_discipline_probe12.rs");
 include!("fork_publish_contract_parts/release_frozen_sections_probe.rs");
 
 include!("fork_publish_contract_parts/release_frozen_sections_probe2.rs");
+
+include!("fork_publish_contract_parts/lxmf_cli_cite_root_probe.rs");

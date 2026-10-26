@@ -188,7 +188,8 @@ fn python_shared_instance_two_peer_relay_recovers_after_daemon_restart_e2e() {
 
         // Only the Python peers announce: a relay's own announce_now puts two
         // announces on the uplink at once, which trips the peer relay's announce
-        // ingress control and holds the Python announce that follows.
+        // ingress control and holds the Python announce that follows
+        // (RNS/Interfaces/Interface.py:77-84).
         python_control_call(python_control_a_port, "announce", None)?;
         python_control_call(python_control_b_port, "announce", None)?;
         wait_for_known_path_without_announce(relay_a_rpc_port, &hash_b)?;
@@ -286,10 +287,11 @@ fn python_shared_instance_two_peer_relay_recovers_after_daemon_restart_e2e() {
             "rust-shared-peer-relay-a-after-restart",
         )?;
         require_attached_local_client(relay_a_rpc_port, "Rust relay A after restart")?;
-        // The replacement relay A pushes its restored paths to peer A as soon as
-        // it attaches, and the LXMRouter retry can fire within seconds of the
-        // drop, so the retry window opens here: from this point every outbound
-        // packet for peer B can only leave through a replacement relay.
+        // Both old relays are gone, so from here every outbound packet for
+        // peer B can only leave through a replacement relay. The window opens
+        // as soon as replacement relay A is attached rather than after relay B
+        // returns, because the LXMRouter retry can fire within seconds of the
+        // drop and would otherwise be missed.
         python_control_call(python_control_a_port, "mark_outbound_retry_window", None)?;
         relay_b = Some(spawn_lxmd(
             &lxmd_bin,
@@ -309,8 +311,8 @@ fn python_shared_instance_two_peer_relay_recovers_after_daemon_restart_e2e() {
         python_control_call(python_control_a_port, "announce", None)?;
         python_control_call(python_control_b_port, "announce", None)?;
         for (rpc_port, label) in [
-            (relay_a_rpc_port, "Rust relay A relearned"),
-            (relay_b_rpc_port, "Rust relay B relearned"),
+            (relay_a_rpc_port, "Rust relay A knows the path after restart"),
+            (relay_b_rpc_port, "Rust relay B knows the path after restart"),
         ] {
             for destination in [&hash_a, &hash_b] {
                 require_known_path(rpc_port, destination, label)?;
@@ -325,7 +327,7 @@ fn python_shared_instance_two_peer_relay_recovers_after_daemon_restart_e2e() {
             || retry_packet.get("destination").and_then(Value::as_str) != Some(hash_b.as_str())
         {
             return Err(format!(
-                "LXMF retry did not traverse the replacement Rust relays: {retry_packet}"
+                "no LXMF retry left Python peer A for peer B after the replacement relay A attached: {retry_packet}"
             ));
         }
 

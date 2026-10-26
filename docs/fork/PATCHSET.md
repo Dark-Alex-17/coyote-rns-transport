@@ -30,21 +30,25 @@ per fork task.
 
 Every file changed since the `0.16.0` release and the patch each change
 belongs to. Patch ids: J1 is destination lookup. The `destination lookup`
-patch is fork commits `5246fc9c` and `d2f871f7`.
+patch is fork commits `5246fc9c`, `d2f871f7`, `15278355`, `e8e64626` and
+`20d67e43`.
 
 | File | Patch |
 | --- | --- |
 | `crates/apps/reticulumd/tests/fork_publish_contract_parts/ledger_contract.rs` | destination lookup |
 | `crates/apps/reticulumd/tests/fork_publish_contract_parts/release_frozen_sections_probe2.rs` | destination lookup |
+| `crates/apps/reticulumd/tests/fork_release_docs_contract.rs` | destination lookup |
 | `crates/libs/rns-transport/CHANGELOG.md` | destination lookup |
 | `crates/libs/rns-transport/README.md` | destination lookup |
 | `crates/libs/rns-transport/src/transport/links_parts/transport_sections/close_channel.rs` | destination lookup |
 | `crates/libs/rns-transport/src/transport/tests_parts/two_transport_destination_desc.rs` | destination lookup |
+| `crates/libs/rns-transport/src/transport/tests_parts/two_transport_destination_desc_probe.rs` | destination lookup |
 | `crates/libs/rns-transport/src/transport/tests.rs` | destination lookup |
 | `docs/fork/PATCHSET.md` | destination lookup |
 
-Fork commits `5246fc9c` and `d2f871f7`: J1, destination lookup. `5246fc9c`
-adds `Transport::destination_desc` beside `destination_identity` in
+Fork commits `5246fc9c`, `d2f871f7`, `15278355`, `e8e64626` and `20d67e43`:
+J1, destination lookup. `5246fc9c` adds `Transport::destination_desc`
+beside `destination_identity` in
 `links_parts/transport_sections/close_channel.rs`: the same lookup in the
 announced-destination map, returning the stored `DestinationDesc` (whose
 `name` is the announce's truncated name hash, so callers compare with
@@ -54,8 +58,17 @@ announced-destination map, returning the stored `DestinationDesc` (whose
 CHANGELOG describe it. `d2f871f7` extends the full-hash ledger pin to the
 open `Unreleased` section and lets the manifest-version pin admit an
 `## Unreleased` stub while the manifest version is the newest fork tag
-reachable from HEAD, with fixtures for both arms. No library behaviour
-changes beyond the new accessor.
+reachable from HEAD, with fixtures for both arms. `15278355` adds
+`two_transport_destination_desc_probe.rs`, which opens a link with the desc
+the accessor returns, checks the zero-padded name, and shows
+`deregister_destination` pruning the desc and the identity together.
+`e8e64626` pins the README's description of `destination_desc` in
+`fork_release_docs_contract.rs` and makes the manifest-version pin say when
+it skips the stub rule for want of a reachable fork tag. `20d67e43` records
+the restore of a cached path table as the map's other fill site in the
+accessor's rustdoc, qualifies the README's link claim with the path it still
+needs, and adds the test-only Changed bullet to the crate CHANGELOG. No
+library behaviour changes beyond the new accessor.
 
 ## 0.16.0 (upstream 0.14.0)
 

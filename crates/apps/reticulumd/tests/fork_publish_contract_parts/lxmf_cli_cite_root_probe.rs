@@ -1,11 +1,14 @@
-// Spec-first pins for the python-remote-relay CI fix (the thirteenth and
-// fourteenth patches of 0.16.0): the release-notes cite gate resolves files
-// under `crates/apps/lxmf-cli/tests` without accepting paths that do not
-// exist there; the 0.16.0 CHANGELOG bullet that restructures the two
-// Python-in-the-loop tests cites the files that now carry them, and every
-// cite resolves; the two-peer relay test lives only in its new part and
-// the CI workflow still names it; the ledger legend and header carry both
-// commits. Each test fails against the tree as it was before the fix.
+// Spec-first pins for the python-remote-relay CI fix (the thirteenth,
+// fourteenth and fifteenth patches of 0.16.0): the release-notes cite gate
+// resolves files under `crates/apps/lxmf-cli/tests` without accepting paths
+// that do not exist there; the 0.16.0 CHANGELOG bullet that restructures
+// the two Python-in-the-loop tests cites the files that now carry them, and
+// every cite resolves; the two-peer relay test lives only in its new part,
+// the CI workflow still names it, and the part keeps the restart ordering
+// and one attached shared instance per relay; the ledger legend and header
+// carry both fix commits. The fifteenth adopted this file; its own legend
+// and header pins live in the sibling probe. Each test fails against the
+// tree as it was before the fix it pins.
 
 /// The `## 0.16.0` section of the crate changelog, raw.
 fn changelog_0_16_0_section() -> String {
@@ -135,6 +138,72 @@ fn two_peer_relay_test_lives_only_in_its_new_part_and_ci_still_names_it() {
     assert!(
         !new_part.contains("require_attached_local_clients("),
         "no relay is asked to carry more than one attached shared instance"
+    );
+}
+
+/// The two-peer relay part never asks a relay to announce itself, re-attaches
+/// relay A and opens the retry window before relay B is respawned, keeps
+/// the three assertions that make the retry observable, and gives each
+/// relay config exactly one attached shared instance with the uplink on
+/// relay B.
+#[test]
+fn two_peer_relay_test_keeps_the_restart_ordering_and_one_attach_per_relay() {
+    let part = read_repo_file(
+        "crates/apps/lxmf-cli/tests/python_lxmd_remote_relay_parts/shared_instance_two_peer_relay.rs",
+    );
+    assert!(
+        !part.contains("\"announce_now\""),
+        "only the Python peers announce; the part carries no quoted announce_now RPC name \
+         (the prose comment that explains why names it unquoted)"
+    );
+
+    let relay_a_attached = part
+        .find("require_attached_local_client(relay_a_rpc_port, \"Rust relay A after restart\")")
+        .expect("replacement relay A is checked for its attached shared instance");
+    let mark = part
+        .find("\"mark_outbound_retry_window\"")
+        .expect("the Python side is told when the retry window opens");
+    let relay_b_label = "\"rust-shared-peer-relay-b-after-restart\"";
+    assert_eq!(
+        part.matches(relay_b_label).count(),
+        1,
+        "the relay B respawn is labelled once, so the label anchors the respawn"
+    );
+    let relay_b_respawn = part[mark..]
+        .find("spawn_lxmd(")
+        .map(|offset| mark + offset)
+        .expect("a relay is spawned after the retry window opens");
+    let relay_b_ready = part.find(relay_b_label).expect("the relay B respawn label");
+    let relay_b_attached = part
+        .find("require_attached_local_client(relay_b_rpc_port, \"Rust relay B after restart\")")
+        .expect("replacement relay B is checked for its attached shared instance");
+    assert!(
+        relay_a_attached < mark && mark < relay_b_respawn && relay_b_respawn < relay_b_ready,
+        "order: relay A re-attached, retry window marked, then the first spawn_lxmd after the \
+         mark is the one the unique relay-B-after-restart label waits on"
+    );
+    assert!(relay_b_ready < relay_b_attached, "relay B is checked for its attach after it is ready");
+
+    for assertion in ["attempts < 2", "matching != 1", "transmitted_packets"] {
+        assert!(part.contains(assertion), "the part still checks {assertion}");
+    }
+
+    let blocks: Vec<&str> = part.split("rust_node_config(").collect();
+    assert_eq!(blocks.len(), 3, "the part writes exactly two relay configs");
+    for (relay, block) in [("A", blocks[1]), ("B", blocks[2])] {
+        assert_eq!(
+            block.matches("local_client_interface(").count(),
+            1,
+            "relay {relay} config attaches exactly one shared instance"
+        );
+    }
+    assert!(
+        !blocks[1].contains("tcp_client_interface("),
+        "relay A listens on its transport port and dials nothing"
+    );
+    assert!(
+        blocks[2].contains("tcp_client_interface(\"relay-a-uplink\""),
+        "relay B dials relay A over the uplink"
     );
 }
 

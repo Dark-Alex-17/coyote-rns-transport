@@ -1544,29 +1544,30 @@ exchanges LXMF in both directions, injects a one-shot drop on the first
 opportunistic LXMF data packet, replaces both Rust relays (one transport-enabled
 relay per Python shared instance, bridged over a Rust TCP uplink) while that
 message remains queued, and verifies a matching retry packet traverses the
-replacement relays and is delivered exactly once; fresh RNS links and raw packets then pass
-in both directions. A focused Python/Rust process regression now verifies the
-pinned `LXMRouter` delivered-ID cache remains a `has_message()` hit after a
-graceful Python process restart with stable identity/storage, while new
-messages complete in both directions and the Rust sender reaches `delivered`.
-It does not replay the old packet, and Python `pending_outbound` is not a
-reference persistence contract. The original two-relay post-restart trace passed
-three consecutive local runs after the relay records the shared-owner handoff
-and forwards its `LinkRequestProof` only on that exact interface when the
-destination identity is unavailable; ordinary transit proofs still require
-destination-identity validation. Initial readiness-barrier runs passed seven
-times, but a later replay still timed out at 50% after receipt. The final
-condition barrier is limited to establishing B-to-A readiness before reverse
-delivery; three consecutive exact-reference reruns pass, with hosted HIL
-confirmation pending. The expanded recovery test also verifies fresh
-Resource delivery with exact size/digest/metadata in both directions. A
-separate isolated pinned-Python test now verifies that an in-flight large
-DIRECT LXMF Resource is retried exactly once with a new Link and Resource after
-upstream restart. A new isolated pinned-Python production-path test also queues
-one DIRECT LXMF message while the upstream Rust relay is stopped, clears route
-state, restarts the relay, and verifies one exact-payload receipt plus terminal
-`delivered` status. Deeper relay replacement and broader multi-hop
-packet/proof/link duplicate cases remain open.
+replacement relays and is delivered exactly once; fresh RNS links and raw
+packets then pass in both directions. A focused Python/Rust process regression
+now verifies the pinned `LXMRouter` delivered-ID cache remains a
+`has_message()` hit after a graceful Python process restart with stable
+identity/storage, while new messages complete in both directions and the Rust
+sender reaches `delivered`. It does not replay the old packet, and Python
+`pending_outbound` is not a reference persistence contract. The original
+two-relay post-restart trace passed three consecutive local runs after the
+relay records the shared-owner handoff and forwards its `LinkRequestProof`
+only on that exact interface when the destination identity is unavailable;
+ordinary transit proofs still require destination-identity validation. Initial
+readiness-barrier runs passed seven times, but a later replay still timed out
+at 50% after receipt. The final condition barrier is limited to establishing
+B-to-A readiness before reverse delivery; three consecutive exact-reference
+reruns pass, with hosted HIL confirmation pending. The expanded recovery test
+also verifies fresh Resource delivery with exact size/digest/metadata in both
+directions. A separate isolated pinned-Python test now verifies that an
+in-flight large DIRECT LXMF Resource is retried exactly once with a new Link
+and Resource after upstream restart. A new isolated pinned-Python
+production-path test also queues one DIRECT LXMF message while the upstream
+Rust relay is stopped, clears route state, restarts the relay, and verifies one
+exact-payload receipt plus terminal `delivered` status. Deeper relay
+replacement and broader multi-hop packet/proof/link duplicate cases remain
+open.
 Cached path-table restore now also checks the identity recovered from the
 cached announce against transport blackhole policy before installing the route;
 a production save/blackhole/restore regression reports one skipped row and no

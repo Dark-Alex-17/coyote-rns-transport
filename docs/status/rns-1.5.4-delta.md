@@ -209,11 +209,14 @@ and multi-hop production traces comparing other packet/proof duplicate classes
 remain unverified. A new two-peer pinned-Python shared-instance
 trace verifies path relearning, fresh links, and raw packet exchange in both
 directions after replacing both transport-enabled Rust relays (one per Python
-shared instance, bridged over a Rust TCP uplink). It queues an
-OPPORTUNISTIC LXMF message while the relays are down and verifies receipt and
-acknowledgement after restart; this does not establish queued DIRECT delivery.
-The two-relay restart test also transfers fresh raw Resources in both directions
-after recovery. A separate isolated pinned-Python test pauses a large DIRECT
+shared instance, bridged over a Rust TCP uplink). It drops the first outbound
+packet of a queued OPPORTUNISTIC LXMF message, replaces both relays while that
+message remains queued, and verifies receipt and acknowledgement after restart;
+this does not establish queued DIRECT delivery. The two-Rust-relay
+upstream-restart test
+(`python_shared_instance_two_rust_relays_recover_after_upstream_restart_e2e`)
+also transfers fresh raw Resources in both directions after recovery. A
+separate isolated pinned-Python test pauses a large DIRECT
 LXMF Resource transfer in flight, restarts and replaces its upstream relay,
 then verifies retry on a distinct Link and Resource and exactly one message
 delivery. These are bounded acceptance cells: deeper multi-relay replacement

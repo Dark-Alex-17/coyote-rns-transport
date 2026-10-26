@@ -1187,3 +1187,5 @@ include!("fork_publish_contract_parts/release_frozen_sections_probe.rs");
 include!("fork_publish_contract_parts/release_frozen_sections_probe2.rs");
 
 include!("fork_publish_contract_parts/lxmf_cli_cite_root_probe.rs");
+
+include!("fork_publish_contract_parts/lxmf_cli_cite_root_probe2.rs");

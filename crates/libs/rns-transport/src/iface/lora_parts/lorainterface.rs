@@ -1,6 +1,5 @@
 type RNodeManagementFrameSender = tokio::sync::mpsc::Sender<Vec<u8>>;
-type RNodeManagementFrameReceiver =
-    Arc<tokio::sync::Mutex<tokio::sync::mpsc::Receiver<Vec<u8>>>>;
+type RNodeManagementFrameReceiver = tokio::sync::mpsc::Receiver<Vec<u8>>;
 type RNodeManagementStatus = Arc<std::sync::Mutex<LoraRNodeManagementStatus>>;
 /// The last `CMD_ROM_READ` reply, shared so a caller holding the interface
 /// sees what the running stream task received.
@@ -83,7 +82,7 @@ pub struct LoraInterface {
     max_reconnect_backoff: Duration,
     startup_response_timeout: Duration,
     management_frame_tx: RNodeManagementFrameSender,
-    management_frame_rx: RNodeManagementFrameReceiver,
+    management_frame_rx: Arc<std::sync::Mutex<Option<RNodeManagementFrameReceiver>>>,
     management_status: RNodeManagementStatus,
     stored_config_image: RNodeStoredConfigImage,
 }
@@ -107,7 +106,7 @@ impl LoraInterface {
             max_reconnect_backoff: Duration::from_millis(5_000),
             startup_response_timeout: R_NODE_STARTUP_RESPONSE_TIMEOUT,
             management_frame_tx,
-            management_frame_rx,
+            management_frame_rx: Arc::new(std::sync::Mutex::new(Some(management_frame_rx))),
             management_status: Arc::new(std::sync::Mutex::new(LoraRNodeManagementStatus::default())),
             stored_config_image: Arc::new(std::sync::Mutex::new(None)),
         }
@@ -131,7 +130,7 @@ impl LoraInterface {
             max_reconnect_backoff: Duration::from_millis(5_000),
             startup_response_timeout: R_NODE_STARTUP_RESPONSE_TIMEOUT,
             management_frame_tx,
-            management_frame_rx,
+            management_frame_rx: Arc::new(std::sync::Mutex::new(Some(management_frame_rx))),
             management_status: Arc::new(std::sync::Mutex::new(LoraRNodeManagementStatus::default())),
             stored_config_image: Arc::new(std::sync::Mutex::new(None)),
         }
@@ -455,9 +454,20 @@ impl LoraInterface {
             reconnect_backoff,
             max_reconnect_backoff,
             startup_response_timeout,
-            management_frame_rx,
+            mut management_frame_rx,
         ) = {
             let guard = context.inner.lock().expect("lora interface mutex poisoned");
+            let management_frame_rx = guard
+                .management_frame_rx
+                .lock()
+                .expect("lora management receiver mutex poisoned")
+                .take();
+            if management_frame_rx.is_none() {
+                log::warn!(
+                    "LoRa management receiver already taken, management frames will not be sent iface={}",
+                    iface_address
+                );
+            }
             (
                 guard.endpoint.clone(),
                 guard.config,
@@ -466,14 +476,13 @@ impl LoraInterface {
                 guard.reconnect_backoff,
                 guard.max_reconnect_backoff,
                 guard.startup_response_timeout,
-                guard.management_frame_rx.clone(),
+                management_frame_rx,
             )
         };
 
         let online = context.channel.online.clone();
         online.store(false, std::sync::atomic::Ordering::Release);
-        let (rx_channel, tx_channel) = context.channel.split();
-        let tx_channel = Arc::new(tokio::sync::Mutex::new(tx_channel));
+        let (rx_channel, mut tx_channel) = context.channel.split();
         let mut active_backoff = reconnect_backoff;
 
         loop {
@@ -529,9 +538,9 @@ impl LoraInterface {
                             id_beacon: id_beacon.clone(),
                             activity_probe: None,
                             startup_response_timeout,
-                            management_frame_rx: management_frame_rx.clone(),
+                            management_frame_rx: management_frame_rx.as_mut(),
                             rx_channel: rx_channel.clone(),
-                            tx_channel: tx_channel.clone(),
+                            tx_channel: &mut tx_channel,
                             ifac_state: ifac_state.clone(),
                             ifac_violations: ifac_violations.clone(),
                         },
@@ -575,9 +584,9 @@ impl LoraInterface {
                             id_beacon: id_beacon.clone(),
                             activity_probe: Some(rnode_tcp_activity_probe()),
                             startup_response_timeout,
-                            management_frame_rx: management_frame_rx.clone(),
+                            management_frame_rx: management_frame_rx.as_mut(),
                             rx_channel: rx_channel.clone(),
-                            tx_channel: tx_channel.clone(),
+                            tx_channel: &mut tx_channel,
                             ifac_state: ifac_state.clone(),
                             ifac_violations: ifac_violations.clone(),
                         },
@@ -606,8 +615,7 @@ fn mark_lora_link_offline(inner: &Arc<std::sync::Mutex<LoraInterface>>) {
 }
 
 fn rnode_management_channel() -> (RNodeManagementFrameSender, RNodeManagementFrameReceiver) {
-    let (tx, rx) = tokio::sync::mpsc::channel(LORA_RNODE_MANAGEMENT_CHANNEL_CAPACITY);
-    (tx, Arc::new(tokio::sync::Mutex::new(rx)))
+    tokio::sync::mpsc::channel(LORA_RNODE_MANAGEMENT_CHANNEL_CAPACITY)
 }
 
 #[derive(Debug, Clone)]
@@ -724,7 +732,7 @@ impl LoraRuntimeStatusHandle {
     }
 }
 
-struct LoraStreamRun {
+struct LoraStreamRun<'a> {
     interface: Arc<std::sync::Mutex<LoraInterface>>,
     cancel: tokio_util::sync::CancellationToken,
     iface_address: crate::hash::AddressHash,
@@ -734,9 +742,9 @@ struct LoraStreamRun {
     id_beacon: Option<KissIdBeaconConfig>,
     activity_probe: Option<KissActivityProbeConfig>,
     startup_response_timeout: Duration,
-    management_frame_rx: RNodeManagementFrameReceiver,
+    management_frame_rx: Option<&'a mut RNodeManagementFrameReceiver>,
     rx_channel: tokio::sync::mpsc::Sender<crate::iface::RxMessage>,
-    tx_channel: Arc<tokio::sync::Mutex<tokio::sync::mpsc::Receiver<crate::iface::TxMessage>>>,
+    tx_channel: &'a mut crate::iface::InterfaceTxReceiver,
     ifac_state: IfacState,
     ifac_violations: Arc<std::sync::atomic::AtomicU64>,
 }

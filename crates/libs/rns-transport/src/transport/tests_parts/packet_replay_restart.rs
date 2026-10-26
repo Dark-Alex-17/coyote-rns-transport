@@ -31,7 +31,8 @@ async fn packet_hashlist_restores_proof_replay_filter_after_restart() {
     .await;
     assert!(first.is_some(), "first production-ingress proof should be accepted");
     assert_eq!(before_restart.save_packet_hashlist(temp.path()).await.expect("persist cache"), 1);
-    let persisted = std::fs::read(temp.path().join("packet_hashlist.raw")).expect("Python-format cache");
+    let persisted =
+        std::fs::read(temp.path().join("packet_hashlist.raw")).expect("Python-format cache");
     assert_eq!(persisted, packet.hash().as_slice());
 
     let after_restart = make_transport();

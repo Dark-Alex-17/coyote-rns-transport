@@ -31,6 +31,20 @@
         }
     }
 
+    /// Draws an ephemeral loopback port for `discovery_port`, skipping 65535:
+    /// the config would then place the unicast discovery port one below, on a
+    /// port the OS may already have handed out.
+    fn reserve_loopback_udp_port_below_max() -> u16 {
+        loop {
+            let reservation = std::net::UdpSocket::bind((std::net::Ipv4Addr::LOCALHOST, 0))
+                .expect("reserve discovery loopback UDP port");
+            let port = reservation.local_addr().expect("read discovery port").port();
+            if port != u16::MAX {
+                return port;
+            }
+        }
+    }
+
     #[test]
     fn native_link_local_enumeration_returns_only_well_formed_candidates() {
         let candidates = enumerate_link_local_candidates().expect("enumerate host interfaces");
@@ -90,6 +104,10 @@
     }
 
     fn plan_with_data_listener(listener: AutoDataListenerBinding) -> AutoRuntimePlan {
+        plan_with_data_listeners(vec![listener])
+    }
+
+    fn plan_with_data_listeners(listeners: Vec<AutoDataListenerBinding>) -> AutoRuntimePlan {
         AutoRuntimePlan {
             config: AutoInterfaceConfig::default(),
             platform: AutoInterfacePlatform::Other,
@@ -99,7 +117,7 @@
             peering_packets: Vec::new(),
             startup_plan: AutoStartupPlan {
                 discovery_listeners: Vec::new(),
-                data_listeners: vec![listener],
+                data_listeners: listeners,
                 peer_job_interval: core::time::Duration::ZERO,
                 initial_peering_wait: core::time::Duration::ZERO,
             },
@@ -356,15 +374,11 @@
     #[cfg(unix)]
     #[tokio::test]
     async fn auto_runtime_stop_releases_loopback_sockets_for_restart() {
-        let discovery_reservation = std::net::UdpSocket::bind((std::net::Ipv4Addr::LOCALHOST, 0))
-            .expect("reserve discovery loopback UDP port");
         let data_reservation = std::net::UdpSocket::bind((std::net::Ipv4Addr::LOCALHOST, 0))
             .expect("reserve data loopback UDP port");
-        let discovery_port =
-            discovery_reservation.local_addr().expect("read discovery port").port();
         let data_port = data_reservation.local_addr().expect("read data port").port();
+        let discovery_port = reserve_loopback_udp_port_below_max();
         drop(data_reservation);
-        drop(discovery_reservation);
         let mut plan = build_startup_plan_from_candidates(&auto_iface(), Vec::new())
             .expect("startup plan");
         plan.startup_plan.discovery_listeners.push(AutoDiscoveryListenerBinding {
@@ -403,14 +417,11 @@
     #[cfg(unix)]
     #[tokio::test]
     async fn auto_runtime_reports_per_device_echo_loss_and_recovery_and_restarts_cleanly() {
-        let discovery_reservation = std::net::UdpSocket::bind((std::net::Ipv4Addr::LOCALHOST, 0))
-            .expect("reserve discovery loopback UDP port");
         let data_reservation = std::net::UdpSocket::bind((std::net::Ipv4Addr::LOCALHOST, 0))
             .expect("reserve data loopback UDP port");
-        let discovery_port =
-            discovery_reservation.local_addr().expect("read discovery port").port();
         let data_port = data_reservation.local_addr().expect("read data port").port();
-        drop((discovery_reservation, data_reservation));
+        let discovery_port = reserve_loopback_udp_port_below_max();
+        drop(data_reservation);
 
         let mut plan = AutoRuntimePlan::from_candidates(
             AutoInterfaceConfig {
@@ -643,14 +654,11 @@
     #[cfg(unix)]
     #[tokio::test]
     async fn auto_runtime_startup_failure_releases_discovery_socket_before_retry() {
-        let discovery_reservation = std::net::UdpSocket::bind((std::net::Ipv4Addr::LOCALHOST, 0))
-            .expect("reserve discovery loopback UDP port");
         let data_reservation = std::net::UdpSocket::bind((std::net::Ipv4Addr::LOCALHOST, 0))
             .expect("reserve data loopback UDP port");
-        let discovery_port =
-            discovery_reservation.local_addr().expect("read discovery port").port();
         let data_port = data_reservation.local_addr().expect("read data port").port();
-        drop((data_reservation, discovery_reservation));
+        let discovery_port = reserve_loopback_udp_port_below_max();
+        drop(data_reservation);
 
         let mut plan = build_startup_plan_from_candidates(&auto_iface(), Vec::new())
             .expect("startup plan");

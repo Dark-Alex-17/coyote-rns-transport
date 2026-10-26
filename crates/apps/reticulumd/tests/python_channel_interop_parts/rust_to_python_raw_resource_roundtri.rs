@@ -874,15 +874,20 @@ async fn python_to_rust_request_response_matches_exact_negotiated_mdu_boundary()
             .as_u64()
             .expect("Python must report actual negotiated Link MDU") as usize;
         assert_eq!(response_size, negotiated_mdu.checked_add_signed(delta as isize).unwrap());
-        let response_bytes = response_text.as_bytes();
-        use sha2::Digest as _;
-        assert_eq!(report["response"].as_str(), Some(response_text.as_str()));
-        assert_eq!(report["response_size"].as_u64(), Some(response_bytes.len() as u64));
-        assert_eq!(
-            report["response_sha256"].as_str(),
-            Some(hex::encode(sha2::Sha256::digest(response_bytes)).as_str())
-        );
+        assert_python_response_report(&report, &response_text);
     }
+}
+
+/// Python's response report names the text, its byte length and its exact digest.
+fn assert_python_response_report(report: &serde_json::Value, expected: &str) {
+    let expected_bytes = expected.as_bytes();
+    assert_eq!(report["response"].as_str(), Some(expected));
+    assert_eq!(report["response_size"].as_u64(), Some(expected_bytes.len() as u64));
+    assert_eq!(
+        report["response_sha256"].as_str(),
+        Some(digest_hex(expected_bytes).as_str()),
+        "Python must report the exact response digest"
+    );
 }
 
 #[tokio::test]
@@ -1070,15 +1075,7 @@ async fn python_to_rust_resource_backed_request_response_roundtrip() {
         .find_map(|line| serde_json::from_str(line).ok())
         .unwrap_or_else(|| panic!("Python response report missing from stdout: {stdout}"));
     let expected_response = format!("reply:{request_text}");
-    let expected_bytes = expected_response.as_bytes();
-    use sha2::Digest as _;
-    assert_eq!(report["response"].as_str(), Some(expected_response.as_str()));
-    assert_eq!(report["response_size"].as_u64(), Some(expected_bytes.len() as u64));
-    assert_eq!(
-        report["response_sha256"].as_str(),
-        Some(hex::encode(sha2::Sha256::digest(expected_bytes)).as_str()),
-        "Python must report the exact response digest"
-    );
+    assert_python_response_report(&report, &expected_response);
 }
 
 #[tokio::test]

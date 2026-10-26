@@ -129,6 +129,7 @@ async fn next_link_check_delay(handler_arc: &Arc<Mutex<TransportHandler>>) -> Du
 mod link_maintenance;
 pub(super) use link_maintenance::handle_check_links;
 
+#[allow(clippy::await_holding_invalid_type)] // TASK-026: handler guard spans the job by design, see TransportHandler lock discipline
 pub(super) async fn handle_cleanup<'a>(mut handler: MutexGuard<'a, TransportHandler>) {
     handler.gc_unicast_ifaces().await;
     {
@@ -142,6 +143,7 @@ pub(super) async fn handle_cleanup<'a>(mut handler: MutexGuard<'a, TransportHand
     }
 }
 
+#[allow(clippy::await_holding_invalid_type)] // TASK-026: three worker families hold a guard across an await: packet ingress keeps the shared InterfaceRxReceiver guard across recv (InterfaceManager::receiver() is pub, so the receiver stays shared); packet-cache cleanup and resource retry each span their tick with the handler guard, as TransportHandler's lock discipline requires
 pub(super) async fn manage_transport(
     handler_arc: Arc<Mutex<TransportHandler>>,
     rx_receiver: Arc<Mutex<InterfaceRxReceiver>>,
@@ -406,7 +408,7 @@ pub(super) async fn manage_transport(
 /// (see `handle_resource_proof`). Path routing is only a fallback for a link
 /// without a bound interface.
 #[deny(clippy::await_holding_invalid_type)]
-async fn send_resource_retry(
+pub(super) async fn send_resource_retry(
     handler: &mut TransportHandler,
     iface: Option<AddressHash>,
     packet: Packet,
@@ -422,7 +424,9 @@ async fn send_resource_retry(
     };
     let link_id = packet.destination;
     let trace = handler.send(TxMessage { tx_type: TxMessageType::Direct(iface), packet }).await;
-    if trace.sent_ifaces == 0 {
+    // queued_ifaces counts paced announces and stays zero for a Direct retry; the
+    // clause only mirrors the delivery-proof check in wire.rs.
+    if trace.sent_ifaces == 0 && trace.queued_ifaces == 0 {
         log::debug!(
             "[resource-diag] retry_not_dispatched node={} link={} iface={} trace={:?}",
             handler.config.name,

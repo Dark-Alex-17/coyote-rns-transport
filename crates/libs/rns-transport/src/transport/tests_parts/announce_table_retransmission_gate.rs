@@ -1,6 +1,10 @@
 use super::announce::announce_retransmit_tick;
 
-async fn feed_announce(transport: &Transport, iface: crate::hash::AddressHash, aspect: &str) -> Packet {
+async fn feed_announce(
+    transport: &Transport,
+    iface: crate::hash::AddressHash,
+    aspect: &str,
+) -> Packet {
     let mut destination = SingleInputDestination::new(
         PrivateIdentity::new_from_rand(OsRng),
         DestinationName::new("lxmf", aspect),
@@ -44,8 +48,14 @@ async fn passive_transport_caches_announces_instead_of_queueing_them() {
     }
 
     let (queued, cached) = tier_sizes(&transport).await;
-    assert_eq!(queued, 0, "a passive node must not queue announces for a retransmission it will never send");
-    assert_eq!(cached, 3, "they belong in the bounded cache instead, which is what the path table reads back");
+    assert_eq!(
+        queued, 0,
+        "a passive node must not queue announces for a retransmission it will never send"
+    );
+    assert_eq!(
+        cached, 3,
+        "they belong in the bounded cache instead, which is what the path table reads back"
+    );
 }
 
 /// The control. Same three announces, same code path, `transport_enabled` on:
@@ -89,7 +99,10 @@ async fn a_shared_instance_iface_still_queues_on_a_passive_node() {
     feed_announce(&transport, iface, "local-client").await;
 
     let (queued, cached) = tier_sizes(&transport).await;
-    assert_eq!(queued, 1, "the reference queues a local client's announce even when not transport-enabled");
+    assert_eq!(
+        queued, 1,
+        "the reference queues a local client's announce even when not transport-enabled"
+    );
     assert_eq!(cached, 0);
 }
 
@@ -274,11 +287,7 @@ async fn rust_local_client_announce_schedule() -> [usize; 4] {
     assert_eq!(tier_sizes(&transport).await, (0, 1));
     let after_deadline = 1;
 
-    announce_retransmit_tick(
-        &handler,
-        first_tick_after_due + INTERVAL_ANNOUNCES_RETRANSMIT,
-    )
-    .await;
+    announce_retransmit_tick(&handler, first_tick_after_due + INTERVAL_ANNOUNCES_RETRANSMIT).await;
     let later_tick = usize::from(host_channel.tx_channel.try_recv().is_ok());
     assert_eq!(later_tick, 0, "the retry is not emitted a second time");
     assert_eq!(tier_sizes(&transport).await, (0, 1));
@@ -324,10 +333,7 @@ async fn accepted_announce_fans_out_directly_to_other_local_clients() {
     assert_eq!(message.packet.context, PacketContext::None);
     assert_eq!(message.packet.transport, Some(*identity.address_hash()));
     assert_eq!(message.packet.header.header_type, crate::packet::HeaderType::Type2);
-    assert_eq!(
-        message.packet.header.propagation_type,
-        crate::packet::PropagationType::Transport
-    );
+    assert_eq!(message.packet.header.propagation_type, crate::packet::PropagationType::Transport);
     assert_eq!(message.packet.header.hops, announce.header.hops);
     assert!(timeout(Duration::from_millis(25), host_channel.tx_channel.recv()).await.is_err());
 }
@@ -356,9 +362,8 @@ async fn locally_hosted_announce_is_not_learned_or_fanned_out() {
         (host_channel, local_client, other_local_client)
     };
 
-    let destination = transport
-        .add_destination(identity, DestinationName::new("lxmf", "locally-hosted"))
-        .await;
+    let destination =
+        transport.add_destination(identity, DestinationName::new("lxmf", "locally-hosted")).await;
     let announce = destination.lock().await.announce(OsRng, None).expect("local announce");
     handle_announce(
         &announce,
@@ -475,10 +480,7 @@ async fn newer_cached_path_announce_survives_scheduled_queue_restart() {
     let restored = Transport::new(restored_config);
     let restored_iface = *restored.iface_manager().lock().await.new_channel(16).address();
     assert_eq!(restored_iface, iface, "test relies on deterministic interface hashes");
-    let report = restored
-        .restore_reticulum_path_table_report(temp.path())
-        .await
-        .expect("restore");
+    let report = restored.restore_reticulum_path_table_report(temp.path()).await.expect("restore");
 
     assert_eq!(report.restored_active_paths, 1);
     assert!(restored.has_path(&destination_hash).await);

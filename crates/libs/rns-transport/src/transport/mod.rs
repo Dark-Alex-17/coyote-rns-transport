@@ -61,18 +61,6 @@ use crate::packet::PacketType;
 use crate::ratchets::{encrypt_for_public_key, now_secs, RatchetStore};
 use crate::resource::{build_resource_request_packet, ResourceEvent, ResourceManager};
 
-fn medium_path_timeout_for_bitrate(bitrate: Option<u64>) -> Duration {
-    const RETICULUM_MTU_BYTES: f64 = 500.0;
-    const MINIMUM_BITRATE: u64 = 5;
-    const DEFAULT_PER_HOP_TIMEOUT_SECS: f64 = 6.0;
-
-    let Some(bitrate) = bitrate else { return Duration::ZERO };
-    Duration::from_secs_f64(
-        2.0 * (RETICULUM_MTU_BYTES * 8.0 / bitrate.max(MINIMUM_BITRATE) as f64)
-            + DEFAULT_PER_HOP_TIMEOUT_SECS,
-    )
-}
-
 mod announce_limits;
 mod announce_table;
 mod diag;
@@ -80,6 +68,7 @@ mod inbound_processing;
 mod inbound_queues;
 mod lifecycle;
 mod link_table;
+mod next_hop_metrics;
 mod packet_cache;
 mod packet_disk_cache;
 mod path_requests;
@@ -95,6 +84,8 @@ pub use inbound_queues::{
     DEFAULT_ANNOUNCE_QUEUE_LENGTH, DEFAULT_DATA_QUEUE_LENGTH, DEFAULT_INGRESS_LIMITED_QUEUE_LENGTH,
     DEFAULT_PATH_REQUEST_QUEUE_LENGTH,
 };
+use next_hop_metrics::medium_path_timeout_for_bitrate;
+pub use next_hop_metrics::NextHopMetrics;
 pub use packet_disk_cache::{CachedPacket, ReticulumPacketDiskCache};
 
 pub use reticulum_path_store::{
@@ -102,18 +93,12 @@ pub use reticulum_path_store::{
     ReticulumPathTableRestoreSkipped,
 };
 
-#[cfg(feature = "storage")]
-pub mod test_bridge;
-
 // Transport-wide packet tracing remains off by default to keep runtime noise low.
 const PACKET_TRACE: bool = false;
 pub const PATHFINDER_M: usize = 128; // Max hops
 
-#[allow(dead_code)]
 const INTERVAL_LINKS_CHECK: Duration = Duration::from_secs(1);
-#[allow(dead_code)]
 const INTERVAL_INPUT_LINK_CLEANUP: Duration = Duration::from_secs(20);
-#[allow(dead_code)]
 const INTERVAL_OUTPUT_LINK_REPEAT: Duration = Duration::from_secs(6);
 const INTERVAL_IFACE_CLEANUP: Duration = Duration::from_secs(10);
 const INTERVAL_ANNOUNCES_RETRANSMIT: Duration = Duration::from_secs(1);
@@ -127,7 +112,6 @@ const LOCAL_PATH_RESPONSE_COOLDOWN: Duration = Duration::from_millis(750);
 const UNICAST_IFACE_IDLE_TIMEOUT: Duration = Duration::from_secs(1800);
 
 // Other constants
-#[allow(dead_code)]
 const KEEP_ALIVE_REQUEST: u8 = 0xFF;
 const KEEP_ALIVE_RESPONSE: u8 = 0xFE;
 
@@ -236,6 +220,32 @@ pub struct AnnounceEvent {
     pub is_path_response: bool,
 }
 
+/// Shared transport state behind one `tokio::sync::Mutex`. The guard spans
+/// one job: an inbound packet, a timer tick or a `Transport::send_*` call.
+///
+/// # Lock discipline
+///
+/// Every transmit funnels through `TransportHandler::send`, which fixes the
+/// lock order: handler, then `packet_cache`; handler, then `iface_manager`,
+/// then the interface tx channel; handler, then a `Link`; handler, then a
+/// destination. `handle_check_links` nests one level deeper, holding a
+/// `Link` guard and then taking `iface_manager` for the next-hop MTU, so a
+/// link is also taken before `iface_manager`. Two more nests exist. The
+/// announce arm of `send` keeps the `iface_manager` guard while it calls
+/// `note_link_packet_sent`, which locks the link the packet belongs to;
+/// that is `iface_manager` before link, the reverse of
+/// `handle_check_links`, and it is inert because an announce is never
+/// addressed to a link; both nests also run under the handler guard, so
+/// they cannot interleave. The `max_request_size` check in
+/// `handle_link_resource_packet` (`resource_wire.rs`) locks the receiving
+/// destination while holding the link guard, so a link is also taken before
+/// a destination. The one rule that follows is to never take the handler
+/// guard while holding a link, destination or `iface_manager` guard: `send`
+/// re-locks the link of the packet it just wrote in `note_link_packet_sent`,
+/// so a caller still holding that link deadlocks itself (`resource_wire.rs`
+/// spells this out for the resource reject). Every fn that owns a handler
+/// guard across an await carries the `clippy::await_holding_invalid_type`
+/// allowance; the lint does not see helpers that borrow a `&mut MutexGuard`.
 pub(crate) struct TransportHandler {
     config: TransportConfig,
     iface_manager: Arc<Mutex<InterfaceManager>>,
@@ -307,60 +317,13 @@ struct QueuedInbound {
     path_request: Option<PathRequest>,
 }
 
-pub struct Transport {
-    name: String,
-    link_in_event_tx: broadcast::Sender<LinkEventData>,
-    link_out_event_tx: broadcast::Sender<LinkEventData>,
-    received_data_tx: broadcast::Sender<ReceivedData>,
-    iface_messages_tx: broadcast::Sender<RxMessage>,
-    resource_events_tx: broadcast::Sender<ResourceEvent>,
-    handler: Arc<Mutex<TransportHandler>>,
-    iface_manager: Arc<Mutex<InterfaceManager>>,
-    cancel: CancellationToken,
-    manage_task: std::sync::Mutex<Option<tokio::task::JoinHandle<()>>>,
-    shared_instance: std::sync::Mutex<Option<AddressHash>>,
-    /// Fork-only: the tasks the shared-instance client spawns, namely each
-    /// attach's reconnect consumer, the delayed registration announces and
-    /// the delayed re-announces after a reconnect. Python runs these as
-    /// threads it never joins (`RNS/Transport.py:2911-2916`,
-    /// `RNS/Interfaces/LocalInterface.py:178-181`); here [`Self::stop`] joins
-    /// them within its budget, since a task that outlived the stop would
-    /// announce on a stopped transport. Shared with the consumers, which
-    /// spawn their re-announces through it.
-    shared_instance_tasks: Arc<std::sync::Mutex<tokio::task::JoinSet<()>>>,
-}
+include!("mod_parts/transport.rs");
 
 #[derive(Debug, Clone, Copy, Default, PartialEq)]
 pub struct PacketSignal {
     pub rssi: Option<f64>,
     pub snr: Option<f64>,
     pub q: Option<f64>,
-}
-
-#[derive(Debug, Clone, Copy, PartialEq)]
-pub struct NextHopMetrics {
-    pub interface: AddressHash,
-    pub bitrate: u64,
-    pub hardware_mtu: Option<usize>,
-    pub per_bit_latency: Option<f64>,
-}
-
-impl NextHopMetrics {
-    pub fn per_byte_latency(self) -> Option<f64> {
-        self.per_bit_latency.map(|latency| latency * 8.0)
-    }
-
-    pub fn first_hop_timeout(self, mtu: usize, default_timeout: Duration) -> Duration {
-        self.per_byte_latency()
-            .map(|latency| default_timeout + Duration::from_secs_f64(mtu as f64 * latency))
-            .unwrap_or(default_timeout)
-    }
-
-    pub fn extra_link_proof_timeout(self, mtu: usize) -> Duration {
-        self.per_byte_latency()
-            .map(|latency| Duration::from_secs_f64(mtu as f64 * latency))
-            .unwrap_or_default()
-    }
 }
 
 #[derive(Clone)]

@@ -110,8 +110,9 @@ pub(crate) async fn announce_all_destinations_as_path_response(
     announced
 }
 
-/// The transmit seam that holds the handler guard across the dispatch, as
-/// `Transport::send_packet` and `request_dispatch::send_on_iface` do.
+/// Holds the handler guard across the dispatch like `Transport::send_packet`
+/// and `Transport::send_broadcast`.
+#[allow(clippy::await_holding_invalid_type)] // TASK-026: handler guard spans the job by design, see TransportHandler lock discipline
 async fn send_packet(handler: &Arc<Mutex<TransportHandler>>, packet: Packet) {
     handler.lock().await.send_packet(packet).await;
 }

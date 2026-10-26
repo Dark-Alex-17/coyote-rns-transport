@@ -2,24 +2,24 @@
 ///
 /// A refusal arrives as a `RESOURCE_RCL` packet carrying only the resource
 /// hash (`RNS/Resource.py:155-165`, `Resource.reject`), so the sender never
-/// learns the peer's motive from the wire; the variants beyond
-/// [`PeerCancelled`](Self::PeerCancelled) exist for refusals the sender can
-/// classify on its own.
+/// learns the peer's motive from the wire and
+/// [`PeerCancelled`](Self::PeerCancelled) is the only variant. The enum is
+/// `non_exhaustive` so a refusal the sender classifies on its own can be
+/// added without a breaking change.
 #[non_exhaustive]
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum RejectReason {
     /// The peer answered the advertisement with a receiver cancel, the
     /// `RESOURCE_RCL` that `Resource.reject` sends (`RNS/Resource.py:155-165`).
     PeerCancelled,
-    /// The resource exceeded a cap the sender knew about locally. Fork-only,
-    /// reserved: no code path produces this variant yet.
-    Oversize {
-        /// The cap in bytes that the resource exceeded.
-        limit: usize,
-    },
-    /// Fork-only, reserved for an unclassified refusal: no code path produces
-    /// this variant yet.
-    Unknown,
+}
+
+impl std::fmt::Display for RejectReason {
+    fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            RejectReason::PeerCancelled => formatter.write_str("the peer cancelled the resource"),
+        }
+    }
 }
 
 /// How an outbound resource stopped short of being proven. Fork-only:

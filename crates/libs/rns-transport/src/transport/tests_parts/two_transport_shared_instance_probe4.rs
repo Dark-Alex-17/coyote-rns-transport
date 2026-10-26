@@ -1,8 +1,8 @@
 // Pins the two release claims about the shared-instance client API that no other fixture
-// covers: `remove_interface` is named beside `stop_interface` as a call that leaves the slot
-// held until `detach_shared_instance`, and an interface spawned after a stop's interface
-// sweep but before that stop cancels the transport is detached by a second stop. Helpers
-// come from the sibling `tests_parts` files included into this module.
+// covers: `remove_interface` and `stop_interface` both leave the slot held until
+// `detach_shared_instance`, and an interface spawned after a stop's interface sweep but
+// before that stop cancels the transport is detached by a second stop. Helpers come from
+// the sibling `tests_parts` files included into this module.
 
 /// An interface whose worker runs until the test releases it, so a stop's interface sweep
 /// can be parked on the worker wait deterministically.
@@ -14,22 +14,49 @@ impl crate::iface::Interface for SharedInstanceHeldWorkerInterface {
     }
 }
 
-/// Removing the attached interface through the generic `remove_interface` leaves the slot
-/// and the posture set, exactly like `stop_interface`: a new attach is refused until
-/// `detach_shared_instance` clears the stale slot, after which a fresh attach succeeds.
-#[tokio::test]
+/// The generic interface call a test removes the attached interface through.
+#[derive(Clone, Copy)]
+enum SharedInstanceRemoval {
+    RemoveInterface,
+    StopInterface,
+}
+
+impl SharedInstanceRemoval {
+    fn name(self) -> &'static str {
+        match self {
+            Self::RemoveInterface => "remove_interface",
+            Self::StopInterface => "stop_interface",
+        }
+    }
+
+    #[deny(clippy::await_holding_invalid_type)]
+    async fn apply(self, transport: &Transport, iface: AddressHash) -> bool {
+        match self {
+            Self::RemoveInterface => transport.remove_interface(iface).await,
+            Self::StopInterface => transport.stop_interface(iface).await,
+        }
+    }
+}
+
+/// Removing the attached interface through `removal` leaves the slot and the posture set:
+/// a new attach is refused and spawns nothing until `detach_shared_instance` clears the
+/// stale slot, after which a fresh attach succeeds.
 #[deny(clippy::await_holding_invalid_type)]
-async fn shared_instance_removed_through_remove_interface_keeps_the_slot_until_detach() {
+async fn shared_instance_removed_keeps_the_slot_until_detach(
+    name: &str,
+    removal: SharedInstanceRemoval,
+) {
+    let call = removal.name();
     let server = shared_instance_server().await;
-    let client = shared_instance_client("shared-instance-remove-iface", &server).await;
+    let client = shared_instance_client(name, &server).await;
     server.await_accepted_connections(1).await;
     shared_instance_assert_attached(&client.transport, client.iface).await;
 
     assert!(
-        timeout(STOP_TIMEOUT, client.transport.remove_interface(client.iface))
+        timeout(STOP_TIMEOUT, removal.apply(&client.transport, client.iface))
             .await
-            .expect("remove_interface completes"),
-        "remove_interface finds the attached interface"
+            .unwrap_or_else(|_| panic!("{call} completes")),
+        "{call} finds the attached interface"
     );
     assert!(
         !client.transport.interface_hashes().await.contains(&client.iface),
@@ -38,11 +65,11 @@ async fn shared_instance_removed_through_remove_interface_keeps_the_slot_until_d
     assert_eq!(
         client.transport.shared_instance(),
         Some(client.iface),
-        "remove_interface leaves the slot set"
+        "{call} leaves the slot set"
     );
     assert!(
         client.transport.connected_to_shared_instance().await,
-        "remove_interface leaves the client posture set"
+        "{call} leaves the client posture set"
     );
     let refused = client
         .transport
@@ -84,6 +111,16 @@ async fn shared_instance_removed_through_remove_interface_keeps_the_slot_until_d
     timeout(STOP_TIMEOUT, server.transport.stop()).await.expect("shared instance stop completes");
 }
 
+#[tokio::test]
+#[deny(clippy::await_holding_invalid_type)]
+async fn shared_instance_removed_through_remove_interface_keeps_the_slot_until_detach() {
+    shared_instance_removed_keeps_the_slot_until_detach(
+        "shared-instance-remove-iface",
+        SharedInstanceRemoval::RemoveInterface,
+    )
+    .await;
+}
+
 /// The documented stop window, then the documented remedy. A stop sweeps the interfaces
 /// first, waits for their workers, then cancels the transport and takes the slot last; an
 /// attach that runs while the stop waits for a worker is not yet refused and leaves its
@@ -111,30 +148,8 @@ async fn shared_instance_second_stop_detaches_an_interface_spawned_inside_the_fi
         )
     };
 
-    let ((), (attached, slot_at_release)) = tokio::join!(
-        async {
-            // stop's own 5 s budget can be consumed by the worker wait; let it elapse before
-            // this guard fires.
-            timeout(STOP_TIMEOUT + Duration::from_secs(3), transport.stop())
-                .await
-                .expect("the first stop returns within its budget")
-        },
-        async {
-            // Let the stop run its interface sweep and park on the held worker before the
-            // attach spawns anything.
-            tokio::task::yield_now().await;
-            let attached = timeout(
-                STOP_TIMEOUT,
-                transport
-                    .attach_shared_instance(server.endpoint(), SharedInstanceOptions::default()),
-            )
-            .await
-            .expect("the attach returns within its budget");
-            let slot = transport.shared_instance();
-            release.send(()).expect("the held worker is waiting for the release");
-            (attached, slot)
-        },
-    );
+    let (attached, slot_at_release) =
+        shared_instance_attach_inside_a_stop(&transport, &server, release).await;
 
     let iface = attached.expect("the attach inside the window spawned its interface");
     assert_eq!(slot_at_release, Some(iface), "the attach filled the slot before the stop took it");

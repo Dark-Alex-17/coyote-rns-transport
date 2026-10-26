@@ -424,6 +424,8 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
       - name: Install Linux BLE build dependencies
         run: |
           sudo apt-get update
@@ -438,8 +440,10 @@ jobs:
         run: cargo xtask ci --stage doc
       - name: Fork publish and release-docs contracts
         run: cargo test -p reticulumd --test fork_publish_contract --test fork_release_docs_contract
-      - name: Breaking-change compile-fail harness
-        run: cargo test -p coyote-rns-transport --test breaking_changes_compile_fail
+      - name: Crate test targets
+        run: cargo test -p coyote-rns-transport --tests
+      - name: Fork patch-set ledger
+        run: tools/scripts/patchset-ledger-check.sh
 
   sdk-docs-check:
     if: github.event_name == 'workflow_dispatch' || (github.event_name == 'pull_request' && contains(github.event.pull_request.labels.*.name, 'run-full-CI'))

@@ -1,6 +1,7 @@
 fn write_python_shared_udp_ifac_rns_config(
     dir: &Path,
     shared_port: u16,
+    control_port: u16,
     listen_port: u16,
     forward_port: u16,
 ) {
@@ -8,7 +9,7 @@ fn write_python_shared_udp_ifac_rns_config(
     fs::write(
         dir.join("config"),
         format!(
-            "[reticulum]\nenable_transport = yes\nshare_instance = yes\nshared_instance_type = tcp\nshared_instance_port = {shared_port}\ndiscover_interfaces = no\n\n[logging]\nloglevel = 7\n\n[interfaces]\n  [[UDP IFAC Shared Instance]]\n    type = UDPInterface\n    enabled = yes\n    listen_ip = 127.0.0.1\n    listen_port = {listen_port}\n    forward_ip = 127.0.0.1\n    forward_port = {forward_port}\n    networkname = {IFAC_NETWORK_NAME}\n    passphrase = {IFAC_PASSPHRASE}\n    ifac_size = {IFAC_SIZE_BITS}\n"
+            "[reticulum]\nenable_transport = yes\nshare_instance = yes\nshared_instance_type = tcp\nshared_instance_port = {shared_port}\ninstance_control_port = {control_port}\ndiscover_interfaces = no\n\n[logging]\nloglevel = 7\n\n[interfaces]\n  [[UDP IFAC Shared Instance]]\n    type = UDPInterface\n    enabled = yes\n    listen_ip = 127.0.0.1\n    listen_port = {listen_port}\n    forward_ip = 127.0.0.1\n    forward_port = {forward_port}\n    networkname = {IFAC_NETWORK_NAME}\n    passphrase = {IFAC_PASSPHRASE}\n    ifac_size = {IFAC_SIZE_BITS}\n"
         ),
     )
     .expect("write Python shared IFAC RNS config");
@@ -45,8 +46,10 @@ fn python_rust_ifac_udp_shared_instance_preserves_local_client_traffic() {
     let remote_udp = ReservedPort::reserve();
     let owner_control = ReservedPort::reserve();
     let remote_control = ReservedPort::reserve();
+    let rns_control = ReservedPort::reserve();
     let shared_port = shared_instance.port();
     let rust_rpc_port = rust_rpc.port();
+    let rns_control_port = rns_control.port();
     let owner_udp_port = owner_udp.port();
     let remote_udp_port = remote_udp.port();
     let owner_control_port = owner_control.port();
@@ -69,6 +72,7 @@ fn python_rust_ifac_udp_shared_instance_preserves_local_client_traffic() {
     write_python_shared_udp_ifac_rns_config(
         &owner_rns,
         shared_port,
+        rns_control_port,
         owner_udp_port,
         remote_udp_port,
     );
@@ -92,7 +96,7 @@ fn python_rust_ifac_udp_shared_instance_preserves_local_client_traffic() {
             &owner_rns,
             &owner_storage,
             owner_control_port,
-            &mut [owner_control, shared_instance, owner_udp],
+            &mut [owner_control, shared_instance, owner_udp, rns_control],
         ));
         wait_for_python_endpoint_ready(
             owner_control_port,

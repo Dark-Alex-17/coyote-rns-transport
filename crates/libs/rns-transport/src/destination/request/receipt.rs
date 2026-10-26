@@ -140,10 +140,12 @@ pub enum RequestError {
     #[error("the request could not be sent")]
     Send,
     /// The response Resource failed in transfer before it completed: a part
-    /// failure, receiver retry exhaustion or a remote cancel. Python
-    /// (`RNS/Link.py:1435`) cancels the Resource when the receipt has
-    /// failed; this is the other direction, which Python surfaces only
-    /// through the Resource's own failure callback.
+    /// failure, receiver retry exhaustion or a remote cancel. The fork
+    /// fails the receipt in every status. Python routes the failed Resource
+    /// through `request_timed_out` (`RNS/Link.py:914-918`), whose guard
+    /// (`:1398`) fails only a receipt still `DELIVERED`; one a progress
+    /// callback already moved to `RECEIVING` (`:1420`) stays there. Listed
+    /// under Known divergences from Python RNS in the crate README.
     #[error("the response resource failed before it completed")]
     Receive,
 }

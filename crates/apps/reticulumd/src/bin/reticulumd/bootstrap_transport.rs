@@ -291,9 +291,6 @@ pub(super) async fn start_transport_and_interfaces(
             .await;
             startup_successes += startup.startup_successes;
             startup_failures.extend(startup.startup_failures);
-            if startup.connected_to_shared_instance {
-                transport_instance.set_connected_to_shared_instance(true).await;
-            }
             for iface in startup.tunnel_synth_ifaces {
                 transport_instance.synthesize_tunnel_on_interface(iface).await;
             }

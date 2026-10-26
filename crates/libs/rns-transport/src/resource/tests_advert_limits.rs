@@ -47,6 +47,27 @@ fn resource_manager_keeps_serving_the_link_after_dropping_an_oversized_advertise
     assert!(!responses.is_empty(), "follow-up advertisement requests parts");
 }
 
+/// Every over-cap advertisement a link sends is counted against that link,
+/// so the warn cadence can be derived from the count rather than logged on
+/// every drop.
+#[test]
+fn resource_manager_counts_rejected_advertisements_per_link() {
+    let (mut manager, mut link) = manager_with_test_link();
+    for seed in [7u8, 8u8] {
+        let mut oversized = advertisement_with(MAX_REFERENCE_ADVERTISED_TRANSFER_SIZE + 1, 1, 1);
+        oversized.hash = Hash::new_from_slice(&[seed; 32]);
+        oversized.original_hash = oversized.hash;
+        let packet = resource_packet(
+            PacketContext::ResourceAdvrtisement,
+            &oversized.pack().expect("advertisement"),
+            *link.id(),
+        );
+        assert!(manager.handle_packet(&packet, &mut link).is_empty());
+    }
+    assert!(manager.incoming.is_empty());
+    assert_eq!(manager.link_stats[link.id()].rejected_advertisements, 2);
+}
+
 /// The decode cap is exactly three times `MAX_EFFICIENT_SIZE`, as in
 /// RNS/Resource.py:1374: an advertised `t` at the cap is admitted and `t`
 /// one byte above it is dropped without a reply.
@@ -77,4 +98,42 @@ fn resource_manager_advert_cap_sits_at_three_times_max_efficient_size() {
     let responses = manager.handle_packet(&packet, &mut link);
     assert!(manager.incoming.contains_key(&at_cap.hash), "t = cap creates a receiver");
     assert!(!responses.is_empty(), "t = cap requests parts");
+}
+
+/// The advertised `d` is bounded on its own: a small `t` does not get a
+/// receiver past the 64 MiB inbound data cap, and `d` exactly at the cap is
+/// still admitted.
+#[test]
+fn resource_receiver_refuses_advertised_data_size_over_the_inbound_cap() {
+    let link_id = AddressHash::new_from_slice(&[9u8; 32]);
+    assert_eq!(MAX_INBOUND_RESOURCE_TRANSFER_SIZE, 64 * 1024 * 1024);
+
+    let over = advertisement_with(1, MAX_INBOUND_RESOURCE_TRANSFER_SIZE + 1, 1);
+    assert!(matches!(
+        ResourceReceiver::new_with_mtu(&over, link_id, DEFAULT_RESOURCE_INTERFACE_MTU),
+        Err(RnsError::InvalidArgument)
+    ));
+
+    let at_cap = advertisement_with(1, MAX_INBOUND_RESOURCE_TRANSFER_SIZE, 1);
+    assert!(
+        ResourceReceiver::new_with_mtu(&at_cap, link_id, DEFAULT_RESOURCE_INTERFACE_MTU).is_ok(),
+        "d = cap creates a receiver"
+    );
+}
+
+/// An advertisement the receiver constructor refuses, here `d` one byte over the
+/// inbound data cap, is charged to the link like one the manager's own guards drop,
+/// so it shares the same warn cadence instead of warning on every advertisement.
+#[test]
+fn resource_manager_counts_an_advertisement_the_receiver_refuses() {
+    let (mut manager, mut link) = manager_with_test_link();
+    let over = advertisement_with(1, MAX_INBOUND_RESOURCE_TRANSFER_SIZE + 1, 1);
+    let packet = resource_packet(
+        PacketContext::ResourceAdvrtisement,
+        &over.pack().expect("advertisement"),
+        *link.id(),
+    );
+    assert!(manager.handle_packet(&packet, &mut link).is_empty());
+    assert!(manager.incoming.is_empty(), "a refused advertisement creates no receiver");
+    assert_eq!(manager.link_stats[link.id()].rejected_advertisements, 1);
 }

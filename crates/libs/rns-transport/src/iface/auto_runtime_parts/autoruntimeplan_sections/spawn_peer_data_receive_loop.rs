@@ -1,6 +1,6 @@
 impl AutoRuntimePlan {
 
-    #[allow(dead_code)]
+    #[allow(clippy::await_holding_invalid_type)] // TASK-026: state guard spans the dedupe lock await in spawn_peer_data_receive_loop (documented lock-order nest: state, then dedupe; dedupe has no other locker)
     fn spawn_peer_data_receive_loop(
         &self,
         socket: AutoBoundDataSocket,

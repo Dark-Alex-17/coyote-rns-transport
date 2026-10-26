@@ -99,7 +99,16 @@ fn spawn_discovery_publish_worker(
             let candidate = &outbound[index];
             let encoded = encode_discovery_candidate(candidate, network_identity.as_ref());
             match encoded {
-                Ok(payload) => transport.send_announce(&destination, Some(&payload)).await,
+                Ok(payload) => {
+                    if let Err(error) =
+                        transport.try_send_announce(&destination, Some(&payload)).await
+                    {
+                        log::warn!(
+                            "discovery announce for {} not sent: {error}",
+                            candidate.interface.name
+                        );
+                    }
+                }
                 Err(error) => log::warn!(
                     "failed to encode discovery announce for {}: {error}",
                     candidate.interface.name

@@ -141,6 +141,25 @@ fn rust_request_receipt_is_proof_of(
         && matches!(event.event, LinkEvent::PacketProven { packet_hash } if packet_hash == hash)
 }
 
+/// Drains `events` until Python's proof of `hash` on `link_id` arrives.
+#[deny(clippy::await_holding_invalid_type)]
+async fn await_python_proof_of(
+    events: &mut tokio::sync::broadcast::Receiver<LinkEventData>,
+    link_id: AddressHash,
+    hash: Hash,
+) {
+    tokio::time::timeout(Duration::from_secs(10), async {
+        loop {
+            let event = events.recv().await.expect("link event");
+            if rust_request_receipt_is_proof_of(&event, link_id, hash) {
+                return;
+            }
+        }
+    })
+    .await
+    .expect("timed out waiting for the python proof");
+}
+
 // The interop lock is a tokio MutexGuard that has to outlive the whole test,
 // which is exactly what await_holding_invalid_type forbids; the test fns only
 // take that lock and everything else runs under the lint.
@@ -197,36 +216,6 @@ async fn run_rust_to_python_request_receipt_none_response_fails_with_timeout() {
         .expect("receipt concludes");
     assert_eq!(outcome, Err(RequestError::Timeout));
     assert_eq!(receipt.status(), RequestStatus::Failed);
-}
-
-#[tokio::test]
-#[ignore = "requires local Python Reticulum checkout"]
-async fn rust_to_python_plain_data_packet_is_proven_by_a_prove_all_destination() {
-    let _interop_guard = python_interop_guard().await;
-    run_rust_to_python_plain_data_packet_is_proven_by_a_prove_all_destination().await;
-}
-
-#[deny(clippy::await_holding_invalid_type)]
-async fn run_rust_to_python_plain_data_packet_is_proven_by_a_prove_all_destination() {
-    let fixture = RustRequestReceiptFixture::start(
-        "python-rns-request-receipt-prove-all",
-        "link-data",
-        &["--prove-all"],
-    )
-    .await;
-
-    let mut link_events = fixture.transport.out_link_events();
-    let hash = fixture.send_plain_data(b"prove me").await;
-    tokio::time::timeout(Duration::from_secs(10), async {
-        loop {
-            let event = link_events.recv().await.expect("link event");
-            if rust_request_receipt_is_proof_of(&event, fixture.link_id, hash) {
-                return;
-            }
-        }
-    })
-    .await
-    .expect("timed out waiting for the python proof");
 }
 
 #[tokio::test]

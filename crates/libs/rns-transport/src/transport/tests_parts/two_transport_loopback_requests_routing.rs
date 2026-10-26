@@ -122,8 +122,7 @@ async fn two_transport_loopback_request_allow_list_checks_the_identity_per_reque
 async fn two_transport_loopback_request_reregistration_replaces_the_allow_mode() {
     let mut pair = loopback_request_pair("request-reregister-allow").await;
     let calls = Arc::new(AtomicUsize::new(0));
-    register_handler(&pair, "/echo", RequestAllow::All, counting_echo_handler(calls.clone()))
-        .await;
+    register_handler(&pair, "/echo", RequestAllow::All, counting_echo_handler(calls.clone())).await;
 
     let id = send_request(&pair, "/echo", rmpv::Value::from("open")).await;
     assert_eq!(await_response(&mut pair, id).await, rmpv::Value::from("open"));
@@ -166,12 +165,14 @@ async fn two_transport_loopback_request_handler_is_scoped_to_its_destination() {
             .await;
     let learned =
         learn_announce(&mut pair.handles.connector.announces, &sibling_desc.address_hash).await;
-    let (sibling_link, sibling_link_id) = open_link(&pair.handles.connector.transport, learned).await;
+    let (sibling_link, sibling_link_id) =
+        open_link(&pair.handles.connector.transport, learned).await;
     assert_ne!(sibling_link_id, pair.handles.link_id, "two distinct links");
 
     // The sibling link carries the request to the transport and posts it, but no handler
     // on the sibling destination answers it.
-    let unanswered = send_request_on_link(&pair, &sibling_link, "/echo", rmpv::Value::from(1)).await;
+    let unanswered =
+        send_request_on_link(&pair, &sibling_link, "/echo", rmpv::Value::from(1)).await;
     await_request_data_event_on_link(&mut pair, sibling_link_id, unanswered).await;
 
     // The first destination's handler still answers on its own link; the single dispatch
@@ -191,8 +192,5 @@ async fn two_transport_loopback_request_handler_is_scoped_to_its_destination() {
         .register_request_handler("/echo", Arc::new(echo_handler()), RequestAllow::All, true)
         .expect("handler registers");
     let id = send_request_on_link(&pair, &sibling_link, "/echo", rmpv::Value::from(3)).await;
-    assert_eq!(
-        await_response_on_link(&mut pair, sibling_link_id, id).await,
-        rmpv::Value::from(3)
-    );
+    assert_eq!(await_response_on_link(&mut pair, sibling_link_id, id).await, rmpv::Value::from(3));
 }

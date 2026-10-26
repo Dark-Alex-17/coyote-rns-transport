@@ -16,22 +16,29 @@ pub(super) async fn filter_duplicate_packet(
     in_link: Option<Arc<Mutex<Link>>>,
     node_name: &str,
     packet: &Packet,
-    connected_to_shared_instance: bool,
+    skip_duplicate_filter: bool,
     transport_identity: AddressHash,
 ) -> (bool, bool) {
-    // An attached client leaves duplicate filtering to the shared-instance
-    // owner: Python's packet_filter accepts every packet in this mode and
-    // add_packet_hash skips the hashlist (RNS/Transport.py:1618-1627), so
-    // the filter neither reads nor writes the cache while attached and there
-    // is nothing to roll back later. The cache's other halves are still
-    // written: the source notes handle_data leaves for received Data
-    // packets, Python's reverse_table, share the cache with this filter and
-    // so count as seen once the transport detaches, a deliberate
-    // simplification over Python's separate packet_hashlist. The outbound
-    // hashes send records stay unguarded by design. They are the receipt
-    // guard, the role Python's separate receipts list plays
-    // (RNS/Transport.py:174), so a proof for a packet of our own still finds it.
-    if connected_to_shared_instance {
+    // An attached client leaves duplicate filtering of what the shared
+    // instance delivers to the owner: Python's packet_filter accepts every
+    // packet in this mode and add_packet_hash skips the hashlist
+    // (RNS/Transport.py:1618-1627), so the filter neither reads nor writes
+    // the cache for such a packet and there is nothing to roll back later.
+    // Python decides this before the receiving interface is attached to the
+    // packet (RNS/Transport.py:1795-1799), but a Python client brings up no
+    // other interface while attached (RNS/Reticulum.py:745), so its
+    // process-wide skip and a skip for the shared-instance interface alone
+    // are the same rule. This transport keeps its own interfaces running
+    // while attached, so the caller decides per arriving interface. The
+    // cache's other halves are still written: the source notes handle_data
+    // leaves for received Data packets, Python's reverse_table, share the
+    // cache with this filter and so count as seen once the transport
+    // detaches, a deliberate simplification over Python's separate
+    // packet_hashlist. The outbound hashes send records stay unguarded by
+    // design. They are the receipt guard, the role Python's separate
+    // receipts list plays (RNS/Transport.py:174), so a proof for a packet of
+    // our own still finds it.
+    if skip_duplicate_filter {
         return (true, false);
     }
     // The pinned Python packet_filter bypasses hash deduplication for these
@@ -156,13 +163,23 @@ pub(super) async fn preprocess_inbound_message(
     // receive-side increment must be removed before path classification. When
     // this process is itself attached to a shared instance and has no local
     // child interfaces, the attached interface carries the same meaning.
-    let remove_shared_instance_hop = {
+    // The duplicate filter is skipped for packets the shared instance
+    // delivers; with no interface flagged, which happens when the posture
+    // was set by hand and when `Transport::stop_interface` took the attached
+    // interface (the posture and slot stay set, the flag goes with the
+    // interface), every interface is treated as the shared-instance one, as
+    // Python does.
+    let (remove_shared_instance_hop, skip_duplicate_filter) = {
         let manager = iface_manager.lock().await;
-        if manager.local_client_interfaces().is_empty() {
-            connected_to_shared_instance && manager.is_shared_instance(&message.address)
+        let from_shared_instance = manager.is_shared_instance(&message.address);
+        let remove_hop = if manager.local_client_interfaces().is_empty() {
+            connected_to_shared_instance && from_shared_instance
         } else {
             manager.is_local_client_interface(&message.address)
-        }
+        };
+        let skip_filter = connected_to_shared_instance
+            && (from_shared_instance || !manager.has_shared_instance_interface());
+        (remove_hop, skip_filter)
     };
     apply_receive_hop_increment(&mut message.packet);
     if remove_shared_instance_hop {
@@ -299,7 +316,7 @@ pub(super) async fn preprocess_inbound_message(
             in_link,
             &node_name,
             &message.packet,
-            connected_to_shared_instance,
+            skip_duplicate_filter,
             transport_identity,
         )
         .await
@@ -339,6 +356,7 @@ pub(super) async fn rollback_rejected_inbound(
     }
 }
 
+#[allow(clippy::await_holding_invalid_type)] // TASK-026: handler guard spans the job by design, see TransportHandler lock discipline
 pub(super) async fn process_inbound_message(
     handler_arc: Arc<Mutex<TransportHandler>>,
     queued: QueuedInbound,

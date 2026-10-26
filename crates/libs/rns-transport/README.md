@@ -25,7 +25,7 @@ breaks the fork's public API, the next patch digit otherwise.
 
 ```toml
 [dependencies]
-coyote-rns-transport = "0.15.1"
+coyote-rns-transport = "0.16.0"
 ```
 
 ```rust
@@ -263,9 +263,9 @@ be built or the peer's requests put the sender in a failed state, and
 `LinkClosed` when the link went away under the transfer. `Rejected(reason)`
 when the peer refused the transfer: a refusal arrives as a receiver cancel
 carrying only the resource hash (`RNS/Resource.py:155-165`), so the sender
-never learns the peer's motive and the reason is always
-`RejectReason::PeerCancelled` in this release; `Oversize { limit }` and
-`Unknown` are reserved and no code path produces them. `Cancelled` after
+never learns the peer's motive and `RejectReason::PeerCancelled` is the only
+variant; the enum is `non_exhaustive`, so a future variant is not a breaking
+change; it implements `Display`. `Cancelled` after
 `Transport::cancel_resource`. Every terminal path goes through one exit, so
 the outcome and the `ResourceEventKind` published for the hash cannot
 disagree. Dropping the outcome cancels nothing: the transfer runs on and
@@ -364,7 +364,14 @@ every redial, a dropped stream's first included, as Python's reconnect loop
 does (`RNS/Interfaces/LocalInterface.py:159-160`); the TCP client redials
 at once after a drop and sleeps it from the second consecutive short-lived
 connection on, one that lasted under `MIN_STABLE_CONNECTION` (2 s); a
-connection that outlived the window resets the streak. While
+connection that outlived the window resets the streak.
+`SharedInstanceOptions` also carries `with_mtu`, `with_forced_bitrate` and
+`with_interface_mode`, applied to the spawned client as the matching
+`TcpClient`/`LocalUnixClient` constructors would, with the `mtu` and
+`forced_bitrate_bps` getters reading the first two back; `LocalUnixClient`
+exposes `addr`, `mtu_value`, `forced_bitrate_bps`, `reconnect_wait`,
+`reconnect_events_enabled` and `disconnect_events_enabled` for inspection.
+While
 attached, a `SINGLE` destination is announced as a path
 response 0.25 s after `register_destination` (`RNS/Transport.py:2911-2916`,
 the context of `RNS/Destination.py:308-315`), and
@@ -375,32 +382,60 @@ re-announced as a path response `reconnect_wait` plus 2 s later, if the
 transport is still attached then (`RNS/Transport.py:3705-3709`,
 `RNS/Interfaces/LocalInterface.py:178-181`). A dropped connection, as
 opposed to a detach or a stop, tears down every active and pending link,
-sending a LINKCLOSE packet to the peer of each active link on the interface
-it rides, as Python's `Link.teardown` does for active links
+sending a LINKCLOSE packet to the peer of each link past `Pending` on the
+interface it rides, as Python's `Link.teardown` does for every such link
 (`RNS/Link.py:657-668`), so a peer reached over another interface learns
-the close from the wire, and
+the close from the wire, while a link that rode the dropped interface
+itself sends none, its peer being gone with the connection (the flush
+would inherit the `Handshake` LINKCLOSE too; no `in_links`/`out_links`
+entry is observable in `Handshake`, because the responder proves, which
+makes it `Active`, before the insertion, `transport/path.rs:372` vs
+`:383`), and
 clears the path, announce, link and tunnel tables, the held announces and
-the packet cache's reverse routes, Python's `reverse_table`
+the packet cache's reverse routes, the received-packet entries that are
+Python's `reverse_table`
 (`RNS/Transport.py:3690-3702`, `RNS/Interfaces/LocalInterface.py:255-261`),
-and with them the fork's own announce cache tier and its interface-tunnel
-index, which have no Python twin;
+and with them the fork's own announce cache tier, which has no Python twin,
+and its interface-tunnel index, whose twin is `interface.tunnel_id`
+(`RNS/Transport.py:2827`, `:2834`, read at `:2467`): Python's
+`shared_connection_disappeared` (`:3690-3702`) leaves it set, so Python's
+`note_path` on a vanished tunnel logs the `:2469` warning where the fork's
+does nothing; the entries of packets this node sent,
+the receipt guard that is Python's `receipts` list (`RNS/Transport.py:174`),
+stay;
 a queued disconnect is served before the reconnect behind it, so the flush
-never lands after that cycle's tunnel. While attached, the duplicate filter
+never lands after that cycle's tunnel, and since the client emits each
+cycle's disconnect before its reconnect into two equal-depth queues, a
+disconnect can never be lost while its reconnect lands (the realistic storm
+loss is a reconnect, healed by the next one that lands).
+While attached, the duplicate filter
 inserts nothing and consults nothing (`RNS/Transport.py:1618-1627`): the
-owner deduplicates. The packet cache's other halves are still written: the
+owner deduplicates. The filter is skipped for packets arriving on the
+shared-instance interface, or everywhere when no interface is flagged, since
+a Python client brings up no other interface while attached
+(`RNS/Reticulum.py:745`) and this transport keeps its own interfaces
+filtering. The packet cache's other halves are still written: the
 source notes `handle_data` records for received Data packets share the cache
 and are seen as duplicates once the transport detaches, and the hash of each
 packet sent is the receipt guard. A transport whose connected posture is set
-directly, as reticulumd's own bootstrap does, rather than through
+directly with `set_connected_to_shared_instance` rather than through
 `attach_shared_instance` gets the registration announce, whose trigger is the
 posture alone, but not the reconnect re-announce and the drop flush, which
-live in the attach's consumer task. `Transport::stop` joins the tasks the
+live in the attach's consumer task; reticulumd's shared-instance client
+posture goes through the attach. `Transport::stop` joins the tasks the
 client spawns (the delayed announces and the reconnect consumer) within its
 budget, so none runs on a stopped transport.
 
-A `Tcp` endpoint whose address is not loopback is accepted and warned about
-once at attach, since Python's `LocalClientInterface` connects to `127.0.0.1`
-only (`RNS/Interfaces/LocalInterface.py:109`).
+A `Tcp` endpoint whose address is not loopback is refused with
+`RnsError::SharedInstanceEndpointNotLoopback` before any lock is taken, with
+one warning, since Python's `LocalClientInterface` connects to `127.0.0.1`
+only (`RNS/Interfaces/LocalInterface.py:109`). Passing
+`SharedInstanceOptions::default().allow_remote_endpoint(true)` attaches it,
+again with one warning per attach, and grants the remote host the trust a
+local shared instance gets: it receives dedup delegation, since the duplicate
+filter is off while attached (`RNS/Transport.py:1618-1627`), and its stream
+drop flushes every table and tears down every link
+(`RNS/Transport.py:3690-3702`). Python has no remote option at all.
 
 A client that attaches, registers a destination with a request handler,
 announces it to the owner on demand and detaches, with `endpoint` the owner's
@@ -468,6 +503,13 @@ parity ledger; the `docs/status/*` matrices are not updated per fork task.
   `RequestError::Oversize`. Python rejects the response
   (`RNS/Link.py:874-876`) but the `DELIVERED` guard in `:1408` leaves that
   receipt pending.
+- A response Resource that fails in transfer (a part failure, receiver retry
+  exhaustion, a remote cancel) fails the receipt with
+  `RequestError::Receive` in every status. Python routes the failed Resource
+  through `request_timed_out` (`RNS/Link.py:914-918`), whose `DELIVERED`
+  guard (`:1398`) fails only a receipt no progress callback has yet moved
+  to `RECEIVING` (`:1420`); a receipt already `RECEIVING` stays there with
+  the failure visible only through the Resource's own callback.
 - After an over-limit response packet the receipt's `response_size()` and
   `response_transfer_size()` are left as they were. Python runs
   `update_sizes` before rejecting (`RNS/Link.py:868-871`).
@@ -475,10 +517,12 @@ parity ledger; the `docs/status/*` matrices are not updated per fork task.
   records `len(packb(body)) - 2` (`RNS/Link.py:1016-1017`).
 - An in-limit response packet for a receipt already `Receiving` a response
   Resource resolves the receipt `Ready` from the packet, as Python does
-  (`RNS/Link.py:873`, `:1437-1443`), and leaves that Resource to its
-  receiver's retry watchdog; when it completes, its size is not measured
-  against the limit and its `Complete` event is published. Python resolves
-  on the packet alone too, but never had a second transfer to account for.
+  (`RNS/Link.py:857-866` `handle_response`, `:873`, `:1437-1443`), and
+  cancels the response Resource still in flight with a receiver cancel on
+  the link. Python lets that Resource run to completion and then discards
+  it, since the pending request it would have answered is already gone
+  (`:897-912`). The same holds for a response record no receipt owns: the
+  packet that answers it cancels the Resource the record was receiving.
 - A response record no receipt owns, for a request sent with
   `Link::request_packet*` or `Transport::send_request_resource*`, parks in
   `Receiving` between response segments with no clock; only the inbound
@@ -550,25 +594,45 @@ parity ledger; the `docs/status/*` matrices are not updated per fork task.
   never does (`RNS/Interfaces/LocalInterface.py` has no tunnel code;
   `wants_tunnel` is set by network-facing clients such as
   `RNS/Interfaces/TCPInterface.py:179`).
-- `attach_shared_instance` accepts any `SocketAddr` for a `Tcp` endpoint and
-  warns once at attach when the address is not loopback. Python's
-  `LocalClientInterface` connects to `127.0.0.1` only
-  (`RNS/Interfaces/LocalInterface.py:109`).
+- `attach_shared_instance` refuses a `Tcp` endpoint whose address is not
+  loopback by default and attaches it only under
+  `SharedInstanceOptions::allow_remote_endpoint(true)`, a fork extension:
+  Python's `LocalClientInterface` connects to `127.0.0.1` only and has no
+  remote option at all (`RNS/Interfaces/LocalInterface.py:109`).
+- While attached, the duplicate filter is skipped only for packets arriving
+  on the shared-instance interface (or everywhere when no interface is
+  flagged); the transport's other interfaces keep filtering, where a Python
+  client brings up no other interface at all (`RNS/Reticulum.py:745`), so
+  Python filters nothing in that mode (`RNS/Transport.py:1618-1627`).
 - The reverse-routing source notes live in the same cache as the duplicate
   filter, so a Data packet received while attached to a shared instance is
   treated as seen after a detach. Python's `add_packet_hash` guard
   (`RNS/Transport.py:1618-1627`) keeps `packet_hashlist` empty of it, since
   `reverse_table` is a separate dict there, and the shared-instance drop
   flush keeps those notes' hashes in the cache too.
-- On the shared-instance drop, and in any `Link::teardown`, a link still in
-  `Handshake` is closed without a LINKCLOSE: `Link::teardown` builds the
-  packet only for `Active` and `Stale`. Python sends one for every status
-  but `PENDING` (`RNS/Link.py:668`).
 - The TCP shared-instance client redials at once after a drop that ended a
   connection of at least `MIN_STABLE_CONNECTION` (2 s), and after the first
   short-lived one; Python's `LocalClientInterface` sleeps `RECONNECT_WAIT`
   before every redial (`RNS/Interfaces/LocalInterface.py:159-160`). The
   unix client follows Python.
+- Inherited from upstream, made visible by the `Handshake` LINKCLOSE
+  widening: a responder-side link becomes `Active` when it proves
+  (`destination/link_parts/link_sections/new.rs:137-138`, called from
+  `transport/path.rs:372` before the `in_links` insertion at `:383`), so no
+  link of this crate is ever observable in `Handshake` from the tables.
+  Python's responder stays `HANDSHAKE` after `validate_request` runs
+  `handshake()` and `prove()` (`RNS/Link.py:186-213`, the status set at
+  `:350`) and `register_link` files it under `active_links` in that status
+  (`RNS/Transport.py:2928-2937`) until the RTT packet makes it `ACTIVE`
+  (`RNS/Link.py:516-523`). So Python's drop flush can tear down a
+  `HANDSHAKE` responder link and send its LINKCLOSE (`RNS/Link.py:668`),
+  where this crate's drop flush finds only `Active` ones; the widened
+  `Link::teardown` sends the packet for a `Handshake` link a caller holds
+  outside the tables.
+- `AutoInterfaceConfig::unicast_discovery_port` steps down to 65534 when
+  `discovery_port` is 65535, so the pair stays adjacent and distinct; Python
+  computes `discovery_port + 1` (`RNS/Interfaces/AutoInterface.py:173`) and
+  its unicast bind fails there.
 
 Not divergences:
 
@@ -604,8 +668,40 @@ full `refs/tags/coyote-rns-transport-v<version>` ref, and
 
 `docs/fork/PATCHSET.md` is the single per-release ledger of every file changed
 since the previous release, with the commit that changed it and the upstream
-site; earlier sections carry the earlier patches. What `0.15.1` carries on top
-of `0.15.0`:
+site; earlier sections carry the earlier patches. What `0.16.0` carries on top
+of `0.15.1`:
+
+- The loopback-only shared-instance default: `attach_shared_instance` refuses
+  a non-loopback `Tcp` endpoint with
+  `RnsError::SharedInstanceEndpointNotLoopback` unless
+  `SharedInstanceOptions::allow_remote_endpoint(true)` opts in, which
+  replaces the 0.15.1 once-per-attach warning (the opt-in keeps the warning,
+  in key=value form).
+- The removals: `RejectReason::{Oversize, Unknown}` and the storage-feature
+  `transport::test_bridge` module, with the migrations under `### Breaking`
+  in `CHANGELOG.md`.
+- The per-interface duplicate-filter gate: the filter is skipped for packets
+  arriving on the shared-instance interface (everywhere when no interface is
+  flagged), replacing the 0.15.1 rule that it consulted nothing while
+  attached.
+- The LINKCLOSE a `Handshake` teardown now sends.
+- The reticulumd migration: the daemon attaches through
+  `attach_shared_instance` (a loopback-first host pick in the family
+  `prefer_ipv6` selects, the ignored `connect_timeout` and
+  `max_reconnect_tries` keys warned about and stripped from the reference TOML).
+- `clippy::await_holding_invalid_type` live at its default level across the
+  workspace; the remaining production holds carry fn-level allowances whose
+  comments name the guard and the await, and the classify scripts gate them.
+- Release tooling: the four `tools/scripts/*.sh` release checks with their
+  contract probes, the `coyote-rns-transport-v*` tag arm of the xtask
+  bundle's version check, and the removal of the Codex review workflow.
+- Carried hygiene: in-limit Response packets cancel the overtaken Resource
+  for receipt-less records too, the packet hashlist flush writes a unique
+  temp file and sweeps orphans on load, `TcpClient` connect is cancel-aware,
+  inbound resource lookups are link-scoped, and the request-layer send
+  wrappers refuse a non-Active link.
+
+What `0.15.1` carries on top of `0.15.0`:
 
 - The shared-instance client: `Transport::attach_shared_instance` and
   `detach_shared_instance`, `SharedInstanceEndpoint` and
@@ -651,7 +747,9 @@ What `0.15.0` carries on top of `0.14.1`:
   variable `CODEX_REVIEW_ENABLED` and skipped for fork-originated pull
   requests, `fork_publish_contract` and `fork_release_docs_contract` run in
   PR CI, the old-name walk skipping dot-directories, and RNS citations on
-  every public request-layer and outcome item.
+  every public request-layer and outcome item. The Codex workflow was
+  removed after 0.15.1; the crate CHANGELOG records it under `### Removed`
+  in 0.16.0.
 
 The `0.14.1` patches (link-close stdout, bound-interface segment dispatch,
 reject outside the link lock, sender before advertisement, hex parsers,
@@ -670,12 +768,16 @@ unchanged and listed in the `0.14.1` section of `docs/fork/PATCHSET.md`.
    `grep -rn reticulum-rs-transport . --exclude-dir=target --exclude-dir=.git | grep -v Cargo.lock`
    shows the candidates, and the authoritative check is
    `cargo test -p reticulumd --test fork_publish_contract`, whose
-   `old_package_name_survives_only_as_prose` walk fails on every runnable form
+   `old_package_name_survives_only_as_prose` scan fails on every runnable form
    of the old name (`-p`, `--package`, `package =`, `name =`, dependency and
    crates.io URL spellings). Prose that explains the relationship to upstream
    and the needle literals inside the test itself are allowed; the only docs
    that may keep the old commands are the historical subtrees the test skips
    (`docs/goals/`, `docs/migrations/`, `docs/adr/`, `docs/release-notes-*`).
+   `tools/scripts/old-name-tracked-scan.sh` is the tracked-files-only form of
+   that scan (same needles, extension and doc-prefix filters; the test also
+   scans committable untracked files and skips dot-directories other than
+   `.github`).
 6. Bump the version at every site: `version` in this crate's `Cargo.toml`,
    the workspace `[workspace.dependencies] rns-transport` entry,
    `crates/apps/rns-tools/Cargo.toml` and `crates/apps/reticulumd/Cargo.toml`
@@ -686,8 +788,22 @@ unchanged and listed in the `0.14.1` section of `docs/fork/PATCHSET.md`.
    fuzz crate's own `crates/libs/rns-transport/fuzz/Cargo.lock` (the same
    command with `--manifest-path crates/libs/rns-transport/fuzz/Cargo.toml`),
    and add the release headings to `CHANGELOG.md` and `docs/fork/PATCHSET.md`.
-7. `cargo check --workspace && cargo test -p coyote-rns-transport && cargo test -p reticulumd --test fork_publish_contract --test fork_release_docs_contract && tools/scripts/check-boundaries.sh && cargo publish -p coyote-rns-transport --locked --dry-run`
-8. Commit, then either tag `coyote-rns-transport-vX.Y.Z` and push the tag, or
+7. `cargo check --workspace && cargo test -p coyote-rns-transport && cargo test -p reticulumd --test fork_publish_contract --test fork_release_docs_contract && tools/scripts/check-boundaries.sh && tools/scripts/workspace-clippy-classify.sh && cargo publish -p coyote-rns-transport --locked --dry-run`
+   `workspace-clippy-classify.sh` (needs `python3`) refuses any tracked
+   manifest that mentions `await_holding_invalid_type`, replays CI's clippy
+   invocation and passes only when every error-level record is, on macOS
+   only, the `dead_code` of the interop test target whose linux-only cases
+   are cfg'd out there.
+   `tools/scripts/semver-major-findings-check.sh` records the
+   `cargo-semver-checks` verdict: `... <previous-tag> 0` for a patch bump,
+   `... <previous-tag> <expected-major-count> [lint ...]` for a minor bump.
+8. Commit; cite the bump commit's hash in a ledger-only follow-up commit and
+   run `tools/scripts/patchset-ledger-check.sh <previous-tag> <version> <previous-version>`
+   (usage `<base-sha> <label> [<previous-version> [<head>]]`), which checks
+   that the section's file table equals `git diff --name-only` from that tag
+   (deletions and `plans/` excluded) and that every non-ledger commit in the
+   range is cited in the section; PR CI runs the zero-argument form. Then
+   either tag `coyote-rns-transport-vX.Y.Z` and push the tag, or
    run the `publish-coyote-rns-transport` workflow by hand from the Actions
    tab, setting the `ref` input to the tag; the dropdown choice alone does not
    select what is published. The repository secret `CARGO_REGISTRY_TOKEN`

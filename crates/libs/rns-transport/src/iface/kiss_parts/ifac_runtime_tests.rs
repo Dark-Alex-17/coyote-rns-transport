@@ -53,36 +53,41 @@ async fn kiss_stream_ifac_rejects_wrong_key_and_authenticates_ingress_egress() {
     );
     let receiver = manager.receiver();
     let ifac_violations = context.channel.ifac_violations.clone();
-    let (rx_channel, tx_channel) = context.channel.split();
-    let tx_channel = Arc::new(tokio::sync::Mutex::new(tx_channel));
+    let (rx_channel, mut tx_channel) = context.channel.split();
     let (stream, mut peer_stream) = tokio::io::duplex(4_096);
     let cancel = CancellationToken::new();
-    let session = tokio::spawn(run_kiss_stream_with_ifac(
-        stream,
-        KissStreamOptions {
-            iface_address: address,
-            device: "in-memory KISS TCP".to_string(),
-            mtu: 564,
-            flow_control: false,
-            flow_control_timeout: KISS_FLOW_CONTROL_TIMEOUT,
-            read_frame_timeout: KISS_READ_FRAME_TIMEOUT,
-            initial_frames: Vec::new(),
-            shutdown_frames: Vec::new(),
-            id_beacon: None,
-            activity_probe: None,
-            payload_adapter: adapter.clone(),
-            strip_command_port_nibble: false,
-            command_tx: None,
-            data_rx_tx: None,
-            management_frame_rx: None,
-            runtime_status: Some(runtime_status.clone()),
-        },
-        cancel.clone(),
-        rx_channel,
-        tx_channel,
-        ifac_state.clone(),
-        ifac_violations.clone(),
-    ));
+    let session_options = KissStreamOptions {
+        iface_address: address,
+        device: "in-memory KISS TCP".to_string(),
+        mtu: 564,
+        flow_control: false,
+        flow_control_timeout: KISS_FLOW_CONTROL_TIMEOUT,
+        read_frame_timeout: KISS_READ_FRAME_TIMEOUT,
+        initial_frames: Vec::new(),
+        shutdown_frames: Vec::new(),
+        id_beacon: None,
+        activity_probe: None,
+        payload_adapter: adapter.clone(),
+        strip_command_port_nibble: false,
+        command_tx: None,
+        data_rx_tx: None,
+        management_frame_rx: None,
+        runtime_status: Some(runtime_status.clone()),
+    };
+    let session_cancel = cancel.clone();
+    let session_ifac = IfacRuntime::from_parts(ifac_state.clone(), ifac_violations.clone());
+    let session = tokio::spawn(async move {
+        run_kiss_stream_owned(
+            stream,
+            session_options,
+            session_cancel,
+            rx_channel,
+            &mut tx_channel,
+            None,
+            session_ifac,
+        )
+        .await;
+    });
 
     let rejected_packet = Packet {
         destination: AddressHash::new_from_slice(&[0x61; 16]),
@@ -177,4 +182,66 @@ async fn kiss_stream_ifac_rejects_wrong_key_and_authenticates_ingress_egress() {
     assert_eq!(status.deserialize_errors, 1);
     assert_eq!(status.data_frames_rx, 2);
     assert_eq!(status.data_frames_tx, 1);
+}
+
+/// While the shared-receiver entry point idles, its pending receive holds the
+/// `tx_channel` guard, so the mutex is contended; once the stream stops the
+/// lock is free again.
+#[tokio::test]
+async fn kiss_stream_with_ifac_holds_the_tx_receiver_lock_while_idle_and_frees_it_on_stop() {
+    let (rx_channel, _rx_queue) = mpsc::channel::<RxMessage>(8);
+    let (_tx_queue, tx_receiver) = mpsc::channel::<TxMessage>(8);
+    let tx_channel = Arc::new(tokio::sync::Mutex::new(tx_receiver));
+    let (stream, _peer_stream) = tokio::io::duplex(4_096);
+    let cancel = CancellationToken::new();
+    let session_options = KissStreamOptions {
+        iface_address: AddressHash::new_from_slice(&[0x64; 16]),
+        device: "in-memory KISS TCP".to_string(),
+        mtu: 564,
+        flow_control: false,
+        flow_control_timeout: KISS_FLOW_CONTROL_TIMEOUT,
+        read_frame_timeout: KISS_READ_FRAME_TIMEOUT,
+        initial_frames: Vec::new(),
+        shutdown_frames: Vec::new(),
+        id_beacon: None,
+        activity_probe: None,
+        payload_adapter: KissPayloadAdapter::Raw,
+        strip_command_port_nibble: false,
+        command_tx: None,
+        data_rx_tx: None,
+        management_frame_rx: None,
+        runtime_status: None,
+    };
+    let session = tokio::spawn(run_kiss_stream_with_ifac(
+        stream,
+        session_options,
+        cancel.clone(),
+        rx_channel,
+        tx_channel.clone(),
+        Arc::new(std::sync::RwLock::new(None)),
+        Arc::new(std::sync::atomic::AtomicU64::new(0)),
+    ));
+
+    timeout(Duration::from_secs(1), async {
+        while tx_channel.try_lock().is_ok() {
+            sleep(Duration::from_millis(5)).await;
+        }
+    })
+    .await
+    .expect("the running stream should hold the tx receiver lock");
+    sleep(Duration::from_millis(20)).await;
+    assert!(
+        tx_channel.try_lock().is_err(),
+        "the idle stream's pending receive must hold the tx receiver lock"
+    );
+
+    cancel.cancel();
+    timeout(Duration::from_secs(1), session)
+        .await
+        .expect("KISS stream should stop after cancellation")
+        .expect("join KISS stream");
+    assert!(
+        tx_channel.try_lock().is_ok(),
+        "the tx receiver lock must be released once the stream stops"
+    );
 }

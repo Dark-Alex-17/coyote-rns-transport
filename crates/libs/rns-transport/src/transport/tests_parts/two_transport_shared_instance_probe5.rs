@@ -50,7 +50,7 @@ async fn shared_instance_tcp_attach_logs_the_reconnect_wait_in_force_and_never_w
     assert_eq!(attached.len(), 1, "one attach line per attach: {attached:?}");
     let line = &attached[0];
     assert!(line.contains(&format!("iface={iface}")), "names the interface: {line}");
-    assert!(line.contains("endpoint=tcp"), "names the endpoint kind: {line}");
+    assert!(line.contains("kind=tcp"), "names the endpoint kind: {line}");
     assert!(line.contains("reconnect_wait=250ms"), "reports the configured wait: {line}");
     assert!(!line.contains("ignored"), "the TCP client honours the wait: {line}");
     assert!(
@@ -95,7 +95,7 @@ async fn shared_instance_unix_attach_logs_the_reconnect_wait_in_force() {
     let attached = shared_instance_debug_records_containing(name, "attached shared instance");
     assert_eq!(attached.len(), 1, "one attach line per attach: {attached:?}");
     let line = &attached[0];
-    assert!(line.contains("endpoint=unix"), "names the endpoint kind: {line}");
+    assert!(line.contains("kind=unix"), "names the endpoint kind: {line}");
     assert!(line.contains("reconnect_wait=250ms"), "reports the configured wait: {line}");
     assert!(!line.contains("ignored"), "the unix client honours the wait: {line}");
     shared_instance_assert_never_warned(name);

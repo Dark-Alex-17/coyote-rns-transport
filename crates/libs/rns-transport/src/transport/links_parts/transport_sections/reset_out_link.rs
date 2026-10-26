@@ -92,6 +92,7 @@ impl Transport {
     /// this crate doesn't already wrap in a higher-level helper like
     /// `crate::delivery::send_on_link_observed` — has a correct way to
     /// send it at all.
+    #[allow(clippy::await_holding_invalid_type)] // TASK-026: handler guard spans the job by design, see TransportHandler lock discipline
     pub async fn send_link_packet_on_bound_iface(
         &self,
         link: &Arc<Mutex<Link>>,
@@ -358,6 +359,7 @@ impl Transport {
         }
     }
 
+    #[allow(clippy::await_holding_invalid_type)] // TASK-026: handler guard spans the job by design, see TransportHandler lock discipline
     pub async fn cancel_resource(
         &self,
         link_id: &AddressHash,
@@ -395,6 +397,7 @@ impl Transport {
         }
     }
 
+    #[allow(clippy::await_holding_invalid_type)] // TASK-026: handler guard spans the job by design, see TransportHandler lock discipline
     pub async fn send_channel_message(
         &self,
         link_id: &AddressHash,

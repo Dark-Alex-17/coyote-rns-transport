@@ -21,17 +21,12 @@ async fn shared_instance_reconnect_client(
     name: &str,
     server: &SharedInstanceServer,
 ) -> SharedInstanceClient {
-    let identity = PrivateIdentity::new_from_rand(OsRng);
-    let transport = Transport::new(TransportConfig::new(name, &identity, false));
-    let announces = transport.recv_announces().await;
-    let iface = transport
-        .attach_shared_instance(
-            server.endpoint(),
-            SharedInstanceOptions::default().with_reconnect_wait(SHARED_INSTANCE_RECONNECT_WAIT),
-        )
-        .await
-        .expect("attach to the shared instance");
-    SharedInstanceClient { transport, announces, iface }
+    shared_instance_client_with_options(
+        name,
+        server.endpoint(),
+        SharedInstanceOptions::default().with_reconnect_wait(SHARED_INSTANCE_RECONNECT_WAIT),
+    )
+    .await
 }
 
 /// Registers a destination on the client without announcing it from the test and waits

@@ -12,6 +12,10 @@ include!("python_lxmd_remote_relay_parts/ifac_shared_instance.rs");
 
 include!("python_lxmd_remote_relay_parts/shared_instance_daemon.rs");
 
+include!("python_lxmd_remote_relay_parts/shared_instance_two_peer_relay.rs");
+
+include!("python_lxmd_remote_relay_parts/shared_instance_local_client_count_probe.rs");
+
 include!("python_lxmd_remote_relay_parts/python_router_restart.rs");
 
 include!("python_lxmd_remote_relay_parts/direct_restart.rs");

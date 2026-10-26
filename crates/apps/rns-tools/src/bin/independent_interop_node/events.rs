@@ -3,12 +3,16 @@ use super::node::request_envelope_details;
 use base64::engine::general_purpose::STANDARD as BASE64;
 use base64::Engine;
 use rns_transport::destination::link::{LinkEvent, LinkEventData};
+use rns_transport::hash::AddressHash;
 use rns_transport::packet::PacketContext;
 use rns_transport::resource::{ResourceEvent, ResourceEventKind};
 use rns_transport::transport::{DeliveryReceipt, ReceiptHandler, ReceivedData, Transport};
-use serde_json::json;
+use serde_json::{json, Value};
 use sha2::{Digest, Sha256};
+use std::collections::HashMap;
 use std::sync::Arc;
+
+const LINK_STATE_HISTORY_CAP: usize = 16;
 
 pub fn receipt_handler(state: SharedState) -> Box<dyn ReceiptHandler> {
     Box::new(ReceiptRecorder { state })
@@ -46,6 +50,11 @@ fn spawn_announce_collector(transport: Arc<Transport>, state: SharedState) {
         while let Ok(event) = events.recv().await {
             let description = event.destination.lock().await.desc;
             state.known_destinations.write().await.insert(description.address_hash, description);
+            state
+                .announce_path_response
+                .write()
+                .await
+                .insert(description.address_hash, event.is_path_response);
             state
                 .record(json!({
                     "type": "announce",
@@ -103,27 +112,12 @@ async fn record_link_event(
     event: LinkEventData,
     outbound: bool,
 ) {
-    let event_name = match &event.event {
-        LinkEvent::Activated => "activated",
-        LinkEvent::Data(_) => "data",
-        LinkEvent::PeerIdentified(_) => "peer_identified",
-        LinkEvent::PacketProven { .. } => "packet_proven",
-        LinkEvent::Closed => "closed",
-        _ => {
-            log::debug!(
-                "independent interop node: unnamed link event on {}",
-                address_hex(&event.id)
-            );
-            "unknown"
-        }
+    let is_path_response =
+        state.announce_path_response.read().await.get(&event.address_hash).copied();
+    let snapshot = {
+        let mut links = state.links.write().await;
+        merge_link_snapshot(&mut links, &event, outbound, is_path_response)
     };
-    let snapshot = json!({
-        "link_id": address_hex(&event.id),
-        "destination_hash": address_hex(&event.address_hash),
-        "direction": if outbound { "outbound" } else { "inbound" },
-        "state": event_name,
-    });
-    state.links.write().await.insert(event.id, snapshot.clone());
     state.record(json!({"type": "link", "event": snapshot})).await;
     if matches!(event.event, LinkEvent::Activated) {
         let state = state.clone();
@@ -147,6 +141,49 @@ async fn record_link_event(
             })
             .await;
     }
+}
+
+fn link_event_name(event: &LinkEventData) -> &'static str {
+    match &event.event {
+        LinkEvent::Activated => "activated",
+        LinkEvent::Data(_) => "data",
+        LinkEvent::PeerIdentified(_) => "peer_identified",
+        LinkEvent::PacketProven { .. } => "packet_proven",
+        LinkEvent::Closed => "closed",
+        _ => {
+            log::debug!(
+                "independent interop node: unnamed link event on {}",
+                address_hex(&event.id)
+            );
+            "unknown"
+        }
+    }
+}
+
+fn merge_link_snapshot(
+    links: &mut HashMap<AddressHash, Value>,
+    event: &LinkEventData,
+    outbound: bool,
+    is_path_response: Option<bool>,
+) -> Value {
+    let event_name = link_event_name(event);
+    let snapshot = links.entry(event.id).or_insert_with(|| {
+        json!({
+            "link_id": address_hex(&event.id),
+            "destination_hash": address_hex(&event.address_hash),
+            "direction": if outbound { "outbound" } else { "inbound" },
+            "is_path_response": is_path_response,
+            "states": [],
+        })
+    });
+    snapshot["state"] = json!(event_name);
+    if let Some(states) = snapshot["states"].as_array_mut() {
+        states.push(json!(event_name));
+        if states.len() > LINK_STATE_HISTORY_CAP {
+            states.remove(0);
+        }
+    }
+    snapshot.clone()
 }
 
 fn spawn_resource_collector(transport: Arc<Transport>, state: SharedState) {
@@ -212,4 +249,146 @@ async fn record_resource_event(state: &SharedState, event: ResourceEvent) {
             "details": details,
         }))
         .await;
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use rand_core::OsRng;
+    use rns_transport::destination::link::LinkPayload;
+    use rns_transport::identity::PrivateIdentity;
+    use rns_transport::transport::TransportConfig;
+
+    fn link_event(id: AddressHash, event: LinkEvent) -> LinkEventData {
+        LinkEventData {
+            id,
+            address_hash: AddressHash::new_from_rand(OsRng),
+            event,
+            close_reason: None,
+        }
+    }
+
+    #[test]
+    fn link_snapshot_keeps_activation_after_data() {
+        let mut links = HashMap::new();
+        let id = AddressHash::new_from_rand(OsRng);
+        let activated = link_event(id, LinkEvent::Activated);
+        merge_link_snapshot(&mut links, &activated, true, Some(false));
+        let data = link_event(id, LinkEvent::Data(Box::new(LinkPayload::new())));
+        let snapshot = merge_link_snapshot(&mut links, &data, true, Some(false));
+
+        assert_eq!(snapshot["state"], "data");
+        assert_eq!(snapshot["states"], json!(["activated", "data"]));
+        assert_eq!(snapshot["link_id"], address_hex(&id));
+        assert_eq!(snapshot["destination_hash"], address_hex(&activated.address_hash));
+        assert_eq!(snapshot["direction"], "outbound");
+        assert_eq!(snapshot["is_path_response"], false);
+        assert_eq!(links.len(), 1);
+    }
+
+    #[test]
+    fn link_snapshot_reports_a_path_response_announce() {
+        let mut links = HashMap::new();
+        let id = AddressHash::new_from_rand(OsRng);
+        let snapshot = merge_link_snapshot(
+            &mut links,
+            &link_event(id, LinkEvent::Activated),
+            true,
+            Some(true),
+        );
+
+        assert_eq!(snapshot["is_path_response"], true);
+    }
+
+    #[test]
+    fn link_snapshot_is_null_without_an_announce_for_the_destination() {
+        let mut links = HashMap::new();
+        let id = AddressHash::new_from_rand(OsRng);
+        let snapshot =
+            merge_link_snapshot(&mut links, &link_event(id, LinkEvent::Activated), false, None);
+
+        assert!(snapshot["is_path_response"].is_null());
+    }
+
+    #[test]
+    fn link_snapshot_history_drops_the_oldest_past_the_cap() {
+        let mut links = HashMap::new();
+        let id = AddressHash::new_from_rand(OsRng);
+        merge_link_snapshot(&mut links, &link_event(id, LinkEvent::Activated), false, None);
+        for _ in 0..LINK_STATE_HISTORY_CAP {
+            merge_link_snapshot(
+                &mut links,
+                &link_event(id, LinkEvent::Data(Box::new(LinkPayload::new()))),
+                false,
+                None,
+            );
+        }
+        let snapshot =
+            merge_link_snapshot(&mut links, &link_event(id, LinkEvent::Closed), false, None);
+
+        let states = snapshot["states"].as_array().expect("states array");
+        assert_eq!(states.len(), LINK_STATE_HISTORY_CAP);
+        assert_eq!(states[0], "data");
+        assert_eq!(states[LINK_STATE_HISTORY_CAP - 1], "closed");
+        assert_eq!(snapshot["state"], "closed");
+    }
+
+    /// The link collector reads the flag the announce collector stored under the link's
+    /// destination, which the merge tests above inject by hand: two links to two
+    /// destinations read their own announce, a link reports the latest announce for its
+    /// destination, and a destination that never announced reads null.
+    #[tokio::test]
+    #[deny(clippy::await_holding_invalid_type)]
+    async fn record_link_event_reads_the_latest_announce_flag_of_the_links_destination() {
+        let identity = PrivateIdentity::new_from_rand(OsRng);
+        let transport = Transport::new(TransportConfig::new("interop-probe", &identity, false));
+        let state = SharedState::new(
+            "interop-probe".to_string(),
+            AddressHash::new_from_rand(OsRng),
+            AddressHash::new_from_rand(OsRng),
+        );
+        let path_response_destination = AddressHash::new_from_rand(OsRng);
+        let unsolicited_destination = AddressHash::new_from_rand(OsRng);
+        let silent_destination = AddressHash::new_from_rand(OsRng);
+        {
+            let mut flags = state.announce_path_response.write().await;
+            // The destination announced unsolicited first and as a path response later.
+            flags.insert(path_response_destination, false);
+            flags.insert(path_response_destination, true);
+            flags.insert(unsolicited_destination, false);
+        }
+
+        let mut links = Vec::new();
+        for destination in [path_response_destination, unsolicited_destination, silent_destination]
+        {
+            let id = AddressHash::new_from_rand(OsRng);
+            let event = LinkEventData {
+                id,
+                address_hash: destination,
+                event: LinkEvent::Data(Box::new(LinkPayload::new())),
+                close_reason: None,
+            };
+            record_link_event(&transport, &state, event, true).await;
+            links.push(id);
+        }
+
+        let snapshots = state.links.read().await;
+        assert_eq!(snapshots.len(), 3);
+        assert_eq!(
+            snapshots[&links[0]]["is_path_response"], true,
+            "the latest announce for the destination was a path response"
+        );
+        assert_eq!(
+            snapshots[&links[1]]["is_path_response"], false,
+            "another destination's unsolicited announce is read for its own link"
+        );
+        assert!(
+            snapshots[&links[2]]["is_path_response"].is_null(),
+            "a destination that never announced reads null"
+        );
+        assert_eq!(
+            snapshots[&links[0]]["destination_hash"],
+            address_hex(&path_response_destination)
+        );
+    }
 }

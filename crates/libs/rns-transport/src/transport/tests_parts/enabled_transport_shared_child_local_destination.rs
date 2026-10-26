@@ -1,11 +1,8 @@
 #[tokio::test]
 async fn enabled_shared_daemon_delivers_local_link_request_only_to_requesting_child() {
     let identity = PrivateIdentity::new_from_rand(OsRng);
-    let transport = Transport::new(TransportConfig::new(
-        "enabled-shared-local-destination",
-        &identity,
-        true,
-    ));
+    let transport =
+        Transport::new(TransportConfig::new("enabled-shared-local-destination", &identity, true));
     let (mut parent_channel, requesting_child, sibling_child) = {
         let manager = transport.iface_manager();
         let mut manager = manager.lock().await;
@@ -32,11 +29,8 @@ async fn enabled_shared_daemon_delivers_local_link_request_only_to_requesting_ch
     let request = Link::new(destination_desc, link_events).request();
     let link_id = crate::destination::link::LinkId::from(&request);
 
-    let inbound = RxMessage {
-        address: requesting_child,
-        packet: request,
-        source: IfaceSource::None,
-    };
+    let inbound =
+        RxMessage { address: requesting_child, packet: request, source: IfaceSource::None };
     let (_, queued) = super::inbound_processing::preprocess_inbound_message(
         &transport.get_handler(),
         &transport.iface_messages_tx,

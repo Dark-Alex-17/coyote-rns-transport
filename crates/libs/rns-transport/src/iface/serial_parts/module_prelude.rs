@@ -14,7 +14,7 @@ use crate::hash::AddressHash;
 
 use crate::iface::{
     decode_packet_ifac, encode_packet_ifac, is_ifac_violation, record_ifac_violation, IfacState,
-    IfaceSource, RxMessage, TxMessage, MAX_IFAC_SIZE_BYTES,
+    IfaceSource, InterfaceTxReceiver, RxMessage, MAX_IFAC_SIZE_BYTES,
 };
 
 use super::hdlc::Hdlc;
@@ -456,8 +456,7 @@ impl SerialInterface {
 
         let online = context.channel.online.clone();
         online.store(false, std::sync::atomic::Ordering::Release);
-        let (rx_channel, tx_channel) = context.channel.split();
-        let tx_channel = Arc::new(tokio::sync::Mutex::new(tx_channel));
+        let (rx_channel, mut tx_channel) = context.channel.split();
         let mut active_backoff = reconnect_backoff;
 
         loop {
@@ -513,7 +512,7 @@ impl SerialInterface {
             });
             online.store(true, std::sync::atomic::Ordering::Release);
 
-            run_serial_stream_with_ifac(
+            let returned = run_serial_stream_with_ifac(
                 port,
                 SerialStreamOptions {
                     iface_address,
@@ -521,7 +520,7 @@ impl SerialInterface {
                     mtu,
                     cancel: context.cancel.clone(),
                     rx_channel: rx_channel.clone(),
-                    tx_channel: tx_channel.clone(),
+                    tx_channel,
                     runtime_status: runtime_status.clone(),
                 },
                 ifac_state.clone(),
@@ -529,6 +528,15 @@ impl SerialInterface {
             )
             .await;
             online.store(false, std::sync::atomic::Ordering::Release);
+            match returned {
+                Some(returned) => tx_channel = returned,
+                None => {
+                    log::error!(
+                        "serial interface closed iface={iface_address}: transmit task lost its receiver"
+                    );
+                    break;
+                }
+            }
 
             if context.cancel.is_cancelled() {
                 break;

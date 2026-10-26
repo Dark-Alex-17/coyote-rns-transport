@@ -51,17 +51,23 @@ async fn weave_stream_ifac_rejects_wrong_key_and_authenticates_ingress_egress() 
 
     let (stream, mut peer) = duplex(8192);
     let (rx_tx, mut rx_rx) = tokio::sync::mpsc::channel(4);
-    let (tx_tx, tx_rx) = tokio::sync::mpsc::channel(4);
+    let (tx_tx, mut tx_rx) = tokio::sync::mpsc::channel(4);
     let cancel = CancellationToken::new();
-    let task = tokio::spawn(run_weave_stream_with_ifac(
-        stream,
-        options,
-        WeaveStreamControl { cancel: cancel.clone(), iface_stop: CancellationToken::new() },
-        rx_tx,
-        Arc::new(tokio::sync::Mutex::new(tx_rx)),
-        unused_weave_management_rx(),
-        IfacRuntime::from_parts(ifac_state.clone(), violations.clone()),
-    ));
+    let task_control = WeaveStreamControl { cancel: cancel.clone(), iface_stop: CancellationToken::new() };
+    let task_ifac = IfacRuntime::from_parts(ifac_state.clone(), violations.clone());
+    let task = tokio::spawn(async move {
+        let mut management_frame_rx = unused_weave_management_rx();
+        run_weave_stream_with_ifac(
+            stream,
+            options,
+            task_control,
+            rx_tx,
+            &mut tx_rx,
+            Some(&mut management_frame_rx),
+            task_ifac,
+        )
+        .await;
+    });
 
     let mut discovery = vec![0_u8; 256];
     let _ = peer.read(&mut discovery).await.expect("read discovery frame");

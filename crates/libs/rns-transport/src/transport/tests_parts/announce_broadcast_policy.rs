@@ -18,18 +18,12 @@ fn assert_ordinary_rebroadcast(message: &crate::iface::TxMessage, source: &Packe
         "a relayed announce must carry the transport propagation flag"
     );
     assert_eq!(message.packet.data.as_slice(), source.data.as_slice());
-    assert!(
-        message.packet.transport.is_some(),
-        "rebroadcast should stamp the local transport id"
-    );
+    assert!(message.packet.transport.is_some(), "rebroadcast should stamp the local transport id");
 }
 
 fn no_rebroadcast(channel: &mut crate::iface::InterfaceChannel, label: &str) {
     assert!(
-        matches!(
-            channel.tx_channel.try_recv(),
-            Err(tokio::sync::mpsc::error::TryRecvError::Empty)
-        ),
+        matches!(channel.tx_channel.try_recv(), Err(tokio::sync::mpsc::error::TryRecvError::Empty)),
         "{label} should not receive announce rebroadcast"
     );
 }
@@ -111,10 +105,7 @@ async fn transport_announce_rebroadcast_policy_uses_learned_next_hop_iface_mode(
     no_rebroadcast(&mut learned_roaming, "learned roaming ingress");
     let full_rebroadcast = recv_rebroadcast(&mut full, "full rebroadcast").await;
     assert_ordinary_rebroadcast(&full_rebroadcast, &roaming_announce);
-    no_rebroadcast(
-        &mut blocked_boundary,
-        "boundary with roaming learned next-hop",
-    );
+    no_rebroadcast(&mut blocked_boundary, "boundary with roaming learned next-hop");
 
     let local_identity = PrivateIdentity::new_from_rand(OsRng);
     let mut config = TransportConfig::new("test-boundary", &local_identity, true);
@@ -133,8 +124,5 @@ async fn transport_announce_rebroadcast_policy_uses_learned_next_hop_iface_mode(
     no_rebroadcast(&mut learned_boundary, "learned boundary ingress");
     let full_rebroadcast = recv_rebroadcast(&mut full, "full rebroadcast").await;
     assert_ordinary_rebroadcast(&full_rebroadcast, &boundary_announce);
-    no_rebroadcast(
-        &mut blocked_roaming,
-        "roaming with boundary learned next-hop",
-    );
+    no_rebroadcast(&mut blocked_roaming, "roaming with boundary learned next-hop");
 }

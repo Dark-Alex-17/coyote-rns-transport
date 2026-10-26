@@ -348,6 +348,7 @@ fn env_u64(key: &str) -> Result<Option<u64>, &'static str> {
 fn spawn_destination_announce_scheduler(
     transport: Arc<Transport>,
     destination: Arc<tokio::sync::Mutex<SingleInputDestination>>,
+    role: &'static str,
     app_data: Option<Vec<u8>>,
     interval_secs: u64,
 ) {
@@ -355,7 +356,9 @@ fn spawn_destination_announce_scheduler(
         let mut interval = tokio::time::interval(Duration::from_secs(interval_secs));
         loop {
             interval.tick().await;
-            transport.send_announce(&destination, app_data.as_deref()).await;
+            if let Err(error) = transport.try_send_announce(&destination, app_data.as_deref()).await {
+                log::warn!("[daemon] scheduled {role} announce not sent: {error}");
+            }
         }
     });
 }

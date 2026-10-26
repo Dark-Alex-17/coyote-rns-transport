@@ -71,40 +71,23 @@ async fn two_transport_loopback_resources_advertisement_retry_skips_gone_link() 
     let removed = forget_out_links(&pair.connector.transport).await;
     assert_eq!(removed, 1, "the connector held exactly the one link under test");
 
-    let first = await_link_packets(
-        &mut listener_tap,
-        pair.link_id,
-        PacketContext::ResourceAdvrtisement,
-        1,
-    )
-    .await;
+    let first =
+        await_link_packets(&mut listener_tap, pair.link_id, PacketContext::ResourceAdvrtisement, 1)
+            .await;
     assert_eq!(
         first, 1,
         "only the advertisement dispatched while the link existed reaches the listener"
     );
     stall.await.expect("stall task finished");
 
-    let outbound = await_resource_event(&mut sender_events, |event| {
-        event.hash == resource_hash
-            && matches!(
-                event.kind,
-                ResourceEventKind::OutboundComplete
-                    | ResourceEventKind::OutboundFailed
-                    | ResourceEventKind::OutboundRejected { .. }
-            )
-    })
-    .await;
+    let outbound = await_outbound_terminal(&mut sender_events, resource_hash).await;
     assert!(
-        matches!(outbound.kind, ResourceEventKind::OutboundFailed),
-        "a Resource whose link is gone must fail once its retries are spent, got {:?}",
-        outbound.kind
+        matches!(outbound, ResourceEventKind::OutboundFailed),
+        "a Resource whose link is gone must fail once its retries are spent, got {outbound:?}"
     );
 
-    let stray = count_link_packets(
-        &mut listener_tap,
-        pair.link_id,
-        PacketContext::ResourceAdvrtisement,
-    );
+    let stray =
+        count_link_packets(&mut listener_tap, pair.link_id, PacketContext::ResourceAdvrtisement);
     assert_eq!(
         stray, 0,
         "no advertisement retry may reach the listener after the link is gone; saw {stray}"
@@ -130,12 +113,14 @@ async fn two_transport_loopback_resources_advertisement_retry_skips_gone_link() 
         .send_resource(&fresh_link_id, payload.clone(), None)
         .await
         .expect("resource dispatched on the fresh link");
-    assert_small_transfer_completes(
+    assert_transfer_completes(
         &mut sender_events,
         &mut receiver_events,
         fresh_link_id,
         resource_hash,
         &payload,
+        None,
     )
     .await;
+    assert_no_further_complete(&mut receiver_events, fresh_link_id).await;
 }

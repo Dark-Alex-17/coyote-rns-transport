@@ -6,6 +6,9 @@
 //! `rustc` the way cargo does, against the `librns_transport` rlib this very test binary
 //! linked, and checks that each rejected snippet fails with the promised diagnostic while
 //! the migrated counterpart compiles. No extra dependency, no nested cargo, no shared lock.
+//! Each release with a `### Breaking` subsection has its own pair of snippet constants:
+//! `MIGRATED_CONSUMER` and `REJECTED` for 0.15.0, `V0_16_0_MIGRATED_CONSUMER` and
+//! `V0_16_0_REJECTED` for 0.16.0.
 
 use std::fs;
 use std::path::{Path, PathBuf};
@@ -104,6 +107,75 @@ const REJECTED: &[(&str, &str, &str)] = &[
         "use rns_transport::destination::request::PathHash;\n\
          pub fn build() -> PathHash { PathHash([0u8; 16]) }\n",
         "cannot initialize a tuple struct which contains private fields",
+    ),
+];
+
+/// The migrated shapes the `## 0.16.0` `### Breaking` bullets tell a consumer to write:
+/// a `RejectReason` match with the wildcard arm `#[non_exhaustive]` already demands, an
+/// `RnsError` match that names the new `SharedInstanceEndpointNotLoopback` variant, the
+/// `allow_remote_endpoint(true)` opt-in on `SharedInstanceOptions`, and
+/// `RequestError::Oversize`, the different type the removal bullet says stays.
+const V0_16_0_MIGRATED_CONSUMER: &str = r#"
+use rns_transport::destination::request::RequestError;
+use rns_transport::error::RnsError;
+use rns_transport::resource::RejectReason;
+use rns_transport::transport::SharedInstanceOptions;
+
+pub fn reject_name(reason: &RejectReason) -> &'static str {
+    match reason {
+        RejectReason::PeerCancelled => "peer_cancelled",
+        _ => "unknown",
+    }
+}
+
+pub fn not_loopback(error: &RnsError) -> bool {
+    match error {
+        RnsError::SharedInstanceEndpointNotLoopback => true,
+        _ => false,
+    }
+}
+
+pub fn remote_options() -> SharedInstanceOptions {
+    SharedInstanceOptions::default().allow_remote_endpoint(true)
+}
+
+pub fn request_oversize(error: &RequestError) -> bool {
+    matches!(error, RequestError::Oversize)
+}
+"#;
+
+/// Each shape the `## 0.16.0` `### Breaking` bullets say no longer compiles, with the
+/// diagnostic fragment a consumer sees.
+const V0_16_0_REJECTED: &[(&str, &str, &str)] = &[
+    (
+        "reject_reason_oversize_pattern",
+        "use rns_transport::resource::RejectReason;\n\
+         pub fn limit(reason: &RejectReason) -> Option<usize> {\n\
+             match reason { RejectReason::Oversize { limit } => Some(*limit), _ => None }\n\
+         }\n",
+        "no variant named `Oversize`",
+    ),
+    (
+        "reject_reason_unknown_pattern",
+        "use rns_transport::resource::RejectReason;\n\
+         pub fn unknown(reason: &RejectReason) -> bool {\n\
+             matches!(reason, RejectReason::Unknown)\n\
+         }\n",
+        "no variant, associated function, or constant named `Unknown`",
+    ),
+    (
+        "transport_test_bridge_import",
+        "use rns_transport::transport::test_bridge::InboundTestBridge;\n\
+         pub fn bridge() -> Option<Box<dyn InboundTestBridge>> { None }\n",
+        "unresolved import `rns_transport::transport::test_bridge`",
+    ),
+    (
+        "rns_error_match_without_wildcard",
+        "use rns_transport::error::RnsError;\n\
+         pub fn name(error: &RnsError) -> &'static str {\n\
+             match error { RnsError::SharedInstanceEndpointNotLoopback => \"not_loopback\" }\n\
+         }\n",
+        "non-exhaustive patterns",
     ),
 ];
 
@@ -207,6 +279,35 @@ fn changelog_breaking_migrations_compile_and_the_shapes_they_replace_do_not() {
     let (deps, rlib) = working_rlib(&scratch.0);
     let mut unexpected = Vec::new();
     for (name, source, promised) in REJECTED {
+        let output = rustc(&scratch.0, &deps, &rlib, name, source);
+        let stderr = String::from_utf8_lossy(&output.stderr);
+        if output.status.success() {
+            unexpected.push(format!("{name}: compiled, but the CHANGELOG says it no longer does"));
+        } else if !stderr.contains(promised) {
+            unexpected.push(format!(
+                "{name}: failed, but not with the promised diagnostic {promised:?}:\n{stderr}"
+            ));
+        }
+    }
+    assert!(unexpected.is_empty(), "{}", unexpected.join("\n\n"));
+}
+
+/// The `## 0.16.0` `### Breaking` bullets: the migrated consumer compiles, the removed
+/// `RejectReason` variants and the `transport::test_bridge` module no longer resolve, and
+/// the enum that gained `SharedInstanceEndpointNotLoopback` still demands a wildcard arm.
+#[test]
+fn v0_16_0_breaking_migrations_compile_and_the_shapes_they_replace_do_not() {
+    let scratch = Scratch::new();
+    let (deps, rlib) = working_rlib(&scratch.0);
+    let migrated =
+        rustc(&scratch.0, &deps, &rlib, "v0_16_0_migrated_consumer", V0_16_0_MIGRATED_CONSUMER);
+    assert!(
+        migrated.status.success(),
+        "the migrated consumer from the 0.16.0 bullets should compile:\n{}",
+        String::from_utf8_lossy(&migrated.stderr)
+    );
+    let mut unexpected = Vec::new();
+    for (name, source, promised) in V0_16_0_REJECTED {
         let output = rustc(&scratch.0, &deps, &rlib, name, source);
         let stderr = String::from_utf8_lossy(&output.stderr);
         if output.status.success() {

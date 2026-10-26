@@ -153,6 +153,10 @@ pub(crate) struct LinkStats {
     /// arrives as 45 segments, so the ladder was restarting from `WINDOW`
     /// forty-five times and spending most of each segment climbing.
     pub(crate) last_window: Option<usize>,
+    /// Advertisements this link sent that were dropped for exceeding an
+    /// inbound cap. Drives the warn cadence in
+    /// `ResourceManager::record_rejected_advertisement`.
+    pub(crate) rejected_advertisements: u32,
 }
 
 impl LinkStats {
@@ -162,6 +166,7 @@ impl LinkStats {
             arrival_interval: Duration::from_millis(100),
             last_arrival: None,
             last_window: None,
+            rejected_advertisements: 0,
         }
     }
 

@@ -1,11 +1,11 @@
-// Pins the interface token on the non-loopback endpoint warning: the one warning an
-// accepted TCP attach to a non-loopback address emits names the interface the attach
-// returned as a whole `iface=<hash>` token, placed before the `endpoint <addr>` clause, and
-// the token is the same one the attach debug line carries, so a reader can join the two
-// lines on it. A second attach after a detach warns with its own interface, not the
-// first one's. The address, the cite and the "proceeds" clause are pinned by
-// `two_transport_shared_instance_endpoint_warn.rs`; the attach debug line's token shape by
-// `two_transport_shared_instance_probe6.rs`. Helpers come from the sibling `tests_parts`
+// Pins the token shape of the accepted-remote warning: the one warning a TCP attach to a
+// non-loopback address under `allow_remote_endpoint(true)` emits names the interface the
+// attach returned as a whole `iface=<hash>` token, followed by the whole `endpoint=<addr>`
+// token, and the interface token is the same one the attach debug line carries, so a
+// reader can join the two lines on it. A second attach after a detach warns with its own
+// interface, not the first one's. The address, the cite and the opt-in clause are pinned
+// by `two_transport_shared_instance_endpoint_warn.rs`; the attach debug line's token shape
+// by `two_transport_shared_instance_probe6.rs`. Helpers come from the sibling `tests_parts`
 // files included into this module.
 
 /// The tokens after `shared instance ` on the one warning recorded for `transport_name`,
@@ -33,9 +33,9 @@ fn shared_instance_attach_line_iface_token(transport_name: &str) -> String {
     fields.split(' ').next().expect("the attach line has a first token").to_owned()
 }
 
-/// The warning reads `shared instance iface=<hash> endpoint <addr> is not a loopback
+/// The warning reads `shared instance iface=<hash> endpoint=<addr> is not a loopback
 /// address ...`: the interface token is the attach's return value, whole, and sits before
-/// the endpoint clause; it equals the attach debug line's `iface=` token.
+/// the endpoint token; it equals the attach debug line's `iface=` token.
 #[tokio::test]
 #[deny(clippy::await_holding_invalid_type)]
 async fn shared_instance_non_loopback_warning_names_the_attached_interface_as_a_token() {
@@ -46,24 +46,23 @@ async fn shared_instance_non_loopback_warning_names_the_attached_interface_as_a_
     let iface = transport
         .attach_shared_instance(
             SharedInstanceEndpoint::Tcp(SHARED_INSTANCE_UNREACHABLE_ENDPOINT),
-            SharedInstanceOptions::default(),
+            SharedInstanceOptions::default().allow_remote_endpoint(true),
         )
         .await
-        .expect("a non-loopback endpoint is accepted");
+        .expect("a non-loopback endpoint is accepted under the opt-in");
     shared_instance_assert_attached(&transport, iface).await;
 
     let tokens = shared_instance_endpoint_warning_tokens(name);
-    assert!(tokens.len() >= 3, "iface token, endpoint word and address: {tokens:?}");
+    assert!(tokens.len() >= 2, "iface token and endpoint token: {tokens:?}");
     assert_eq!(
         tokens[0],
         format!("iface={iface}"),
         "the first token after `shared instance` names the attached interface: {tokens:?}"
     );
-    assert_eq!(tokens[1], "endpoint", "the endpoint clause follows the interface: {tokens:?}");
     assert_eq!(
-        tokens[2],
-        SHARED_INSTANCE_UNREACHABLE_ENDPOINT.to_string(),
-        "the endpoint word is followed by the address: {tokens:?}"
+        tokens[1],
+        format!("endpoint={SHARED_INSTANCE_UNREACHABLE_ENDPOINT}"),
+        "the endpoint token follows the interface: {tokens:?}"
     );
     assert_eq!(
         tokens[0],
@@ -88,10 +87,10 @@ async fn shared_instance_non_loopback_warning_names_each_attach_own_interface() 
     let first = transport
         .attach_shared_instance(
             SharedInstanceEndpoint::Tcp(SHARED_INSTANCE_UNREACHABLE_ENDPOINT),
-            SharedInstanceOptions::default(),
+            SharedInstanceOptions::default().allow_remote_endpoint(true),
         )
         .await
-        .expect("the first non-loopback attach is accepted");
+        .expect("the first non-loopback attach is accepted under the opt-in");
     shared_instance_assert_attached(&transport, first).await;
     assert!(timeout(STOP_TIMEOUT, transport.detach_shared_instance()).await.expect("detach"));
     shared_instance_assert_released(&transport, first).await;
@@ -99,10 +98,10 @@ async fn shared_instance_non_loopback_warning_names_each_attach_own_interface() 
     let second = transport
         .attach_shared_instance(
             SharedInstanceEndpoint::Tcp(SHARED_INSTANCE_UNREACHABLE_ENDPOINT),
-            SharedInstanceOptions::default(),
+            SharedInstanceOptions::default().allow_remote_endpoint(true),
         )
         .await
-        .expect("the second non-loopback attach is accepted");
+        .expect("the second non-loopback attach is accepted under the opt-in");
     shared_instance_assert_attached(&transport, second).await;
     assert_ne!(first, second, "each attach gets its own interface");
 

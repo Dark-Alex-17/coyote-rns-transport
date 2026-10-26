@@ -89,9 +89,18 @@ impl SharedInstanceReconnectConsumer {
     /// Serves the client's events until the transport is cancelled or the
     /// client worker exits. Both senders belong to that one worker and drop
     /// with it, after a detach, `stop_interface` or `stop`, so the first
-    /// closed channel ends the task. A disconnect queued together with the
-    /// reconnect that follows it is served first, so the flush of one drop
-    /// cycle always precedes that cycle's tunnel re-synthesis.
+    /// closed channel ends the task. Both channels are `mpsc::channel(8)`
+    /// and the worker emits each cycle's disconnect before its reconnect
+    /// from one task, each with `try_send`; this loop is biased so every
+    /// queued disconnect is served before any reconnect. So a disconnect
+    /// can never be dropped while its reconnect lands: at each disconnect
+    /// send the disconnect queue is no longer than the reconnect queue, so
+    /// the reconnect channel fills first and the realistic loss under a
+    /// storm is a reconnect, which the next reconnect that does land heals
+    /// (the tunnel re-synthesis and the re-announce are idempotent). A
+    /// per-cycle sequence number that would let the consumer detect a lost
+    /// reconnect outright would change the public `Sender<AddressHash>`
+    /// payload and is deferred.
     #[deny(clippy::await_holding_invalid_type)]
     pub(super) async fn run(
         self,
@@ -154,7 +163,11 @@ impl SharedInstanceReconnectConsumer {
         }
         let consumer = self.clone();
         let reannounce = async move {
+            // Biased so a cancel that lands with the delay is served first, as
+            // the registration announce does; announce_reappeared re-checks the
+            // posture anyway.
             tokio::select! {
+                biased;
                 _ = consumer.cancel.cancelled() => {}
                 _ = tokio::time::sleep(
                     consumer.reconnect_wait + SHARED_INSTANCE_REAPPEARED_ANNOUNCE_GRACE
@@ -191,17 +204,20 @@ impl SharedInstanceReconnectConsumer {
     /// (`RNS/Interfaces/LocalInterface.py:255-261`): every active and
     /// pending link is torn down as `Link.teardown` does
     /// (`RNS/Transport.py:3692`, `:3695`, `RNS/Link.py:657-668`): a
-    /// LINKCLOSE packet goes to the peer of each active link on the
+    /// LINKCLOSE packet goes to the peer of each link past `Pending` on the
     /// interface the link rides, after every guard is released, and each
     /// link is closed with the reason of its own side (`:670-671`); the
     /// tables are emptied. Python's tables map to the fork's as follows:
     /// `active_links` and `pending_links` are `in_links` and `out_links`
     /// (both hold links in every status); `announce_table`, `path_table`
     /// and `tunnels` are the fields of the same name; `link_table` is the
-    /// field of that name alone, and `reverse_table`, the proof-routing
-    /// index, is the source notes and proof-destination index of the packet
-    /// cache, emptied by `clear_reverse_routes` while the duplicate-filter
-    /// hashes stay, as Python's `packet_hashlist` does;
+    /// field of that name alone, and `reverse_table` is the packet cache's
+    /// received-packet entries, the source notes and proof-destination
+    /// index entries that `clear_reverse_routes` empties, while the
+    /// duplicate-filter hashes stay, as Python's `packet_hashlist` does,
+    /// and the entries of packets this node sent stay too: they are the
+    /// receipt guard, Python's `receipts` list (`RNS/Transport.py:174`),
+    /// not part of `reverse_table`;
     /// `held_announces` are the held announces of `announce_limits`. The
     /// resource state of each closed link goes with it, as the link
     /// maintenance job does. Lock discipline follows
@@ -212,11 +228,15 @@ impl SharedInstanceReconnectConsumer {
     /// taken out of both maps under the first handler guard and closed
     /// afterwards, so a link opened on the `Closed` event is not evicted by
     /// the clears that follow. A link riding the dropped interface itself
-    /// can at best queue its teardown on that interface; a close packet
-    /// that does not go out is recorded at debug. Every link that reaches
-    /// `Active` or `Stale` has its ingress interface set by its producer,
-    /// the accept at `transport/path.rs` (`set_ingress_iface`) or the proof
-    /// at `destination/link_parts/link_sections/handle_proof_packet.rs`
+    /// sends no close packet: its peer is gone with the connection, and a
+    /// packet queued on the client's channel would only be flushed to the
+    /// restarted instance as a close for a link it never knew; such links
+    /// are counted as skipped in the drop line. A close packet on another
+    /// interface that does not go out is recorded at debug. Every link that
+    /// reaches `Handshake`, `Active` or `Stale` has its ingress interface
+    /// set by its producer, the accept at `transport/path.rs`
+    /// (`set_ingress_iface`) or the proof at
+    /// `destination/link_parts/link_sections/handle_proof_packet.rs`
     /// (`get_or_insert`), so a teardown packet with no interface to ride is
     /// a defensive no-op.
     #[deny(clippy::await_holding_invalid_type)]
@@ -260,7 +280,12 @@ impl SharedInstanceReconnectConsumer {
         };
         let reverse_routes = packet_cache.lock().await.clear_reverse_routes();
         let mut close_packets_sent = 0usize;
+        let mut close_packets_skipped = 0usize;
         for (iface, packet) in teardowns {
+            if iface == self.iface {
+                close_packets_skipped += 1;
+                continue;
+            }
             let link_id = packet.destination;
             let trace = super::request_dispatch::send_on_iface(&self.handler, iface, packet).await;
             if trace.sent_ifaces > 0 {
@@ -276,11 +301,12 @@ impl SharedInstanceReconnectConsumer {
             }
         }
         log::debug!(
-            "tp({}): shared instance iface={} disconnected, {} link(s) torn down ({} close packet(s) sent), {} path(s), {} announce(s), {} link table entr(ies), {} tunnel(s), {} held announce(s), {} reverse route(s) cleared",
+            "tp({}): shared instance iface={} disconnected, {} link(s) torn down ({} close packet(s) sent, {} skipped on the dropped interface), {} path(s), {} announce(s), {} link table entr(ies), {} tunnel(s), {} held announce(s), {} reverse route(s) cleared",
             self.name,
             self.iface,
             closed.len(),
             close_packets_sent,
+            close_packets_skipped,
             paths,
             announces,
             links,

@@ -138,14 +138,20 @@ struct InboundSegmentAssembly {
 }
 
 impl ResourceManager {
-    /// Abandon a partially assembled split resource and tell the caller why.
+    /// Abandon the partially assembled split resource `link_id` is receiving
+    /// under `original_hash` and tell the caller why.
     ///
     /// Every path that drops an assembly has to come through here. Returning
     /// quietly instead leaves whoever is awaiting the resource blocked until
     /// its own timeout expires, with nothing on either side saying the transfer
     /// is already dead (issue #369).
-    fn fail_inbound_segments(&mut self, original_hash: Hash, reason: &str) -> bool {
-        let Some(event) = self.take_inbound_segments(original_hash, reason) else {
+    fn fail_inbound_segments(
+        &mut self,
+        original_hash: Hash,
+        link_id: &AddressHash,
+        reason: &str,
+    ) -> bool {
+        let Some(event) = self.take_inbound_segments(original_hash, link_id, reason) else {
             return false;
         };
         self.events.push(event);
@@ -154,14 +160,21 @@ impl ResourceManager {
 
     /// Removes the partial assembly under `original_hash` and builds its
     /// `InboundFailed(reason)`, for the caller to queue or hand back.
-    /// `None` when there is no such assembly.
+    /// `None` when there is no such assembly, or when the one there belongs
+    /// to a link other than `link_id`: a receiver admitted on another link
+    /// can name any original hash, and its failure must not take down this
+    /// link's assembly.
     fn take_inbound_segments(
         &mut self,
         original_hash: Hash,
+        link_id: &AddressHash,
         reason: &str,
     ) -> Option<ResourceEvent> {
-        let assembly = self.incoming_segments.remove(&original_hash)?;
-        log::warn!("split resource assembly failed hash={original_hash} reason={reason}");
+        let on_link = self.incoming_segments.get(&original_hash)?.link_id == *link_id;
+        let assembly = on_link.then(|| self.incoming_segments.remove(&original_hash)).flatten()?;
+        log::warn!(
+            "split resource assembly failed hash={original_hash} reason={reason} link={link_id}"
+        );
         Some(ResourceEvent {
             hash: original_hash,
             link_id: assembly.link_id,
@@ -269,7 +282,7 @@ impl ResourceManager {
             .saturating_add(metadata_size)
             > assembly.total_data_size as usize
         {
-            self.fail_inbound_segments(segment.original_hash, "oversized_segment");
+            self.fail_inbound_segments(segment.original_hash, &link_id, "oversized_segment");
             return;
         }
         assembly.data.extend_from_slice(&payload.data);
@@ -288,7 +301,11 @@ impl ResourceManager {
                 assembly.metadata.as_ref().map(|metadata| metadata.len() + 3).unwrap_or(0),
             ) as u64;
             if assembled_size != assembly.total_data_size {
-                self.fail_inbound_segments(segment.original_hash, "assembled_size_mismatch");
+                self.fail_inbound_segments(
+                    segment.original_hash,
+                    &link_id,
+                    "assembled_size_mismatch",
+                );
                 return;
             }
             if let Some(assembly) = self.incoming_segments.remove(&segment.original_hash) {

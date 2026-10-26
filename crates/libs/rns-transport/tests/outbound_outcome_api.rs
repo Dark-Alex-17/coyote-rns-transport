@@ -52,8 +52,6 @@ fn failure_name(failure: &OutboundFailure) -> &'static str {
 fn reject_name(reason: &RejectReason) -> &'static str {
     match reason {
         RejectReason::PeerCancelled => "peer_cancelled",
-        RejectReason::Oversize { .. } => "oversize",
-        RejectReason::Unknown => "unknown_reason",
         _ => "unknown",
     }
 }
@@ -97,10 +95,10 @@ fn outcome_enums_are_matchable_with_the_readme_wildcard_arm() {
     assert_eq!(outcome_name(&OutboundResult::Failed(OutboundFailure::LinkClosed)), "failed");
     assert_eq!(outcome_name(&OutboundResult::Rejected(RejectReason::PeerCancelled)), "rejected");
     assert_eq!(failure_name(&OutboundFailure::RetriesExhausted), "retries_exhausted");
-    assert_eq!(reject_name(&RejectReason::Oversize { limit: 7 }), "oversize");
-    assert_eq!(reject_name(&RejectReason::Unknown), "unknown_reason");
+    assert_eq!(reject_name(&RejectReason::PeerCancelled), "peer_cancelled");
     assert_eq!(error_name(&RnsError::NoPath), "no_path");
     assert_eq!(RnsError::NoPath.to_string(), "no path to destination");
+    assert_eq!(RejectReason::PeerCancelled.to_string(), "the peer cancelled the resource");
 }
 
 #[test]

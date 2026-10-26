@@ -10,9 +10,7 @@ async fn expired_persisted_route_is_not_reused_before_fresh_announce_recovery() 
     let remote_identity = PrivateIdentity::new_from_rand(OsRng);
     let mut remote_destination =
         SingleInputDestination::new(remote_identity, DestinationName::new("lxmf", "delivery"));
-    let initial_announce = remote_destination
-        .announce(OsRng, None)
-        .expect("initial announce");
+    let initial_announce = remote_destination.announce(OsRng, None).expect("initial announce");
     let destination = initial_announce.destination;
     handle_announce(
         &initial_announce,

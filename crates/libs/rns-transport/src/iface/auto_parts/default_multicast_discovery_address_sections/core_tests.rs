@@ -30,6 +30,18 @@
     }
 
     #[test]
+    fn unicast_discovery_port_is_the_next_port_and_steps_down_at_the_top_of_the_range() {
+        let config = AutoInterfaceConfig { discovery_port: 48_555, ..AutoInterfaceConfig::default() };
+        assert_eq!(config.unicast_discovery_port(), 48_556);
+
+        let config = AutoInterfaceConfig { discovery_port: 0, ..AutoInterfaceConfig::default() };
+        assert_eq!(config.unicast_discovery_port(), 1);
+
+        let config = AutoInterfaceConfig { discovery_port: u16::MAX, ..AutoInterfaceConfig::default() };
+        assert_eq!(config.unicast_discovery_port(), 65_534);
+    }
+
+    #[test]
     fn multicast_peering_packet_matches_python_peer_announce() {
         let config = AutoInterfaceConfig::default();
         let adopted = AutoInterfaceAdoptedDevice {

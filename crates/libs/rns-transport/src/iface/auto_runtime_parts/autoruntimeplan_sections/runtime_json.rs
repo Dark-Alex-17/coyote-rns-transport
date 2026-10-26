@@ -452,8 +452,10 @@ impl AutoRuntimePlan {
                     }
                 }
             }
-            discovery_listener_supervisor.lock().await.shutdown_all().await;
-            data_listener_supervisor.lock().await.shutdown_all().await;
+            let discovery = discovery_listener_supervisor.lock().await.take_all_listeners();
+            discovery.finish().await;
+            let data = data_listener_supervisor.lock().await.take_all_listeners();
+            data.finish().await;
             if let Err(err) = link_local_reconciler_handle.await {
                 log::warn!("[auto] link-local reconciler stopped: {err}");
             }

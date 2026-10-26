@@ -113,8 +113,7 @@ async fn two_transport_loopback_request_deregistered_path_falls_silent() {
 
 #[tokio::test]
 #[deny(clippy::await_holding_invalid_type)]
-async fn two_transport_loopback_request_handler_sees_the_request_fields_of_an_unidentified_peer(
-) {
+async fn two_transport_loopback_request_handler_sees_the_request_fields_of_an_unidentified_peer() {
     let mut pair = loopback_request_pair("request-fields").await;
     let (seen_tx, mut seen_rx) = tokio::sync::mpsc::unbounded_channel::<InboundRequest>();
     register_handler(&pair, "/inspect", RequestAllow::All, move |request: InboundRequest| {
@@ -334,8 +333,7 @@ fn counting_echo_handler(
 async fn two_transport_loopback_request_max_request_size_measures_the_envelope_inclusive() {
     let mut pair = loopback_request_pair("request-max-size-boundary").await;
     let calls = Arc::new(AtomicUsize::new(0));
-    register_handler(&pair, "/echo", RequestAllow::All, counting_echo_handler(calls.clone()))
-        .await;
+    register_handler(&pair, "/echo", RequestAllow::All, counting_echo_handler(calls.clone())).await;
 
     let data = vec![0x5a_u8; 64];
     let packed = pack_request("/echo", rmpv::Value::Binary(data.clone()));
@@ -356,18 +354,9 @@ async fn two_transport_loopback_request_max_request_size_measures_the_envelope_i
     let id = send_packed_request(&pair, &packed).await;
     await_request_data_event(&mut pair, id).await;
     assert_no_response(&mut pair).await;
-    assert_eq!(
-        calls.load(Ordering::SeqCst),
-        0,
-        "an oversize request never reaches the handler"
-    );
+    assert_eq!(calls.load(Ordering::SeqCst), 0, "an oversize request never reaches the handler");
 
-    pair.handles
-        .destination
-        .lock()
-        .await
-        .set_max_request_size(envelope_len)
-        .expect("limit is set");
+    pair.handles.destination.lock().await.set_max_request_size(envelope_len).expect("limit is set");
     let id = send_packed_request(&pair, &packed).await;
     assert_eq!(await_response(&mut pair, id).await, rmpv::Value::Binary(data));
     assert_eq!(calls.load(Ordering::SeqCst), 1, "the fitting request ran once");
@@ -381,8 +370,7 @@ async fn two_transport_loopback_request_clearing_max_request_size_lifts_the_gate
     let mut pair = loopback_request_pair("request-max-size-cleared").await;
     let calls = Arc::new(AtomicUsize::new(0));
     pair.handles.destination.lock().await.set_max_request_size(1).expect("limit is set");
-    register_handler(&pair, "/echo", RequestAllow::All, counting_echo_handler(calls.clone()))
-        .await;
+    register_handler(&pair, "/echo", RequestAllow::All, counting_echo_handler(calls.clone())).await;
 
     let id = send_request(&pair, "/echo", rmpv::Value::from("gated")).await;
     await_request_data_event(&mut pair, id).await;

@@ -146,22 +146,18 @@ impl LocalUnixServer {
             )
         };
 
-        let (_, tx_channel) = context.channel.split();
-        let tx_channel = Arc::new(tokio::sync::Mutex::new(tx_channel));
+        let (_, mut tx_channel) = context.channel.split();
         let endpoint_label = endpoint.label();
 
         let tx_task = {
             let cancel = context.cancel.clone();
             let iface_stop = iface_stop.clone();
-            let tx_channel = tx_channel.clone();
 
             tokio::spawn(async move {
                 loop {
                     if cancel.is_cancelled() || iface_stop.is_cancelled() {
                         break;
                     }
-
-                    let mut tx_channel = tx_channel.lock().await;
 
                     tokio::select! {
                         _ = cancel.cancelled() => {
@@ -178,6 +174,7 @@ impl LocalUnixServer {
                         }
                     }
                 }
+                tx_channel
             })
         };
 
@@ -285,8 +282,16 @@ impl LocalUnixServer {
             }
         }
         iface_stop.cancel();
-        if let Err(error) = tx_task.await {
-            log::error!("local unix transmit task failed endpoint={}: {error}", endpoint.label());
+        match tx_task.await {
+            // The listener loop above has already exited and nothing rebinds after
+            // this point, so the transmit receiver is dropped here for good.
+            Ok(_tx_receiver) => {}
+            Err(error) => {
+                log::error!(
+                    "local unix transmit task failed endpoint={}: {error}",
+                    endpoint.label()
+                );
+            }
         }
     }
 
@@ -401,6 +406,42 @@ impl LocalUnixClient {
         self
     }
 
+    /// The endpoint label, or the label given with a pre-supplied stream.
+    #[must_use]
+    pub fn addr(&self) -> &str {
+        &self.addr
+    }
+
+    /// The MTU in effect, after the 256-byte floor of [`Self::with_mtu`].
+    #[must_use]
+    pub fn mtu_value(&self) -> usize {
+        self.mtu
+    }
+
+    /// The forced bitrate, `None` unless a non-zero one was set.
+    #[must_use]
+    pub fn forced_bitrate_bps(&self) -> Option<u64> {
+        self.forced_bitrate_bps
+    }
+
+    /// The redial wait in effect, after the 1 ms floor of [`Self::with_reconnect_wait`].
+    #[must_use]
+    pub fn reconnect_wait(&self) -> Duration {
+        self.reconnect_wait
+    }
+
+    /// Whether a reconnect-event sender is installed.
+    #[must_use]
+    pub fn reconnect_events_enabled(&self) -> bool {
+        self.reconnect_events.is_some()
+    }
+
+    /// Whether a disconnect-event sender is installed.
+    #[must_use]
+    pub fn disconnect_events_enabled(&self) -> bool {
+        self.disconnect_events.is_some()
+    }
+
     pub async fn spawn(context: InterfaceContext<Self>) {
         let iface_stop = context.channel.stop.clone();
         let iface_address = context.channel.address;
@@ -429,8 +470,7 @@ impl LocalUnixClient {
             )
         };
 
-        let (rx_channel, tx_channel) = context.channel.split();
-        let tx_channel = Arc::new(tokio::sync::Mutex::new(tx_channel));
+        let (rx_channel, mut tx_channel) = context.channel.split();
 
         let mut running = true;
         let mut has_connected = false;
@@ -487,7 +527,7 @@ impl LocalUnixClient {
                     context.cancel.clone(),
                     iface_stop.clone(),
                     rx_channel.clone(),
-                    tx_channel.clone(),
+                    &mut tx_channel,
                     ifac_state.clone(),
                     ifac_violations.clone(),
                     read_stream,
@@ -503,7 +543,7 @@ impl LocalUnixClient {
                     context.cancel.clone(),
                     iface_stop.clone(),
                     rx_channel.clone(),
-                    tx_channel.clone(),
+                    &mut tx_channel,
                     ifac_state.clone(),
                     ifac_violations.clone(),
                     read_stream,
@@ -583,10 +623,16 @@ fn remove_socket_file(path: &Path) -> std::io::Result<()> {
 
 #[cfg(test)]
 mod tests {
+    // Test code holds guards across awaits on purpose.
+    #![allow(clippy::await_holding_invalid_type)]
+
     use super::*;
     use crate::iface::hdlc::Hdlc;
     use crate::packet::Packet;
     use tokio::io::{AsyncReadExt, AsyncWriteExt};
+
+    #[path = "tx_queue_survives_reconnect.rs"]
+    mod tx_queue_survives_reconnect;
 
     #[test]
     fn parses_abstract_config_labels() {
@@ -594,6 +640,36 @@ mod tests {
         assert_eq!(endpoint, LocalUnixEndpoint::Abstract("rns/default".to_string()));
         assert_eq!(endpoint.label(), "@rns/default");
         assert!(endpoint.is_abstract());
+    }
+
+    #[test]
+    fn local_unix_client_getters_read_back_the_builder_values() {
+        let endpoint = LocalUnixEndpoint::from_config_value("@rns/getters");
+        let client = LocalUnixClient::new_connect(endpoint.clone());
+        assert_eq!(client.addr(), endpoint.label());
+        assert_eq!(client.mtu_value(), TcpClient::DEFAULT_MTU);
+        assert_eq!(client.forced_bitrate_bps(), None);
+        assert_eq!(client.reconnect_wait(), LocalUnixClient::DEFAULT_RECONNECT_WAIT);
+        assert!(!client.reconnect_events_enabled());
+        assert!(!client.disconnect_events_enabled());
+
+        let (reconnect_tx, _reconnect_rx) = tokio::sync::mpsc::channel(1);
+        let (disconnect_tx, _disconnect_rx) = tokio::sync::mpsc::channel(1);
+        let client = client
+            .with_mtu(100)
+            .with_forced_bitrate(9_600)
+            .with_reconnect_wait(Duration::from_millis(50))
+            .with_reconnect_events(reconnect_tx)
+            .with_disconnect_events(disconnect_tx);
+        assert_eq!(client.mtu_value(), 256);
+        assert_eq!(client.forced_bitrate_bps(), Some(9_600));
+        assert_eq!(client.reconnect_wait(), Duration::from_millis(50));
+        assert!(client.reconnect_events_enabled());
+        assert!(client.disconnect_events_enabled());
+
+        let client = client.with_forced_bitrate(0).with_reconnect_wait(Duration::ZERO);
+        assert_eq!(client.forced_bitrate_bps(), None);
+        assert_eq!(client.reconnect_wait(), Duration::from_millis(1));
     }
 
     #[cfg(any(target_os = "linux", target_os = "android"))]

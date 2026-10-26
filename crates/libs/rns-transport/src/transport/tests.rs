@@ -1,3 +1,6 @@
+// Test code holds guards across awaits on purpose.
+#![allow(clippy::await_holding_invalid_type)]
+
 include!("tests_parts/module_prelude.rs");
 
 include!("tests_parts/path_table_api.rs");
@@ -21,6 +24,7 @@ include!("tests_parts/receipt_handler_on_shared_transport.rs");
 include!("tests_parts/tunnel_restore_freshness.rs");
 
 include!("tests_parts/held_udp_announce_preserves_peer_sou.rs");
+include!("tests_parts/send_packet_outcome_and_resource_request_responses.rs");
 
 include!("tests_parts/roaming_path_response_suppression.rs");
 
@@ -55,6 +59,10 @@ include!("tests_parts/ordinary_proof_duplicate.rs");
 include!("tests_parts/plain_group_packet_duplicates.rs");
 include!("tests_parts/duplicate_filter_python_matrix.rs");
 include!("tests_parts/packet_replay_restart.rs");
+include!("tests_parts/packet_hashlist_flush.rs");
+include!("tests_parts/packet_hashlist_flush_probe.rs");
+include!("tests_parts/packet_hashlist_flush_probe2.rs");
+include!("tests_parts/resource_advert_reject_warn_cadence.rs");
 include!("tests_parts/accepted_child_ifac_rotation.rs");
 
 include!("tests_parts/reticulum_runtime_management.rs");
@@ -71,9 +79,13 @@ include!("tests_parts/two_transport_loopback_resources.rs");
 
 include!("tests_parts/two_transport_loopback_resources_directions.rs");
 
+include!("tests_parts/prepared_broadcast_link_contract.rs");
+
 include!("tests_parts/resource_retry_link_lookup.rs");
 
 include!("tests_parts/two_transport_loopback_resources_retries.rs");
+
+include!("tests_parts/resource_retry_dispatch.rs");
 
 include!("tests_parts/two_transport_loopback_resources_receipt_less_receiving.rs");
 
@@ -86,10 +98,14 @@ include!("tests_parts/two_transport_loopback_resources_reject_response.rs");
 include!("tests_parts/two_transport_loopback_lifecycle.rs");
 
 include!("tests_parts/two_transport_loopback_lifecycle_probe.rs");
+include!("tests_parts/tcp_connect_cancel.rs");
 
 include!("tests_parts/two_transport_loopback_requests.rs");
 
 include!("tests_parts/two_transport_loopback_requests_isolation.rs");
+
+include!("tests_parts/request_dispatch_closed_link.rs");
+include!("tests_parts/request_dispatch_closed_link_probe.rs");
 
 include!("tests_parts/two_transport_loopback_requests_probe.rs");
 
@@ -234,3 +250,15 @@ include!("tests_parts/two_transport_shared_instance_probe12.rs");
 include!("tests_parts/two_transport_shared_instance_probe13.rs");
 
 include!("tests_parts/two_transport_shared_instance_probe14.rs");
+
+include!("tests_parts/two_transport_shared_instance_storm.rs");
+
+include!("tests_parts/two_transport_shared_instance_options.rs");
+
+include!("tests_parts/two_transport_shared_instance_probe15.rs");
+
+include!("tests_parts/two_transport_shared_instance_probe16.rs");
+
+include!("tests_parts/two_transport_shared_instance_probe17.rs");
+
+include!("tests_parts/two_transport_shared_instance_probe17_unix.rs");

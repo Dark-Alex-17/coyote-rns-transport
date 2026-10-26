@@ -36,6 +36,11 @@
 - When landing a parity increment, update the roadmap and the relevant parity
   matrix in the same change as the behavior and tests. Keep entries tied to
   concrete behavior, evidence, and remaining gaps.
+- For fork-only parity rows (behaviours Python RNS has that the upstream crate
+  lacks, added by this fork), `docs/fork/PATCHSET.md` and the crate README
+  section "Known divergences from Python RNS"
+  (`crates/libs/rns-transport/README.md`) are the ledger; the `docs/status/*`
+  matrices track upstream rows only and are not updated per fork task.
 - Prefer small TDD-backed parity deltas. Start from a documented gap, add or
   tighten the focused regression, implement the minimum behavior, then run the
   package-specific tests that cover the changed surface.

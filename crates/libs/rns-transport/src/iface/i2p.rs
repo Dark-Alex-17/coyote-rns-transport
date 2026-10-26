@@ -736,11 +736,10 @@ async fn run_i2p_peer_loop_with_ifac(
     cancel: CancellationToken,
     iface_stop: CancellationToken,
     rx_channel: tokio::sync::mpsc::Sender<RxMessage>,
-    peer_rx: tokio::sync::mpsc::Receiver<TxMessage>,
+    mut peer_rx: tokio::sync::mpsc::Receiver<TxMessage>,
     ifac_state: IfacState,
     ifac_violations: Arc<std::sync::atomic::AtomicU64>,
 ) {
-    let peer_rx = Arc::new(tokio::sync::Mutex::new(peer_rx));
     let session_id = sam_session_id(iface_address, transport_identity_hash.as_ref());
 
     loop {
@@ -796,7 +795,7 @@ async fn run_i2p_peer_loop_with_ifac(
             cancel.clone(),
             iface_stop.clone(),
             rx_channel.clone(),
-            peer_rx.clone(),
+            &mut peer_rx,
             ifac_state.clone(),
             ifac_violations.clone(),
             read_stream,
@@ -1099,11 +1098,10 @@ async fn run_i2p_accepted_stream_with_ifac(
     >,
     iface_manager: Arc<tokio::sync::Mutex<InterfaceManager>>,
     stream: TcpStream,
-    peer_rx: tokio::sync::mpsc::Receiver<TxMessage>,
+    mut peer_rx: tokio::sync::mpsc::Receiver<TxMessage>,
     ifac_state: IfacState,
     ifac_violations: Arc<std::sync::atomic::AtomicU64>,
 ) {
-    let peer_rx = Arc::new(tokio::sync::Mutex::new(peer_rx));
     let status_key = format!("incoming:{child_iface}");
     let (event_tx, event_rx) = tokio::sync::mpsc::channel(HDLC_STREAM_EVENT_CHANNEL_CAPACITY);
     let status_task =
@@ -1116,7 +1114,7 @@ async fn run_i2p_accepted_stream_with_ifac(
         cancel,
         iface_stop,
         rx_channel,
-        peer_rx,
+        &mut peer_rx,
         ifac_state,
         ifac_violations,
         read_stream,
@@ -1498,6 +1496,9 @@ fn sam_session_id(iface_address: AddressHash, identity_hash: Option<&[u8; 16]>) 
 
 #[cfg(test)]
 mod tests {
+    // Test code holds guards across awaits on purpose.
+    #![allow(clippy::await_holding_invalid_type)]
+
     use super::{
         accept_error_requires_session_recreate, accept_sam_stream, base32_no_pad_lower,
         cleanup_i2p_peer_routes, connectable_session_destination_with_identity, create_sam_session,

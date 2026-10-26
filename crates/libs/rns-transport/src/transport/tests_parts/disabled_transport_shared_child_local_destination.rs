@@ -30,11 +30,8 @@ async fn disabled_shared_daemon_delivers_local_link_request_only_to_requesting_c
     let request = Link::new(destination_desc, link_events).request();
     let link_id = crate::destination::link::LinkId::from(&request);
 
-    let inbound = RxMessage {
-        address: requesting_child,
-        packet: request,
-        source: IfaceSource::None,
-    };
+    let inbound =
+        RxMessage { address: requesting_child, packet: request, source: IfaceSource::None };
     let (_, queued) = super::inbound_processing::preprocess_inbound_message(
         &transport.get_handler(),
         &transport.iface_messages_tx,

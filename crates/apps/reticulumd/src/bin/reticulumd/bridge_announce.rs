@@ -117,13 +117,21 @@ impl TransportBridge {
                 transport
                     .set_destination_announce_app_data(destination, propagation_app_data.clone())
                     .await;
-                transport.send_announce(destination, propagation_app_data.as_deref()).await;
+                if let Err(error) =
+                    transport.try_send_announce(destination, propagation_app_data.as_deref()).await
+                {
+                    log::warn!("[daemon] propagation announce not sent: {error}");
+                }
             }
             if let Some(destination) = control_destination.as_ref() {
-                transport.send_announce(destination, None).await;
+                if let Err(error) = transport.try_send_announce(destination, None).await {
+                    log::warn!("[daemon] control announce not sent: {error}");
+                }
             }
             if let Some(destination) = probe_destination.as_ref() {
-                transport.send_announce(destination, None).await;
+                if let Err(error) = transport.try_send_announce(destination, None).await {
+                    log::warn!("[daemon] probe announce not sent: {error}");
+                }
             }
         });
         Ok(())
@@ -141,18 +149,29 @@ impl AnnounceBridge for TransportBridge {
         let probe_destination = self.probe_destination.clone();
         tokio::spawn(async move {
             transport.set_destination_announce_app_data(&destination, app_data.clone()).await;
-            transport.send_announce(&destination, app_data.as_deref()).await;
+            if let Err(error) = transport.try_send_announce(&destination, app_data.as_deref()).await
+            {
+                log::warn!("[daemon] delivery announce not sent: {error}");
+            }
             if let Some(destination) = propagation_destination.as_ref() {
                 transport
                     .set_destination_announce_app_data(destination, propagation_app_data.clone())
                     .await;
-                transport.send_announce(destination, propagation_app_data.as_deref()).await;
+                if let Err(error) =
+                    transport.try_send_announce(destination, propagation_app_data.as_deref()).await
+                {
+                    log::warn!("[daemon] propagation announce not sent: {error}");
+                }
             }
             if let Some(destination) = control_destination.as_ref() {
-                transport.send_announce(destination, None).await;
+                if let Err(error) = transport.try_send_announce(destination, None).await {
+                    log::warn!("[daemon] control announce not sent: {error}");
+                }
             }
             if let Some(destination) = probe_destination.as_ref() {
-                transport.send_announce(destination, None).await;
+                if let Err(error) = transport.try_send_announce(destination, None).await {
+                    log::warn!("[daemon] probe announce not sent: {error}");
+                }
             }
         });
         Ok(())

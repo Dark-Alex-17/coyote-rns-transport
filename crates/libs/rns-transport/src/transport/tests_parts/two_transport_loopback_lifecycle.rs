@@ -1,8 +1,11 @@
 // Loopback coverage for the transport lifecycle surface: link round-trip time after
 // activation, `Transport::stop` releasing the listener socket, announce building that
-// fails instead of panicking, and an over-cap resource advertisement that is dropped
-// without disturbing the link. Helpers come from the sibling `tests_parts` files included
-// into this module.
+// fails instead of panicking, a buildable announce reaching the interface channel as a
+// broadcast, a pathless outbound packet broadcast when the transport is configured for
+// it, the same packet dropped when broadcast is off, `try_send_announce` surfacing the
+// build error as `Err`, and an over-cap resource advertisement that is dropped without
+// disturbing the link. Helpers come from the sibling `tests_parts` files included into
+// this module.
 
 use crate::packet::PACKET_DATA_MAX;
 use crate::resource::RANDOM_HASH_SIZE;
@@ -43,20 +46,10 @@ async fn loopback_link_handles_with_mtu(aspect: &str, mtu: usize) -> LoopbackLin
         register_in_destination(&listener.transport, "loopback", aspect).await;
     let learned = learn_announce(&mut connector.announces, &desc.address_hash).await;
     let (link, link_id) = open_link(&connector.transport, learned).await;
-    let activated = await_event(&mut in_events, |event| {
-        matches!(event.event, LinkEvent::Activated)
-    })
-    .await;
+    let activated =
+        await_event(&mut in_events, |event| matches!(event.event, LinkEvent::Activated)).await;
     assert_eq!(activated.id, link_id, "both ends share one link id");
-    LoopbackLinkHandles {
-        listener,
-        connector,
-        destination,
-        link,
-        link_id,
-        desc,
-        in_events,
-    }
+    LoopbackLinkHandles { listener, connector, destination, link, link_id, desc, in_events }
 }
 
 /// Sends one plain Data packet in each direction over the pair's link and checks delivery.
@@ -85,10 +78,9 @@ async fn exchange_data_both_ways(pair: &mut LoopbackLinkHandles) {
         .send_to_in_links_with_report(&pair.desc.address_hash, b"pong after advert")
         .await;
     assert_sent_on_one_link(report, "inbound");
-    let outbound = await_event(&mut out_events, |event| {
-        event.id == link_id && is_plain_data(&event.event)
-    })
-    .await;
+    let outbound =
+        await_event(&mut out_events, |event| event.id == link_id && is_plain_data(&event.event))
+            .await;
     assert_eq!(data_bytes(outbound), b"pong after advert");
 }
 
@@ -131,9 +123,7 @@ async fn two_transport_loopback_stop_releases_listener_and_is_idempotent() {
     let pair = loopback_link_handles("stop").await;
     let port = pair.listener.port;
 
-    timeout(STOP_TIMEOUT, pair.listener.transport.stop())
-        .await
-        .expect("listener stop completes");
+    timeout(STOP_TIMEOUT, pair.listener.transport.stop()).await.expect("listener stop completes");
 
     assert!(
         pair.listener.transport.interface_hashes().await.is_empty(),
@@ -151,9 +141,7 @@ async fn two_transport_loopback_stop_releases_listener_and_is_idempotent() {
     timeout(STOP_TIMEOUT, pair.listener.transport.stop())
         .await
         .expect("a second stop is a no-op that still returns");
-    timeout(STOP_TIMEOUT, pair.connector.transport.stop())
-        .await
-        .expect("connector stop completes");
+    timeout(STOP_TIMEOUT, pair.connector.transport.stop()).await.expect("connector stop completes");
 }
 
 #[tokio::test]
@@ -166,6 +154,68 @@ async fn send_announce_survives_an_unbuildable_announce() {
     let oversized = vec![0u8; UNBUILDABLE_APP_DATA_LEN];
 
     transport.send_announce(&destination, Some(&oversized)).await;
+}
+
+#[tokio::test]
+#[deny(clippy::await_holding_invalid_type)]
+async fn send_announce_hands_a_buildable_announce_to_the_interface() {
+    let identity = PrivateIdentity::new_from_rand(OsRng);
+    let transport = Transport::new(TransportConfig::new("t", &identity, false));
+    let mut channel = transport.iface_manager().lock().await.new_channel(16);
+    let destination =
+        transport.add_destination(identity, DestinationName::new("app", "aspect")).await;
+    let address_hash = destination.lock().await.desc.address_hash;
+
+    transport.send_announce(&destination, Some(b"small")).await;
+
+    let sent = timeout(Duration::from_millis(200), channel.tx_channel.recv())
+        .await
+        .expect("the announce reaches the interface")
+        .expect("the interface channel stays open");
+    assert_eq!(sent.packet.header.packet_type, PacketType::Announce);
+    assert_eq!(sent.packet.destination, address_hash);
+    assert!(matches!(sent.tx_type, TxMessageType::Broadcast(None)));
+}
+
+fn pathless_data_packet() -> Packet {
+    Packet {
+        destination: AddressHash::new_from_slice(&[0x5a; 16]),
+        data: PacketDataBuffer::new_from_slice(b"no path"),
+        ..Packet::default()
+    }
+}
+
+#[tokio::test]
+#[deny(clippy::await_holding_invalid_type)]
+async fn outbound_without_a_path_broadcasts_when_configured() {
+    let identity = PrivateIdentity::new_from_rand(OsRng);
+    let transport = Transport::new(TransportConfig::new("t", &identity, true));
+    let mut channel = transport.iface_manager().lock().await.new_channel(16);
+    let packet = pathless_data_packet();
+
+    transport.outbound(&packet).await;
+
+    let sent = timeout(Duration::from_millis(200), channel.tx_channel.recv())
+        .await
+        .expect("the packet reaches the interface")
+        .expect("the interface channel stays open");
+    assert_eq!(sent.packet.destination, packet.destination);
+    assert!(matches!(sent.tx_type, TxMessageType::Broadcast(None)));
+}
+
+#[tokio::test]
+#[deny(clippy::await_holding_invalid_type)]
+async fn outbound_without_a_path_sends_nothing_when_broadcast_is_off() {
+    let identity = PrivateIdentity::new_from_rand(OsRng);
+    let transport = Transport::new(TransportConfig::new("t", &identity, false));
+    let mut channel = transport.iface_manager().lock().await.new_channel(16);
+
+    transport.outbound(&pathless_data_packet()).await;
+
+    assert!(
+        channel.tx_channel.try_recv().is_err(),
+        "a pathless packet is dropped when broadcast is off"
+    );
 }
 
 #[tokio::test]
@@ -217,7 +267,8 @@ async fn two_transport_loopback_drops_oversized_advertisement_and_keeps_link_usa
         )
         .expect("advertisement fits a link packet")
     };
-    let outcome = pair.connector.transport.send_link_packet_on_bound_iface(&pair.link, packet).await;
+    let outcome =
+        pair.connector.transport.send_link_packet_on_bound_iface(&pair.link, packet).await;
     assert_eq!(outcome, SendPacketOutcome::SentDirect, "advertisement reaches the wire");
 
     exchange_data_both_ways(&mut pair).await;

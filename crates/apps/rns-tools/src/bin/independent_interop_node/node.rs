@@ -218,7 +218,8 @@ async fn announce(
     params: &Value,
 ) -> Result<Value, String> {
     let app_data = optional_bytes(params, "app_data")?;
-    transport.send_announce(destination, app_data.as_deref()).await;
+    let sent = transport.try_send_announce(destination, app_data.as_deref()).await;
+    sent.map_err(|error| format!("announce not sent: {error}"))?;
     Ok(json!({"announced": true}))
 }
 

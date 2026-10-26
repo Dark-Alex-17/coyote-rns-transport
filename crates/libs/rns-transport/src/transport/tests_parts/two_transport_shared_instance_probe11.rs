@@ -72,7 +72,9 @@ async fn shared_instance_probe11_drop_sends_link_close_to_the_initiator_of_an_ac
     let (restarted, _restarted_announces, _) = shared_instance_reconnect_restart(server).await;
     let record = shared_instance_probe10_await_debug_record(name, "disconnected,").await;
     assert!(
-        record.contains("1 link(s) torn down (1 close packet(s) sent)"),
+        record.contains(
+            "1 link(s) torn down (1 close packet(s) sent, 0 skipped on the dropped interface)"
+        ),
         "the drop line counts the accepted link and its close packet: {record}"
     );
 

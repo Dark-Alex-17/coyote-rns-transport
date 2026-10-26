@@ -1,5 +1,4 @@
 impl Link {
-
     pub fn remove_channel_handler(&mut self, handler_id: HandlerId) -> bool {
         let mut empty_msg_types = Vec::new();
         let mut removed = false;
@@ -35,10 +34,8 @@ impl Link {
             return Err(ChannelError::LinkNotReady);
         }
         const CHANNEL_ENVELOPE_LENGTH: usize = 6;
-        let max_payload = self
-            .link_mdu()
-            .saturating_sub(CHANNEL_ENVELOPE_LENGTH)
-            .min(u16::MAX as usize);
+        let max_payload =
+            self.link_mdu().saturating_sub(CHANNEL_ENVELOPE_LENGTH).min(u16::MAX as usize);
         if payload.len() > max_payload {
             return Err(ChannelError::PayloadTooLarge);
         }
@@ -252,7 +249,7 @@ impl Link {
     }
 
     fn packet_with_context(&self, data: &[u8], context: PacketContext) -> Result<Packet, RnsError> {
-        if !self.status.can_exchange_data() {
+        if !self.status.can_build_packet(context) {
             log::warn!("can't create data packet for closed link");
         }
 
@@ -274,7 +271,7 @@ impl Link {
     }
 
     pub fn data_packet_into(&self, data: &[u8], packet: &mut Packet) -> Result<(), RnsError> {
-        if !self.status.can_exchange_data() {
+        if !self.status.can_build_packet(PacketContext::None) {
             log::warn!("can't create data packet for closed link");
         }
 

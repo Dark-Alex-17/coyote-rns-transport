@@ -1,4 +1,4 @@
-async fn run_lora_kiss_stream<IO>(stream: IO, run: LoraStreamRun)
+async fn run_lora_kiss_stream<IO>(stream: IO, run: LoraStreamRun<'_>)
 where
     IO: AsyncRead + AsyncWrite + Unpin + Send + 'static,
 {
@@ -13,7 +13,7 @@ where
         Some(run.startup_response_timeout),
     ));
 
-    run_kiss_stream_with_ifac(
+    run_kiss_stream_owned(
         stream,
         KissStreamOptions {
             iface_address: run.iface_address,
@@ -30,14 +30,14 @@ where
             strip_command_port_nibble: false,
             command_tx: Some(command_tx),
             data_rx_tx: Some(data_rx_tx),
-            management_frame_rx: Some(run.management_frame_rx),
+            management_frame_rx: None,
             runtime_status: None,
         },
         stream_cancel,
         run.rx_channel,
         run.tx_channel,
-        run.ifac_state,
-        run.ifac_violations,
+        run.management_frame_rx,
+        IfacRuntime::from_parts(run.ifac_state, run.ifac_violations),
     )
     .await;
     if let Err(err) = probe_status_task.await {
@@ -167,6 +167,9 @@ fn preflight_tcp_connect(addr: &str) -> Result<(), String> {
 
 #[cfg(test)]
 mod tests {
+    // Test code holds guards across awaits on purpose.
+    #![allow(clippy::await_holding_invalid_type)]
+
     use std::sync::{Arc, Mutex};
     use std::time::Duration;
 
@@ -422,36 +425,41 @@ mod tests {
             let guard = iface.lock().expect("lora interface mutex poisoned");
             guard.rnode_management_handle()
         };
-        let management_frame_rx = {
-            let guard = iface.lock().expect("lora interface mutex poisoned");
-            guard.management_frame_rx.clone()
-        };
+        let mut management_frame_rx = iface
+            .lock()
+            .expect("lora interface mutex poisoned")
+            .management_frame_rx
+            .lock()
+            .expect("lora management receiver mutex poisoned")
+            .take();
         let (stream, mut peer) = tokio::io::duplex(4096);
         let cancel = CancellationToken::new();
         let (rx_channel, _rx_recv) = tokio::sync::mpsc::channel(1);
-        let (_tx_send, tx_recv) = tokio::sync::mpsc::channel(1);
-        let tx_channel = Arc::new(tokio::sync::Mutex::new(tx_recv));
+        let (_tx_send, mut tx_channel) = tokio::sync::mpsc::channel(1);
 
         let task_cancel = cancel.clone();
-        let task = tokio::spawn(run_lora_kiss_stream(
-            stream,
-            LoraStreamRun {
-                interface: iface,
-                cancel: task_cancel,
-                iface_address: crate::hash::AddressHash::default(),
-                endpoint_label: "duplex-rnode".to_string(),
-                config: LoraConfig::us915_default(),
-                flow_control: false,
-                id_beacon: None,
-                activity_probe: None,
-                startup_response_timeout: Duration::from_secs(60),
-                management_frame_rx,
-                rx_channel,
-                tx_channel,
-                ifac_state: Arc::new(std::sync::RwLock::new(None)),
-                ifac_violations: Arc::new(std::sync::atomic::AtomicU64::new(0)),
-            },
-        ));
+        let task = tokio::spawn(async move {
+            run_lora_kiss_stream(
+                stream,
+                LoraStreamRun {
+                    interface: iface,
+                    cancel: task_cancel,
+                    iface_address: crate::hash::AddressHash::default(),
+                    endpoint_label: "duplex-rnode".to_string(),
+                    config: LoraConfig::us915_default(),
+                    flow_control: false,
+                    id_beacon: None,
+                    activity_probe: None,
+                    startup_response_timeout: Duration::from_secs(60),
+                    management_frame_rx: management_frame_rx.as_mut(),
+                    rx_channel,
+                    tx_channel: &mut tx_channel,
+                    ifac_state: Arc::new(std::sync::RwLock::new(None)),
+                    ifac_violations: Arc::new(std::sync::atomic::AtomicU64::new(0)),
+                },
+            )
+            .await
+        });
 
         let frame = LoraConfig::blink_frame(0x03);
         handle.blink(0x03).await.expect("queue blink management command");
@@ -596,38 +604,45 @@ mod tests {
     async fn a_peer_that_stops_answering_the_probe_ends_the_stream() {
         let iface =
             Arc::new(Mutex::new(LoraInterface::new("COM9", 115_200, LoraConfig::us915_default())));
-        let management_frame_rx = {
-            let guard = iface.lock().expect("lora interface mutex poisoned");
-            guard.management_frame_rx.clone()
-        };
+        let mut management_frame_rx = iface
+            .lock()
+            .expect("lora interface mutex poisoned")
+            .management_frame_rx
+            .lock()
+            .expect("lora management receiver mutex poisoned")
+            .take();
         let (stream, _peer) = tokio::io::duplex(4096);
         let cancel = CancellationToken::new();
         let (rx_channel, _rx_recv) = tokio::sync::mpsc::channel(1);
-        let (_tx_send, tx_recv) = tokio::sync::mpsc::channel(1);
+        let (_tx_send, mut tx_channel) = tokio::sync::mpsc::channel(1);
 
-        let task = tokio::spawn(run_lora_kiss_stream(
-            stream,
-            LoraStreamRun {
-                interface: iface,
-                cancel: cancel.clone(),
-                iface_address: crate::hash::AddressHash::default(),
-                endpoint_label: "silent-rnode".to_string(),
-                config: LoraConfig::us915_default(),
-                flow_control: false,
-                id_beacon: None,
-                activity_probe: Some(KissActivityProbeConfig {
-                    interval: Duration::from_millis(40),
-                    frames: vec![LoraConfig::blink_frame(0x01)],
-                    silence_timeout: Some(Duration::from_millis(160)),
-                }),
-                startup_response_timeout: Duration::from_secs(60),
-                management_frame_rx,
-                rx_channel,
-                tx_channel: Arc::new(tokio::sync::Mutex::new(tx_recv)),
-                ifac_state: Arc::new(std::sync::RwLock::new(None)),
-                ifac_violations: Arc::new(std::sync::atomic::AtomicU64::new(0)),
-            },
-        ));
+        let task_cancel = cancel.clone();
+        let task = tokio::spawn(async move {
+            run_lora_kiss_stream(
+                stream,
+                LoraStreamRun {
+                    interface: iface,
+                    cancel: task_cancel,
+                    iface_address: crate::hash::AddressHash::default(),
+                    endpoint_label: "silent-rnode".to_string(),
+                    config: LoraConfig::us915_default(),
+                    flow_control: false,
+                    id_beacon: None,
+                    activity_probe: Some(KissActivityProbeConfig {
+                        interval: Duration::from_millis(40),
+                        frames: vec![LoraConfig::blink_frame(0x01)],
+                        silence_timeout: Some(Duration::from_millis(160)),
+                    }),
+                    startup_response_timeout: Duration::from_secs(60),
+                    management_frame_rx: management_frame_rx.as_mut(),
+                    rx_channel,
+                    tx_channel: &mut tx_channel,
+                    ifac_state: Arc::new(std::sync::RwLock::new(None)),
+                    ifac_violations: Arc::new(std::sync::atomic::AtomicU64::new(0)),
+                },
+            )
+            .await
+        });
 
         // `_peer` stays open, so nothing but the silence deadline can end this.
         tokio::time::timeout(Duration::from_secs(5), task)

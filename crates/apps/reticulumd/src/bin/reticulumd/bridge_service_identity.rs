@@ -181,7 +181,10 @@ impl TransportBridge {
         });
         self.runtime_handle.spawn(async move {
             transport.set_destination_announce_app_data(&destination, app_data.clone()).await;
-            transport.send_announce(&destination, app_data.as_deref()).await;
+            if let Err(error) = transport.try_send_announce(&destination, app_data.as_deref()).await
+            {
+                log::warn!("[daemon] service identity announce not sent: {error}");
+            }
         });
         Ok(())
     }
@@ -442,7 +445,10 @@ impl ServiceIdentityBridge for TransportBridge {
         });
         self.runtime_handle.spawn(async move {
             transport.set_destination_announce_app_data(&destination, app_data.clone()).await;
-            transport.send_announce(&destination, app_data.as_deref()).await;
+            if let Err(error) = transport.try_send_announce(&destination, app_data.as_deref()).await
+            {
+                log::warn!("[daemon] service identity announce not sent: {error}");
+            }
         });
         Ok(service_identity_record(&updated))
     }

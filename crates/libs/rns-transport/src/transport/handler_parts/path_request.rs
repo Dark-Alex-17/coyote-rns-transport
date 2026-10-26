@@ -1,4 +1,5 @@
 impl TransportHandler {
+    #[allow(clippy::await_holding_invalid_type)] // TASK-026: iface_manager guard spans the send under the caller's handler guard, see TransportHandler lock discipline
     pub(super) async fn send_recursive_path_request_with_modes(
         &self,
         message: TxMessage,

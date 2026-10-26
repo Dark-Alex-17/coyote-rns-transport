@@ -35,6 +35,8 @@ include!("main_parts/collect_resource_measurements_for_wo.rs");
 
 include!("main_parts/capture_platform_descriptor.rs");
 
+include!("main_parts/release_version_tests.rs");
+
 include!("main_parts/run_embedded_native_lock_check.rs");
 
 include!("main_parts/run_embedded_link_check.rs");

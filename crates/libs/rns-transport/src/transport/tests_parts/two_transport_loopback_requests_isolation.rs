@@ -9,30 +9,64 @@ use std::sync::Once;
 /// through its effect on other requests.
 const SLOW_HANDLER_SLEEP: Duration = Duration::from_secs(30);
 
-/// Keeps the link's drop records and, from the links target, every record at `Warn` or
-/// above plus the debug lines of the shared-instance client. Tests share one process and
+/// Keeps the link's drop records, from the links target every record at `Warn` or above
+/// plus the debug lines of the shared-instance client, and from the resource target the
+/// dropped-outcome-receiver lines and the rejected-advertisement warnings, from the link
+/// target the closed-link packet warnings, from the request-dispatch target the responses
+/// dropped for a closed link, from the jobs target the resource-retry diagnostics, and from
+/// the packet disk cache the warnings about hashlist orphans the sweep could not remove.
+/// Tests share one process and
 /// `log::set_logger` installs once, so there must be exactly one logger in the binary and
-/// this is it; a record is attributed to a test by the link id or the `tp(<name>)` it
-/// names, and the quieter levels are kept only for the shared-instance lines so the store
-/// stays small for the rest of the run.
+/// this is it; a record is attributed to a test by the link id, resource hash or
+/// `tp(<name>)` it names, and the quieter levels are kept only for the shared-instance,
+/// dropped-receiver, closed-link-response and resource-diag lines so the stores stay small.
 struct TestLogger {
     dropped_requests: StdMutex<Vec<String>>,
     shared_instance: StdMutex<Vec<(log::Level, String)>>,
+    outcome_receiver_dropped: StdMutex<Vec<String>>,
+    rejected_advertisement_warns: StdMutex<Vec<(log::Level, String)>>,
+    closed_link_packet_warnings: StdMutex<Vec<String>>,
+    closed_link_responses: StdMutex<Vec<String>>,
+    resource_diag: StdMutex<Vec<String>>,
+    hashlist_orphan_warnings: StdMutex<Vec<String>>,
 }
 
 static TEST_LOG: TestLogger = TestLogger {
     dropped_requests: StdMutex::new(Vec::new()),
     shared_instance: StdMutex::new(Vec::new()),
+    outcome_receiver_dropped: StdMutex::new(Vec::new()),
+    rejected_advertisement_warns: StdMutex::new(Vec::new()),
+    closed_link_packet_warnings: StdMutex::new(Vec::new()),
+    closed_link_responses: StdMutex::new(Vec::new()),
+    resource_diag: StdMutex::new(Vec::new()),
+    hashlist_orphan_warnings: StdMutex::new(Vec::new()),
 };
 
 /// The target `attach_shared_instance` and `detach_shared_instance` log under: their
 /// section file is `include!`d, via `links_parts/transport.rs`, into the links module.
 const SHARED_INSTANCE_LOG_TARGET: &str = "rns_transport::transport::links";
 
+/// The target `conclude_outbound` logs under: `resource/outcome.rs` is `include!`d into
+/// the resource module.
+const RESOURCE_LOG_TARGET: &str = "rns_transport::resource";
+
+/// The target the responder side of the request layer logs under.
+const REQUEST_DISPATCH_LOG_TARGET: &str = "rns_transport::transport::request_dispatch";
+
+/// The target the resource-retry worker logs its `[resource-diag]` lines under.
+const JOBS_LOG_TARGET: &str = "rns_transport::transport::jobs";
+
+/// The target the packet hashlist orphan sweep warns under.
+const PACKET_DISK_CACHE_LOG_TARGET: &str = "rns_transport::transport::packet_disk_cache";
+
 impl log::Log for TestLogger {
     fn enabled(&self, metadata: &log::Metadata) -> bool {
         metadata.target().starts_with("rns_transport::destination::link")
             || metadata.target() == SHARED_INSTANCE_LOG_TARGET
+            || metadata.target() == RESOURCE_LOG_TARGET
+            || metadata.target() == REQUEST_DISPATCH_LOG_TARGET
+            || metadata.target() == JOBS_LOG_TARGET
+            || metadata.target() == PACKET_DISK_CACHE_LOG_TARGET
     }
 
     fn log(&self, record: &log::Record) {
@@ -47,8 +81,43 @@ impl log::Log for TestLogger {
                     .expect("shared-instance record store")
                     .push((record.level(), message));
             }
+        } else if record.target() == RESOURCE_LOG_TARGET {
+            if message.contains("outcome receiver dropped") {
+                self.outcome_receiver_dropped
+                    .lock()
+                    .expect("dropped-outcome-receiver record store")
+                    .push(message);
+            } else if message.contains("rejecting resource advertisement over inbound limits") {
+                self.rejected_advertisement_warns
+                    .lock()
+                    .expect("rejected-advertisement record store")
+                    .push((record.level(), message));
+            }
+        } else if record.target() == REQUEST_DISPATCH_LOG_TARGET {
+            if message.contains("closed before transmit") || message.contains("is gone") {
+                self.closed_link_responses
+                    .lock()
+                    .expect("closed-link response record store")
+                    .push(message);
+            }
+        } else if record.target() == JOBS_LOG_TARGET {
+            if message.contains("[resource-diag]") {
+                self.resource_diag.lock().expect("resource-diag record store").push(message);
+            }
+        } else if record.target() == PACKET_DISK_CACHE_LOG_TARGET {
+            if record.level() == log::Level::Warn && message.contains("packet hashlist orphan") {
+                self.hashlist_orphan_warnings
+                    .lock()
+                    .expect("hashlist orphan warning store")
+                    .push(message);
+            }
         } else if message.contains("dropped, dispatch") {
             self.dropped_requests.lock().expect("dropped-request record store").push(message);
+        } else if message.contains("can't create data packet") {
+            self.closed_link_packet_warnings
+                .lock()
+                .expect("closed-link packet warning store")
+                .push(message);
         }
     }
 
@@ -87,6 +156,74 @@ fn shared_instance_records_for(transport_name: &str) -> Vec<(log::Level, String)
         .expect("shared-instance record store")
         .iter()
         .filter(|(_, record)| record.contains(&needle))
+        .cloned()
+        .collect()
+}
+
+/// Every dropped-outcome-receiver record emitted so far, oldest first.
+fn outcome_receiver_dropped_records() -> Vec<String> {
+    TEST_LOG.outcome_receiver_dropped.lock().expect("dropped-outcome-receiver record store").clone()
+}
+
+/// The rejected-advertisement records the resource manager emitted for `link_id` so far,
+/// oldest first, with the level each was logged at.
+fn rejected_advertisement_records_for(link_id: AddressHash) -> Vec<(log::Level, String)> {
+    let needle = link_id.to_string();
+    TEST_LOG
+        .rejected_advertisement_warns
+        .lock()
+        .expect("rejected-advertisement record store")
+        .iter()
+        .filter(|(_, record)| record.contains(&needle))
+        .cloned()
+        .collect()
+}
+
+/// How many `can't create data packet for closed link` warnings the link target has
+/// emitted so far; the message names no link, so a test reads the count before and after
+/// the call it probes.
+fn closed_link_packet_warning_count() -> usize {
+    TEST_LOG.closed_link_packet_warnings.lock().expect("closed-link packet warning store").len()
+}
+
+/// The responses the request layer dropped because `link_id` closed before transmit or
+/// had already been swept from the link tables when the handler answered.
+fn closed_link_response_records_for(link_id: AddressHash) -> Vec<String> {
+    let needle = link_id.to_string();
+    TEST_LOG
+        .closed_link_responses
+        .lock()
+        .expect("closed-link response record store")
+        .iter()
+        .filter(|record| record.contains(&needle))
+        .cloned()
+        .collect()
+}
+
+/// The `[resource-diag]` records the retry worker emitted for `link_id` so far, oldest
+/// first.
+fn resource_diag_records_for(link_id: AddressHash) -> Vec<String> {
+    let needle = link_id.to_string();
+    TEST_LOG
+        .resource_diag
+        .lock()
+        .expect("resource-diag record store")
+        .iter()
+        .filter(|record| record.contains(&needle))
+        .cloned()
+        .collect()
+}
+
+/// The warnings the packet hashlist sweep emitted so far for the orphan at `orphan`, oldest
+/// first; the path is unique per test storage, so it attributes a record to its test.
+fn hashlist_orphan_warnings_for(orphan: &std::path::Path) -> Vec<String> {
+    let needle = orphan.display().to_string();
+    TEST_LOG
+        .hashlist_orphan_warnings
+        .lock()
+        .expect("hashlist orphan warning store")
+        .iter()
+        .filter(|record| record.contains(&needle))
         .cloned()
         .collect()
 }

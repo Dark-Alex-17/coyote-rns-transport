@@ -12,37 +12,26 @@ const RETRY_STALL: Duration = Duration::from_secs(5);
 /// (capacity 1024) cannot lag and every packet that landed is counted.
 const SMALL_RESOURCE_LEN: usize = 4 * 1024;
 
-/// Holds `handler`'s lock for `stall`, which blocks that transport's inbound processing and
-/// its own retry worker while the peer's workers keep running. Signals `stalled` once the
-/// lock is held. Runs on a blocking thread so the guard is held across a plain sleep, never
-/// across an await.
-fn stall_handler(
-    handler: Arc<Mutex<TransportHandler>>,
-    stalled: tokio::sync::oneshot::Sender<()>,
-    stall: Duration,
-) {
-    let _guard = handler.blocking_lock();
-    let _ = stalled.send(());
-    std::thread::sleep(stall);
-}
-
 /// Spawns a `RETRY_STALL` stall against `transport` and returns once the lock is held.
 #[deny(clippy::await_holding_invalid_type)]
 async fn stall_transport(transport: &Transport) -> tokio::task::JoinHandle<()> {
     stall_transport_for(transport, RETRY_STALL).await
 }
 
-/// Spawns a stall of `stall` against `transport` and returns once the lock is held.
+/// Holds `transport`'s handler lock for `stall`, which blocks its inbound processing and its
+/// own retry worker while the peer's workers keep running, and returns once the lock is
+/// held. The stall is the released form with a timer on the release.
 #[deny(clippy::await_holding_invalid_type)]
 async fn stall_transport_for(
     transport: &Transport,
     stall: Duration,
 ) -> tokio::task::JoinHandle<()> {
-    let (stalled_tx, stalled_rx) = tokio::sync::oneshot::channel();
-    let handler = transport.get_handler();
-    let stall = tokio::task::spawn_blocking(move || stall_handler(handler, stalled_tx, stall));
-    stalled_rx.await.expect("stall task acquired the handler lock");
-    stall
+    let (stalled, release) = stall_transport_until_released(transport).await;
+    tokio::spawn(async move {
+        tokio::time::sleep(stall).await;
+        let _ = release.send(());
+    });
+    stalled
 }
 
 /// Counts packets for `link_id` with `context` that reached the tapped interface. The tap
@@ -69,41 +58,6 @@ fn count_link_packets(
     }
 }
 
-/// One receiver-side `Complete` (single segment, so no `SegmentComplete`), the payload, and
-/// the sender's clean terminal event for a small transfer dispatched as `resource_hash`.
-#[deny(clippy::await_holding_invalid_type)]
-async fn assert_small_transfer_completes(
-    sender_events: &mut broadcast::Receiver<ResourceEvent>,
-    receiver_events: &mut broadcast::Receiver<ResourceEvent>,
-    link_id: AddressHash,
-    resource_hash: Hash,
-    payload: &[u8],
-) {
-    let (complete, segments_seen) = await_complete_with_segments(receiver_events, link_id).await;
-    assert_eq!(complete.hash, resource_hash, "receiver reports the sender's resource hash");
-    assert_eq!(segments_seen, None, "a single-segment transfer emits no SegmentComplete");
-    let complete = complete_payload(complete);
-    assert_eq!(complete.data.len(), payload.len(), "received length");
-    assert!(complete.data == payload, "received bytes match the sent payload");
-
-    let outbound = await_resource_event(sender_events, |event| {
-        event.hash == resource_hash
-            && matches!(
-                event.kind,
-                ResourceEventKind::OutboundComplete
-                    | ResourceEventKind::OutboundFailed
-                    | ResourceEventKind::OutboundRejected { .. }
-            )
-    })
-    .await;
-    assert!(
-        matches!(outbound.kind, ResourceEventKind::OutboundComplete),
-        "sender should finish cleanly, got {:?}",
-        outbound.kind
-    );
-    assert_no_further_complete(receiver_events, link_id).await;
-}
-
 /// Advertisement retry from the initiator (out-link) side. The listener is stalled before
 /// the connector advertises, so the first advertisement sits unprocessed and the connector's
 /// retry worker re-advertises. The retried advertisement must land on the listener's
@@ -128,14 +82,16 @@ async fn two_transport_loopback_resources_initiator_advertisement_retry_lands_on
         .expect("resource dispatched from the initiator side");
     stall.await.expect("stall task finished");
 
-    assert_small_transfer_completes(
+    assert_transfer_completes(
         &mut sender_events,
         &mut receiver_events,
         pair.link_id,
         resource_hash,
         &payload,
+        None,
     )
     .await;
+    assert_no_further_complete(&mut receiver_events, pair.link_id).await;
 
     let advertisements =
         count_link_packets(&mut listener_tap, pair.link_id, PacketContext::ResourceAdvrtisement);
@@ -183,14 +139,16 @@ async fn two_transport_loopback_resources_initiator_request_retry_lands_once() {
     let stall = stall_transport(&pair.listener.transport).await;
     stall.await.expect("stall task finished");
 
-    assert_small_transfer_completes(
+    assert_transfer_completes(
         &mut sender_events,
         &mut receiver_events,
         pair.link_id,
         resource_hash,
         &payload,
+        None,
     )
     .await;
+    assert_no_further_complete(&mut receiver_events, pair.link_id).await;
 
     let requests =
         count_link_packets(&mut listener_tap, pair.link_id, PacketContext::ResourceRequest);

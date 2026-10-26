@@ -281,23 +281,9 @@ fn control_identity_allowed(control: &PropagationControlContext, remote_hash: &s
 fn parse_control_request_payload(
     payload: &[u8],
 ) -> Result<([u8; 16], Option<rmpv::Value>), String> {
-    let value = rmp_serde::from_slice::<rmpv::Value>(payload).map_err(|e| e.to_string())?;
-    let rmpv::Value::Array(entries) = value else {
-        return Err("control request payload is not an array".to_string());
-    };
-    if entries.len() != 3 {
-        return Err(format!(
-            "control request payload array has {} entries, expected 3",
-            entries.len()
-        ));
-    }
-    let path_bytes = match entries.get(1) {
-        Some(rmpv::Value::Binary(bytes)) if bytes.len() == 16 => bytes,
-        _ => return Err("control request path hash missing or wrong length".to_string()),
-    };
-    let mut path_hash = [0u8; 16];
-    path_hash.copy_from_slice(path_bytes.as_slice());
-    Ok((path_hash, entries.get(2).cloned()))
+    let frame = rns_transport::destination::request::RequestFrame::decode(payload)
+        .map_err(|error| error.to_string())?;
+    Ok((frame.path_hash().to_bytes(), Some(frame.into_data())))
 }
 
 fn control_path_hash(path: &str) -> [u8; 16] {

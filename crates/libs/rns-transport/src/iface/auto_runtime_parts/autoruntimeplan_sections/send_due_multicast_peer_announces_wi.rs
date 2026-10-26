@@ -211,11 +211,11 @@ impl AutoRuntimePlan {
             self.detect_link_local_updates_from_candidates(Arc::clone(&state), candidates).await;
         let mut restarted = 0;
         for update in updates {
-            supervisor
-                .lock()
-                .await
-                .restart_link_local_listener(&update, None, events, &mut scope_id_for_ifname)
+            let socket = self
+                .bind_data_socket_for_listener(&update.listener_binding, &mut scope_id_for_ifname)
                 .await?;
+            let teardown = supervisor.lock().await.replace_listener(socket, events);
+            teardown.finish().await;
             state.lock().await.apply_adopted_link_local_address_update(&update);
             if let Some(runtime_status) = runtime_status {
                 runtime_status.record_link_local_update(Some(&update));
@@ -275,18 +275,16 @@ impl AutoRuntimePlan {
                     applied += 1;
                 }
                 AutoAdoptedInterfaceChange::Removed { adopted, .. } => {
-                    runtime
-                        .discovery_supervisor
-                        .lock()
-                        .await
-                        .remove_listener(&adopted.ifname)
-                        .await;
-                    runtime
-                        .data_supervisor
-                        .lock()
-                        .await
-                        .remove_listener(&adopted.ifname)
-                        .await;
+                    let discovery_teardown =
+                        runtime.discovery_supervisor.lock().await.take_listener(&adopted.ifname);
+                    if let Some(teardown) = discovery_teardown {
+                        teardown.finish().await;
+                    }
+                    let data_teardown =
+                        runtime.data_supervisor.lock().await.take_listener(&adopted.ifname);
+                    if let Some(teardown) = data_teardown {
+                        teardown.finish().await;
+                    }
                     state.lock().await.apply_adopted_interface_change_at(&change, now);
                     if let Some(runtime_status) = runtime_status {
                         runtime_status.record_adopted_interface_change(&change);
@@ -792,14 +790,30 @@ impl AutoDiscoveryListenerSupervisor {
         Ok(())
     }
 
-    #[allow(dead_code)]
     pub async fn remove_listener(&mut self, ifname: &str) -> bool {
-        let Some(old) = self.listeners.remove(ifname) else {
+        let Some(teardown) = self.take_listener(ifname) else {
             return false;
         };
-        old.stop().await;
-        self.await_pending_stops().await;
+        teardown.finish().await;
         true
+    }
+
+    /// Unregisters a device's listener without stopping it. The returned
+    /// teardown does the stopping, so a caller holding the supervisor lock
+    /// can release it first.
+    fn take_listener(&mut self, ifname: &str) -> Option<AutoDiscoveryListenerTeardown> {
+        let old = self.listeners.remove(ifname)?;
+        Some(AutoDiscoveryListenerTeardown {
+            retired: vec![old],
+            pending_stops: std::mem::take(&mut self.pending_stops),
+        })
+    }
+
+    fn take_all_listeners(&mut self) -> AutoDiscoveryListenerTeardown {
+        AutoDiscoveryListenerTeardown {
+            retired: std::mem::take(&mut self.listeners).into_values().collect(),
+            pending_stops: std::mem::take(&mut self.pending_stops),
+        }
     }
 
     #[allow(dead_code)]
@@ -812,18 +826,25 @@ impl AutoDiscoveryListenerSupervisor {
         self.pending_stops.len()
     }
 
-    #[allow(dead_code)]
     pub async fn shutdown_all(&mut self) {
-        let listeners = std::mem::take(&mut self.listeners);
-        for handle in listeners.into_values() {
+        self.take_all_listeners().finish().await;
+    }
+}
+
+/// Listeners a discovery supervisor has already given up, plus the
+/// replacement-stop tasks it had outstanding, to be joined after the
+/// supervisor lock is released.
+struct AutoDiscoveryListenerTeardown {
+    retired: Vec<AutoDiscoveryListenerHandle>,
+    pending_stops: Vec<tokio::task::JoinHandle<()>>,
+}
+
+impl AutoDiscoveryListenerTeardown {
+    async fn finish(self) {
+        for handle in self.retired {
             handle.stop().await;
         }
-        self.await_pending_stops().await;
-    }
-
-    async fn await_pending_stops(&mut self) {
-        let pending_stops = std::mem::take(&mut self.pending_stops);
-        for stop in pending_stops {
+        for stop in self.pending_stops {
             if let Err(err) = stop.await {
                 if !err.is_cancelled() {
                     log::warn!("[auto] discovery replacement-stop task failed: {err}");
@@ -936,18 +957,49 @@ impl AutoPeerDataListenerSupervisor {
         Ok(bind_addr)
     }
 
-    #[allow(dead_code)]
     pub async fn remove_listener(&mut self, ifname: &str) -> bool {
-        let Some(old) = self.listeners.remove(ifname) else {
+        let Some(teardown) = self.take_listener(ifname) else {
             return false;
         };
-        let old_socket = Arc::clone(&old.socket);
-        old.stop().await;
-        if let Some(transport) = &self.transport {
-            transport.remove_outbound_routes_for_socket(&old_socket).await;
-        }
-        self.await_pending_stops().await;
+        teardown.finish().await;
         true
+    }
+
+    /// Unregisters a device's listener without stopping it. The returned
+    /// teardown does the stopping and prunes the socket's outbound routes,
+    /// so a caller holding the supervisor lock can release it first.
+    fn take_listener(&mut self, ifname: &str) -> Option<AutoPeerDataListenerTeardown> {
+        let old = self.listeners.remove(ifname)?;
+        Some(AutoPeerDataListenerTeardown {
+            retired: vec![old],
+            pending_stops: std::mem::take(&mut self.pending_stops),
+            transport: self.transport.clone(),
+        })
+    }
+
+    fn take_all_listeners(&mut self) -> AutoPeerDataListenerTeardown {
+        AutoPeerDataListenerTeardown {
+            retired: std::mem::take(&mut self.listeners).into_values().collect(),
+            pending_stops: std::mem::take(&mut self.pending_stops),
+            transport: None,
+        }
+    }
+
+    /// Swaps a freshly bound socket in for the device's current listener.
+    /// The new socket serves from the moment this returns; the retired one
+    /// is stopped by the returned teardown.
+    fn replace_listener(
+        &mut self,
+        socket: AutoBoundDataSocket,
+        events: &tokio::sync::mpsc::Sender<AutoPeerDataLoopEvent>,
+    ) -> AutoPeerDataListenerTeardown {
+        let retired = self.listeners.remove(&socket.ifname).into_iter().collect();
+        self.spawn_socket(socket, events);
+        AutoPeerDataListenerTeardown {
+            retired,
+            pending_stops: std::mem::take(&mut self.pending_stops),
+            transport: self.transport.clone(),
+        }
     }
 
     /// The data socket bound for a device, which is what a peer heard on that
@@ -971,7 +1023,6 @@ impl AutoPeerDataListenerSupervisor {
         self.pending_stops.len()
     }
 
-    #[allow(dead_code)]
     pub async fn restart_link_local_listener(
         &mut self,
         update: &AutoLinkLocalAddressUpdate,
@@ -984,34 +1035,39 @@ impl AutoPeerDataListenerSupervisor {
             .bind_data_socket_for_listener(&update.listener_binding, &mut scope_id_for_ifname)
             .await?;
         let bind_addr = socket.bind_addr;
-        let old = self.listeners.remove(&update.ifname);
-        self.spawn_socket(socket, events);
-        if let Some(old) = old {
-            let old_socket = Arc::clone(&old.socket);
-            old.stop().await;
-            if let Some(transport) = &self.transport {
-                transport.remove_outbound_routes_for_socket(&old_socket).await;
-            }
-        }
-        self.await_pending_stops().await;
+        self.replace_listener(socket, events).finish().await;
         if let Some(runtime_status) = runtime_status {
             runtime_status.record_link_local_update(Some(update));
         }
         Ok(bind_addr)
     }
 
-    #[allow(dead_code)]
     pub async fn shutdown_all(&mut self) {
-        let listeners = std::mem::take(&mut self.listeners);
-        for handle in listeners.into_values() {
-            handle.stop().await;
-        }
-        self.await_pending_stops().await;
+        self.take_all_listeners().finish().await;
     }
+}
 
-    async fn await_pending_stops(&mut self) {
-        let pending_stops = std::mem::take(&mut self.pending_stops);
-        for stop in pending_stops {
+/// Listeners a peer-data supervisor has already given up, plus the
+/// replacement-stop tasks it had outstanding, to be joined after the
+/// supervisor lock is released.
+struct AutoPeerDataListenerTeardown {
+    retired: Vec<AutoPeerDataListenerHandle>,
+    pending_stops: Vec<tokio::task::JoinHandle<()>>,
+    /// Set when a retired socket's outbound routes go with it. Shutdown
+    /// leaves the route table alone and only stops the sockets.
+    transport: Option<AutoInterfaceTransportBridge>,
+}
+
+impl AutoPeerDataListenerTeardown {
+    async fn finish(self) {
+        for handle in self.retired {
+            let socket = Arc::clone(&handle.socket);
+            handle.stop().await;
+            if let Some(transport) = &self.transport {
+                transport.remove_outbound_routes_for_socket(&socket).await;
+            }
+        }
+        for stop in self.pending_stops {
             if let Err(err) = stop.await {
                 if !err.is_cancelled() {
                     log::warn!("[auto] peer-data replacement-stop task failed: {err}");

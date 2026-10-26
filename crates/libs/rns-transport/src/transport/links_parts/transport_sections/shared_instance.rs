@@ -3,7 +3,6 @@ use std::net::SocketAddr;
 #[cfg(unix)]
 use crate::iface::local::LocalUnixClient;
 use crate::iface::tcp_client::TcpClient;
-use crate::iface::InterfaceMode;
 
 impl Transport {
     /// Attaches this transport as a client of a Reticulum shared instance at
@@ -29,10 +28,14 @@ impl Transport {
     /// transport-enabled node attached to a shared instance (see
     /// `path_parts/unknown_owner_local_link_request.rs`). A `Tcp` endpoint
     /// whose address is not loopback (in either notation: `[::ffff:127.0.0.1]`
-    /// counts as loopback) is accepted and warned about once per accepted
-    /// attach, since Python's `LocalClientInterface` connects to `127.0.0.1`
-    /// only (`RNS/Interfaces/LocalInterface.py:109`) and a remote shared
-    /// instance is rarely what the caller meant; a refused attach warns nothing.
+    /// counts as loopback) is refused with
+    /// [`RnsError::SharedInstanceEndpointNotLoopback`] before any lock is
+    /// taken, with one warning, unless
+    /// [`SharedInstanceOptions::allow_remote_endpoint`] is set, in which case
+    /// the attach proceeds and warns once per accepted attach. Python's
+    /// `LocalClientInterface` connects to `127.0.0.1` only
+    /// (`RNS/Interfaces/LocalInterface.py:109`). An attach refused by the
+    /// slot or by a stop warns nothing.
     ///
     /// Only one shared instance is held at a time: a second call while one is
     /// attached returns [`RnsError::InvalidArgument`], as does a call after
@@ -68,6 +71,16 @@ impl Transport {
             }
             _ => None,
         };
+        if let Some(addr) = remote {
+            if !options.remote_endpoint_allowed() {
+                log::warn!(
+                    "tp({}): shared instance endpoint={} is not a loopback address and allow_remote_endpoint is not set, attach refused; Python's LocalClientInterface connects to 127.0.0.1 only (RNS/Interfaces/LocalInterface.py:109)",
+                    self.name,
+                    addr
+                );
+                return Err(RnsError::SharedInstanceEndpointNotLoopback);
+            }
+        }
         let (reconnect_tx, reconnect_rx) = tokio::sync::mpsc::channel(8);
         let (disconnect_tx, disconnect_rx) = tokio::sync::mpsc::channel(8);
         // Lock order: the std slot is innermost, under the iface_manager here
@@ -82,25 +95,43 @@ impl Transport {
                 return Err(RnsError::InvalidArgument);
             }
             let iface = match endpoint {
-                SharedInstanceEndpoint::Tcp(addr) => manager.spawn_as_with_mode(
-                    TcpClient::new(addr.to_string())
+                SharedInstanceEndpoint::Tcp(addr) => {
+                    let mut client = TcpClient::new(addr.to_string())
                         .with_reconnect_wait(options.reconnect_wait())
                         .with_reconnect_events(reconnect_tx)
-                        .with_disconnect_events(disconnect_tx),
-                    TcpClient::spawn,
-                    IfaceRole::Unicast,
-                    InterfaceMode::Full,
-                ),
+                        .with_disconnect_events(disconnect_tx);
+                    if let Some(mtu) = options.mtu() {
+                        client = client.with_mtu(mtu);
+                    }
+                    if let Some(bitrate_bps) = options.forced_bitrate_bps() {
+                        client = client.with_forced_bitrate(bitrate_bps);
+                    }
+                    manager.spawn_as_with_mode(
+                        client,
+                        TcpClient::spawn,
+                        IfaceRole::Unicast,
+                        options.interface_mode(),
+                    )
+                }
                 #[cfg(unix)]
-                SharedInstanceEndpoint::Unix(endpoint) => manager.spawn_as_with_mode(
-                    LocalUnixClient::new_connect(endpoint)
+                SharedInstanceEndpoint::Unix(endpoint) => {
+                    let mut client = LocalUnixClient::new_connect(endpoint)
                         .with_reconnect_wait(options.reconnect_wait())
                         .with_reconnect_events(reconnect_tx)
-                        .with_disconnect_events(disconnect_tx),
-                    LocalUnixClient::spawn,
-                    IfaceRole::Unicast,
-                    InterfaceMode::Full,
-                ),
+                        .with_disconnect_events(disconnect_tx);
+                    if let Some(mtu) = options.mtu() {
+                        client = client.with_mtu(mtu);
+                    }
+                    if let Some(bitrate_bps) = options.forced_bitrate_bps() {
+                        client = client.with_forced_bitrate(bitrate_bps);
+                    }
+                    manager.spawn_as_with_mode(
+                        client,
+                        LocalUnixClient::spawn,
+                        IfaceRole::Unicast,
+                        options.interface_mode(),
+                    )
+                }
             };
             manager.set_shared_instance(iface, true);
             *slot = Some(iface);
@@ -108,7 +139,7 @@ impl Transport {
         };
         if let Some(addr) = remote {
             log::warn!(
-                "tp({}): shared instance iface={} endpoint {} is not a loopback address; Python's LocalClientInterface connects to 127.0.0.1 only (RNS/Interfaces/LocalInterface.py:109), the attach proceeds",
+                "tp({}): shared instance iface={} endpoint={} is not a loopback address, attached under allow_remote_endpoint; Python's LocalClientInterface connects to 127.0.0.1 only (RNS/Interfaces/LocalInterface.py:109)",
                 self.name,
                 iface,
                 addr
@@ -135,7 +166,7 @@ impl Transport {
             );
         }
         log::debug!(
-            "tp({}): attached shared instance iface={} endpoint={} reconnect_wait={:?}",
+            "tp({}): attached shared instance iface={} kind={} reconnect_wait={:?}",
             self.name,
             iface,
             kind,
@@ -187,9 +218,10 @@ impl Transport {
         );
     }
 
-    /// A shared-instance task [`Self::stop`] joined ended by panic, the only
-    /// `JoinError` a join can observe here: the tasks still running at the
-    /// budget are aborted and dropped, never joined again, so stop stays
+    /// A shared-instance task [`Self::stop`] joined ended by panic or was
+    /// aborted by a holder of its handle; the in-crate spawner drops the
+    /// handle, so in-crate it is the panic case. The tasks still running at
+    /// the budget are aborted and dropped, never joined again, so stop stays
     /// inside its budget. Logged from here so the line shares the attach
     /// and detach lines' target.
     pub(super) fn log_shared_instance_task_join_failed(&self, err: &tokio::task::JoinError) {

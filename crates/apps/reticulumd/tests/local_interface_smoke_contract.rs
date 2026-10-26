@@ -102,7 +102,19 @@ fn local_interface_python_shared_smoke_preserves_interop_evidence_contract() {
         "fixed_mtu = 262144",
         "force_shared_instance_bitrate = 1000000",
         "--strict-interface-startup",
+        "start_reticulumd tcp",
+        "start_reticulumd unix",
+        "\"${RET_PID_TCP:-}\" \"${RET_PID_UNIX:-}\"",
+        "kill -INT \"$RET_PID_UNIX\"",
+        "wait \"$RET_PID_UNIX\"",
+        "kill -INT \"$RET_PID_TCP\"",
+        "wait \"$RET_PID_TCP\"",
+        "TRAFFIC_STARTED=false",
+        "[[ \"$TRAFFIC_STARTED\" == false ]]",
         "rnstatus-rs",
+        "rnstatus_snapshot tcp",
+        "rnstatus_snapshot unix",
+        "bind private rpc unix socket",
         "local_client_count",
         "python_shared_instance_tcp_unix_attach_announce_payload_and_lifecycle",
         "python-traffic-tcp",
@@ -123,6 +135,8 @@ fn local_interface_python_shared_smoke_preserves_interop_evidence_contract() {
         "Python TCP shared instance did not observe reticulumd client teardown",
         "Python TCP shared instance did not reattach after reticulumd restart",
         "product_boundary",
+        "one per pinned Python Reticulum shared instance",
+        "\"daemons\"",
         "Python-origin announces move across the shared",
         "codex-local-python-shared-payload:python-to-shared",
         "codex-local-python-shared-payload:shared-to-python",
@@ -137,6 +151,55 @@ fn local_interface_python_shared_smoke_preserves_interop_evidence_contract() {
         assert!(
             script.contains(required),
             "LocalInterface Python shared smoke should include required token {required:?}"
+        );
+    }
+}
+
+#[test]
+fn local_interface_python_shared_smoke_bind_check_matches_the_daemon_panic_message() {
+    let root = repo_root();
+    let script =
+        fs::read_to_string(root.join("tools/scripts/local-interface-python-shared-smoke.sh"))
+            .expect("read LocalInterface Python shared smoke script");
+    let daemon = fs::read_to_string(
+        root.join("crates/apps/reticulumd/src/bin/reticulumd/rpc_loop_parts/module_core.rs"),
+    )
+    .expect("read reticulumd rpc loop");
+
+    let needle = "bind private rpc unix socket";
+    assert!(
+        script.contains(&format!("grep -q \"{needle}\"")),
+        "the smoke should fail on the daemon's RPC unix bind message in a daemon log"
+    );
+    assert!(
+        daemon.contains(&format!(".expect(\"{needle}\")")),
+        "the daemon should still panic with the message the smoke greps for"
+    );
+}
+
+#[test]
+fn local_interface_python_shared_smoke_reports_daemon_paths_per_daemon() {
+    let root = repo_root();
+    let script =
+        fs::read_to_string(root.join("tools/scripts/local-interface-python-shared-smoke.sh"))
+            .expect("read LocalInterface Python shared smoke script");
+
+    let helper = script
+        .find("def daemon_report(rpc_addr, rpc_unix, db_path, rust_config_path, reticulumd_log, rnstatus_json, rnstatus_human):")
+        .expect("the report builds one entry per daemon through daemon_report");
+    let report = script.find("\nreport = {").expect("the report literal follows the helper");
+    assert!(helper < report, "daemon_report should be defined before the report literal");
+    assert!(script[report..].contains("\"daemons\": {"), "the report should carry a daemons group");
+    for key in ["\"rust_config_path\": rust_config_path,", "\"reticulumd_log\": reticulumd_log,"] {
+        let sites: Vec<usize> = script.match_indices(key).map(|(at, _)| at).collect();
+        assert_eq!(
+            sites.len(),
+            1,
+            "{key} should be written exactly once, inside daemon_report, not at the top level"
+        );
+        assert!(
+            sites[0] > helper && sites[0] < report,
+            "{key} should sit inside daemon_report, between the helper and the report literal"
         );
     }
 }
@@ -221,6 +284,8 @@ fn local_runbook_documents_python_shared_instance_smoke_artifacts() {
         "graceful daemon teardown and",
         "restart checks",
         "unix_teardown_restart_verified",
+        "tcp_teardown_restart_verified",
+        "one `reticulumd` per Python shared instance",
         "evidence_scope = \"python_shared_instance_tcp_unix_attach_announce_payload_and_lifecycle\"",
         "product_boundary",
         "exact announce payloads are observed between pinned",

@@ -37,6 +37,7 @@ impl TransportChannel {
         Ok(channel_mdu)
     }
 
+    #[allow(clippy::await_holding_invalid_type)] // TASK-026: handler guard spans the job by design, see TransportHandler lock discipline
     pub async fn send(
         &self,
         msg_type: u16,

@@ -4,7 +4,8 @@
 /// was closed by hand already got here. Without it the request was repeated
 /// every `INTERVAL_OUTPUT_LINK_REPEAT` for the life of the process.
 #[tokio::test]
-async fn a_pending_out_link_that_outlives_its_establishment_timeout_is_closed_and_the_path_expired() {
+async fn a_pending_out_link_that_outlives_its_establishment_timeout_is_closed_and_the_path_expired()
+{
     let local_identity = PrivateIdentity::new_from_rand(OsRng);
     let config = TransportConfig::new("test", &local_identity, true);
     let transport = Transport::new(config);
@@ -35,11 +36,17 @@ async fn a_pending_out_link_that_outlives_its_establishment_timeout_is_closed_an
         .expect("initial link request should be queued")
         .expect("tx channel open");
     // Well past the first hop plus one hop it was sized for.
-    link.lock().await.set_establishment_start_for_test(std::time::Instant::now() - Duration::from_secs(60));
+    link.lock()
+        .await
+        .set_establishment_start_for_test(std::time::Instant::now() - Duration::from_secs(60));
 
     super::jobs::handle_check_links(handler.lock().await).await;
 
-    assert_eq!(link.lock().await.status(), LinkStatus::Closed, "the link is closed, not requested again");
+    assert_eq!(
+        link.lock().await.status(),
+        LinkStatus::Closed,
+        "the link is closed, not requested again"
+    );
     let close_event = timeout(Duration::from_millis(200), link_events.recv())
         .await
         .expect("link timeout should publish a close event")
@@ -48,13 +55,19 @@ async fn a_pending_out_link_that_outlives_its_establishment_timeout_is_closed_an
     assert!(matches!(close_event.event, crate::destination::link::LinkEvent::Closed));
     assert_eq!(close_event.close_reason, Some(crate::destination::link::LinkCloseReason::Timeout));
     assert!(!handler.lock().await.out_links.contains_key(&destination_hash));
-    assert!(handler.lock().await.path_table.get(&destination_hash).is_none(), "the path it was tried on is expired");
+    assert!(
+        handler.lock().await.path_table.get(&destination_hash).is_none(),
+        "the path it was tried on is expired"
+    );
     let rediscovery = timeout(Duration::from_millis(200), iface_channel.tx_channel.recv())
         .await
         .expect("rediscovery path request should be queued")
         .expect("tx channel open");
     assert_eq!(rediscovery.tx_type, crate::iface::TxMessageType::Broadcast(None));
-    assert_eq!(&rediscovery.packet.data.as_slice()[..ADDRESS_HASH_SIZE], destination_hash.as_slice());
+    assert_eq!(
+        &rediscovery.packet.data.as_slice()[..ADDRESS_HASH_SIZE],
+        destination_hash.as_slice()
+    );
 }
 
 /// Inside the timeout the link is left pending and its request repeated,
@@ -100,7 +113,10 @@ async fn a_pending_out_link_inside_its_establishment_timeout_is_requested_again(
         .await
         .expect("the link request should be repeated")
         .expect("tx channel open");
-    assert_eq!(repeat.packet.destination, destination_hash, "a repeated link request, not a path request");
+    assert_eq!(
+        repeat.packet.destination, destination_hash,
+        "a repeated link request, not a path request"
+    );
 }
 
 /// A pending link, aged past the timeout it was given, with a request already
@@ -181,15 +197,17 @@ async fn a_restarted_out_link_is_not_closed_for_the_attempt_it_replaced() {
         .expect("tx channel open");
     {
         let mut guard = link.lock().await;
-        guard.set_establishment_start_for_test(
-            std::time::Instant::now() - Duration::from_secs(60),
-        );
+        guard.set_establishment_start_for_test(std::time::Instant::now() - Duration::from_secs(60));
         guard.restart();
     }
 
     super::jobs::handle_check_links(handler.lock().await).await;
 
-    assert_eq!(link.lock().await.status(), LinkStatus::Pending, "the restarted attempt is left alone");
+    assert_eq!(
+        link.lock().await.status(),
+        LinkStatus::Pending,
+        "the restarted attempt is left alone"
+    );
     assert!(handler.lock().await.out_links.contains_key(&destination_hash));
     assert!(handler.lock().await.path_table.get(&destination_hash).is_some(), "the path is kept");
 }

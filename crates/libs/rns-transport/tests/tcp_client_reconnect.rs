@@ -1,3 +1,6 @@
+// Test code holds guards across awaits on purpose.
+#![allow(clippy::await_holding_invalid_type)]
+
 use std::time::Duration;
 
 use rns_transport::buffer::OutputBuffer;

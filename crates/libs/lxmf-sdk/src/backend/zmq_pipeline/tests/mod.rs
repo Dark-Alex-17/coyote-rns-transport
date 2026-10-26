@@ -1,3 +1,6 @@
+// Test code holds guards across awaits on purpose.
+#![allow(clippy::await_holding_invalid_type)]
+
 use super::*;
 use rns_rpc::rpc::zmq::{self, ZmqRpcEnvelope, ZmqRpcEnvelopeKind};
 use rns_rpc::rpc::{RpcRequest, RpcResponse};

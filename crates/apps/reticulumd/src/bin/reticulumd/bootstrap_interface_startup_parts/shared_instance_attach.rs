@@ -1,0 +1,134 @@
+async fn attach_shared_instance_client(
+    transport: &Transport,
+    endpoint: SharedInstanceEndpoint,
+    iface: &InterfaceConfig,
+    label: &str,
+    record: &mut InterfaceRecord,
+    startup_failures: &mut Vec<InterfaceStartupFailure>,
+) -> Option<AddressHash> {
+    let (posture, target) = match &endpoint {
+        SharedInstanceEndpoint::Tcp(addr) => ("local", format!("endpoint={addr}")),
+        #[cfg(unix)]
+        SharedInstanceEndpoint::Unix(endpoint) => {
+            ("local unix", format!("socket_path={}", endpoint.label()))
+        }
+        other => ("local", format!("endpoint={other:?}")),
+    };
+    for key in ignored_shared_instance_keys(iface) {
+        log::warn!(
+            "[daemon] {} name={} ignores {}: the shared-instance client has no such setting, as Python's LocalClientInterface has none (RNS/Interfaces/LocalInterface.py)",
+            posture,
+            label,
+            key
+        );
+    }
+    let options = shared_instance_options_for(iface);
+
+    let client_iface = match transport.attach_shared_instance(endpoint, options).await {
+        Ok(client_iface) => client_iface,
+        // Startup runs before any detach or stop, so a refused slot can only mean an
+        // earlier entry already holds it.
+        Err(RnsError::InvalidArgument) => {
+            let holder = transport
+                .shared_instance()
+                .map_or_else(|| "unknown".to_string(), |iface| iface.to_string());
+            record_startup_failure(
+                record,
+                startup_failures,
+                label.to_string(),
+                iface.kind.clone(),
+                format!(
+                    "a shared instance is already attached to this daemon (one per process); entry ignored iface={holder}"
+                ),
+            );
+            return None;
+        }
+        Err(err) => {
+            record_startup_failure(
+                record,
+                startup_failures,
+                label.to_string(),
+                iface.kind.clone(),
+                format!("shared instance attach failed {target} err={err}"),
+            );
+            return None;
+        }
+    };
+    {
+        let iface_manager = transport.iface_manager();
+        let mut manager = iface_manager.lock().await;
+        apply_interface_runtime_config(&mut manager, client_iface, iface);
+    }
+    log::info!("[daemon] {} attached iface={} name={} {}", posture, client_iface, label, target);
+    let runtime_iface = client_iface.to_string();
+    mark_interface_startup_status(record, "attached", None, Some(runtime_iface.as_str()));
+    Some(client_iface)
+}
+
+/// The attach options an interface entry asks for: its `mtu` (the TCP client's default
+/// when absent), its mode (`Full` when absent) and its `force_shared_instance_bitrate`.
+fn shared_instance_options_for(iface: &InterfaceConfig) -> SharedInstanceOptions {
+    let mut options = SharedInstanceOptions::default()
+        .with_mtu(iface.mtu.unwrap_or(TcpClient::DEFAULT_MTU))
+        .with_interface_mode(iface.interface_mode().unwrap_or(InterfaceMode::Full));
+    if let Some(bitrate_bps) = iface.force_shared_instance_bitrate {
+        options = options.with_forced_bitrate(bitrate_bps);
+    }
+    options
+}
+
+/// The entry's keys the shared-instance client has no setting for; `prefer_ipv6` is not
+/// among them, it drives the address pick in `resolve_shared_instance_tcp_endpoint`.
+fn ignored_shared_instance_keys(iface: &InterfaceConfig) -> Vec<&'static str> {
+    let mut keys = Vec::new();
+    if iface.connect_timeout.is_some() {
+        keys.push("connect_timeout");
+    }
+    if iface.max_reconnect_tries.is_some() {
+        keys.push("max_reconnect_tries");
+    }
+    keys
+}
+
+/// A host name resolves to every address of both families; the pick prefers the IPv4
+/// loopback, as Python's `LocalClientInterface` connects to `127.0.0.1` only
+/// (`RNS/Interfaces/LocalInterface.py:109`), so `localhost` reaches a shared instance
+/// listening on `127.0.0.1` even where the resolver lists `::1` first. `prefer_ipv6`
+/// reverses the family order for a shared instance listening on `[::1]` alone.
+/// `TcpStream::connect(&str)` used to try every address in turn; the attach takes one
+/// `SocketAddr`, so the choice is made here.
+async fn resolve_shared_instance_tcp_endpoint(
+    endpoint: &str,
+    prefer_ipv6: bool,
+) -> Result<SocketAddr, String> {
+    if let Ok(addr) = endpoint.parse::<SocketAddr>() {
+        return Ok(addr);
+    }
+    let addrs: Vec<SocketAddr> = tokio::net::lookup_host(endpoint)
+        .await
+        .map_err(|err| format!("local attach endpoint={endpoint} did not resolve err={err}"))?
+        .collect();
+    pick_shared_instance_tcp_addr(&addrs, prefer_ipv6)
+        .ok_or_else(|| format!("local attach endpoint={endpoint} resolved to no address"))
+}
+
+/// The loopback of the preferred family, then any address of it, then the other family in
+/// the same order, then the resolver's first answer. Only `prefer_ipv6` tries both
+/// families; the default order tries IPv4 alone, so `first()` is reached by an IPv6-only
+/// answer, which is `[::1]` itself or a non-loopback address the daemon's config validator
+/// (`host must be loopback for local`, `config_parts/interfaceconfig_sections/enabled.rs`)
+/// keeps out of a daemon config.
+fn pick_shared_instance_tcp_addr(addrs: &[SocketAddr], prefer_ipv6: bool) -> Option<SocketAddr> {
+    let loopback_then_any = |is_family: fn(&SocketAddr) -> bool| {
+        addrs
+            .iter()
+            .find(|addr| is_family(addr) && addr.ip().is_loopback())
+            .or_else(|| addrs.iter().find(|addr| is_family(addr)))
+    };
+    prefer_ipv6
+        .then(|| loopback_then_any(SocketAddr::is_ipv6))
+        .flatten()
+        .or_else(|| loopback_then_any(SocketAddr::is_ipv4))
+        .or_else(|| addrs.first())
+        .copied()
+}

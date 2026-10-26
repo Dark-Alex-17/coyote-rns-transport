@@ -62,7 +62,7 @@
 
     fn control_request(path: &str, data: rmpv::Value) -> Vec<u8> {
         rmp_serde::to_vec_named(&rmpv::Value::Array(vec![
-            rmpv::Value::Nil,
+            rmpv::Value::F64(0.0),
             rmpv::Value::Binary(control_path_hash(path).to_vec()),
             data,
         ]))
@@ -185,6 +185,49 @@
         );
 
         assert!(matches!(response, ControlResponse::Code(0xF1)));
+    }
+
+    #[test]
+    fn control_request_with_trailing_bytes_is_invalid_data() {
+        let daemon = RpcDaemon::test_instance();
+        let remote_private =
+            rns_transport::identity::PrivateIdentity::new_from_rand(rand_core::OsRng);
+        let remote_identity = *remote_private.as_identity();
+        let mut payload = control_request("/pn/get/stats", rmpv::Value::Nil);
+        payload.push(0xc0);
+
+        let response = handle_control_request(
+            &daemon,
+            &test_control_context(),
+            &test_link_id(),
+            payload.as_slice(),
+            Some(&remote_identity),
+            false,
+        );
+
+        assert!(matches!(response, ControlResponse::Code(0xF4)));
+    }
+
+    #[test]
+    fn control_request_with_reserved_marker_is_invalid_data() {
+        let daemon = RpcDaemon::test_instance();
+        let remote_private =
+            rns_transport::identity::PrivateIdentity::new_from_rand(rand_core::OsRng);
+        let remote_identity = *remote_private.as_identity();
+        let mut payload = control_request("/pn/get/stats", rmpv::Value::Nil);
+        let data_marker = payload.last_mut().expect("payload ends with the nil data marker");
+        *data_marker = 0xc1;
+
+        let response = handle_control_request(
+            &daemon,
+            &test_control_context(),
+            &test_link_id(),
+            payload.as_slice(),
+            Some(&remote_identity),
+            false,
+        );
+
+        assert!(matches!(response, ControlResponse::Code(0xF4)));
     }
 
     #[test]

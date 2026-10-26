@@ -24,6 +24,41 @@ async fn shared_instance_await_slot(transport: &Transport, held: bool) -> Option
     }
 }
 
+/// Runs `transport.stop()` against an attach that starts one yield later, so the stop has
+/// run its interface sweep before the attach touches anything. The caller parks the stop
+/// on something `release` frees; the attach fires it only after it has returned, so the
+/// attach runs while the stop is mid-flight for certain. Returns the attach's outcome and
+/// the slot as it stood at that moment, before the stop could take it. Stop's own 5 s
+/// budget can be consumed by whatever parks it, so the guard sits 3 s above that budget.
+#[deny(clippy::await_holding_invalid_type)]
+async fn shared_instance_attach_inside_a_stop(
+    transport: &Transport,
+    server: &SharedInstanceServer,
+    release: tokio::sync::oneshot::Sender<()>,
+) -> (Result<AddressHash, RnsError>, Option<AddressHash>) {
+    let ((), attach) = tokio::join!(
+        async {
+            timeout(STOP_TIMEOUT + Duration::from_secs(3), transport.stop())
+                .await
+                .expect("stop returns within its budget")
+        },
+        async {
+            tokio::task::yield_now().await;
+            let attached = timeout(
+                STOP_TIMEOUT,
+                transport
+                    .attach_shared_instance(server.endpoint(), SharedInstanceOptions::default()),
+            )
+            .await
+            .expect("the attach returns within its budget");
+            let slot = transport.shared_instance();
+            release.send(()).expect("the stop is still parked on the release");
+            (attached, slot)
+        },
+    );
+    attach
+}
+
 /// A detach that is already waiting on the handler when an attach writes its slot: the
 /// attach's first section spawns the interface and fills the slot, the detach then takes
 /// that fresh slot, clears the posture and removes the interface, and the attach's second
@@ -107,30 +142,8 @@ async fn shared_instance_stop_racing_an_attach_refuses_it_and_keeps_the_slot_emp
     let before = transport.interface_hashes().await.len();
     let (stall, release) = stall_transport_until_released(&transport).await;
 
-    let ((), (refused, slot_at_release)) = tokio::join!(
-        async {
-            // The handler is held until the attach has returned, so stop's handler wait is
-            // normally short; should it run stop's whole 5 s budget out on a loaded host, stop
-            // still returns on the budget, and this guard sits above it.
-            timeout(STOP_TIMEOUT + Duration::from_secs(3), transport.stop())
-                .await
-                .expect("stop returns within its budget")
-        },
-        async {
-            // Let the stop run its sweep and cancel the transport before the attach starts.
-            tokio::task::yield_now().await;
-            let refused = timeout(
-                STOP_TIMEOUT,
-                transport
-                    .attach_shared_instance(server.endpoint(), SharedInstanceOptions::default()),
-            )
-            .await
-            .expect("the attach returns within its budget");
-            let slot = transport.shared_instance();
-            release.send(()).expect("the stall thread is waiting for the release");
-            (refused, slot)
-        },
-    );
+    let (refused, slot_at_release) =
+        shared_instance_attach_inside_a_stop(&transport, &server, release).await;
     stall.await.expect("the stall thread finishes once released");
 
     assert!(

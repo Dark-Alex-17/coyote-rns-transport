@@ -223,14 +223,14 @@ pub async fn serve(
         events,
         persist: Some(persist_tx),
     });
-    if let Some(value) = state
+    let preferred_node = state
         .local
         .read()
         .await
         .config
         .get("lxmf_preferred_propagation_node_destination_hash")
-        .cloned()
-    {
+        .cloned();
+    if let Some(value) = preferred_node {
         let peer = control::preferred_propagation_node(&value)
             .map_err(|error| std::io::Error::new(std::io::ErrorKind::InvalidData, error.1))?;
         state
@@ -291,6 +291,7 @@ async fn status(State(state): State<Arc<AppState>>) -> ApiResult {
     Ok(Json(json!({"status":"ok"})))
 }
 
+#[allow(clippy::await_holding_invalid_type)] // TASK-026: state.local write guard drop()ed before wait_persist().await still trips the lint; scope it in a block, then remove
 async fn announce(State(state): State<Arc<AppState>>) -> ApiResult {
     state.rpc("announce_now", None).await?;
     let mut local = state.local.write().await;
@@ -302,6 +303,7 @@ async fn announce(State(state): State<Arc<AppState>>) -> ApiResult {
     Ok(Json(json!({"message":"announcing"})))
 }
 
+#[allow(clippy::await_holding_invalid_type)] // TASK-026: state.local write guard drop()ed before wait_persist().await still trips the lint; scope it in a block, then remove
 async fn sync_propagation_node(State(state): State<Arc<AppState>>) -> ApiResult {
     let peer = {
         let local = state.local.read().await;

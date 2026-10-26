@@ -233,9 +233,11 @@ RETICULUM_PY_REPO=.tmp/python-refs/Reticulum \
 
 The Python shared-instance smoke starts real pinned Python Reticulum shared instances
 from `RETICULUM_PY_REPO`: one TCP shared instance and one Linux abstract Unix shared instance.
-It then starts `reticulumd` with two
-`LocalClientInterface` attach entries using `fixed_mtu = 262144` and
-`force_shared_instance_bitrate = 1000000`. After both Rust attach clients are
+It then starts one `reticulumd` per Python shared instance (a daemon attaches
+exactly one shared instance, as a Python process does), each with a single
+`LocalClientInterface` attach entry using `fixed_mtu = 262144` and
+`force_shared_instance_bitrate = 1000000` and each under
+`--strict-interface-startup`. After both Rust attach clients are
 visible, the smoke starts one additional pinned Python traffic client per
 shared instance. Each Python traffic client announces an exact UTF-8
 `app_data` payload, and each shared-instance Python process periodically
@@ -257,19 +259,26 @@ Passing evidence requires:
 - Each Python traffic client to observe the exact `shared-to-python` payload.
 - Each Python shared instance to report `local_client_rxb_total > 0`.
 - Each Python shared instance to report `local_client_txb_total > 0`.
-- After the daemon receives traffic, SIGINT shutdown must reduce the Unix
-  shared instance's Rust-side client count to the surviving Python traffic
-  client; restarting the daemon must restore the Unix attach status and client
-  count.
-- `rnstatus-rs` JSON/human output containing both Rust local client rows.
+- After the Unix daemon receives traffic, SIGINT shutdown of that daemon alone
+  must reduce the Unix shared instance's `local_client_count` to the surviving
+  Python traffic client; restarting that daemon must restore the Unix attach
+  status and client count.
+- After the TCP daemon receives traffic, SIGINT shutdown of that daemon alone
+  must reduce the TCP shared instance's `local_client_count` to the surviving
+  Python traffic client; restarting that daemon must restore the TCP attach
+  status and client count.
+- `rnstatus-rs` JSON/human output from each daemon containing its own Rust
+  local client row.
 - The report to include `python_rns_revision` for the pinned reference checkout.
 - The report to set `unix_teardown_restart_verified = true`.
+- The report to set `tcp_teardown_restart_verified = true`.
 
 The report records
 `evidence_scope = "python_shared_instance_tcp_unix_attach_announce_payload_and_lifecycle"` plus a
 `product_boundary` note: exact announce payloads are observed between pinned
-Python peers on both transports while `reticulumd` is attached and its status
-and lifecycle are checked. The smoke has no daemon application endpoint, so it
+Python peers on both transports while each `reticulumd` is attached to its
+shared instance and each daemon's status and lifecycle are checked. The smoke
+has no daemon application endpoint, so it
 does not prove daemon application-level packet consumption, physical
 interfaces, cross-platform behavior, or broad shared-instance parity.
 

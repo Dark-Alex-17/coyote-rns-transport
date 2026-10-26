@@ -139,7 +139,7 @@ impl LinkStatus {
         *self == LinkStatus::Pending || *self == LinkStatus::Handshake
     }
 
-    fn can_exchange_data(self) -> bool {
+    pub(crate) fn can_exchange_data(self) -> bool {
         matches!(self, Self::Active)
     }
 
@@ -148,8 +148,20 @@ impl LinkStatus {
         matches!(self, Self::Active | Self::Stale)
     }
 
+    /// Every status past `Pending` has a session cipher to encrypt the
+    /// LINKCLOSE with, which is Python's rule too (`RNS/Link.py:668`).
     fn can_send_teardown(self) -> bool {
-        matches!(self, Self::Active | Self::Stale)
+        matches!(self, Self::Handshake | Self::Active | Self::Stale)
+    }
+
+    /// The statuses that may build a packet of `context`: a LINKCLOSE from
+    /// any status past `Pending` (`RNS/Link.py:668`), anything else only
+    /// while `Active`.
+    fn can_build_packet(self, context: PacketContext) -> bool {
+        match context {
+            PacketContext::LinkClose => self.can_send_teardown(),
+            _ => self.can_exchange_data(),
+        }
     }
 }
 

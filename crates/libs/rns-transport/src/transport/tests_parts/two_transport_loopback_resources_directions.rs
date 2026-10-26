@@ -12,69 +12,39 @@ struct LoopbackLinkPair {
 
 #[deny(clippy::await_holding_invalid_type)]
 async fn loopback_link_pair(aspect: &str) -> LoopbackLinkPair {
+    loopback_link_pair_with_request_limit(aspect, None).await
+}
+
+/// Like `loopback_link_pair`, with an inbound request-size limit armed on the listener's
+/// destination before the link opens when `request_limit` is set.
+#[deny(clippy::await_holding_invalid_type)]
+async fn loopback_link_pair_with_request_limit(
+    aspect: &str,
+    request_limit: Option<usize>,
+) -> LoopbackLinkPair {
     let listener = listener("loopback-listener", TcpClient::DEFAULT_MTU).await;
     let mut connector =
         connector("loopback-connector", listener.port, TcpClient::DEFAULT_MTU).await;
     listener.await_accepted_connections(1).await;
     let mut in_events = listener.transport.in_link_events();
 
-    let (_destination, desc) =
+    let (destination, desc) =
         register_in_destination(&listener.transport, "loopback", aspect).await;
+    if let Some(limit) = request_limit {
+        destination.lock().await.set_max_request_size(limit).expect("request-size limit armed");
+    }
     let learned = learn_announce(&mut connector.announces, &desc.address_hash).await;
     let (_link, link_id) = open_link(&connector.transport, learned).await;
-    let activated = await_event(&mut in_events, |event| {
-        matches!(event.event, LinkEvent::Activated)
-    })
-    .await;
+    let activated =
+        await_event(&mut in_events, |event| matches!(event.event, LinkEvent::Activated)).await;
     assert_eq!(activated.id, link_id, "both ends share one link id");
-    LoopbackLinkPair {
-        listener,
-        connector,
-        link_id,
-    }
+    LoopbackLinkPair { listener, connector, link_id }
 }
 
 fn random_payload(len: usize) -> Vec<u8> {
     let mut payload = vec![0u8; len];
     OsRng.fill_bytes(&mut payload);
     payload
-}
-
-/// Checks one receiver-side `Complete` plus the sender's clean terminal event for a
-/// transfer that was dispatched as `resource_hash`.
-#[deny(clippy::await_holding_invalid_type)]
-async fn assert_transfer_completes(
-    sender_events: &mut broadcast::Receiver<ResourceEvent>,
-    receiver_events: &mut broadcast::Receiver<ResourceEvent>,
-    link_id: AddressHash,
-    resource_hash: Hash,
-    payload: &[u8],
-    expected_segments: u32,
-) -> ResourceComplete {
-    let (complete, segments_seen) =
-        await_complete_with_segments(receiver_events, link_id).await;
-    assert_eq!(complete.hash, resource_hash, "receiver reports the sender's resource hash");
-    assert_eq!(segments_seen, Some(expected_segments), "segment count on the receiver");
-    let complete = complete_payload(complete);
-    assert_eq!(complete.data.len(), payload.len(), "received length");
-    assert!(complete.data == payload, "received bytes match the sent payload");
-
-    let outbound = await_resource_event(sender_events, |event| {
-        event.hash == resource_hash
-            && matches!(
-                event.kind,
-                ResourceEventKind::OutboundComplete
-                    | ResourceEventKind::OutboundFailed
-                    | ResourceEventKind::OutboundRejected { .. }
-            )
-    })
-    .await;
-    assert!(
-        matches!(outbound.kind, ResourceEventKind::OutboundComplete),
-        "sender should finish cleanly, got {:?}",
-        outbound.kind
-    );
-    complete
 }
 
 /// Every Link-destination packet leaves on the link's attached interface. The initiator's
@@ -102,7 +72,7 @@ async fn two_transport_loopback_resources_initiator_sends_two_segments() {
         pair.link_id,
         resource_hash,
         &payload,
-        2,
+        Some(2),
     )
     .await;
     assert!(!complete.is_request, "a plain resource is not a request");
@@ -135,7 +105,7 @@ async fn two_transport_loopback_resources_initiator_request_two_segments() {
         pair.link_id,
         resource_hash,
         &payload,
-        2,
+        Some(2),
     )
     .await;
     assert!(complete.is_request, "advertised as a request");
@@ -155,9 +125,8 @@ async fn two_transport_loopback_resources_back_to_back_on_one_link() {
     let mut receiver_events = pair.connector.transport.resource_events();
 
     let mut hashes = Vec::new();
-    for (index, request_tag) in [&b"loopback-first"[..], &b"loopback-second"[..]]
-        .into_iter()
-        .enumerate()
+    for (index, request_tag) in
+        [&b"loopback-first"[..], &b"loopback-second"[..]].into_iter().enumerate()
     {
         let payload = random_payload(MAX_EFFICIENT_SIZE + 64 * 1024);
         solicit_response(&pair.connector.transport, &pair.link_id, request_tag).await;
@@ -174,7 +143,7 @@ async fn two_transport_loopback_resources_back_to_back_on_one_link() {
             pair.link_id,
             resource_hash,
             &payload,
-            2,
+            Some(2),
         )
         .await;
         assert!(complete.is_response, "transfer {index} advertised as a response");

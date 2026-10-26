@@ -210,6 +210,14 @@ async fn send_packet_response(
     };
     let (packet, iface) = {
         let link = link.lock().await;
+        if !link.status().can_exchange_data() {
+            log::debug!(
+                "tp: response {} dropped, link {} closed before transmit",
+                request_id,
+                link_id
+            );
+            return;
+        }
         let fits = encoded.len() <= link.link_mdu();
         let packet = fits.then(|| link.response_packet(&encoded)).transpose();
         (packet, link.ingress_iface())
@@ -274,10 +282,9 @@ async fn send_response_as_resource(
     }
 }
 
-/// One of the two sanctioned free-function transmit seams that hold the
-/// handler guard across the interface write, as `Transport::send_direct`
-/// always has; the other is `shared_instance_announce::send_packet`, the
-/// announce broadcast.
+/// Holds the handler guard across the dispatch like `Transport::send_packet`
+/// and `Transport::send_broadcast`.
+#[allow(clippy::await_holding_invalid_type)] // TASK-026: handler guard spans the job by design, see TransportHandler lock discipline
 pub(super) async fn send_on_iface(
     handler: &Arc<Mutex<TransportHandler>>,
     iface: AddressHash,
@@ -339,15 +346,41 @@ pub(super) async fn send_response_resource(
     metadata: Option<Vec<u8>>,
     auto_compress: bool,
 ) -> Result<(Hash, OutboundOutcome), RnsError> {
-    let link = find_any_link(handler, link_id).await.ok_or(RnsError::InvalidArgument)?;
+    let Some(link) = find_any_link(handler, link_id).await else {
+        log::debug!(
+            "tp: response {} dropped, link {} is gone",
+            super::diag::bytes_to_hex(&request_id),
+            link_id
+        );
+        return Err(RnsError::InvalidArgument);
+    };
     let iface = {
         let link_guard = link.lock().await;
+        if !link_guard.status().can_exchange_data() {
+            log::debug!(
+                "tp: response {} dropped, link {} closed before transmit",
+                super::diag::bytes_to_hex(&request_id),
+                link_id
+            );
+            return Err(RnsError::ConnectionError);
+        }
         link_guard.ingress_iface()
     };
     let interface_mtu = resource_mtu_for_iface(handler, iface).await;
     // See `send_resource_observed`: prepared off the handler lock.
     let prepared = {
         let link_guard = link.lock().await;
+        // The MTU lookup above released the link; a close that landed in
+        // between has zeroed the derived key, and encrypting with it would
+        // put an undecryptable advertisement on the wire.
+        if !link_guard.status().can_exchange_data() {
+            log::debug!(
+                "tp: response {} dropped, link {} closed before transmit (after MTU lookup)",
+                super::diag::bytes_to_hex(&request_id),
+                link_id
+            );
+            return Err(RnsError::ConnectionError);
+        }
         // See `resource_wire.rs`: the negotiated link MTU, not the local
         // interface alone, is what a fragment has to fit through.
         let interface_mtu = interface_mtu.min(link_guard.link_mtu());

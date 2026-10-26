@@ -29,10 +29,16 @@ const SHARED_INSTANCE_PROBE10_WAITED: Duration =
 /// attempt on the TCP client's side, long enough for the connect to have settled.
 const SHARED_INSTANCE_PROBE10_HOLD: Duration = Duration::from_millis(50);
 
-/// README: `reconnect_wait` is "clamped to at least 1 ms by both" clients. The TCP client
-/// exposes the wait in force, so the clamp is read straight back.
+/// README: `reconnect_wait` is "clamped to at least 1 ms by both" clients, and the
+/// `with_reconnect_wait` rustdoc says the options clamp it too. The TCP client and the
+/// options expose the wait in force, so the clamp is read straight back.
 #[test]
 fn shared_instance_probe10_tcp_reconnect_wait_of_zero_is_clamped_to_one_millisecond() {
+    assert_eq!(
+        SharedInstanceOptions::default().with_reconnect_wait(Duration::ZERO).reconnect_wait(),
+        Duration::from_millis(1),
+        "the options clamp a zero wait to 1 ms at origin"
+    );
     let client = TcpClient::new("127.0.0.1:1").with_reconnect_wait(Duration::ZERO);
     assert_eq!(client.reconnect_wait(), Duration::from_millis(1), "a zero wait reads as 1 ms");
     let client = TcpClient::new("127.0.0.1:1").with_reconnect_wait(Duration::from_millis(1));

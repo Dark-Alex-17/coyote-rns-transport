@@ -106,12 +106,8 @@ async fn transport_stop_releases_a_client_stuck_reconnecting_to_a_dead_port() {
 #[deny(clippy::await_holding_invalid_type)]
 async fn two_transport_loopback_api_keeps_answering_after_stop() {
     let listener = listener("probe-after-stop-listener", ProbeTcpClient::DEFAULT_MTU).await;
-    let mut connector = connector(
-        "probe-after-stop-connector",
-        listener.port,
-        ProbeTcpClient::DEFAULT_MTU,
-    )
-    .await;
+    let mut connector =
+        connector("probe-after-stop-connector", listener.port, ProbeTcpClient::DEFAULT_MTU).await;
     listener.await_accepted_connections(1).await;
     let (destination, desc) =
         register_in_destination(&listener.transport, "probe", "after-stop").await;
@@ -176,10 +172,8 @@ async fn two_transport_loopback_stop_returns_within_budget_under_inbound_flood()
     listener.await_accepted_connections(1).await;
 
     let identity = PrivateIdentity::new_from_rand(OsRng);
-    let destination = connector
-        .transport
-        .add_destination(identity, DestinationName::new("probe", "flood"))
-        .await;
+    let destination =
+        connector.transport.add_destination(identity, DestinationName::new("probe", "flood")).await;
     let mut learned = listener.transport.recv_announces().await;
     connector.transport.send_announce(&destination, Some(b"flood warm-up")).await;
     timeout(LOOPBACK_TIMEOUT, async {

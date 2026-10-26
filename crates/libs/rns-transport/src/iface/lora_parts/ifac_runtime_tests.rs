@@ -43,34 +43,42 @@ async fn lora_production_stream_rejects_wrong_ifac_and_authenticates_ingress_egr
     });
     let receiver = manager.receiver();
     let ifac_violations = context.channel.ifac_violations.clone();
-    let (rx_channel, tx_channel) = context.channel.split();
+    let (rx_channel, mut tx_channel) = context.channel.split();
     let (stream, mut peer_stream) = tokio::io::duplex(4_096);
     let cancel = CancellationToken::new();
     let interface = context.inner.clone();
-    let management_frame_rx = interface
+    let mut management_frame_rx = interface
         .lock()
         .expect("LoRa interface mutex poisoned")
         .management_frame_rx
-        .clone();
-    let session = tokio::spawn(run_lora_kiss_stream(
-        stream,
-        LoraStreamRun {
-            interface,
-            cancel: cancel.clone(),
-            iface_address: address,
-            endpoint_label: "in-memory LoRa raw-payload adapter".to_string(),
-            config: LoraConfig::us915_default(),
-            flow_control: false,
-            id_beacon: None,
-            activity_probe: None,
-            startup_response_timeout: Duration::from_secs(60),
-            management_frame_rx,
-            rx_channel,
-            tx_channel: Arc::new(tokio::sync::Mutex::new(tx_channel)),
-            ifac_state: ifac_state.clone(),
-            ifac_violations: ifac_violations.clone(),
-        },
-    ));
+        .lock()
+        .expect("LoRa management receiver mutex poisoned")
+        .take();
+    let session_ifac_state = ifac_state.clone();
+    let session_ifac_violations = ifac_violations.clone();
+    let session_cancel = cancel.clone();
+    let session = tokio::spawn(async move {
+        run_lora_kiss_stream(
+            stream,
+            LoraStreamRun {
+                interface,
+                cancel: session_cancel,
+                iface_address: address,
+                endpoint_label: "in-memory LoRa raw-payload adapter".to_string(),
+                config: LoraConfig::us915_default(),
+                flow_control: false,
+                id_beacon: None,
+                activity_probe: None,
+                startup_response_timeout: Duration::from_secs(60),
+                management_frame_rx: management_frame_rx.as_mut(),
+                rx_channel,
+                tx_channel: &mut tx_channel,
+                ifac_state: session_ifac_state,
+                ifac_violations: session_ifac_violations,
+            },
+        )
+        .await
+    });
 
     let rejected_packet = Packet {
         destination: AddressHash::new_from_slice(&[0x71; 16]),

@@ -540,12 +540,18 @@ pub(super) async fn bootstrap(args: Args) -> BootstrapContext {
             {
                 let propagation_app_data =
                     propagation_announce_app_data.clone();
-                transport.send_announce(destination, propagation_app_data.as_deref()).await;
+                if let Err(error) =
+                    transport.try_send_announce(destination, propagation_app_data.as_deref()).await
+                {
+                    log::warn!("[daemon] startup propagation announce not sent: {error}");
+                }
             }
             if let Some((transport, destination)) =
                 transport.as_ref().zip(control_destination.as_ref())
             {
-                transport.send_announce(destination, None).await;
+                if let Err(error) = transport.try_send_announce(destination, None).await {
+                    log::warn!("[daemon] startup control announce not sent: {error}");
+                }
             }
         }
     }
@@ -555,7 +561,9 @@ pub(super) async fn bootstrap(args: Args) -> BootstrapContext {
         if let Some((transport, destination)) =
             transport.as_ref().zip(probe_destination.as_ref())
         {
-            transport.send_announce(destination, None).await;
+            if let Err(error) = transport.try_send_announce(destination, None).await {
+                log::warn!("[daemon] startup probe announce not sent: {error}");
+            }
         }
     }
     if let Some(interval_secs) = propagation_node_config.node_announce_interval_secs {
@@ -571,6 +579,7 @@ pub(super) async fn bootstrap(args: Args) -> BootstrapContext {
                     spawn_destination_announce_scheduler(
                         transport.clone(),
                         destination.clone(),
+                        "propagation",
                         propagation_app_data,
                         interval_secs,
                     );
@@ -581,6 +590,7 @@ pub(super) async fn bootstrap(args: Args) -> BootstrapContext {
                     spawn_destination_announce_scheduler(
                         transport.clone(),
                         destination.clone(),
+                        "control",
                         None,
                         interval_secs,
                     );

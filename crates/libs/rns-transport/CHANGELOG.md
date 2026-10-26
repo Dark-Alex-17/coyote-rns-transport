@@ -3,19 +3,1012 @@
 The section layout follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/)
 and versions follow the cargo semver rules described in the crate README.
 Test-only files are not listed as entries of their own; each is named in a
-trailing clause of the bullet for the behaviour it pins. A fixture hardening
-that changes no library behaviour is the one exception: it is a Changed
-bullet of its own, marked test-only.
+trailing clause of the bullet for the behaviour it pins. A change that alters
+no library behaviour (a test-only change such as a fixture hardening or a
+test hygiene pass, release tooling, CI) is a Changed (or, for a deleted file,
+Removed) bullet of its own, marked as such.
 
-## Unreleased
+## 0.16.0 - 2026-10-25
+
+### Breaking
+
+- `Transport::attach_shared_instance` refuses a `SharedInstanceEndpoint::Tcp`
+  whose address is not loopback (`[::1]` and `[::ffff:127.0.0.1]` count as
+  loopback) with the new `RnsError::SharedInstanceEndpointNotLoopback`
+  (`error.rs`), before any lock is taken and with one warning, instead of
+  attaching it with a warning; Python's `LocalClientInterface` connects to
+  `127.0.0.1` only (`RNS/Interfaces/LocalInterface.py:109`). Migration:
+  callers attaching to a non-loopback TCP shared instance must call
+  `.allow_remote_endpoint(true)` on their `SharedInstanceOptions`
+  (`transport/shared_instance.rs`), which attaches it with one warning per
+  attach, now in key=value form (`endpoint=<addr>`), and grants the remote
+  host dedup delegation and the drop flush
+  (`links_parts/transport_sections/shared_instance.rs`). Pinned by
+  `two_transport_shared_instance_endpoint_warn.rs`,
+  `two_transport_shared_instance_probe12.rs`,
+  `two_transport_shared_instance_probe13.rs`,
+  `two_transport_shared_instance_probe14.rs` and
+  `two_transport_shared_instance_probe15.rs` (the refusal wins over a held
+  slot and over a stopped transport, and the error's `Display` names the
+  rule).
+
+- `RejectReason::Oversize { limit }` and `RejectReason::Unknown` are removed
+  from `resource/outcome.rs`; both were reserved with zero producers, and
+  `PeerCancelled` is the only variant (the enum stays `non_exhaustive`).
+  Migration: delete match arms naming them; a wildcard arm is already
+  required by `#[non_exhaustive]`. Pinned by `tests/outbound_outcome_api.rs`
+  and `tests/breaking_changes_compile_fail.rs` (a match arm naming either
+  variant no longer compiles; the wildcard-arm match does).
+
+- The storage-feature module `rns_transport::transport::test_bridge`
+  (`InboundTestBridge`, `register`, `reset`, `deliver_outbound`) and its
+  declaration in `transport/mod.rs` are removed; it had no consumer in this
+  workspace. Migration: callers move the thread-local bridge into their own
+  test code; a thread-local bridge of similar purpose, closure-based and
+  without the `InboundTestBridge` trait, lives in the `rns-rpc` crate as
+  `rns_rpc::transport::test_bridge`. Pinned by
+  `tests/breaking_changes_compile_fail.rs` (the import fails with
+  `unresolved import`).
+
+### Added
+
+- `RnsError::SharedInstanceEndpointNotLoopback` (`error.rs`), the refusal
+  the `### Breaking` attach bullet describes; its `Display` names the rule.
+  Pinned by `two_transport_shared_instance_probe15.rs`.
+- `SharedInstanceOptions::allow_remote_endpoint`, `::with_mtu`,
+  `::with_forced_bitrate` and `::with_interface_mode`
+  (`transport/shared_instance.rs`). Pinned by
+  `two_transport_shared_instance_options.rs` (the mode and MTU reach the
+  iface manager over the TCP and unix arms) and
+  `two_transport_shared_instance_endpoint_warn.rs` (the opt-in).
+- Public getters `SharedInstanceOptions::mtu` and
+  `SharedInstanceOptions::forced_bitrate_bps` (`transport/shared_instance.rs`),
+  reading back what `with_mtu` and `with_forced_bitrate` stored, both
+  `#[must_use]` as the builders are. Pinned by
+  `two_transport_shared_instance_options.rs` and the daemon's
+  `bootstrap_interface_startup_parts::shared_instance_attach_options_tests`.
+- `LocalUnixClient` inspection getters `addr`, `mtu_value`,
+  `forced_bitrate_bps`, `reconnect_wait`, `reconnect_events_enabled` and
+  `disconnect_events_enabled` (`iface/local.rs`). Pinned by the
+  `iface/local.rs` test module.
+- `RejectReason` implements `Display` (`resource/outcome.rs`);
+  `PeerCancelled` renders as `the peer cancelled the resource`. The
+  `RequestError::Receive` rustdoc (`destination/request/receipt.rs`) points
+  at the crate README divergence register, which gains the row: a response
+  Resource that fails in transfer fails the receipt here in every status,
+  where Python routes it through `request_timed_out` (`RNS/Link.py:914-918`),
+  whose guard (`:1398`) fails only a receipt still `DELIVERED` and leaves
+  one a progress callback already moved to `RECEIVING` (`:1420`). Pinned by the
+  `to_string` assertion in `tests/outbound_outcome_api.rs`.
 
 ### Changed
 
+- The crate version is `0.16.0`; the discovery announce carries it in the
+  `TRANSPORT_VERS` field (`discovery/announce.rs`). The bump is a minor one
+  under the README policy: `### Breaking` above lists the loopback-only
+  shared-instance default, the removed `RejectReason` variants and the
+  removed `transport::test_bridge` module, each with its migration;
+  `cargo semver-checks` against `v0.15.1` reports exactly four major
+  findings, all from the two removals (the loopback default is a behaviour
+  change the tool cannot see). The release contracts are pinned by
+  `crates/apps/reticulumd/tests/fork_publish_contract.rs` and
+  `fork_release_docs_contract.rs`, and the frozen-section rule by
+  `fork_publish_contract_parts/release_frozen_sections_probe.rs`: every
+  `## <version>` section of this CHANGELOG and of the patch-set ledger that
+  existed at the newest reachable fork tag reads byte for byte as it did
+  there, in order and contiguous, and the README patch-list block of that
+  release keeps its bullets;
+  `fork_publish_contract_parts/release_frozen_sections_probe2.rs` states on
+  synthetic ledgers where those section and block slicers start and stop,
+  and ties the newest release section of both ledgers to the crate manifest
+  version.
+- While attached to a shared instance, the duplicate filter
+  (`transport/inbound_processing.rs`) is skipped only for packets arriving
+  on the interface flagged as the shared instance, or on every interface
+  when none is flagged, instead of on every interface unconditionally;
+  `InterfaceManager::has_shared_instance_interface`
+  (`iface_parts/interfacemanager_management.rs`) is the new query. Python
+  skips the filter process-wide (`RNS/Transport.py:1618-1627`, before the
+  interface is known at `:1795-1799`) but a Python client brings up no other
+  interface while attached (`RNS/Reticulum.py:745`). Pinned by
+  `transport/inbound_processing_tests.rs` (the shared-instance interface
+  accepts a repeat and inserts nothing, the other interfaces still filter,
+  and the shared-instance interface does not consult a cache entry an
+  ordinary interface inserted).
+- `Link::teardown` sends the LINKCLOSE packet for a link in `Handshake` too,
+  not only `Active` and `Stale` (`destination/link_parts/module_prelude.rs`,
+  `can_send_teardown`), as Python does for every status but `PENDING`
+  (`RNS/Link.py:668`); the shared-instance drop flush would inherit it; no
+  `in_links`/`out_links` entry is observable in `Handshake` because the
+  responder proves (which makes it `Active`) before insertion
+  (`transport/path.rs:372` vs `:383`). Building that LINKCLOSE
+  (`link_sections/remove_channel_handler.rs`,
+  `packet_with_context`) no longer warns `can't create data packet for
+  closed link` for a `Handshake` or `Stale` link: the guard is the new
+  `can_build_packet`, which admits a LINKCLOSE from any status past
+  `Pending` and anything else only while `Active`. Pinned by
+  `link_status_predicates_make_lifecycl_sections/teardown_sends_link_close_for_handshake_link_tests.rs`,
+  `link_status_predicates_make_lifecycl_sections/core_tests.rs` and
+  `two_transport_shared_instance_probe16.rs` (a `Handshake` teardown builds
+  its LINKCLOSE with no closed-link packet warning; a data packet from
+  `Handshake` still warns).
+- The attach debug line
+  (`links_parts/transport_sections/shared_instance.rs`) names the endpoint
+  kind as `kind=<tcp|unix>` where it used `endpoint=`, the key the attach's
+  warn lines use for the address:
+  `attached shared instance iface=<hash> kind=<kind> reconnect_wait=<wait>`.
+  Pinned by `two_transport_shared_instance_probe5.rs` and
+  `two_transport_shared_instance_probe6.rs`.
+- The `SharedInstanceOptions` MTU, forced bitrate and interface mode
+  (`transport/shared_instance.rs`) reach the spawned client and its
+  iface-manager registration, and `with_reconnect_wait` clamps the wait to
+  at least 1 ms at origin as the clients already did. Pinned by
+  `two_transport_shared_instance_options.rs`,
+  `two_transport_shared_instance_probe10.rs` and
+  `two_transport_shared_instance_probe17.rs` with its unix twin
+  `two_transport_shared_instance_probe17_unix.rs` (the forced bitrate paces
+  the first frame on a fresh stream over the TCP and the unix arm).
+- The shared-instance re-announce select
+  (`links_parts/transport_sections/shared_instance_reconnect.rs`) is
+  `biased` towards cancel, as the registration announce already was, so a
+  stop that lands with the delay is served first. Exercised by the six-restart
+  storm in `two_transport_shared_instance_storm.rs`, whose client stop lands
+  inside the last re-announce delay and completes inside the stop timeout.
+- Test-only: the lib test logger in
+  `two_transport_loopback_requests_isolation.rs` admits the resource target
+  and keeps its dropped-outcome-receiver lines;
+  `two_transport_loopback_resources_outcome_probe.rs` pins that a verdict
+  whose receiver was dropped is recorded once at debug with the resource
+  hash, the link and the verdict; and `two_transport_shared_instance_tasks.rs`
+  pins that a shared-instance task aborted through its own handle is
+  reported once at warn by `stop`, naming the cancellation, with the set
+  drained.
+- Test-only: the storm fixture in `two_transport_shared_instance_storm.rs`
+  counts a cycle on the drop summary's `reverse route(s) cleared` tail, so
+  a per-link close-packet line, which shares the `disconnected,` prefix,
+  cannot count as one, and its header says the fixture sits below the drop
+  regime by construction (each restart waits for the re-accept, so the two
+  `mpsc::channel(8)` queues never hold more than two events; the loss-free
+  claim is ordering and service, not back-pressure); and
+  `two_transport_shared_instance_options.rs` gains
+  the `#[cfg(unix)]` twin of the mode-and-MTU pin, an attach over a
+  filesystem socket whose mode and MTU reach the iface manager as the TCP
+  arm's do.
 - Test-only: `tests/outbound_outcome_api.rs` describes the plain senders'
   argument lists as the ones from before this release instead of by a label
   from the fork's own planning, and
   `python_channel_interop_parts/multi_segment_python_interop.rs` reuses the
   harness's `digest_hex` instead of carrying a second copy of it.
+- Release tooling, no library behaviour change: the fork's release checks
+  are committed under `tools/scripts/` (`patchset-ledger-check.sh`,
+  `workspace-clippy-classify.sh`, `old-name-tracked-scan.sh`,
+  `semver-major-findings-check.sh`) and named by the README rebase recipe
+  and the release runbook; pull-request CI runs every test target of this
+  crate (every `tests/*.rs` target and the lib unit tests,
+  `cargo test -p coyote-rns-transport --tests`) and the
+  ledger check from a full-history checkout, mirrored into the dispatch
+  workflow; `cargo xtask package-daemon-bundle` accepts a checkout at a
+  `coyote-rns-transport-v*` tag whose version equals this crate's manifest
+  version (its unit tests live in `xtask`, outside this changelog's cite
+  roots). Pinned by `crates/apps/reticulumd/tests/fork_publish_contract.rs`
+  (`pull_request_ci_runs_every_external_rns_transport_test_target`,
+  `ci_full_contracts_job_runs_every_contract_step_ci_runs`) and
+  `fork_publish_contract_parts/ledger_contract.rs`
+  (`fork_release_scripts_are_committed_and_named_by_the_runbooks`); the
+  scripts' usage errors, the zero-argument ledger run and the scan script's
+  needles and filters are pinned by
+  `fork_publish_contract_parts/release_tooling_probe.rs`, the ledger
+  check's base selection, per-section citing and the scan's tracked-only
+  hits by `fork_publish_contract_parts/release_tooling_probe2.rs`, the
+  agreement between the ledger script's zero-argument precondition and the
+  clone probes' skip predicate by
+  `fork_publish_contract_parts/release_tooling_probe3.rs`, the release
+  scripts' refusals (a previous version with no ledger heading, a scan over
+  an empty index, a non-numeric semver count) by
+  `fork_publish_contract_parts/release_tooling_probe4.rs`, the semver
+  script's verdict (the major count matched as a whole number, the
+  zero-expected form following the `cargo semver-checks` exit status) and
+  the rule that every probe commit goes through the identity-bearing clone
+  by `fork_publish_contract_parts/release_tooling_probe5.rs`, and the ledger
+  helpers themselves on synthetic fixtures by
+  `fork_publish_contract_parts/ledger_contract_fixtures.rs`; the clone
+  probes set a clone-local git identity and ignore one exported by the
+  host, so they run the same on a host without one.
+- Release tooling, no library behaviour change: the ledger check's per-commit
+  cite test is a bash substring match instead of a `printf | grep -q` pipe,
+  which under `pipefail` read a SIGPIPE on a section longer than the pipe
+  buffer as an uncited commit, and `semver-major-findings-check.sh` tests
+  each expected lint the same way, where its verdict read through a
+  `printf | grep -q` pipe before; the README-row pin in
+  `fork_publish_contract_parts/lint_discipline_probe10.rs` names the
+  shared-instance hardening patch too.
+- Release tooling, no library behaviour change:
+  `semver-major-findings-check.sh` runs `cargo semver-checks` under its own
+  `<CARGO_TARGET_DIR or target>/semver-findings-check` target dir. Both
+  placeholder builds wrote their rustdoc JSON to the workspace `target/doc`
+  the rustdoc gate also uses, where a fresh `cargo doc` let one side parse
+  the other side's JSON and report a false "no semver update required";
+  the runbook's patch form then passed on a changed API. Pinned by
+  `fork_publish_contract_parts/release_tooling_probe6.rs` with a recording
+  `cargo` stub, with and without an operator-set `CARGO_TARGET_DIR`.
+- Ledger contracts, test-only: every patch-header hash in
+  `docs/fork/PATCHSET.md` must be named by its section's legend, the
+  all-legend-hash and header-to-legend checks run over `## Unreleased` and
+  every released section from 0.15.1 up, the per-bullet cite check of this
+  file runs over every released section from 0.15.1 up (earlier sections
+  keep their published text), patch ids take one or two digits, the
+  Python-in-the-loop trap names its rule when it fires, and the
+  old-package-name scan reads `git ls-files` instead of walking
+  git-excluded local state (`crates/apps/reticulumd/tests/fork_publish_contract.rs`,
+  `fork_publish_contract_parts/ledger_contract.rs`).
+- No library behaviour change, guard discipline in the transport layer:
+  `send_announce` builds its announce under a scoped destination guard and
+  hands it to `send_packet`, the shape `try_send_announce` already had, so
+  the destination guard no longer spans the handler lock
+  (`transport/core.rs`); `outbound` reads the broadcast flag under a scoped
+  guard and sends through `send_broadcast`; the path-table exporters
+  snapshot each interface's mode, hash and display name before taking the
+  handler guard (`transport/reticulum_path_store.rs`,
+  `links_parts/transport_sections/path_table.rs`); `NextHopMetrics` lives
+  in `transport/next_hop_metrics.rs` and is re-exported at its old path;
+  `send_resource_from_reader_observed` scopes its first handler guard in a
+  block (`links_parts/transport_sections/resource_reader.rs`);
+  the handler lock discipline (the guard spans one job; lock order handler,
+  then `packet_cache`; handler, then `iface_manager`, then the interface
+  tx channel; handler, then a link; handler, then a destination) is
+  documented on `TransportHandler` (`transport/mod.rs`), and every
+  transport fn whose handler guard crosses an await carries the
+  `clippy::await_holding_invalid_type` allowance, the `Transport::send_*`
+  wrappers and the job fns alike, in place of the two formerly sanctioned
+  transmit seams; the rustdoc's `# Lock discipline` heading also lists
+  the `iface_manager`-before-link nest in `send`'s announce arm and the
+  link-before-destination nest in the resource request size check, and
+  `ExportedIface` documents the snapshot window between the
+  `iface_manager` guard and the handler guard
+  (`transport/reticulum_path_store.rs`). Pinned by
+  `tests_parts/two_transport_loopback_lifecycle.rs` (a buildable announce
+  still reaches the wire through `send_announce`).
+- Guard discipline in the interface drivers, behaviour-neutral except for
+  the two clauses that say otherwise (a pipe or serial transmit-task
+  panic ending the interface and the weave handle after stop) and the
+  pump fixes listed under Fixed:
+  each driver owns the `InterfaceTxReceiver` it gets from
+  `InterfaceChannel::split` and lends it into its per-connection code
+  instead of guarding a shared one across the whole select loop
+  (`iface/tcp_client.rs`, `iface/tcp_server.rs`, `iface/local.rs`,
+  `iface/udp.rs`, `iface/pipe.rs`, `iface/serial_parts/run_serial_stream.rs`,
+  `iface/weave.rs`, `iface/rnode_multi.rs`, `iface/i2p.rs`,
+  `iface/kiss_parts/kisstcpclientinterface.rs`,
+  `iface/lora_parts/lorainterface.rs`); the pipe and serial transmit
+  loops stay spawned tasks that carry the receiver in and hand it back
+  through their join handle (`iface/pipe_parts/stream.rs`,
+  `iface/serial_parts/run_serial_stream.rs`), the shape the tcp server
+  and local server drain tasks share; a panic inside one is
+  logged and recorded as before (the pipe `transmit_task_failed` status,
+  the serial `transmit task failed` last error; the serial arm's
+  `tx_errors` bump is new) but,
+  the receiver having died with the task, now ends the interface instead
+  of respawning it without a transmit side (the pump ordering itself is
+  a fix, listed under Fixed);
+  once a weave driver has stopped, `WeaveManagementHandle::try_set_remote_display`
+  reports the closed queue at once where it used to buffer up to the
+  channel capacity before failing with `Full` (`iface/weave.rs`, pinned by
+  `iface/weave_management_handle_tests.rs`);
+  weave and rnode_multi management frames arrive through
+  `recv_optional_management_frame` (`iface_types.rs`) and the kiss loop
+  reads its own through the private `recv_optional_leased`
+  (`iface/kiss_parts/kisstcpclientinterface.rs`) since the per-receive
+  restore, and a second take of a weave, rnode_multi or LoRa
+  management receiver logs a warning naming the interface instead of
+  running silently without management frames; the auto-interface
+  listener supervisors take the retired listener under their guard and
+  stop, prune and join it after the guard is gone
+  (`iface/auto_runtime_parts/autoruntimeplan_sections/send_due_multicast_peer_announces_wi.rs`,
+  `iface/auto_runtime_parts/autoruntimeplan_sections/runtime_json.rs`),
+  and the peer-data receive loop keeps taking `state` and then `dedupe`
+  in sequence under a fn-level allowance that names the documented order
+  (one receive loop per adopted NIC shares both mutexes; `dedupe` has no
+  other locker, so state-then-dedupe is a total order, and the `dedupe`
+  field rustdoc states it)
+  (`iface/auto_runtime_parts/autoruntimeplan_sections/spawn_peer_data_receive_loop.rs`,
+  `iface/auto_runtime_parts/module_prelude.rs`);
+  `run_kiss_stream_with_ifac` keeps its shared-receiver signature for
+  callers outside this crate and locks each shared receiver per receive
+  (the tx receiver was locked per pass before the owned-receiver change,
+  the management receiver per receive), so a co-consumer queued on the
+  mutex is served between
+  passes; drivers in this crate call `run_kiss_stream_owned`, and both
+  now feed one loop over a private `ReceiverLease`
+  (`iface/kiss_parts/kisstcpclientinterface.rs`; the idle hold and its
+  release on stop are observed by `iface/kiss_parts/ifac_runtime_tests.rs`
+  and the per-receive span, including a queued locker served across a
+  transmit pass, by `iface/kiss_parts/shared_receiver_lease_probe_tests.rs`:
+  a co-consumer holding the tx lock parks neither inbound decoding nor
+  cancellation, a co-consumer that takes the lock after a pass consumes
+  the next queued packet itself and the stream resumes once it releases,
+  and a frame fed through the shared management receiver reaches the
+  wire byte-exact while a locker queued on it is served);
+  `MeshtasticInterfaceHandle::recv_transmit` keeps its shared
+  receiver (`iface/meshtastic_parts/interface.rs`). Pinned by
+  `tcp_client/tests/tx_queue_survives_reconnect.rs`,
+  `kiss_parts/tx_queue_survives_reconnect_tests.rs` and
+  `local/tests/tx_queue_survives_reconnect.rs` (a packet queued while the
+  driver is between connections is delivered after the reconnect) and by
+  `serial_stream_returns_receiver_with_queued_message` in
+  `iface/serial_parts/run_serial_stream.rs` (the serial stream hands the
+  caller's receiver back with the message queued behind a failed write),
+  the transmit-loop and reader panic pins in
+  `iface/pipe_tests_parts/transmit_panic.rs` and
+  `serial_stream_reports_a_lost_receiver_after_transmit_loop_panic` and its
+  reader twin in `iface/serial_parts/run_serial_stream.rs`, and the
+  transmit-join pins in `iface/pipe_tests_parts/transmit_join_probe.rs`
+  and `iface/serial_parts/transmit_join_probe_tests.rs` (the transmit loop
+  is joined, never aborted, so an in-flight write completes and the
+  receiver comes back; the writer ending on a write error and the parked
+  reader being collected is pinned on the pipe side only), and by
+  `tests_sections/peer_data_receive_loop_progress.rs` (four receive loops
+  sharing one `state`/`dedupe` pair keep making progress under concurrent
+  load on a multi-thread runtime) and
+  `tests_sections/peer_data_receive_loop_progress_probe.rs` (thirty bursts
+  on eight sockets under CPU pressure each drain within two seconds and
+  their loops shut down; a stalled burst reports whether either mutex is
+  still held).
+- Lint tables, no library behaviour change: `clippy::await_holding_invalid_type`
+  runs at its default level under the workspace clippy invocation; no
+  lint table in the workspace mentions it any more, every test or example
+  root that holds a guard across an await carries one module-level
+  allowance (`src/transport/tests.rs`,
+  `crates/apps/reticulumd/tests/python_channel_interop.rs` and the other
+  test roots; the example target `examples/tcp_connection_memory.rs`
+  carries the same root allowance), and each production fn of
+  `reticulumd`, `meshchat-api` and
+  `lxmf-sdk` that the live lint reports carries a fn-level allowance
+  whose comment names the guard, the await it spans and whether the site
+  is to be scoped away or kept by design (thirteen fns; the preferred-node read
+  in `meshchat-api` is a scoped read instead);
+  `tools/scripts/workspace-clippy-classify.sh` refuses any tracked
+  manifest that mentions the lint and still passes only when no
+  diagnostic of the lint fires; the Linux-only `iface/pipe_tests.rs` root
+  carries the test-root allowance too, so the ubuntu run of the invocation
+  is as clean as the macOS one; two more release checks are scripts under
+  `tools/scripts/`: `cross-target-clippy-classify.sh` lints the workspace
+  minus the two crates that pull `libdbus` for `x86_64-unknown-linux-gnu`
+  with `zig cc` as the C cross-compiler, and `python-interop-classify.sh`
+  runs the Python-in-the-loop batch and passes only when every failure is
+  a named macOS environment red (and only on a `FAIL` or `TIMEOUT` status;
+  a crash in a listed test is never tolerated) or the reference-pin test
+  while the reference checkout is off its pin; the workspace classify
+  script tolerates, on macOS only, the `dead_code` of the interop test
+  target whose linux-only cases are cfg'd out there, and
+  `python-interop-classify.sh` lists after its verdict the tolerated names
+  that did not run. Pinned by
+  `crates/apps/reticulumd/tests/fork_publish_contract_parts/lint_discipline_probe.rs`,
+  `fork_publish_contract_parts/lint_discipline_probe2.rs`,
+  `fork_publish_contract_parts/lint_discipline_probe3.rs`,
+  `fork_publish_contract_parts/lint_discipline_probe4.rs`,
+  `fork_publish_contract_parts/lint_discipline_probe5.rs`,
+  `fork_publish_contract_parts/lint_discipline_probe6.rs`,
+  `fork_publish_contract_parts/lint_discipline_probe7.rs` (every
+  production allowance reason names a guard, the await it spans and a
+  concrete site; the kiss wrapper carries no allowance and the lease
+  `recv` carries the only one under `kiss_parts/`),
+  `fork_publish_contract_parts/lint_discipline_probe8.rs` (one
+  lock-order-nest allowance, on the peer-data loop, with the order on the
+  `dedupe` field; no join over lock futures in the auto runtime;
+  `link_table_cleanup` carries no stale `dead_code` allow),
+  `fork_publish_contract_parts/lint_discipline_probe9.rs` (the progress
+  pin and its repeated-burst twin keep their deadlock-visible shape and the
+  twin's depth cap; the
+  supervisor's `dedupe` field points at the lock-order doc; no production
+  source in any crate joins lock futures; every census sentence the ledger
+  states adds up, and the one an Unreleased section states equals the
+  census the tree carries) and
+  `fork_publish_contract_parts/lint_discipline_probe10.rs` (the ledger and
+  changelog prose on the sequential lock order, read from the thirty-ninth
+  narrative itself; the README row's attribution; the probe9 parentheticals
+  of both 0.16.0 sections state the split census pin; both 0.16.0 sections
+  cite the frozen-sections probe; the forty-sixth guard-discipline
+  narrative carries no pre-split census wording).
+- No library change: reticulumd's shared-instance client posture (a
+  `LocalInterface` whose socket or port is already held, a
+  `LocalClientInterface`, and the synthetic sidecar's attach) now goes
+  through `Transport::attach_shared_instance`
+  (`links_parts/transport_sections/shared_instance.rs`, options in
+  `transport/shared_instance.rs`) from the daemon's
+  `bootstrap_interface_startup_parts::shared_instance_attach`, instead of
+  spawning the unix or TCP client itself and setting the connected posture
+  by hand, so the daemon gains the attach's drop flush and reconnect
+  re-announce. Consequences for the daemon: its unix and TCP
+  shared-instance clients wait the library default 8 s after a drop
+  (`RNS/Interfaces/LocalInterface.py:54`) instead of the clients' own 5 s;
+  one shared instance per process, as Python holds one
+  `LocalClientInterface` (`RNS/Reticulum.py:422-441`), so a second
+  client-posture entry is a recorded startup failure naming the one already
+  attached (`iface=<hash>`); a configured non-loopback shared-instance host
+  is refused by the daemon's own config (`host must be loopback for local`,
+  `config_parts::interfaceconfig_sections::enabled`) before any attach, so
+  the library's refusal is defence in depth behind it (the daemon does not
+  set `allow_remote_endpoint`); the per-interface `fixed_mtu`,
+  `force_shared_instance_bitrate` and mode reach the client through the
+  `SharedInstanceOptions` builders, assembled by `shared_instance_options_for`
+  in `bootstrap_interface_startup_parts::shared_instance_attach`;
+  `prefer_ipv6` is honoured by the daemon's address pick
+  (`bootstrap_interface_startup_parts::shared_instance_attach`: IPv6
+  loopback first, then any IPv6, then the IPv4 order; the default is IPv4
+  loopback first, as Python's `LocalClientInterface` connects to
+  `127.0.0.1` only, `RNS/Interfaces/LocalInterface.py:109`), advertised in
+  the reference TOML's `local` and `local_client` blocks
+  (`examples/interfaces-reference.toml`) and echoed in settings JSON for
+  those kinds (`config_parts::interfaceconfig_sections::enabled`); under
+  `--strict-interface-startup` the preflight dials the picked address, not
+  the host string, so a shared instance listening on the other loopback
+  family is a recorded startup failure naming that address instead of a
+  pass followed by an attach that never connects
+  (`bootstrap_interface_startup_parts::module_prelude`); while
+  `connect_timeout` and `max_reconnect_tries`, which the shared-instance
+  client has no setting for, are warned about at startup
+  (`[daemon] <posture> name=<label> ignores <key>`), dropped from the
+  reference TOML's `local` and `local_client` blocks
+  (`examples/interfaces-reference.toml`) and no longer echoed in settings
+  JSON for those kinds (`config_parts::interfaceconfig_sections::enabled`),
+  though the config still parses them and still rejects
+  `connect_timeout = 0`; the dead `local | local_client` branch of the
+  daemon's `build_tcp_client_adapter` is gone; and the daemon's own
+  stream-reconnect tunnel synthesizer now serves only its `tcp_client` and
+  `backbone_client` interfaces. Pinned by the daemon's
+  `bootstrap_interface_startup_parts::shared_instance_attach_tests` (the
+  attached record's interface fills the transport's slot and sets the
+  connected posture for the TCP, `LocalClientInterface` TCP and unix arms;
+  two client entries leave one attached record and one failure; a
+  client-posture entry naming a remote host is refused by the config before
+  any attach, and `::1` attaches without the opt-in; `localhost` resolves to
+  the IPv4 loopback address when the name resolves to both families
+  (`local_client_localhost_host_resolves_to_the_ipv4_loopback_address`) and
+  a listener on `127.0.0.1` alone sees its accept
+  (`local_client_localhost_host_connects_to_the_ipv4_loopback_listener`);
+  the pick with `prefer_ipv6`; the ignored-key list names the timeout and
+  retry knobs only; the entry's mode and MTU reach the attached interface
+  (`local_client_attach_registers_the_mode_and_mtu_from_the_entry`)),
+  `bootstrap_interface_startup_parts::shared_instance_attach_probe_tests`
+  (`prefer_ipv6` reaches the dial, observed as the accept on a `[::1]`-only
+  listener; one warning per ignored key; the forced bitrate paces the first
+  frame on the new stream; strict startup passes iff the picked family
+  listens),
+  `bootstrap_interface_startup_parts::shared_instance_attach_probe2_tests`
+  (the default pick rejects an IPv6-only listener for `localhost`; an
+  IP-literal host passes strict startup and attaches; the lenient path never
+  preflights; the `[::1]` pick fed straight into the attach is dialled,
+  without a resolver, so the pin cannot skip where `localhost` has no AAAA
+  record),
+  `bootstrap_interface_startup_parts::shared_instance_attach_options_tests`
+  (the options an entry asks for; the single-family pick arms) and
+  `crates/apps/reticulumd/tests/config_parts/shared_instance_client_knobs.rs`
+  (parse, echo including `prefer_ipv6`, zero-timeout refusal, reference
+  TOML text).
+- No library behaviour change: the shared-instance reconnect consumer
+  (`links_parts/transport_sections/shared_instance_reconnect.rs`) stays the
+  plain biased loop and its rustdoc now carries the proof that a disconnect
+  event can never be lost while its reconnect lands (two `mpsc::channel(8)`
+  queues, disconnect emitted before reconnect each cycle, every queued
+  disconnect served before any reconnect, so the reconnect queue fills
+  first); the realistic storm loss is a reconnect, healed by the next
+  reconnect that lands; a per-cycle sequence number is deferred because it
+  would change the `Sender<AddressHash>` payload. Pinned by
+  `two_transport_shared_instance_probe16.rs` (a reconnect served without
+  its disconnect re-synthesizes the tunnel and keeps the tables; the storm
+  tests stay green under the reverted rule, so this is the discriminating
+  pin) and the six-restart storm in `two_transport_shared_instance_storm.rs`,
+  which pins the ordering and loss-free service at restart rate.
+- No library change: `tests/breaking_changes_compile_fail.rs` gains
+  `v0_16_0_breaking_migrations_compile_and_the_shapes_they_replace_do_not`,
+  which compiles the migrated consumer the `## 0.16.0` `### Breaking`
+  bullets describe and checks that the removed `RejectReason` variants, the
+  `transport::test_bridge` import and an `RnsError` match without a wildcard
+  fail with the promised diagnostics.
+- No library behaviour change: the rustdoc on
+  `Transport::send_prepared_packet_broadcast_with_trace` (`transport/core.rs`)
+  states its contract: a send for already-prepared packets that
+  goes straight to the interface manager and records nothing in the packet
+  cache or the link tables, whatever the destination type, so the
+  transport's own proof, request and duplicate tracking never applies to a
+  packet sent through it; it exists for prepared packets whose proofs the
+  caller matches by the hash in the returned trace. Pinned by
+  `tests_parts/prepared_broadcast_link_contract.rs` (a link Data packet sent
+  both ways over a loopback pair leaves its hash in the packet cache only
+  through the link send path; a `DestinationType::Single` packet built the
+  way the opportunistic sender builds it leaves no entry either).
+- No library behaviour change: `transport/wire_receipt.rs` resolves the link
+  of a proof through `resource_wire::link_by_id` instead of its own copy of
+  the keyed-lookup-then-scan, and that helper (`transport/resource_wire.rs`)
+  drops its `out_links.get(link_id)` step, which never hit because
+  `out_links` is keyed by destination hash; the id scan is the
+  initiator-side path.
+- No library behaviour change: four blocks move into new `include!`'d part
+  files so their parents stay under the module size cap, token-identical to
+  the bodies they replace (the hoisted files are rustfmt-canonical, so the
+  one type alias in the fourth re-joins onto a single line; a newly created
+  `include!`'d file may be rustfmt-canonical where its parent was not):
+  the `Transport` struct into `transport/mod_parts/transport.rs`,
+  `TransportHandler::gc_unicast_ifaces` into
+  `transport/handler_parts/unicast_gc.rs`, `Transport::stop_interface` into
+  `transport/core_parts/stop_interface.rs` and the collision-free hash
+  selection into `resource/sender_parts/collision_free_hash.rs`.
+- No library behaviour change: ten `#[allow(dead_code)]` that suppressed
+  nothing are gone (`request_path` in `transport/handler.rs`, which the link
+  maintenance jobs call; `remove_listener` and `shutdown_all` on both auto
+  listener supervisors and `restart_link_local_listener` on the peer-data
+  one in
+  `iface/auto_runtime_parts/autoruntimeplan_sections/send_due_multicast_peer_announces_wi.rs`,
+  all public; the four on the live link-check, link-cleanup, link-repeat
+  and keep-alive-request constants in `transport/mod.rs`), the
+  response-limit locals in `link_sections/new.rs` and
+  `link_sections/response_packet.rs` are named `receiving_record_hashes`
+  (the record hashes owed a cancel, not refusals), and
+  `Transport::handle_inbound_for_test` (`transport/core.rs`)
+  is documented as the test seam it is: the receipt-validation half of
+  inbound processing only, bypassing dedup, routing and link handling, and
+  as public API whose narrowing would be a breaking change.
+- No library behaviour change: the link-scope tests move from
+  `resource/tests_timeouts_lifecycle.rs` into `resource/tests_link_scope.rs`
+  and the two rns-tools announce sites in `rngit_parts/network.rs` and
+  `independent_interop_node/node.rs` fold into fewer lines, so every module
+  this release touched stays within the size cap.
+- No library change: reticulumd's `parse_control_request_payload`
+  (`inbound_control_parts::module_core`) decodes control requests through
+  `RequestFrame::decode` (`destination/request/frame.rs`), which bounds
+  depth and lengths before allocating, refuses trailing bytes and reserved
+  markers and enforces the `[f64, bin16, data]` shape, instead of reading
+  the payload with `rmp_serde` and hand-checking the array, which accepted
+  trailing bytes and did not bound nesting depth; the decoder refuses a
+  non-f64 `requested_at`, so the daemon's control-request fixture
+  (`inbound_control_parts::test_validated_peer_links_sections::core_tests`)
+  sends `0.0` instead of Nil, matching Python's `time.time()`, and pins the
+  trailing-byte and reserved-marker refusals.
+- No library change: the fire-and-forget `Transport::send_announce` calls
+  in the apps (19 calls at 18 sites across nine files, two rngit calls folded
+  into one loop), move to `try_send_announce`
+  (`transport/core.rs`, itself unchanged), so a failed announce build is
+  reported with the role that asked for it instead of the library's
+  context-free warn: reticulumd's
+  `announce_worker` (discovery announce, named by interface),
+  `bridge_announce` (delivery, propagation, control and probe announces),
+  `bridge_service_identity`, `bootstrap_parts::module_core` and
+  `bootstrap_parts::configure_startup_rpc_token_auth` warn (the scheduler
+  the last two share, `spawn_destination_announce_scheduler`, names its
+  role, `propagation` or `control`, in that warn); rns-tools'
+  `rncp_parts/network.rs` and `rngit_parts/network.rs` print under the
+  tool's silent flag, `rnsh_parts/network.rs` warns and the
+  `independent_interop_node/node.rs` announce RPC returns the build error.
+  Pinned by `fork_publish_contract_parts/lint_discipline_probe12.rs`: no
+  production source under `crates/apps/` calls the bare `send_announce`,
+  the test helper `tests/support/python_channel_events.rs` being the one
+  sanctioned call (the test-path skip already covers it, so the probe pins
+  its name without exempting it).
+- No library change: the rns-tools independent interop node's `links`
+  snapshot (`independent_interop_node/events.rs`) merges each link event
+  into the first-seen entry instead of replacing it, so a data event no
+  longer erases the activated record for the same link: the identity fields
+  stay, `state` moves, a `states` history keeps the last 16 event names, and
+  an `is_path_response` field reports the flag of the announce most recently
+  seen for the link's destination when the link's first event creates the
+  entry (`SharedState::announce_path_response` in
+  `independent_interop_node/model.rs`, written by the announce collector
+  under a short guard and read by the link collector before it takes the
+  links lock), null when no announce for the destination had been seen.
+  Pinned by
+  the merge tests in `independent_interop_node/events.rs` (first-seen
+  identity, the `states` history, `true`, `false` and the never-announced
+  null) and its announce-flag test (two links read their own destination's
+  announce, a never-announced destination reads null).
+- Test-only: a Python-in-the-loop cell in which a Rust client identifies on
+  a link and a Python request handler registered with `ALLOW_LIST` answers
+  only the identified peer
+  (`python_channel_interop_parts/rust_identify_python_allow_list.rs`: a
+  request before identifying gets no reply, the same link gets one after;
+  `register_request_handler` stores the list by reference,
+  `RNS/Destination.py:397`, `Link.handle_request` consults it at
+  `RNS/Link.py:820-822` and the refused request falls to the `else` branch
+  at `:853-855`, which only logs at DEBUG);
+  the endpoint `tests/support/python_channel_endpoint.py` gains the opt-in
+  `--allow-identified` flag that registers the handler over a list filled
+  from the remote-identified callback.
+- Test-only pins: `ResourceSender::confirm_advertised` keeps the serve-time
+  timestamps once a part was served and clamps the awaiting-proof retry
+  budget (`resource/tests_confirm_advertised.rs`); the rejecting side of an
+  oversize request Resource publishes no resource event for the rejected
+  hash (`tests_parts/two_transport_loopback_resources_reject.rs`, helper in
+  `tests_parts/two_transport_loopback_resources.rs`); `ResourceReceiver`
+  refuses an advertised `data_size` above 64 MiB on its own
+  (`resource/tests_advert_limits.rs`); the `AddressHash` and `Identity` hex
+  parsers refuse plus-prefixed pairs (`hash.rs`, `identity/tests.rs`); and
+  the connect-cancel pins named under `### Fixed`.
+- Test-only: the publish contract gains
+  `fork_publish_contract_parts/lint_discipline_probe11.rs`, the
+  free-function spelling of the two-guard rule (no production source hands
+  lock futures to `futures::future::join`, `join3`, `join_all` or their
+  `try_` twins; its header says the combinators poll in declaration order
+  where only the macro rotates, and a definition is one with `fn ` ahead of
+  the match), and the three auto-interface tests in
+  `iface/auto_runtime_parts/tests_sections/peer_route_table_probe.rs` and
+  `iface/auto_runtime_parts/tests_sections/auto_peer_route_origination.rs`
+  that spawned a peer data tx loop and dropped its shutdown sender now shut
+  the loop down and join it under a one second timeout.
+- Test-only, weaker twins consolidated: the `remove_interface` and
+  `stop_interface` slot tests share one body in
+  `tests_parts/two_transport_shared_instance_probe4.rs`, selected by
+  `SharedInstanceRemoval` and called from
+  `two_transport_shared_instance_probe2.rs`; the single-receipt test of
+  `two_transport_loopback_requests_resource_form_sizes_cancel.rs` is gone,
+  its two-receipt twin in the sizes-cancel probe being a strict superset;
+  the prove-all interop test in
+  `python_channel_interop_parts/rust_to_python_request_receipt.rs` is gone
+  in favour of the late-reply twin in `python_request_late_reply.rs`, whose
+  proof wait moves into `await_python_proof_of`; probe3 and probe4 share the
+  stop-versus-attach scaffold `shared_instance_attach_inside_a_stop`
+  (`two_transport_shared_instance_probe3.rs`); `stall_transport_for` in
+  `two_transport_loopback_resources_retries.rs` is re-expressed on
+  `stall_transport_until_released` with a timed release and `stall_handler`
+  is gone; and `rust_to_python_raw_resource_roundtri.rs` folds its two
+  inline sha2 report checks into `assert_python_response_report`.
+- Test-only: the four exact status-order fixtures in
+  `tests_parts/two_transport_loopback_requests_receipt_orders.rs` gate the
+  responder on `observe_statuses_releasing_at` (the resource-form requests
+  release once the subscriber has read `Delivered`, the packet-form ones
+  once it has read `Sent`) instead of sleeping a 300 ms `HANDLER_DELAY`,
+  which `two_transport_loopback_requests_receipt.rs` drops.
+- Test-only, fixtures deduplicated: `await_outbound_terminal` moves from
+  `tests_parts/two_transport_loopback_requests_resource_form_probe.rs` into
+  `tests_parts/two_transport_loopback_resources.rs` and replaces the inline
+  matcher at the five sender-terminal sites that spelled it (one in that
+  fixture, one in `two_transport_loopback_resources_directions.rs`, two in
+  `two_transport_loopback_resources_reject.rs` and one in
+  `two_transport_loopback_resources_outcome.rs`);
+  `loopback_link_pair_with_request_limit` takes an `Option<usize>` in the
+  directions fixture with `loopback_link_pair` as its thin wrapper, deleting
+  the reject copy; and `shared_instance_client_with_options` in
+  `tests_parts/two_transport_shared_instance.rs` serves
+  `two_transport_shared_instance_probe2.rs` and
+  `two_transport_shared_instance_reconnect.rs`.
+- Test-only: the six tests unrelated to
+  `tests_parts/held_udp_announce_preserves_peer_sou.rs` (send outcome,
+  duplicate filter and resource-request responses) move, bodies verbatim
+  and with the advertisement helper include they use, into
+  `tests_parts/send_packet_outcome_and_resource_request_responses.rs`.
+- Test-only: rustfmt over the 37 `include!`'d fixtures under
+  `transport/tests_parts/` (`tests_parts/module_prelude.rs` among them; the
+  38th was split first) that
+  failed `rustfmt --check`; the diff is line joins and splits plus five
+  single-expression closure bodies losing their braces, with the token
+  stream otherwise identical.
+- Test-only: the shared test logger in
+  `tests_parts/two_transport_loopback_requests_isolation.rs` keeps the
+  rejected-advertisement warns and filters them by link id, for the warn
+  cadence fixture `tests_parts/resource_advert_reject_warn_cadence.rs`; and the
+  header of `tests_parts/request_dispatch_closed_link.rs` says what the
+  pre-gate path did (the response went out encrypted under the all-zero
+  session key) where it claimed the build failed at encryption.
+- Test-only, oracles hardened: both tests in
+  `iface/tcp_client/tests/connect_cancel.rs` deny
+  `clippy::await_holding_invalid_type` and assert the runtime status reads
+  `connecting` before the cancel, so they prove an in-flight connect was
+  interrupted; the shared test logger in
+  `tests_parts/two_transport_loopback_requests_isolation.rs` records the
+  `is gone` drop beside `closed before transmit`, since a maintenance tick
+  can sweep the closed link before the handler of
+  `tests_parts/request_dispatch_closed_link.rs` answers; and the header of
+  `tests_parts/two_transport_loopback_requests_resource_form_sizes_probe12.rs`
+  states the cancel contract where it described the superseded one.
+- No library behaviour change: `send_resource_retry` (`transport/jobs.rs`)
+  carries one comment saying `queued_ifaces` counts paced announces and
+  stays zero for a Direct retry.
+- Test-only, fixtures folded: `assert_transfer_completes` moves from
+  `tests_parts/two_transport_loopback_resources_directions.rs` into
+  `tests_parts/two_transport_loopback_resources.rs` and takes an
+  `Option<u32>` segment count (`None` for a single-segment transfer, which
+  emits no `SegmentComplete`); `assert_small_transfer_completes` is gone,
+  its callers in `tests_parts/two_transport_loopback_resources_retries.rs`
+  and `tests_parts/two_transport_loopback_resources_gone_link.rs` pass
+  `None` and call `assert_no_further_complete` themselves, as the
+  directions tests already did; and the two inline sender-terminal match
+  blocks in those two fixtures are `await_outbound_terminal` calls.
+- No library behaviour change (run hygiene): the reticulumd attach test
+  that checked only the filled slot for a `host = "localhost"` entry is
+  removed in favour of its sibling that also accepts the connection on the
+  IPv4 loopback listener
+  (`bootstrap_interface_startup_parts::shared_instance_attach_tests`), and
+  three test-file comments drop their change-history wording
+  (`two_transport_shared_instance_probe16.rs`,
+  `iface/weave_management_handle_tests.rs`,
+  `iface/kiss_parts/shared_receiver_lease_probe_tests.rs`).
+- No library behaviour change (CI): the pinned-Python shared-instance smoke
+  (`tools/scripts/local-interface-python-shared-smoke.sh`) starts one
+  `reticulumd` per Python shared instance, each with a single
+  `LocalClientInterface` attach entry under `--strict-interface-startup`,
+  because the daemon attaches exactly one shared instance per process (see
+  the reticulumd migration bullet above); the one daemon it started with two
+  entries exited on the second entry's recorded startup failure. The
+  teardown-and-restart checks SIGINT one daemon at a time; the report groups
+  the per-daemon RPC address, paths and `rnstatus-rs` output under
+  `daemons`; the RPC unix sockets move to a short temp directory (a socket
+  path over `sun_path` fails to bind, and the smoke now fails on that bind
+  message in a daemon log); and the `RPC_ADDR` environment override, which
+  nothing set, is gone. Pinned by
+  `crates/apps/reticulumd/tests/local_interface_smoke_contract.rs`, which
+  also pins the runbook's two-daemon wording.
+- No library behaviour change (CI): two Python-in-the-loop lxmf-cli tests
+  are restructured around behaviour the library already had.
+  `python_shared_instance_two_peer_relay_recovers_after_daemon_restart_e2e`
+  (now in
+  `crates/apps/lxmf-cli/tests/python_lxmd_remote_relay_parts/shared_instance_two_peer_relay.rs`)
+  used one `reticulumd` carrying two `LocalClientInterface` attach entries;
+  since the daemon attaches exactly one shared instance per process the
+  second entry is recorded as a startup failure. The test now runs one
+  transport-enabled relay per Python shared instance, bridged over a Rust
+  TCP uplink, replaces both relays, lets only the Python peers announce
+  (a relay's own `announce_now` puts two announces on the uplink at once
+  and trips the peer relay's announce ingress control), and opens the retry
+  observation window as soon as the replacement relay A is attached, since
+  the LXMRouter retry can fire within seconds of the drop.
+  `python_lxmf_router_delivery_cache_survives_process_restart_e2e`
+  (`crates/apps/lxmf-cli/tests/python_lxmd_remote_relay_parts/python_router_restart.rs`)
+  announced from the restarted Python shared instance while the Rust
+  client's redial was still inside its 8 s reconnect wait; the Python
+  endpoint helper (`crates/apps/lxmf-cli/tests/support/python_lxmf_endpoint.py`)
+  now reports `local_client_count` and the test waits (through
+  `wait_for_python_local_client_count` in
+  `crates/apps/lxmf-cli/tests/support/python_lxmd_remote_relay_parts/status_hash.rs`)
+  for the re-attached Rust local client before the single announce, and
+  reserves a dedicated `instance_control_port`. Cites under
+  `crates/apps/lxmf-cli/tests` now
+  resolve in `crates/apps/reticulumd/tests/fork_publish_contract.rs`. The
+  last two shared-instance owners in the same target
+  (`crates/apps/lxmf-cli/tests/python_lxmd_remote_relay_parts/ifac_shared_instance.rs`
+  and the application-and-restart test in `shared_instance_daemon.rs`)
+  also reserve an `instance_control_port` instead of binding Reticulum's
+  default, which a user `rnsd` on the host may hold; the shared config
+  writer in
+  `crates/apps/lxmf-cli/tests/support/python_lxmd_remote_relay_parts/module_prelude.rs`
+  now requires the port. Pinned by
+  `crates/apps/reticulumd/tests/fork_publish_contract_parts/lxmf_cli_cite_root_probe.rs`,
+  `crates/apps/reticulumd/tests/fork_publish_contract_parts/lxmf_cli_cite_root_probe2.rs`
+  and
+  `crates/apps/lxmf-cli/tests/python_lxmd_remote_relay_parts/shared_instance_local_client_count_probe.rs`.
+
+### Removed
+
+- No library behaviour change (run hygiene): the kiss lock-span fixture
+  `shared_receiver_lock_span_probe_tests`, whose scenario (a locker queued
+  behind the running stream is served across one transmit pass) is
+  reproduced by `iface/kiss_parts/shared_receiver_lease_probe_tests.rs`
+  (spec 1 drives the pass and the handoff, spec 2 the queued wait); and the
+  named compile-fail step of the `contracts` job in `ci.yml` and
+  `ci-full.yml`, `cargo test -p coyote-rns-transport --tests` already
+  running `tests/breaking_changes_compile_fail.rs` (pin updated in
+  `crates/apps/reticulumd/tests/fork_publish_contract.rs`,
+  `ci_full_contracts_job_runs_every_contract_step_ci_runs`).
+- No library behaviour change: the Codex pull-request review workflow, which
+  was opt-in through a repository variable that was never set, and its clause
+  in the publish contract; the pin keeps the `ci.yml` clauses
+  (`crates/apps/reticulumd/tests/fork_publish_contract.rs`,
+  `pull_request_ci_runs_the_publish_contract`); the crate README
+  `What 0.15.0 carries` register notes the removal (pinned by
+  `crates/apps/reticulumd/tests/fork_release_docs_contract.rs`,
+  `readme_names_the_codex_variable_only_in_a_bullet_that_says_removed`, and
+  `changelog_0_16_0_removed_records_the_codex_workflow_the_readme_points_at`
+  reads this bullet back from the release notes the README points at).
+- No library behaviour change: the `await_holding_invalid_type = "allow"`
+  entries of the workspace and `reticulumd` lint tables; the lint runs at
+  its default level and no tracked manifest may mention it (pinned by
+  `crates/apps/reticulumd/tests/fork_publish_contract_parts/lint_discipline_probe.rs`
+  and the classify manifest gate probes in
+  `fork_publish_contract_parts/lint_discipline_probe2.rs`).
+
+### Fixed
+
+- The auto-interface bridge keeps its peer-to-virtual-iface map and its
+  outbound route map under one lock
+  (`PeerRouteTable` in `iface/auto_runtime_parts/module_prelude.rs`, used
+  by `iface/auto_runtime_parts/module_prelude_sections/transport_bridge.rs`),
+  so a route can no longer be re-inserted for a virtual iface that
+  `remove_expired_peer_routes` has just stopped, and when the discovery
+  and data tasks both miss the first lookup for one peer the first
+  registration to reach the table wins, the other route folds onto it and
+  the losing virtual iface is stopped; before, the second insert
+  overwrote the first, one iface leaked in the manager and the peer
+  received every broadcast twice. Pinned by
+  `iface/auto_runtime_parts/tests_sections/peer_route_table_expiry.rs` and
+  `iface/auto_runtime_parts/tests_sections/peer_route_table_probe.rs`.
+- A pipe or serial driver whose read or write half panicked kept the other
+  half waiting until an external cancel or an I/O error, because each pump
+  awaited one half first and a panicking half never cancels the shared
+  stop token (the pipe pump awaited the reader, so a writer panic left the
+  reader on the child's stdout; the serial pump awaited the writer, so a
+  reader panic left the writer idle); both pumps now finish on whichever
+  half ends first, cancel the other and record both results
+  (`iface/pipe_parts/stream.rs`, `iface/serial_parts/run_serial_stream.rs`, pinned by
+  the reader and writer panic pins in `iface/pipe_tests_parts/transmit_panic.rs` and
+  `serial_stream_returns_receiver_after_a_receive_task_panic_with_the_writer_idle`
+  in `iface/serial_parts/run_serial_stream.rs`).
+- `AutoInterfaceConfig::unicast_discovery_port` computed
+  `discovery_port + 1`, which overflows when the discovery port is 65535
+  (a debug-build panic; in a release build the addition wrapped to 0 and
+  the unicast socket bound an ephemeral port; Python binds the same
+  `discovery_port + 1` and its
+  bind raises there, `RNS/Interfaces/AutoInterface.py:173`). It now steps
+  down to 65534 at the top of the range, so the pair stays adjacent and
+  distinct for every discovery port (`iface/auto_parts/module_prelude.rs`).
+  Pinned by
+  `unicast_discovery_port_is_the_next_port_and_steps_down_at_the_top_of_the_range`
+  in `iface/auto_parts/default_multicast_discovery_address_sections/core_tests.rs`;
+  the loopback fixtures in `iface/auto_runtime_parts/tests_sections/core_tests.rs`
+  re-draw a discovery port of 65535.
+- The shared-instance drop flush
+  (`links_parts/transport_sections/shared_instance_reconnect.rs`) sends no
+  LINKCLOSE for a link that rode the dropped interface itself: Python's
+  `shared_connection_disappeared` (`RNS/Transport.py:3690-3702`) tears the
+  links down on a connection that is already gone, and the packet was being
+  queued on the client's channel and flushed to the restarted instance as a
+  close for a link it never knew. The drop line now reads
+  `N close packet(s) sent, M skipped on the dropped interface`. Pinned by
+  `two_transport_shared_instance_storm.rs` and
+  `two_transport_shared_instance_probe11.rs`.
+- Inbound resource lookups are scoped to the link the packet arrived on
+  (`resource/manager.rs`): the split-segment expected-segment check in
+  admission, the hash update, the part loop and both `cancel_into` arms,
+  which now take the link id from the dispatcher, require the entry's
+  `link_id` to match; before, inbound receivers and segment assemblies were
+  keyed by hash alone, so a peer naming a sibling link's resource hash could
+  tear down or alias that link's assembly, and a receiver cancel reached an
+  outgoing resource on any link the same way. Pinned by the two cross-link
+  cancel cases in `resource/tests_link_scope.rs`.
+- A rejected inbound resource advertisement is counted on its link in
+  `LinkStats::rejected_advertisements` (`resource.rs`) and warned on the
+  first and on every 64th
+  (`ResourceManager::record_rejected_advertisement`); the transfer-size
+  warn branch in `resource/advertisement_limits.rs`, which the smaller
+  reference cap ahead of it made unreachable, is gone and the part-count
+  line is a debug line, so an over-cap peer is visible at warn level without
+  one warn per advertisement. Pinned by
+  `resource_manager_counts_rejected_advertisements_per_link` in
+  `resource/tests_advert_limits.rs`.
+- An in-limit response packet for a receipt already `Receiving` cancels the
+  response Resource still in flight: `resolve_pending_request`
+  (`link_sections/pending_requests.rs`) hands the receipt's inbound response
+  back on the packet arm as it did on the oversize arm, and the link
+  (`link_sections/new.rs`) queues it as an owed receiver cancel the
+  transport sends on the same packet; before, that Resource ran to
+  completion unmeasured and published its `Complete` event. Python's
+  receipt is single-outcome (the packet sets READY, `RNS/Link.py:873`, and
+  removes the pending request, `:881-883`), so the Resource's later
+  conclusion is a no-op (`:897-912`) and it runs to completion; only a
+  FAILED receipt's Resource is cancelled (`:1417-1435`). The crate README
+  register row says so. Pinned by
+  `link_sections/pending_requests_resolve_tests.rs` and
+  `tests_parts/two_transport_loopback_requests_resource_form_sizes_cancel_probe.rs`,
+  whose in-limit case now expects one receiver cancel where it expected
+  none.
+- `Link::restart` and the local close (`finalize_local_close` in
+  `link_sections/next_watchdog_deadline.rs`) clear `unproven_data_hashes`
+  with the other per-session state, so a hash recorded for a data packet of
+  a finished session cannot match a late proof after the link restarted or
+  closed. Pinned by `link_sections/data_proof_tests.rs`.
+- `send_packet_response` and `send_response_resource`
+  (`transport/request_dispatch.rs`) read the link status under the guard
+  they already hold and drop a response whose link is no longer `Active`
+  with a debug line, where they built the packet regardless:
+  `packet_with_context` warned about the closed link and carried on, and
+  since `finalize_local_close` had reset the session key to the empty key,
+  the response was encrypted under the all-zero key and sent anyway; the
+  resource form returns `ConnectionError`, as it does when
+  the advertisement never leaves, and re-checks the status at the top of
+  its second link guard, the one taken after the MTU lookup released the
+  first, so a close landing in that window is refused the same way instead
+  of encrypting the advertisement under the zeroed key.
+  `LinkStatus::can_exchange_data` (`link_parts/module_prelude.rs`) is
+  `pub(crate)` for it. Every drop logs at debug: the swept-link arm says
+  `is gone`, the two status gates `closed before transmit`, the second
+  tagged `(after MTU lookup)`. Pinned by
+  `tests_parts/request_dispatch_closed_link.rs`, whose oracle admits the
+  swept-link arm a maintenance tick can take, and
+  `tests_parts/request_dispatch_closed_link_probe.rs` (a close landing
+  inside the MTU lookup, forced by holding the interface manager the lookup
+  needs, is refused with `ConnectionError`, recorded once and publishes no
+  resource event; the same stall on a live link sends).
+- The resource retry worker (`send_resource_retry` in `transport/jobs.rs`)
+  records `retry_not_dispatched` only when
+  `sent_ifaces == 0 && queued_ifaces == 0`, the pairing the delivery-proof
+  dispatch already used, where it fired on `sent_ifaces == 0` alone; the fn
+  is `pub(super)` for the transport tests and the shared test logger in
+  `tests_parts/two_transport_loopback_requests_isolation.rs` admits the jobs
+  target. Pinned by `tests_parts/resource_retry_dispatch.rs` (an interface
+  that matches nothing records the miss; a link without a bound interface
+  still leaves through path routing).
+- `Transport::save_packet_hashlist` (`transport/runtime_management.rs`)
+  clones the packet cache out of the handler guard, drops the guard and
+  awaits the cache lock in a statement of its own, where it used `try_lock`
+  under the handler guard and failed `packet cache is busy` whenever an
+  inbound packet was in flight at shutdown, so the hashlist was not written;
+  and `ReticulumPacketDiskCache::save_packet_hashlist`
+  (`transport/packet_disk_cache.rs`) writes a
+  `packet_hashlist.raw.tmp-<pid>-<n>` file, unique per save from a
+  process-wide counter, and renames it over the target, so a reader or a
+  restart after a signal mid-write sees the old list or the new one, never
+  a truncated file, and two savers in flight at once (the debounced
+  persistence worker and the shutdown flush) no longer rename each other's
+  temporary away and fail with `NotFound`; a failed save removes its own
+  temporary, `load_packet_hashlist` sweeps the `packet_hashlist.raw.tmp-*`
+  orphans a crash left (an orphan another process sharing the storage
+  removed first is not an error; one `remove_file` cannot remove is warned
+  about, with its path, and left in place while the list beside it still
+  loads), and the Windows pre-remove is gone since rename replaces
+  the target there too; `Transport::restore_packet_hashlist` carries the
+  fn-level `await_holding_invalid_type` deny its save twin has. Pinned by
+  `tests_parts/packet_hashlist_flush.rs` (the flush after an inbound packet,
+  two saves under `tokio::join!`, a stranger's `packet_hashlist.raw.tmp`
+  left with its bytes untouched, the error-path removal and the load sweep),
+  `tests_parts/packet_hashlist_flush_probe.rs` (an orphan beside no
+  saved list; a storage directory that does not exist yet) and
+  `tests_parts/packet_hashlist_flush_probe2.rs` (a directory carrying the
+  temporary prefix beside a saved list: the load warns once, through a
+  packet-disk-cache store on the shared test logger, and returns the list;
+  it loads without a further warning once the entry is gone).
+- The `TcpClient` connect await (`iface/tcp_client.rs`) sits in a biased
+  `select!` over the two cancel tokens, the transport cancel and the
+  interface stop, with the cancel arms ahead of the timed connect, so
+  `Transport::stop` on a client whose connect is in flight against a
+  black-holed endpoint returns inside the stop budget instead of after the
+  full connect timeout (5 s by default); no guard is held across the await.
+  Pinned by `iface/tcp_client/tests/connect_cancel.rs` (the runtime status
+  reads `connecting` before the cancel; cancel and iface stop each end the
+  worker within 2 s) and `tests_parts/tcp_connect_cancel.rs` (the same
+  `connecting` check ahead of `Transport::stop`); all three say in their
+  assert message that a fast failure against TEST-NET-1 would not exercise
+  the cancel arm.
+- Split-assembly teardown and outbound serving are scoped to the link:
+  `fail_inbound_segments` and `take_inbound_segments`
+  (`resource/manager_segments.rs`) and `take_cancelled_incoming`
+  (`resource/manager_cleanup.rs`) take the receiver's link id and remove an
+  assembly only when it belongs to that link, the callers in
+  `resource/manager.rs` and `resource/manager_polling.rs` passing it and the
+  pre-filter in `cancel_incoming_response` folding into that gate; before, a
+  receiver admitted on one link could name any original hash, and failing or
+  cancelling it removed whatever assembly sat under that hash, another
+  link's included, and reported the failure under that link. A
+  `ResourceRequest` or `ResourceProof` is served only when the sender belongs
+  to the link it arrived on (`resource/manager.rs`, `resource/manager_proof.rs`),
+  so a sibling link can neither draw parts nor conclude a transfer it does
+  not own. An advertisement the receiver constructor refuses (the 64 MiB
+  data cap, a malformed segmentation header, the parts bound) is counted and
+  warned through `record_rejected_advertisement` like the manager's own
+  guards, and that warn names `data_size` beside `transfer_size`
+  (`resource/advertisement_limits.rs`); the split-assembly failure warn
+  names the link beside the hash and reason. Pinned by the cross-link part and
+  split-segment cases in `resource/tests_link_scope.rs`,
+  `resource/tests_link_scope_outbound.rs` (another link's request earns no
+  parts and its proof concludes nothing; the same packets on the sender's
+  own link are served), the refused-advertisement count in
+  `resource/tests_advert_limits.rs`, the warn cadence over a loopback
+  pair in `tests_parts/resource_advert_reject_warn_cadence.rs` (65 over-cap
+  advertisements warn at `rejected=1` and `rejected=64`, a second link
+  starts its own count, no rejection creates receiver state) and the
+  aliasing-receiver cases in `resource/tests_link_scope_probe.rs` (a
+  receiver on one link naming another link's split assembly fails through
+  the retry sweep and through the local response cancel, and the assembly
+  it named completes).
+- A response record no receipt owns is cancelled by the packet that answers
+  it, as a receipt's is: the packet arm of `link_sections/new.rs` spends the
+  record through `take_response_limit_for_packet`
+  (`link_sections/response_packet.rs`), which hands back the Resource the
+  record was receiving whether it admits or refuses the packet, and the link
+  queues it as the same owed receiver cancel; the Resource-arrival gate
+  keeps admitting without a cancel, since the arrival it admits is that
+  Resource itself. The crate README register row says the rule covers both
+  record kinds. Pinned by `link_sections/response_record_tests.rs` and the
+  two pins in
+  `tests_parts/two_transport_loopback_requests_resource_form_sizes_probe12.rs`,
+  which now expect one receiver cancel where they expected none, the
+  real-resource one waiting for the overtaken transfer's `InboundFailed`
+  cancel event and then finding no `Complete` under the id.
 
 ## 0.15.1 - 2026-10-21
 

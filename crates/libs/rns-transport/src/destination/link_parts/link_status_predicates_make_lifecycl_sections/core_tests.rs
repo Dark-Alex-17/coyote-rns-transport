@@ -10,7 +10,7 @@
             assert!(status.not_yet_active());
             assert!(!status.can_exchange_data());
             assert!(!status.can_retry_channel_messages());
-            assert!(!status.can_send_teardown());
+            assert_eq!(status.can_send_teardown(), status == LinkStatus::Handshake);
         }
         assert!(LinkStatus::Active.can_exchange_data());
         assert!(LinkStatus::Active.can_retry_channel_messages());

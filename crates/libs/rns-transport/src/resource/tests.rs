@@ -1295,12 +1295,16 @@ mod tests {
     include!("tests_timeouts.rs");
     include!("tests_timeouts_cleanup.rs");
     include!("tests_timeouts_lifecycle.rs");
+    include!("tests_link_scope.rs");
+    include!("tests_link_scope_outbound.rs");
+    include!("tests_link_scope_probe.rs");
     include!("tests_collision.rs");
     include!("tests_fault_injection.rs");
     include!("tests_reader.rs");
     include!("tests_advert_limits.rs");
     include!("tests_advert_kat.rs");
     include!("tests_outcome.rs");
+    include!("tests_confirm_advertised.rs");
 
     fn resource_packet(context: PacketContext, payload: &[u8], destination: AddressHash) -> Packet {
         Packet {

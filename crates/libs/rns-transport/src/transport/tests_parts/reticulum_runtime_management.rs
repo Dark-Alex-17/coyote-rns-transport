@@ -44,10 +44,7 @@ fn next_hop_latency_metrics_match_python_formulas() {
     };
     assert_eq!(metrics.per_byte_latency(), Some(0.008));
     assert_eq!(metrics.extra_link_proof_timeout(500), Duration::from_secs(4));
-    assert_eq!(
-        metrics.first_hop_timeout(500, Duration::from_secs(6)),
-        Duration::from_secs(10)
-    );
+    assert_eq!(metrics.first_hop_timeout(500, Duration::from_secs(6)), Duration::from_secs(10));
 }
 
 #[tokio::test]

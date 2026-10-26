@@ -14,8 +14,9 @@ use crate::hash::AddressHash;
 use crate::identity::{Identity, PrivateIdentity};
 use crate::iface::hdlc::Hdlc;
 use crate::iface::{
-    decode_packet_ifac, encode_packet_ifac, is_ifac_violation, record_ifac_violation, IfacRuntime,
-    IfacState, MAX_IFAC_SIZE_BYTES,
+    decode_packet_ifac, encode_packet_ifac, is_ifac_violation, record_ifac_violation,
+    recv_optional_management_frame, IfacRuntime, IfacState, InterfaceTxReceiver,
+    MAX_IFAC_SIZE_BYTES,
 };
 
 use super::{
@@ -53,7 +54,7 @@ const WEAVE_ENDPOINT_CLEANUP_INTERVAL: Duration = Duration::from_secs(10);
 const WEAVE_MANAGEMENT_CHANNEL_CAPACITY: usize = 16;
 
 type WeaveManagementFrameSender = tokio::sync::mpsc::Sender<Vec<u8>>;
-type WeaveManagementFrameReceiver = Arc<tokio::sync::Mutex<tokio::sync::mpsc::Receiver<Vec<u8>>>>;
+type WeaveManagementFrameReceiver = tokio::sync::mpsc::Receiver<Vec<u8>>;
 
 #[derive(Clone)]
 struct WeaveStreamControl {
@@ -70,7 +71,8 @@ pub struct WeaveInterface {
     runtime_status: Arc<std::sync::Mutex<WeaveRuntimeStatus>>,
     iface_manager: Arc<tokio::sync::Mutex<InterfaceManager>>,
     management_frame_tx: WeaveManagementFrameSender,
-    management_frame_rx: WeaveManagementFrameReceiver,
+    /// Handed to the first `spawn`, which owns it for the interface lifetime.
+    management_frame_rx: Arc<std::sync::Mutex<Option<WeaveManagementFrameReceiver>>>,
 }
 
 impl WeaveInterface {
@@ -96,7 +98,7 @@ impl WeaveInterface {
             mtu: DEFAULT_MTU,
             iface_manager,
             management_frame_tx,
-            management_frame_rx,
+            management_frame_rx: Arc::new(std::sync::Mutex::new(Some(management_frame_rx))),
         }
     }
 
@@ -181,9 +183,20 @@ impl WeaveInterface {
             switch_identity,
             runtime_status,
             iface_manager,
-            management_frame_rx,
+            mut management_frame_rx,
         ) = {
             let guard = context.inner.lock().expect("weave interface mutex poisoned");
+            let management_frame_rx = guard
+                .management_frame_rx
+                .lock()
+                .expect("weave management receiver mutex poisoned")
+                .take();
+            if management_frame_rx.is_none() {
+                log::warn!(
+                    "Weave management receiver already taken, management frames will not be sent iface={}",
+                    parent_iface
+                );
+            }
             (
                 guard.device.clone(),
                 guard.baud_rate,
@@ -191,13 +204,12 @@ impl WeaveInterface {
                 guard.switch_identity.clone(),
                 guard.runtime_status.clone(),
                 guard.iface_manager.clone(),
-                guard.management_frame_rx.clone(),
+                management_frame_rx,
             )
         };
         let online = context.channel.online.clone();
         online.store(false, std::sync::atomic::Ordering::Release);
-        let (rx_channel, tx_channel) = context.channel.split();
-        let tx_channel = Arc::new(tokio::sync::Mutex::new(tx_channel));
+        let (rx_channel, mut tx_channel) = context.channel.split();
 
         loop {
             if context.cancel.is_cancelled() || iface_stop.is_cancelled() {
@@ -261,8 +273,8 @@ impl WeaveInterface {
                     iface_stop: iface_stop.clone(),
                 },
                 rx_channel.clone(),
-                tx_channel.clone(),
-                management_frame_rx.clone(),
+                &mut tx_channel,
+                management_frame_rx.as_mut(),
                 IfacRuntime::from_parts(ifac_state.clone(), ifac_violations.clone()),
             )
             .await;
@@ -301,7 +313,7 @@ pub(crate) struct WeaveStreamOptions {
 
 fn weave_management_channel() -> (WeaveManagementFrameSender, WeaveManagementFrameReceiver) {
     let (tx, rx) = tokio::sync::mpsc::channel(WEAVE_MANAGEMENT_CHANNEL_CAPACITY);
-    (tx, Arc::new(tokio::sync::Mutex::new(rx)))
+    (tx, rx)
 }
 
 #[derive(Clone)]
@@ -839,8 +851,8 @@ pub(crate) async fn run_weave_stream<IO>(
     cancel: CancellationToken,
     iface_stop: CancellationToken,
     rx_channel: tokio::sync::mpsc::Sender<RxMessage>,
-    tx_channel: Arc<tokio::sync::Mutex<tokio::sync::mpsc::Receiver<TxMessage>>>,
-    management_frame_rx: WeaveManagementFrameReceiver,
+    mut tx_channel: InterfaceTxReceiver,
+    mut management_frame_rx: WeaveManagementFrameReceiver,
 ) where
     IO: AsyncRead + AsyncWrite + Unpin + Send + 'static,
 {
@@ -849,8 +861,8 @@ pub(crate) async fn run_weave_stream<IO>(
         options,
         WeaveStreamControl { cancel, iface_stop },
         rx_channel,
-        tx_channel,
-        management_frame_rx,
+        &mut tx_channel,
+        Some(&mut management_frame_rx),
         IfacRuntime::from_parts(
             Arc::new(std::sync::RwLock::new(None)),
             Arc::new(std::sync::atomic::AtomicU64::new(0)),
@@ -864,8 +876,8 @@ async fn run_weave_stream_with_ifac<IO>(
     options: WeaveStreamOptions,
     control: WeaveStreamControl,
     rx_channel: tokio::sync::mpsc::Sender<RxMessage>,
-    tx_channel: Arc<tokio::sync::Mutex<tokio::sync::mpsc::Receiver<TxMessage>>>,
-    management_frame_rx: WeaveManagementFrameReceiver,
+    tx_channel: &mut InterfaceTxReceiver,
+    mut management_frame_rx: Option<&mut WeaveManagementFrameReceiver>,
     ifac: IfacRuntime,
 ) where
     IO: AsyncRead + AsyncWrite + Unpin + Send + 'static,
@@ -904,8 +916,6 @@ async fn run_weave_stream_with_ifac<IO>(
     let mut stopped_by_control = false;
 
     'stream_loop: loop {
-        let mut tx_channel = tx_channel.lock().await;
-        let mut management_frame_rx = management_frame_rx.lock().await;
         tokio::select! {
             _ = control.cancel.cancelled() => {
                 stopped_by_control = true;
@@ -1011,7 +1021,9 @@ async fn run_weave_stream_with_ifac<IO>(
                     });
                 }
             }
-            Some(frame) = management_frame_rx.recv() => {
+            Some(frame) = recv_optional_management_frame(management_frame_rx.as_deref_mut()),
+                if management_frame_rx.is_some() =>
+            {
                 if let Err(err) = stream.write_all(&frame).await {
                     update_weave_status(&options.runtime_status, |status| {
                         status.mark_reconnecting(format!(
@@ -1304,11 +1316,13 @@ async fn ensure_weave_endpoint(
             return Some(entry.iface);
         }
     }
-    let mut manager = options.iface_manager.lock().await;
-    let address =
-        manager.register_virtual_iface(options.parent_iface, IfaceRole::VirtualUnicast)?;
-    manager.set_outgoing(address, true);
-    drop(manager);
+    let address = {
+        let mut manager = options.iface_manager.lock().await;
+        let address =
+            manager.register_virtual_iface(options.parent_iface, IfaceRole::VirtualUnicast)?;
+        manager.set_outgoing(address, true);
+        address
+    };
 
     let mut state = state.lock().await;
     state
@@ -1467,6 +1481,9 @@ fn switch_id_from_slice(value: &[u8]) -> [u8; SWITCH_ID_LEN] {
 
 #[cfg(test)]
 mod tests {
+    // Test code holds guards across awaits on purpose.
+    #![allow(clippy::await_holding_invalid_type)]
+
     use std::collections::VecDeque;
     use std::io;
     use std::pin::Pin;
@@ -1613,7 +1630,7 @@ mod tests {
                 CancellationToken::new(),
                 CancellationToken::new(),
                 rx_tx,
-                Arc::new(tokio::sync::Mutex::new(tx_rx)),
+                tx_rx,
                 unused_weave_management_rx(),
             ),
         )
@@ -1849,7 +1866,7 @@ mod tests {
             cancel.clone(),
             CancellationToken::new(),
             rx_tx,
-            Arc::new(tokio::sync::Mutex::new(tx_rx)),
+            tx_rx,
             unused_weave_management_rx(),
         ));
 
@@ -1919,7 +1936,7 @@ mod tests {
             cancel.clone(),
             CancellationToken::new(),
             rx_tx,
-            Arc::new(tokio::sync::Mutex::new(tx_rx)),
+            tx_rx,
             unused_weave_management_rx(),
         ));
 
@@ -2027,7 +2044,7 @@ mod tests {
             cancel.clone(),
             CancellationToken::new(),
             rx_tx,
-            Arc::new(tokio::sync::Mutex::new(tx_rx)),
+            tx_rx,
             unused_weave_management_rx(),
         ));
 
@@ -2060,6 +2077,8 @@ mod tests {
 
     include!("weave_ifac_runtime_tests.rs");
 
+    include!("weave_management_handle_tests.rs");
+
     #[tokio::test]
     async fn weave_stream_sends_handshake_for_valid_discovery_response() {
         let (options, _manager, _parent) = test_options().await;
@@ -2080,7 +2099,7 @@ mod tests {
             cancel.clone(),
             CancellationToken::new(),
             rx_tx,
-            Arc::new(tokio::sync::Mutex::new(tx_rx)),
+            tx_rx,
             unused_weave_management_rx(),
         ));
 
@@ -2125,7 +2144,7 @@ mod tests {
             cancel.clone(),
             CancellationToken::new(),
             rx_tx,
-            Arc::new(tokio::sync::Mutex::new(tx_rx)),
+            tx_rx,
             unused_weave_management_rx(),
         ));
 
@@ -2197,7 +2216,7 @@ mod tests {
             cancel.clone(),
             CancellationToken::new(),
             rx_tx,
-            Arc::new(tokio::sync::Mutex::new(tx_rx)),
+            tx_rx,
             management_rx,
         ));
 
@@ -2266,7 +2285,7 @@ mod tests {
             cancel.clone(),
             CancellationToken::new(),
             rx_tx,
-            Arc::new(tokio::sync::Mutex::new(tx_rx)),
+            tx_rx,
             unused_weave_management_rx(),
         ));
 
@@ -2348,7 +2367,7 @@ mod tests {
                 cancel,
                 CancellationToken::new(),
                 rx_tx,
-                Arc::new(tokio::sync::Mutex::new(tx_rx)),
+                tx_rx,
                 unused_weave_management_rx(),
             ),
         )
@@ -2406,7 +2425,7 @@ mod tests {
             cancel,
             CancellationToken::new(),
             rx_tx,
-            Arc::new(tokio::sync::Mutex::new(tx_rx)),
+            tx_rx,
             unused_weave_management_rx(),
         ));
 
@@ -2485,7 +2504,7 @@ mod tests {
             cancel.clone(),
             CancellationToken::new(),
             rx_tx,
-            Arc::new(tokio::sync::Mutex::new(tx_rx)),
+            tx_rx,
             unused_weave_management_rx(),
         ));
 
@@ -2543,7 +2562,7 @@ mod tests {
             cancel.clone(),
             CancellationToken::new(),
             rx_tx,
-            Arc::new(tokio::sync::Mutex::new(tx_rx)),
+            tx_rx,
             unused_weave_management_rx(),
         ));
 
@@ -2587,7 +2606,7 @@ mod tests {
             cancel.clone(),
             CancellationToken::new(),
             rx_tx,
-            Arc::new(tokio::sync::Mutex::new(tx_rx)),
+            tx_rx,
             unused_weave_management_rx(),
         ));
 

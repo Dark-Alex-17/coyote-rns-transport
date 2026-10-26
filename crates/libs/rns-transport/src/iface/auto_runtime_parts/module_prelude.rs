@@ -184,6 +184,8 @@ pub enum AutoPeerDataLoopEvent {
 #[derive(Clone)]
 struct AutoPeerDataReceiveLoopRuntime {
     state: Arc<tokio::sync::Mutex<AutoDiscoveryState>>,
+    /// Lock order: `state`, then `dedupe`.
+    /// `spawn_peer_data_receive_loop` is the only locker of `dedupe`.
     dedupe: Arc<tokio::sync::Mutex<AutoInboundPacketDeduplicator>>,
     transport: Option<AutoInterfaceTransportBridge>,
     runtime_status: Option<AutoRuntimeStatusHandle>,
@@ -211,6 +213,7 @@ struct AutoDiscoveryListenerHandle {
 pub struct AutoPeerDataListenerSupervisor {
     plan: AutoRuntimePlan,
     state: Arc<tokio::sync::Mutex<AutoDiscoveryState>>,
+    /// Handed to each receive loop; see `AutoPeerDataReceiveLoopRuntime::dedupe` for the lock order.
     dedupe: Arc<tokio::sync::Mutex<AutoInboundPacketDeduplicator>>,
     transport: Option<AutoInterfaceTransportBridge>,
     runtime_status: Option<AutoRuntimeStatusHandle>,
@@ -312,8 +315,16 @@ pub struct AutoInterfaceTransportBridge {
     rx_channel: InterfaceRxSender,
     ifac_state: IfacState,
     ifac_violations: Arc<std::sync::atomic::AtomicU64>,
-    peer_ifaces: Arc<tokio::sync::Mutex<BTreeMap<SocketAddr, AddressHash>>>,
-    outbound_routes: Arc<tokio::sync::Mutex<BTreeMap<AddressHash, AutoPeerOutboundRoute>>>,
+    peer_routes: Arc<tokio::sync::Mutex<PeerRouteTable>>,
+}
+
+/// Both halves of the peer-to-route mapping live under one lock so that a
+/// lookup of a peer's virtual iface and the route insert that follows cannot
+/// straddle an expiry that drops the iface from both maps.
+#[derive(Default)]
+struct PeerRouteTable {
+    peer_ifaces: BTreeMap<SocketAddr, AddressHash>,
+    outbound_routes: BTreeMap<AddressHash, AutoPeerOutboundRoute>,
 }
 
 #[allow(dead_code)]

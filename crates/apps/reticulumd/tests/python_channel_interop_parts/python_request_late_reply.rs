@@ -341,14 +341,5 @@ async fn run_rust_to_python_request_receipt_under_prove_all_only_the_plain_data_
 
     // ...while a plain Data packet on the very same link is proven.
     let hash = fixture.send_plain_data(b"prove me too").await;
-    tokio::time::timeout(Duration::from_secs(10), async {
-        loop {
-            let event = link_events.recv().await.expect("link event");
-            if rust_request_receipt_is_proof_of(&event, fixture.link_id, hash) {
-                return;
-            }
-        }
-    })
-    .await
-    .expect("timed out waiting for the python proof of the plain data packet");
+    await_python_proof_of(&mut link_events, fixture.link_id, hash).await;
 }

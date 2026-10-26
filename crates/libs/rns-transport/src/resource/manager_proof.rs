@@ -11,6 +11,7 @@ impl ResourceManager {
         if !self
             .outgoing
             .get_mut(&proof.resource_hash)
+            .filter(|sender| sender.link_id == *link.id())
             .is_some_and(|sender| sender.handle_proof(&proof))
         {
             return;

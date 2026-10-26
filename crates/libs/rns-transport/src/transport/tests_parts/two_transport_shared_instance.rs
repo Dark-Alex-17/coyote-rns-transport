@@ -101,11 +101,23 @@ async fn shared_instance_server_on(port: u16) -> SharedInstanceServer {
 
 #[deny(clippy::await_holding_invalid_type)]
 async fn shared_instance_client(name: &str, server: &SharedInstanceServer) -> SharedInstanceClient {
+    shared_instance_client_with_options(name, server.endpoint(), SharedInstanceOptions::default())
+        .await
+}
+
+/// A client attached over `endpoint` with `options`, its announce receiver subscribed
+/// before the attach.
+#[deny(clippy::await_holding_invalid_type)]
+async fn shared_instance_client_with_options(
+    name: &str,
+    endpoint: SharedInstanceEndpoint,
+    options: SharedInstanceOptions,
+) -> SharedInstanceClient {
     let identity = PrivateIdentity::new_from_rand(OsRng);
     let transport = Transport::new(TransportConfig::new(name, &identity, false));
     let announces = transport.recv_announces().await;
     let iface = transport
-        .attach_shared_instance(server.endpoint(), SharedInstanceOptions::default())
+        .attach_shared_instance(endpoint, options)
         .await
         .expect("attach to the shared instance");
     SharedInstanceClient { transport, announces, iface }

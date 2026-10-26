@@ -1,5 +1,6 @@
 use std::fs;
 use std::path::{Path, PathBuf};
+use std::process::Command;
 
 /// The lockfiles a release regenerates: the workspace lock and the fuzz crate's
 /// own lock, the fuzz crate not being a workspace member.
@@ -23,14 +24,25 @@ fn crate_version() -> String {
         .to_string()
 }
 
-/// Patch ids in the ledger legend are one uppercase letter and one digit,
-/// such as `B3` or `F1`.
+/// Patch ids in the ledger legend are one uppercase letter and one or two
+/// digits, such as `B3`, `F1` or `F10`.
 fn is_patch_id(token: &str) -> bool {
     let mut chars = token.chars();
-    matches!(
-        (chars.next(), chars.next(), chars.next()),
-        (Some(letter), Some(digit), None) if letter.is_ascii_uppercase() && digit.is_ascii_digit()
-    )
+    let Some(letter) = chars.next() else { return false };
+    let digits = chars.as_str();
+    letter.is_ascii_uppercase()
+        && (1..=2).contains(&digits.len())
+        && digits.bytes().all(|byte| byte.is_ascii_digit())
+}
+
+#[test]
+fn is_patch_id_accepts_one_letter_and_one_or_two_digits() {
+    for accepted in ["F1", "F10", "F99", "H2"] {
+        assert!(is_patch_id(accepted), "{accepted:?} is a patch id");
+    }
+    for rejected in ["F", "F100", "f1", "1F", "F1x", "FX", "10"] {
+        assert!(!is_patch_id(rejected), "{rejected:?} is not a patch id");
+    }
 }
 
 #[test]
@@ -97,8 +109,6 @@ fn publish_tag_version_guard_pins_its_contract() {
 #[cfg(unix)]
 #[test]
 fn publish_tag_version_guard_rejects_a_mismatched_tag() {
-    use std::process::Command;
-
     let script = repo_root().join("tools/scripts/check-publish-tag-version.sh");
     let run = |publish_ref: Option<&str>| {
         let mut command = Command::new("bash");
@@ -160,7 +170,7 @@ fn crate_readme_pins_the_consumer_contract() {
 
     assert_eq!(
         crate_version(),
-        "0.15.1",
+        "0.16.0",
         "coyote-rns-transport should declare the published version; bump this pin with the crate"
     );
 
@@ -184,7 +194,7 @@ fn crate_readme_pins_the_consumer_contract() {
 
     for required in [
         "name = \"coyote-rns-transport\"",
-        "version = \"0.15.1\"",
+        "version = \"0.16.0\"",
         "description = \"Coyote's published fork of reticulum-rs-transport",
         "license.workspace = true",
         "rns-core.workspace = true",
@@ -385,16 +395,20 @@ fn fuzz_lock_resolves_the_crate_from_its_path_dependency() {
 
 /// The `## <label> (upstream <base>)` section of the patch-set ledger, up to
 /// the next `## ` heading. `label` is a release version or `Unreleased`.
-/// A `## <label>` heading without the `(upstream <base>)` suffix is a
-/// malformed ledger, not a missing section, so it panics rather than
-/// disabling the checks that key on the heading.
+/// The anchor ends in a space so `0.15.1` cannot match a `0.15.10` heading.
+/// A `## <label> ` heading that does not continue with `(upstream <base>)`
+/// is a malformed ledger, not a missing section, so it panics rather than
+/// disabling the checks that key on the heading. A bare `## <label>` heading
+/// with nothing after the label does not match the anchor and is a missing
+/// section here (`None`); `ledger_sections_under_full_hash_contract` turns
+/// that `None` into a panic for the sections it covers.
 fn ledger_section<'a>(ledger: &'a str, label: &str) -> Option<&'a str> {
-    let heading_anchor = format!("\n## {label}");
+    let heading_anchor = format!("\n## {label} ");
     let start = ledger.find(&heading_anchor)?;
     let section = &ledger[start + 1..];
     let heading = section.lines().next().unwrap_or_default();
     assert!(
-        heading[heading_anchor.len() - 1..].starts_with(" (upstream "),
+        heading[heading_anchor.len() - 1..].starts_with("(upstream "),
         "the ledger heading for {label} should read `## {label} (upstream <base>)`, got {heading:?}"
     );
     Some(match section[heading.len()..].find("\n## ") {
@@ -604,9 +618,18 @@ fn check_ledger_rows_name_a_patch_from_the_legend(
     // fixture row is attributed to a patch named for it.
     let interop_rows: Vec<&(&str, &str)> =
         rows.iter().filter(|(file, _)| file.contains("/python_channel_interop_parts/")).collect();
+    let found = if interop_rows.is_empty() {
+        "the table has no interop rows".to_string()
+    } else {
+        let rows: Vec<String> =
+            interop_rows.iter().map(|(file, patch)| format!("{file} ({patch})")).collect();
+        format!("interop rows found: {}", rows.join("; "))
+    };
     assert!(
         interop_rows.iter().any(|(_, patch)| patch.contains("Python-in-the-loop")),
-        "the {label} table should attribute an interop fixture to a Python-in-the-loop patch, got {interop_rows:?}"
+        "the {label} table should attribute at least one `python_channel_interop_parts/` row to a \
+         patch whose legend phrase contains `Python-in-the-loop`: every release section owes a \
+         Python-in-the-loop proof, and the ledger shows it by naming the patch for it; {found}"
     );
 }
 
@@ -691,29 +714,6 @@ fn patch_set_ledger_release_legend_hashes_each_have_a_patch_header() {
     );
 }
 
-/// The `## Unreleased` legend has no release patch to anchor on, so every
-/// backticked short hash it names, under any patch, must head a patch in the
-/// section.
-#[test]
-fn patch_set_ledger_unreleased_legend_hashes_each_have_a_patch_header() {
-    let ledger = read_repo_file("docs/fork/PATCHSET.md");
-    let Some(section) = ledger_section(&ledger, "Unreleased") else { return };
-    let legend = ledger_legend("Unreleased", section);
-    let legend_hashes: Vec<&str> = legend.split(' ').filter_map(commit_hash).collect();
-    assert!(
-        !legend_hashes.is_empty(),
-        "the Unreleased legend should name the fork commits of each patch"
-    );
-
-    let missing = legend_hashes_without_a_header(section, &legend_hashes);
-    assert!(
-        missing.is_empty(),
-        "every fork commit the Unreleased legend names should head a patch in the section, \
-         since each patch header lists every commit a rebase must re-apply; missing: {}",
-        missing.join(", ")
-    );
-}
-
 /// The README rebase recipe runs the same `cargo publish` the workflow runs.
 /// Neither carries a `--registry` override: the publish workflow runs on a
 /// GitHub runner with the default crates.io source, and a developer whose
@@ -768,14 +768,17 @@ fn cited_source_files(section: &str) -> Vec<&str> {
 }
 
 /// The cites that name no file under the crate tree, the reticulumd interop
-/// tests or the rns-tools sources, either as a repo-relative path or as a
-/// path suffix.
+/// tests, the rns-tools sources or the lxmf-cli tests, either as a
+/// repo-relative path or as a path suffix.
 fn unresolved_source_cites<'a>(cited: &[&'a str]) -> Vec<&'a str> {
     let root = repo_root();
     let mut tree: Vec<String> = Vec::new();
-    for subtree in
-        ["crates/libs/rns-transport", "crates/apps/reticulumd/tests", "crates/apps/rns-tools/src"]
-    {
+    for subtree in [
+        "crates/libs/rns-transport",
+        "crates/apps/reticulumd/tests",
+        "crates/apps/rns-tools/src",
+        "crates/apps/lxmf-cli/tests",
+    ] {
         visit_text_files(&root, &root.join(subtree), &mut |path| {
             let relative = path.strip_prefix(&root).unwrap_or(path);
             tree.push(relative.to_string_lossy().replace('\\', "/"));
@@ -793,9 +796,9 @@ fn unresolved_source_cites<'a>(cited: &[&'a str]) -> Vec<&'a str> {
 /// Release-note bullets under the current `## <version>` heading of the crate
 /// CHANGELOG end in a test clause that names the file pinning the behaviour.
 /// Every backticked `.rs` / `.py` path cited in that section must resolve to
-/// a file in the crate tree, the reticulumd interop tests or the rns-tools
-/// sources, so a renamed or deleted test file cannot leave the release notes
-/// pointing at nothing.
+/// a file in the crate tree, the reticulumd interop tests, the lxmf-cli tests
+/// or the rns-tools sources, so a renamed or deleted test file cannot leave
+/// the release notes pointing at nothing.
 #[test]
 fn release_notes_cite_files_that_exist_in_the_tree() {
     let version = crate_version();
@@ -821,7 +824,7 @@ fn release_notes_cite_files_that_exist_in_the_tree() {
     assert!(
         unresolved.is_empty(),
         "every file cited in the {version} release notes should exist under the crate, the \
-         reticulumd tests or the rns-tools sources:\n{}",
+         reticulumd tests, the rns-tools sources or the lxmf-cli tests:\n{}",
         unresolved.join("\n")
     );
 }
@@ -848,33 +851,37 @@ fn unreleased_notes_cite_files_that_exist_in_the_tree() {
         None => body,
     };
 
-    // Top-level bullets start at column 0; their continuation lines are indented.
-    let mut bullets: Vec<Vec<&str>> = Vec::new();
-    for line in section.lines() {
-        if line.starts_with("- ") {
-            bullets.push(vec![line]);
-        } else if line.starts_with("  ") {
-            bullets.last_mut().expect("indented line before the first bullet").push(line);
-        }
-    }
-    assert!(!bullets.is_empty(), "the Unreleased release notes should carry at least one bullet");
-    for bullet in &bullets {
-        let text = bullet.join("\n");
-        assert!(
-            !cited_source_files(&text).is_empty(),
-            "every Unreleased bullet should cite at least one file that pins it; \
-             this one cites none:\n{text}"
-        );
-    }
+    let uncited = changelog_bullets_without_a_cite("Unreleased", section);
+    assert!(
+        uncited.is_empty(),
+        "every Unreleased bullet should cite at least one file that pins it; these cite none:\n{}",
+        uncited.join("\n")
+    );
 
     let unresolved = unresolved_source_cites(&cited_source_files(section));
     assert!(
         unresolved.is_empty(),
         "every file cited in the Unreleased release notes should exist under the crate, the \
-         reticulumd tests or the rns-tools sources:\n{}",
+         reticulumd tests, the rns-tools sources or the lxmf-cli tests:\n{}",
         unresolved.join("\n")
     );
 }
+
+include!("fork_publish_contract_parts/ledger_contract.rs");
+
+include!("fork_publish_contract_parts/ledger_contract_fixtures.rs");
+
+include!("fork_publish_contract_parts/release_tooling_probe.rs");
+
+include!("fork_publish_contract_parts/release_tooling_probe2.rs");
+
+include!("fork_publish_contract_parts/release_tooling_probe3.rs");
+
+include!("fork_publish_contract_parts/release_tooling_probe4.rs");
+
+include!("fork_publish_contract_parts/release_tooling_probe5.rs");
+
+include!("fork_publish_contract_parts/release_tooling_probe6.rs");
 
 #[test]
 fn repo_readme_points_at_the_crate_readme() {
@@ -986,27 +993,75 @@ fn visit_text_files(root: &Path, dir: &Path, f: &mut impl FnMut(&Path)) {
     }
 }
 
+/// Every file git would commit from this checkout: tracked files plus
+/// untracked ones no ignore rule excludes, so local tool state (`.coyote/`,
+/// `plans/`, anything in `.git/info/exclude`) is never scanned.
+fn git_committable_files() -> Vec<String> {
+    git_ls_files(&["--cached", "--others", "--exclude-standard"])
+}
+
+/// Every file git tracks in this checkout, so a file that only exists on
+/// disk (left behind by a release run, not yet added) does not count.
+fn git_tracked_files() -> Vec<String> {
+    git_ls_files(&["--cached"])
+}
+
+fn git_ls_files(selection: &[&str]) -> Vec<String> {
+    let output = Command::new("git")
+        .arg("ls-files")
+        .args(selection)
+        .arg("-z")
+        .current_dir(repo_root())
+        .output()
+        .expect("run git ls-files");
+    assert!(
+        output.status.success(),
+        "git ls-files should succeed: {}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+    String::from_utf8(output.stdout)
+        .expect("git ls-files paths should be UTF-8")
+        .split('\0')
+        .filter(|path| !path.is_empty())
+        .map(str::to_string)
+        .collect()
+}
+
+/// The same filters `visit_text_files` applies, on a repo-relative path.
+fn is_scanned_for_the_old_package_name(relative: &str) -> bool {
+    let path = Path::new(relative);
+    let name = path.file_name().and_then(|name| name.to_str()).unwrap_or_default();
+    let in_skipped_dir = path.parent().into_iter().flat_map(Path::components).any(|dir| {
+        let dir = dir.as_os_str().to_str().unwrap_or_default();
+        SKIPPED_DIRECTORIES.contains(&dir) || (dir.starts_with('.') && dir != ".github")
+    });
+    let scanned = path
+        .extension()
+        .and_then(|ext| ext.to_str())
+        .is_some_and(|ext| SCANNED_EXTENSIONS.contains(&ext));
+    scanned
+        && !in_skipped_dir
+        && name != "Cargo.lock"
+        && !SKIPPED_DOC_PREFIXES.iter().any(|prefix| relative.starts_with(prefix))
+}
+
 #[test]
 fn old_package_name_survives_only_as_prose() {
     let root = repo_root();
-    let this_file = root.join("crates/apps/reticulumd/tests/fork_publish_contract.rs");
     let mut offenders = Vec::new();
-
-    visit_text_files(&root, &root, &mut |path| {
-        // This file spells out the forbidden forms as needles.
-        if path == this_file {
-            return;
+    // This file spells out the forbidden forms as needles.
+    let this_file = "crates/apps/reticulumd/tests/fork_publish_contract.rs";
+    for relative in git_committable_files() {
+        if relative == this_file || !is_scanned_for_the_old_package_name(&relative) {
+            continue;
         }
-        let Ok(text) = fs::read_to_string(path) else {
-            return;
-        };
+        let Ok(text) = fs::read_to_string(root.join(&relative)) else { continue };
         for (index, line) in text.lines().enumerate() {
             if OLD_PACKAGE_NAME_FORMS.iter().any(|form| line.contains(form)) {
-                let relative = path.strip_prefix(&root).unwrap_or(path);
-                offenders.push(format!("{}:{}: {}", relative.display(), index + 1, line.trim()));
+                offenders.push(format!("{relative}:{}: {}", index + 1, line.trim()));
             }
         }
-    });
+    }
 
     assert!(
         offenders.is_empty(),
@@ -1016,13 +1071,9 @@ fn old_package_name_survives_only_as_prose() {
 }
 
 /// Release hygiene the fork carries in CI: the publish contract runs on the
-/// pull-request path, not only on the tag workflow, and the upstream Codex
-/// review is opt-in through a repository variable, so a fork without the
-/// OpenAI secret does not fail every PR. The Codex job also skips pull
-/// requests from forks, whose heads cannot read the `OPENAI_API_KEY`
-/// secret.
+/// pull-request path, not only on the tag workflow.
 #[test]
-fn pull_request_ci_runs_the_publish_contract_and_codex_review_is_opt_in() {
+fn pull_request_ci_runs_the_publish_contract() {
     let ci = read_repo_file(".github/workflows/ci.yml");
     assert!(ci.contains("\non:\n  pull_request:"), "ci.yml should run on pull requests");
     assert!(
@@ -1038,57 +1089,103 @@ fn pull_request_ci_runs_the_publish_contract_and_codex_review_is_opt_in() {
         !job.lines().any(|line| line.trim_start().starts_with("if:")),
         "the `contracts` job must not be conditional, or the publish contract skips on PRs"
     );
+}
 
-    let codex = read_repo_file(".github/workflows/codex-review.yml");
-    let guard = codex
+// The job body: the `  contracts:` line and every following line that is blank or
+// indented deeper than a top-level job key.
+fn contracts_job(workflow: &str, name: &str) -> String {
+    let start = workflow
+        .find("\n  contracts:\n")
+        .unwrap_or_else(|| panic!("{name} should have a `contracts` job"));
+    workflow[start + 1..]
         .lines()
-        .find(|line| line.trim_start().starts_with("if:"))
-        .expect("codex-review.yml should guard its job with an `if:`");
+        .enumerate()
+        .take_while(|(i, line)| *i == 0 || line.is_empty() || line.starts_with("    "))
+        .map(|(_, line)| format!("{line}\n"))
+        .collect()
+}
+
+/// Every `crates/libs/rns-transport/tests/*.rs` target runs on the
+/// pull-request path, including the breaking-change compile-fail harness,
+/// and the fork patch-set ledger is checked against the release tags, which
+/// the script can only see on a full-history checkout.
+#[test]
+fn pull_request_ci_runs_every_external_rns_transport_test_target() {
+    let ci = read_repo_file(".github/workflows/ci.yml");
+    let job = contracts_job(&ci, "ci.yml");
     assert!(
-        guard.contains("vars.CODEX_REVIEW_ENABLED == 'true'"),
-        "the Codex review job should be opt-in through the CODEX_REVIEW_ENABLED variable, got {guard:?}"
+        job.contains("run: cargo test -p coyote-rns-transport --tests"),
+        "ci.yml's contracts job should run every external coyote-rns-transport test target"
     );
     assert!(
-        guard.contains("github.event.pull_request.head.repo.full_name == github.repository"),
-        "the Codex review job must skip pull requests from forks, whose heads cannot read the OPENAI_API_KEY secret, got {guard:?}"
+        job.contains("run: tools/scripts/patchset-ledger-check.sh"),
+        "ci.yml's contracts job should run the fork patch-set ledger check"
     );
+    let checkout = &job[..job.find("run:").expect("the contracts job should have a run step")];
     assert!(
-        !guard.contains("secrets."),
-        "a job-level `if:` cannot read secrets; the gate must be a repository variable"
+        checkout.contains("fetch-depth: 0"),
+        "the contracts job checkout needs the full history and tags for the ledger check, got {checkout:?}"
     );
 }
 
 /// The `contracts` job of `ci-full.yml` is the twin of the one in `ci.yml`:
-/// every contract step the pull-request workflow runs (the fork publish and
-/// release-docs contracts, the breaking-change compile-fail harness) runs
-/// there too, so the dispatch workflow cannot pass on a tree the PR
-/// workflow would reject.
+/// every step the pull-request workflow runs (the docs build, the fork
+/// publish and release-docs contracts, the external test targets, the
+/// patch-set ledger check) runs there too, on the same full-history checkout
+/// the ledger check needs, so the dispatch workflow cannot pass on a tree the
+/// PR workflow would reject.
 #[test]
 fn ci_full_contracts_job_runs_every_contract_step_ci_runs() {
-    // The job body: the `  contracts:` line and every following line that is blank or
-    // indented deeper than a top-level job key.
-    fn contracts_job(workflow: &str, name: &str) -> String {
-        let start = workflow
-            .find("\n  contracts:\n")
-            .unwrap_or_else(|| panic!("{name} should have a `contracts` job"));
-        workflow[start + 1..]
-            .lines()
-            .enumerate()
-            .take_while(|(i, line)| *i == 0 || line.is_empty() || line.starts_with("    "))
-            .map(|(_, line)| format!("{line}\n"))
-            .collect()
-    }
     let ci = read_repo_file(".github/workflows/ci.yml");
     let ci_full = read_repo_file(".github/workflows/ci-full.yml");
     let ci_job = contracts_job(&ci, "ci.yml");
     let ci_full_job = contracts_job(&ci_full, "ci-full.yml");
     let steps: Vec<&str> =
-        ci_job.lines().filter(|line| line.trim_start().starts_with("run: cargo test ")).collect();
+        ci_job.lines().filter(|line| line.trim_start().starts_with("run: ")).collect();
     assert!(
-        steps.len() >= 2,
-        "ci.yml's contracts job should run at least two cargo test steps, got {steps:?}"
+        steps.len() >= 4,
+        "ci.yml's contracts job should run at least four steps, got {steps:?}"
     );
     for step in steps {
         assert!(ci_full_job.contains(step), "ci-full.yml's contracts job should carry {step:?}");
     }
+    let checkout = &ci_full_job
+        [..ci_full_job.find("run:").expect("ci-full.yml's contracts job should have a run step")];
+    assert!(
+        checkout.contains("fetch-depth: 0"),
+        "ci-full.yml's contracts job checkout needs the full history and tags for the ledger \
+         check, got {checkout:?}"
+    );
 }
+
+include!("fork_publish_contract_parts/lint_discipline_probe.rs");
+
+include!("fork_publish_contract_parts/lint_discipline_probe2.rs");
+
+include!("fork_publish_contract_parts/lint_discipline_probe3.rs");
+
+include!("fork_publish_contract_parts/lint_discipline_probe4.rs");
+
+include!("fork_publish_contract_parts/lint_discipline_probe5.rs");
+
+include!("fork_publish_contract_parts/lint_discipline_probe6.rs");
+
+include!("fork_publish_contract_parts/lint_discipline_probe7.rs");
+
+include!("fork_publish_contract_parts/lint_discipline_probe8.rs");
+
+include!("fork_publish_contract_parts/lint_discipline_probe9.rs");
+
+include!("fork_publish_contract_parts/lint_discipline_probe10.rs");
+
+include!("fork_publish_contract_parts/lint_discipline_probe11.rs");
+
+include!("fork_publish_contract_parts/lint_discipline_probe12.rs");
+
+include!("fork_publish_contract_parts/release_frozen_sections_probe.rs");
+
+include!("fork_publish_contract_parts/release_frozen_sections_probe2.rs");
+
+include!("fork_publish_contract_parts/lxmf_cli_cite_root_probe.rs");
+
+include!("fork_publish_contract_parts/lxmf_cli_cite_root_probe2.rs");

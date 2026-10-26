@@ -117,25 +117,6 @@ async fn await_request_resource_complete(
     complete_payload(complete)
 }
 
-/// Waits for the connector's terminal event for the outbound resource `hash`.
-#[deny(clippy::await_holding_invalid_type)]
-async fn await_outbound_terminal(
-    events: &mut broadcast::Receiver<ResourceEvent>,
-    hash: Hash,
-) -> ResourceEventKind {
-    await_resource_event(events, |event| {
-        event.hash == hash
-            && matches!(
-                event.kind,
-                ResourceEventKind::OutboundRejected { .. }
-                    | ResourceEventKind::OutboundComplete
-                    | ResourceEventKind::OutboundFailed
-            )
-    })
-    .await
-    .kind
-}
-
 /// The `Complete(ResourceComplete { is_request: true, .. })` broadcast is the resource-form
 /// twin of `LinkEvent::Data(Request)`: it posts for a request the registered handler answers,
 /// carries the assembled bytes (which hash back to the requester's id) and names the request

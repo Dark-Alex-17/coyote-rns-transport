@@ -63,10 +63,12 @@ async fn outcome_probe_await_terminal(
 }
 
 /// Dropping the outcome cancels nothing; the receiver still assembles the split Resource
-/// and the sender's events still carry `OutboundComplete`.
+/// and the sender's events still carry `OutboundComplete`; the verdict nobody received is
+/// recorded once at debug, naming the resource, the link and the verdict.
 #[tokio::test]
 #[deny(clippy::await_holding_invalid_type)]
 async fn outcome_probe_dropping_the_outcome_does_not_cancel_the_transfer() {
+    install_test_logger();
     let pair = loopback_link_pair("outcome-probe-drop").await;
     let mut sender_events = pair.connector.transport.resource_events();
     let mut listener_events = pair.listener.transport.resource_events();
@@ -91,6 +93,27 @@ async fn outcome_probe_dropping_the_outcome_does_not_cancel_the_transfer() {
         matches!(terminal.kind, ResourceEventKind::OutboundComplete),
         "the sender's event stream still ends in OutboundComplete, got {:?}",
         terminal.kind
+    );
+
+    let link_id = pair.link_id;
+    let dropped_records = || {
+        outcome_receiver_dropped_records()
+            .into_iter()
+            .filter(|record| record.contains(&format!("hash={resource_hash}")))
+            .collect::<Vec<_>>()
+    };
+    wait_until(
+        "the dropped-receiver debug record",
+        || !dropped_records().is_empty(),
+        || format!("{:?}", outcome_receiver_dropped_records()),
+    )
+    .await;
+    let dropped = dropped_records();
+    assert_eq!(dropped.len(), 1, "one record per dropped receiver: {dropped:?}");
+    assert!(
+        dropped[0].contains(&format!("link={link_id}")) && dropped[0].contains("verdict=Complete"),
+        "the record names the link and the verdict: {}",
+        dropped[0]
     );
 }
 

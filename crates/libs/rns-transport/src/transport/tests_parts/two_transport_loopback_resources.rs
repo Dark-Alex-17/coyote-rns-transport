@@ -26,6 +26,26 @@ async fn await_resource_event(
     .expect("timed out waiting for the resource event")
 }
 
+/// The kind of the sender's terminal event for the outbound resource `hash`:
+/// `OutboundComplete`, `OutboundFailed` or `OutboundRejected`, whichever comes first.
+#[deny(clippy::await_holding_invalid_type)]
+async fn await_outbound_terminal(
+    events: &mut broadcast::Receiver<ResourceEvent>,
+    hash: Hash,
+) -> ResourceEventKind {
+    await_resource_event(events, |event| {
+        event.hash == hash
+            && matches!(
+                event.kind,
+                ResourceEventKind::OutboundComplete
+                    | ResourceEventKind::OutboundFailed
+                    | ResourceEventKind::OutboundRejected { .. }
+            )
+    })
+    .await
+    .kind
+}
+
 /// Drains the receiver until `Complete` for `link_id` arrives, returning it together with
 /// the highest `total_segments` seen on the way.
 #[deny(clippy::await_holding_invalid_type)]
@@ -81,11 +101,61 @@ async fn assert_no_further_complete(
     }
 }
 
+/// Drains whatever has already been published and fails on any event, of any kind, that
+/// names `hash`: a rejected resource must leave no trace on the rejecting side.
+fn assert_no_event_for(events: &mut broadcast::Receiver<ResourceEvent>, hash: Hash) {
+    loop {
+        match events.try_recv() {
+            Ok(event) => assert!(
+                event.hash != hash,
+                "unexpected resource event for {hash}: {:?}",
+                event.kind
+            ),
+            Err(TryRecvError::Lagged(_)) => continue,
+            Err(TryRecvError::Empty) | Err(TryRecvError::Closed) => return,
+        }
+    }
+}
+
 fn complete_payload(event: ResourceEvent) -> ResourceComplete {
     match event.kind {
         ResourceEventKind::Complete(complete) => complete,
         other => panic!("expected a Complete event, got {other:?}"),
     }
+}
+
+/// Checks one receiver-side `Complete` plus the sender's clean terminal event for a
+/// transfer that was dispatched as `resource_hash`. `expected_segments` is `None` for a
+/// single-segment transfer, which emits no `SegmentComplete` at all.
+#[deny(clippy::await_holding_invalid_type)]
+async fn assert_transfer_completes(
+    sender_events: &mut broadcast::Receiver<ResourceEvent>,
+    receiver_events: &mut broadcast::Receiver<ResourceEvent>,
+    link_id: AddressHash,
+    resource_hash: Hash,
+    payload: &[u8],
+    expected_segments: Option<u32>,
+) -> ResourceComplete {
+    let (complete, segments_seen) = await_complete_with_segments(receiver_events, link_id).await;
+    assert_eq!(complete.hash, resource_hash, "receiver reports the sender's resource hash");
+    match expected_segments {
+        Some(expected) => {
+            assert_eq!(segments_seen, Some(expected), "segment count on the receiver")
+        }
+        None => {
+            assert_eq!(segments_seen, None, "a single-segment transfer emits no SegmentComplete")
+        }
+    }
+    let complete = complete_payload(complete);
+    assert_eq!(complete.data.len(), payload.len(), "received length");
+    assert!(complete.data == payload, "received bytes match the sent payload");
+
+    let outbound = await_outbound_terminal(sender_events, resource_hash).await;
+    assert!(
+        matches!(outbound, ResourceEventKind::OutboundComplete),
+        "sender should finish cleanly, got {outbound:?}"
+    );
+    complete
 }
 
 /// Sends a small request Resource under `request_id` from `requester` and returns its hash,
@@ -116,10 +186,8 @@ async fn response_resource_round_trip(payload_len: usize, expected_segments: u32
         register_in_destination(&listener.transport, "loopback", "resource").await;
     let learned = learn_announce(&mut connector.announces, &desc.address_hash).await;
     let (_link, link_id) = open_link(&connector.transport, learned).await;
-    let activated = await_event(&mut in_events, |event| {
-        matches!(event.event, LinkEvent::Activated)
-    })
-    .await;
+    let activated =
+        await_event(&mut in_events, |event| matches!(event.event, LinkEvent::Activated)).await;
     assert_eq!(activated.id, link_id, "both ends share one link id");
 
     let mut sender_events = listener.transport.resource_events();
@@ -154,20 +222,10 @@ async fn response_resource_round_trip(payload_len: usize, expected_segments: u32
     assert_eq!(complete.data.len(), payload.len(), "received length");
     assert!(complete.data == payload, "received bytes match the sent payload");
 
-    let outbound = await_resource_event(&mut sender_events, |event| {
-        event.hash == resource_hash
-            && matches!(
-                event.kind,
-                ResourceEventKind::OutboundComplete
-                    | ResourceEventKind::OutboundFailed
-                    | ResourceEventKind::OutboundRejected { .. }
-            )
-    })
-    .await;
+    let outbound = await_outbound_terminal(&mut sender_events, resource_hash).await;
     assert!(
-        matches!(outbound.kind, ResourceEventKind::OutboundComplete),
-        "sender should finish cleanly, got {:?}",
-        outbound.kind
+        matches!(outbound, ResourceEventKind::OutboundComplete),
+        "sender should finish cleanly, got {outbound:?}"
     );
 
     assert_no_further_complete(&mut receiver_events, link_id).await;

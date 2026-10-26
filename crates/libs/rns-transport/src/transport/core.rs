@@ -188,9 +188,9 @@ impl Transport {
             self.send_direct(iface, packet).await;
             log::trace!("Sent outbound packet to {}", iface);
         } else {
-            let handler = self.handler.lock().await;
-            if handler.config.broadcast {
-                handler.send(TxMessage { tx_type: TxMessageType::Broadcast(None), packet }).await;
+            let broadcast = self.handler.lock().await.config.broadcast;
+            if broadcast {
+                self.send_broadcast(packet, None).await;
             } else {
                 log::trace!("tp({}): no route for outbound packet dst={}", self.name, destination);
             }
@@ -199,51 +199,6 @@ impl Transport {
 
     pub fn iface_manager(&self) -> Arc<Mutex<InterfaceManager>> {
         self.iface_manager.clone()
-    }
-
-    pub async fn stop_interface(&self, address: AddressHash) -> bool {
-        let routing = { self.handler.lock().await.multicast_peer_routings.remove(&address) };
-
-        let virtual_ifaces = match routing {
-            Some(routing) => {
-                let virtual_ifaces = routing.lock().await.hashes();
-                self.handler
-                    .lock()
-                    .await
-                    .unicast_udp_ifaces
-                    .retain(|_, (iface, _)| !virtual_ifaces.contains(iface));
-                Some(virtual_ifaces)
-            }
-            None => None,
-        };
-
-        let Some(virtual_ifaces) = virtual_ifaces else {
-            let peer_routings = {
-                let mut handler = self.handler.lock().await;
-                let stale_peer = handler
-                    .unicast_udp_ifaces
-                    .iter()
-                    .find_map(|(peer, (iface, _))| (*iface == address).then_some(*peer));
-                stale_peer.map(|peer| {
-                    handler.unicast_udp_ifaces.remove(&peer);
-                    handler.multicast_peer_routings.values().cloned().collect::<Vec<_>>()
-                })
-            };
-            let Some(peer_routings) = peer_routings else {
-                return self.iface_manager.lock().await.stop_interface(address);
-            };
-            for routing in peer_routings {
-                let _ = routing.lock().await.remove_by_hash(&address);
-            }
-            return self.iface_manager.lock().await.stop_interface(address);
-        };
-
-        let mut manager = self.iface_manager.lock().await;
-        let mut stopped = manager.stop_interface(address);
-        for iface in virtual_ifaces {
-            stopped |= manager.stop_interface(iface);
-        }
-        stopped
     }
 
     pub async fn set_connected_to_shared_instance(&self, connected: bool) {
@@ -307,16 +262,19 @@ impl Transport {
         self.handler.lock().await.announce_tx.subscribe()
     }
 
+    #[allow(clippy::await_holding_invalid_type)] // TASK-026: handler guard spans the job by design, see TransportHandler lock discipline
     pub async fn send_packet(&self, packet: Packet) {
         let mut handler = self.handler.lock().await;
         handler.send_packet(packet).await;
     }
 
+    #[allow(clippy::await_holding_invalid_type)] // TASK-026: handler guard spans the job by design, see TransportHandler lock discipline
     pub async fn send_packet_with_outcome(&self, packet: Packet) -> SendPacketOutcome {
         let mut handler = self.handler.lock().await;
         handler.send_packet_with_outcome(packet).await
     }
 
+    #[allow(clippy::await_holding_invalid_type)] // TASK-026: handler guard spans the job by design, see TransportHandler lock discipline
     pub async fn send_packet_with_trace(&self, packet: Packet) -> SendPacketTrace {
         let mut handler = self.handler.lock().await;
         handler.send_packet_with_trace(packet).await
@@ -331,6 +289,7 @@ impl Transport {
     /// should remove the mapping after inspecting the returned trace.
     /// The observer must return promptly and must not synchronously re-enter
     /// this transport instance.
+    #[allow(clippy::await_holding_invalid_type)] // TASK-026: handler guard spans the job by design, see TransportHandler lock discipline
     pub async fn send_packet_observed_with_trace(
         &self,
         packet: Packet,
@@ -340,11 +299,20 @@ impl Transport {
         handler.send_packet_observed_with_trace(packet, observe_packet_hash).await
     }
 
+    #[allow(clippy::await_holding_invalid_type)] // TASK-026: handler guard spans the job by design, see TransportHandler lock discipline
     pub async fn send_packet_broadcast_with_trace(&self, packet: Packet) -> SendPacketTrace {
         let mut handler = self.handler.lock().await;
         handler.send_packet_broadcast_with_trace(packet).await
     }
 
+    /// Broadcasts a packet the caller has already prepared (encrypted and hashed) on every
+    /// interface, bypassing the transport's send bookkeeping entirely. Nothing sent this way
+    /// is recorded, whatever its destination type: no packet-cache entry for the receipt
+    /// guard, no link bookkeeping, so the transport's own proof, request and duplicate
+    /// tracking never applies to it. It exists for prepared packets whose proofs the caller
+    /// matches on its own, by the hash in the returned trace. Use `send_packet*` or the
+    /// link send APIs when the transport should track the packet.
+    #[allow(clippy::await_holding_invalid_type)] // TASK-026: iface_manager guard spans the broadcast send; no handler guard is taken, see TransportHandler lock discipline
     pub async fn send_prepared_packet_broadcast_with_trace(
         &self,
         packet: Packet,
@@ -370,30 +338,32 @@ impl Transport {
         SendPacketTrace::with_packet_hash(outcome, packet_hash, None, true, dispatch)
     }
 
+    #[deny(clippy::await_holding_invalid_type)]
     pub async fn send_announce(
         &self,
         destination: &Arc<Mutex<SingleInputDestination>>,
         app_data: Option<&[u8]>,
     ) {
-        let mut destination = destination.lock().await;
-        log::trace!(
-            "[tp] announce_tx dst={} app_data_len={}",
-            destination.desc.address_hash,
-            app_data.map(|value| value.len()).unwrap_or(0)
-        );
-        let packet = match destination.announce(OsRng, app_data) {
-            Ok(packet) => packet,
-            Err(error) => {
-                log::warn!(
-                    "[tp] announce not sent: packet build failed dst={} error={:?}",
-                    destination.desc.address_hash.short(),
-                    error
-                );
-                return;
+        let packet = {
+            let mut destination = destination.lock().await;
+            log::trace!(
+                "[tp] announce_tx dst={} app_data_len={}",
+                destination.desc.address_hash,
+                app_data.map(|value| value.len()).unwrap_or(0)
+            );
+            match destination.announce(OsRng, app_data) {
+                Ok(packet) => packet,
+                Err(error) => {
+                    log::warn!(
+                        "[tp] announce not sent: packet build failed dst={} error={:?}",
+                        destination.desc.address_hash.short(),
+                        error
+                    );
+                    return;
+                }
             }
         };
-        let mut handler = self.handler.lock().await;
-        handler.send_packet(packet).await;
+        self.send_packet(packet).await;
     }
 
     /// Builds and sends an announce for `destination`, returning the build error instead of
@@ -432,6 +402,12 @@ impl Transport {
         }
     }
 
+    /// Test seam: runs only the receipt-validation half of inbound processing
+    /// on `packet` and invokes the registered receipt handler for a valid
+    /// proof. It bypasses dedup, routing and link handling, so it is not a
+    /// substitute for delivering a packet through an interface. Part of the
+    /// public API; narrowing it would be a breaking change.
+    #[allow(clippy::await_holding_invalid_type)] // TASK-026: handler guard spans the job by design, see TransportHandler lock discipline
     pub async fn handle_inbound_for_test(&self, packet: Packet) {
         let (receipt, receipt_handler) = {
             let handler = self.handler.lock().await;
@@ -454,6 +430,7 @@ impl Transport {
         }
     }
 
+    #[allow(clippy::await_holding_invalid_type)] // TASK-026: handler guard spans the job by design, see TransportHandler lock discipline
     pub async fn send_broadcast(&self, packet: Packet, from_iface: Option<AddressHash>) {
         self.handler
             .lock()
@@ -470,3 +447,5 @@ impl Transport {
         super::links::synthesize_tunnel_on_iface(&self.handler, iface).await
     }
 }
+
+include!("core_parts/stop_interface.rs");

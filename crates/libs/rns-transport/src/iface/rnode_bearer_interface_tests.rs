@@ -1,3 +1,6 @@
+// Test code holds guards across awaits on purpose.
+#![allow(clippy::await_holding_invalid_type)]
+
 use std::collections::VecDeque;
 use std::future::pending;
 use std::sync::atomic::{AtomicUsize, Ordering};

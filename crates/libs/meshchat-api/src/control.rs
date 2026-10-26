@@ -72,6 +72,7 @@ pub(super) async fn patch_config(
     Ok(Json(json!({"config":config})))
 }
 
+#[allow(clippy::await_holding_invalid_type)] // TASK-026: state.local write guard drop()ed before wait_persist().await still trips the lint; scope it in a block, then remove
 async fn update_config(state: &AppState, body: Value) -> Result<(), ApiError> {
     let patch = body
         .get("config")
@@ -147,6 +148,7 @@ pub(super) async fn favourites(State(state): State<Arc<AppState>>) -> ApiResult 
     Ok(Json(json!({"favourites":values})))
 }
 
+#[allow(clippy::await_holding_invalid_type)] // TASK-026: state.local write guard drop()ed before wait_persist().await still trips the lint; scope it in a block, then remove
 pub(super) async fn add_favourite(
     State(state): State<Arc<AppState>>,
     Json(body): Json<Value>,
@@ -179,6 +181,7 @@ pub(super) async fn add_favourite(
     Ok(Json(json!({"message":"Favourite has been added!"})))
 }
 
+#[allow(clippy::await_holding_invalid_type)] // TASK-026: state.local write guard drop()ed before wait_persist().await still trips the lint; scope it in a block, then remove
 pub(super) async fn rename_favourite(
     State(state): State<Arc<AppState>>,
     Path(destination): Path<String>,
@@ -201,6 +204,7 @@ pub(super) async fn rename_favourite(
     Ok(Json(json!({"message":"Favourite has been renamed"})))
 }
 
+#[allow(clippy::await_holding_invalid_type)] // TASK-026: state.local write guard drop()ed before wait_persist().await still trips the lint; scope it in a block, then remove
 pub(super) async fn delete_favourite(
     State(state): State<Arc<AppState>>,
     Path(destination): Path<String>,
@@ -221,6 +225,7 @@ pub(super) async fn display_name(
     Ok(Json(json!({"custom_display_name":name})))
 }
 
+#[allow(clippy::await_holding_invalid_type)] // TASK-026: state.local write guard drop()ed before wait_persist().await still trips the lint; scope it in a block, then remove
 pub(super) async fn update_display_name(
     State(state): State<Arc<AppState>>,
     Path(destination): Path<String>,

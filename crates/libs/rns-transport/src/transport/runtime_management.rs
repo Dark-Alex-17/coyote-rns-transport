@@ -112,18 +112,19 @@ impl Transport {
         ReticulumPacketDiskCache::new(storage_path).read(packet_hash, announce).await
     }
 
+    #[deny(clippy::await_holding_invalid_type)]
     pub async fn save_packet_hashlist<P: AsRef<Path>>(&self, storage_path: P) -> io::Result<usize> {
-        let hashes = {
+        let packet_cache = {
             let handler = self.handler.lock().await;
             if handler.config.transport_enabled && !handler.config.connected_to_shared_instance {
-                handler
-                    .packet_cache
-                    .try_lock()
-                    .map_err(|_| io::Error::other("packet cache is busy"))?
-                    .hashes()
+                Some(handler.packet_cache.clone())
             } else {
-                Vec::new()
+                None
             }
+        };
+        let hashes = match packet_cache {
+            Some(cache) => cache.lock().await.hashes(),
+            None => Vec::new(),
         };
         ReticulumPacketDiskCache::new(storage_path.as_ref())
             .save_packet_hashlist(storage_path, &hashes)
@@ -131,6 +132,7 @@ impl Transport {
         Ok(hashes.len())
     }
 
+    #[deny(clippy::await_holding_invalid_type)]
     pub async fn restore_packet_hashlist<P: AsRef<Path>>(
         &self,
         storage_path: P,

@@ -1,3 +1,6 @@
+// Example code holds guards across awaits on purpose.
+#![allow(clippy::await_holding_invalid_type)]
+
 use std::env;
 #[cfg(target_os = "linux")]
 use std::fs;

@@ -720,6 +720,21 @@ Removed) bullet of its own, marked as such.
   (`two_transport_shared_instance_probe16.rs`,
   `iface/weave_management_handle_tests.rs`,
   `iface/kiss_parts/shared_receiver_lease_probe_tests.rs`).
+- No library behaviour change (CI): the pinned-Python shared-instance smoke
+  (`tools/scripts/local-interface-python-shared-smoke.sh`) starts one
+  `reticulumd` per Python shared instance, each with a single
+  `LocalClientInterface` attach entry under `--strict-interface-startup`,
+  because the daemon attaches exactly one shared instance per process (see
+  the reticulumd migration bullet above); the one daemon it started with two
+  entries exited on the second entry's recorded startup failure. The
+  teardown-and-restart checks SIGINT one daemon at a time; the report groups
+  the per-daemon RPC address, paths and `rnstatus-rs` output under
+  `daemons`; the RPC unix sockets move to a short temp directory (a socket
+  path over `sun_path` fails to bind, and the smoke now fails on that bind
+  message in a daemon log); and the `RPC_ADDR` environment override, which
+  nothing set, is gone. Pinned by
+  `crates/apps/reticulumd/tests/local_interface_smoke_contract.rs`, which
+  also pins the runbook's two-daemon wording.
 
 ### Removed
 

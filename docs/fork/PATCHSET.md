@@ -67,7 +67,7 @@ carried-hygiene cell fork commits `9865dbdd` and `eb45dc62` add, named so
 the release's Python-in-the-loop proof rows are attributed to it; the
 `release 0.16.0` patch carries no other id and is fork commits `c281063e`,
 `a6ad4884`, `1a39183c`, `e14ead8d`, `44c19d48`, `5b9f69a8`, `704cd444`,
-`4ebfcc62`, `4e40639e`, `129c96ed` and `6f5cb046`.
+`4ebfcc62`, `4e40639e`, `129c96ed`, `6f5cb046` and `95298884`.
 
 | File | Patch |
 | --- | --- |
@@ -123,6 +123,7 @@ the release's Python-in-the-loop proof rows are attributed to it; the
 | `crates/apps/reticulumd/tests/fork_publish_contract_parts/release_tooling_probe5.rs` | release tooling |
 | `crates/apps/reticulumd/tests/fork_publish_contract_parts/release_tooling_probe6.rs` | shared-instance hardening |
 | `crates/apps/reticulumd/tests/fork_release_docs_contract.rs` | release tooling, release 0.16.0 |
+| `crates/apps/reticulumd/tests/local_interface_smoke_contract.rs` | release 0.16.0 |
 | `crates/apps/reticulumd/tests/python_channel_interop.rs` | guard discipline, carried hygiene, Python-in-the-loop identify allow-list interop |
 | `crates/apps/reticulumd/tests/python_channel_interop_parts/multi_segment_python_interop.rs` | test hygiene |
 | `crates/apps/reticulumd/tests/python_channel_interop_parts/python_request_late_reply.rs` | carried hygiene |
@@ -359,8 +360,10 @@ the release's Python-in-the-loop proof rows are attributed to it; the
 | `docs/fork/PATCHSET.md` | test hygiene, release tooling, ledger conventions, guard discipline, shared-instance hardening, carried hygiene, release 0.16.0 |
 | `docs/getting-started.md` | release 0.16.0 |
 | `docs/runbooks/release-runbook.md` | release tooling |
-| `docs/status/reticulum-parity-matrix.md` | ledger conventions |
+| `docs/runbooks/reticulumd-local-interface.md` | release 0.16.0 |
+| `docs/status/reticulum-parity-matrix.md` | ledger conventions, release 0.16.0 |
 | `tools/scripts/cross-target-clippy-classify.sh` | guard discipline |
+| `tools/scripts/local-interface-python-shared-smoke.sh` | release 0.16.0 |
 | `tools/scripts/old-name-tracked-scan.sh` | release tooling |
 | `tools/scripts/patchset-ledger-check.sh` | release tooling, shared-instance hardening |
 | `tools/scripts/python-interop-classify.sh` | guard discipline |
@@ -1822,7 +1825,8 @@ the `--allow-identified` flag of
 release section's Python-in-the-loop proof rows.
 
 Fork commits `c281063e`, `a6ad4884`, `1a39183c`, `e14ead8d`, `44c19d48`,
-`5b9f69a8`, `704cd444`, `4ebfcc62`, `4e40639e`, `129c96ed` and `6f5cb046`:
+`5b9f69a8`, `704cd444`, `4ebfcc62`, `4e40639e`, `129c96ed`, `6f5cb046` and
+`95298884`:
 release 0.16.0. The first retargets the promotion-sensitive pins to the
 literal 0.16.0 label, since a released section is frozen:
 `crates/apps/reticulumd/tests/fork_publish_contract_parts/ledger_contract.rs`
@@ -1921,7 +1925,36 @@ points at; `lint_discipline_probe10.rs` refuses the pre-split census
 wording the forty-sixth guard-discipline narrative carried, and that
 narrative now says where the live compare went; and the header of
 `release_frozen_sections_probe.rs` says the ledger script refuses on the
-no-tag precondition the probe skips on.
+no-tag precondition the probe skips on. The twelfth makes the pinned-Python
+shared-instance smoke, `tools/scripts/local-interface-python-shared-smoke.sh`,
+start one `reticulumd` per Python shared instance. The smoke used to start
+one daemon carrying two `LocalClientInterface` entries under
+`--strict-interface-startup`; since the shared-instance hardening patch the
+daemon attaches exactly one shared instance per process
+(`bootstrap_interface_startup_parts::shared_instance_attach` records the
+second entry as a startup failure), so strict startup exited the daemon
+before the smoke's attach poll could see it. Each daemon now has its own
+attach entry, RPC TCP address (the three loopback ports are picked in one
+pass, replacing the `RPC_ADDR` environment override nothing set), RPC unix
+socket in a short temp directory (the daemon binds it through a staging
+path beside it, and a path over `sun_path` fails to bind; the smoke now
+fails on that bind message in either daemon log), database directory (the
+daemon keeps its packet hashlist, path table and service identities beside
+the database), log, config and `rnstatus-rs` snapshots, both under
+`--strict-interface-startup`; the teardown-and-restart checks SIGINT only
+the matching daemon; and the report groups the per-daemon RPC address,
+paths and `rnstatus-rs` output under a `daemons` key (adding `rpc_unix`
+and `db_path`) and says one shared instance per `reticulumd` process,
+mirroring Python's one-shared-instance-per-process rule, while every other
+top-level key, the evidence scope and the interface rows are unchanged.
+`crates/apps/reticulumd/tests/local_interface_smoke_contract.rs` pins the
+two-daemon shape (the launch and snapshot helper calls, the cleanup loop
+over both daemon PIDs, the per-daemon SIGINT and wait, the traffic gate,
+the boundary phrase, the `daemons` key with `rust_config_path` and
+`reticulumd_log` written once each inside its helper, and the bind check
+together with the daemon panic message it greps for), and
+`docs/runbooks/reticulumd-local-interface.md` and
+`docs/status/reticulum-parity-matrix.md` describe it.
 
 ## 0.15.1 (upstream 0.14.0)
 

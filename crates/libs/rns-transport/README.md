@@ -306,6 +306,17 @@ on the request still goes out on every outgoing interface, as
 `RNS/Transport.py:1439-1443` floods a packet without a path entry.
 `RnsError` is `#[non_exhaustive]`, so a match on it keeps a wildcard arm.
 
+`Transport::destination_desc` returns `Option<DestinationDesc>` for a
+destination learned from an announce, `Some` exactly when
+`Transport::destination_identity` is `Some`. The desc's `name` is the
+announce's truncated name hash as `DestinationName::new_from_hash_slice`
+stores it, not the full hash `DestinationName::new` computes, so compare
+names with `as_name_hash_slice()` rather than against a freshly built
+`DestinationName`. The entry outlives `Transport::expire_path`, which
+touches only the path table, and is removed only by
+`Transport::deregister_destination`. The desc is enough to open a link with
+`Transport::link`.
+
 `AnnounceEvent::is_path_response` is true for an announce the destination
 sent in answer to a path request, which it files under
 `PacketContext::PathResponse` (`RNS/Destination.py:308`), and false for an

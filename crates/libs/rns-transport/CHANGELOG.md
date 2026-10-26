@@ -8,6 +8,20 @@ no library behaviour (a test-only change such as a fixture hardening or a
 test hygiene pass, release tooling, CI) is a Changed (or, for a deleted file,
 Removed) bullet of its own, marked as such.
 
+## Unreleased
+
+### Added
+
+- `Transport::destination_desc` returns `Option<DestinationDesc>` for a
+  destination learned from an announce
+  (`links_parts/transport_sections/close_channel.rs`, beside
+  `destination_identity`); it is `Some` exactly when `destination_identity`
+  is `Some`. The desc's `name` is the announce's truncated name hash as
+  `DestinationName::new_from_hash_slice` stores it, so callers compare names
+  with `as_name_hash_slice()`. The entry survives `expire_path`, which
+  touches only the path table, and is pruned only by
+  `deregister_destination`. Pinned by `two_transport_destination_desc.rs`.
+
 ## 0.16.0 - 2026-10-25
 
 ### Breaking

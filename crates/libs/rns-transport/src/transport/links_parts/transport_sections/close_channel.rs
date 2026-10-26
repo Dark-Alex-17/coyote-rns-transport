@@ -438,6 +438,23 @@ impl Transport {
         Some(destination.identity)
     }
 
+    /// Returns the description of a destination learned from an announce.
+    ///
+    /// The result is `Some` exactly when `destination_identity` is `Some`: both
+    /// read the same map, which is filled when an announce is accepted. The
+    /// returned `name` is the announce's truncated name hash as the receiver
+    /// stores it through `DestinationName::new_from_hash_slice` (the first
+    /// `NAME_HASH_LENGTH` bytes, zero-padded), not the full hash
+    /// `DestinationName::new` computes, so callers compare names with
+    /// `as_name_hash_slice()`. Only `deregister_destination` prunes the map;
+    /// `expire_path` touches the path table alone, so the entry survives it.
+    pub async fn destination_desc(&self, address: &AddressHash) -> Option<DestinationDesc> {
+        let destination =
+            { self.handler.lock().await.single_out_destinations.get(address).cloned() }?;
+        let destination = destination.lock().await;
+        Some(destination.desc)
+    }
+
     #[cfg(test)]
     pub(crate) fn get_handler(&self) -> Arc<Mutex<TransportHandler>> {
         // direct access to handler for testing purposes

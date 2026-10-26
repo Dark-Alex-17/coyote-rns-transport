@@ -735,6 +735,29 @@ Removed) bullet of its own, marked as such.
   nothing set, is gone. Pinned by
   `crates/apps/reticulumd/tests/local_interface_smoke_contract.rs`, which
   also pins the runbook's two-daemon wording.
+- No library behaviour change (CI): two Python-in-the-loop lxmf-cli tests
+  are restructured around behaviour the library already had.
+  `python_shared_instance_two_peer_relay_recovers_after_daemon_restart_e2e`
+  (now in
+  `crates/apps/lxmf-cli/tests/python_lxmd_remote_relay_parts/shared_instance_two_peer_relay.rs`)
+  used one `reticulumd` carrying two `LocalClientInterface` attach entries;
+  since the daemon attaches exactly one shared instance per process the
+  second entry is recorded as a startup failure. The test now runs one
+  transport-enabled relay per Python shared instance, bridged over a Rust
+  TCP uplink, replaces both relays, lets only the Python peers announce
+  (a relay's own `announce_now` puts two announces on the uplink at once
+  and trips the peer relay's announce ingress control), and opens the retry
+  observation window as soon as the replacement relay A is attached, since
+  the LXMRouter retry can fire within seconds of the drop.
+  `python_lxmf_router_delivery_cache_survives_process_restart_e2e`
+  (`crates/apps/lxmf-cli/tests/python_lxmd_remote_relay_parts/python_router_restart.rs`)
+  announced from the restarted Python shared instance while the Rust
+  client's redial was still inside its 8 s reconnect wait; the Python
+  endpoint helper (`crates/apps/lxmf-cli/tests/support/python_lxmf_endpoint.py`)
+  now reports `local_client_count` and the test waits for the re-attached
+  Rust local client before the single announce, and reserves a dedicated
+  `instance_control_port`. Cites under `crates/apps/lxmf-cli/tests` now
+  resolve in `crates/apps/reticulumd/tests/fork_publish_contract.rs`.
 
 ### Removed
 

@@ -67,7 +67,7 @@ carried-hygiene cell fork commits `9865dbdd` and `eb45dc62` add, named so
 the release's Python-in-the-loop proof rows are attributed to it; the
 `release 0.16.0` patch carries no other id and is fork commits `c281063e`,
 `a6ad4884`, `1a39183c`, `e14ead8d`, `44c19d48`, `5b9f69a8`, `704cd444`,
-`4ebfcc62`, `4e40639e`, `129c96ed`, `6f5cb046` and `95298884`.
+`4ebfcc62`, `4e40639e`, `129c96ed`, `6f5cb046`, `95298884` and `7b168319`.
 
 | File | Patch |
 | --- | --- |
@@ -76,6 +76,12 @@ the release's Python-in-the-loop proof rows are attributed to it; the
 | `AGENTS.md` | ledger conventions |
 | `Cargo.lock` | release 0.16.0 |
 | `Cargo.toml` | guard discipline, release 0.16.0 |
+| `crates/apps/lxmf-cli/tests/python_lxmd_remote_relay.rs` | release 0.16.0 |
+| `crates/apps/lxmf-cli/tests/python_lxmd_remote_relay_parts/python_router_restart.rs` | release 0.16.0 |
+| `crates/apps/lxmf-cli/tests/python_lxmd_remote_relay_parts/shared_instance_daemon.rs` | release 0.16.0 |
+| `crates/apps/lxmf-cli/tests/python_lxmd_remote_relay_parts/shared_instance_two_peer_relay.rs` | release 0.16.0 |
+| `crates/apps/lxmf-cli/tests/support/python_lxmd_remote_relay_parts/status_hash.rs` | release 0.16.0 |
+| `crates/apps/lxmf-cli/tests/support/python_lxmf_endpoint.py` | release 0.16.0 |
 | `crates/apps/reticulumd/Cargo.toml` | guard discipline, release 0.16.0 |
 | `crates/apps/reticulumd/examples/interfaces-reference.toml` | shared-instance hardening |
 | `crates/apps/reticulumd/src/bin/reticulumd/announce_ingest.rs` | guard discipline |
@@ -359,6 +365,7 @@ the release's Python-in-the-loop proof rows are attributed to it; the
 | `crates/libs/rns-transport/tests/tcp_connection_memory.rs` | guard discipline |
 | `docs/fork/PATCHSET.md` | test hygiene, release tooling, ledger conventions, guard discipline, shared-instance hardening, carried hygiene, release 0.16.0 |
 | `docs/getting-started.md` | release 0.16.0 |
+| `docs/goals/reticulum-reference-parity-605/evidence/609-transport-local-shared.md` | release 0.16.0 |
 | `docs/runbooks/release-runbook.md` | release tooling |
 | `docs/runbooks/reticulumd-local-interface.md` | release 0.16.0 |
 | `docs/status/reticulum-parity-matrix.md` | ledger conventions, release 0.16.0 |
@@ -1825,8 +1832,8 @@ the `--allow-identified` flag of
 release section's Python-in-the-loop proof rows.
 
 Fork commits `c281063e`, `a6ad4884`, `1a39183c`, `e14ead8d`, `44c19d48`,
-`5b9f69a8`, `704cd444`, `4ebfcc62`, `4e40639e`, `129c96ed`, `6f5cb046` and
-`95298884`:
+`5b9f69a8`, `704cd444`, `4ebfcc62`, `4e40639e`, `129c96ed`, `6f5cb046`,
+`95298884` and `7b168319`:
 release 0.16.0. The first retargets the promotion-sensitive pins to the
 literal 0.16.0 label, since a released section is frozen:
 `crates/apps/reticulumd/tests/fork_publish_contract_parts/ledger_contract.rs`
@@ -1954,7 +1961,46 @@ the boundary phrase, the `daemons` key with `rust_config_path` and
 `reticulumd_log` written once each inside its helper, and the bind check
 together with the daemon panic message it greps for), and
 `docs/runbooks/reticulumd-local-interface.md` and
-`docs/status/reticulum-parity-matrix.md` describe it.
+`docs/status/reticulum-parity-matrix.md` describe it. The thirteenth
+restructures two Python-in-the-loop lxmf-cli tests around behaviour the
+library already had; no library behaviour changed.
+`python_shared_instance_two_peer_relay_recovers_after_daemon_restart_e2e`
+moves out of
+`crates/apps/lxmf-cli/tests/python_lxmd_remote_relay_parts/shared_instance_daemon.rs`
+into
+`crates/apps/lxmf-cli/tests/python_lxmd_remote_relay_parts/shared_instance_two_peer_relay.rs`,
+included from `crates/apps/lxmf-cli/tests/python_lxmd_remote_relay.rs`.
+It used one `reticulumd` carrying two `LocalClientInterface` attach
+entries; the daemon attaches exactly one shared instance per process and
+records the second entry as a startup failure, so the second Python peer
+was never reachable. The test now runs one transport-enabled relay per
+Python shared instance, bridged over a Rust TCP uplink, replaces both
+relays while the Python endpoints and the queued message stay alive, lets
+only the Python peers announce (a relay's own `announce_now` puts two
+announces on the uplink at once and trips the peer relay's announce
+ingress control), and opens the retry observation window as soon as the
+replacement relay A is attached, since the LXMRouter retry can fire within
+seconds of the drop.
+`python_lxmf_router_delivery_cache_survives_process_restart_e2e`
+(`crates/apps/lxmf-cli/tests/python_lxmd_remote_relay_parts/python_router_restart.rs`)
+announced from the restarted Python shared instance while the Rust
+client's redial was still inside its 8 s reconnect wait, so the announce
+never reached the Rust side. The Python endpoint helper
+`crates/apps/lxmf-cli/tests/support/python_lxmf_endpoint.py` now reports
+`local_client_count` (the length of
+`RNS.Transport.local_client_interfaces`) in its status reply,
+`wait_for_python_local_client_count` in
+`crates/apps/lxmf-cli/tests/support/python_lxmd_remote_relay_parts/status_hash.rs`
+polls it, and the test waits for the re-attached Rust local client before
+the single post-restart announce; the Python RNS config also reserves a
+dedicated `instance_control_port` instead of sharing the default.
+`crates/apps/reticulumd/tests/fork_publish_contract.rs` and
+`crates/apps/reticulumd/tests/fork_publish_contract_parts/ledger_contract.rs`
+extend the release-notes cite roots with `crates/apps/lxmf-cli/tests` so
+the bullet for this change resolves, and
+`docs/goals/reticulum-reference-parity-605/evidence/609-transport-local-shared.md`
+and `docs/status/reticulum-parity-matrix.md` describe the two-relay shape
+and the re-attach wait.
 
 ## 0.15.1 (upstream 0.14.0)
 

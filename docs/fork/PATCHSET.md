@@ -26,6 +26,37 @@ parity rows this file plus the crate README `## Known divergences from
 Python RNS` are the parity ledger; `docs/status/*` matrices are not updated
 per fork task.
 
+## Unreleased (upstream 0.14.0)
+
+Every file changed since the `0.16.0` release and the patch each change
+belongs to. Patch ids: J1 is destination lookup. The `destination lookup`
+patch is fork commits `5246fc9c` and `d2f871f7`.
+
+| File | Patch |
+| --- | --- |
+| `crates/apps/reticulumd/tests/fork_publish_contract_parts/ledger_contract.rs` | destination lookup |
+| `crates/apps/reticulumd/tests/fork_publish_contract_parts/release_frozen_sections_probe2.rs` | destination lookup |
+| `crates/libs/rns-transport/CHANGELOG.md` | destination lookup |
+| `crates/libs/rns-transport/README.md` | destination lookup |
+| `crates/libs/rns-transport/src/transport/links_parts/transport_sections/close_channel.rs` | destination lookup |
+| `crates/libs/rns-transport/src/transport/tests_parts/two_transport_destination_desc.rs` | destination lookup |
+| `crates/libs/rns-transport/src/transport/tests.rs` | destination lookup |
+| `docs/fork/PATCHSET.md` | destination lookup |
+
+Fork commits `5246fc9c` and `d2f871f7`: J1, destination lookup. `5246fc9c`
+adds `Transport::destination_desc` beside `destination_identity` in
+`links_parts/transport_sections/close_channel.rs`: the same lookup in the
+announced-destination map, returning the stored `DestinationDesc` (whose
+`name` is the announce's truncated name hash, so callers compare with
+`as_name_hash_slice()`) instead of the identity alone; the entry outlives
+`expire_path` and is pruned only by `deregister_destination`. Pinned by
+`two_transport_destination_desc.rs`; the README link section and the crate
+CHANGELOG describe it. `d2f871f7` extends the full-hash ledger pin to the
+open `Unreleased` section and lets the manifest-version pin admit an
+`## Unreleased` stub while the manifest version is the newest fork tag
+reachable from HEAD, with fixtures for both arms. No library behaviour
+changes beyond the new accessor.
+
 ## 0.16.0 (upstream 0.14.0)
 
 Every file changed since the `0.15.1` release and the patch each change

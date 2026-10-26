@@ -890,6 +890,7 @@ fn crate_readme_rust_snippets_are_pinned_verbatim_by_the_api_tests() {
         "crates/libs/rns-transport/tests/outbound_outcome_api.rs",
         "crates/libs/rns-transport/tests/request_receipt_api.rs",
         "crates/libs/rns-transport/tests/shared_instance_api.rs",
+        "crates/libs/rns-transport/tests/destination_desc_api.rs",
     ]
     .iter()
     .map(|path| read_repo_file(path))
@@ -911,8 +912,8 @@ fn crate_readme_rust_snippets_are_pinned_verbatim_by_the_api_tests() {
         }
     }
     assert!(
-        snippets.len() >= 5,
-        "the README should carry the consumer, handler, request, outcome and shared-instance snippets, found {}",
+        snippets.len() >= 6,
+        "the README should carry the consumer, handler, request, outcome, link-opening and shared-instance snippets, found {}",
         snippets.len()
     );
 

@@ -318,6 +318,26 @@ touches only the path table, and is removed only by
 `Transport::deregister_destination`. The desc is the argument
 `Transport::link` takes, though the link still needs a path as described above.
 
+Looking up a learned destination and opening a link with it:
+
+```rust
+use rns_transport::destination::DestinationName;
+
+let desc = transport
+    .destination_desc(&destination_hash)
+    .await
+    .ok_or("the announce has not been learned yet")?;
+assert_eq!(
+    desc.name.as_name_hash_slice(),
+    DestinationName::new("example", "echo").as_name_hash_slice(),
+);
+let link = transport.link(desc).await?;
+```
+
+`crates/libs/rns-transport/tests/destination_desc_api.rs` runs this snippet
+verbatim on a transport that learned the announce over a loopback `TcpClient`
+and reads the link's `Activated` event back on the announcing side.
+
 `AnnounceEvent::is_path_response` is true for an announce the destination
 sent in answer to a path request, which it files under
 `PacketContext::PathResponse` (`RNS/Destination.py:308`), and false for an

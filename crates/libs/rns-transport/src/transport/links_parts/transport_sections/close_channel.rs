@@ -457,6 +457,8 @@ impl Transport {
     /// `DestinationName::new` computes, so callers compare names with
     /// `as_name_hash_slice()`. Only `deregister_destination` prunes the map;
     /// `expire_path` touches the path table alone, so the entry survives it.
+    /// Fork-only accessor; the loose Python analogue is
+    /// `Identity.recall(destination_hash)` (`RNS/Identity.py`), which returns the identity alone.
     pub async fn destination_desc(&self, address: &AddressHash) -> Option<DestinationDesc> {
         let destination = self.single_out_destination(address).await?;
         let destination = destination.lock().await;

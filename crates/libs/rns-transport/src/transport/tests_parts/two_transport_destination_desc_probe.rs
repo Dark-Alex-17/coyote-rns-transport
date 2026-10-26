@@ -1,7 +1,7 @@
 // Usage-pattern coverage for `Transport::destination_desc` beyond the lookup itself: the
 // desc the connector gets back is usable as the argument of `Transport::link`, its name
-// is the zero-padded truncated hash, the accessor agrees with `destination_identity` on
-// the announcing side too, and `deregister_destination` is the one call that prunes it.
+// is the zero-padded truncated hash, neither accessor self-learns on the announcing
+// side, and `deregister_destination` is the one call that prunes it.
 // Helpers come from the sibling `tests_parts` files included into this module.
 
 #[tokio::test]
@@ -17,12 +17,15 @@ async fn destination_desc_opens_a_link_and_agrees_with_destination_identity_on_b
         register_in_destination(&listener.transport, "loopback", "destination-desc-link").await;
     learn_announce(&mut connector.announces, &announced.address_hash).await;
 
-    // The announcing side keeps its own destination in the input map, not the announced
-    // map; whatever `destination_identity` says there, `destination_desc` says the same.
-    assert_eq!(
-        listener.transport.destination_desc(&announced.address_hash).await.is_some(),
-        listener.transport.destination_identity(&announced.address_hash).await.is_some(),
-        "destination_desc is Some exactly when destination_identity is Some"
+    // The announcing side does not learn its own destination: it lives in the input map,
+    // not the announced map both accessors read.
+    assert!(
+        listener.transport.destination_desc(&announced.address_hash).await.is_none(),
+        "the announcer has no desc entry for its own destination"
+    );
+    assert!(
+        listener.transport.destination_identity(&announced.address_hash).await.is_none(),
+        "the announcer has no identity entry for its own destination"
     );
 
     let desc = connector

@@ -1,26 +1,54 @@
 // Usage-pattern coverage for `Transport::destination_desc` with more than one announced
 // peer, the shape a real consumer sees: each address resolves to its own entry, the two
 // accessors that share the lookup agree on the identity (not only on presence) for every
-// address, and calling them concurrently is safe and consistent. Helpers come from the
-// sibling `tests_parts` files included into this module.
+// address, and calling them from parallel tasks is safe and consistent. Helpers come from
+// the sibling `tests_parts` files included into this module.
+
+/// Like `connector`, with the reference ingress control turned off on the `TcpClient`
+/// iface: a freshly connected interface otherwise holds the second of two announces that
+/// arrive within half a second for `burst_hold`, well past the loopback timeout.
+#[deny(clippy::await_holding_invalid_type)]
+async fn connector_without_ingress_control(name: &str, port: u16) -> LoopbackConnector {
+    let identity = PrivateIdentity::new_from_rand(OsRng);
+    let transport = Transport::new(TransportConfig::new(name, &identity, false));
+    let announces = transport.recv_announces().await;
+    let client = TcpClient::new(format!("127.0.0.1:{port}"));
+    let status = client.runtime_status_handle();
+    {
+        let manager = transport.iface_manager();
+        let mut manager = manager.lock().await;
+        let context = manager.new_context(client);
+        manager.set_shared_config(
+            *context.channel.address(),
+            crate::iface::InterfaceSharedConfig {
+                ingress_control: Some(false),
+                ..Default::default()
+            },
+        );
+        tokio::spawn(TcpClient::spawn(context));
+    }
+    wait_until(
+        "connector to connect",
+        || status.to_json()["stream_state"].as_str() == Some("connected"),
+        || status.to_json().to_string(),
+    )
+    .await;
+    LoopbackConnector { transport, announces }
+}
 
 #[tokio::test]
 #[deny(clippy::await_holding_invalid_type)]
 async fn destination_desc_resolves_each_of_two_announced_peers_to_its_own_entry() {
     let listener = listener("loopback-listener", TcpClient::DEFAULT_MTU).await;
     let mut connector =
-        connector("loopback-connector", listener.port, TcpClient::DEFAULT_MTU).await;
+        connector_without_ingress_control("loopback-connector", listener.port).await;
     listener.await_accepted_connections(1).await;
 
     // Announce two distinct destinations one after the other so neither announce is
-    // consumed while waiting for the other. The second is spaced a second apart: the
-    // receiver applies the reference ingress control to a freshly connected interface,
-    // and two announces within half a second exceed `burst_freq_new` and are held for
-    // `burst_hold`, well past the loopback timeout.
+    // consumed while waiting for the other.
     let (_first_destination, first) =
         register_in_destination(&listener.transport, "loopback", "destination-desc-first").await;
     learn_announce(&mut connector.announces, &first.address_hash).await;
-    tokio::time::sleep(Duration::from_secs(1)).await;
     let (_second_destination, second) =
         register_in_destination(&listener.transport, "loopback", "destination-desc-second").await;
     learn_announce(&mut connector.announces, &second.address_hash).await;
@@ -65,7 +93,7 @@ async fn destination_desc_resolves_each_of_two_announced_peers_to_its_own_entry(
     assert!(connector.transport.destination_identity(&second.address_hash).await.is_some());
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
 #[deny(clippy::await_holding_invalid_type)]
 async fn destination_desc_and_destination_identity_agree_when_called_concurrently() {
     let listener = listener("loopback-listener", TcpClient::DEFAULT_MTU).await;
@@ -77,35 +105,47 @@ async fn destination_desc_and_destination_identity_agree_when_called_concurrentl
         register_in_destination(&listener.transport, "loopback", "destination-desc-concurrent")
             .await;
     learn_announce(&mut connector.announces, &announced.address_hash).await;
+    let known = announced.address_hash;
     let unknown = AddressHash::new_from_rand(OsRng);
 
     // Both accessors take the transport handler lock and then the entry's own lock; a
-    // batch of concurrent callers must neither deadlock nor disagree. The timeout turns a
-    // deadlock into a failure instead of a hang.
-    let transport = &connector.transport;
+    // batch of callers on parallel tasks, spread over two worker threads so the calls
+    // overlap, must neither deadlock nor disagree. The timeout turns a deadlock into a
+    // failure instead of a hang.
+    let LoopbackConnector { transport, .. } = connector;
+    let transport = Arc::new(transport);
+    let tasks: Vec<_> = (0..8)
+        .map(|_| {
+            let transport = Arc::clone(&transport);
+            tokio::spawn(async move {
+                let (desc, identity, missing_desc, missing_identity) = tokio::join!(
+                    transport.destination_desc(&known),
+                    transport.destination_identity(&known),
+                    transport.destination_desc(&unknown),
+                    transport.destination_identity(&unknown),
+                );
+                assert!(missing_desc.is_none(), "an unknown address has no desc");
+                assert!(missing_identity.is_none(), "an unknown address has no identity");
+                (
+                    desc.expect("the connector learned the destination"),
+                    identity.expect("destination_identity agrees with destination_desc"),
+                )
+            })
+        })
+        .collect();
     let batch = async {
-        let mut descs = Vec::new();
-        let mut identities = Vec::new();
-        for _ in 0..8 {
-            let (desc, identity, missing_desc, missing_identity) = tokio::join!(
-                transport.destination_desc(&announced.address_hash),
-                transport.destination_identity(&announced.address_hash),
-                transport.destination_desc(&unknown),
-                transport.destination_identity(&unknown),
-            );
-            assert!(missing_desc.is_none(), "an unknown address has no desc");
-            assert!(missing_identity.is_none(), "an unknown address has no identity");
-            descs.push(desc.expect("the connector learned the destination"));
-            identities.push(identity.expect("destination_identity agrees with destination_desc"));
+        let mut results = Vec::new();
+        for task in tasks {
+            results.push(task.await.expect("accessor task completed"));
         }
-        (descs, identities)
+        results
     };
-    let (descs, identities) = timeout(LOOPBACK_TIMEOUT, batch)
+    let results = timeout(LOOPBACK_TIMEOUT, batch)
         .await
-        .expect("concurrent accessor calls completed without deadlocking");
+        .expect("parallel accessor calls completed without deadlocking");
 
-    for (desc, identity) in descs.iter().zip(identities.iter()) {
-        assert_eq!(desc.address_hash, announced.address_hash);
+    for (desc, identity) in &results {
+        assert_eq!(desc.address_hash, known);
         assert_eq!(identity.public_key_bytes(), desc.identity.public_key_bytes());
         assert_eq!(identity.verifying_key_bytes(), desc.identity.verifying_key_bytes());
         assert_eq!(desc.name.as_name_hash_slice(), announced.name.as_name_hash_slice());

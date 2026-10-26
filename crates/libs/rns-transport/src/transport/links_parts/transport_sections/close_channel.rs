@@ -431,9 +431,17 @@ impl Transport {
         self.handler.lock().await.is_identity_blackholed(identity)
     }
 
+    async fn single_out_destination(
+        &self,
+        address: &AddressHash,
+    ) -> Option<Arc<Mutex<SingleOutputDestination>>> {
+        self.handler.lock().await.single_out_destinations.get(address).cloned()
+    }
+
+    /// Returns the identity of a destination learned from an announce; the lifetime
+    /// contract is the one `destination_desc` documents, since both read the same map.
     pub async fn destination_identity(&self, address: &AddressHash) -> Option<Identity> {
-        let destination =
-            { self.handler.lock().await.single_out_destinations.get(address).cloned() }?;
+        let destination = self.single_out_destination(address).await?;
         let destination = destination.lock().await;
         Some(destination.identity)
     }
@@ -450,8 +458,7 @@ impl Transport {
     /// `as_name_hash_slice()`. Only `deregister_destination` prunes the map;
     /// `expire_path` touches the path table alone, so the entry survives it.
     pub async fn destination_desc(&self, address: &AddressHash) -> Option<DestinationDesc> {
-        let destination =
-            { self.handler.lock().await.single_out_destinations.get(address).cloned() }?;
+        let destination = self.single_out_destination(address).await?;
         let destination = destination.lock().await;
         Some(destination.desc)
     }

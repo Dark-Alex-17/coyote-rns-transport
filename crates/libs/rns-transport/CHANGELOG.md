@@ -13,7 +13,8 @@ Removed) bullet of its own, marked as such.
 ### Added
 
 - `Transport::destination_desc` returns `Option<DestinationDesc>` for a
-  destination learned from an announce
+  destination learned from an announce (the same map is also filled when a
+  cached path table is restored)
   (`links_parts/transport_sections/close_channel.rs`, beside
   `destination_identity`); it is `Some` exactly when `destination_identity`
   is `Some`. The desc's `name` is the announce's truncated name hash as
@@ -22,7 +23,10 @@ Removed) bullet of its own, marked as such.
   touches only the path table, and is pruned only by
   `deregister_destination`. Pinned by `two_transport_destination_desc.rs`
   and `two_transport_destination_desc_probe.rs`, which also covers the
-  `deregister_destination` prune and opening a link with the returned desc.
+  `deregister_destination` prune and opening a link with the returned desc,
+  and by `reticulum_path_restore_destination_desc_probe.rs` for the restore
+  fill site and for the link still needing a path once the desc has outlived
+  `expire_path`.
 
 ### Changed
 

@@ -616,6 +616,7 @@ fn crate_readme_link_section_describes_destination_desc() {
         "`Option<DestinationDesc>`",
         "`Transport::destination_identity`",
         "`DestinationName::new_from_hash_slice`",
+        "`DestinationName::new`",
         "`as_name_hash_slice()`",
         "`Transport::expire_path`",
         "`Transport::deregister_destination`",

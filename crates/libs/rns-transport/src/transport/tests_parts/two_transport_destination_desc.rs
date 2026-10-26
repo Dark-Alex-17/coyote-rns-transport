@@ -5,7 +5,7 @@
 
 #[tokio::test]
 #[deny(clippy::await_holding_invalid_type)]
-async fn destination_desc_tracks_the_announced_destination_until_deregistered() {
+async fn destination_desc_tracks_the_announced_destination_and_survives_expire_path() {
     let listener = listener("loopback-listener", TcpClient::DEFAULT_MTU).await;
     let mut connector =
         connector("loopback-connector", listener.port, TcpClient::DEFAULT_MTU).await;

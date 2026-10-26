@@ -307,7 +307,8 @@ on the request still goes out on every outgoing interface, as
 `RnsError` is `#[non_exhaustive]`, so a match on it keeps a wildcard arm.
 
 `Transport::destination_desc` returns `Option<DestinationDesc>` for a
-destination learned from an announce, `Some` exactly when
+destination learned from an announce (the same map is also filled when a
+cached path table is restored), `Some` exactly when
 `Transport::destination_identity` is `Some`. The desc's `name` is the
 announce's truncated name hash as `DestinationName::new_from_hash_slice`
 stores it, not the full hash `DestinationName::new` computes, so compare

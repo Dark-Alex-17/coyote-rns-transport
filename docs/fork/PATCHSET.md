@@ -68,7 +68,7 @@ the release's Python-in-the-loop proof rows are attributed to it; the
 `release 0.16.0` patch carries no other id and is fork commits `c281063e`,
 `a6ad4884`, `1a39183c`, `e14ead8d`, `44c19d48`, `5b9f69a8`, `704cd444`,
 `4ebfcc62`, `4e40639e`, `129c96ed`, `6f5cb046`, `95298884`, `7b168319`,
-`00c419a0` and `43e30bdc`.
+`00c419a0`, `43e30bdc` and `79c27d82`.
 
 | File | Patch |
 | --- | --- |
@@ -125,6 +125,7 @@ the release's Python-in-the-loop proof rows are attributed to it; the
 | `crates/apps/reticulumd/tests/fork_publish_contract_parts/lint_discipline_probe8.rs` | guard discipline |
 | `crates/apps/reticulumd/tests/fork_publish_contract_parts/lint_discipline_probe9.rs` | guard discipline, release 0.16.0 |
 | `crates/apps/reticulumd/tests/fork_publish_contract_parts/lxmf_cli_cite_root_probe.rs` | release 0.16.0 |
+| `crates/apps/reticulumd/tests/fork_publish_contract_parts/lxmf_cli_cite_root_probe2.rs` | release 0.16.0 |
 | `crates/apps/reticulumd/tests/fork_publish_contract_parts/release_frozen_sections_probe.rs` | release 0.16.0 |
 | `crates/apps/reticulumd/tests/fork_publish_contract_parts/release_frozen_sections_probe2.rs` | release 0.16.0 |
 | `crates/apps/reticulumd/tests/fork_publish_contract_parts/release_tooling_probe.rs` | release tooling |
@@ -1840,7 +1841,7 @@ release section's Python-in-the-loop proof rows.
 
 Fork commits `c281063e`, `a6ad4884`, `1a39183c`, `e14ead8d`, `44c19d48`,
 `5b9f69a8`, `704cd444`, `4ebfcc62`, `4e40639e`, `129c96ed`, `6f5cb046`,
-`95298884`, `7b168319`, `00c419a0` and `43e30bdc`:
+`95298884`, `7b168319`, `00c419a0`, `43e30bdc` and `79c27d82`:
 release 0.16.0. The first retargets the promotion-sensitive pins to the
 literal 0.16.0 label, since a released section is frozen:
 `crates/apps/reticulumd/tests/fork_publish_contract_parts/ledger_contract.rs`
@@ -2019,12 +2020,14 @@ tests failed before any traffic flowed. With no caller left for the
 no-port variant, the shared-instance config writer in
 `crates/apps/lxmf-cli/tests/support/python_lxmd_remote_relay_parts/module_prelude.rs`
 keeps only the form that takes the control port.
-The fifteenth adopts the two spec pins for the thirteenth's fix:
+The fifteenth adopts the two spec pins for the thirteenth and fourteenth:
 `crates/apps/reticulumd/tests/fork_publish_contract_parts/lxmf_cli_cite_root_probe.rs`
 (included from `crates/apps/reticulumd/tests/fork_publish_contract.rs`)
 pins that the lxmf-cli test tree is a cite root, that the 0.16.0 bullet's
-cites resolve, that the two-peer relay test lives only in its part and the
-CI workflow still names it, and that the ledger carries both commits;
+cites resolve, that the two-peer relay test lives only in its part and
+the CI workflow still names it, that the router-restart test waits on the
+live count before its announce, and that the ledger carries both commits
+and the config writer no port-less form;
 `crates/apps/lxmf-cli/tests/python_lxmd_remote_relay_parts/shared_instance_local_client_count_probe.rs`
 (included from `crates/apps/lxmf-cli/tests/python_lxmd_remote_relay.rs`)
 pins the Python `local_client_count` observable across attach and exit and
@@ -2042,6 +2045,29 @@ and `docs/status/reticulum-parity-matrix.md` now describe both relays being
 replaced, and
 `docs/goals/reticulum-reference-parity-605/evidence/609-transport-local-shared.md`
 re-records the two-peer and router-restart runs at `1ac076b3`.
+The sixteenth adopts the spec pin for the fifteenth:
+`crates/apps/reticulumd/tests/fork_publish_contract_parts/lxmf_cli_cite_root_probe2.rs`
+(included from `crates/apps/reticulumd/tests/fork_publish_contract.rs`)
+pins that the 0.16.0 bullet cites `status_hash.rs`, `module_prelude.rs`
+and both probe files inside its `Pinned by` clause, that the legend and
+header carry the three test commits, that the table has a row for each
+probe and the fifteenth narrative names both, that each probe part is
+included once from its root and defines its tests, and that the
+parity-matrix row and the evidence section for the two-relay shape cite
+files that exist. It adds one test to
+`crates/apps/reticulumd/tests/fork_publish_contract_parts/lxmf_cli_cite_root_probe.rs`
+that pins the two-peer relay part itself: no quoted `announce_now` RPC
+name, relay A re-attached and the retry window marked before relay B is
+respawned, the `attempts < 2`, `matching != 1` and `transmitted_packets`
+checks still present, and each relay config attaching exactly one shared
+instance with the uplink on relay B. The rustdoc of
+`wait_for_python_local_client_count` in
+`crates/apps/lxmf-cli/tests/support/python_lxmd_remote_relay_parts/status_hash.rs`
+states its 60 s bound; `docs/status/rns-1.5.4-delta.md` says the queued
+message's first packet is dropped before the relays are replaced and names
+the upstream-restart test it refers to; `docs/status/reticulum-parity-matrix.md`
+records the re-attach wait and the Rust test base of the router-restart
+row; `docs/status/current-roadmap.md` only re-wraps a paragraph.
 
 ## 0.15.1 (upstream 0.14.0)
 

@@ -769,7 +769,8 @@ Removed) bullet of its own, marked as such.
   writer in
   `crates/apps/lxmf-cli/tests/support/python_lxmd_remote_relay_parts/module_prelude.rs`
   now requires the port. Pinned by
-  `crates/apps/reticulumd/tests/fork_publish_contract_parts/lxmf_cli_cite_root_probe.rs`
+  `crates/apps/reticulumd/tests/fork_publish_contract_parts/lxmf_cli_cite_root_probe.rs`,
+  `crates/apps/reticulumd/tests/fork_publish_contract_parts/lxmf_cli_cite_root_probe2.rs`
   and
   `crates/apps/lxmf-cli/tests/python_lxmd_remote_relay_parts/shared_instance_local_client_count_probe.rs`.
 

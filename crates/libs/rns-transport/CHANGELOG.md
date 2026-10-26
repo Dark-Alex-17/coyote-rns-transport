@@ -754,15 +754,24 @@ Removed) bullet of its own, marked as such.
   announced from the restarted Python shared instance while the Rust
   client's redial was still inside its 8 s reconnect wait; the Python
   endpoint helper (`crates/apps/lxmf-cli/tests/support/python_lxmf_endpoint.py`)
-  now reports `local_client_count` and the test waits for the re-attached
-  Rust local client before the single announce, and reserves a dedicated
-  `instance_control_port`. Cites under `crates/apps/lxmf-cli/tests` now
+  now reports `local_client_count` and the test waits (through
+  `wait_for_python_local_client_count` in
+  `crates/apps/lxmf-cli/tests/support/python_lxmd_remote_relay_parts/status_hash.rs`)
+  for the re-attached Rust local client before the single announce, and
+  reserves a dedicated `instance_control_port`. Cites under
+  `crates/apps/lxmf-cli/tests` now
   resolve in `crates/apps/reticulumd/tests/fork_publish_contract.rs`. The
   last two shared-instance owners in the same target
   (`crates/apps/lxmf-cli/tests/python_lxmd_remote_relay_parts/ifac_shared_instance.rs`
   and the application-and-restart test in `shared_instance_daemon.rs`)
   also reserve an `instance_control_port` instead of binding Reticulum's
-  default, which a user `rnsd` on the host may hold.
+  default, which a user `rnsd` on the host may hold; the shared config
+  writer in
+  `crates/apps/lxmf-cli/tests/support/python_lxmd_remote_relay_parts/module_prelude.rs`
+  now requires the port. Pinned by
+  `crates/apps/reticulumd/tests/fork_publish_contract_parts/lxmf_cli_cite_root_probe.rs`
+  and
+  `crates/apps/lxmf-cli/tests/python_lxmd_remote_relay_parts/shared_instance_local_client_count_probe.rs`.
 
 ### Removed
 

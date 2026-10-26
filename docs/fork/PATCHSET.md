@@ -67,8 +67,8 @@ carried-hygiene cell fork commits `9865dbdd` and `eb45dc62` add, named so
 the release's Python-in-the-loop proof rows are attributed to it; the
 `release 0.16.0` patch carries no other id and is fork commits `c281063e`,
 `a6ad4884`, `1a39183c`, `e14ead8d`, `44c19d48`, `5b9f69a8`, `704cd444`,
-`4ebfcc62`, `4e40639e`, `129c96ed`, `6f5cb046`, `95298884`, `7b168319` and
-`00c419a0`.
+`4ebfcc62`, `4e40639e`, `129c96ed`, `6f5cb046`, `95298884`, `7b168319`,
+`00c419a0` and `43e30bdc`.
 
 | File | Patch |
 | --- | --- |
@@ -81,6 +81,7 @@ the release's Python-in-the-loop proof rows are attributed to it; the
 | `crates/apps/lxmf-cli/tests/python_lxmd_remote_relay_parts/ifac_shared_instance.rs` | release 0.16.0 |
 | `crates/apps/lxmf-cli/tests/python_lxmd_remote_relay_parts/python_router_restart.rs` | release 0.16.0 |
 | `crates/apps/lxmf-cli/tests/python_lxmd_remote_relay_parts/shared_instance_daemon.rs` | release 0.16.0 |
+| `crates/apps/lxmf-cli/tests/python_lxmd_remote_relay_parts/shared_instance_local_client_count_probe.rs` | release 0.16.0 |
 | `crates/apps/lxmf-cli/tests/python_lxmd_remote_relay_parts/shared_instance_two_peer_relay.rs` | release 0.16.0 |
 | `crates/apps/lxmf-cli/tests/support/python_lxmd_remote_relay_parts/module_prelude.rs` | release 0.16.0 |
 | `crates/apps/lxmf-cli/tests/support/python_lxmd_remote_relay_parts/status_hash.rs` | release 0.16.0 |
@@ -123,6 +124,7 @@ the release's Python-in-the-loop proof rows are attributed to it; the
 | `crates/apps/reticulumd/tests/fork_publish_contract_parts/lint_discipline_probe7.rs` | guard discipline |
 | `crates/apps/reticulumd/tests/fork_publish_contract_parts/lint_discipline_probe8.rs` | guard discipline |
 | `crates/apps/reticulumd/tests/fork_publish_contract_parts/lint_discipline_probe9.rs` | guard discipline, release 0.16.0 |
+| `crates/apps/reticulumd/tests/fork_publish_contract_parts/lxmf_cli_cite_root_probe.rs` | release 0.16.0 |
 | `crates/apps/reticulumd/tests/fork_publish_contract_parts/release_frozen_sections_probe.rs` | release 0.16.0 |
 | `crates/apps/reticulumd/tests/fork_publish_contract_parts/release_frozen_sections_probe2.rs` | release 0.16.0 |
 | `crates/apps/reticulumd/tests/fork_publish_contract_parts/release_tooling_probe.rs` | release tooling |
@@ -371,7 +373,9 @@ the release's Python-in-the-loop proof rows are attributed to it; the
 | `docs/goals/reticulum-reference-parity-605/evidence/609-transport-local-shared.md` | release 0.16.0 |
 | `docs/runbooks/release-runbook.md` | release tooling |
 | `docs/runbooks/reticulumd-local-interface.md` | release 0.16.0 |
+| `docs/status/current-roadmap.md` | release 0.16.0 |
 | `docs/status/reticulum-parity-matrix.md` | ledger conventions, release 0.16.0 |
+| `docs/status/rns-1.5.4-delta.md` | release 0.16.0 |
 | `tools/scripts/cross-target-clippy-classify.sh` | guard discipline |
 | `tools/scripts/local-interface-python-shared-smoke.sh` | release 0.16.0 |
 | `tools/scripts/old-name-tracked-scan.sh` | release tooling |
@@ -1836,7 +1840,7 @@ release section's Python-in-the-loop proof rows.
 
 Fork commits `c281063e`, `a6ad4884`, `1a39183c`, `e14ead8d`, `44c19d48`,
 `5b9f69a8`, `704cd444`, `4ebfcc62`, `4e40639e`, `129c96ed`, `6f5cb046`,
-`95298884`, `7b168319` and `00c419a0`:
+`95298884`, `7b168319`, `00c419a0` and `43e30bdc`:
 release 0.16.0. The first retargets the promotion-sensitive pins to the
 literal 0.16.0 label, since a released section is frozen:
 `crates/apps/reticulumd/tests/fork_publish_contract_parts/ledger_contract.rs`
@@ -1997,10 +2001,10 @@ never reached the Rust side. The Python endpoint helper
 polls it, and the test waits for the re-attached Rust local client before
 the single post-restart announce; the Python RNS config also reserves a
 dedicated `instance_control_port` instead of sharing the default.
-`crates/apps/reticulumd/tests/fork_publish_contract.rs` and
-`crates/apps/reticulumd/tests/fork_publish_contract_parts/ledger_contract.rs`
-extend the release-notes cite roots with `crates/apps/lxmf-cli/tests` so
-the bullet for this change resolves, and
+`crates/apps/reticulumd/tests/fork_publish_contract.rs` extends the
+release-notes cite roots with `crates/apps/lxmf-cli/tests` so the bullet
+for this change resolves (`crates/apps/reticulumd/tests/fork_publish_contract_parts/ledger_contract.rs`
+only rewords its assertion to name the new root), and
 `docs/goals/reticulum-reference-parity-605/evidence/609-transport-local-shared.md`
 and `docs/status/reticulum-parity-matrix.md` describe the two-relay shape
 and the re-attach wait. The fourteenth gives the last two Python
@@ -2015,6 +2019,29 @@ tests failed before any traffic flowed. With no caller left for the
 no-port variant, the shared-instance config writer in
 `crates/apps/lxmf-cli/tests/support/python_lxmd_remote_relay_parts/module_prelude.rs`
 keeps only the form that takes the control port.
+The fifteenth adopts the two spec pins for the thirteenth's fix:
+`crates/apps/reticulumd/tests/fork_publish_contract_parts/lxmf_cli_cite_root_probe.rs`
+(included from `crates/apps/reticulumd/tests/fork_publish_contract.rs`)
+pins that the lxmf-cli test tree is a cite root, that the 0.16.0 bullet's
+cites resolve, that the two-peer relay test lives only in its part and the
+CI workflow still names it, and that the ledger carries both commits;
+`crates/apps/lxmf-cli/tests/python_lxmd_remote_relay_parts/shared_instance_local_client_count_probe.rs`
+(included from `crates/apps/lxmf-cli/tests/python_lxmd_remote_relay.rs`)
+pins the Python `local_client_count` observable across attach and exit and
+the helper's bounded failure shape. It also fixes the wording around the
+two-peer relay test: the announce-ingress comment in
+`crates/apps/lxmf-cli/tests/python_lxmd_remote_relay_parts/shared_instance_two_peer_relay.rs`
+cites the Python constants, the retry-window comment says why the window
+opens before relay B returns, the post-restart path labels and the retry
+error text name what was observed, `wait_for_python_local_client_count` in
+`crates/apps/lxmf-cli/tests/support/python_lxmd_remote_relay_parts/status_hash.rs`
+gains a rustdoc sentence, and the cite-root rustdoc in
+`crates/apps/reticulumd/tests/fork_publish_contract.rs` names the lxmf-cli
+tests. `docs/status/current-roadmap.md`, `docs/status/rns-1.5.4-delta.md`
+and `docs/status/reticulum-parity-matrix.md` now describe both relays being
+replaced, and
+`docs/goals/reticulum-reference-parity-605/evidence/609-transport-local-shared.md`
+re-records the two-peer and router-restart runs at `1ac076b3`.
 
 ## 0.15.1 (upstream 0.14.0)
 

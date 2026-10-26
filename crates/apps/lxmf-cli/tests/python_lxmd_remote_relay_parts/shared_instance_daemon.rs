@@ -126,9 +126,11 @@ fn python_shared_instance_rust_lxmd_application_and_restart_e2e() {
     let shared_instance = ReservedPort::reserve();
     let rust_rpc = ReservedPort::reserve();
     let python_control = ReservedPort::reserve();
+    let rns_control = ReservedPort::reserve();
     let shared_instance_port = shared_instance.port();
     let rust_rpc_port = rust_rpc.port();
     let python_control_port = python_control.port();
+    let rns_control_port = rns_control.port();
 
     let rust_dir = temp.path().join("rust-shared-client");
     let python_storage = temp.path().join("python-shared-storage");
@@ -142,7 +144,11 @@ fn python_shared_instance_rust_lxmd_application_and_restart_e2e() {
             &[local_client_interface("python-shared", shared_instance_port)],
         ),
     );
-    write_python_shared_instance_rns_config(&python_rns, shared_instance_port);
+    write_python_shared_instance_rns_config_with_control_port(
+        &python_rns,
+        shared_instance_port,
+        rns_control_port,
+    );
 
     let mut python_node = Some(spawn_python_endpoint(
         &python_bin,
@@ -154,7 +160,7 @@ fn python_shared_instance_rust_lxmd_application_and_restart_e2e() {
         &python_rns,
         &python_storage,
         python_control_port,
-        &mut [python_control, shared_instance],
+        &mut [python_control, shared_instance, rns_control],
     ));
     let mut rust_node = None;
 

@@ -77,15 +77,7 @@ async fn shared_instance_state_consumer_serves_a_queued_drop_before_the_stream_e
         .expect("the consumer exits once the queued drop is served and the channels are closed");
     cancel.cancel();
 
-    let read = timeout(STOP_TIMEOUT, async {
-        let mut read = Vec::new();
-        while let Some(event) = state.recv().await {
-            read.push(event);
-        }
-        read
-    })
-    .await
-    .expect("the consumer's return ends the stream");
+    let read = shared_instance_state_read_to_end(&mut state).await;
     assert_eq!(
         read,
         [SharedInstanceEvent::Disconnected, SharedInstanceEvent::Connecting],
@@ -124,15 +116,7 @@ async fn shared_instance_state_consumer_nests_the_cycles_under_a_storm() {
     drop(connects_tx);
     drop(disconnects_tx);
 
-    let read = timeout(STOP_TIMEOUT, async {
-        let mut read = Vec::new();
-        while let Some(event) = state.recv().await {
-            read.push(event);
-        }
-        read
-    })
-    .await
-    .expect("the consumer's return ends the stream");
+    let read = shared_instance_state_read_to_end(&mut state).await;
     assert_eq!(
         read,
         [

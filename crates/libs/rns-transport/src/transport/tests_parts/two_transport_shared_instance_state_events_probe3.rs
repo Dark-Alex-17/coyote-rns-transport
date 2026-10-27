@@ -34,15 +34,7 @@ async fn shared_instance_state_consumer_serves_a_queued_connect_before_the_strea
         .expect("the consumer exits once the channels are closed");
     cancel.cancel();
 
-    let read = timeout(STOP_TIMEOUT, async {
-        let mut read = Vec::new();
-        while let Some(event) = state.recv().await {
-            read.push(event);
-        }
-        read
-    })
-    .await
-    .expect("the consumer's return ends the stream");
+    let read = shared_instance_state_read_to_end(&mut state).await;
     assert_eq!(
         read,
         [SharedInstanceEvent::Connected],
@@ -76,15 +68,7 @@ async fn shared_instance_state_consumer_reads_a_queued_connect_while_disconnects
     cancel.cancel();
     drop(disconnects_tx);
 
-    let read = timeout(STOP_TIMEOUT, async {
-        let mut read = Vec::new();
-        while let Some(event) = state.recv().await {
-            read.push(event);
-        }
-        read
-    })
-    .await
-    .expect("the consumer's return ends the stream");
+    let read = shared_instance_state_read_to_end(&mut state).await;
     assert_eq!(
         read,
         [SharedInstanceEvent::Connected],

@@ -18,6 +18,23 @@ async fn shared_instance_state_next(
     timeout(LOOPBACK_TIMEOUT, events.recv()).await.expect("timed out waiting for a state event")
 }
 
+/// Reads `state` until the stream ends, within `STOP_TIMEOUT`; the hand-driven consumer's
+/// return drops the last sender, so this is what it left on the stream.
+#[deny(clippy::await_holding_invalid_type)]
+async fn shared_instance_state_read_to_end(
+    state: &mut tokio::sync::mpsc::Receiver<SharedInstanceEvent>,
+) -> Vec<SharedInstanceEvent> {
+    timeout(STOP_TIMEOUT, async {
+        let mut read = Vec::new();
+        while let Some(event) = state.recv().await {
+            read.push(event);
+        }
+        read
+    })
+    .await
+    .expect("the consumer's return ends the stream")
+}
+
 /// Attaches `name` over `endpoint` with the short reconnect wait and a state stream of
 /// `capacity`; returns the client and the stream's receiver.
 #[deny(clippy::await_holding_invalid_type)]
@@ -114,15 +131,7 @@ async fn shared_instance_state_drive_consumer(
     drop(connects_tx);
     drop(disconnects_tx);
 
-    timeout(STOP_TIMEOUT, async {
-        let mut read = Vec::new();
-        while let Some(event) = state.recv().await {
-            read.push(event);
-        }
-        read
-    })
-    .await
-    .expect("the consumer's return ends the stream")
+    shared_instance_state_read_to_end(&mut state).await
 }
 
 /// A connect and the reconnect behind it: the stream reads `Connected` alone and the
@@ -293,9 +302,10 @@ async fn shared_instance_state_events_full_channel_drops_at_debug_without_stalli
         })
         .map(|(_, record)| record)
         .collect();
-    assert!(
-        !dropped.is_empty(),
-        "a full channel drops at debug: {:?}",
+    assert_eq!(
+        dropped.len(),
+        4,
+        "the first `Connected`, the drop's `Disconnected` and `Connecting`, and the restart's `Connected` are dropped at debug: {:?}",
         shared_instance_records_for(name)
     );
 

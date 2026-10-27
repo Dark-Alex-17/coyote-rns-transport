@@ -151,13 +151,18 @@ impl SharedInstanceOptions {
 
     /// Fork-only: delivers the client's [`SharedInstanceEvent`]s on `events`.
     /// Each cycle is `Disconnected`, `Connecting`, `Connected` in that order,
-    /// after the attach's own `Connecting` and the first `Connected`. Every
-    /// event is sent with `try_send`: a full channel drops the event at
-    /// debug and never blocks the consumer, so size the channel for the
-    /// burst expected. Under a reconnect storm the cycles can interleave:
-    /// queued disconnects are served before connects, so two `Disconnected`
-    /// can precede their `Connected`s; the per-cycle order holds, the
-    /// cycles may nest. The attach's clone of the sender is dropped on
+    /// after the attach's own `Connecting`, sent with the connected posture
+    /// already set when `Connecting` arrives while the slot still holds the
+    /// interface (a refused attach sends nothing; in the documented
+    /// attach/stop race the attach returns `Ok` and `Connecting` goes out
+    /// with the posture off, the stream ending at once), and the first
+    /// `Connected`. Every event is sent with `try_send`: a full channel
+    /// drops the event at debug and never blocks the consumer, so size the
+    /// channel for the burst expected. Under a reconnect storm the cycles
+    /// can interleave: queued disconnects are served before connects, so
+    /// two `Disconnected` can precede their `Connected`s; the per-cycle
+    /// order holds, the cycles may nest. The attach's clone of the sender
+    /// is dropped on
     /// [`Transport::detach_shared_instance`](crate::transport::Transport::detach_shared_instance),
     /// [`Transport::stop`](crate::transport::Transport::stop) or when the
     /// client worker exits; the stream ends once no other clone, a

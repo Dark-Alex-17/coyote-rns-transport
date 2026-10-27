@@ -669,6 +669,7 @@ fn crate_readme_shared_instance_section_describes_state_events() {
         "`try_send`",
         "a drop that was already queued",
         "a connect already queued is read as `Connected`",
+        "already set when `Connecting` arrives",
         "`connected_to_shared_instance()`",
         "`SharedInstanceOptions` clone",
         "interleave",

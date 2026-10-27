@@ -484,8 +484,11 @@ connection state on it.
 `SharedInstanceEvent` is `#[non_exhaustive]`, so match it with a wildcard
 arm; its variants are `Connecting`, `Connected` and `Disconnected`. The
 attach itself sends the first `Connecting` once the interface is spawned and
-the slot taken (a refused attach sends nothing); the consumer task sends
-`Connected` on every established stream, the first included, and after
+the slot taken, the connected posture already set when `Connecting` arrives
+while the slot still holds the interface (a refused attach sends nothing; in
+the documented attach/stop race the attach returns `Ok` and `Connecting`
+goes out with the posture off, the stream ending at once); the consumer task
+sends `Connected` on every established stream, the first included, and after
 every dropped connection `Disconnected`, once the flush above, which runs
 only while the transport is still attached, has run, then `Connecting` at
 once, so one cycle reads `Disconnected`, `Connecting`, `Connected`. Under a

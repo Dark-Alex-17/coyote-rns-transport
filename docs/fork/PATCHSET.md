@@ -286,8 +286,8 @@ to the connect channel, and adds the two README claims to
 and `shared_instance_state_consumer_nests_the_cycles_under_a_storm`; aligns
 the remaining doc twins (the `run` and `attach_shared_instance` rustdoc,
 the state-events test-file header and the `transport/mod.rs` module
-comment) with those qualifications and gives the `reconnect_events_enabled`
-rustdoc in `iface/tcp_client.rs` the same qualification; names the shape a
+comment) with those qualifications and gives `reconnect_events_enabled` in
+`iface/tcp_client.rs` the getter rustdoc its unix twin had; names the shape a
 drop queued before a detach reads
 as, `Disconnected`, `Connecting`, in the `Disconnected` and
 `with_state_events` rustdoc and the README; pins the retained `Connecting`
@@ -303,8 +303,11 @@ the queued disconnects, each served as the live arm serves it, then the
 queued connects, each `Connected`, while a cancel still returns at once
 and queued reconnects are left; `attach_shared_instance`
 (`links_parts/transport_sections/shared_instance.rs`) sets
-`connected_to_shared_instance` before it sends `Connecting`, so a reader of
-that event finds the posture on; and it adds
+`connected_to_shared_instance`, when the slot still holds the interface,
+before it sends `Connecting`, so a reader of that event finds the posture
+on; a refused attach sends nothing, and in the documented attach/stop race
+the attach returns `Ok` and `Connecting` goes out with the posture off, the
+stream ending at once; and it adds
 `two_transport_shared_instance_state_events_probe3.rs` (included from
 `tests.rs`):
 `shared_instance_state_consumer_serves_a_queued_connect_before_the_stream_ends`

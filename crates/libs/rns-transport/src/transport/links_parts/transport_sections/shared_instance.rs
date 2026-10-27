@@ -161,8 +161,11 @@ impl Transport {
         }
         // The consumer is the only sender of `Connected` and is spawned
         // below, so this `Connecting` precedes it even when the client has
-        // already connected and queued its event; the posture above is set
-        // before it so a reader of `Connecting` finds it on.
+        // already connected and queued its event. The posture above is set
+        // before it only when the slot still holds the interface, so a
+        // reader of `Connecting` finds it on; in the attach/stop race the
+        // rustdoc describes the attach returns `Ok` and `Connecting` goes
+        // out with the posture off, the stream ending at once.
         send_shared_instance_state_event(
             &self.name,
             iface,

@@ -79,8 +79,11 @@ Removed) bullet of its own, marked as such.
   first included, and `Disconnected` that an established stream ended
   while attached and the flush, which runs only while the transport is
   still attached, has run. The attach itself sends the first
-  `Connecting` once the interface is spawned, the slot taken and the
-  posture set (a refused attach sends nothing); the consumer task
+  `Connecting` once the interface is spawned, the slot taken and, when the
+  slot still holds the interface, the posture set (a refused attach sends
+  nothing; in the documented attach/stop race the attach returns `Ok` and
+  `Connecting` goes out with the posture off, the stream ending at once);
+  the consumer task
   (`links_parts/transport_sections/shared_instance_reconnect.rs`) sends
   every event after it, `Connected` on each established stream and, after
   each dropped connection, `Disconnected` then `Connecting` at once, so one

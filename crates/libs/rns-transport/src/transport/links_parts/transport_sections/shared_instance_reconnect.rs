@@ -192,7 +192,8 @@ impl SharedInstanceReconnectConsumer {
 
     /// Serves what the exited worker left queued, every disconnect then
     /// every connect, the order the live arms keep; see [`Self::run`] for
-    /// why the reconnects are left.
+    /// why the reconnects are left, and logs the counts at debug when it
+    /// served anything.
     #[deny(clippy::await_holding_invalid_type)]
     async fn drain_queued(
         &self,
@@ -200,11 +201,24 @@ impl SharedInstanceReconnectConsumer {
         connects: &mut mpsc::Receiver<AddressHash>,
         state_events: Option<&mpsc::Sender<SharedInstanceEvent>>,
     ) {
+        let mut disconnects_served = 0usize;
         while disconnects.try_recv().is_ok() {
             self.serve_disconnected(state_events).await;
+            disconnects_served += 1;
         }
+        let mut connects_served = 0usize;
         while connects.try_recv().is_ok() {
             self.send_state_event(state_events, SharedInstanceEvent::Connected);
+            connects_served += 1;
+        }
+        if disconnects_served + connects_served > 0 {
+            log::debug!(
+                "tp({}): shared instance iface={} drained {} disconnect(s), {} connect(s) after the worker exited",
+                self.name,
+                self.iface,
+                disconnects_served,
+                connects_served
+            );
         }
     }
 

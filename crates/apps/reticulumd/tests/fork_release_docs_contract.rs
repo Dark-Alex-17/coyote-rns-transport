@@ -331,7 +331,7 @@ fn request_layer_public_items_cite_python_or_say_fork_only() {
     }
 
     assert!(
-        checked >= 142,
+        checked >= 147,
         "the request layer should expose the receipt, frame, handler and outcome surface; found only {checked} public items"
     );
     assert!(
@@ -500,11 +500,12 @@ fn crate_readme_known_divergences_cite_python_lines() {
 }
 
 /// The crate README's `## Attaching to a shared instance` section carries
-/// exactly one `rust` fence, the attach, handler, announce and detach
-/// snippet, and no fence of any other kind; every line of that snippet is
-/// run verbatim by `crates/libs/rns-transport/tests/shared_instance_api.rs`
-/// against an in-process shared instance, under the same squash and skip
-/// rules as `crate_readme_rust_snippets_are_pinned_verbatim_by_the_api_tests`.
+/// exactly two `rust` fences, the attach, handler, announce and detach
+/// snippet and the state-stream snippet, and no fence of any other kind;
+/// every line of both snippets is run verbatim by
+/// `crates/libs/rns-transport/tests/shared_instance_api.rs` against an
+/// in-process shared instance, under the same squash and skip rules as
+/// `crate_readme_rust_snippets_are_pinned_verbatim_by_the_api_tests`.
 #[test]
 fn crate_readme_shared_instance_section_fence_is_pinned_by_the_api_test() {
     let readme = read_repo_file("crates/libs/rns-transport/README.md");
@@ -513,20 +514,31 @@ fn crate_readme_shared_instance_section_fence_is_pinned_by_the_api_test() {
         section.lines().map(str::trim_start).filter(|line| line.starts_with("```")).collect();
     assert_eq!(
         fences,
-        vec!["```rust", "```"],
-        "the shared-instance section should carry exactly one rust fence and no other"
+        vec!["```rust", "```", "```rust", "```"],
+        "the shared-instance section should carry exactly two rust fences and no other"
     );
-    let snippet: Vec<&str> = section
-        .lines()
-        .skip_while(|line| line.trim_start() != "```rust")
-        .skip(1)
-        .take_while(|line| line.trim_start() != "```")
-        .collect();
-    assert!(!snippet.is_empty(), "the shared-instance snippet should not be empty");
+    let mut snippets: Vec<Vec<&str>> = Vec::new();
+    let mut current: Option<Vec<&str>> = None;
+    for line in section.lines() {
+        match (&mut current, line.trim_start()) {
+            (None, "```rust") => current = Some(Vec::new()),
+            (Some(lines), "```") => snippets.push(lines.clone()),
+            (Some(lines), _) => lines.push(line),
+            _ => {}
+        }
+        if line.trim_start() == "```" {
+            current = None;
+        }
+    }
+    assert!(
+        snippets.iter().all(|snippet| !snippet.is_empty()),
+        "no shared-instance snippet should be empty"
+    );
 
     let pin = squash(&read_repo_file("crates/libs/rns-transport/tests/shared_instance_api.rs"));
-    let unpinned: Vec<&str> = snippet
+    let unpinned: Vec<&str> = snippets
         .iter()
+        .flatten()
         .map(|line| line.trim())
         .filter(|line| !line.is_empty() && !line.starts_with("use ") && !line.starts_with("//"))
         .filter(|line| {
@@ -627,6 +639,35 @@ fn crate_readme_link_section_describes_destination_desc() {
         assert!(
             section.contains(claim),
             "the link-opening section should mention {claim}:\n{section}"
+        );
+    }
+}
+
+/// The shared-instance section describes the state stream the way the
+/// attach and its consumer task behave: the option that installs it, the
+/// `non_exhaustive` enum and its three variants, the non-blocking send and
+/// what a full channel does, the posture flag the events leave alone, the
+/// client builders and getters underneath, and the Python reconnect loop
+/// that has no such stream.
+#[test]
+fn crate_readme_shared_instance_section_describes_state_events() {
+    let readme = read_repo_file("crates/libs/rns-transport/README.md");
+    let section = crate_readme_section(&readme, "Attaching to a shared instance");
+    for claim in [
+        "`SharedInstanceOptions::with_state_events`",
+        "`SharedInstanceEvent`",
+        "`Connecting`",
+        "`Connected`",
+        "`Disconnected`",
+        "`try_send`",
+        "`connected_to_shared_instance()`",
+        "`with_connect_events`",
+        "`connect_events_enabled`",
+        "`RNS/Interfaces/LocalInterface.py:155-181`",
+    ] {
+        assert!(
+            section.contains(claim),
+            "the shared-instance section should mention {claim}:\n{section}"
         );
     }
 }
@@ -979,8 +1020,8 @@ fn crate_readme_rust_snippets_are_pinned_verbatim_by_the_api_tests() {
         }
     }
     assert!(
-        snippets.len() >= 6,
-        "the README should carry the consumer, handler, request, outcome, link-opening and shared-instance snippets, found {}",
+        snippets.len() >= 7,
+        "the README should carry the consumer, handler, request, outcome, link-opening, shared-instance and shared-instance state snippets, found {}",
         snippets.len()
     );
 
@@ -1028,6 +1069,7 @@ fn enums_the_docs_call_non_exhaustive_carry_the_attribute() {
         ("ResourceEventKind", "crates/libs/rns-transport/src/resource.rs"),
         ("AnnounceEvent", "crates/libs/rns-transport/src/transport/mod.rs"),
         ("SharedInstanceEndpoint", "crates/libs/rns-transport/src/transport/shared_instance.rs"),
+        ("SharedInstanceEvent", "crates/libs/rns-transport/src/transport/shared_instance.rs"),
     ];
     for (item, file) in sites {
         let source = read_repo_file(file);

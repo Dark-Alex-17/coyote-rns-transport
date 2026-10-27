@@ -421,7 +421,8 @@ connection that outlived the window resets the streak.
 `TcpClient`/`LocalUnixClient` constructors would, with the `mtu` and
 `forced_bitrate_bps` getters reading the first two back; `LocalUnixClient`
 exposes `addr`, `mtu_value`, `forced_bitrate_bps`, `reconnect_wait`,
-`reconnect_events_enabled` and `disconnect_events_enabled` for inspection.
+`connect_events_enabled`, `reconnect_events_enabled` and
+`disconnect_events_enabled` for inspection.
 While
 attached, a `SINGLE` destination is announced as a path
 response 0.25 s after `register_destination` (`RNS/Transport.py:2911-2916`,
@@ -477,6 +478,31 @@ posture goes through the attach. `Transport::stop` joins the tasks the
 client spawns (the delayed announces and the reconnect consumer) within its
 budget, so none runs on a stopped transport.
 
+`SharedInstanceOptions::with_state_events` takes a
+`tokio::sync::mpsc::Sender<SharedInstanceEvent>` and delivers the client's
+connection state on it.
+`SharedInstanceEvent` is `#[non_exhaustive]`, so match it with a wildcard
+arm; its variants are `Connecting`, `Connected` and `Disconnected`. The
+attach itself sends the first `Connecting` once the interface is spawned and
+the slot taken (a refused attach sends nothing); the consumer task sends
+`Connected` on every established stream, the first included, and after
+every dropped connection `Disconnected`, once the flush above has run, then
+`Connecting` at once, so one cycle reads `Disconnected`, `Connecting`,
+`Connected`. A client attached while nothing listens stays in `Connecting`
+until the socket exists. Every event goes out with `try_send`: a full
+channel drops the event at debug and never blocks the consumer, so size the
+channel for the burst expected. The sender is dropped, ending the stream, on
+`detach_shared_instance`, `Transport::stop` or when the client worker
+exits; a detach or a stop sends no `Disconnected`.
+`connected_to_shared_instance()` is the posture flag and is unchanged by the
+events: it stays set across a `Disconnected` until detach or stop. Python's
+`LocalClientInterface` exposes no such stream; its reconnect loop is
+`RNS/Interfaces/LocalInterface.py:155-181` and its drop path
+`RNS/Interfaces/LocalInterface.py:255-261`. Underneath, `TcpClient` and
+`LocalUnixClient` gained `with_connect_events`, which fires on every
+established stream, the first included, where `with_reconnect_events` fires
+from the second on, and a `connect_events_enabled` getter.
+
 A `Tcp` endpoint whose address is not loopback is refused with
 `RnsError::SharedInstanceEndpointNotLoopback` before any lock is taken, with
 one warning, since Python's `LocalClientInterface` connects to `127.0.0.1`
@@ -531,6 +557,35 @@ listener as the shared instance and read a local client's announce at zero
 attaches this crate to a Python `rnsd` (RNS 1.5.2) shared instance on a free
 port next to a Python local client and proves the zero-hop path, announce and
 `Link.request` both ways, over TCP everywhere and over an abstract unix socket on Linux.
+
+A client that attaches with a state stream and logs every transition until
+the stream ends, with `transport` the client transport and `endpoint` the
+owner's `SocketAddr`:
+
+```rust
+use rns_transport::transport::{SharedInstanceEndpoint, SharedInstanceEvent, SharedInstanceOptions};
+use tokio::sync::mpsc;
+
+let (events_tx, mut events) = mpsc::channel(8);
+transport
+    .attach_shared_instance(
+        SharedInstanceEndpoint::Tcp(endpoint),
+        SharedInstanceOptions::default().with_state_events(events_tx),
+    )
+    .await?;
+while let Some(event) = events.recv().await {
+    match event {
+        SharedInstanceEvent::Connecting => log::info!("shared instance: dialing"),
+        SharedInstanceEvent::Connected => log::info!("shared instance: connected"),
+        SharedInstanceEvent::Disconnected => log::warn!("shared instance: dropped, redialing"),
+        _ => {}
+    }
+}
+```
+
+`crates/libs/rns-transport/tests/shared_instance_api.rs` runs this snippet
+verbatim too: it reads `Connecting` then `Connected` against the in-process
+shared instance and sees the stream end on the detach.
 
 ## Known divergences from Python RNS
 

@@ -45,9 +45,12 @@ pub enum SharedInstanceEvent {
     Connected,
     /// Fork-only: an established stream ended while attached
     /// (`RNS/Interfaces/LocalInterface.py:255-261` is the Python drop path);
-    /// the flush has run; [`Self::Connecting`] follows at once. A detach or
+    /// the flush, which runs only while the transport is still attached,
+    /// has run; [`Self::Connecting`] follows at once. A detach or
     /// [`Transport::stop`](crate::transport::Transport::stop) ends the
-    /// stream without one: the sender is dropped instead.
+    /// stream without one: the sender is dropped instead, though a drop
+    /// that was already queued when the detach landed is still served and
+    /// read before the stream ends.
     Disconnected,
 }
 
@@ -150,10 +153,16 @@ impl SharedInstanceOptions {
     /// after the attach's own `Connecting` and the first `Connected`. Every
     /// event is sent with `try_send`: a full channel drops the event at
     /// debug and never blocks the consumer, so size the channel for the
-    /// burst expected. The sender is dropped, ending the stream, on
+    /// burst expected. Under a reconnect storm the cycles can interleave:
+    /// queued disconnects are served before connects, so two `Disconnected`
+    /// can precede their `Connected`s; the per-cycle order holds, the
+    /// cycles may nest. The attach's clone of the sender is dropped on
     /// [`Transport::detach_shared_instance`](crate::transport::Transport::detach_shared_instance),
     /// [`Transport::stop`](crate::transport::Transport::stop) or when the
-    /// client worker exits. The posture flag
+    /// client worker exits; the stream ends once no other clone, a
+    /// retained `SharedInstanceOptions` clone included, is alive. A detach
+    /// or a stop sends no `Disconnected`, but a drop that was already
+    /// queued when the detach landed is still served. The posture flag
     /// [`Transport::connected_to_shared_instance`](crate::transport::Transport::connected_to_shared_instance)
     /// is unchanged by these events: it stays set across a `Disconnected`
     /// until detach or stop. Python's `LocalClientInterface` exposes no

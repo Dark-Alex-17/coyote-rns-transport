@@ -126,10 +126,15 @@ impl SharedInstanceReconnectConsumer {
     /// send the disconnect queue is no longer than the reconnect queue, so
     /// the reconnect channel fills first and the realistic loss under a
     /// storm is a reconnect, which the next reconnect that does land heals
-    /// (the tunnel re-synthesis and the re-announce are idempotent). A
-    /// per-cycle sequence number that would let the consumer detect a lost
-    /// reconnect outright would change the public `Sender<AddressHash>`
-    /// payload and is deferred.
+    /// (the tunnel re-synthesis and the re-announce are idempotent). The
+    /// connect channel, also `mpsc::channel(8)` and fed before the
+    /// reconnect of the same cycle, is never longer than the reconnect
+    /// queue once the first connect has been served, so a full connect
+    /// channel means the reconnect channel is full too: the cycle's
+    /// `Connected` goes with its reconnect, and the next cycle's connect
+    /// heals the stream the same way. A per-cycle sequence number that
+    /// would let the consumer detect a lost reconnect outright would
+    /// change the public `Sender<AddressHash>` payload and is deferred.
     ///
     /// `state_events` is the attach's stream: a served disconnect sends
     /// `Disconnected` then `Connecting` once the flush has run, a served

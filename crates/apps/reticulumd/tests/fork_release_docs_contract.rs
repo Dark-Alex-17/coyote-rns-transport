@@ -661,6 +661,8 @@ fn crate_readme_shared_instance_section_describes_state_events() {
         "`Disconnected`",
         "`try_send`",
         "`connected_to_shared_instance()`",
+        "`SharedInstanceOptions` clone",
+        "interleave",
         "`with_connect_events`",
         "`connect_events_enabled`",
         "`RNS/Interfaces/LocalInterface.py:155-181`",

@@ -486,14 +486,20 @@ arm; its variants are `Connecting`, `Connected` and `Disconnected`. The
 attach itself sends the first `Connecting` once the interface is spawned and
 the slot taken (a refused attach sends nothing); the consumer task sends
 `Connected` on every established stream, the first included, and after
-every dropped connection `Disconnected`, once the flush above has run, then
-`Connecting` at once, so one cycle reads `Disconnected`, `Connecting`,
-`Connected`. A client attached while nothing listens stays in `Connecting`
-until the socket exists. Every event goes out with `try_send`: a full
-channel drops the event at debug and never blocks the consumer, so size the
-channel for the burst expected. The sender is dropped, ending the stream, on
-`detach_shared_instance`, `Transport::stop` or when the client worker
-exits; a detach or a stop sends no `Disconnected`.
+every dropped connection `Disconnected`, once the flush above, which runs
+only while the transport is still attached, has run, then `Connecting` at
+once, so one cycle reads `Disconnected`, `Connecting`, `Connected`. Under a
+reconnect storm the cycles can interleave: queued disconnects are served
+before connects, so two `Disconnected` can precede their `Connected`s; the
+per-cycle order holds, the cycles may nest. A client attached while nothing
+listens stays in `Connecting` until the socket exists. Every event goes out
+with `try_send`: a full channel drops the event at debug and never blocks
+the consumer, so size the channel for the burst expected. The attach's clone
+of the sender is dropped on `detach_shared_instance`, `Transport::stop` or
+when the client worker exits; the stream ends once no other clone, a
+retained `SharedInstanceOptions` clone included, is alive. A detach or a
+stop sends no `Disconnected`, but a drop that was already queued when the
+detach landed is still served and read before the stream ends.
 `connected_to_shared_instance()` is the posture flag and is unchanged by the
 events: it stays set across a `Disconnected` until detach or stop. Python's
 `LocalClientInterface` exposes no such stream; its reconnect loop is

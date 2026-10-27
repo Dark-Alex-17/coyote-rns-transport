@@ -29,28 +29,39 @@ per fork task.
 ## Unreleased (upstream 0.14.0)
 
 Every file changed since the `0.16.0` release and the patch each change
-belongs to. Patch ids: J1 is destination lookup, J2 is ledger contracts.
+belongs to. Patch ids: J1 is destination lookup, J2 is ledger contracts,
+J3 is response outcomes.
 The `destination lookup` patch is fork commits `5246fc9c`, `15278355`,
 `e8e64626`, `20d67e43`, `1c74645b`, `49a5b27f`, `fad0f72e`, `f24e4ec3`,
 `5093b5b6`, `338811b0` and `94d76ac8`; the `ledger contracts` patch is fork
 commits `d2f871f7`, `e8e64626`, `f24e4ec3`, `0b86c14b`, `338811b0` and
-`94d76ac8`.
+`94d76ac8`; the `response outcomes` patch is fork commits `d6cfbb58`,
+`7ef891be` and `79aae7ed`.
 
 | File | Patch |
 | --- | --- |
 | `crates/apps/reticulumd/tests/fork_publish_contract_parts/ledger_contract.rs` | ledger contracts |
 | `crates/apps/reticulumd/tests/fork_publish_contract_parts/release_frozen_sections_probe2.rs` | ledger contracts |
-| `crates/apps/reticulumd/tests/fork_release_docs_contract.rs` | destination lookup, ledger contracts |
-| `crates/libs/rns-transport/CHANGELOG.md` | destination lookup |
-| `crates/libs/rns-transport/README.md` | destination lookup |
+| `crates/apps/reticulumd/tests/fork_release_docs_contract.rs` | destination lookup, ledger contracts, response outcomes |
+| `crates/apps/reticulumd/tests/python_channel_interop.rs` | response outcomes |
+| `crates/apps/reticulumd/tests/python_channel_interop_parts/python_to_rust_request_outcome.rs` | response outcomes |
+| `crates/libs/rns-transport/CHANGELOG.md` | destination lookup, response outcomes |
+| `crates/libs/rns-transport/README.md` | destination lookup, response outcomes |
+| `crates/libs/rns-transport/src/destination/request/inbound.rs` | response outcomes |
+| `crates/libs/rns-transport/src/destination/request/mod.rs` | response outcomes |
+| `crates/libs/rns-transport/src/destination/request/outcome.rs` | response outcomes |
 | `crates/libs/rns-transport/src/transport/links_parts/transport_sections/close_channel.rs` | destination lookup |
+| `crates/libs/rns-transport/src/transport/request_dispatch.rs` | response outcomes |
 | `crates/libs/rns-transport/src/transport/tests_parts/reticulum_path_restore_destination_desc_probe.rs` | destination lookup |
 | `crates/libs/rns-transport/src/transport/tests_parts/two_transport_destination_desc.rs` | destination lookup |
 | `crates/libs/rns-transport/src/transport/tests_parts/two_transport_destination_desc_probe.rs` | destination lookup |
 | `crates/libs/rns-transport/src/transport/tests_parts/two_transport_destination_desc_probe2.rs` | destination lookup |
-| `crates/libs/rns-transport/src/transport/tests.rs` | destination lookup |
+| `crates/libs/rns-transport/src/transport/tests_parts/two_transport_loopback_requests_outcome.rs` | response outcomes |
+| `crates/libs/rns-transport/src/transport/tests.rs` | destination lookup, response outcomes |
 | `crates/libs/rns-transport/tests/destination_desc_api.rs` | destination lookup |
-| `docs/fork/PATCHSET.md` | destination lookup |
+| `crates/libs/rns-transport/tests/request_handler_api.rs` | response outcomes |
+| `crates/libs/rns-transport/tests/request_receipt_api.rs` | response outcomes |
+| `docs/fork/PATCHSET.md` | destination lookup, response outcomes |
 
 Fork commits `5246fc9c`, `15278355`, `e8e64626`, `20d67e43`, `1c74645b`,
 `49a5b27f`, `fad0f72e`, `f24e4ec3`, `5093b5b6`, `338811b0` and `94d76ac8`:
@@ -114,6 +125,42 @@ section, refusing one that sits below the manifest-version heading, with a
 fixture for the misplaced case; `94d76ac8` makes that fixture assert the
 position message's own wording rather than a word the release-tree message
 shares.
+
+Fork commits `d6cfbb58`, `7ef891be` and `79aae7ed`:
+J3, response outcomes. The library behaviour changes are: a request handler
+can learn what became of the response it returned. `d6cfbb58` adds
+`InboundRequest::track_outcome` (`destination/request/inbound.rs`), which
+arms a slot the request dispatcher (`transport/request_dispatch.rs`) resolves
+after the handler has returned, and the `ResponseOutcome` enum with its
+`ResponseOutcomeReceiver` future (`destination/request/outcome.rs`,
+re-exported beside `InboundRequest`). `Packet` means the `RESPONSE` packet
+reached at least one interface, which is all a packet response can report
+since RNS proves no packet response (crate README, `## Delivery proofs on a
+link`); `Resource` carries the `OutboundResult` of every response that leaves
+as a resource, the `Resource` form and an oversize `Value` or `Bytes` alike;
+`NotSent` covers a handler that returned `None`, a link no longer able to
+exchange data, a send that failed before dispatch (a packet that would not
+build, a link without an ingress interface, metadata that does not pack, a
+packet that reached no interface) and a response task that `Transport::stop`
+or cancel aborted. A handler that never calls `track_outcome` keeps the
+dispatcher's previous control flow: the transfer's `OutboundOutcome` is
+dropped unawaited and the task ends once the response is registered; only a
+tracked response makes the task await the verdict, outside every guard.
+`InboundRequest::new`, which is crate-private, now takes the decoded
+`RequestFrame` and the slot. `RequestHandler`, `RequestResponse` and every
+`InboundRequest` getter are unchanged. The README request-handler section
+describes the accessor; `fork_release_docs_contract.rs` scans the new file,
+lists `ResponseOutcomeReceiver` among the private-field structs and
+`ResponseOutcome` among the `non_exhaustive` enums;
+`tests/request_handler_api.rs` registers a handler that tracks its outcome
+and `tests/request_receipt_api.rs` matches `ResponseOutcome` with a wildcard
+arm. `7ef891be` pins the verdicts on the loopback request pair in
+`two_transport_loopback_requests_outcome.rs` (included from `tests.rs`),
+including the packet that reaches no interface and the responder that stops
+mid-transfer. `79aae7ed` adds `python_to_rust_request_outcome.rs` (included
+from `python_channel_interop.rs`): a Python requester taking a 48 KiB reply
+as a response Resource resolves `Resource(Complete)` on the Rust handler, a
+short reply resolves `Packet`.
 
 ## 0.16.0 (upstream 0.14.0)
 

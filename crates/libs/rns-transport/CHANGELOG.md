@@ -32,6 +32,30 @@ Removed) bullet of its own, marked as such.
   agreeing when called from parallel tasks; the README snippet in the link
   section is run verbatim by `tests/destination_desc_api.rs`, before and
   after the announce is learned.
+- `InboundRequest::track_outcome` returns a `ResponseOutcomeReceiver`, a
+  future the request dispatcher resolves with a `ResponseOutcome` after the
+  handler has returned (`destination/request/inbound.rs`,
+  `destination/request/outcome.rs`, `transport/request_dispatch.rs`; both
+  types are re-exported beside `InboundRequest`). Call it before `into_data`
+  consumes the request, and await it outside the handler. The enum is
+  `#[non_exhaustive]`: `Resource(OutboundResult)` is the transfer verdict of
+  every response that leaves as a Resource, the `Resource` form and an
+  oversize `Value` or `Bytes` alike; `Packet` says the `RESPONSE` packet
+  reached at least one interface, and no more, because RNS proves no packet
+  response (crate README, `## Delivery proofs on a link`, README.md:217-218);
+  `NotSent` covers a handler that returned `None`, a link no longer able to
+  exchange data, a send that failed before dispatch (a packet that would not
+  build, no ingress interface, metadata that does not pack, a packet that
+  reached no interface), and a response task that `Transport::stop` or
+  cancel aborted before the verdict, where a bare `OutboundOutcome` would
+  resolve `Failed(LinkClosed)`. A handler that never calls `track_outcome`
+  keeps the previous dispatcher behaviour. Pinned by
+  `two_transport_loopback_requests_outcome.rs` (packet, Resource form,
+  oversize `Value` and `Bytes`, a wire teardown and a local reset under the
+  transfer, a silent handler, a packet dispatched to zero interfaces, a stop
+  mid-transfer, a replaced receiver) and against a Python requester by
+  `python_to_rust_request_outcome.rs`; `tests/request_handler_api.rs` and
+  `tests/request_receipt_api.rs` cover the public paths.
 
 ### Changed
 

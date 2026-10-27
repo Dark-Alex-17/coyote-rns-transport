@@ -106,6 +106,21 @@ honour the registration's `auto_compress`. A response Resource reaches the
 requester through `Transport::resource_events()` and resolves its
 `RequestReceipt`.
 
+A handler that wants to know what became of its response calls
+`request.track_outcome()` before `into_data` consumes the request and gets
+a `ResponseOutcomeReceiver`, a future the dispatcher resolves after the
+handler has returned, so it is awaited outside the handler. The
+`ResponseOutcome` it resolves to is `#[non_exhaustive]`: `Resource` carries
+the `OutboundResult` of every response that leaves as a Resource, the
+`Resource` form and an oversize `Value` or `Bytes` alike; `Packet` says the
+`RESPONSE` packet reached an interface, and no more, since a packet response
+is never proved (see Delivery proofs on a link); `NotSent` covers a handler
+that returned `None`, a link that could no longer exchange data, a send that
+failed before dispatch, and a response task that `Transport::stop` or
+`cancel` aborted before the outcome was known. Calling `track_outcome` a
+second time resolves the earlier receiver as `NotSent`. Python has no
+counterpart: `handle_request` sends and keeps nothing (`RNS/Link.py:846-852`).
+
 `LinkEvent::Data` with `PacketContext::Request` keeps posting for every
 inbound request packet, its `LinkPayload` carrying the request id, and
 `ResourceEventKind::Complete` with `is_request` for every assembled request

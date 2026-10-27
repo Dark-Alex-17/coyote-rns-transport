@@ -1,9 +1,10 @@
 use super::*;
 use crate::destination::request::{
-    DispatchForm, InboundRequest, RequestAllow, RequestFrame, RequestHandler, RequestId,
-    RequestResponse, ResponseFrame,
+    empty_outcome_slot, DispatchForm, InboundRequest, OutcomeSlot, RequestAllow, RequestFrame,
+    RequestHandler, RequestId, RequestResponse, ResponseFrame, ResponseOutcome,
 };
 use crate::resource::OutboundOutcome;
+use std::sync::PoisonError;
 use tokio::sync::mpsc;
 use tokio::task::JoinSet;
 
@@ -115,15 +116,14 @@ async fn dispatch_one(
         );
         return;
     }
-    let requested_at = frame.requested_at();
+    let slot = empty_outcome_slot();
     let request = InboundRequest::new(
         registered.path.clone(),
-        path_hash,
-        frame.into_data(),
+        frame,
         request_id,
         item.link_id,
         item.remote_identity,
-        requested_at,
+        slot.clone(),
     );
     tasks.spawn(handle_and_respond(
         handler.clone(),
@@ -132,6 +132,7 @@ async fn dispatch_one(
         item.link_id,
         request_id,
         request,
+        slot,
     ));
 }
 
@@ -147,6 +148,14 @@ fn is_allowed(allow: &RequestAllow, remote_identity: Option<&Identity>) -> bool 
     }
 }
 
+/// How far a response got on its way out. `Resource` carries the transfer's
+/// pending verdict, which is awaited only when a handler asked for it.
+enum ResponseDispatch {
+    Packet,
+    Resource(OutboundOutcome),
+    NotSent,
+}
+
 #[deny(clippy::await_holding_invalid_type)]
 async fn handle_and_respond(
     handler: Arc<Mutex<TransportHandler>>,
@@ -155,10 +164,41 @@ async fn handle_and_respond(
     link_id: AddressHash,
     request_id: RequestId,
     request: InboundRequest,
+    slot: OutcomeSlot,
 ) {
-    let Some(response) = request_handler.handle(request).await else {
+    let response = request_handler.handle(request).await;
+    let tracked = slot.lock().unwrap_or_else(PoisonError::into_inner).take();
+    let dispatched = match response {
+        Some(response) => {
+            send_response(&handler, link_id, request_id, response, auto_compress).await
+        }
+        None => ResponseDispatch::NotSent,
+    };
+    let Some(tracked) = tracked else {
         return;
     };
+    let verdict = match dispatched {
+        ResponseDispatch::Packet => ResponseOutcome::Packet,
+        ResponseDispatch::NotSent => ResponseOutcome::NotSent,
+        ResponseDispatch::Resource(outcome) => ResponseOutcome::Resource(outcome.await),
+    };
+    if tracked.send(verdict).is_err() {
+        log::debug!(
+            "tp: response {} on link {} outcome receiver dropped before the verdict",
+            request_id,
+            link_id
+        );
+    }
+}
+
+#[deny(clippy::await_holding_invalid_type)]
+async fn send_response(
+    handler: &Arc<Mutex<TransportHandler>>,
+    link_id: AddressHash,
+    request_id: RequestId,
+    response: RequestResponse,
+    auto_compress: bool,
+) -> ResponseDispatch {
     let body = match response {
         RequestResponse::Value(value) => value,
         RequestResponse::Bytes(bytes) => rmpv::Value::Binary(bytes),
@@ -171,16 +211,22 @@ async fn handle_and_respond(
                         request_id,
                         link_id
                     );
-                    return;
+                    return ResponseDispatch::NotSent;
                 }
             };
-            send_response_as_resource(&handler, link_id, request_id, data, metadata, auto_compress)
-                .await;
-            return;
+            return send_response_as_resource(
+                handler,
+                link_id,
+                request_id,
+                data,
+                metadata,
+                auto_compress,
+            )
+            .await;
         }
     };
     let encoded = ResponseFrame::new(request_id, body).encode();
-    send_packet_response(&handler, link_id, request_id, encoded, auto_compress).await;
+    send_packet_response(handler, link_id, request_id, encoded, auto_compress).await
 }
 
 fn pack_value(value: rmpv::Value) -> Result<Vec<u8>, rmpv::encode::Error> {
@@ -203,10 +249,10 @@ async fn send_packet_response(
     request_id: RequestId,
     encoded: Vec<u8>,
     auto_compress: bool,
-) {
+) -> ResponseDispatch {
     let Some(link) = find_any_link(handler, &link_id).await else {
         log::debug!("tp: response {} dropped, link {} is gone", request_id, link_id);
-        return;
+        return ResponseDispatch::NotSent;
     };
     let (packet, iface) = {
         let link = link.lock().await;
@@ -216,7 +262,7 @@ async fn send_packet_response(
                 request_id,
                 link_id
             );
-            return;
+            return ResponseDispatch::NotSent;
         }
         let fits = encoded.len() <= link.link_mdu();
         let packet = fits.then(|| link.response_packet(&encoded)).transpose();
@@ -230,12 +276,19 @@ async fn send_packet_response(
                 request_id,
                 link_id
             );
-            return;
+            return ResponseDispatch::NotSent;
         }
     };
     let Some(packet) = packet else {
-        send_response_as_resource(handler, link_id, request_id, encoded, None, auto_compress).await;
-        return;
+        return send_response_as_resource(
+            handler,
+            link_id,
+            request_id,
+            encoded,
+            None,
+            auto_compress,
+        )
+        .await;
     };
     let Some(iface) = iface else {
         log::debug!(
@@ -243,12 +296,14 @@ async fn send_packet_response(
             request_id,
             link_id
         );
-        return;
+        return ResponseDispatch::NotSent;
     };
     let trace = send_on_iface(handler, iface, packet).await;
     if trace.sent_ifaces == 0 {
         log::debug!("tp: response {} on link {} reached no interface", request_id, link_id);
+        return ResponseDispatch::NotSent;
     }
+    ResponseDispatch::Packet
 }
 
 /// Both response forms that leave as a resource (`RNS/Link.py:846,852`).
@@ -266,8 +321,8 @@ async fn send_response_as_resource(
     data: Vec<u8>,
     metadata: Option<Vec<u8>>,
     auto_compress: bool,
-) {
-    let sent = send_response_resource(
+) -> ResponseDispatch {
+    match send_response_resource(
         handler,
         &link_id,
         request_id.to_bytes().to_vec(),
@@ -276,9 +331,16 @@ async fn send_response_as_resource(
         auto_compress,
     )
     .await
-    .map(|(hash, _)| hash);
-    if let Err(err) = sent {
-        log::debug!("tp: response resource {} on link {} not sent: {err:?}", request_id, link_id);
+    {
+        Ok((_, outcome)) => ResponseDispatch::Resource(outcome),
+        Err(err) => {
+            log::debug!(
+                "tp: response resource {} on link {} not sent: {err:?}",
+                request_id,
+                link_id
+            );
+            ResponseDispatch::NotSent
+        }
     }
 }
 

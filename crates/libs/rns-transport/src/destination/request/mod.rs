@@ -40,6 +40,7 @@ mod frame;
 mod handler;
 mod id;
 mod inbound;
+mod outcome;
 mod receipt;
 #[cfg(test)]
 mod receipt_order_tests;
@@ -56,6 +57,8 @@ pub(crate) use handler::RegisteredHandler;
 pub use handler::{RequestHandler, RequestResponse};
 pub use id::{PathHash, RequestId};
 pub use inbound::InboundRequest;
+pub(crate) use outcome::{empty_outcome_slot, OutcomeSlot};
+pub use outcome::{ResponseOutcome, ResponseOutcomeReceiver};
 pub(crate) use receipt::ResponseArrival;
 #[cfg(test)]
 pub(crate) use receipt::RESPONSE_GRACE;

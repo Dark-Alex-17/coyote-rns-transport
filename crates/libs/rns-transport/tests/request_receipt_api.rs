@@ -11,8 +11,9 @@ use std::time::Duration;
 
 use rns_transport::destination::request::{
     FrameDecodeError, RequestAllow, RequestError, RequestOptions, RequestReceipt, RequestResponse,
-    RequestResponseData, RequestStatus,
+    RequestResponseData, RequestStatus, ResponseOutcome,
 };
+use rns_transport::resource::OutboundResult;
 use rns_transport::transport::AnnounceEvent;
 
 fn assert_clone_send_sync<T: Clone + Send + Sync + 'static>() {}
@@ -137,6 +138,16 @@ fn frame_decode_error_name(error: &FrameDecodeError) -> &'static str {
     }
 }
 
+#[deny(unreachable_patterns)]
+fn response_outcome_name(outcome: &ResponseOutcome) -> &'static str {
+    match outcome {
+        ResponseOutcome::Packet => "packet",
+        ResponseOutcome::Resource(_) => "resource",
+        ResponseOutcome::NotSent => "not sent",
+        _ => "an outcome this match predates",
+    }
+}
+
 /// `AnnounceEvent` is `#[non_exhaustive]`: a consumer reads the documented `is_path_response`
 /// flag through a `..` destructure; the struct-literal ban itself is pinned by
 /// `tests/breaking_changes_compile_fail.rs`.
@@ -152,5 +163,9 @@ fn request_layer_enums_are_non_exhaustive_outside_the_crate() {
     assert_eq!(request_allow_name(&RequestAllow::All), "all");
     assert_eq!(request_response_name(&RequestResponse::Bytes(Vec::new())), "bytes");
     assert_eq!(frame_decode_error_name(&FrameDecodeError::Truncated), "truncated");
+    assert_eq!(
+        response_outcome_name(&ResponseOutcome::Resource(OutboundResult::Complete)),
+        "resource"
+    );
     let _reads_the_flag: fn(&AnnounceEvent) -> bool = announce_is_path_response;
 }

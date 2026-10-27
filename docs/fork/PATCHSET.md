@@ -38,7 +38,7 @@ commits `d2f871f7`, `e8e64626`, `f24e4ec3`, `0b86c14b`, `338811b0` and
 `94d76ac8`; the `response outcomes` patch is fork commits `d6cfbb58`,
 `7ef891be`, `79aae7ed`, `72242c71`, `c627c6d7`, `dea9af76`, `d2854884`
 and `c18ea340`; the `shared-instance state` patch is fork commits
-`b87cd69a`, `42795c1c` and `c4704519`.
+`b87cd69a`, `42795c1c`, `c4704519`, `43b03644` and `d62ab8b3`.
 
 | File | Patch |
 | --- | --- |
@@ -71,6 +71,7 @@ and `c18ea340`; the `shared-instance state` patch is fork commits
 | `crates/libs/rns-transport/src/transport/tests_parts/two_transport_shared_instance_probe16.rs` | shared-instance state |
 | `crates/libs/rns-transport/src/transport/tests_parts/two_transport_shared_instance_reconnect.rs` | shared-instance state |
 | `crates/libs/rns-transport/src/transport/tests_parts/two_transport_shared_instance_state_events.rs` | shared-instance state |
+| `crates/libs/rns-transport/src/transport/tests_parts/two_transport_shared_instance_state_events_probe.rs` | shared-instance state |
 | `crates/libs/rns-transport/src/transport/tests.rs` | destination lookup, response outcomes, shared-instance state |
 | `crates/libs/rns-transport/tests/destination_desc_api.rs` | destination lookup |
 | `crates/libs/rns-transport/tests/request_handler_api.rs` | response outcomes |
@@ -206,7 +207,7 @@ after tracking; and the README's spawned awaiter on a multi-thread runtime;
 it also makes the README paragraph pin in `fork_release_docs_contract.rs`
 require the panicking-handler arm and the dropped-sender rule.
 
-Fork commits `b87cd69a`, `42795c1c` and `c4704519`:
+Fork commits `b87cd69a`, `42795c1c`, `c4704519`, `43b03644` and `d62ab8b3`:
 J4, shared-instance state. The library behaviour changes are: a client
 attached to a shared instance can follow its connection state. `b87cd69a`
 adds the `SharedInstanceEvent` enum, `#[non_exhaustive]` with `Connecting`,
@@ -247,6 +248,31 @@ a second snippet that reads it until the detach ends it, run verbatim by
 `tests/shared_instance_api.rs`, extends the `LocalUnixClient` getter list
 with `connect_events_enabled`, and pins the paragraph, the second fence,
 the `non_exhaustive` attribute and the five new public items in
+`fork_release_docs_contract.rs`. `43b03644` adds
+`two_transport_shared_instance_state_events_probe.rs` (included from
+`tests.rs`):
+`shared_instance_state_stream_ends_on_stop_without_a_disconnected`,
+`shared_instance_state_refused_attach_sends_nothing_and_ends_the_stream`,
+`shared_instance_state_dropped_receiver_keeps_the_consumer_serving`,
+`shared_instance_state_events_follow_two_tcp_restarts` and
+`shared_instance_state_detach_while_connecting_ends_the_stream`; adds the
+client-level connect-event pins
+`tcp_client_reports_connect_events_on_every_connection_the_first_included`
+(`iface/tcp_client.rs`, which also gains the `connect_events_enabled`
+rustdoc its unix twin had) and
+`local_unix_connect_client_reports_connect_events_on_every_connection_the_first_included`
+(`iface/local.rs`, whose getter test also reads `connect_events_enabled`);
+and in `two_transport_shared_instance_state_events.rs` reuses the sibling
+`SHARED_INSTANCE_RECONNECT_WAIT` in place of its own copy, mirrors the
+posture and slot asserts into the unix restart and the listener-down test,
+and pins the skipped-flush record of the hand-driven cycle, whose consumer
+runs unattached. `d62ab8b3` qualifies the `Disconnected` and
+`with_state_events` rustdoc (`transport/shared_instance.rs`) and the README
+paragraph for the unattached drop (the flush runs only while attached; a
+drop queued before a detach is still served), retained sender clones (a
+kept `SharedInstanceOptions` clone holds the stream open) and storm
+interleaving (cycles may nest), extends the `run` rustdoc's loss argument
+to the connect channel, and adds the two README claims to
 `fork_release_docs_contract.rs`.
 
 ## 0.16.0 (upstream 0.14.0)

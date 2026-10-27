@@ -77,7 +77,8 @@ Removed) bullet of its own, marked as such.
   `Connecting` says the attach is in place and the client is dialing,
   `Connected` that a stream to the shared instance is established, the
   first included, and `Disconnected` that an established stream ended
-  while attached and the flush has run. The attach itself sends the first
+  while attached and the flush, which runs only while the transport is
+  still attached, has run. The attach itself sends the first
   `Connecting` once the interface is spawned and the slot taken (a refused
   attach sends nothing); the consumer task
   (`links_parts/transport_sections/shared_instance_reconnect.rs`) sends
@@ -85,12 +86,18 @@ Removed) bullet of its own, marked as such.
   each dropped connection, `Disconnected` then `Connecting` at once, so one
   cycle reads `Disconnected`, `Connecting`, `Connected`; a client attached
   while nothing listens stays in `Connecting` until the socket exists.
+  Under a reconnect storm the cycles can interleave: queued disconnects
+  are served before connects, so two `Disconnected` can precede their
+  `Connected`s; the per-cycle order holds, the cycles may nest.
   Every event goes out with `try_send`: a full channel drops the event at
-  debug and never blocks the consumer. The sender is dropped, ending the
-  stream, on `detach_shared_instance`, `Transport::stop` or when the client
-  worker exits, with no `Disconnected` for a detach or a stop; the posture
-  flag `connected_to_shared_instance` is unchanged by the events and stays
-  set across a `Disconnected` until detach or stop. Underneath,
+  debug and never blocks the consumer. The attach's clone of the sender is
+  dropped on `detach_shared_instance`, `Transport::stop` or when the client
+  worker exits; the stream ends once no other clone, a retained
+  `SharedInstanceOptions` clone included, is alive. A detach or a stop
+  sends no `Disconnected`, but a drop that was already queued when the
+  detach landed is still served and read before the stream ends; the
+  posture flag `connected_to_shared_instance` is unchanged by the events
+  and stays set across a `Disconnected` until detach or stop. Underneath,
   `TcpClient::with_connect_events` and `LocalUnixClient::with_connect_events`
   with their `connect_events_enabled` getters (`iface/tcp_client.rs`,
   `iface/local.rs`) fire on every established stream, the first included,
@@ -98,7 +105,14 @@ Removed) bullet of its own, marked as such.
   `two_transport_shared_instance_state_events.rs` (the TCP restart sequence
   with the posture check, the attach while the listener is down, the unix
   twin, the capacity-one channel dropping at debug while the re-announce
-  still lands, the hand-driven consumer's per-cycle order), by
+  still lands, the hand-driven consumer's per-cycle order and a connect
+  served beside its reconnect), by
+  `two_transport_shared_instance_state_events_probe.rs` (a stop ending the
+  stream without a `Disconnected`, a refused attach sending nothing, a
+  dropped receiver leaving the consumer serving, two restarts in a row, a
+  detach while dialing), by the connect-event unit tests in
+  `iface/tcp_client.rs` and `iface/local.rs` (one event per established
+  stream, the first included), by
   `two_transport_shared_instance_reconnect.rs` and
   `two_transport_shared_instance_probe16.rs` (the hand-driven consumer tests
   carry the new third channel), by `tests/shared_instance_api.rs` (the

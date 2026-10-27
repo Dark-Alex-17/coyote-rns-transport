@@ -126,8 +126,8 @@ async fn readme_attach_and_announce(
     Ok((iface, destination))
 }
 
-/// The README's state-stream snippet, verbatim, with its log calls reduced to labels sent on
-/// `labels`; it returns once the stream ends, which drops `labels` too.
+/// The README's state-stream snippet, verbatim except the log calls, which are reduced to
+/// labels sent on `labels`; it returns once the stream ends, which drops `labels` too.
 #[deny(clippy::await_holding_invalid_type)]
 async fn readme_attach_and_follow_state_events(
     transport: &Transport,

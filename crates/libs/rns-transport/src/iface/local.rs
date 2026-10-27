@@ -386,7 +386,7 @@ impl LocalUnixClient {
     /// Sends the interface address on `events` each time a stream to the
     /// endpoint is established, the first included
     /// ([`Self::with_reconnect_events`] fires from the second on); a full
-    /// channel drops the event at debug. Fork-only.
+    /// or closed channel drops the event at debug. Fork-only.
     #[must_use]
     pub fn with_connect_events(
         mut self,

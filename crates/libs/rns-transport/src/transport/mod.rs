@@ -441,7 +441,8 @@ mod resource_accept_hook;
 pub use resource_accept_hook::ResourceAcceptHook;
 // resource_wire: link-scoped resource packet handling on inbound wire paths.
 mod resource_wire;
-// shared_instance: endpoint, options and connection-state events for attaching as a shared-instance client.
+// shared_instance: endpoint, options and connection-state events for attaching as a
+// shared-instance client.
 mod shared_instance;
 pub use shared_instance::{SharedInstanceEndpoint, SharedInstanceEvent, SharedInstanceOptions};
 // wire_encryption: packet-context policy for transport-layer encryption.

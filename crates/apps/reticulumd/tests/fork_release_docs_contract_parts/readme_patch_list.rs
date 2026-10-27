@@ -165,6 +165,11 @@ fn readme_patch_list_opens_with_the_0_17_0_block_and_keeps_the_0_16_0_paragraph(
     let at_0_17_0 = patch_list
         .find(marker_0_17_0)
         .expect("the README patch list should open with the 0.17.0 block");
+    assert_eq!(
+        patch_list.find("What `"),
+        Some(at_0_17_0),
+        "the README patch list should open with the 0.17.0 block, not another release's"
+    );
     let at_0_16_0 =
         patch_list.find(marker_0_16_0).expect("the README patch list should keep the 0.16.0 block");
     let at_0_15_1 =

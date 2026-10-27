@@ -2,7 +2,8 @@
 // check. Those pin the additive-minor `### Breaking` rule by its prefix, the
 // README policy by two literals and the version by nine sites; these pins
 // hold the whole additive sentence (not just its prefix) as the section's body,
-// the semver verdict the version bullet records, the digit the README policy
+// the semver verdict the version bullet records, the ledger wording for the
+// shared interop commit and the promoted pin, the digit the README policy
 // names for each kind of release, and the one register claim about behaviour
 // already shipped (`AddressHash` hex parsing since 0.14.1) against the crate
 // as published.
@@ -149,7 +150,8 @@ fn release_0_17_0_ledgers_name_the_shared_interop_commit_and_the_promoted_pin() 
 /// bumps: bug fixes and API a consumer need not opt into the patch digit,
 /// breaking changes the minor digit with `0.15.0` as the first, and additive
 /// API may take the minor digit with `0.17.0` as the first; the two literals
-/// the contracts quote stay in place.
+/// the contracts quote stay in place, and the upstream-rebase sentence names
+/// the digit for each outcome of the rebase.
 #[test]
 fn crate_readme_release_policy_names_the_digit_each_release_kind_bumps() {
     let readme = joined_prose(&read_repo_file("crates/libs/rns-transport/README.md"));
@@ -163,6 +165,9 @@ fn crate_readme_release_policy_names_the_digit_each_release_kind_bumps() {
         "A fork release that adds public API without breaking any may bump the minor digit",
         "`0.17.0` is the first such additive minor, and its `### Breaking` says so in place of a \
          list.",
+        "When upstream ships a release the fork is rebased onto it and takes the first version \
+         above both the upstream number and the fork's last published number: the next minor \
+         digit when the rebase breaks the fork's public API, the next patch digit otherwise.",
     ] {
         assert!(readme.contains(needle), "README release policy should say {needle:?}");
     }

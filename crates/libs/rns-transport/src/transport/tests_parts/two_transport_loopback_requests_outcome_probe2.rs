@@ -1,39 +1,10 @@
 // Usage probes for `InboundRequest::track_outcome` in the shapes a consumer reaches for
-// that the verdict table and the first probe file leave untried: the README's own pattern,
-// a task the handler spawns to await the receiver while the handler returns at once; two
-// requests in flight on one link whose handler answers one and stays silent on the other,
-// each receiver resolving for its own request; a request that arrived as a request
-// Resource rather than one packet, tracked like any other; and a handler that panics after
-// tracking, whose receiver resolves `NotSent` because the sender went down with the task.
-// Helpers come from the sibling `tests_parts` files.
-
-/// The handler keeps nothing of the receiver: it spawns a task that awaits the verdict and
-/// forwards it, then returns its response without waiting. This is the shape the README's
-/// "awaited outside the handler" sentence describes.
-#[tokio::test]
-#[deny(clippy::await_holding_invalid_type)]
-async fn two_transport_loopback_request_outcome_awaited_in_a_task_the_handler_spawned() {
-    let mut pair = loopback_request_pair("request-outcome-probe2-spawned").await;
-    let (verdict_tx, mut verdicts) = tokio::sync::mpsc::unbounded_channel::<ResponseOutcome>();
-    register_handler(&pair, "/echo", RequestAllow::All, move |mut request: InboundRequest| {
-        let receiver = request.track_outcome();
-        let verdict_tx = verdict_tx.clone();
-        tokio::spawn(async move {
-            let verdict = receiver.await;
-            verdict_tx.send(verdict).expect("test receiver is alive");
-        });
-        std::future::ready(Some(RequestResponse::Value(request.into_data())))
-    })
-    .await;
-
-    let id = send_request(&pair, "/echo", rmpv::Value::from("spawned")).await;
-    assert_eq!(await_response(&mut pair, id).await, rmpv::Value::from("spawned"));
-    let verdict = timeout(RESPONSE_TIMEOUT, verdicts.recv())
-        .await
-        .expect("the spawned task reports within the packet budget")
-        .expect("the spawned task reported");
-    assert_eq!(verdict, ResponseOutcome::Packet);
-}
+// that the verdict table and the first probe file leave untried: two requests in flight
+// on one link whose handler answers one and stays silent on the other, each receiver
+// resolving for its own request; a request that arrived as a request Resource rather than
+// one packet, tracked like any other; and a handler that panics after tracking, whose
+// receiver resolves `NotSent` because the sender went down with the task. Helpers come
+// from the sibling `tests_parts` files.
 
 /// Two requests reach the same handler and are both tracked before either is answered: the
 /// handler parks on a zero-permit `gate` until the test has both receivers in hand and

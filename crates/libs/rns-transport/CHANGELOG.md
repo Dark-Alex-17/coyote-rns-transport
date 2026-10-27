@@ -58,14 +58,12 @@ Removed) bullet of its own, marked as such.
   `two_transport_loopback_requests_outcome_probe.rs` (a dropped receiver, a
   link the handler closed before answering, a handler awaiting its own
   receiver, a call made after the handler returned), by
-  `two_transport_loopback_requests_outcome_probe2.rs` (a receiver awaited in
-  a task the handler spawned, two requests in flight on one link, a request
-  that arrived as a Resource, a handler that panicked after tracking), by
+  `two_transport_loopback_requests_outcome_probe2.rs` (two requests in
+  flight on one link, a request that arrived as a Resource, a handler that
+  panicked after tracking), by
   `two_transport_loopback_requests_outcome_probe3.rs` (a panic after
-  tracking beside a parked tracked sibling, a Resource-form request whose
-  handler panicked after tracking, a spawned awaiter on a multi-thread
-  runtime) and against a Python requester by
-  `python_to_rust_request_outcome.rs`;
+  tracking beside a parked tracked sibling) and against a Python requester
+  by `python_to_rust_request_outcome.rs`;
   `tests/request_handler_api.rs` and
   `tests/request_receipt_api.rs` cover the public paths, and
   `fork_release_docs_contract.rs` pins the README paragraph, the private
@@ -155,6 +153,18 @@ Removed) bullet of its own, marked as such.
   (`two_transport_shared_instance_state_events.rs`), and the README's
   queued-drop and queued-connect sentences are pinned
   (`fork_release_docs_contract.rs`).
+- Test helpers, test-only: the loopback connector takes an optional
+  `InterfaceSharedConfig` (`two_transport_loopback.rs`), the interop request
+  handler record takes a per-request hook
+  (`python_to_rust_request_handler.rs`) and the hand-driven shared-instance
+  consumer is driven from one spec
+  (`two_transport_shared_instance_state_events.rs`), each replacing a copy
+  of the helper in a sibling test file; three outcome probe tests that
+  repeated a sibling's pin are gone
+  (`two_transport_loopback_requests_outcome_probe2.rs`,
+  `two_transport_loopback_requests_outcome_probe3.rs`); and the test-only
+  `get_handler` accessor lives in `transport/tests.rs` instead of
+  `links_parts/transport_sections/close_channel.rs`.
 
 ## 0.16.0 - 2026-10-25
 

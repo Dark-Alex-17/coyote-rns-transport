@@ -30,7 +30,7 @@ per fork task.
 
 Every file changed since the `0.16.0` release and the patch each change
 belongs to. Patch ids: J1 is destination lookup, J2 is ledger contracts,
-J3 is response outcomes, J4 is shared-instance state.
+J3 is response outcomes, J4 is shared-instance state, J5 is batch hygiene.
 The `destination lookup` patch is fork commits `5246fc9c`, `15278355`,
 `e8e64626`, `20d67e43`, `1c74645b`, `49a5b27f`, `fad0f72e`, `f24e4ec3`,
 `5093b5b6`, `338811b0` and `94d76ac8`; the `ledger contracts` patch is fork
@@ -39,7 +39,8 @@ commits `d2f871f7`, `e8e64626`, `f24e4ec3`, `0b86c14b`, `338811b0` and
 `7ef891be`, `79aae7ed`, `72242c71`, `c627c6d7`, `dea9af76`, `d2854884`
 and `c18ea340`; the `shared-instance state` patch is fork commits
 `b87cd69a`, `42795c1c`, `c4704519`, `43b03644`, `d62ab8b3`, `80b0c73e`,
-`28c9973d`, `53c6267a`, `32bd4b00`, `f36f1b7b` and `24f178dd`.
+`28c9973d`, `53c6267a`, `32bd4b00`, `f36f1b7b` and `24f178dd`; the `batch
+hygiene` patch is fork commits `0b5b2dff`, `09ee7c45` and `7cfab1ef`.
 
 | File | Patch |
 | --- | --- |
@@ -47,15 +48,16 @@ and `c18ea340`; the `shared-instance state` patch is fork commits
 | `crates/apps/reticulumd/tests/fork_publish_contract_parts/release_frozen_sections_probe2.rs` | ledger contracts |
 | `crates/apps/reticulumd/tests/fork_release_docs_contract.rs` | destination lookup, ledger contracts, response outcomes, shared-instance state |
 | `crates/apps/reticulumd/tests/python_channel_interop.rs` | response outcomes |
-| `crates/apps/reticulumd/tests/python_channel_interop_parts/python_to_rust_request_outcome.rs` | response outcomes |
-| `crates/libs/rns-transport/CHANGELOG.md` | destination lookup, response outcomes, shared-instance state |
+| `crates/apps/reticulumd/tests/python_channel_interop_parts/python_to_rust_request_handler.rs` | batch hygiene |
+| `crates/apps/reticulumd/tests/python_channel_interop_parts/python_to_rust_request_outcome.rs` | response outcomes, batch hygiene |
+| `crates/libs/rns-transport/CHANGELOG.md` | destination lookup, response outcomes, shared-instance state, batch hygiene |
 | `crates/libs/rns-transport/README.md` | destination lookup, response outcomes, shared-instance state |
 | `crates/libs/rns-transport/src/destination/request/inbound.rs` | response outcomes |
 | `crates/libs/rns-transport/src/destination/request/mod.rs` | response outcomes |
 | `crates/libs/rns-transport/src/destination/request/outcome.rs` | response outcomes |
 | `crates/libs/rns-transport/src/iface/local.rs` | shared-instance state |
 | `crates/libs/rns-transport/src/iface/tcp_client.rs` | shared-instance state |
-| `crates/libs/rns-transport/src/transport/links_parts/transport_sections/close_channel.rs` | destination lookup |
+| `crates/libs/rns-transport/src/transport/links_parts/transport_sections/close_channel.rs` | destination lookup, batch hygiene |
 | `crates/libs/rns-transport/src/transport/links_parts/transport_sections/shared_instance.rs` | shared-instance state |
 | `crates/libs/rns-transport/src/transport/links_parts/transport_sections/shared_instance_reconnect.rs` | shared-instance state |
 | `crates/libs/rns-transport/src/transport/mod.rs` | shared-instance state |
@@ -64,24 +66,25 @@ and `c18ea340`; the `shared-instance state` patch is fork commits
 | `crates/libs/rns-transport/src/transport/tests_parts/reticulum_path_restore_destination_desc_probe.rs` | destination lookup |
 | `crates/libs/rns-transport/src/transport/tests_parts/two_transport_destination_desc.rs` | destination lookup |
 | `crates/libs/rns-transport/src/transport/tests_parts/two_transport_destination_desc_probe.rs` | destination lookup |
-| `crates/libs/rns-transport/src/transport/tests_parts/two_transport_destination_desc_probe2.rs` | destination lookup |
+| `crates/libs/rns-transport/src/transport/tests_parts/two_transport_destination_desc_probe2.rs` | destination lookup, batch hygiene |
+| `crates/libs/rns-transport/src/transport/tests_parts/two_transport_loopback.rs` | batch hygiene |
 | `crates/libs/rns-transport/src/transport/tests_parts/two_transport_loopback_requests_outcome.rs` | response outcomes |
 | `crates/libs/rns-transport/src/transport/tests_parts/two_transport_loopback_requests_outcome_probe.rs` | response outcomes |
-| `crates/libs/rns-transport/src/transport/tests_parts/two_transport_loopback_requests_outcome_probe2.rs` | response outcomes |
-| `crates/libs/rns-transport/src/transport/tests_parts/two_transport_loopback_requests_outcome_probe3.rs` | response outcomes |
+| `crates/libs/rns-transport/src/transport/tests_parts/two_transport_loopback_requests_outcome_probe2.rs` | response outcomes, batch hygiene |
+| `crates/libs/rns-transport/src/transport/tests_parts/two_transport_loopback_requests_outcome_probe3.rs` | response outcomes, batch hygiene |
 | `crates/libs/rns-transport/src/transport/tests_parts/two_transport_shared_instance_probe16.rs` | shared-instance state |
 | `crates/libs/rns-transport/src/transport/tests_parts/two_transport_shared_instance_reconnect.rs` | shared-instance state |
-| `crates/libs/rns-transport/src/transport/tests_parts/two_transport_shared_instance_state_events.rs` | shared-instance state |
+| `crates/libs/rns-transport/src/transport/tests_parts/two_transport_shared_instance_state_events.rs` | shared-instance state, batch hygiene |
 | `crates/libs/rns-transport/src/transport/tests_parts/two_transport_shared_instance_state_events_probe.rs` | shared-instance state |
-| `crates/libs/rns-transport/src/transport/tests_parts/two_transport_shared_instance_state_events_probe2.rs` | shared-instance state |
-| `crates/libs/rns-transport/src/transport/tests_parts/two_transport_shared_instance_state_events_probe3.rs` | shared-instance state |
-| `crates/libs/rns-transport/src/transport/tests_parts/two_transport_shared_instance_state_events_probe4.rs` | shared-instance state |
-| `crates/libs/rns-transport/src/transport/tests.rs` | destination lookup, response outcomes, shared-instance state |
+| `crates/libs/rns-transport/src/transport/tests_parts/two_transport_shared_instance_state_events_probe2.rs` | shared-instance state, batch hygiene |
+| `crates/libs/rns-transport/src/transport/tests_parts/two_transport_shared_instance_state_events_probe3.rs` | shared-instance state, batch hygiene |
+| `crates/libs/rns-transport/src/transport/tests_parts/two_transport_shared_instance_state_events_probe4.rs` | shared-instance state, batch hygiene |
+| `crates/libs/rns-transport/src/transport/tests.rs` | destination lookup, response outcomes, shared-instance state, batch hygiene |
 | `crates/libs/rns-transport/tests/destination_desc_api.rs` | destination lookup |
 | `crates/libs/rns-transport/tests/request_handler_api.rs` | response outcomes |
 | `crates/libs/rns-transport/tests/request_receipt_api.rs` | response outcomes |
 | `crates/libs/rns-transport/tests/shared_instance_api.rs` | shared-instance state |
-| `docs/fork/PATCHSET.md` | destination lookup, response outcomes, shared-instance state |
+| `docs/fork/PATCHSET.md` | destination lookup, response outcomes, shared-instance state, batch hygiene |
 
 Fork commits `5246fc9c`, `15278355`, `e8e64626`, `20d67e43`, `1c74645b`,
 `49a5b27f`, `fad0f72e`, `f24e4ec3`, `5093b5b6`, `338811b0` and `94d76ac8`:
@@ -341,6 +344,41 @@ sentence in `fork_release_docs_contract.rs`; and has the consumer's drain
 (`links_parts/transport_sections/shared_instance_reconnect.rs`) log the
 disconnects and connects it served at debug when it served anything, the
 quiet exit staying silent.
+
+Fork commits `0b5b2dff`, `09ee7c45` and `7cfab1ef`:
+J5, batch hygiene. No library behaviour changes. `0b5b2dff` shares three
+test helpers that had grown a per-file twin: `connector_with` in
+`two_transport_loopback.rs` takes an optional `InterfaceSharedConfig` for
+the `TcpClient` iface, so `two_transport_destination_desc_probe2.rs` drops
+its ingress-control copy of `connector`; `RequestHandlerRecord::handler_with`
+in `python_to_rust_request_handler.rs` runs a hook on each request before it
+answers, so `TrackedHandlerRecord` in `python_to_rust_request_outcome.rs`
+delegates its `track_outcome` call instead of repeating the handler body;
+and `shared_instance_state_drive_consumer_with` in
+`two_transport_shared_instance_state_events.rs` drives the hand-built
+consumer from a `DriveSpec` (the events queued, the senders closed before
+the run, a cancel before the first poll, the exit message), so the seven
+hand-driven arrange blocks in that file and in
+`two_transport_shared_instance_state_events_probe2.rs`,
+`two_transport_shared_instance_state_events_probe3.rs` and
+`two_transport_shared_instance_state_events_probe4.rs` become calls with the
+same queued order, channel capacities and asserts. `09ee7c45` drops three
+outcome probe tests that re-pinned a sibling:
+`two_transport_loopback_request_outcome_awaited_in_a_task_the_handler_spawned`
+in `two_transport_loopback_requests_outcome_probe2.rs` repeated
+`two_transport_loopback_request_packet_response_outcome_is_packet` from
+`two_transport_loopback_requests_outcome.rs` (the receiver's `Send +
+'static` bound is pinned by `tests/request_handler_api.rs`), and
+`two_transport_loopback_request_resource_form_request_panic_after_tracking_resolves_not_sent`
+and
+`two_transport_loopback_request_panic_after_tracking_reaches_a_spawned_awaiter_multi_thread`
+in `two_transport_loopback_requests_outcome_probe3.rs` both repeated
+`two_transport_loopback_request_handler_panicking_after_tracking_resolves_not_sent`
+from the second probe file (the packet and Resource request forms converge
+on one spawned task in `transport/request_dispatch.rs`, and the multi-thread
+flavour changes no code path). `7cfab1ef` moves the `#[cfg(test)]`
+`get_handler` accessor from `links_parts/transport_sections/close_channel.rs`
+into `transport/tests.rs`, which is already compiled only under test.
 
 ## 0.16.0 (upstream 0.14.0)
 

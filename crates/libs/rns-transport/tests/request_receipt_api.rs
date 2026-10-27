@@ -3,7 +3,8 @@
 //! builds with the documented builders, the status and error enums carry
 //! the documented variants (`RNS/Link.py:1318-1322`), `RequestError` is an error type a `?`
 //! in the README snippet can convert, and the receipt is a `Clone + Send + Sync` handle a
-//! consumer can move into another task.
+//! consumer can move into another task; `ResponseOutcomeReceiver` is a `Send + Sync`
+//! future resolving to a `#[non_exhaustive]` `ResponseOutcome`.
 
 use std::error::Error;
 use std::fmt::Debug;
@@ -18,7 +19,10 @@ use rns_transport::transport::AnnounceEvent;
 
 fn assert_clone_send_sync<T: Clone + Send + Sync + 'static>() {}
 fn assert_send_sync<T: Send + Sync + 'static>() {}
-fn resolves_to<F: std::future::Future<Output = ResponseOutcome> + Send + 'static>() {}
+fn assert_future_resolves_to_outcome<
+    F: std::future::Future<Output = ResponseOutcome> + Send + 'static,
+>() {
+}
 fn assert_clone_default_debug<T: Clone + Default + Debug>() {}
 
 #[test]
@@ -71,7 +75,7 @@ fn receipt_and_response_are_handles_a_consumer_can_share() {
     assert_send_sync::<RequestError>();
     assert_send_sync::<RequestStatus>();
     assert_send_sync::<ResponseOutcomeReceiver>();
-    resolves_to::<ResponseOutcomeReceiver>();
+    assert_future_resolves_to_outcome::<ResponseOutcomeReceiver>();
 }
 
 /// The CHANGELOG says the request-layer enums are `#[non_exhaustive]` (the README says so of

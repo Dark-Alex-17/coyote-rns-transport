@@ -52,9 +52,7 @@ async fn two_transport_loopback_request_packet_response_outcome_is_packet() {
         &pair,
         "/echo",
         RequestAllow::All,
-        tracking_handler(outcome_tx, |request| {
-            Some(RequestResponse::Value(request.into_data()))
-        }),
+        tracking_handler(outcome_tx, |request| Some(RequestResponse::Value(request.into_data()))),
     )
     .await;
 
@@ -143,8 +141,7 @@ async fn two_transport_loopback_request_oversize_value_outcome_is_the_transfer_v
 /// instead; either way the tracked outcome carries the transfer's failure.
 #[tokio::test]
 #[deny(clippy::await_holding_invalid_type)]
-async fn two_transport_loopback_request_resource_response_outcome_follows_a_requester_link_reset()
-{
+async fn two_transport_loopback_request_resource_response_outcome_follows_a_requester_link_reset() {
     let pair = loopback_request_pair("request-outcome-link-reset").await;
     let destination = outcome_out_link_destination(&pair.handles.connector.transport).await;
     let mut resource_events = pair.handles.connector.transport.resource_events();
@@ -290,8 +287,7 @@ async fn two_transport_loopback_request_resource_response_in_flight_at_stop_is_n
     .await;
 
     send_request(&pair, "/stalled", rmpv::Value::Nil).await;
-    let (stall, release) =
-        stall_transport_until_released(&pair.handles.connector.transport).await;
+    let (stall, release) = stall_transport_until_released(&pair.handles.connector.transport).await;
     let receiver = outcomes.recv().await.expect("handler tracked the outcome");
     pair.handles.listener.transport.stop().await;
 

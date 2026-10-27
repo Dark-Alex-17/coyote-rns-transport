@@ -5,8 +5,8 @@
 // handler that awaits its own receiver inside `handle` wedges only that request, the link
 // keeps answering others; and a `track_outcome` call made after the handler has returned
 // resolves `NotSent` once the request drops, staying pending while it lives. Helpers come
-// from the sibling `tests_parts` files (`tracking_handler`, `await_outcome`,
-// `close_then_answer`).
+// from the sibling `tests_parts` files; `close_then_answer` is not reused because it never
+// sees the request and so cannot call `track_outcome`.
 
 /// A handler that tracks the outcome and drops the receiver on the spot, the way a
 /// consumer that only wanted the side effects of `track_outcome` would.
@@ -21,16 +21,14 @@ fn tracking_then_dropping_handler(
 
 #[tokio::test]
 #[deny(clippy::await_holding_invalid_type)]
-async fn two_transport_loopback_request_dropped_outcome_receiver_still_delivers_the_packet_response()
-{
+async fn two_transport_loopback_request_dropped_outcome_receiver_still_delivers_the_packet_response(
+) {
     let mut pair = loopback_request_pair("request-outcome-probe-dropped-packet").await;
     register_handler(
         &pair,
         "/echo",
         RequestAllow::All,
-        tracking_then_dropping_handler(|request| {
-            Some(RequestResponse::Value(request.into_data()))
-        }),
+        tracking_then_dropping_handler(|request| Some(RequestResponse::Value(request.into_data()))),
     )
     .await;
 
@@ -79,14 +77,19 @@ async fn two_transport_loopback_request_packet_response_on_a_link_closed_by_the_
         .await
         .expect("responder tracks the inbound link");
     let (outcome_tx, mut outcomes) = tokio::sync::mpsc::unbounded_channel();
-    register_handler(&pair, "/close-then-answer", RequestAllow::All, move |mut request: InboundRequest| {
-        outcome_tx.send(request.track_outcome()).expect("test receiver is alive");
-        let link = in_link.clone();
-        async move {
-            link.lock().await.close();
-            Some(RequestResponse::Value(rmpv::Value::from("too late")))
-        }
-    })
+    register_handler(
+        &pair,
+        "/close-then-answer",
+        RequestAllow::All,
+        move |mut request: InboundRequest| {
+            outcome_tx.send(request.track_outcome()).expect("test receiver is alive");
+            let link = in_link.clone();
+            async move {
+                link.lock().await.close();
+                Some(RequestResponse::Value(rmpv::Value::from("too late")))
+            }
+        },
+    )
     .await;
 
     send_request(&pair, "/close-then-answer", rmpv::Value::Nil).await;
@@ -108,14 +111,19 @@ async fn two_transport_loopback_request_resource_response_on_a_link_closed_by_th
         .await
         .expect("responder tracks the inbound link");
     let (outcome_tx, mut outcomes) = tokio::sync::mpsc::unbounded_channel();
-    register_handler(&pair, "/close-then-send", RequestAllow::All, move |mut request: InboundRequest| {
-        outcome_tx.send(request.track_outcome()).expect("test receiver is alive");
-        let link = in_link.clone();
-        async move {
-            link.lock().await.close();
-            Some(RequestResponse::Resource { data: vec![0x5a; 64], metadata: None })
-        }
-    })
+    register_handler(
+        &pair,
+        "/close-then-send",
+        RequestAllow::All,
+        move |mut request: InboundRequest| {
+            outcome_tx.send(request.track_outcome()).expect("test receiver is alive");
+            let link = in_link.clone();
+            async move {
+                link.lock().await.close();
+                Some(RequestResponse::Resource { data: vec![0x5a; 64], metadata: None })
+            }
+        },
+    )
     .await;
 
     send_request(&pair, "/close-then-send", rmpv::Value::Nil).await;
@@ -131,16 +139,21 @@ async fn two_transport_loopback_request_handler_awaiting_its_own_outcome_wedges_
     let mut pair = loopback_request_pair("request-outcome-probe-self-await").await;
     let (entered_tx, entered) = tokio::sync::oneshot::channel::<()>();
     let entered_tx = std::sync::Mutex::new(Some(entered_tx));
-    register_handler(&pair, "/self-await", RequestAllow::All, move |mut request: InboundRequest| {
-        let receiver = request.track_outcome();
-        if let Some(tx) = entered_tx.lock().expect("entered slot").take() {
-            tx.send(()).expect("test is waiting");
-        }
-        async move {
-            let _ = receiver.await;
-            Some(RequestResponse::Value(request.into_data()))
-        }
-    })
+    register_handler(
+        &pair,
+        "/self-await",
+        RequestAllow::All,
+        move |mut request: InboundRequest| {
+            let receiver = request.track_outcome();
+            if let Some(tx) = entered_tx.lock().expect("entered slot").take() {
+                tx.send(()).expect("test is waiting");
+            }
+            async move {
+                let _ = receiver.await;
+                Some(RequestResponse::Value(request.into_data()))
+            }
+        },
+    )
     .await;
     register_handler(&pair, "/echo", RequestAllow::All, echo_handler()).await;
 
@@ -160,7 +173,8 @@ async fn two_transport_loopback_request_handler_awaiting_its_own_outcome_wedges_
 async fn two_transport_loopback_request_track_outcome_after_the_handler_returned_resolves_not_sent_on_drop(
 ) {
     let mut pair = loopback_request_pair("request-outcome-probe-late-track").await;
-    let stash: Arc<std::sync::Mutex<Option<InboundRequest>>> = Arc::new(std::sync::Mutex::new(None));
+    let stash: Arc<std::sync::Mutex<Option<InboundRequest>>> =
+        Arc::new(std::sync::Mutex::new(None));
     let handler_stash = stash.clone();
     register_handler(&pair, "/stash", RequestAllow::All, move |request: InboundRequest| {
         let response = RequestResponse::Value(request.data().clone());
@@ -172,7 +186,8 @@ async fn two_transport_loopback_request_track_outcome_after_the_handler_returned
     let id = send_request(&pair, "/stash", rmpv::Value::from("kept")).await;
     assert_eq!(await_response(&mut pair, id).await, rmpv::Value::from("kept"));
 
-    let mut request = stash.lock().expect("stash slot").take().expect("handler stashed the request");
+    let mut request =
+        stash.lock().expect("stash slot").take().expect("handler stashed the request");
     let mut receiver = request.track_outcome();
     assert!(
         timeout(Duration::from_millis(200), &mut receiver).await.is_err(),

@@ -30,7 +30,8 @@ Removed) bullet of its own, marked as such.
   `expire_path`, and by `two_transport_destination_desc_probe2.rs` for two
   announced peers resolving to their own entries and for the two accessors
   agreeing when called from parallel tasks; the README snippet in the link
-  section is run verbatim by `tests/destination_desc_api.rs`.
+  section is run verbatim by `tests/destination_desc_api.rs`, before and
+  after the announce is learned.
 
 ### Changed
 
@@ -42,7 +43,8 @@ Removed) bullet of its own, marked as such.
   carries none
   (`fork_publish_contract_parts/release_frozen_sections_probe2.rs`), and the
   crate README's description of `Transport::destination_desc` and its link
-  snippet are pinned (`fork_release_docs_contract.rs`).
+  snippet are pinned, line by line and as one block
+  (`fork_release_docs_contract.rs`).
 
 ## 0.16.0 - 2026-10-25
 

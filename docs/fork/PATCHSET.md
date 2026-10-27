@@ -31,9 +31,10 @@ per fork task.
 Every file changed since the `0.16.0` release and the patch each change
 belongs to. Patch ids: J1 is destination lookup, J2 is ledger contracts.
 The `destination lookup` patch is fork commits `5246fc9c`, `15278355`,
-`e8e64626`, `20d67e43`, `1c74645b`, `49a5b27f`, `fad0f72e`, `f24e4ec3` and
-`5093b5b6`; the `ledger contracts` patch is fork commits `d2f871f7`,
-`e8e64626` and `0b86c14b`.
+`e8e64626`, `20d67e43`, `1c74645b`, `49a5b27f`, `fad0f72e`, `f24e4ec3`,
+`5093b5b6`, `338811b0` and `94d76ac8`; the `ledger contracts` patch is fork
+commits `d2f871f7`, `e8e64626`, `f24e4ec3`, `0b86c14b`, `338811b0` and
+`94d76ac8`.
 
 | File | Patch |
 | --- | --- |
@@ -52,7 +53,7 @@ The `destination lookup` patch is fork commits `5246fc9c`, `15278355`,
 | `docs/fork/PATCHSET.md` | destination lookup |
 
 Fork commits `5246fc9c`, `15278355`, `e8e64626`, `20d67e43`, `1c74645b`,
-`49a5b27f`, `fad0f72e`, `f24e4ec3` and `5093b5b6`:
+`49a5b27f`, `fad0f72e`, `f24e4ec3`, `5093b5b6`, `338811b0` and `94d76ac8`:
 J1, destination lookup. `5246fc9c` adds `Transport::destination_desc`
 beside `destination_identity` in
 `links_parts/transport_sections/close_channel.rs`: the same lookup in the
@@ -88,19 +89,31 @@ loose Python analogue in the accessor's rustdoc. `5093b5b6` runs the
 concurrent accessor pin on a two-worker runtime with the accessor batches as
 spawned tasks, turns ingress control off on the two-peer probe's connector
 in place of a one-second announce spacing, and makes the link probe assert
-that neither accessor self-learns on the announcing side. No library
-behaviour changes beyond the new accessor.
+that neither accessor self-learns on the announcing side. `338811b0` adopts
+the README snippet block pin in `fork_release_docs_contract.rs`, which wants
+the link-section snippet as one contiguous block in
+`tests/destination_desc_api.rs`, and the cold-start test in that file, which
+runs the snippet before the announce is learned and again after. `94d76ac8`
+cites the Python analogue as `RNS/Identity.py::recall` in the accessor's
+rustdoc, names the snippet's free variables in the README lead-in, and wraps
+the link-section paragraph at its neighbours' width. No library behaviour
+changes beyond the new accessor.
 
-Fork commits `d2f871f7`, `e8e64626` and `0b86c14b`:
+Fork commits `d2f871f7`, `e8e64626`, `f24e4ec3`, `0b86c14b`, `338811b0` and
+`94d76ac8`:
 J2, ledger contracts. No library behaviour changes. `d2f871f7` extends the
 full-hash ledger pin in `ledger_contract.rs` to the open `Unreleased`
 section and lets the manifest-version pin in
 `release_frozen_sections_probe2.rs` admit an `## Unreleased` stub while the
 manifest version is the newest fork tag reachable from HEAD, with fixtures
 for both arms. `e8e64626` makes the manifest-version pin say when it skips
-the stub rule for want of a reachable fork tag. `0b86c14b` pins the stub
-above the first release section, refusing one that sits below the
-manifest-version heading, with a fixture for the misplaced case.
+the stub rule for want of a reachable fork tag. `f24e4ec3` and `338811b0`
+extend the README snippet pins in `fork_release_docs_contract.rs` to the
+link-section block. `0b86c14b` pins the stub above the first release
+section, refusing one that sits below the manifest-version heading, with a
+fixture for the misplaced case; `94d76ac8` makes that fixture assert the
+position message's own wording rather than a word the release-tree message
+shares.
 
 ## 0.16.0 (upstream 0.14.0)
 

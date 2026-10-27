@@ -38,7 +38,7 @@ commits `d2f871f7`, `e8e64626`, `f24e4ec3`, `0b86c14b`, `338811b0` and
 `94d76ac8`; the `response outcomes` patch is fork commits `d6cfbb58`,
 `7ef891be`, `79aae7ed`, `72242c71`, `c627c6d7`, `dea9af76`, `d2854884`
 and `c18ea340`; the `shared-instance state` patch is fork commits
-`b87cd69a`, `42795c1c`, `c4704519`, `43b03644` and `d62ab8b3`.
+`b87cd69a`, `42795c1c`, `c4704519`, `43b03644`, `d62ab8b3` and `80b0c73e`.
 
 | File | Patch |
 | --- | --- |
@@ -72,6 +72,7 @@ and `c18ea340`; the `shared-instance state` patch is fork commits
 | `crates/libs/rns-transport/src/transport/tests_parts/two_transport_shared_instance_reconnect.rs` | shared-instance state |
 | `crates/libs/rns-transport/src/transport/tests_parts/two_transport_shared_instance_state_events.rs` | shared-instance state |
 | `crates/libs/rns-transport/src/transport/tests_parts/two_transport_shared_instance_state_events_probe.rs` | shared-instance state |
+| `crates/libs/rns-transport/src/transport/tests_parts/two_transport_shared_instance_state_events_probe2.rs` | shared-instance state |
 | `crates/libs/rns-transport/src/transport/tests.rs` | destination lookup, response outcomes, shared-instance state |
 | `crates/libs/rns-transport/tests/destination_desc_api.rs` | destination lookup |
 | `crates/libs/rns-transport/tests/request_handler_api.rs` | response outcomes |
@@ -207,7 +208,7 @@ after tracking; and the README's spawned awaiter on a multi-thread runtime;
 it also makes the README paragraph pin in `fork_release_docs_contract.rs`
 require the panicking-handler arm and the dropped-sender rule.
 
-Fork commits `b87cd69a`, `42795c1c`, `c4704519`, `43b03644` and `d62ab8b3`:
+Fork commits `b87cd69a`, `42795c1c`, `c4704519`, `43b03644`, `d62ab8b3` and `80b0c73e`:
 J4, shared-instance state. The library behaviour changes are: a client
 attached to a shared instance can follow its connection state. `b87cd69a`
 adds the `SharedInstanceEvent` enum, `#[non_exhaustive]` with `Connecting`,
@@ -226,9 +227,10 @@ even when the client has already connected. The consumer's `run`
 (`links_parts/transport_sections/shared_instance_reconnect.rs`) takes the
 connect receiver and the state sender as parameters; its select is biased
 disconnects, then connects, then reconnects, and it sends `Disconnected`
-then `Connecting` once a disconnect's flush has run and `Connected` on each
-connect, every event with `try_send` and a debug line when the channel is
-full. The sender is a parameter rather than a field so that it drops when
+then `Connecting` once a disconnect's flush, which runs only while attached,
+has run and `Connected` on each connect, every event with `try_send` and a
+debug line when the channel is full. The sender is a parameter rather than
+a field so that it drops when
 the task returns: the re-announce task clones the consumer and outlives a
 detach by `reconnect_wait` plus the grace, and must not hold the stream
 open. `connected_to_shared_instance`, the tunnel synthesis, the flush and
@@ -273,7 +275,21 @@ drop queued before a detach is still served), retained sender clones (a
 kept `SharedInstanceOptions` clone holds the stream open) and storm
 interleaving (cycles may nest), extends the `run` rustdoc's loss argument
 to the connect channel, and adds the two README claims to
-`fork_release_docs_contract.rs`.
+`fork_release_docs_contract.rs`. `80b0c73e` adds
+`two_transport_shared_instance_state_events_probe2.rs` (included from
+`tests.rs`):
+`shared_instance_state_retained_options_clone_keeps_the_stream_open_after_detach`,
+`shared_instance_state_consumer_serves_a_queued_drop_before_the_stream_ends`
+and `shared_instance_state_consumer_nests_the_cycles_under_a_storm`; aligns
+the remaining doc twins (the `run` and `attach_shared_instance` rustdoc,
+the state-events test-file header, the `transport/mod.rs` module comment
+and the `reconnect_events_enabled` rustdoc in `iface/tcp_client.rs`) with
+those qualifications; names the shape a drop queued before a detach reads
+as, `Disconnected`, `Connecting`, in the `Disconnected` and
+`with_state_events` rustdoc and the README; pins the retained `Connecting`
+in the full-channel test and the exact reconnect record of the hand-built
+consumer; and shares the README rust-fence collector between the two pin
+tests in `fork_release_docs_contract.rs`.
 
 ## 0.16.0 (upstream 0.14.0)
 

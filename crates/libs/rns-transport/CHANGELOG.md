@@ -95,9 +95,10 @@ Removed) bullet of its own, marked as such.
   worker exits; the stream ends once no other clone, a retained
   `SharedInstanceOptions` clone included, is alive. A detach or a stop
   sends no `Disconnected`, but a drop that was already queued when the
-  detach landed is still served and read before the stream ends; the
-  posture flag `connected_to_shared_instance` is unchanged by the events
-  and stays set across a `Disconnected` until detach or stop. Underneath,
+  detach landed is still served and read as `Disconnected`, `Connecting`
+  before the stream ends (a connect already queued is read as `Connected`);
+  the posture flag `connected_to_shared_instance` is unchanged by the
+  events and stays set across a `Disconnected` until detach or stop. Underneath,
   `TcpClient::with_connect_events` and `LocalUnixClient::with_connect_events`
   with their `connect_events_enabled` getters (`iface/tcp_client.rs`,
   `iface/local.rs`) fire on every established stream, the first included,
@@ -110,7 +111,11 @@ Removed) bullet of its own, marked as such.
   `two_transport_shared_instance_state_events_probe.rs` (a stop ending the
   stream without a `Disconnected`, a refused attach sending nothing, a
   dropped receiver leaving the consumer serving, two restarts in a row, a
-  detach while dialing), by the connect-event unit tests in
+  detach while dialing), by
+  `two_transport_shared_instance_state_events_probe2.rs` (a retained options
+  clone keeping the stream open after a detach, a drop queued when the
+  senders went away still served, two cycles nesting under a storm), by the
+  connect-event unit tests in
   `iface/tcp_client.rs` and `iface/local.rs` (one event per established
   stream, the first included), by
   `two_transport_shared_instance_reconnect.rs` and

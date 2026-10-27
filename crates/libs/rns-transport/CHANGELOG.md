@@ -70,6 +70,40 @@ Removed) bullet of its own, marked as such.
   `tests/request_receipt_api.rs` cover the public paths, and
   `fork_release_docs_contract.rs` pins the README paragraph, the private
   receiver field and the `non_exhaustive` attribute.
+- `SharedInstanceOptions::with_state_events(tokio::sync::mpsc::Sender<SharedInstanceEvent>)`
+  delivers the shared-instance client's connection state
+  (`transport/shared_instance.rs`; the enum is re-exported beside
+  `SharedInstanceOptions`). `SharedInstanceEvent` is `#[non_exhaustive]`:
+  `Connecting` says the attach is in place and the client is dialing,
+  `Connected` that a stream to the shared instance is established, the
+  first included, and `Disconnected` that an established stream ended
+  while attached and the flush has run. The attach itself sends the first
+  `Connecting` once the interface is spawned and the slot taken (a refused
+  attach sends nothing); the consumer task
+  (`links_parts/transport_sections/shared_instance_reconnect.rs`) sends
+  every event after it, `Connected` on each established stream and, after
+  each dropped connection, `Disconnected` then `Connecting` at once, so one
+  cycle reads `Disconnected`, `Connecting`, `Connected`; a client attached
+  while nothing listens stays in `Connecting` until the socket exists.
+  Every event goes out with `try_send`: a full channel drops the event at
+  debug and never blocks the consumer. The sender is dropped, ending the
+  stream, on `detach_shared_instance`, `Transport::stop` or when the client
+  worker exits, with no `Disconnected` for a detach or a stop; the posture
+  flag `connected_to_shared_instance` is unchanged by the events and stays
+  set across a `Disconnected` until detach or stop. Underneath,
+  `TcpClient::with_connect_events` and `LocalUnixClient::with_connect_events`
+  with their `connect_events_enabled` getters (`iface/tcp_client.rs`,
+  `iface/local.rs`) fire on every established stream, the first included,
+  where `with_reconnect_events` fires from the second on. Pinned by
+  `two_transport_shared_instance_state_events.rs` (the TCP restart sequence
+  with the posture check, the attach while the listener is down, the unix
+  twin, the capacity-one channel dropping at debug while the re-announce
+  still lands, the hand-driven consumer's per-cycle order), by
+  `two_transport_shared_instance_reconnect.rs` and
+  `two_transport_shared_instance_probe16.rs` (the hand-driven consumer tests
+  carry the new third channel), by `tests/shared_instance_api.rs` (the
+  README snippet verbatim) and by `fork_release_docs_contract.rs` (the
+  README paragraph, the second fence and the `non_exhaustive` attribute).
 
 ### Changed
 

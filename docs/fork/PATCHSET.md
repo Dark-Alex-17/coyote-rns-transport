@@ -30,29 +30,36 @@ per fork task.
 
 Every file changed since the `0.16.0` release and the patch each change
 belongs to. Patch ids: J1 is destination lookup, J2 is ledger contracts,
-J3 is response outcomes.
+J3 is response outcomes, J4 is shared-instance state.
 The `destination lookup` patch is fork commits `5246fc9c`, `15278355`,
 `e8e64626`, `20d67e43`, `1c74645b`, `49a5b27f`, `fad0f72e`, `f24e4ec3`,
 `5093b5b6`, `338811b0` and `94d76ac8`; the `ledger contracts` patch is fork
 commits `d2f871f7`, `e8e64626`, `f24e4ec3`, `0b86c14b`, `338811b0` and
 `94d76ac8`; the `response outcomes` patch is fork commits `d6cfbb58`,
 `7ef891be`, `79aae7ed`, `72242c71`, `c627c6d7`, `dea9af76`, `d2854884`
-and `c18ea340`.
+and `c18ea340`; the `shared-instance state` patch is fork commits
+`b87cd69a`, `42795c1c` and `c4704519`.
 
 | File | Patch |
 | --- | --- |
 | `crates/apps/reticulumd/tests/fork_publish_contract_parts/ledger_contract.rs` | ledger contracts |
 | `crates/apps/reticulumd/tests/fork_publish_contract_parts/release_frozen_sections_probe2.rs` | ledger contracts |
-| `crates/apps/reticulumd/tests/fork_release_docs_contract.rs` | destination lookup, ledger contracts, response outcomes |
+| `crates/apps/reticulumd/tests/fork_release_docs_contract.rs` | destination lookup, ledger contracts, response outcomes, shared-instance state |
 | `crates/apps/reticulumd/tests/python_channel_interop.rs` | response outcomes |
 | `crates/apps/reticulumd/tests/python_channel_interop_parts/python_to_rust_request_outcome.rs` | response outcomes |
-| `crates/libs/rns-transport/CHANGELOG.md` | destination lookup, response outcomes |
-| `crates/libs/rns-transport/README.md` | destination lookup, response outcomes |
+| `crates/libs/rns-transport/CHANGELOG.md` | destination lookup, response outcomes, shared-instance state |
+| `crates/libs/rns-transport/README.md` | destination lookup, response outcomes, shared-instance state |
 | `crates/libs/rns-transport/src/destination/request/inbound.rs` | response outcomes |
 | `crates/libs/rns-transport/src/destination/request/mod.rs` | response outcomes |
 | `crates/libs/rns-transport/src/destination/request/outcome.rs` | response outcomes |
+| `crates/libs/rns-transport/src/iface/local.rs` | shared-instance state |
+| `crates/libs/rns-transport/src/iface/tcp_client.rs` | shared-instance state |
 | `crates/libs/rns-transport/src/transport/links_parts/transport_sections/close_channel.rs` | destination lookup |
+| `crates/libs/rns-transport/src/transport/links_parts/transport_sections/shared_instance.rs` | shared-instance state |
+| `crates/libs/rns-transport/src/transport/links_parts/transport_sections/shared_instance_reconnect.rs` | shared-instance state |
+| `crates/libs/rns-transport/src/transport/mod.rs` | shared-instance state |
 | `crates/libs/rns-transport/src/transport/request_dispatch.rs` | response outcomes |
+| `crates/libs/rns-transport/src/transport/shared_instance.rs` | shared-instance state |
 | `crates/libs/rns-transport/src/transport/tests_parts/reticulum_path_restore_destination_desc_probe.rs` | destination lookup |
 | `crates/libs/rns-transport/src/transport/tests_parts/two_transport_destination_desc.rs` | destination lookup |
 | `crates/libs/rns-transport/src/transport/tests_parts/two_transport_destination_desc_probe.rs` | destination lookup |
@@ -61,11 +68,15 @@ and `c18ea340`.
 | `crates/libs/rns-transport/src/transport/tests_parts/two_transport_loopback_requests_outcome_probe.rs` | response outcomes |
 | `crates/libs/rns-transport/src/transport/tests_parts/two_transport_loopback_requests_outcome_probe2.rs` | response outcomes |
 | `crates/libs/rns-transport/src/transport/tests_parts/two_transport_loopback_requests_outcome_probe3.rs` | response outcomes |
-| `crates/libs/rns-transport/src/transport/tests.rs` | destination lookup, response outcomes |
+| `crates/libs/rns-transport/src/transport/tests_parts/two_transport_shared_instance_probe16.rs` | shared-instance state |
+| `crates/libs/rns-transport/src/transport/tests_parts/two_transport_shared_instance_reconnect.rs` | shared-instance state |
+| `crates/libs/rns-transport/src/transport/tests_parts/two_transport_shared_instance_state_events.rs` | shared-instance state |
+| `crates/libs/rns-transport/src/transport/tests.rs` | destination lookup, response outcomes, shared-instance state |
 | `crates/libs/rns-transport/tests/destination_desc_api.rs` | destination lookup |
 | `crates/libs/rns-transport/tests/request_handler_api.rs` | response outcomes |
 | `crates/libs/rns-transport/tests/request_receipt_api.rs` | response outcomes |
-| `docs/fork/PATCHSET.md` | destination lookup, response outcomes |
+| `crates/libs/rns-transport/tests/shared_instance_api.rs` | shared-instance state |
+| `docs/fork/PATCHSET.md` | destination lookup, response outcomes, shared-instance state |
 
 Fork commits `5246fc9c`, `15278355`, `e8e64626`, `20d67e43`, `1c74645b`,
 `49a5b27f`, `fad0f72e`, `f24e4ec3`, `5093b5b6`, `338811b0` and `94d76ac8`:
@@ -194,6 +205,49 @@ parked, the reap of the panicked task leaving that sibling to resolve
 after tracking; and the README's spawned awaiter on a multi-thread runtime;
 it also makes the README paragraph pin in `fork_release_docs_contract.rs`
 require the panicking-handler arm and the dropped-sender rule.
+
+Fork commits `b87cd69a`, `42795c1c` and `c4704519`:
+J4, shared-instance state. The library behaviour changes are: a client
+attached to a shared instance can follow its connection state. `b87cd69a`
+adds the `SharedInstanceEvent` enum, `#[non_exhaustive]` with `Connecting`,
+`Connected` and `Disconnected`, and
+`SharedInstanceOptions::with_state_events` (`transport/shared_instance.rs`,
+the enum re-exported in `transport/mod.rs`), and the additive
+`TcpClient::with_connect_events` and `LocalUnixClient::with_connect_events`
+with their `connect_events_enabled` getters (`iface/tcp_client.rs`,
+`iface/local.rs`), which fire on every established stream, the first
+included, where `with_reconnect_events` fires from the second on.
+`attach_shared_instance` (`links_parts/transport_sections/shared_instance.rs`)
+opens a third `mpsc::channel(8)` for the connects beside the reconnect and
+disconnect channels and sends the first `Connecting` after the slot is
+taken and before the consumer is spawned, so it precedes every `Connected`
+even when the client has already connected. The consumer's `run`
+(`links_parts/transport_sections/shared_instance_reconnect.rs`) takes the
+connect receiver and the state sender as parameters; its select is biased
+disconnects, then connects, then reconnects, and it sends `Disconnected`
+then `Connecting` once a disconnect's flush has run and `Connected` on each
+connect, every event with `try_send` and a debug line when the channel is
+full. The sender is a parameter rather than a field so that it drops when
+the task returns: the re-announce task clones the consumer and outlives a
+detach by `reconnect_wait` plus the grace, and must not hold the stream
+open. `connected_to_shared_instance`, the tunnel synthesis, the flush and
+the re-announce are unchanged. `42795c1c` adds
+`two_transport_shared_instance_state_events.rs` (included from
+`tests.rs`): `shared_instance_state_events_follow_a_tcp_restart`,
+`shared_instance_state_consumer_reports_connected_and_serves_the_reconnect`,
+`shared_instance_state_consumer_orders_a_whole_cycle`,
+`shared_instance_state_events_wait_in_connecting_while_the_listener_is_down`,
+`shared_instance_state_events_follow_a_unix_restart` on unix targets and
+`shared_instance_state_events_full_channel_drops_at_debug_without_stalling`;
+the hand-driven consumer tests in
+`two_transport_shared_instance_reconnect.rs` and
+`two_transport_shared_instance_probe16.rs` gain the third channel.
+`c4704519` describes the stream in the README shared-instance section, with
+a second snippet that reads it until the detach ends it, run verbatim by
+`tests/shared_instance_api.rs`, extends the `LocalUnixClient` getter list
+with `connect_events_enabled`, and pins the paragraph, the second fence,
+the `non_exhaustive` attribute and the five new public items in
+`fork_release_docs_contract.rs`.
 
 ## 0.16.0 (upstream 0.14.0)
 

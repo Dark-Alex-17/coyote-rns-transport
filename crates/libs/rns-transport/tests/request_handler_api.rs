@@ -1,8 +1,9 @@
 //! Black-box usage of the request handler registry from outside the crate, in the shape
 //! the README's "Request handlers" section shows: the public paths resolve, a closure is a
 //! handler through the blanket impl, a hand-written `RequestHandler` is accepted too, an
-//! empty path is refused with `RnsError::InvalidArgument`, and `deregister_request_handler`
-//! reports whether a handler was there (`RNS/Destination.py:381-412`).
+//! empty path is refused with `RnsError::InvalidArgument`, `deregister_request_handler`
+//! reports whether a handler was there (`RNS/Destination.py:381-412`), and a handler that
+//! keeps the `ResponseOutcomeReceiver` from `track_outcome` registers like any other.
 
 use std::collections::HashSet;
 use std::future::Future;
@@ -125,6 +126,9 @@ fn a_handler_that_tracks_the_outcome_registers() {
     destination
         .register_request_handler("/echo", handler.clone(), RequestAllow::All, true)
         .expect("a handler holding a ResponseOutcomeReceiver registers");
-    assert!(handler.outcome.lock().expect("outcome slot").is_none(), "nothing dispatched yet");
+    assert!(
+        handler.outcome.lock().expect("outcome slot").is_none(),
+        "the slot starts empty; dispatch is pinned in-crate"
+    );
     assert!(destination.deregister_request_handler("/echo"));
 }

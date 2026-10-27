@@ -11,13 +11,14 @@ use std::time::Duration;
 
 use rns_transport::destination::request::{
     FrameDecodeError, RequestAllow, RequestError, RequestOptions, RequestReceipt, RequestResponse,
-    RequestResponseData, RequestStatus, ResponseOutcome,
+    RequestResponseData, RequestStatus, ResponseOutcome, ResponseOutcomeReceiver,
 };
 use rns_transport::resource::OutboundResult;
 use rns_transport::transport::AnnounceEvent;
 
 fn assert_clone_send_sync<T: Clone + Send + Sync + 'static>() {}
 fn assert_send_sync<T: Send + Sync + 'static>() {}
+fn resolves_to<F: std::future::Future<Output = ResponseOutcome> + Send + 'static>() {}
 fn assert_clone_default_debug<T: Clone + Default + Debug>() {}
 
 #[test]
@@ -69,6 +70,8 @@ fn receipt_and_response_are_handles_a_consumer_can_share() {
     assert_send_sync::<RequestOptions>();
     assert_send_sync::<RequestError>();
     assert_send_sync::<RequestStatus>();
+    assert_send_sync::<ResponseOutcomeReceiver>();
+    resolves_to::<ResponseOutcomeReceiver>();
 }
 
 /// The CHANGELOG says the request-layer enums are `#[non_exhaustive]` (the README says so of

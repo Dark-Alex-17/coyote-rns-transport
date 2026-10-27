@@ -5,9 +5,10 @@
 //! (`RNS/Link.py:486-488`), a response as `[request_id, body]`
 //! (`RNS/Link.py:848`). [`RequestFrame`] and [`ResponseFrame`] encode and
 //! decode those arrays; [`PathHash`] and [`RequestId`] are the two truncated
-//! hashes they carry. [`RequestHandler`], [`RequestAllow`], [`InboundRequest`]
-//! and [`RequestResponse`] are the responder API a destination registers
-//! handlers with; [`RequestOptions`], [`RequestReceipt`], [`RequestStatus`],
+//! hashes they carry. [`RequestHandler`], [`RequestAllow`], [`InboundRequest`],
+//! [`RequestResponse`], [`ResponseOutcome`] and [`ResponseOutcomeReceiver`]
+//! are the responder API a destination registers handlers with;
+//! [`RequestOptions`], [`RequestReceipt`], [`RequestStatus`],
 //! [`RequestError`] and [`RequestResponseData`] are the requester's side of
 //! `Transport::request`.
 //!

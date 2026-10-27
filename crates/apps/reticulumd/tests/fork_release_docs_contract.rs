@@ -331,7 +331,7 @@ fn request_layer_public_items_cite_python_or_say_fork_only() {
     }
 
     assert!(
-        checked >= 132,
+        checked >= 142,
         "the request layer should expose the receipt, frame, handler and outcome surface; found only {checked} public items"
     );
     assert!(
@@ -627,6 +627,34 @@ fn crate_readme_link_section_describes_destination_desc() {
         assert!(
             section.contains(claim),
             "the link-opening section should mention {claim}:\n{section}"
+        );
+    }
+}
+
+/// The request-handler section describes `track_outcome` the way the
+/// dispatcher behaves: the receiver it returns, when to call it, the three
+/// outcomes and what each one proves, the proof section a packet outcome
+/// defers to, the stop that resolves `NotSent`, and the Python it diverges
+/// from.
+#[test]
+fn crate_readme_request_handler_section_describes_track_outcome() {
+    let readme = read_repo_file("crates/libs/rns-transport/README.md");
+    let section = crate_readme_section(&readme, "Request handlers");
+    for claim in [
+        "`request.track_outcome()`",
+        "`ResponseOutcomeReceiver`",
+        "`ResponseOutcome`",
+        "`Packet`",
+        "`Resource`",
+        "`NotSent`",
+        "see Delivery proofs on a link",
+        "`into_data`",
+        "`Transport::stop`",
+        "`RNS/Link.py:846-852`",
+    ] {
+        assert!(
+            section.contains(claim),
+            "the request-handler section should mention {claim}:\n{section}"
         );
     }
 }

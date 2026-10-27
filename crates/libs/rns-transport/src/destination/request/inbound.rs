@@ -97,11 +97,14 @@ impl InboundRequest {
     }
 
     /// A future that resolves with what became of this request's response.
-    /// Call it before [`into_data`](Self::into_data) consumes the request;
-    /// the dispatcher resolves it after the handler returns, so awaiting it
-    /// inside the handler deadlocks that handler. A second call replaces the
-    /// first sender and the earlier receiver resolves
-    /// [`ResponseOutcome::NotSent`](super::ResponseOutcome::NotSent).
+    /// Call it inside the handler, before the handler returns and before
+    /// [`into_data`](Self::into_data) consumes the request: the dispatcher
+    /// takes the sender as the handler returns and resolves the future after
+    /// that, so awaiting it inside the handler deadlocks that handler, and a
+    /// sender installed once the handler has returned is never taken and
+    /// resolves [`ResponseOutcome::NotSent`](super::ResponseOutcome::NotSent)
+    /// only when the request is dropped. A second call replaces the first
+    /// sender and the earlier receiver resolves `NotSent`.
     ///
     /// Fork-only: Python's `handle_request` keeps nothing of the response it
     /// sends (`RNS/Link.py:846-852`).

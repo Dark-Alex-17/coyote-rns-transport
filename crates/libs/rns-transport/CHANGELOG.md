@@ -42,7 +42,7 @@ Removed) bullet of its own, marked as such.
   every response that leaves as a Resource, the `Resource` form and an
   oversize `Value` or `Bytes` alike; `Packet` says the `RESPONSE` packet
   reached at least one interface, and no more, because RNS proves no packet
-  response (crate README, `## Delivery proofs on a link`, README.md:217-218);
+  response (crate README, `## Delivery proofs on a link`);
   `NotSent` covers a handler that returned `None`, a link no longer able to
   exchange data, a send that failed before dispatch (a packet that would not
   build, no ingress interface, metadata that does not pack, a packet that

@@ -109,7 +109,7 @@ async fn two_transport_loopback_request_oversize_bytes_outcome_is_the_transfer_v
 
     send_request(&pair, "/big", rmpv::Value::Nil).await;
     assert_eq!(
-        await_outcome(&mut outcomes).await,
+        await_outcome_within(&mut outcomes, RESOURCE_TIMEOUT).await,
         ResponseOutcome::Resource(OutboundResult::Complete)
     );
 }
@@ -132,7 +132,7 @@ async fn two_transport_loopback_request_oversize_value_outcome_is_the_transfer_v
 
     send_request(&pair, "/big-text", rmpv::Value::Nil).await;
     assert_eq!(
-        await_outcome(&mut outcomes).await,
+        await_outcome_within(&mut outcomes, RESOURCE_TIMEOUT).await,
         ResponseOutcome::Resource(OutboundResult::Complete)
     );
 }
@@ -320,6 +320,7 @@ async fn two_transport_loopback_request_second_track_outcome_call_retires_the_fi
 }
 
 #[tokio::test]
+#[deny(clippy::await_holding_invalid_type)]
 async fn request_outcome_receiver_resolves_not_sent_when_its_request_is_dropped_undispatched() {
     let mut request = InboundRequest::new(
         "/echo".to_owned(),

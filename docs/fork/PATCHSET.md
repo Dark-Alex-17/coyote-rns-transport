@@ -39,7 +39,7 @@ commits `d2f871f7`, `e8e64626`, `f24e4ec3`, `0b86c14b`, `338811b0` and
 `7ef891be`, `79aae7ed`, `72242c71`, `c627c6d7`, `dea9af76`, `d2854884`
 and `c18ea340`; the `shared-instance state` patch is fork commits
 `b87cd69a`, `42795c1c`, `c4704519`, `43b03644`, `d62ab8b3`, `80b0c73e`,
-`28c9973d`, `53c6267a` and `32bd4b00`.
+`28c9973d`, `53c6267a`, `32bd4b00`, `f36f1b7b` and `24f178dd`.
 
 | File | Patch |
 | --- | --- |
@@ -75,6 +75,7 @@ and `c18ea340`; the `shared-instance state` patch is fork commits
 | `crates/libs/rns-transport/src/transport/tests_parts/two_transport_shared_instance_state_events_probe.rs` | shared-instance state |
 | `crates/libs/rns-transport/src/transport/tests_parts/two_transport_shared_instance_state_events_probe2.rs` | shared-instance state |
 | `crates/libs/rns-transport/src/transport/tests_parts/two_transport_shared_instance_state_events_probe3.rs` | shared-instance state |
+| `crates/libs/rns-transport/src/transport/tests_parts/two_transport_shared_instance_state_events_probe4.rs` | shared-instance state |
 | `crates/libs/rns-transport/src/transport/tests.rs` | destination lookup, response outcomes, shared-instance state |
 | `crates/libs/rns-transport/tests/destination_desc_api.rs` | destination lookup |
 | `crates/libs/rns-transport/tests/request_handler_api.rs` | response outcomes |
@@ -211,9 +212,9 @@ it also makes the README paragraph pin in `fork_release_docs_contract.rs`
 require the panicking-handler arm and the dropped-sender rule.
 
 Fork commits `b87cd69a`, `42795c1c`, `c4704519`, `43b03644`, `d62ab8b3`,
-`80b0c73e`, `28c9973d`, `53c6267a` and `32bd4b00`: J4, shared-instance
-state. The library behaviour changes are: a client attached to a shared
-instance can follow its connection state. `b87cd69a`
+`80b0c73e`, `28c9973d`, `53c6267a`, `32bd4b00`, `f36f1b7b` and `24f178dd`:
+J4, shared-instance state. The library behaviour changes are: a client
+attached to a shared instance can follow its connection state. `b87cd69a`
 adds the `SharedInstanceEvent` enum, `#[non_exhaustive]` with `Connecting`,
 `Connected` and `Disconnected`, and
 `SharedInstanceOptions::with_state_events` (`transport/shared_instance.rs`,
@@ -323,6 +324,23 @@ queued-drop and queued-connect README claims to
 the `with_connect_events` rustdoc twins (`iface/tcp_client.rs`,
 `iface/local.rs`), wraps the `transport/mod.rs` module comment and
 corrects the snippet-runner doc in `tests/shared_instance_api.rs`.
+`f36f1b7b` adds `two_transport_shared_instance_state_events_probe4.rs`
+(included from `tests.rs`), which pins the drain and the posture order:
+`shared_instance_state_consumer_drains_a_queued_drop_then_the_queued_connect`,
+`shared_instance_state_consumer_leaves_a_queued_reconnect_when_the_worker_is_gone`,
+`shared_instance_state_consumer_cancelled_before_it_polls_serves_nothing_queued`
+and
+`shared_instance_state_connecting_is_not_sent_before_the_connected_posture_is_set`.
+`24f178dd` qualifies the posture-before-`Connecting` claim in the
+`with_state_events` rustdoc (`transport/shared_instance.rs`), the attach
+comment (`links_parts/transport_sections/shared_instance.rs`), the README
+and the CHANGELOG: the posture is set before `Connecting` only when the
+slot still holds the interface, and in the documented attach/stop race
+`Connecting` goes out with the posture off; pins the README's qualified
+sentence in `fork_release_docs_contract.rs`; and has the consumer's drain
+(`links_parts/transport_sections/shared_instance_reconnect.rs`) log the
+disconnects and connects it served at debug when it served anything, the
+quiet exit staying silent.
 
 ## 0.16.0 (upstream 0.14.0)
 

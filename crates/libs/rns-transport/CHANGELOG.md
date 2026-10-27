@@ -101,7 +101,8 @@ Removed) bullet of its own, marked as such.
   detach landed is still served and read as `Disconnected`, `Connecting`
   before the stream ends (a connect already queued is read as `Connected`);
   the consumer drains both queues once the worker's channels close and
-  leaves a queued reconnect. The posture flag `connected_to_shared_instance`
+  leaves a queued reconnect, logging the counts it served at debug when it
+  served anything. The posture flag `connected_to_shared_instance`
   is unchanged by the events and stays set across a `Disconnected` until
   detach or stop. Underneath,
   `TcpClient::with_connect_events` and `LocalUnixClient::with_connect_events`
@@ -123,8 +124,11 @@ Removed) bullet of its own, marked as such.
   senders went away still served, two cycles nesting under a storm), by
   `two_transport_shared_instance_state_events_probe3.rs` (a connect queued
   when the senders went away still served, with the disconnect channel
-  closed and with it still open), by the
-  connect-event unit tests in
+  closed and with it still open), by
+  `two_transport_shared_instance_state_events_probe4.rs` (a queued drop
+  drained before the queued connect, a queued reconnect left, a cancel
+  serving nothing queued, `Connecting` sent with the posture already on),
+  by the connect-event unit tests in
   `iface/tcp_client.rs` and `iface/local.rs` (one event per established
   stream, the first included), by
   `two_transport_shared_instance_reconnect.rs` and

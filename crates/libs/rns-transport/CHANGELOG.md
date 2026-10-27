@@ -135,7 +135,10 @@ into rather than a patch to absorb.
   serving nothing queued, `Connecting` sent with the posture already on),
   by the connect-event unit tests in
   `iface/tcp_client.rs` and `iface/local.rs` (one event per established
-  stream, the first included), by
+  stream, the first included) and by `tests/connect_events_api.rs` (the two
+  clients driven from outside the crate: the getter reports the installed
+  sender, the first stream fires a connect event with the reconnect channel
+  silent, the second fires both), by
   `two_transport_shared_instance_reconnect.rs` and
   `two_transport_shared_instance_probe16.rs` (the hand-driven consumer tests
   carry the new third channel), by `tests/shared_instance_api.rs` (the
@@ -157,7 +160,8 @@ into rather than a patch to absorb.
   `### Breaking` rule and the 0.17.0 README patch-list register; its
   `fork_release_docs_contract_parts/release_0_17_0_probe.rs` pins the whole
   `### Breaking` sentence, the semver wording above and the README policy
-  paragraph sentence by sentence.
+  paragraph sentence by sentence. The 0.17.0 register names the `Resource`
+  variant's payload `OutboundResult`, as the request-layer section does.
 - Ledger contracts, test-only: the full-hash ledger pin covered the open
   `## Unreleased` section while the work was in progress and names the
   `0.17.0` label now that it is released
@@ -185,8 +189,10 @@ into rather than a patch to absorb.
   0.17.0 items alone (`readme_patch_list.rs`); and
   `release_0_17_0_probe2.rs` adds two more verdict fixtures, prose placed
   before the additive sentence and bullets followed by it, pins the release
-  headings to newest-first order with ISO dates, and requires every part
-  file to be included once by the root and named in this bullet.
+  headings to newest-first order with ISO dates, skipping a non-digit `## `
+  heading such as an `## Unreleased` stub and still rejecting a malformed
+  release heading (both pinned by a fixture), and requires every part file
+  to be included once by the root and named in this bullet.
 - Shared-instance state tests, test-only: the full-channel test pins the
   four events dropped at debug in place of a non-empty drop record, the
   hand-driven consumer tests share one read-to-end helper

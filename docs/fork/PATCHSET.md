@@ -45,7 +45,8 @@ hygiene` patch is fork commits `0b5b2dff`, `09ee7c45` and `7cfab1ef`; the
 fork commit `79aae7ed`, also a `response outcomes` commit; the `release 0.17.0`
 patch carries no other id and is fork commits `972318f6`, `a3451134`,
 `4b2208f3`, `f0c32509`, `7fc78269`, `e2e9cdc6`, `8b7619b7`, `e6f5dc52`,
-`92568aa7`, `1facb7a4`, `81d19f77` and `3fc9bbd4`.
+`92568aa7`, `1facb7a4`, `81d19f77`, `3fc9bbd4`, `5e64379e`, `b724477f` and
+`c9ed6456`.
 
 | File | Patch |
 | --- | --- |
@@ -98,6 +99,7 @@ patch carries no other id and is fork commits `972318f6`, `a3451134`,
 | `crates/libs/rns-transport/src/transport/tests_parts/two_transport_shared_instance_state_events_probe3.rs` | shared-instance state, batch hygiene |
 | `crates/libs/rns-transport/src/transport/tests_parts/two_transport_shared_instance_state_events_probe4.rs` | shared-instance state, batch hygiene, release 0.17.0 |
 | `crates/libs/rns-transport/src/transport/tests.rs` | destination lookup, response outcomes, shared-instance state, batch hygiene |
+| `crates/libs/rns-transport/tests/connect_events_api.rs` | release 0.17.0 |
 | `crates/libs/rns-transport/tests/destination_desc_api.rs` | destination lookup |
 | `crates/libs/rns-transport/tests/request_handler_api.rs` | response outcomes |
 | `crates/libs/rns-transport/tests/request_receipt_api.rs` | response outcomes |
@@ -409,8 +411,8 @@ resolves `Resource(Complete)` for a 48 KiB reply and `Packet` for a short
 one, the release section's Python-in-the-loop proof rows.
 
 Fork commits `972318f6`, `a3451134`, `4b2208f3`, `f0c32509`, `7fc78269`,
-`e2e9cdc6`, `8b7619b7`, `e6f5dc52`, `92568aa7`, `1facb7a4`, `81d19f77` and
-`3fc9bbd4`:
+`e2e9cdc6`, `8b7619b7`, `e6f5dc52`, `92568aa7`, `1facb7a4`, `81d19f77`,
+`3fc9bbd4`, `5e64379e`, `b724477f` and `c9ed6456`:
 release 0.17.0. The first retargets the promotion-sensitive pins to the
 literal 0.17.0 label, since a released section is frozen:
 `crates/apps/reticulumd/tests/fork_publish_contract_parts/ledger_contract.rs`
@@ -441,8 +443,9 @@ subsection first, whose one sentence says the release is additive and
 why in place of a list, and a version bullet at the head of `### Changed`
 (the announce field, the minor-bump reasoning, the `cargo semver-checks`
 result against `v0.16.0`, 0 major and 0 minor with the additive changes
-below the tool's default lint level, and the contract tests that pin the
-release). The fourth amends the versioning paragraph of
+below the tool's default lint level (as `a11e4c23` later words it), and the
+contract tests that pin the release). The fourth amends the versioning
+paragraph of
 `crates/libs/rns-transport/README.md`: a fork release that only fixes bugs, or
 adds API a consumer need not opt into, bumps the patch digit (as `92568aa7`
 later words it), a fork release that adds public API may bump the minor digit
@@ -523,8 +526,25 @@ bullet that records the split
 the same commit makes the 0.17.0 patch-list test in `readme_patch_list.rs`
 require its block to be the first in the list, and adds the README's
 upstream-rebase sentence to the policy needles in `release_0_17_0_probe.rs`.
-The ledger commits that cite the twelve commits above touch only this file
-and the crate CHANGELOG.
+The thirteenth corrects the 0.17.0 register of
+`crates/libs/rns-transport/README.md`, whose responder-outcome item named the
+`Resource` variant's payload `OutboundOutcome` where the type is
+`OutboundResult`, and adds the `Resource(OutboundResult)` needle to the 0.17.0
+block test in `readme_patch_list.rs`. The fourteenth changes the release
+headings pin in `release_0_17_0_probe2.rs` to read only the digit-leading
+`## ` headings, so an `## Unreleased` stub above them is skipped while a
+digit-leading heading that does not read `## X.Y.Z - YYYY-MM-DD` is still
+rejected, with the parse in a `release_headings` helper that
+`release_headings_skip_an_unreleased_stub_and_reject_a_malformed_release_heading`
+exercises on fixtures. The fifteenth adds
+`crates/libs/rns-transport/tests/connect_events_api.rs`, whose two tests drive
+`TcpClient::with_connect_events` and `LocalUnixClient::with_connect_events`
+from outside the crate: the `connect_events_enabled` getter reports the
+installed sender, the first established stream fires a connect event carrying
+the interface address while the reconnect channel stays silent, and the second
+stream fires both; the register's shared-instance item cites the file. The
+ledger commits that cite the fifteen commits above touch only this file and
+the crate CHANGELOG.
 
 ## 0.16.0 (upstream 0.14.0)
 

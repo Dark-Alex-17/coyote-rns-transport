@@ -3,7 +3,10 @@
 //! `TcpClient` learns the announce, resolves the desc, and opens a link with it. Around
 //! the snippet, the claims a first-time consumer reads next: `destination_identity` is
 //! `Some` for the same address, and the link the desc opens activates on the announcing
-//! side under the same id.
+//! side under the same id. The cold-start path runs the same snippet before the announce
+//! has been learned: it stops at its own guard with no link and `destination_identity`
+//! `None`, and the very same transport then resolves the same address once the announce
+//! arrives, so a miss is not remembered.
 
 use std::error::Error;
 use std::sync::Arc;
@@ -23,6 +26,10 @@ use tokio::time::timeout;
 
 const WAIT: Duration = Duration::from_secs(15);
 const POLL: Duration = Duration::from_millis(20);
+/// How long a link event channel is watched to show that nothing arrived.
+const QUIET: Duration = Duration::from_millis(300);
+/// The README snippet's own message for a desc that is not there yet.
+const NOT_LEARNED: &str = "the announce has not been learned yet";
 
 /// The announcing side: a transport with a `TcpServer` on 127.0.0.1.
 struct Listener {
@@ -172,6 +179,60 @@ async fn readme_snippet_resolves_the_desc_and_opens_a_link() {
         connector.destination_identity(&destination_hash).await.is_some(),
         "destination_identity is Some whenever destination_desc is Some"
     );
+    let link_id = *link.lock().await.id();
+    let activated = await_activated(&mut in_events).await;
+    assert_eq!(activated.id, link_id, "both ends share one link id");
+
+    timeout(WAIT, connector.stop()).await.expect("connector stop completes");
+    timeout(WAIT, listener.transport.stop()).await.expect("listener stop completes");
+}
+
+#[tokio::test]
+#[deny(clippy::await_holding_invalid_type)]
+async fn readme_snippet_before_the_announce_names_the_miss_and_resolves_once_learned() {
+    let listener = listener().await;
+    let (connector, mut announces) = connector(listener.port).await;
+    wait_until("the listener to accept", || {
+        listener.status.to_json()["accepted_connections"].as_u64() == Some(1)
+    })
+    .await;
+    let mut in_events = listener.transport.in_link_events();
+
+    // The destination exists on the announcing side but has not announced yet, so the
+    // connector has nothing to resolve: the snippet stops at its own guard, opens no link,
+    // and `destination_identity` says the same.
+    let destination = listener
+        .transport
+        .add_destination(
+            PrivateIdentity::new_from_rand(OsRng),
+            DestinationName::new("example", "echo"),
+        )
+        .await;
+    let destination_hash = destination.lock().await.desc.address_hash;
+
+    let miss = readme_destination_desc_and_link(&connector, destination_hash)
+        .await
+        .err()
+        .expect("the snippet fails before the announce is learned");
+    assert_eq!(miss.to_string(), NOT_LEARNED, "the snippet's guard names the miss");
+    assert!(
+        connector.destination_identity(&destination_hash).await.is_none(),
+        "destination_identity is None whenever destination_desc is None"
+    );
+    assert!(
+        timeout(QUIET, in_events.recv()).await.is_err(),
+        "no link reaches the announcing side while the desc is unknown"
+    );
+
+    // The same transport resolves the same address once the announce arrives: a miss is
+    // a lookup result, not a remembered answer.
+    let packet = destination.lock().await.announce(OsRng, None).expect("valid announce packet");
+    listener.transport.send_packet(packet).await;
+    learn_announce(&mut announces, &destination_hash).await;
+
+    let link = readme_destination_desc_and_link(&connector, destination_hash)
+        .await
+        .expect("the README snippet succeeds once the announce is learned");
     let link_id = *link.lock().await.id();
     let activated = await_activated(&mut in_events).await;
     assert_eq!(activated.id, link_id, "both ends share one link id");

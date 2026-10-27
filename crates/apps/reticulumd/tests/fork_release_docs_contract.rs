@@ -629,6 +629,40 @@ fn crate_readme_link_section_describes_destination_desc() {
     }
 }
 
+/// The link section's `destination_desc` snippet is pinned as one block, not
+/// line by line: the per-line pin below matches squashed substrings, so a
+/// snippet that swapped `destination_desc` for `destination_identity` would
+/// still find every line somewhere in the API test that calls both. Here the
+/// whole block (its `use` line aside) must appear contiguously in
+/// `tests/destination_desc_api.rs`, which is what "run verbatim" promises.
+#[test]
+fn crate_readme_destination_desc_snippet_is_pinned_as_one_block() {
+    let readme = read_repo_file("crates/libs/rns-transport/README.md");
+    let section = crate_readme_section(&readme, "Opening links and admitting resources");
+    let block = section
+        .split("```rust\n")
+        .nth(1)
+        .and_then(|rest| rest.split("```").next())
+        .expect("the link-opening section carries a rust snippet");
+    assert!(
+        block.contains(".destination_desc("),
+        "the link-opening snippet should call destination_desc:\n{block}"
+    );
+    let body: String = block
+        .lines()
+        .filter(|line| !line.trim_start().starts_with("use "))
+        .collect::<Vec<_>>()
+        .join("\n");
+    let body = squash(&body);
+    assert!(!body.is_empty(), "the snippet has a body beyond its use lines");
+    let pin = squash(&read_repo_file("crates/libs/rns-transport/tests/destination_desc_api.rs"));
+    assert!(
+        pin.contains(&body),
+        "tests/destination_desc_api.rs should carry the README's destination_desc snippet as \
+         one contiguous block, whitespace aside:\n{block}"
+    );
+}
+
 /// A release whose minor digit moved against the previous release heading
 /// carries breaking changes, and the README sends consumers to `### Breaking`
 /// in the CHANGELOG for them: that subsection must open the release section

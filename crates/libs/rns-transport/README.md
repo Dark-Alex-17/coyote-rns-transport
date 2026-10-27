@@ -12,14 +12,17 @@ Apart from the patch list below and the API breaks `CHANGELOG.md` lists under
 upstream resolves unchanged against this crate.
 
 The version follows cargo semver relative to the upstream baseline. `0.14.0`
-is upstream `0.14.0` renamed, with the link-close patch applied. Fork patches
-that do not break the public API (additive API, internal fixes) bump the patch
-digit; a fork change that breaks the public API bumps the minor digit, and
-`0.15.0` is the first such minor bump; its breaking changes are listed under
-`### Breaking` in `CHANGELOG.md`. When upstream ships a release the fork is
-rebased onto it and takes the first version above both the upstream number
-and the fork's last published number: the next minor digit when the rebase
-breaks the fork's public API, the next patch digit otherwise.
+is upstream `0.14.0` renamed, with the link-close patch applied. A fork
+release that only fixes bugs bumps the patch digit; a fork change that breaks
+the public API bumps the minor digit, and `0.15.0` is the first such minor
+bump; its breaking changes are listed under `### Breaking` in `CHANGELOG.md`.
+A fork release that adds public API without breaking any may bump the minor
+digit too, so the digit tells a consumer there is new surface to opt into;
+`0.17.0` is the first such additive minor, and its `### Breaking` says so in
+place of a list. When upstream ships a release the fork is rebased onto it
+and takes the first version above both the upstream number and the fork's
+last published number: the next minor digit when the rebase breaks the
+fork's public API, the next patch digit otherwise.
 
 ## Consumer
 
@@ -784,8 +787,42 @@ full `refs/tags/coyote-rns-transport-v<version>` ref, and
 
 `docs/fork/PATCHSET.md` is the single per-release ledger of every file changed
 since the previous release, with the commit that changed it and the upstream
-site; earlier sections carry the earlier patches. What `0.16.0` carries on top
-of `0.15.1`:
+site; earlier sections carry the earlier patches. What `0.17.0` carries on top
+of `0.16.0`:
+
+- The destination lookup: `Transport::destination_desc` returns
+  `Option<DestinationDesc>` for an announced destination, `Some` exactly when
+  `destination_identity` is. The desc's name is the announce's truncated name
+  hash as `DestinationName::new_from_hash_slice` stores it, so callers
+  compare names with `as_name_hash_slice()`. The entry survives `expire_path`
+  and is pruned only by `deregister_destination`; a restored path table fills
+  it too.
+- The responder outcome: `InboundRequest::track_outcome` returns a
+  `ResponseOutcomeReceiver` that resolves with a `ResponseOutcome`, one of
+  `Packet`, `Resource(OutboundOutcome)` or `NotSent`. `NotSent` covers every
+  path that drops the sender: a silent handler, a link no longer able to
+  exchange data, a stop or cancel under the response, a handler that panicked
+  after tracking. Opt-in; a handler that never calls it sees no change.
+- The shared-instance state events:
+  `SharedInstanceOptions::with_state_events(Sender<SharedInstanceEvent>)`
+  delivers the `#[non_exhaustive]` `Connecting`, `Connected` and
+  `Disconnected` events with a non-blocking `try_send`, a full or closed
+  channel dropping the event at debug; a drop or connect already queued when
+  the attach ended is still drained and served. Underneath,
+  `TcpClient::with_connect_events` and `LocalUnixClient::with_connect_events`
+  with their `connect_events_enabled` getters fire on every established
+  stream, the first included.
+- For the consumer parsing hashes: `AddressHash::new_from_hex_string` has
+  decoded its input with `hex::decode` and returned `RnsError::IncorrectHash`
+  on any malformed string since 0.14.1 (that release's `### Fixed` in
+  `CHANGELOG.md`); nothing new was needed here.
+- Test-only hygiene: the loopback connector, the interop request-handler
+  record and the hand-driven shared-instance consumer each share one helper
+  in place of a copy per test file, three outcome probe tests that repeated a
+  sibling's pin are gone, and the test-only `get_handler` accessor lives in
+  `transport/tests.rs`.
+
+What `0.16.0` carries on top of `0.15.1`:
 
 - The loopback-only shared-instance default: `attach_shared_instance` refuses
   a non-loopback `Tcp` endpoint with

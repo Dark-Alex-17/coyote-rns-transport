@@ -13,16 +13,16 @@ upstream resolves unchanged against this crate.
 
 The version follows cargo semver relative to the upstream baseline. `0.14.0`
 is upstream `0.14.0` renamed, with the link-close patch applied. A fork
-release that only fixes bugs bumps the patch digit; a fork change that breaks
-the public API bumps the minor digit, and `0.15.0` is the first such minor
-bump; its breaking changes are listed under `### Breaking` in `CHANGELOG.md`.
-A fork release that adds public API without breaking any may bump the minor
-digit too, so the digit tells a consumer there is new surface to opt into;
-`0.17.0` is the first such additive minor, and its `### Breaking` says so in
-place of a list. When upstream ships a release the fork is rebased onto it
-and takes the first version above both the upstream number and the fork's
-last published number: the next minor digit when the rebase breaks the
-fork's public API, the next patch digit otherwise.
+release that only fixes bugs, or adds API a consumer need not opt into, bumps
+the patch digit; a fork change that breaks the public API bumps the minor
+digit, and `0.15.0` is the first such minor bump; its breaking changes are
+listed under `### Breaking` in `CHANGELOG.md`. A fork release that adds public
+API without breaking any may bump the minor digit too, so the digit tells a
+consumer there is new surface to opt into; `0.17.0` is the first such additive
+minor, and its `### Breaking` says so in place of a list. When upstream ships a
+release the fork is rebased onto it and takes the first version above both the
+upstream number and the fork's last published number: the next minor digit
+when the rebase breaks the fork's public API, the next patch digit otherwise.
 
 ## Consumer
 

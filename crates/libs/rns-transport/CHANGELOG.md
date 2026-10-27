@@ -151,20 +151,38 @@ into rather than a patch to absorb.
   reports 0 major and 0 minor findings; additive changes are below
   cargo-semver-checks' default lint level, so the patch-level run the
   release check makes has nothing to report. The release contracts are
-  pinned by
-  `crates/apps/reticulumd/tests/fork_publish_contract.rs` and
+  pinned by `crates/apps/reticulumd/tests/fork_publish_contract.rs` and
   `fork_release_docs_contract.rs`, the latter holding the additive-minor
-  `### Breaking` rule and the 0.17.0 README patch-list register.
-- Ledger contracts, test-only: the full-hash ledger pin covers the open
-  `## Unreleased` section (`fork_publish_contract_parts/ledger_contract.rs`),
-  the manifest-version pin admits an `## Unreleased` stub above the
-  manifest-version section, never below it, and only while the manifest
-  version is the newest fork tag reachable from HEAD, and a release tree
-  carries none
+  `### Breaking` rule and the 0.17.0 README patch-list register; its
+  `fork_release_docs_contract_parts/release_0_17_0_probe.rs` pins the whole
+  `### Breaking` sentence, the semver wording above and the README policy
+  paragraph sentence by sentence.
+- Ledger contracts, test-only: the full-hash ledger pin covered the open
+  `## Unreleased` section while the work was in progress and names the
+  `0.17.0` label now that it is released
+  (`fork_publish_contract_parts/ledger_contract.rs`), the manifest-version
+  pin admits an `## Unreleased` stub above the manifest-version section,
+  never below it, and only while the manifest version is the newest fork
+  tag reachable from HEAD, and a release tree carries none
   (`fork_publish_contract_parts/release_frozen_sections_probe2.rs`), and the
   crate README's description of `Transport::destination_desc` and its link
   snippet are pinned, line by line and as one block
   (`fork_release_docs_contract.rs`).
+- Release docs contract, test-only: `fork_release_docs_contract.rs` keeps
+  its helpers and includes its tests from
+  `fork_release_docs_contract_parts/` (`request_layer_api_docs.rs`,
+  `crate_readme_sections.rs`, `release_notes_breaking.rs`,
+  `readme_patch_list.rs` and the `release_0_17_0_probe.rs` above); the
+  `### Breaking` verdict rejects the additive sentence without a reason
+  clause and rejects it beside bullets, since a section cannot both say
+  `None.` and list changes, each shape pinned by a fixture in
+  `release_notes_breaking.rs`; the minor-bump test also requires the README
+  policy to say an additive release may bump the minor digit; and the
+  0.16.0 patch-list test is named for what it now pins, the demoted block
+  kept above the 0.15.1 history, with the 0.17.0 twin asserting the order
+  and the 0.17.0 items alone (`readme_patch_list.rs`). The README policy
+  sentence on the patch digit now also covers API a consumer need not opt
+  into.
 - Shared-instance state tests, test-only: the full-channel test pins the
   four events dropped at debug in place of a non-empty drop record, the
   hand-driven consumer tests share one read-to-end helper

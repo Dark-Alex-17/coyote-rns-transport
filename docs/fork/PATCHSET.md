@@ -41,10 +41,10 @@ and `c18ea340`; the `shared-instance state` patch is fork commits
 `b87cd69a`, `42795c1c`, `c4704519`, `43b03644`, `d62ab8b3`, `80b0c73e`,
 `28c9973d`, `53c6267a`, `32bd4b00`, `f36f1b7b` and `24f178dd`; the `batch
 hygiene` patch is fork commits `0b5b2dff`, `09ee7c45` and `7cfab1ef`; the
-`Python-in-the-loop request outcome interop` patch carries no other id and
-is fork commit `79aae7ed`; the `release 0.17.0` patch carries no other id
-and is fork commits `972318f6`, `a3451134`, `4b2208f3`, `f0c32509` and
-`7fc78269`.
+`Python-in-the-loop request outcome interop` patch has no J-id and is fork
+commit `79aae7ed`, also a `response outcomes` commit; the `release 0.17.0`
+patch carries no other id and is fork commits `972318f6`, `a3451134`,
+`4b2208f3`, `f0c32509` and `7fc78269`.
 
 | File | Patch |
 | --- | --- |
@@ -434,18 +434,18 @@ why in place of a list, and a version bullet at the head of `### Changed`
 result against `v0.16.0`, 0 major and 0 minor with the additive changes
 below the tool's default lint level, and the contract tests that pin the
 release). The fourth amends the versioning paragraph of
-`crates/libs/rns-transport/README.md`: a fork
-release that only fixes bugs bumps the patch digit, a fork release that
-adds public API may bump the minor digit so the digit tells a consumer
-there is new surface to opt into, and `0.17.0` is the first such additive
-minor; the 0.15.0 clause and the upstream-rebase sentence are kept. It
-also adds the 0.17.0 paragraph to the `## Patch list`, folding it into the
-intro sentence (the destination lookup, the responder outcome, the
-shared-instance state events, the line telling consumers
-`AddressHash::new_from_hex_string` has validated its input since 0.14.1,
-and the test-only hygiene) and leaving the 0.16.0 block as a standalone
-paragraph with its bullets unchanged. The fifth carries two test-only
-precision edits: `connector_with` in
+`crates/libs/rns-transport/README.md`:
+a fork release that only fixes bugs, or adds API a consumer need not opt
+into, bumps the patch digit, a fork release that adds public API may bump
+the minor digit so the digit tells a consumer there is new surface to opt
+into, and `0.17.0` is the first such additive minor; the 0.15.0 clause and
+the upstream-rebase sentence are kept. It also adds the 0.17.0 paragraph to
+the `## Patch list`, folding it into the intro sentence (the destination
+lookup, the responder outcome, the shared-instance state events, the line
+telling consumers `AddressHash::new_from_hex_string` has validated its
+input since 0.14.1, and the test-only hygiene) and leaving the 0.16.0 block
+as a standalone paragraph with its bullets unchanged. The fifth carries two
+test-only precision edits: `connector_with` in
 `crates/libs/rns-transport/src/transport/tests_parts/two_transport_loopback.rs`
 asserts the `bool` that `set_shared_config` returns instead of discarding
 it, and the `DriveSpec` doc in

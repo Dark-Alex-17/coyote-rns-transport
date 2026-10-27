@@ -94,16 +94,17 @@ fn release_0_17_0_version_bullet_records_the_semver_verdict() {
 }
 
 /// The README release policy names the digit each kind of fork release
-/// bumps: bug-fix-only releases the patch digit, breaking changes the minor
-/// digit with `0.15.0` as the first, and additive API may take the minor
-/// digit with `0.17.0` as the first; the two literals the contracts quote
-/// stay in place.
+/// bumps: bug fixes and API a consumer need not opt into the patch digit,
+/// breaking changes the minor digit with `0.15.0` as the first, and additive
+/// API may take the minor digit with `0.17.0` as the first; the two literals
+/// the contracts quote stay in place.
 #[test]
 fn crate_readme_release_policy_names_the_digit_each_release_kind_bumps() {
     let readme = joined_prose(&read_repo_file("crates/libs/rns-transport/README.md"));
     for needle in [
         "The version follows cargo semver relative to the upstream baseline.",
-        "A fork release that only fixes bugs bumps the patch digit;",
+        "A fork release that only fixes bugs, or adds API a consumer need not opt into, bumps \
+         the patch digit;",
         "a fork change that breaks the public API bumps the minor digit, and `0.15.0` is the \
          first such minor bump; its breaking changes are listed under `### Breaking` in \
          `CHANGELOG.md`.",

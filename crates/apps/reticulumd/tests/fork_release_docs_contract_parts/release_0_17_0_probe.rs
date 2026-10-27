@@ -77,19 +77,71 @@ fn release_0_17_0_breaking_is_exactly_the_additive_sentence() {
     );
 }
 
-/// The 0.17.0 version bullet records the semver verdict the release check
-/// made and why an additive minor measures zero: the baseline tag, the two
-/// zero counts and the lint-level explanation.
+/// The bullets of a release section's `### <name>` subsection, as
+/// `top_level_bullets` splits them.
+fn subsection_bullets(section: &str, name: &str) -> Vec<String> {
+    let body = subsections(section)
+        .into_iter()
+        .find(|(sub, _)| *sub == name)
+        .map(|(_, body)| body)
+        .unwrap_or_else(|| panic!("the release section should have a `### {name}` subsection"));
+    top_level_bullets(body)
+}
+
+/// The one bullet of `bullets` whose text starts with `prefix`.
+fn single_bullet_starting_with(bullets: &[String], prefix: &str) -> String {
+    let matching: Vec<&String> =
+        bullets.iter().filter(|bullet| bullet.starts_with(prefix)).collect();
+    assert_eq!(matching.len(), 1, "exactly one bullet should start with {prefix:?}");
+    matching[0].clone()
+}
+
+/// The 0.17.0 version bullet itself, the first under `### Changed`, records
+/// the semver verdict the release check made and why an additive minor
+/// measures zero: the baseline tag, the two zero counts and the lint-level
+/// explanation. The same words elsewhere in the section would not satisfy
+/// the pin.
 #[test]
 fn release_0_17_0_version_bullet_records_the_semver_verdict() {
     let changelog = read_repo_file("crates/libs/rns-transport/CHANGELOG.md");
-    let section = joined_prose(&changelog_release_section(&changelog, "0.17.0"));
+    let section = changelog_release_section(&changelog, "0.17.0");
+    let bullets = subsection_bullets(&section, "Changed");
+    let bullet =
+        joined_prose(&single_bullet_starting_with(&bullets, "- The crate version is `0.17.0`"));
     for needle in [
         "`cargo semver-checks` against `v0.16.0`",
         "0 major and 0 minor findings",
         "additive changes are below cargo-semver-checks' default lint level",
     ] {
-        assert!(section.contains(needle), "the 0.17.0 section should say {needle:?}");
+        assert!(bullet.contains(needle), "the 0.17.0 version bullet should say {needle:?}");
+    }
+}
+
+/// The two ledgers agree on the release's two wording fixes: the PATCHSET
+/// legend says the interop patch's single commit is also a `response
+/// outcomes` commit, and the CHANGELOG's ledger-contracts bullet says the
+/// full-hash pin covered `## Unreleased` while the work was in progress and
+/// names the `0.17.0` label now.
+#[test]
+fn release_0_17_0_ledgers_name_the_shared_interop_commit_and_the_promoted_pin() {
+    let patchset = read_repo_file("docs/fork/PATCHSET.md");
+    let heading = "\n## 0.17.0 (upstream 0.14.0)\n";
+    let start = patchset.find(heading).expect("PATCHSET should carry the 0.17.0 heading");
+    let body = &patchset[start + heading.len()..];
+    let end = body.find("\n## ").unwrap_or(body.len());
+    let release_section = joined_prose(&body[..end]);
+    assert!(
+        release_section.contains("is fork commit `79aae7ed`, also a `response outcomes` commit"),
+        "the PATCHSET legend should say the interop commit is also a response outcomes commit"
+    );
+
+    let changelog = read_repo_file("crates/libs/rns-transport/CHANGELOG.md");
+    let section = changelog_release_section(&changelog, "0.17.0");
+    let bullets = subsection_bullets(&section, "Changed");
+    let bullet =
+        joined_prose(&single_bullet_starting_with(&bullets, "- Ledger contracts, test-only"));
+    for needle in ["while the work was in progress", "names the `0.17.0` label"] {
+        assert!(bullet.contains(needle), "the ledger-contracts bullet should say {needle:?}");
     }
 }
 

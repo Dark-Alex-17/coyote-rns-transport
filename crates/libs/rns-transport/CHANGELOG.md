@@ -28,18 +28,21 @@ Removed) bullet of its own, marked as such.
   by `reticulum_path_restore_destination_desc_probe.rs` for the restore fill
   site and for the link still needing a path once the desc has outlived
   `expire_path`, and by `two_transport_destination_desc_probe2.rs` for two
-  announced peers resolving to their own entries.
+  announced peers resolving to their own entries and for the two accessors
+  agreeing when called from parallel tasks; the README snippet in the link
+  section is run verbatim by `tests/destination_desc_api.rs`.
 
 ### Changed
 
 - Ledger contracts, test-only: the full-hash ledger pin covers the open
   `## Unreleased` section (`fork_publish_contract_parts/ledger_contract.rs`),
   the manifest-version pin admits an `## Unreleased` stub above the
-  manifest-version section only while the manifest version is the newest
-  fork tag reachable from HEAD and a release tree carries none
+  manifest-version section, never below it, and only while the manifest
+  version is the newest fork tag reachable from HEAD, and a release tree
+  carries none
   (`fork_publish_contract_parts/release_frozen_sections_probe2.rs`), and the
-  crate README's description of `Transport::destination_desc` is pinned
-  (`fork_release_docs_contract.rs`).
+  crate README's description of `Transport::destination_desc` and its link
+  snippet are pinned (`fork_release_docs_contract.rs`).
 
 ## 0.16.0 - 2026-10-25
 

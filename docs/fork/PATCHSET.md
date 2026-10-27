@@ -29,15 +29,17 @@ per fork task.
 ## Unreleased (upstream 0.14.0)
 
 Every file changed since the `0.16.0` release and the patch each change
-belongs to. Patch ids: J1 is destination lookup. The `destination lookup`
-patch is fork commits `5246fc9c`, `d2f871f7`, `15278355`, `e8e64626`,
-`20d67e43`, `1c74645b`, `49a5b27f` and `fad0f72e`.
+belongs to. Patch ids: J1 is destination lookup, J2 is ledger contracts.
+The `destination lookup` patch is fork commits `5246fc9c`, `15278355`,
+`e8e64626`, `20d67e43`, `1c74645b`, `49a5b27f`, `fad0f72e`, `f24e4ec3` and
+`5093b5b6`; the `ledger contracts` patch is fork commits `d2f871f7`,
+`e8e64626` and `0b86c14b`.
 
 | File | Patch |
 | --- | --- |
-| `crates/apps/reticulumd/tests/fork_publish_contract_parts/ledger_contract.rs` | destination lookup |
-| `crates/apps/reticulumd/tests/fork_publish_contract_parts/release_frozen_sections_probe2.rs` | destination lookup |
-| `crates/apps/reticulumd/tests/fork_release_docs_contract.rs` | destination lookup |
+| `crates/apps/reticulumd/tests/fork_publish_contract_parts/ledger_contract.rs` | ledger contracts |
+| `crates/apps/reticulumd/tests/fork_publish_contract_parts/release_frozen_sections_probe2.rs` | ledger contracts |
+| `crates/apps/reticulumd/tests/fork_release_docs_contract.rs` | destination lookup, ledger contracts |
 | `crates/libs/rns-transport/CHANGELOG.md` | destination lookup |
 | `crates/libs/rns-transport/README.md` | destination lookup |
 | `crates/libs/rns-transport/src/transport/links_parts/transport_sections/close_channel.rs` | destination lookup |
@@ -46,10 +48,11 @@ patch is fork commits `5246fc9c`, `d2f871f7`, `15278355`, `e8e64626`,
 | `crates/libs/rns-transport/src/transport/tests_parts/two_transport_destination_desc_probe.rs` | destination lookup |
 | `crates/libs/rns-transport/src/transport/tests_parts/two_transport_destination_desc_probe2.rs` | destination lookup |
 | `crates/libs/rns-transport/src/transport/tests.rs` | destination lookup |
+| `crates/libs/rns-transport/tests/destination_desc_api.rs` | destination lookup |
 | `docs/fork/PATCHSET.md` | destination lookup |
 
-Fork commits `5246fc9c`, `d2f871f7`, `15278355`, `e8e64626`, `20d67e43`,
-`1c74645b`, `49a5b27f` and `fad0f72e`:
+Fork commits `5246fc9c`, `15278355`, `e8e64626`, `20d67e43`, `1c74645b`,
+`49a5b27f`, `fad0f72e`, `f24e4ec3` and `5093b5b6`:
 J1, destination lookup. `5246fc9c` adds `Transport::destination_desc`
 beside `destination_identity` in
 `links_parts/transport_sections/close_channel.rs`: the same lookup in the
@@ -58,31 +61,46 @@ announced-destination map, returning the stored `DestinationDesc` (whose
 `as_name_hash_slice()`) instead of the identity alone; the entry outlives
 `expire_path` and is pruned only by `deregister_destination`. Pinned by
 `two_transport_destination_desc.rs`; the README link section and the crate
-CHANGELOG describe it. `d2f871f7` extends the full-hash ledger pin to the
-open `Unreleased` section and lets the manifest-version pin admit an
-`## Unreleased` stub while the manifest version is the newest fork tag
-reachable from HEAD, with fixtures for both arms. `15278355` adds
+CHANGELOG describe it. `15278355` adds
 `two_transport_destination_desc_probe.rs`, which opens a link with the desc
 the accessor returns, checks the zero-padded name, and shows
 `deregister_destination` pruning the desc and the identity together.
 `e8e64626` pins the README's description of `destination_desc` in
-`fork_release_docs_contract.rs` and makes the manifest-version pin say when
-it skips the stub rule for want of a reachable fork tag. `20d67e43` records
-the restore of a cached path table as the map's other fill site in the
-accessor's rustdoc, qualifies the README's link claim with the path it still
-needs, and adds the test-only Changed bullet to the crate CHANGELOG.
-`1c74645b` adds `reticulum_path_restore_destination_desc_probe.rs`, which
-shows a restored path table filling the map with the announced identity and
-a desc that has outlived `expire_path` still refused by `link` with `NoPath`.
-`49a5b27f` moves the map lookup both accessors share into a private
+`fork_release_docs_contract.rs`. `20d67e43` records the restore of a cached
+path table as the map's other fill site in the accessor's rustdoc, qualifies
+the README's link claim with the path it still needs, and adds the test-only
+Changed bullet to the crate CHANGELOG. `1c74645b` adds
+`reticulum_path_restore_destination_desc_probe.rs`, which shows a restored
+path table filling the map with the announced identity and a desc that has
+outlived `expire_path` still refused by `link` with `NoPath`. `49a5b27f`
+moves the map lookup both accessors share into a private
 `single_out_destination` helper in `close_channel.rs`, names the restore
-fill site in the README and CHANGELOG prose, and pins the README's
+fill site in the README and CHANGELOG prose, pins the README's
 `DestinationName::new` contrast in `fork_release_docs_contract.rs`, and
 renames the loopback test to say it survives `expire_path`. `fad0f72e` adds
 `two_transport_destination_desc_probe2.rs`, which resolves two announced
 peers to their own entries through the shared lookup and calls the two
-accessors concurrently. No
-library behaviour changes beyond the new accessor.
+accessors concurrently. `f24e4ec3` adds a `destination_desc` snippet to the
+README link section, run verbatim by `tests/destination_desc_api.rs` over a
+loopback `TcpServer`/`TcpClient` pair and registered with the README snippet
+pin in `fork_release_docs_contract.rs`, and names `Identity.recall` as the
+loose Python analogue in the accessor's rustdoc. `5093b5b6` runs the
+concurrent accessor pin on a two-worker runtime with the accessor batches as
+spawned tasks, turns ingress control off on the two-peer probe's connector
+in place of a one-second announce spacing, and makes the link probe assert
+that neither accessor self-learns on the announcing side. No library
+behaviour changes beyond the new accessor.
+
+Fork commits `d2f871f7`, `e8e64626` and `0b86c14b`:
+J2, ledger contracts. No library behaviour changes. `d2f871f7` extends the
+full-hash ledger pin in `ledger_contract.rs` to the open `Unreleased`
+section and lets the manifest-version pin in
+`release_frozen_sections_probe2.rs` admit an `## Unreleased` stub while the
+manifest version is the newest fork tag reachable from HEAD, with fixtures
+for both arms. `e8e64626` makes the manifest-version pin say when it skips
+the stub rule for want of a reachable fork tag. `0b86c14b` pins the stub
+above the first release section, refusing one that sits below the
+manifest-version heading, with a fixture for the misplaced case.
 
 ## 0.16.0 (upstream 0.14.0)
 

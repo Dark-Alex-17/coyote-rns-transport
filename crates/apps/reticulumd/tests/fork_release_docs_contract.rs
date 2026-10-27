@@ -230,3 +230,5 @@ include!("fork_release_docs_contract_parts/crate_readme_sections.rs");
 include!("fork_release_docs_contract_parts/release_notes_breaking.rs");
 
 include!("fork_release_docs_contract_parts/readme_patch_list.rs");
+
+include!("fork_release_docs_contract_parts/release_0_17_0_probe.rs");

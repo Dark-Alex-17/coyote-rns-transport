@@ -100,7 +100,10 @@ async fn connector_with(
         let mut manager = manager.lock().await;
         let context = manager.new_context(client);
         if let Some(shared) = shared {
-            manager.set_shared_config(*context.channel.address(), shared);
+            assert!(
+                manager.set_shared_config(*context.channel.address(), shared),
+                "shared config applied to the connector iface"
+            );
         }
         context
     };

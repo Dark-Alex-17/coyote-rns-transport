@@ -72,8 +72,8 @@ async fn shared_instance_state_consumer_leaves_a_queued_reconnect_when_the_worke
     );
 }
 
-/// The transport is cancelled before the consumer polls, with a disconnect and a connect
-/// queued and their senders still alive: the cancel wins the biased select and the
+/// The consumer's cancel token is cancelled before it polls, with a disconnect and a
+/// connect queued and their senders still alive: the cancel wins the biased select and the
 /// consumer returns past the drain, so the stream ends with nothing on it and no event
 /// leaves a record.
 #[tokio::test]

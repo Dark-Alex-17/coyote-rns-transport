@@ -111,8 +111,9 @@ enum Queued {
 }
 
 /// How a hand-built consumer is driven: the events queued, in order, before it first polls;
-/// the senders already gone by then (the rest go after it returns); whether the transport
-/// is cancelled before the poll; and what the consumer's exit within `STOP_TIMEOUT` pins.
+/// the senders already gone by then (the rest go after it returns); whether the consumer's
+/// cancel token is cancelled before the poll; and what the consumer's exit within
+/// `STOP_TIMEOUT` pins.
 struct DriveSpec<'a> {
     queued: &'a [Queued],
     close_before_run: &'a [Queued],

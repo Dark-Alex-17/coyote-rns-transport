@@ -297,8 +297,9 @@ async fn shared_instance_reconnect_unflagged_iface_does_not_flush() {
 }
 
 /// A consumer over a fresh transport named `name` with nothing attached, driven directly
-/// by the tests below, with the transport it reads, kept alive for the run since its drop
-/// cancels it; `reconnect_wait` is zero so a reconnect's re-announce task is due at once.
+/// by the tests below, with the transport it reads, returned so the caller keeps the
+/// transport alive for the run; the consumer holds clones of its parts. `reconnect_wait`
+/// is zero so a reconnect's re-announce task is due at once.
 fn shared_instance_reconnect_consumer(
     name: &str,
     iface: AddressHash,

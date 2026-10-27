@@ -684,20 +684,24 @@ mod tests {
         assert_eq!(client.mtu_value(), TcpClient::DEFAULT_MTU);
         assert_eq!(client.forced_bitrate_bps(), None);
         assert_eq!(client.reconnect_wait(), LocalUnixClient::DEFAULT_RECONNECT_WAIT);
+        assert!(!client.connect_events_enabled());
         assert!(!client.reconnect_events_enabled());
         assert!(!client.disconnect_events_enabled());
 
+        let (connect_tx, _connect_rx) = tokio::sync::mpsc::channel(1);
         let (reconnect_tx, _reconnect_rx) = tokio::sync::mpsc::channel(1);
         let (disconnect_tx, _disconnect_rx) = tokio::sync::mpsc::channel(1);
         let client = client
             .with_mtu(100)
             .with_forced_bitrate(9_600)
             .with_reconnect_wait(Duration::from_millis(50))
+            .with_connect_events(connect_tx)
             .with_reconnect_events(reconnect_tx)
             .with_disconnect_events(disconnect_tx);
         assert_eq!(client.mtu_value(), 256);
         assert_eq!(client.forced_bitrate_bps(), Some(9_600));
         assert_eq!(client.reconnect_wait(), Duration::from_millis(50));
+        assert!(client.connect_events_enabled());
         assert!(client.reconnect_events_enabled());
         assert!(client.disconnect_events_enabled());
 
@@ -940,6 +944,67 @@ mod tests {
 
         assert!(iface_stop.is_cancelled());
         assert_eq!(reconnected_iface, iface_address);
+    }
+
+    #[tokio::test]
+    #[deny(clippy::await_holding_invalid_type)]
+    async fn local_unix_connect_client_reports_connect_events_on_every_connection_the_first_included(
+    ) {
+        let temp = tempfile::tempdir().expect("tempdir");
+        let path = temp.path().join("reticulum-local.sock");
+        let endpoint = LocalUnixEndpoint::filesystem(path.clone());
+        let mut manager = InterfaceManager::new(8);
+        let (connect_tx, mut connect_rx) = tokio::sync::mpsc::channel(32);
+        let client = LocalUnixClient::new_connect(endpoint.clone())
+            .with_reconnect_wait(Duration::from_millis(20))
+            .with_connect_events(connect_tx);
+        assert!(client.connect_events_enabled());
+        let context = manager.new_context(client);
+        let iface_address = context.channel.address;
+        let cancel = context.cancel.clone();
+        let iface_stop = context.channel.stop.clone();
+        let task = tokio::spawn(LocalUnixClient::spawn(context));
+
+        let first_listener = UnixListener::bind(endpoint.tokio_path()).expect("bind first socket");
+        let (first_stream, _) =
+            tokio::time::timeout(Duration::from_secs(2), first_listener.accept())
+                .await
+                .expect("first connect timed out")
+                .expect("first accept");
+        let first_connected = tokio::time::timeout(Duration::from_secs(2), connect_rx.recv())
+            .await
+            .expect("first connect event timed out")
+            .expect("first connect event");
+        assert_eq!(first_connected, iface_address);
+        assert!(connect_rx.try_recv().is_err(), "the first stream reports exactly one connect");
+        drop(first_stream);
+        drop(first_listener);
+        remove_socket_file(&path).expect("remove first socket");
+
+        let second_listener =
+            UnixListener::bind(endpoint.tokio_path()).expect("bind second socket");
+        let (second_stream, _) =
+            tokio::time::timeout(Duration::from_secs(2), second_listener.accept())
+                .await
+                .expect("redial timed out")
+                .expect("second accept");
+        let second_connected = tokio::time::timeout(Duration::from_secs(2), connect_rx.recv())
+            .await
+            .expect("second connect event timed out")
+            .expect("second connect event");
+        assert_eq!(second_connected, iface_address);
+
+        cancel.cancel();
+        drop(second_stream);
+        drop(second_listener);
+        let _ = remove_socket_file(&path);
+        tokio::time::timeout(Duration::from_secs(2), task)
+            .await
+            .expect("client task timed out")
+            .expect("client task");
+
+        assert!(iface_stop.is_cancelled());
+        assert!(connect_rx.try_recv().is_err(), "the redial reports exactly one connect");
     }
 
     #[tokio::test]

@@ -6,8 +6,6 @@
 // consumer driven by hand pins the order the events take within one cycle. Helpers come
 // from the sibling `tests_parts` files included into this module.
 
-const SHARED_INSTANCE_STATE_RECONNECT_WAIT: Duration = Duration::from_millis(100);
-
 /// How long a client attached to a closed port is watched for an event that must not come.
 const SHARED_INSTANCE_STATE_QUIET: Duration = Duration::from_millis(500);
 
@@ -32,7 +30,7 @@ async fn shared_instance_state_client(
         name,
         endpoint,
         SharedInstanceOptions::default()
-            .with_reconnect_wait(SHARED_INSTANCE_STATE_RECONNECT_WAIT)
+            .with_reconnect_wait(SHARED_INSTANCE_RECONNECT_WAIT)
             .with_state_events(events_tx),
     )
     .await;
@@ -142,13 +140,17 @@ async fn shared_instance_state_consumer_reports_connected_and_serves_the_reconne
 }
 
 /// A disconnect, a connect and a reconnect all waiting: the stream reads `Disconnected`,
-/// `Connecting`, `Connected` in that order, the flush's pair before the connect's event.
+/// `Connecting`, `Connected` in that order, the disconnect's pair before the connect's
+/// event. The consumer is driven unattached, so the pair is sent even though the flush is
+/// skipped and its skipped-flush record is left behind; the biased select itself is pinned
+/// by `shared_instance_reconnect_consumer_serves_the_disconnect_before_the_reconnect`,
+/// this test pins the arm order.
 #[tokio::test]
 #[deny(clippy::await_holding_invalid_type)]
 async fn shared_instance_state_consumer_orders_a_whole_cycle() {
     install_test_logger();
-    let read =
-        shared_instance_state_drive_consumer("shared-instance-state-consumer-cycle", true).await;
+    let name = "shared-instance-state-consumer-cycle";
+    let read = shared_instance_state_drive_consumer(name, true).await;
     assert_eq!(
         read,
         [
@@ -156,6 +158,12 @@ async fn shared_instance_state_consumer_orders_a_whole_cycle() {
             SharedInstanceEvent::Connecting,
             SharedInstanceEvent::Connected
         ]
+    );
+    let records: Vec<String> =
+        shared_instance_records_for(name).into_iter().map(|(_, record)| record).collect();
+    assert!(
+        records.iter().any(|record| record.contains("stream ended after detach, tables kept")),
+        "the unattached disconnect skips the flush: {records:?}"
     );
 }
 
@@ -179,6 +187,11 @@ async fn shared_instance_state_events_wait_in_connecting_while_the_listener_is_d
         timeout(SHARED_INSTANCE_STATE_QUIET, events.recv()).await.is_err(),
         "no event while nothing listens"
     );
+    assert!(
+        client.transport.connected_to_shared_instance().await,
+        "the connected posture is set by the attach"
+    );
+    assert_eq!(client.transport.shared_instance(), Some(client.iface), "the slot keeps the iface");
 
     let server = shared_instance_server_on(port).await;
     server.await_accepted_connections(1).await;
@@ -224,6 +237,11 @@ async fn shared_instance_state_events_follow_a_unix_restart() {
         shared_instance_state_next(&mut events).await,
         Some(SharedInstanceEvent::Connecting)
     );
+    assert!(
+        client.transport.connected_to_shared_instance().await,
+        "the connected posture survives the drop"
+    );
+    assert_eq!(client.transport.shared_instance(), Some(client.iface), "the slot keeps the iface");
 
     std::fs::remove_file(&socket).expect("remove the stale socket");
     let listener = tokio::net::UnixListener::bind(&socket).expect("bind the socket again");

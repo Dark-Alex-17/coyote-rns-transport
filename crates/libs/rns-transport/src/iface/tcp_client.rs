@@ -1116,6 +1116,7 @@ impl TcpClient {
         self.forced_bitrate_bps
     }
 
+    /// Whether a connect-event sender is installed.
     #[must_use]
     pub fn connect_events_enabled(&self) -> bool {
         self.connect_events.is_some()
@@ -2322,6 +2323,54 @@ mod tests {
 
         assert!(iface_stop.is_cancelled());
         assert_eq!(reconnected_iface, iface_address);
+    }
+
+    #[tokio::test]
+    #[deny(clippy::await_holding_invalid_type)]
+    async fn tcp_client_reports_connect_events_on_every_connection_the_first_included() {
+        let listener = TcpListener::bind("127.0.0.1:0").await.expect("bind listener");
+        let addr = listener.local_addr().expect("listener addr");
+        let (connect_tx, mut connect_rx) = tokio::sync::mpsc::channel(32);
+        let client = TcpClient::new(addr.to_string()).with_connect_events(connect_tx);
+        assert!(client.connect_events_enabled());
+        let mut manager = InterfaceManager::new(8);
+        let context = manager.new_context(client);
+        let iface_address = context.channel.address;
+        let cancel = context.cancel.clone();
+        let iface_stop = context.channel.stop.clone();
+        let task = tokio::spawn(TcpClient::spawn(context));
+
+        let (first_stream, _) = tokio::time::timeout(Duration::from_secs(2), listener.accept())
+            .await
+            .expect("first connect timed out")
+            .expect("first accept");
+        let first_connected = tokio::time::timeout(Duration::from_secs(2), connect_rx.recv())
+            .await
+            .expect("first connect event timed out")
+            .expect("first connect event");
+        assert_eq!(first_connected, iface_address);
+        assert!(connect_rx.try_recv().is_err(), "the first stream reports exactly one connect");
+        drop(first_stream);
+
+        let (second_stream, _) = tokio::time::timeout(Duration::from_secs(2), listener.accept())
+            .await
+            .expect("redial timed out")
+            .expect("second accept");
+        let second_connected = tokio::time::timeout(Duration::from_secs(2), connect_rx.recv())
+            .await
+            .expect("second connect event timed out")
+            .expect("second connect event");
+        assert_eq!(second_connected, iface_address);
+
+        cancel.cancel();
+        drop(second_stream);
+        tokio::time::timeout(Duration::from_secs(2), task)
+            .await
+            .expect("client task timed out")
+            .expect("client task");
+
+        assert!(iface_stop.is_cancelled());
+        assert!(connect_rx.try_recv().is_err(), "the redial reports exactly one connect");
     }
 
     #[tokio::test]

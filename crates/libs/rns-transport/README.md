@@ -316,9 +316,12 @@ names with `as_name_hash_slice()` rather than against a freshly built
 `DestinationName`. The entry outlives `Transport::expire_path`, which
 touches only the path table, and is removed only by
 `Transport::deregister_destination`. The desc is the argument
-`Transport::link` takes, though the link still needs a path as described above.
+`Transport::link` takes, though the link still needs a path
+as described above.
 
-Looking up a learned destination and opening a link with it:
+Looking up a learned destination and opening a link with it, on the transport
+that learned the announce and with `destination_hash` the `AddressHash` the
+announce carried:
 
 ```rust
 use rns_transport::destination::DestinationName;

@@ -153,7 +153,7 @@ fn unreleased_stub_sits_above_the_release_and_is_admitted_only_at_the_newest_tag
                  ## Unreleased\n\n- pending\n";
     let reason = unreleased_stub_violation(below, "0.16.0", Some("0.16.0"))
         .expect("a stub below the release is a violation");
-    assert!(reason.contains("above"), "{reason}");
+    assert!(reason.contains("not below it"), "{reason}");
 }
 
 /// A ledger without a stub is acceptable whether or not the manifest has

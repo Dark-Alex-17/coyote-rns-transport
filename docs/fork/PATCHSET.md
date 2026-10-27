@@ -44,7 +44,8 @@ hygiene` patch is fork commits `0b5b2dff`, `09ee7c45` and `7cfab1ef`; the
 `Python-in-the-loop request outcome interop` patch has no J-id and is fork
 commit `79aae7ed`, also a `response outcomes` commit; the `release 0.17.0`
 patch carries no other id and is fork commits `972318f6`, `a3451134`,
-`4b2208f3`, `f0c32509` and `7fc78269`.
+`4b2208f3`, `f0c32509`, `7fc78269`, `e2e9cdc6`, `8b7619b7`, `e6f5dc52` and
+`92568aa7`.
 
 | File | Patch |
 | --- | --- |
@@ -54,6 +55,11 @@ patch carries no other id and is fork commits `972318f6`, `a3451134`,
 | `crates/apps/reticulumd/tests/fork_publish_contract_parts/ledger_contract.rs` | ledger contracts, release 0.17.0 |
 | `crates/apps/reticulumd/tests/fork_publish_contract_parts/release_frozen_sections_probe2.rs` | ledger contracts |
 | `crates/apps/reticulumd/tests/fork_publish_contract.rs` | release 0.17.0 |
+| `crates/apps/reticulumd/tests/fork_release_docs_contract_parts/crate_readme_sections.rs` | release 0.17.0 |
+| `crates/apps/reticulumd/tests/fork_release_docs_contract_parts/readme_patch_list.rs` | release 0.17.0 |
+| `crates/apps/reticulumd/tests/fork_release_docs_contract_parts/release_0_17_0_probe.rs` | release 0.17.0 |
+| `crates/apps/reticulumd/tests/fork_release_docs_contract_parts/release_notes_breaking.rs` | release 0.17.0 |
+| `crates/apps/reticulumd/tests/fork_release_docs_contract_parts/request_layer_api_docs.rs` | release 0.17.0 |
 | `crates/apps/reticulumd/tests/fork_release_docs_contract.rs` | destination lookup, ledger contracts, response outcomes, shared-instance state, release 0.17.0 |
 | `crates/apps/reticulumd/tests/python_channel_interop.rs` | response outcomes, Python-in-the-loop request outcome interop |
 | `crates/apps/reticulumd/tests/python_channel_interop_parts/python_to_rust_request_handler.rs` | batch hygiene |
@@ -401,9 +407,10 @@ included from `crates/apps/reticulumd/tests/python_channel_interop.rs`)
 resolves `Resource(Complete)` for a 48 KiB reply and `Packet` for a short
 one, the release section's Python-in-the-loop proof rows.
 
-Fork commits `972318f6`, `a3451134`, `4b2208f3`, `f0c32509` and `7fc78269`:
-release 0.17.0. The first retargets the promotion-sensitive pins to the
-literal 0.17.0 label, since a released section is frozen:
+Fork commits `972318f6`, `a3451134`, `4b2208f3`, `f0c32509`, `7fc78269`,
+`e2e9cdc6`, `8b7619b7`, `e6f5dc52` and `92568aa7`: release 0.17.0. The
+first retargets the promotion-sensitive pins to the literal 0.17.0 label,
+since a released section is frozen:
 `crates/apps/reticulumd/tests/fork_publish_contract_parts/ledger_contract.rs`
 expects the full-hash contract to cover `0.17.0`, `0.16.0` and `0.15.1`
 and the bullet-cite contract the same three, and the two version pins in
@@ -454,7 +461,45 @@ and the cancel test header in
 `crates/libs/rns-transport/src/transport/tests_parts/two_transport_shared_instance_state_events_probe4.rs`
 say the consumer's cancel token is cancelled before the poll, not the
 transport. The ledger promotion itself touches only this file and names
-the Python-in-the-loop request outcome interop patch above.
+the Python-in-the-loop request outcome interop patch above. The sixth
+splits `crates/apps/reticulumd/tests/fork_release_docs_contract.rs` into
+included parts: the root keeps the shared helpers and includes
+`crates/apps/reticulumd/tests/fork_release_docs_contract_parts/request_layer_api_docs.rs`
+(the rustdoc citation, private-field and `non_exhaustive` pins),
+`crate_readme_sections.rs` (the README section and snippet pins),
+`release_notes_breaking.rs` (the `### Breaking` verdict, the minor-bump
+test and its fixtures) and `readme_patch_list.rs` (the patch-list and
+Codex bullet pins), with every test name and body unchanged. The seventh
+adopts
+`crates/apps/reticulumd/tests/fork_release_docs_contract_parts/release_0_17_0_probe.rs`,
+included from the same root, whose four tests hold the 0.17.0
+`### Breaking` body to the whole additive sentence
+(`release_0_17_0_breaking_is_exactly_the_ruled_additive_sentence`), the
+version bullet to the semver verdict
+(`release_0_17_0_version_bullet_records_the_semver_verdict`), the README
+policy to the digit each kind of release bumps
+(`crate_readme_release_policy_names_the_digit_each_release_kind_bumps`)
+and the register's `AddressHash::new_from_hex_string` claim against the
+crate (`release_0_17_0_register_hex_parsing_claim_holds_against_the_crate`).
+The eighth adds two fixtures to `release_notes_breaking.rs`, the additive
+sentence without a reason clause and the additive sentence beside bullets,
+and the rule the second needs: prose beside bullets must not open with the
+additive sentence, since a section cannot both say `None.` and list
+changes; the minor-bump test also requires the README policy to say an
+additive release may bump the minor digit; and in `readme_patch_list.rs`
+the 0.16.0 block test is renamed
+`readme_patch_list_keeps_the_0_16_0_block_above_the_0_15_1_paragraph` for
+what it pins, while the 0.17.0 twin drops its copy of the 0.16.0 needle
+loop. The ninth tightens the release prose: the versioning paragraph of
+`crates/libs/rns-transport/README.md` says a release that only fixes bugs,
+or adds API a consumer need not opt into, bumps the patch digit (the
+probe's needle follows), the version bullet of the crate `CHANGELOG.md`
+names the probe, its ledger-contracts bullet says the full-hash pin covered
+`## Unreleased` during the cycle and names `0.17.0` now, a new test-only
+bullet records the split, the fixtures, the README needle and the rename,
+and the legend above says the interop patch's commit is also a `response
+outcomes` commit. The ledger round that cites these four commits touches
+only this file.
 
 ## 0.16.0 (upstream 0.14.0)
 

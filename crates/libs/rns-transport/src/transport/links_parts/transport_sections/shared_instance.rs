@@ -152,9 +152,17 @@ impl Transport {
                 addr
             );
         }
+        {
+            let mut handler = self.handler.lock().await;
+            let slot = self.shared_instance.lock().unwrap_or_else(|poisoned| poisoned.into_inner());
+            if *slot == Some(iface) {
+                handler.config.set_connected_to_shared_instance(true);
+            }
+        }
         // The consumer is the only sender of `Connected` and is spawned
         // below, so this `Connecting` precedes it even when the client has
-        // already connected and queued its event.
+        // already connected and queued its event; the posture above is set
+        // before it so a reader of `Connecting` finds it on.
         send_shared_instance_state_event(
             &self.name,
             iface,
@@ -169,13 +177,6 @@ impl Transport {
             disconnect_rx,
             options.state_events().cloned(),
         );
-        {
-            let mut handler = self.handler.lock().await;
-            let slot = self.shared_instance.lock().unwrap_or_else(|poisoned| poisoned.into_inner());
-            if *slot == Some(iface) {
-                handler.config.set_connected_to_shared_instance(true);
-            }
-        }
         if !self.synthesize_tunnel_on_interface(iface).await {
             log::debug!(
                 "tp({}): shared instance iface={} removed by a detach, stop or stop_interface that raced the attach, tunnel not synthesized",

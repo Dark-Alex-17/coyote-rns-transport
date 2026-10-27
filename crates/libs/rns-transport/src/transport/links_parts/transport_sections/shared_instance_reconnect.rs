@@ -117,11 +117,18 @@ impl SharedInstanceReconnectConsumer {
     /// Serves the client's events until the transport is cancelled or the
     /// client worker exits. All three senders belong to that one worker and drop
     /// with it, after a detach, `stop_interface` or `stop`, so the first
-    /// closed channel ends the task. The channels are `mpsc::channel(8)`
-    /// and the worker emits each cycle's disconnect before its connect and
-    /// reconnect from one task, each with `try_send`; this loop is biased so
-    /// every queued disconnect is served before any connect, and every
-    /// connect before any reconnect. So a disconnect
+    /// closed channel ends the task, once the disconnects and connects still
+    /// queued have been served in that order, each as the live arm serves
+    /// it. Queued reconnects are not served then: the worker is gone, so the
+    /// tunnel re-synthesis has no stream to ride, and the re-announce is
+    /// posture-gated anyway. A cancel seen by the select serves nothing
+    /// queued: a stop synthesizes no event, and it wins the biased select
+    /// (a cancel that lands during the drain does not cut it short, and
+    /// `on_disconnected` is posture-gated so that is harmless). The channels
+    /// are `mpsc::channel(8)` and the worker emits each cycle's disconnect
+    /// before its connect and reconnect from one task, each with
+    /// `try_send`; this loop is biased so every queued disconnect is served
+    /// before any connect, and every connect before any reconnect. So a disconnect
     /// can never be dropped while its reconnect lands: at each disconnect
     /// send the disconnect queue is no longer than the reconnect queue, so
     /// the reconnect channel fills first and the realistic loss under a
@@ -155,17 +162,16 @@ impl SharedInstanceReconnectConsumer {
     ) {
         loop {
             // Biased so a disconnect is never overtaken by the reconnect
-            // queued right behind it.
+            // queued right behind it. Only a closed channel leaves by
+            // `break`, into the drain below; a cancel returns past it.
             tokio::select! {
                 biased;
-                _ = self.cancel.cancelled() => break,
+                _ = self.cancel.cancelled() => return,
                 disconnected = disconnects.recv() => {
                     if disconnected.is_none() {
                         break;
                     }
-                    self.on_disconnected().await;
-                    self.send_state_event(state_events.as_ref(), SharedInstanceEvent::Disconnected);
-                    self.send_state_event(state_events.as_ref(), SharedInstanceEvent::Connecting);
+                    self.serve_disconnected(state_events.as_ref()).await;
                 }
                 connected = connects.recv() => {
                     if connected.is_none() {
@@ -181,6 +187,32 @@ impl SharedInstanceReconnectConsumer {
                 }
             }
         }
+        self.drain_queued(&mut disconnects, &mut connects, state_events.as_ref()).await;
+    }
+
+    /// Serves what the exited worker left queued, every disconnect then
+    /// every connect, the order the live arms keep; see [`Self::run`] for
+    /// why the reconnects are left.
+    #[deny(clippy::await_holding_invalid_type)]
+    async fn drain_queued(
+        &self,
+        disconnects: &mut mpsc::Receiver<AddressHash>,
+        connects: &mut mpsc::Receiver<AddressHash>,
+        state_events: Option<&mpsc::Sender<SharedInstanceEvent>>,
+    ) {
+        while disconnects.try_recv().is_ok() {
+            self.serve_disconnected(state_events).await;
+        }
+        while connects.try_recv().is_ok() {
+            self.send_state_event(state_events, SharedInstanceEvent::Connected);
+        }
+    }
+
+    #[deny(clippy::await_holding_invalid_type)]
+    async fn serve_disconnected(&self, state_events: Option<&mpsc::Sender<SharedInstanceEvent>>) {
+        self.on_disconnected().await;
+        self.send_state_event(state_events, SharedInstanceEvent::Disconnected);
+        self.send_state_event(state_events, SharedInstanceEvent::Connecting);
     }
 
     fn send_state_event(

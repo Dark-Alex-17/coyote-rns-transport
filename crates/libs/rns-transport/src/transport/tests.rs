@@ -276,3 +276,4 @@ include!("tests_parts/two_transport_shared_instance_probe17_unix.rs");
 include!("tests_parts/two_transport_shared_instance_state_events.rs");
 include!("tests_parts/two_transport_shared_instance_state_events_probe.rs");
 include!("tests_parts/two_transport_shared_instance_state_events_probe2.rs");
+include!("tests_parts/two_transport_shared_instance_state_events_probe3.rs");

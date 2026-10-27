@@ -25,7 +25,7 @@ breaks the fork's public API, the next patch digit otherwise.
 
 ```toml
 [dependencies]
-coyote-rns-transport = "0.16.0"
+coyote-rns-transport = "0.17.0"
 ```
 
 ```rust

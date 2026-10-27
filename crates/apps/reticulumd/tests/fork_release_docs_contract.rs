@@ -517,19 +517,7 @@ fn crate_readme_shared_instance_section_fence_is_pinned_by_the_api_test() {
         vec!["```rust", "```", "```rust", "```"],
         "the shared-instance section should carry exactly two rust fences and no other"
     );
-    let mut snippets: Vec<Vec<&str>> = Vec::new();
-    let mut current: Option<Vec<&str>> = None;
-    for line in section.lines() {
-        match (&mut current, line.trim_start()) {
-            (None, "```rust") => current = Some(Vec::new()),
-            (Some(lines), "```") => snippets.push(lines.clone()),
-            (Some(lines), _) => lines.push(line),
-            _ => {}
-        }
-        if line.trim_start() == "```" {
-            current = None;
-        }
-    }
+    let snippets = rust_snippets(section);
     assert!(
         snippets.iter().all(|snippet| !snippet.is_empty()),
         "no shared-instance snippet should be empty"
@@ -546,7 +534,7 @@ fn crate_readme_shared_instance_section_fence_is_pinned_by_the_api_test() {
                 Some((pattern, _)) => squash(pattern),
                 None => squash(line),
             };
-            !pin.contains(&needle)
+            needle != "_" && !pin.contains(&needle)
         })
         .collect();
     assert!(
@@ -554,6 +542,25 @@ fn crate_readme_shared_instance_section_fence_is_pinned_by_the_api_test() {
         "every line of the shared-instance snippet should appear verbatim in tests/shared_instance_api.rs:\n{}",
         unpinned.join("\n")
     );
+}
+
+/// The bodies of the `rust` fences in `text`, in order, each as its lines
+/// between the opening and closing fence.
+fn rust_snippets(text: &str) -> Vec<Vec<&str>> {
+    let mut snippets = Vec::new();
+    let mut current: Option<Vec<&str>> = None;
+    for line in text.lines() {
+        match (&mut current, line.trim_start()) {
+            (None, "```rust") => current = Some(Vec::new()),
+            (Some(lines), "```") => snippets.push(lines.clone()),
+            (Some(lines), _) => lines.push(line),
+            _ => {}
+        }
+        if line.trim_start() == "```" {
+            current = None;
+        }
+    }
+    snippets
 }
 
 /// Snippet text with every whitespace character removed and a pin's leading
@@ -990,7 +997,8 @@ fn readme_patch_list_opens_with_the_0_16_0_block_and_keeps_the_0_15_1_paragraph(
 /// tests; every other line of a snippet must appear, whitespace aside, in a
 /// pin file, with a `match` arm compared up to its `=>` because the pins
 /// reduce the README's log calls to labels (and may bind an unused pattern
-/// variable with a leading underscore).
+/// variable with a leading underscore); a bare `_` arm is skipped rather than
+/// matched against any underscore in the pins.
 #[test]
 fn crate_readme_rust_snippets_are_pinned_verbatim_by_the_api_tests() {
     let readme = read_repo_file("crates/libs/rns-transport/README.md");
@@ -1008,19 +1016,7 @@ fn crate_readme_rust_snippets_are_pinned_verbatim_by_the_api_tests() {
     .join("\n");
     let pins = squash(&pins);
 
-    let mut snippets = Vec::new();
-    let mut current: Option<Vec<&str>> = None;
-    for line in readme.lines() {
-        match (&mut current, line.trim_start()) {
-            (None, "```rust") => current = Some(Vec::new()),
-            (Some(lines), "```") => snippets.push(lines.clone()),
-            (Some(lines), _) => lines.push(line),
-            _ => {}
-        }
-        if line.trim_start() == "```" {
-            current = None;
-        }
-    }
+    let snippets = rust_snippets(&readme);
     assert!(
         snippets.len() >= 7,
         "the README should carry the consumer, handler, request, outcome, link-opening, shared-instance and shared-instance state snippets, found {}",
@@ -1038,7 +1034,7 @@ fn crate_readme_rust_snippets_are_pinned_verbatim_by_the_api_tests() {
                 Some((pattern, _)) => squash(pattern),
                 None => squash(trimmed),
             };
-            if !pins.contains(&needle) {
+            if needle != "_" && !pins.contains(&needle) {
                 unpinned.push(trimmed.to_string());
             }
         }

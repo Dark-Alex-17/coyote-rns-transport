@@ -1,10 +1,11 @@
 // Coverage for the shared-instance client's state stream: an attach sends `Connecting`
-// then `Connected`, a dropped connection sends `Disconnected` then `Connecting` once the
-// flush has run and `Connected` when the stream is back, a detach ends the stream, a client
-// attached while nothing listens stays in `Connecting` until the socket exists, and a full
-// channel drops the event at debug without stalling the flush or the re-announce. The
-// consumer driven by hand pins the order the events take within one cycle. Helpers come
-// from the sibling `tests_parts` files included into this module.
+// then `Connected`, a dropped connection sends `Disconnected` then `Connecting` after the
+// drop is served (the flush itself runs only while the transport is still attached) and
+// `Connected` when the stream is back, a detach ends the stream, a client attached while
+// nothing listens stays in `Connecting` until the socket exists, and a full channel drops
+// the event at debug without stalling the flush or the re-announce. The consumer driven by
+// hand pins the order the events take within one cycle. Helpers come from the sibling
+// `tests_parts` files included into this module.
 
 /// How long a client attached to a closed port is watched for an event that must not come.
 const SHARED_INSTANCE_STATE_QUIET: Duration = Duration::from_millis(500);
@@ -126,7 +127,8 @@ async fn shared_instance_state_drive_consumer(
 
 /// A connect and the reconnect behind it: the stream reads `Connected` alone and the
 /// reconnect is still served, so the stream rides beside the re-synthesis rather than in
-/// place of it.
+/// place of it. The hand-built consumer's random iface is registered nowhere, so the arm
+/// served is the one that records the reconnect without re-synthesizing the tunnel.
 #[tokio::test]
 #[deny(clippy::await_holding_invalid_type)]
 async fn shared_instance_state_consumer_reports_connected_and_serves_the_reconnect() {
@@ -136,7 +138,10 @@ async fn shared_instance_state_consumer_reports_connected_and_serves_the_reconne
     assert_eq!(read, [SharedInstanceEvent::Connected]);
     let records: Vec<String> =
         shared_instance_records_for(name).into_iter().map(|(_, record)| record).collect();
-    assert!(records.iter().any(|record| record.contains("reconnected")), "{records:?}");
+    assert!(
+        records.iter().any(|record| record.contains("reconnected but no longer registered")),
+        "{records:?}"
+    );
 }
 
 /// A disconnect, a connect and a reconnect all waiting: the stream reads `Disconnected`,
@@ -260,7 +265,8 @@ async fn shared_instance_state_events_follow_a_unix_restart() {
 
 /// A state channel of capacity one that is never drained: the attach's `Connecting` fills
 /// it and every later event is dropped at debug, while the consumer keeps serving the
-/// restart, so the re-announce lands and the tunnel is re-synthesized.
+/// restart, so the re-announce lands and the tunnel is re-synthesized. The one event the
+/// channel retains is that `Connecting`, nothing behind it.
 #[tokio::test]
 #[deny(clippy::await_holding_invalid_type)]
 async fn shared_instance_state_events_full_channel_drops_at_debug_without_stalling() {
@@ -268,7 +274,7 @@ async fn shared_instance_state_events_full_channel_drops_at_debug_without_stalli
     let name = "shared-instance-state-full";
     let server = shared_instance_server().await;
     let mut server_announces = server.transport.recv_announces().await;
-    let (client, events) = shared_instance_state_client(name, server.endpoint(), 1).await;
+    let (client, mut events) = shared_instance_state_client(name, server.endpoint(), 1).await;
     server.await_accepted_connections(1).await;
     shared_instance_assert_attached(&client.transport, client.iface).await;
     let registered =
@@ -293,6 +299,12 @@ async fn shared_instance_state_events_full_channel_drops_at_debug_without_stalli
         shared_instance_records_for(name)
     );
 
+    assert_eq!(
+        shared_instance_state_next(&mut events).await,
+        Some(SharedInstanceEvent::Connecting),
+        "the retained event is the attach's own `Connecting`"
+    );
+    assert!(events.try_recv().is_err(), "nothing was queued behind the retained event");
     drop(events);
     timeout(STOP_TIMEOUT, client.transport.stop()).await.expect("client stop completes");
     timeout(STOP_TIMEOUT, restarted.transport.stop())

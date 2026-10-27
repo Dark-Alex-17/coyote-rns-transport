@@ -499,7 +499,8 @@ of the sender is dropped on `detach_shared_instance`, `Transport::stop` or
 when the client worker exits; the stream ends once no other clone, a
 retained `SharedInstanceOptions` clone included, is alive. A detach or a
 stop sends no `Disconnected`, but a drop that was already queued when the
-detach landed is still served and read before the stream ends.
+detach landed is still served and read as `Disconnected`, `Connecting`
+before the stream ends (a connect already queued is read as `Connected`).
 `connected_to_shared_instance()` is the posture flag and is unchanged by the
 events: it stays set across a `Disconnected` until detach or stop. Python's
 `LocalClientInterface` exposes no such stream; its reconnect loop is

@@ -25,7 +25,7 @@ impl Transport {
     /// With [`SharedInstanceOptions::with_state_events`] set, the attach
     /// sends [`SharedInstanceEvent::Connecting`] once and that task sends
     /// the events of every connection cycle after it; the stream ends when
-    /// the task does.
+    /// the task does and no other sender clone is alive.
     /// Python also forces transport, remote management and probes off when it
     /// attaches (`RNS/Reticulum.py:438-440`); this method leaves
     /// `transport_enabled` as configured, since the crate supports a

@@ -1122,6 +1122,7 @@ impl TcpClient {
         self.connect_events.is_some()
     }
 
+    /// Whether a reconnect-event sender is installed.
     #[must_use]
     pub fn reconnect_events_enabled(&self) -> bool {
         self.reconnect_events.is_some()

@@ -137,10 +137,11 @@ impl SharedInstanceReconnectConsumer {
     /// change the public `Sender<AddressHash>` payload and is deferred.
     ///
     /// `state_events` is the attach's stream: a served disconnect sends
-    /// `Disconnected` then `Connecting` once the flush has run, a served
-    /// connect sends `Connected`, each with `try_send`. The sender is a
-    /// parameter rather than a field so it drops when this task returns:
-    /// the re-announce task clones `self` and outlives a detach by
+    /// `Disconnected` then `Connecting` after the drop is served; the flush
+    /// itself runs only while the transport is still attached. A served
+    /// connect sends `Connected`; each event goes with `try_send`. The
+    /// sender is a parameter rather than a field so it drops when this task
+    /// returns: the re-announce task clones `self` and outlives a detach by
     /// `reconnect_wait` plus the grace, and must not hold the stream open.
     /// The attach sends the first `Connecting` itself, before this task is
     /// spawned.

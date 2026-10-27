@@ -45,7 +45,7 @@ hygiene` patch is fork commits `0b5b2dff`, `09ee7c45` and `7cfab1ef`; the
 fork commit `79aae7ed`, also a `response outcomes` commit; the `release 0.17.0`
 patch carries no other id and is fork commits `972318f6`, `a3451134`,
 `4b2208f3`, `f0c32509`, `7fc78269`, `e2e9cdc6`, `8b7619b7`, `e6f5dc52`,
-`92568aa7`, `1facb7a4` and `81d19f77`.
+`92568aa7`, `1facb7a4`, `81d19f77` and `3fc9bbd4`.
 
 | File | Patch |
 | --- | --- |
@@ -58,6 +58,7 @@ patch carries no other id and is fork commits `972318f6`, `a3451134`,
 | `crates/apps/reticulumd/tests/fork_release_docs_contract_parts/crate_readme_sections.rs` | release 0.17.0 |
 | `crates/apps/reticulumd/tests/fork_release_docs_contract_parts/readme_patch_list.rs` | release 0.17.0 |
 | `crates/apps/reticulumd/tests/fork_release_docs_contract_parts/release_0_17_0_probe.rs` | release 0.17.0 |
+| `crates/apps/reticulumd/tests/fork_release_docs_contract_parts/release_0_17_0_probe2.rs` | release 0.17.0 |
 | `crates/apps/reticulumd/tests/fork_release_docs_contract_parts/release_notes_breaking.rs` | release 0.17.0 |
 | `crates/apps/reticulumd/tests/fork_release_docs_contract_parts/request_layer_api_docs.rs` | release 0.17.0 |
 | `crates/apps/reticulumd/tests/fork_release_docs_contract.rs` | destination lookup, ledger contracts, response outcomes, shared-instance state, release 0.17.0 |
@@ -408,7 +409,8 @@ resolves `Resource(Complete)` for a 48 KiB reply and `Packet` for a short
 one, the release section's Python-in-the-loop proof rows.
 
 Fork commits `972318f6`, `a3451134`, `4b2208f3`, `f0c32509`, `7fc78269`,
-`e2e9cdc6`, `8b7619b7`, `e6f5dc52`, `92568aa7`, `1facb7a4` and `81d19f77`:
+`e2e9cdc6`, `8b7619b7`, `e6f5dc52`, `92568aa7`, `1facb7a4`, `81d19f77` and
+`3fc9bbd4`:
 release 0.17.0. The first retargets the promotion-sensitive pins to the
 literal 0.17.0 label, since a released section is frozen:
 `crates/apps/reticulumd/tests/fork_publish_contract_parts/ledger_contract.rs`
@@ -442,16 +444,17 @@ result against `v0.16.0`, 0 major and 0 minor with the additive changes
 below the tool's default lint level, and the contract tests that pin the
 release). The fourth amends the versioning paragraph of
 `crates/libs/rns-transport/README.md`: a fork release that only fixes bugs, or
-adds API a consumer need not opt into, bumps the patch digit, a fork release
-that adds public API may bump the minor digit so the digit tells a consumer
-there is new surface to opt into, and `0.17.0` is the first such additive
-minor; the 0.15.0 clause and the upstream-rebase sentence are kept. It also
-adds the 0.17.0 paragraph to the `## Patch list`, folding it into the intro
-sentence (the destination lookup, the responder outcome, the shared-instance
-state events, the line telling consumers `AddressHash::new_from_hex_string`
-has validated its input since 0.14.1, and the test-only hygiene) and leaving
-the 0.16.0 block as a standalone paragraph with its bullets unchanged. The
-fifth carries two test-only precision edits: `connector_with` in
+adds API a consumer need not opt into, bumps the patch digit (as `92568aa7`
+later words it), a fork release that adds public API may bump the minor digit
+so the digit tells a consumer there is new surface to opt into, and `0.17.0`
+is the first such additive minor; the 0.15.0 clause and the upstream-rebase
+sentence are kept. It also adds the 0.17.0 paragraph to the `## Patch list`,
+folding it into the intro sentence (the destination lookup, the responder
+outcome, the shared-instance state events, the line telling consumers
+`AddressHash::new_from_hex_string` has validated its input since 0.14.1, and
+the test-only hygiene) and leaving the 0.16.0 block as a standalone paragraph
+with its bullets unchanged. The fifth carries two test-only precision edits:
+`connector_with` in
 `crates/libs/rns-transport/src/transport/tests_parts/two_transport_loopback.rs`
 asserts the `bool` that `set_shared_config` returns instead of discarding
 it, and the `DriveSpec` doc in
@@ -504,8 +507,23 @@ terms. The eleventh narrows the probe's semver pin to the version bullet
 itself, the one `### Changed` bullet that opens with the crate version, and adds
 `release_0_17_0_ledgers_name_the_shared_interop_commit_and_the_promoted_pin`,
 which holds this file's legend to the shared interop commit wording and the
-CHANGELOG ledger-contracts bullet to the promoted pin wording. The ledger
-commits that cite the eleven commits above touch only this file.
+CHANGELOG ledger-contracts bullet to the promoted pin wording. The twelfth
+adopts
+`crates/apps/reticulumd/tests/fork_release_docs_contract_parts/release_0_17_0_probe2.rs`,
+included from the same root, whose four tests require the `### Breaking`
+verdict to reject prose placed before the additive sentence
+(`breaking_verdict_rejects_prose_placed_before_the_additive_sentence`) and
+bullets followed by it
+(`breaking_verdict_rejects_bullets_followed_by_the_additive_sentence`), and
+hold the CHANGELOG release headings to newest-first order with ISO dates
+(`changelog_release_headings_read_newest_first_with_iso_dates`) and the
+root's include list to the part files on disk, each named by the CHANGELOG
+bullet that records the split
+(`every_release_docs_contract_part_is_included_once_and_named_by_the_changelog`);
+the same commit makes the 0.17.0 patch-list test in `readme_patch_list.rs`
+require its block to be the first in the list, and adds the README's
+upstream-rebase sentence to the policy needles in `release_0_17_0_probe.rs`.
+The ledger commits that cite the twelve commits above touch only this file.
 
 ## 0.16.0 (upstream 0.14.0)
 

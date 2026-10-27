@@ -41,8 +41,8 @@ and `c18ea340`; the `shared-instance state` patch is fork commits
 `b87cd69a`, `42795c1c`, `c4704519`, `43b03644`, `d62ab8b3`, `80b0c73e`,
 `28c9973d`, `53c6267a`, `32bd4b00`, `f36f1b7b` and `24f178dd`; the `batch
 hygiene` patch is fork commits `0b5b2dff`, `09ee7c45` and `7cfab1ef`; the
-`Python-in-the-loop request outcome interop` patch has no J-id and is fork
-commit `79aae7ed`, also a `response outcomes` commit; the `release 0.17.0`
+`Python-in-the-loop request outcome interop` patch carries no other id and is
+fork commit `79aae7ed`, also a `response outcomes` commit; the `release 0.17.0`
 patch carries no other id and is fork commits `972318f6`, `a3451134`,
 `4b2208f3`, `f0c32509`, `7fc78269`, `e2e9cdc6`, `8b7619b7`, `e6f5dc52` and
 `92568aa7`.
@@ -474,7 +474,7 @@ adopts
 `crates/apps/reticulumd/tests/fork_release_docs_contract_parts/release_0_17_0_probe.rs`,
 included from the same root, whose four tests hold the 0.17.0
 `### Breaking` body to the whole additive sentence
-(`release_0_17_0_breaking_is_exactly_the_ruled_additive_sentence`), the
+(`release_0_17_0_breaking_is_exactly_the_additive_sentence`), the
 version bullet to the semver verdict
 (`release_0_17_0_version_bullet_records_the_semver_verdict`), the README
 policy to the digit each kind of release bumps
@@ -498,8 +498,8 @@ names the probe, its ledger-contracts bullet says the full-hash pin covered
 `## Unreleased` during the cycle and names `0.17.0` now, a new test-only
 bullet records the split, the fixtures, the README needle and the rename,
 and the legend above says the interop patch's commit is also a `response
-outcomes` commit. The ledger round that cites these four commits touches
-only this file.
+outcomes` commit. The ledger promotion itself touches only this file and
+cites the four commits above.
 
 ## 0.16.0 (upstream 0.14.0)
 

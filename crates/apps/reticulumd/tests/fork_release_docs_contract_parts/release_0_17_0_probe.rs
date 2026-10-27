@@ -1,15 +1,15 @@
 // Pins over the 0.17.0 release artefacts beyond what the release contracts
 // check. Those pin the additive-minor `### Breaking` rule by its prefix, the
 // README policy by two literals and the version by nine sites; these pins
-// hold the whole ruled sentence (not just its prefix) as the section's body,
+// hold the whole additive sentence (not just its prefix) as the section's body,
 // the semver verdict the version bullet records, the digit the README policy
 // names for each kind of release, and the one register claim about behaviour
 // already shipped (`AddressHash` hex parsing since 0.14.1) against the crate
 // as published.
 
-/// The sentence the user ruled for the additive-minor `### Breaking`
-/// subsection, whitespace-joined as the CHANGELOG wraps it.
-const RULED_ADDITIVE_BREAKING_SENTENCE: &str = "None. This minor release is additive; it adds \
+/// The additive sentence the CHANGELOG commits to for the additive-minor
+/// `### Breaking` subsection, whitespace-joined as the CHANGELOG wraps it.
+const ADDITIVE_BREAKING_SENTENCE: &str = "None. This minor release is additive; it adds \
      consumer-facing surface (responder outcomes, shared-instance state events, a destination \
      lookup) that a consumer adopts deliberately, so the minor digit signals new surface to opt \
      into rather than a patch to absorb.";
@@ -52,11 +52,11 @@ fn subsections(section: &str) -> Vec<(&str, &str)> {
 }
 
 /// The 0.17.0 `### Breaking` subsection is the first subsection and its whole
-/// body is the ruled sentence: the contract pins only the prefix and a
+/// body is the additive sentence: the contract pins only the prefix and a
 /// non-empty reason, so a reworded reason or a trailing bullet would pass it
-/// while the release note no longer says what the user ruled.
+/// while the release note no longer says what the CHANGELOG commits to.
 #[test]
-fn release_0_17_0_breaking_is_exactly_the_ruled_additive_sentence() {
+fn release_0_17_0_breaking_is_exactly_the_additive_sentence() {
     let changelog = read_repo_file("crates/libs/rns-transport/CHANGELOG.md");
     let section = changelog_release_section(&changelog, "0.17.0");
     let subs = subsections(&section);
@@ -68,8 +68,8 @@ fn release_0_17_0_breaking_is_exactly_the_ruled_additive_sentence() {
     );
     assert_eq!(
         joined_prose(first_body),
-        RULED_ADDITIVE_BREAKING_SENTENCE,
-        "the additive-minor `### Breaking` body is the single ruled sentence, nothing more"
+        ADDITIVE_BREAKING_SENTENCE,
+        "the additive-minor `### Breaking` body is the single additive sentence, nothing more"
     );
     assert!(
         subs.iter().any(|(name, _)| *name == "Added"),
@@ -116,7 +116,7 @@ fn crate_readme_release_policy_names_the_digit_each_release_kind_bumps() {
     }
     assert!(
         !readme.contains("(additive API, internal fixes) bump the patch digit"),
-        "the pre-ruling sentence that routed additive API to the patch digit is gone"
+        "the sentence that routed additive API to the patch digit is gone"
     );
 }
 

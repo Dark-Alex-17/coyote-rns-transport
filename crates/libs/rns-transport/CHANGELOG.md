@@ -56,10 +56,14 @@ Removed) bullet of its own, marked as such.
   mid-transfer, a replaced receiver), by
   `two_transport_loopback_requests_outcome_probe.rs` (a dropped receiver, a
   link the handler closed before answering, a handler awaiting its own
-  receiver, a call made after the handler returned) and against a Python
-  requester by `python_to_rust_request_outcome.rs`;
-  `tests/request_handler_api.rs` and `tests/request_receipt_api.rs` cover
-  the public paths.
+  receiver, a call made after the handler returned), by
+  `two_transport_loopback_requests_outcome_probe2.rs` (a receiver awaited in
+  a task the handler spawned, two requests in flight on one link, a request
+  that arrived as a Resource) and against a Python requester by
+  `python_to_rust_request_outcome.rs`; `tests/request_handler_api.rs` and
+  `tests/request_receipt_api.rs` cover the public paths, and
+  `fork_release_docs_contract.rs` pins the README paragraph, the private
+  receiver field and the `non_exhaustive` attribute.
 
 ### Changed
 

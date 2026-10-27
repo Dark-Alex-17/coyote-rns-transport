@@ -36,7 +36,7 @@ The `destination lookup` patch is fork commits `5246fc9c`, `15278355`,
 `5093b5b6`, `338811b0` and `94d76ac8`; the `ledger contracts` patch is fork
 commits `d2f871f7`, `e8e64626`, `f24e4ec3`, `0b86c14b`, `338811b0` and
 `94d76ac8`; the `response outcomes` patch is fork commits `d6cfbb58`,
-`7ef891be`, `79aae7ed`, `72242c71` and `c627c6d7`.
+`7ef891be`, `79aae7ed`, `72242c71`, `c627c6d7` and `dea9af76`.
 
 | File | Patch |
 | --- | --- |
@@ -58,6 +58,7 @@ commits `d2f871f7`, `e8e64626`, `f24e4ec3`, `0b86c14b`, `338811b0` and
 | `crates/libs/rns-transport/src/transport/tests_parts/two_transport_destination_desc_probe2.rs` | destination lookup |
 | `crates/libs/rns-transport/src/transport/tests_parts/two_transport_loopback_requests_outcome.rs` | response outcomes |
 | `crates/libs/rns-transport/src/transport/tests_parts/two_transport_loopback_requests_outcome_probe.rs` | response outcomes |
+| `crates/libs/rns-transport/src/transport/tests_parts/two_transport_loopback_requests_outcome_probe2.rs` | response outcomes |
 | `crates/libs/rns-transport/src/transport/tests.rs` | destination lookup, response outcomes |
 | `crates/libs/rns-transport/tests/destination_desc_api.rs` | destination lookup |
 | `crates/libs/rns-transport/tests/request_handler_api.rs` | response outcomes |
@@ -127,8 +128,8 @@ fixture for the misplaced case; `94d76ac8` makes that fixture assert the
 position message's own wording rather than a word the release-tree message
 shares.
 
-Fork commits `d6cfbb58`, `7ef891be`, `79aae7ed`, `72242c71` and
-`c627c6d7`:
+Fork commits `d6cfbb58`, `7ef891be`, `79aae7ed`, `72242c71`, `c627c6d7` and
+`dea9af76`:
 J3, response outcomes. The library behaviour changes are: a request handler
 can learn what became of the response it returned. `d6cfbb58` adds
 `InboundRequest::track_outcome` (`destination/request/inbound.rs`), which
@@ -172,7 +173,13 @@ request-handler paragraph in `fork_release_docs_contract.rs`, raises its
 docs-walker floor, says in the `track_outcome` rustdoc that the call belongs
 inside the handler, names the two types in the module doc, pins the receiver
 as `Send + Sync` and as a future in `tests/request_receipt_api.rs`, and
-cites the proofs section of the crate CHANGELOG by heading alone.
+makes the crate CHANGELOG cite the README's proofs section by heading alone;
+it also waits for the oversize verdicts under the resource budget and marks
+the last loopback test with the lock lint. `dea9af76` adds
+`two_transport_loopback_requests_outcome_probe2.rs`: a receiver awaited in a
+task the handler spawned, two requests in flight on one link each resolving
+their own verdict, and a request that arrived as a request Resource; it also
+formats the included outcome test files with the repo rustfmt config.
 
 ## 0.16.0 (upstream 0.14.0)
 

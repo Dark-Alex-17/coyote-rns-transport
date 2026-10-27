@@ -2,7 +2,7 @@
 // that the verdict table and the first probe file leave untried: the README's own pattern,
 // a task the handler spawns to await the receiver while the handler returns at once; two
 // requests in flight on one link whose handler answers one and stays silent on the other,
-// each receiver resolving for its own request; and a request that arrived as a request
+// each receiver resolving for its own request; a request that arrived as a request
 // Resource rather than one packet, tracked like any other; and a handler that panics after
 // tracking, whose receiver resolves `NotSent` because the sender went down with the task.
 // Helpers come from the sibling `tests_parts` files.

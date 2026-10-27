@@ -634,7 +634,8 @@ fn crate_readme_link_section_describes_destination_desc() {
 /// The request-handler section describes `track_outcome` the way the
 /// dispatcher behaves: the receiver it returns, when to call it, the three
 /// outcomes and what each one proves, the proof section a packet outcome
-/// defers to, the stop that resolves `NotSent`, and the Python it diverges
+/// defers to, the stop and the panicking handler that resolve `NotSent`, the
+/// dropped-sender rule they are instances of, and the Python it diverges
 /// from.
 #[test]
 fn crate_readme_request_handler_section_describes_track_outcome() {
@@ -650,6 +651,8 @@ fn crate_readme_request_handler_section_describes_track_outcome() {
         "see Delivery proofs on a link",
         "`into_data`",
         "`Transport::stop`",
+        "panicked after tracking",
+        "drops the sender",
         "`RNS/Link.py:846-852`",
     ] {
         assert!(

@@ -36,7 +36,8 @@ The `destination lookup` patch is fork commits `5246fc9c`, `15278355`,
 `5093b5b6`, `338811b0` and `94d76ac8`; the `ledger contracts` patch is fork
 commits `d2f871f7`, `e8e64626`, `f24e4ec3`, `0b86c14b`, `338811b0` and
 `94d76ac8`; the `response outcomes` patch is fork commits `d6cfbb58`,
-`7ef891be`, `79aae7ed`, `72242c71`, `c627c6d7` and `dea9af76`.
+`7ef891be`, `79aae7ed`, `72242c71`, `c627c6d7`, `dea9af76` and
+`d2854884`.
 
 | File | Patch |
 | --- | --- |
@@ -128,8 +129,8 @@ fixture for the misplaced case; `94d76ac8` makes that fixture assert the
 position message's own wording rather than a word the release-tree message
 shares.
 
-Fork commits `d6cfbb58`, `7ef891be`, `79aae7ed`, `72242c71`, `c627c6d7` and
-`dea9af76`:
+Fork commits `d6cfbb58`, `7ef891be`, `79aae7ed`, `72242c71`, `c627c6d7`,
+`dea9af76` and `d2854884`:
 J3, response outcomes. The library behaviour changes are: a request handler
 can learn what became of the response it returned. `d6cfbb58` adds
 `InboundRequest::track_outcome` (`destination/request/inbound.rs`), which
@@ -180,6 +181,10 @@ the last loopback test with the lock lint. `dea9af76` adds
 task the handler spawned, two requests in flight on one link each resolving
 their own verdict, and a request that arrived as a request Resource; it also
 formats the included outcome test files with the repo rustfmt config.
+`d2854884` names the rule behind `NotSent` in the rustdoc and the README,
+every path that drops the sender, a handler that panics after tracking
+included, and pins that arm in the second probe file while a sibling request
+on the link is still answered.
 
 ## 0.16.0 (upstream 0.14.0)
 

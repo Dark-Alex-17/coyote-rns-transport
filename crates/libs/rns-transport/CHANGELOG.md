@@ -79,8 +79,8 @@ Removed) bullet of its own, marked as such.
   first included, and `Disconnected` that an established stream ended
   while attached and the flush, which runs only while the transport is
   still attached, has run. The attach itself sends the first
-  `Connecting` once the interface is spawned and the slot taken (a refused
-  attach sends nothing); the consumer task
+  `Connecting` once the interface is spawned, the slot taken and the
+  posture set (a refused attach sends nothing); the consumer task
   (`links_parts/transport_sections/shared_instance_reconnect.rs`) sends
   every event after it, `Connected` on each established stream and, after
   each dropped connection, `Disconnected` then `Connecting` at once, so one
@@ -97,24 +97,30 @@ Removed) bullet of its own, marked as such.
   sends no `Disconnected`, but a drop that was already queued when the
   detach landed is still served and read as `Disconnected`, `Connecting`
   before the stream ends (a connect already queued is read as `Connected`);
-  the posture flag `connected_to_shared_instance` is unchanged by the
-  events and stays set across a `Disconnected` until detach or stop. Underneath,
+  the consumer drains both queues once the worker's channels close and
+  leaves a queued reconnect. The posture flag `connected_to_shared_instance`
+  is unchanged by the events and stays set across a `Disconnected` until
+  detach or stop. Underneath,
   `TcpClient::with_connect_events` and `LocalUnixClient::with_connect_events`
   with their `connect_events_enabled` getters (`iface/tcp_client.rs`,
   `iface/local.rs`) fire on every established stream, the first included,
-  where `with_reconnect_events` fires from the second on. Pinned by
+  where `with_reconnect_events` fires from the second on; a full or closed
+  channel drops the connect event at debug. Pinned by
   `two_transport_shared_instance_state_events.rs` (the TCP restart sequence
   with the posture check, the attach while the listener is down, the unix
-  twin, the capacity-one channel dropping at debug while the re-announce
-  still lands, the hand-driven consumer's per-cycle order and a connect
-  served beside its reconnect), by
+  twin, the capacity-one channel dropping its four later events at debug
+  while the re-announce still lands, the hand-driven consumer's per-cycle
+  order and a connect served beside its reconnect), by
   `two_transport_shared_instance_state_events_probe.rs` (a stop ending the
   stream without a `Disconnected`, a refused attach sending nothing, a
   dropped receiver leaving the consumer serving, two restarts in a row, a
   detach while dialing), by
   `two_transport_shared_instance_state_events_probe2.rs` (a retained options
   clone keeping the stream open after a detach, a drop queued when the
-  senders went away still served, two cycles nesting under a storm), by the
+  senders went away still served, two cycles nesting under a storm), by
+  `two_transport_shared_instance_state_events_probe3.rs` (a connect queued
+  when the senders went away still served, with the disconnect channel
+  closed and with it still open), by the
   connect-event unit tests in
   `iface/tcp_client.rs` and `iface/local.rs` (one event per established
   stream, the first included), by
@@ -135,6 +141,12 @@ Removed) bullet of its own, marked as such.
   (`fork_publish_contract_parts/release_frozen_sections_probe2.rs`), and the
   crate README's description of `Transport::destination_desc` and its link
   snippet are pinned, line by line and as one block
+  (`fork_release_docs_contract.rs`).
+- Shared-instance state tests, test-only: the full-channel test pins the
+  four events dropped at debug in place of a non-empty drop record, the
+  hand-driven consumer tests share one read-to-end helper
+  (`two_transport_shared_instance_state_events.rs`), and the README's
+  queued-drop and queued-connect sentences are pinned
   (`fork_release_docs_contract.rs`).
 
 ## 0.16.0 - 2026-10-25

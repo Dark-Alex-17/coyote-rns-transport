@@ -25,10 +25,21 @@ impl RequestHandlerRecord {
         &self,
         respond: fn(&rmpv::Value) -> Option<RequestResponse>,
     ) -> impl RequestHandler + 'static {
+        self.handler_with(respond, |_| {})
+    }
+
+    /// Like `handler`, running `before` on each request ahead of `respond`, while the
+    /// request is still owned and can be tracked.
+    fn handler_with(
+        &self,
+        respond: fn(&rmpv::Value) -> Option<RequestResponse>,
+        before: impl Fn(&mut InboundRequest) + Send + Sync + 'static,
+    ) -> impl RequestHandler + 'static {
         let seen = self.seen.clone();
         let calls = self.calls.clone();
-        move |request: InboundRequest| {
+        move |mut request: InboundRequest| {
             calls.fetch_add(1, Ordering::SeqCst);
+            before(&mut request);
             let response = respond(request.data());
             let request_id = request.request_id();
             let remote = request.remote_identity().map(|identity| identity.address_hash);

@@ -18,25 +18,16 @@
 async fn shared_instance_state_consumer_drains_a_queued_drop_then_the_queued_connect() {
     install_test_logger();
     let name = "shared-instance-state-consumer-drain-both";
-    let iface = AddressHash::new_from_rand(OsRng);
-    let (reconnects_tx, reconnects) = tokio::sync::mpsc::channel(1);
-    let (connects_tx, connects) = tokio::sync::mpsc::channel(1);
-    let (disconnects_tx, disconnects) = tokio::sync::mpsc::channel(1);
-    let (state_tx, mut state) = tokio::sync::mpsc::channel(8);
-    disconnects_tx.send(iface).await.expect("queue the disconnect");
-    connects_tx.send(iface).await.expect("queue the connect");
-    drop(reconnects_tx);
-    drop(connects_tx);
-    drop(disconnects_tx);
-
-    let (_transport, consumer) = shared_instance_reconnect_consumer(name, iface);
-    let cancel = consumer.cancel.clone();
-    timeout(STOP_TIMEOUT, consumer.run(reconnects, connects, disconnects, Some(state_tx)))
-        .await
-        .expect("the consumer exits once the channels are closed");
-    cancel.cancel();
-
-    let read = shared_instance_state_read_to_end(&mut state).await;
+    let read = shared_instance_state_drive_consumer_with(
+        name,
+        DriveSpec {
+            queued: &[Queued::Disconnect, Queued::Connect],
+            close_before_run: &[Queued::Reconnect, Queued::Connect, Queued::Disconnect],
+            cancel_before_run: false,
+            exits: "the consumer exits once the channels are closed",
+        },
+    )
+    .await;
     assert_eq!(
         read,
         [
@@ -62,25 +53,16 @@ async fn shared_instance_state_consumer_drains_a_queued_drop_then_the_queued_con
 async fn shared_instance_state_consumer_leaves_a_queued_reconnect_when_the_worker_is_gone() {
     install_test_logger();
     let name = "shared-instance-state-consumer-drain-leaves-reconnect";
-    let iface = AddressHash::new_from_rand(OsRng);
-    let (reconnects_tx, reconnects) = tokio::sync::mpsc::channel(1);
-    let (connects_tx, connects) = tokio::sync::mpsc::channel(1);
-    let (disconnects_tx, disconnects) = tokio::sync::mpsc::channel(1);
-    let (state_tx, mut state) = tokio::sync::mpsc::channel(8);
-    connects_tx.send(iface).await.expect("queue the connect");
-    reconnects_tx.send(iface).await.expect("queue the reconnect");
-    drop(reconnects_tx);
-    drop(connects_tx);
-    drop(disconnects_tx);
-
-    let (_transport, consumer) = shared_instance_reconnect_consumer(name, iface);
-    let cancel = consumer.cancel.clone();
-    timeout(STOP_TIMEOUT, consumer.run(reconnects, connects, disconnects, Some(state_tx)))
-        .await
-        .expect("the consumer exits once the channels are closed");
-    cancel.cancel();
-
-    let read = shared_instance_state_read_to_end(&mut state).await;
+    let read = shared_instance_state_drive_consumer_with(
+        name,
+        DriveSpec {
+            queued: &[Queued::Connect, Queued::Reconnect],
+            close_before_run: &[Queued::Reconnect, Queued::Connect, Queued::Disconnect],
+            cancel_before_run: false,
+            exits: "the consumer exits once the channels are closed",
+        },
+    )
+    .await;
     assert_eq!(read, [SharedInstanceEvent::Connected], "the queued connect is still read");
     let records: Vec<String> =
         shared_instance_records_for(name).into_iter().map(|(_, record)| record).collect();
@@ -99,24 +81,16 @@ async fn shared_instance_state_consumer_leaves_a_queued_reconnect_when_the_worke
 async fn shared_instance_state_consumer_cancelled_before_it_polls_serves_nothing_queued() {
     install_test_logger();
     let name = "shared-instance-state-consumer-cancelled-first";
-    let iface = AddressHash::new_from_rand(OsRng);
-    let (reconnects_tx, reconnects) = tokio::sync::mpsc::channel(1);
-    let (connects_tx, connects) = tokio::sync::mpsc::channel(1);
-    let (disconnects_tx, disconnects) = tokio::sync::mpsc::channel(1);
-    let (state_tx, mut state) = tokio::sync::mpsc::channel(8);
-    disconnects_tx.send(iface).await.expect("queue the disconnect");
-    connects_tx.send(iface).await.expect("queue the connect");
-
-    let (_transport, consumer) = shared_instance_reconnect_consumer(name, iface);
-    consumer.cancel.cancel();
-    timeout(STOP_TIMEOUT, consumer.run(reconnects, connects, disconnects, Some(state_tx)))
-        .await
-        .expect("the consumer returns on the cancel");
-    drop(reconnects_tx);
-    drop(connects_tx);
-    drop(disconnects_tx);
-
-    let read = shared_instance_state_read_to_end(&mut state).await;
+    let read = shared_instance_state_drive_consumer_with(
+        name,
+        DriveSpec {
+            queued: &[Queued::Disconnect, Queued::Connect],
+            close_before_run: &[],
+            cancel_before_run: true,
+            exits: "the consumer returns on the cancel",
+        },
+    )
+    .await;
     assert_eq!(read, [], "a cancel seen by the select serves nothing queued");
     let records = shared_instance_records_for(name);
     assert!(records.is_empty(), "no queued event is served after the cancel: {records:?}");

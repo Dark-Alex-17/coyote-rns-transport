@@ -76,12 +76,34 @@ async fn listener(name: &str, client_mtu: usize) -> LoopbackListener {
 
 #[deny(clippy::await_holding_invalid_type)]
 async fn connector(name: &str, port: u16, mtu: usize) -> LoopbackConnector {
+    connector_with(name, port, mtu, None).await
+}
+
+/// Like `connector`, with `shared` applied to the `TcpClient` iface before it is spawned.
+/// Pass `ingress_control: Some(false)` when the test announces twice in quick succession:
+/// a freshly connected interface otherwise holds the second of two announces that arrive
+/// within half a second for `burst_hold`, well past the loopback timeout.
+#[deny(clippy::await_holding_invalid_type)]
+async fn connector_with(
+    name: &str,
+    port: u16,
+    mtu: usize,
+    shared: Option<crate::iface::InterfaceSharedConfig>,
+) -> LoopbackConnector {
     let identity = PrivateIdentity::new_from_rand(OsRng);
     let transport = Transport::new(TransportConfig::new(name, &identity, false));
     let announces = transport.recv_announces().await;
     let client = TcpClient::new(format!("127.0.0.1:{port}")).with_mtu(mtu);
     let status = client.runtime_status_handle();
-    let context = transport.iface_manager().lock().await.new_context(client);
+    let context = {
+        let manager = transport.iface_manager();
+        let mut manager = manager.lock().await;
+        let context = manager.new_context(client);
+        if let Some(shared) = shared {
+            manager.set_shared_config(*context.channel.address(), shared);
+        }
+        context
+    };
     tokio::spawn(TcpClient::spawn(context));
     wait_until(
         "connector to connect",

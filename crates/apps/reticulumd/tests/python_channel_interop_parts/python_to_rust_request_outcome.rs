@@ -22,18 +22,10 @@ impl TrackedHandlerRecord {
         &self,
         respond: fn(&rmpv::Value) -> Option<RequestResponse>,
     ) -> impl RequestHandler + 'static {
-        let seen = self.record.seen.clone();
-        let calls = self.record.calls.clone();
         let receiver = self.receiver.clone();
-        move |mut request: InboundRequest| {
-            calls.fetch_add(1, Ordering::SeqCst);
+        self.record.handler_with(respond, move |request| {
             *receiver.lock().expect("receiver lock") = Some(request.track_outcome());
-            let response = respond(request.data());
-            let request_id = request.request_id();
-            let remote = request.remote_identity().map(|identity| identity.address_hash);
-            seen.lock().expect("seen lock").push((request_id, remote, request.into_data()));
-            std::future::ready(response)
-        }
+        })
     }
 
     #[deny(clippy::await_holding_invalid_type)]

@@ -102,36 +102,93 @@ async fn shared_instance_state_events_follow_a_tcp_restart() {
         .expect("restarted shared instance stop completes");
 }
 
+/// One event queued on a hand-built consumer's channels.
+#[derive(Clone, Copy, PartialEq, Eq)]
+enum Queued {
+    Disconnect,
+    Connect,
+    Reconnect,
+}
+
+/// How a hand-built consumer is driven: the events queued, in order, before it first polls;
+/// the senders already gone by then (the rest go after it returns); whether the transport
+/// is cancelled before the poll; and what the consumer's exit within `STOP_TIMEOUT` pins.
+struct DriveSpec<'a> {
+    queued: &'a [Queued],
+    close_before_run: &'a [Queued],
+    cancel_before_run: bool,
+    exits: &'a str,
+}
+
+/// Drives a hand-built consumer named `name` as `spec` says and returns what the state
+/// stream read until it ended; the consumer's return drops the sender. Each event channel
+/// holds what is queued on it, so the queueing never blocks.
+#[deny(clippy::await_holding_invalid_type)]
+async fn shared_instance_state_drive_consumer_with(
+    name: &str,
+    spec: DriveSpec<'_>,
+) -> Vec<SharedInstanceEvent> {
+    let iface = AddressHash::new_from_rand(OsRng);
+    let capacity = |kind| spec.queued.iter().filter(|queued| **queued == kind).count().max(1);
+    let (reconnects_tx, reconnects) = tokio::sync::mpsc::channel(capacity(Queued::Reconnect));
+    let (connects_tx, connects) = tokio::sync::mpsc::channel(capacity(Queued::Connect));
+    let (disconnects_tx, disconnects) = tokio::sync::mpsc::channel(capacity(Queued::Disconnect));
+    let (state_tx, mut state) = tokio::sync::mpsc::channel(8);
+    for kind in spec.queued {
+        match kind {
+            Queued::Disconnect => {
+                disconnects_tx.send(iface).await.expect("queue the disconnect");
+            }
+            Queued::Connect => connects_tx.send(iface).await.expect("queue the connect"),
+            Queued::Reconnect => reconnects_tx.send(iface).await.expect("queue the reconnect"),
+        }
+    }
+    let mut open = vec![
+        (Queued::Reconnect, reconnects_tx),
+        (Queued::Connect, connects_tx),
+        (Queued::Disconnect, disconnects_tx),
+    ];
+    open.retain(|(kind, _)| !spec.close_before_run.contains(kind));
+
+    let (_transport, consumer) = shared_instance_reconnect_consumer(name, iface);
+    let cancel = consumer.cancel.clone();
+    if spec.cancel_before_run {
+        cancel.cancel();
+    }
+    timeout(STOP_TIMEOUT, consumer.run(reconnects, connects, disconnects, Some(state_tx)))
+        .await
+        .expect(spec.exits);
+    if !spec.cancel_before_run {
+        cancel.cancel();
+    }
+    drop(open);
+
+    shared_instance_state_read_to_end(&mut state).await
+}
+
 /// Drives a hand-built consumer named `name` over a queued connect and the reconnect
-/// behind it, with a disconnect queued ahead of both when `with_disconnect`, and returns
-/// what the state stream read until it ended; the consumer's return drops the sender.
+/// behind it, with a disconnect queued ahead of both when `with_disconnect`; the
+/// reconnect sender is gone before the consumer polls, the other two after it returns.
 #[deny(clippy::await_holding_invalid_type)]
 async fn shared_instance_state_drive_consumer(
     name: &str,
     with_disconnect: bool,
 ) -> Vec<SharedInstanceEvent> {
-    let iface = AddressHash::new_from_rand(OsRng);
-    let (reconnects_tx, reconnects) = tokio::sync::mpsc::channel(1);
-    let (connects_tx, connects) = tokio::sync::mpsc::channel(1);
-    let (disconnects_tx, disconnects) = tokio::sync::mpsc::channel(1);
-    let (state_tx, mut state) = tokio::sync::mpsc::channel(8);
-    if with_disconnect {
-        disconnects_tx.send(iface).await.expect("queue the disconnect");
-    }
-    connects_tx.send(iface).await.expect("queue the connect");
-    reconnects_tx.send(iface).await.expect("queue the reconnect");
-    drop(reconnects_tx);
-
-    let (_transport, consumer) = shared_instance_reconnect_consumer(name, iface);
-    let cancel = consumer.cancel.clone();
-    timeout(STOP_TIMEOUT, consumer.run(reconnects, connects, disconnects, Some(state_tx)))
-        .await
-        .expect("the consumer exits once the reconnect channel is drained and closed");
-    cancel.cancel();
-    drop(connects_tx);
-    drop(disconnects_tx);
-
-    shared_instance_state_read_to_end(&mut state).await
+    let queued: &[Queued] = if with_disconnect {
+        &[Queued::Disconnect, Queued::Connect, Queued::Reconnect]
+    } else {
+        &[Queued::Connect, Queued::Reconnect]
+    };
+    shared_instance_state_drive_consumer_with(
+        name,
+        DriveSpec {
+            queued,
+            close_before_run: &[Queued::Reconnect],
+            cancel_before_run: false,
+            exits: "the consumer exits once the reconnect channel is drained and closed",
+        },
+    )
+    .await
 }
 
 /// A connect and the reconnect behind it: the stream reads `Connected` alone and the

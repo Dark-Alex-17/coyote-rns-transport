@@ -4,44 +4,21 @@
 // address, and calling them from parallel tasks is safe and consistent. Helpers come from
 // the sibling `tests_parts` files included into this module.
 
-/// Like `connector`, with the reference ingress control turned off on the `TcpClient`
-/// iface: a freshly connected interface otherwise holds the second of two announces that
-/// arrive within half a second for `burst_hold`, well past the loopback timeout.
-#[deny(clippy::await_holding_invalid_type)]
-async fn connector_without_ingress_control(name: &str, port: u16) -> LoopbackConnector {
-    let identity = PrivateIdentity::new_from_rand(OsRng);
-    let transport = Transport::new(TransportConfig::new(name, &identity, false));
-    let announces = transport.recv_announces().await;
-    let client = TcpClient::new(format!("127.0.0.1:{port}"));
-    let status = client.runtime_status_handle();
-    {
-        let manager = transport.iface_manager();
-        let mut manager = manager.lock().await;
-        let context = manager.new_context(client);
-        manager.set_shared_config(
-            *context.channel.address(),
-            crate::iface::InterfaceSharedConfig {
-                ingress_control: Some(false),
-                ..Default::default()
-            },
-        );
-        tokio::spawn(TcpClient::spawn(context));
-    }
-    wait_until(
-        "connector to connect",
-        || status.to_json()["stream_state"].as_str() == Some("connected"),
-        || status.to_json().to_string(),
-    )
-    .await;
-    LoopbackConnector { transport, announces }
-}
-
 #[tokio::test]
 #[deny(clippy::await_holding_invalid_type)]
 async fn destination_desc_resolves_each_of_two_announced_peers_to_its_own_entry() {
     let listener = listener("loopback-listener", TcpClient::DEFAULT_MTU).await;
-    let mut connector =
-        connector_without_ingress_control("loopback-connector", listener.port).await;
+    // Two announces follow in quick succession, so the connector's ingress control is off.
+    let mut connector = connector_with(
+        "loopback-connector",
+        listener.port,
+        TcpClient::DEFAULT_MTU,
+        Some(crate::iface::InterfaceSharedConfig {
+            ingress_control: Some(false),
+            ..Default::default()
+        }),
+    )
+    .await;
     listener.await_accepted_connections(1).await;
 
     // Announce two distinct destinations one after the other so neither announce is

@@ -184,6 +184,7 @@ fn readme_patch_list_opens_with_the_0_17_0_block_and_keeps_the_0_16_0_paragraph(
         "Transport::destination_desc",
         "InboundRequest::track_outcome",
         "ResponseOutcome",
+        "Resource(OutboundResult)",
         "SharedInstanceOptions::with_state_events",
         "SharedInstanceEvent",
         "with_connect_events",

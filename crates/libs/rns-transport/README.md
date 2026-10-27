@@ -799,7 +799,7 @@ of `0.16.0`:
   it too.
 - The responder outcome: `InboundRequest::track_outcome` returns a
   `ResponseOutcomeReceiver` that resolves with a `ResponseOutcome`, one of
-  `Packet`, `Resource(OutboundOutcome)` or `NotSent`. `NotSent` covers every
+  `Packet`, `Resource(OutboundResult)` or `NotSent`. `NotSent` covers every
   path that drops the sender: a silent handler, a link no longer able to
   exchange data, a stop or cancel under the response, a handler that panicked
   after tracking. Opt-in; a handler that never calls it sees no change.

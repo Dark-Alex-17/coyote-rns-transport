@@ -147,10 +147,11 @@ into rather than a patch to absorb.
 - The crate version is `0.17.0`; the discovery announce carries it in the
   `TRANSPORT_VERS` field (`discovery/announce.rs`). The bump is a minor one
   under the README policy because the release adds public API: `### Breaking`
-  above says so and lists nothing. `cargo semver-checks` against `v0.16.0`,
-  run as a patch so that every lint applies, reports no major and no minor
-  findings; the additions sit below what the tool lints. The release
-  contracts are pinned by
+  above says so and lists nothing. `cargo semver-checks` against `v0.16.0`
+  reports 0 major and 0 minor findings; additive changes are below
+  cargo-semver-checks' default lint level, so the patch-level run the
+  release check makes has nothing to report. The release contracts are
+  pinned by
   `crates/apps/reticulumd/tests/fork_publish_contract.rs` and
   `fork_release_docs_contract.rs`, the latter holding the additive-minor
   `### Breaking` rule and the 0.17.0 README patch-list register.

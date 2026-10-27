@@ -431,9 +431,10 @@ the `x509-parser` pin stay. The third promotes `## Unreleased` to
 subsection first, whose one sentence says the release is additive and
 why in place of a list, and a version bullet at the head of `### Changed`
 (the announce field, the minor-bump reasoning, the `cargo semver-checks`
-result against `v0.16.0` run as a patch so that every lint applies, and
-the contract tests that pin the release). The fourth amends the
-versioning paragraph of `crates/libs/rns-transport/README.md`: a fork
+result against `v0.16.0`, 0 major and 0 minor with the additive changes
+below the tool's default lint level, and the contract tests that pin the
+release). The fourth amends the versioning paragraph of
+`crates/libs/rns-transport/README.md`: a fork
 release that only fixes bugs bumps the patch digit, a fork release that
 adds public API may bump the minor digit so the digit tells a consumer
 there is new surface to opt into, and `0.17.0` is the first such additive

@@ -47,7 +47,7 @@ Removed) bullet of its own, marked as such.
   exchange data, a send that failed before dispatch (a packet that would not
   build, no ingress interface, metadata that does not pack, a packet that
   reached no interface), a handler that panicked after tracking, and a
-  response task that `Transport::stop` or cancel aborted before the verdict,
+  response task that `Transport::stop` or `cancel` aborted before the verdict,
   where a bare `OutboundOutcome` would resolve `Failed(LinkClosed)`: every
   path that drops the sender. A handler that never calls `track_outcome`
   keeps the previous dispatcher behaviour. Pinned by
@@ -60,8 +60,12 @@ Removed) bullet of its own, marked as such.
   receiver, a call made after the handler returned), by
   `two_transport_loopback_requests_outcome_probe2.rs` (a receiver awaited in
   a task the handler spawned, two requests in flight on one link, a request
-  that arrived as a Resource, a handler that panicked after tracking) and
-  against a Python requester by `python_to_rust_request_outcome.rs`;
+  that arrived as a Resource, a handler that panicked after tracking), by
+  `two_transport_loopback_requests_outcome_probe3.rs` (a panic after
+  tracking beside a parked tracked sibling, a Resource-form request whose
+  handler panicked after tracking, a spawned awaiter on a multi-thread
+  runtime) and against a Python requester by
+  `python_to_rust_request_outcome.rs`;
   `tests/request_handler_api.rs` and
   `tests/request_receipt_api.rs` cover the public paths, and
   `fork_release_docs_contract.rs` pins the README paragraph, the private

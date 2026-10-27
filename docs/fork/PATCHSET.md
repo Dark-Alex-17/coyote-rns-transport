@@ -36,8 +36,8 @@ The `destination lookup` patch is fork commits `5246fc9c`, `15278355`,
 `5093b5b6`, `338811b0` and `94d76ac8`; the `ledger contracts` patch is fork
 commits `d2f871f7`, `e8e64626`, `f24e4ec3`, `0b86c14b`, `338811b0` and
 `94d76ac8`; the `response outcomes` patch is fork commits `d6cfbb58`,
-`7ef891be`, `79aae7ed`, `72242c71`, `c627c6d7`, `dea9af76` and
-`d2854884`.
+`7ef891be`, `79aae7ed`, `72242c71`, `c627c6d7`, `dea9af76`, `d2854884`
+and `c18ea340`.
 
 | File | Patch |
 | --- | --- |
@@ -60,6 +60,7 @@ commits `d2f871f7`, `e8e64626`, `f24e4ec3`, `0b86c14b`, `338811b0` and
 | `crates/libs/rns-transport/src/transport/tests_parts/two_transport_loopback_requests_outcome.rs` | response outcomes |
 | `crates/libs/rns-transport/src/transport/tests_parts/two_transport_loopback_requests_outcome_probe.rs` | response outcomes |
 | `crates/libs/rns-transport/src/transport/tests_parts/two_transport_loopback_requests_outcome_probe2.rs` | response outcomes |
+| `crates/libs/rns-transport/src/transport/tests_parts/two_transport_loopback_requests_outcome_probe3.rs` | response outcomes |
 | `crates/libs/rns-transport/src/transport/tests.rs` | destination lookup, response outcomes |
 | `crates/libs/rns-transport/tests/destination_desc_api.rs` | destination lookup |
 | `crates/libs/rns-transport/tests/request_handler_api.rs` | response outcomes |
@@ -130,7 +131,7 @@ position message's own wording rather than a word the release-tree message
 shares.
 
 Fork commits `d6cfbb58`, `7ef891be`, `79aae7ed`, `72242c71`, `c627c6d7`,
-`dea9af76` and `d2854884`:
+`dea9af76`, `d2854884` and `c18ea340`:
 J3, response outcomes. The library behaviour changes are: a request handler
 can learn what became of the response it returned. `d6cfbb58` adds
 `InboundRequest::track_outcome` (`destination/request/inbound.rs`), which
@@ -145,8 +146,9 @@ as a resource, the `Resource` form and an oversize `Value` or `Bytes` alike;
 `NotSent` covers a handler that returned `None`, a link no longer able to
 exchange data, a send that failed before dispatch (a packet that would not
 build, a link without an ingress interface, metadata that does not pack, a
-packet that reached no interface) and a response task that `Transport::stop`
-or cancel aborted. A handler that never calls `track_outcome` keeps the
+packet that reached no interface), a handler that panicked after tracking,
+and a response task that `Transport::stop` or `cancel` aborted: every path
+that drops the sender. A handler that never calls `track_outcome` keeps the
 dispatcher's previous control flow: the transfer's `OutboundOutcome` is
 dropped unawaited and the task ends once the response is registered; only a
 tracked response makes the task await the verdict, outside every guard.
@@ -184,7 +186,14 @@ formats the included outcome test files with the repo rustfmt config.
 `d2854884` names the rule behind `NotSent` in the rustdoc and the README,
 every path that drops the sender, a handler that panics after tracking
 included, and pins that arm in the second probe file while a sibling request
-on the link is still answered.
+on the link is still answered. `c18ea340` adds
+`two_transport_loopback_requests_outcome_probe3.rs`: a handler that panics
+after tracking while a second tracked request on the same link is still
+parked, the reap of the panicked task leaving that sibling to resolve
+`Packet`; a request that arrived as a request Resource whose handler panics
+after tracking; and the README's spawned awaiter on a multi-thread runtime;
+it also makes the README paragraph pin in `fork_release_docs_contract.rs`
+require the panicking-handler arm and the dropped-sender rule.
 
 ## 0.16.0 (upstream 0.14.0)
 

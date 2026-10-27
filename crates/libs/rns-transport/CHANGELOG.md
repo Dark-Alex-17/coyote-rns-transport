@@ -8,7 +8,14 @@ no library behaviour (a test-only change such as a fixture hardening or a
 test hygiene pass, release tooling, CI) is a Changed (or, for a deleted file,
 Removed) bullet of its own, marked as such.
 
-## Unreleased
+## 0.17.0 - 2026-10-27
+
+### Breaking
+
+None. This minor release is additive; it adds consumer-facing surface
+(responder outcomes, shared-instance state events, a destination lookup) that
+a consumer adopts deliberately, so the minor digit signals new surface to opt
+into rather than a patch to absorb.
 
 ### Added
 
@@ -137,6 +144,16 @@ Removed) bullet of its own, marked as such.
 
 ### Changed
 
+- The crate version is `0.17.0`; the discovery announce carries it in the
+  `TRANSPORT_VERS` field (`discovery/announce.rs`). The bump is a minor one
+  under the README policy because the release adds public API: `### Breaking`
+  above says so and lists nothing. `cargo semver-checks` against `v0.16.0`,
+  run as a patch so that every lint applies, reports no major and no minor
+  findings; the additions sit below what the tool lints. The release
+  contracts are pinned by
+  `crates/apps/reticulumd/tests/fork_publish_contract.rs` and
+  `fork_release_docs_contract.rs`, the latter holding the additive-minor
+  `### Breaking` rule and the 0.17.0 README patch-list register.
 - Ledger contracts, test-only: the full-hash ledger pin covers the open
   `## Unreleased` section (`fork_publish_contract_parts/ledger_contract.rs`),
   the manifest-version pin admits an `## Unreleased` stub above the

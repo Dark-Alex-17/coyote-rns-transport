@@ -523,7 +523,8 @@ bullet that records the split
 the same commit makes the 0.17.0 patch-list test in `readme_patch_list.rs`
 require its block to be the first in the list, and adds the README's
 upstream-rebase sentence to the policy needles in `release_0_17_0_probe.rs`.
-The ledger commits that cite the twelve commits above touch only this file.
+The ledger commits that cite the twelve commits above touch only this file
+and the crate CHANGELOG.
 
 ## 0.16.0 (upstream 0.14.0)
 

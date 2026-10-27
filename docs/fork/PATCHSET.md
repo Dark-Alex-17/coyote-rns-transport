@@ -44,8 +44,8 @@ hygiene` patch is fork commits `0b5b2dff`, `09ee7c45` and `7cfab1ef`; the
 `Python-in-the-loop request outcome interop` patch carries no other id and is
 fork commit `79aae7ed`, also a `response outcomes` commit; the `release 0.17.0`
 patch carries no other id and is fork commits `972318f6`, `a3451134`,
-`4b2208f3`, `f0c32509`, `7fc78269`, `e2e9cdc6`, `8b7619b7`, `e6f5dc52` and
-`92568aa7`.
+`4b2208f3`, `f0c32509`, `7fc78269`, `e2e9cdc6`, `8b7619b7`, `e6f5dc52`,
+`92568aa7` and `1facb7a4`.
 
 | File | Patch |
 | --- | --- |
@@ -408,9 +408,9 @@ resolves `Resource(Complete)` for a 48 KiB reply and `Packet` for a short
 one, the release section's Python-in-the-loop proof rows.
 
 Fork commits `972318f6`, `a3451134`, `4b2208f3`, `f0c32509`, `7fc78269`,
-`e2e9cdc6`, `8b7619b7`, `e6f5dc52` and `92568aa7`: release 0.17.0. The
-first retargets the promotion-sensitive pins to the literal 0.17.0 label,
-since a released section is frozen:
+`e2e9cdc6`, `8b7619b7`, `e6f5dc52`, `92568aa7` and `1facb7a4`: release
+0.17.0. The first retargets the promotion-sensitive pins to the literal
+0.17.0 label, since a released section is frozen:
 `crates/apps/reticulumd/tests/fork_publish_contract_parts/ledger_contract.rs`
 expects the full-hash contract to cover `0.17.0`, `0.16.0` and `0.15.1`
 and the bullet-cite contract the same three, and the two version pins in
@@ -498,8 +498,11 @@ names the probe, its ledger-contracts bullet says the full-hash pin covered
 `## Unreleased` during the cycle and names `0.17.0` now, a new test-only
 bullet records the split, the fixtures, the README needle and the rename,
 and the legend above says the interop patch's commit is also a `response
-outcomes` commit. The ledger promotion itself touches only this file and
-cites the four commits above.
+outcomes` commit. The tenth renames the probe's first test to
+`release_0_17_0_breaking_is_exactly_the_additive_sentence` and its
+constant to `ADDITIVE_BREAKING_SENTENCE`, so the probe reads on its own
+terms. The ledger promotion itself touches only this file and cites the
+five commits above.
 
 ## 0.16.0 (upstream 0.14.0)
 

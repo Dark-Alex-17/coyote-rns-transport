@@ -811,7 +811,8 @@ of `0.16.0`:
   the attach ended is still drained and served. Underneath,
   `TcpClient::with_connect_events` and `LocalUnixClient::with_connect_events`
   with their `connect_events_enabled` getters fire on every established
-  stream, the first included.
+  stream, the first included; `tests/connect_events_api.rs` drives both
+  clients that way.
 - For the consumer parsing hashes: `AddressHash::new_from_hex_string` has
   decoded its input with `hex::decode` and returned `RnsError::IncorrectHash`
   on any malformed string since 0.14.1 (that release's `### Fixed` in

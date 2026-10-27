@@ -749,11 +749,60 @@ fn crate_readme_destination_desc_snippet_is_pinned_as_one_block() {
     );
 }
 
+/// The rule for the `### Breaking` body of a minor release, applied to the
+/// lines of its release section. With top-level `- ` bullets, every bullet
+/// (joined with its indented continuation lines) carries a `Migration:`
+/// clause. Without bullets the release is an additive minor and the prose,
+/// joined on whitespace, opens with the exact `None. This minor release is
+/// additive;` sentence followed by a non-empty reason clause.
+fn breaking_subsection_verdict(section: &[&str]) -> Result<(), String> {
+    let start = section
+        .iter()
+        .position(|line| *line == "### Breaking")
+        .ok_or_else(|| "the release section has no `### Breaking` subsection".to_string())?
+        + 1;
+    let end = section[start..]
+        .iter()
+        .position(|line| line.starts_with("### "))
+        .map_or(section.len(), |p| start + p);
+    let breaking = &section[start..end];
+    let mut bullets: Vec<String> = Vec::new();
+    for line in breaking {
+        if line.starts_with("- ") {
+            bullets.push(line.to_string());
+        } else if let Some(bullet) = bullets.last_mut() {
+            if line.starts_with(' ') && !line.trim().is_empty() {
+                bullet.push(' ');
+                bullet.push_str(line.trim());
+            }
+        }
+    }
+    if bullets.is_empty() {
+        const ADDITIVE: &str = "None. This minor release is additive;";
+        let prose = breaking.join(" ").split_whitespace().collect::<Vec<_>>().join(" ");
+        let reason = prose.strip_prefix(ADDITIVE).ok_or_else(|| {
+            format!("`### Breaking` without bullets should open with {ADDITIVE:?}, got {prose:?}")
+        })?;
+        if reason.trim().is_empty() {
+            return Err(format!("`### Breaking` should give the reason after {ADDITIVE:?}"));
+        }
+        return Ok(());
+    }
+    for bullet in &bullets {
+        if !bullet.contains("Migration:") {
+            return Err(format!(
+                "every breaking bullet should carry a `Migration:` clause, got {bullet:?}"
+            ));
+        }
+    }
+    Ok(())
+}
+
 /// A release whose minor digit moved against the previous release heading
-/// carries breaking changes, and the README sends consumers to `### Breaking`
-/// in the CHANGELOG for them: that subsection must open the release section
-/// and every bullet in it must tell the consumer how to migrate. A release
-/// that only moved the patch digit must not claim breaking changes.
+/// opens its release notes with `### Breaking`, and the README sends
+/// consumers there: the subsection lists the breaking changes with a
+/// migration each, or says the release is additive and why. A release that
+/// only moved the patch digit must not claim breaking changes.
 #[test]
 fn release_notes_list_breaking_changes_on_a_minor_bump() {
     let version = crate_version();
@@ -794,32 +843,8 @@ fn release_notes_list_breaking_changes_on_a_minor_bump() {
             Some("### Breaking"),
             "{version} moved the minor digit against {previous}, so its release notes should open with `### Breaking`, got {subsections:?}"
         );
-        let breaking_start =
-            section.iter().position(|line| *line == "### Breaking").expect("located above") + 1;
-        let breaking_end = section[breaking_start..]
-            .iter()
-            .position(|line| line.starts_with("### "))
-            .map_or(section.len(), |p| breaking_start + p);
-        let breaking = &section[breaking_start..breaking_end];
-        // A bullet starts at a top-level `- ` line and runs through the
-        // indented lines that follow it.
-        let mut bullets: Vec<String> = Vec::new();
-        for line in breaking {
-            if line.starts_with("- ") {
-                bullets.push(line.to_string());
-            } else if let Some(bullet) = bullets.last_mut() {
-                if line.starts_with(' ') && !line.trim().is_empty() {
-                    bullet.push(' ');
-                    bullet.push_str(line.trim());
-                }
-            }
-        }
-        assert!(!bullets.is_empty(), "`### Breaking` should list at least one change");
-        for bullet in &bullets {
-            assert!(
-                bullet.contains("Migration:"),
-                "every breaking bullet should carry a `Migration:` clause, got {bullet:?}"
-            );
+        if let Err(reason) = breaking_subsection_verdict(section) {
+            panic!("{version} release notes: {reason}");
         }
         let readme = read_repo_file("crates/libs/rns-transport/README.md");
         assert!(
@@ -832,6 +857,38 @@ fn release_notes_list_breaking_changes_on_a_minor_bump() {
             "{version} only moved the patch digit against {previous}, so it must not list breaking changes"
         );
     }
+}
+
+#[test]
+fn breaking_verdict_rejects_a_bare_none() {
+    let section = ["### Breaking", "", "None.", "", "### Added"];
+    assert!(breaking_subsection_verdict(&section).is_err(), "a bare `None.` gives no reason");
+}
+
+#[test]
+fn breaking_verdict_accepts_the_additive_sentence_with_a_reason() {
+    let section =
+        ["### Breaking", "", "None. This minor release is additive; it", "adds surface.", ""];
+    assert_eq!(breaking_subsection_verdict(&section), Ok(()));
+}
+
+#[test]
+fn breaking_verdict_rejects_a_bullet_without_a_migration() {
+    let section = ["### Breaking", "", "- `Foo` is gone.", "  Use `Bar`.", "", "### Added"];
+    assert!(breaking_subsection_verdict(&section).is_err(), "a bullet needs `Migration:`");
+}
+
+#[test]
+fn breaking_verdict_accepts_a_bullet_with_a_migration() {
+    let section =
+        ["### Breaking", "", "- `Foo` is gone.", "  Migration: use `Bar`.", "", "### Added"];
+    assert_eq!(breaking_subsection_verdict(&section), Ok(()));
+}
+
+#[test]
+fn breaking_verdict_rejects_an_empty_subsection() {
+    let section = ["### Breaking", "", "### Added", "", "- x"];
+    assert!(breaking_subsection_verdict(&section).is_err(), "an empty subsection says nothing");
 }
 
 /// The top-level `- ` bullets of a markdown text, each joined with its
@@ -928,6 +985,24 @@ fn changelog_0_16_0_removed_records_the_codex_workflow_the_readme_points_at() {
     assert_eq!(codex.len(), 1, "exactly one `### Removed` bullet of 0.16.0 records the Codex review workflow, got {codex:?}");
 }
 
+/// What the README's 0.16.0 patch-list block says, one needle per item.
+const README_0_16_0_BLOCK_NEEDLES: [&str; 14] = [
+    "SharedInstanceEndpointNotLoopback",
+    "allow_remote_endpoint(true)",
+    "replaces the 0.15.1 once-per-attach warning",
+    "RejectReason::{Oversize, Unknown}",
+    "transport::test_bridge",
+    "replacing the 0.15.1 rule that it consulted nothing while attached",
+    "LINKCLOSE a `Handshake` teardown",
+    "The reticulumd migration",
+    "in the family `prefer_ipv6` selects",
+    "clippy::await_holding_invalid_type",
+    "Codex review workflow",
+    "receipt-less records",
+    "packet hashlist flush",
+    "`TcpClient` connect is cancel-aware",
+];
+
 /// The README patch list opens with the 0.16.0 block and keeps the 0.15.1 and
 /// 0.15.0 blocks below it as history: the 0.16.0 block names every item of
 /// the release, and the two 0.15.1 sentences it supersedes (the no-op
@@ -956,22 +1031,7 @@ fn readme_patch_list_opens_with_the_0_16_0_block_and_keeps_the_0_15_1_paragraph(
     );
 
     let block_0_16_0 = &patch_list[at_0_16_0..at_0_15_1];
-    for needle in [
-        "SharedInstanceEndpointNotLoopback",
-        "allow_remote_endpoint(true)",
-        "replaces the 0.15.1 once-per-attach warning",
-        "RejectReason::{Oversize, Unknown}",
-        "transport::test_bridge",
-        "replacing the 0.15.1 rule that it consulted nothing while attached",
-        "LINKCLOSE a `Handshake` teardown",
-        "The reticulumd migration",
-        "in the family `prefer_ipv6` selects",
-        "clippy::await_holding_invalid_type",
-        "Codex review workflow",
-        "receipt-less records",
-        "packet hashlist flush",
-        "`TcpClient` connect is cancel-aware",
-    ] {
+    for needle in README_0_16_0_BLOCK_NEEDLES {
         assert!(
             block_0_16_0.contains(needle),
             "the README 0.16.0 block should still say {needle:?}:\n{block_0_16_0}"
@@ -990,6 +1050,57 @@ fn readme_patch_list_opens_with_the_0_16_0_block_and_keeps_the_0_15_1_paragraph(
         assert!(
             block_0_15_1.contains(superseded),
             "the README 0.15.1 block should keep its superseded sentence {superseded:?} as history:\n{block_0_15_1}"
+        );
+    }
+}
+
+/// The README patch list opens with the 0.17.0 block, which names every item
+/// of the release and tells consumers `new_from_hex_string` has validated its
+/// input since 0.14.1; the demoted 0.16.0 block below it still names every item.
+#[test]
+fn readme_patch_list_opens_with_the_0_17_0_block_and_keeps_the_0_16_0_paragraph() {
+    let readme = read_repo_file("crates/libs/rns-transport/README.md");
+    let patch_list = crate_readme_section(&readme, "Patch list")
+        .split_whitespace()
+        .collect::<Vec<_>>()
+        .join(" ");
+    let marker_0_17_0 = "What `0.17.0` carries on top of `0.16.0`:";
+    let marker_0_16_0 = "What `0.16.0` carries on top of `0.15.1`:";
+    let marker_0_15_1 = "What `0.15.1` carries on top of `0.15.0`:";
+    let at_0_17_0 = patch_list
+        .find(marker_0_17_0)
+        .expect("the README patch list should open with the 0.17.0 block");
+    let at_0_16_0 =
+        patch_list.find(marker_0_16_0).expect("the README patch list should keep the 0.16.0 block");
+    let at_0_15_1 =
+        patch_list.find(marker_0_15_1).expect("the README patch list should keep the 0.15.1 block");
+    assert!(
+        at_0_17_0 < at_0_16_0 && at_0_16_0 < at_0_15_1,
+        "the README patch list should run 0.17.0, then 0.16.0, then 0.15.1"
+    );
+
+    let block_0_17_0 = &patch_list[at_0_17_0..at_0_16_0];
+    for needle in [
+        "Transport::destination_desc",
+        "InboundRequest::track_outcome",
+        "ResponseOutcome",
+        "SharedInstanceOptions::with_state_events",
+        "SharedInstanceEvent",
+        "with_connect_events",
+        "AddressHash::new_from_hex_string",
+        "since 0.14.1",
+    ] {
+        assert!(
+            block_0_17_0.contains(needle),
+            "the README 0.17.0 block should say {needle:?}:\n{block_0_17_0}"
+        );
+    }
+
+    let block_0_16_0 = &patch_list[at_0_16_0..at_0_15_1];
+    for needle in README_0_16_0_BLOCK_NEEDLES {
+        assert!(
+            block_0_16_0.contains(needle),
+            "the README 0.16.0 block should still say {needle:?}:\n{block_0_16_0}"
         );
     }
 }

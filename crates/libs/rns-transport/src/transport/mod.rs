@@ -443,7 +443,7 @@ pub use resource_accept_hook::ResourceAcceptHook;
 mod resource_wire;
 // shared_instance: endpoint and options for attaching as a shared-instance client.
 mod shared_instance;
-pub use shared_instance::{SharedInstanceEndpoint, SharedInstanceOptions};
+pub use shared_instance::{SharedInstanceEndpoint, SharedInstanceEvent, SharedInstanceOptions};
 // wire_encryption: packet-context policy for transport-layer encryption.
 mod wire_encryption;
 // wire_receipt: proof correlation and cryptographic receipt validation.

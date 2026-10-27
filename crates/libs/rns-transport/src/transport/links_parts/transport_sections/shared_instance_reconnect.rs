@@ -7,14 +7,17 @@ use tokio::task::JoinSet;
 const SHARED_INSTANCE_REAPPEARED_ANNOUNCE_GRACE: Duration = Duration::from_secs(2);
 
 impl Transport {
-    /// Spawns the task that reacts to the attached client's reconnect and
-    /// disconnect events; see [`SharedInstanceReconnectConsumer::run`].
+    /// Spawns the task that reacts to the attached client's reconnect,
+    /// connect and disconnect events and forwards the attach's state
+    /// events on `state_events`; see [`SharedInstanceReconnectConsumer::run`].
     fn spawn_shared_instance_reconnect_consumer(
         &self,
         iface: AddressHash,
         reconnect_wait: Duration,
         reconnects: mpsc::Receiver<AddressHash>,
+        connects: mpsc::Receiver<AddressHash>,
         disconnects: mpsc::Receiver<AddressHash>,
+        state_events: Option<mpsc::Sender<SharedInstanceEvent>>,
     ) {
         let consumer = SharedInstanceReconnectConsumer {
             handler: self.handler.clone(),
@@ -28,7 +31,7 @@ impl Transport {
         spawn_shared_instance_task(
             &self.shared_instance_tasks,
             &self.name,
-            consumer.run(reconnects, disconnects),
+            consumer.run(reconnects, connects, disconnects, state_events),
         );
     }
 }
@@ -49,6 +52,31 @@ where
         }
     }
     tasks.spawn(future);
+}
+
+/// Delivers `event` on the attach's state stream without blocking: a full
+/// channel drops it at debug and a closed one, whose receiver is gone, is
+/// silent. `None` is an attach without a stream.
+fn send_shared_instance_state_event(
+    name: &str,
+    iface: AddressHash,
+    events: Option<&mpsc::Sender<SharedInstanceEvent>>,
+    event: SharedInstanceEvent,
+) {
+    let Some(events) = events else {
+        return;
+    };
+    match events.try_send(event) {
+        Ok(()) | Err(mpsc::error::TrySendError::Closed(_)) => {}
+        Err(mpsc::error::TrySendError::Full(event)) => {
+            log::debug!(
+                "tp({}): shared instance iface={} state event {:?} dropped, channel full",
+                name,
+                iface,
+                event
+            );
+        }
+    }
 }
 
 /// Resynthesizes the tunnel on `iface` and returns whether the interface
@@ -87,12 +115,13 @@ pub(super) struct SharedInstanceReconnectConsumer {
 
 impl SharedInstanceReconnectConsumer {
     /// Serves the client's events until the transport is cancelled or the
-    /// client worker exits. Both senders belong to that one worker and drop
+    /// client worker exits. All three senders belong to that one worker and drop
     /// with it, after a detach, `stop_interface` or `stop`, so the first
-    /// closed channel ends the task. Both channels are `mpsc::channel(8)`
-    /// and the worker emits each cycle's disconnect before its reconnect
-    /// from one task, each with `try_send`; this loop is biased so every
-    /// queued disconnect is served before any reconnect. So a disconnect
+    /// closed channel ends the task. The channels are `mpsc::channel(8)`
+    /// and the worker emits each cycle's disconnect before its connect and
+    /// reconnect from one task, each with `try_send`; this loop is biased so
+    /// every queued disconnect is served before any connect, and every
+    /// connect before any reconnect. So a disconnect
     /// can never be dropped while its reconnect lands: at each disconnect
     /// send the disconnect queue is no longer than the reconnect queue, so
     /// the reconnect channel fills first and the realistic loss under a
@@ -101,11 +130,22 @@ impl SharedInstanceReconnectConsumer {
     /// per-cycle sequence number that would let the consumer detect a lost
     /// reconnect outright would change the public `Sender<AddressHash>`
     /// payload and is deferred.
+    ///
+    /// `state_events` is the attach's stream: a served disconnect sends
+    /// `Disconnected` then `Connecting` once the flush has run, a served
+    /// connect sends `Connected`, each with `try_send`. The sender is a
+    /// parameter rather than a field so it drops when this task returns:
+    /// the re-announce task clones `self` and outlives a detach by
+    /// `reconnect_wait` plus the grace, and must not hold the stream open.
+    /// The attach sends the first `Connecting` itself, before this task is
+    /// spawned.
     #[deny(clippy::await_holding_invalid_type)]
     pub(super) async fn run(
         self,
         mut reconnects: mpsc::Receiver<AddressHash>,
+        mut connects: mpsc::Receiver<AddressHash>,
         mut disconnects: mpsc::Receiver<AddressHash>,
+        state_events: Option<mpsc::Sender<SharedInstanceEvent>>,
     ) {
         loop {
             // Biased so a disconnect is never overtaken by the reconnect
@@ -118,6 +158,14 @@ impl SharedInstanceReconnectConsumer {
                         break;
                     }
                     self.on_disconnected().await;
+                    self.send_state_event(state_events.as_ref(), SharedInstanceEvent::Disconnected);
+                    self.send_state_event(state_events.as_ref(), SharedInstanceEvent::Connecting);
+                }
+                connected = connects.recv() => {
+                    if connected.is_none() {
+                        break;
+                    }
+                    self.send_state_event(state_events.as_ref(), SharedInstanceEvent::Connected);
                 }
                 reconnected = reconnects.recv() => {
                     if reconnected.is_none() {
@@ -127,6 +175,14 @@ impl SharedInstanceReconnectConsumer {
                 }
             }
         }
+    }
+
+    fn send_state_event(
+        &self,
+        events: Option<&mpsc::Sender<SharedInstanceEvent>>,
+        event: SharedInstanceEvent,
+    ) {
+        send_shared_instance_state_event(&self.name, self.iface, events, event);
     }
 
     /// Python's `is_connected_to_shared_instance` guard

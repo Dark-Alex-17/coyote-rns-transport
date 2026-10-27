@@ -905,6 +905,7 @@ pub struct TcpClient {
     socket_tuning: TcpSocketTuning,
     hdlc_watchdog: Option<HdlcStreamWatchdog>,
     forced_bitrate_bps: Option<u64>,
+    connect_events: Option<tokio::sync::mpsc::Sender<crate::hash::AddressHash>>,
     reconnect_events: Option<tokio::sync::mpsc::Sender<crate::hash::AddressHash>>,
     disconnect_events: Option<tokio::sync::mpsc::Sender<crate::hash::AddressHash>>,
     connect_timeout: Duration,
@@ -935,6 +936,7 @@ impl TcpClient {
             socket_tuning: TcpSocketTuning::default(),
             hdlc_watchdog: None,
             forced_bitrate_bps: None,
+            connect_events: None,
             reconnect_events: None,
             disconnect_events: None,
             connect_timeout: Self::DEFAULT_CONNECT_TIMEOUT,
@@ -960,6 +962,7 @@ impl TcpClient {
             socket_tuning: TcpSocketTuning::default(),
             hdlc_watchdog: None,
             forced_bitrate_bps: None,
+            connect_events: None,
             reconnect_events: None,
             disconnect_events: None,
             connect_timeout: Self::DEFAULT_CONNECT_TIMEOUT,
@@ -1003,6 +1006,19 @@ impl TcpClient {
         self.forced_bitrate_bps = (bitrate_bps > 0).then_some(bitrate_bps);
         self.runtime_status.lock().expect("tcp runtime status mutex poisoned").forced_bitrate_bps =
             self.forced_bitrate_bps;
+        self
+    }
+
+    /// Sends the interface address on `events` each time a stream to the
+    /// endpoint is established, the first included
+    /// ([`Self::with_reconnect_events`] fires from the second on); a full
+    /// channel drops the event at debug. Fork-only.
+    #[must_use]
+    pub fn with_connect_events(
+        mut self,
+        events: tokio::sync::mpsc::Sender<crate::hash::AddressHash>,
+    ) -> Self {
+        self.connect_events = Some(events);
         self
     }
 
@@ -1101,6 +1117,11 @@ impl TcpClient {
     }
 
     #[must_use]
+    pub fn connect_events_enabled(&self) -> bool {
+        self.connect_events.is_some()
+    }
+
+    #[must_use]
     pub fn reconnect_events_enabled(&self) -> bool {
         self.reconnect_events.is_some()
     }
@@ -1187,9 +1208,14 @@ impl TcpClient {
         let ifac_violations = context.channel.ifac_violations.clone();
         let online = context.channel.online.clone();
         online.store(false, std::sync::atomic::Ordering::Release);
-        let (mut stream, reconnect_events, disconnect_events) = {
+        let (mut stream, connect_events, reconnect_events, disconnect_events) = {
             let mut guard = context.inner.lock().unwrap();
-            (guard.stream.take(), guard.reconnect_events.clone(), guard.disconnect_events.clone())
+            (
+                guard.stream.take(),
+                guard.connect_events.clone(),
+                guard.reconnect_events.clone(),
+                guard.disconnect_events.clone(),
+            )
         };
 
         let (rx_channel, mut tx_channel) = context.channel.split();
@@ -1269,6 +1295,16 @@ impl TcpClient {
             let connected_at = Instant::now();
 
             log::info!("connected to <{}>", addr);
+            if let Some(events) = connect_events.as_ref() {
+                if let Err(err) = events.try_send(iface_address) {
+                    log::debug!(
+                        "dropped TCP connect event iface={} endpoint={} err={}",
+                        iface_address,
+                        addr,
+                        err
+                    );
+                }
+            }
             if has_connected {
                 if let Some(events) = reconnect_events.as_ref() {
                     if let Err(err) = events.try_send(iface_address) {

@@ -22,8 +22,9 @@ pub enum ResponseOutcome {
     /// Fork-only: nothing left. The handler returned `None`, the link could
     /// no longer exchange data, the send failed before dispatch (the packet
     /// would not build, the link has no ingress interface, the metadata does
-    /// not pack, or the packet reached no interface), or `Transport::stop`
-    /// or `cancel` aborted the dispatcher task before it resolved.
+    /// not pack, or the packet reached no interface), the handler panicked
+    /// after tracking, or `Transport::stop` or `cancel` aborted the
+    /// dispatcher task before it resolved: every path that drops the sender.
     NotSent,
 }
 

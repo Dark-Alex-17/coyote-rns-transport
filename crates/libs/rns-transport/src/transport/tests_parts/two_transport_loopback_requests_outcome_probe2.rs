@@ -3,8 +3,9 @@
 // a task the handler spawns to await the receiver while the handler returns at once; two
 // requests in flight on one link whose handler answers one and stays silent on the other,
 // each receiver resolving for its own request; and a request that arrived as a request
-// Resource rather than one packet, tracked like any other. Helpers come from the sibling
-// `tests_parts` files (`tracking_handler`, `await_outcome`, `send_request_as_resource`).
+// Resource rather than one packet, tracked like any other; and a handler that panics after
+// tracking, whose receiver resolves `NotSent` because the sender went down with the task.
+// Helpers come from the sibling `tests_parts` files.
 
 /// The handler keeps nothing of the receiver: it spawns a task that awaits the verdict and
 /// forwards it, then returns its response without waiting. This is the shape the README's
@@ -124,4 +125,26 @@ async fn two_transport_loopback_request_resource_form_request_outcome_is_packet_
         ResponseOutcome::Packet
     );
     assert_eq!(await_response(&mut pair, id).await, rmpv::Value::from(expected_len));
+}
+
+/// The panic takes the response task down and the sender with it; the dispatcher never
+/// reaches its resolution step, so the receiver resolves through the dropped-sender rule
+/// and a sibling request on the same link is still answered.
+#[tokio::test]
+#[deny(clippy::await_holding_invalid_type)]
+async fn two_transport_loopback_request_handler_panicking_after_tracking_resolves_not_sent() {
+    let mut pair = loopback_request_pair("request-outcome-probe2-panic").await;
+    let (outcome_tx, mut outcomes) = tokio::sync::mpsc::unbounded_channel();
+    register_handler(&pair, "/panic", RequestAllow::All, move |mut request: InboundRequest| {
+        outcome_tx.send(request.track_outcome()).expect("test receiver is alive");
+        async { panic!("handler panics on purpose after tracking") }
+    })
+    .await;
+    register_handler(&pair, "/echo", RequestAllow::All, echo_handler()).await;
+
+    send_request(&pair, "/panic", rmpv::Value::Nil).await;
+    assert_eq!(await_outcome(&mut outcomes).await, ResponseOutcome::NotSent);
+
+    let id = send_request(&pair, "/echo", rmpv::Value::from("after panic")).await;
+    assert_eq!(await_response(&mut pair, id).await, rmpv::Value::from("after panic"));
 }

@@ -113,11 +113,12 @@ handler has returned, so it is awaited outside the handler. The
 `ResponseOutcome` it resolves to is `#[non_exhaustive]`: `Resource` carries
 the `OutboundResult` of every response that leaves as a Resource, the
 `Resource` form and an oversize `Value` or `Bytes` alike; `Packet` says the
-`RESPONSE` packet reached an interface, and no more, since a packet response
-is never proved (see Delivery proofs on a link); `NotSent` covers a handler
-that returned `None`, a link that could no longer exchange data, a send that
-failed before dispatch, and a response task that `Transport::stop` or
-`cancel` aborted before the outcome was known. Calling `track_outcome` a
+`RESPONSE` packet reached at least one interface, and no more, since a packet
+response is never proved (see Delivery proofs on a link); `NotSent` covers a
+handler that returned `None`, a link that could no longer exchange data, a
+send that failed before dispatch, a handler that panicked after tracking,
+and a response task that `Transport::stop` or `cancel` aborted before the
+outcome was known: every path that drops the sender. Calling `track_outcome` a
 second time resolves the earlier receiver as `NotSent`. Python has no
 counterpart: `handle_request` sends and keeps nothing (`RNS/Link.py:846-852`).
 

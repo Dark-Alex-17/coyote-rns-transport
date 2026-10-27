@@ -36,7 +36,7 @@ The `destination lookup` patch is fork commits `5246fc9c`, `15278355`,
 `5093b5b6`, `338811b0` and `94d76ac8`; the `ledger contracts` patch is fork
 commits `d2f871f7`, `e8e64626`, `f24e4ec3`, `0b86c14b`, `338811b0` and
 `94d76ac8`; the `response outcomes` patch is fork commits `d6cfbb58`,
-`7ef891be` and `79aae7ed`.
+`7ef891be`, `79aae7ed`, `72242c71` and `c627c6d7`.
 
 | File | Patch |
 | --- | --- |
@@ -57,6 +57,7 @@ commits `d2f871f7`, `e8e64626`, `f24e4ec3`, `0b86c14b`, `338811b0` and
 | `crates/libs/rns-transport/src/transport/tests_parts/two_transport_destination_desc_probe.rs` | destination lookup |
 | `crates/libs/rns-transport/src/transport/tests_parts/two_transport_destination_desc_probe2.rs` | destination lookup |
 | `crates/libs/rns-transport/src/transport/tests_parts/two_transport_loopback_requests_outcome.rs` | response outcomes |
+| `crates/libs/rns-transport/src/transport/tests_parts/two_transport_loopback_requests_outcome_probe.rs` | response outcomes |
 | `crates/libs/rns-transport/src/transport/tests.rs` | destination lookup, response outcomes |
 | `crates/libs/rns-transport/tests/destination_desc_api.rs` | destination lookup |
 | `crates/libs/rns-transport/tests/request_handler_api.rs` | response outcomes |
@@ -126,7 +127,8 @@ fixture for the misplaced case; `94d76ac8` makes that fixture assert the
 position message's own wording rather than a word the release-tree message
 shares.
 
-Fork commits `d6cfbb58`, `7ef891be` and `79aae7ed`:
+Fork commits `d6cfbb58`, `7ef891be`, `79aae7ed`, `72242c71` and
+`c627c6d7`:
 J3, response outcomes. The library behaviour changes are: a request handler
 can learn what became of the response it returned. `d6cfbb58` adds
 `InboundRequest::track_outcome` (`destination/request/inbound.rs`), which
@@ -160,7 +162,17 @@ including the packet that reaches no interface and the responder that stops
 mid-transfer. `79aae7ed` adds `python_to_rust_request_outcome.rs` (included
 from `python_channel_interop.rs`): a Python requester taking a 48 KiB reply
 as a response Resource resolves `Resource(Complete)` on the Rust handler, a
-short reply resolves `Packet`.
+short reply resolves `Packet`. `72242c71` adds
+`two_transport_loopback_requests_outcome_probe.rs`: a dropped receiver still
+delivers the response, a link the handler closed before answering resolves
+`NotSent` for both response forms, a handler awaiting its own receiver wedges
+only itself, and a `track_outcome` call made after the handler returned
+resolves `NotSent` once the request drops. `c627c6d7` pins the README
+request-handler paragraph in `fork_release_docs_contract.rs`, raises its
+docs-walker floor, says in the `track_outcome` rustdoc that the call belongs
+inside the handler, names the two types in the module doc, pins the receiver
+as `Send + Sync` and as a future in `tests/request_receipt_api.rs`, and
+cites the proofs section of the crate CHANGELOG by heading alone.
 
 ## 0.16.0 (upstream 0.14.0)
 

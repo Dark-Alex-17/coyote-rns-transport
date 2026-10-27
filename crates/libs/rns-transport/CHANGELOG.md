@@ -53,9 +53,13 @@ Removed) bullet of its own, marked as such.
   `two_transport_loopback_requests_outcome.rs` (packet, Resource form,
   oversize `Value` and `Bytes`, a wire teardown and a local reset under the
   transfer, a silent handler, a packet dispatched to zero interfaces, a stop
-  mid-transfer, a replaced receiver) and against a Python requester by
-  `python_to_rust_request_outcome.rs`; `tests/request_handler_api.rs` and
-  `tests/request_receipt_api.rs` cover the public paths.
+  mid-transfer, a replaced receiver), by
+  `two_transport_loopback_requests_outcome_probe.rs` (a dropped receiver, a
+  link the handler closed before answering, a handler awaiting its own
+  receiver, a call made after the handler returned) and against a Python
+  requester by `python_to_rust_request_outcome.rs`;
+  `tests/request_handler_api.rs` and `tests/request_receipt_api.rs` cover
+  the public paths.
 
 ### Changed
 

@@ -98,13 +98,13 @@ const README_0_16_0_BLOCK_NEEDLES: [&str; 14] = [
     "`TcpClient` connect is cancel-aware",
 ];
 
-/// The README patch list opens with the 0.16.0 block and keeps the 0.15.1 and
-/// 0.15.0 blocks below it as history: the 0.16.0 block names every item of
-/// the release, and the two 0.15.1 sentences it supersedes (the no-op
-/// duplicate filter and the once-per-attach warning) survive verbatim in the
-/// 0.15.1 block rather than being edited away.
+/// The demoted 0.16.0 block sits above the 0.15.1 and 0.15.0 blocks as
+/// history: it still names every item of the release, and the two 0.15.1
+/// sentences it supersedes (the no-op duplicate filter and the once-per-attach
+/// warning) survive verbatim in the 0.15.1 block rather than being edited
+/// away.
 #[test]
-fn readme_patch_list_opens_with_the_0_16_0_block_and_keeps_the_0_15_1_paragraph() {
+fn readme_patch_list_keeps_the_0_16_0_block_above_the_0_15_1_paragraph() {
     let readme = read_repo_file("crates/libs/rns-transport/README.md");
     let patch_list = crate_readme_section(&readme, "Patch list")
         .split_whitespace()
@@ -113,9 +113,8 @@ fn readme_patch_list_opens_with_the_0_16_0_block_and_keeps_the_0_15_1_paragraph(
     let marker_0_16_0 = "What `0.16.0` carries on top of `0.15.1`:";
     let marker_0_15_1 = "What `0.15.1` carries on top of `0.15.0`:";
     let marker_0_15_0 = "What `0.15.0` carries on top of `0.14.1`:";
-    let at_0_16_0 = patch_list
-        .find(marker_0_16_0)
-        .expect("the README patch list should open with the 0.16.0 block");
+    let at_0_16_0 =
+        patch_list.find(marker_0_16_0).expect("the README patch list should keep the 0.16.0 block");
     let at_0_15_1 =
         patch_list.find(marker_0_15_1).expect("the README patch list should keep the 0.15.1 block");
     let at_0_15_0 =
@@ -151,7 +150,8 @@ fn readme_patch_list_opens_with_the_0_16_0_block_and_keeps_the_0_15_1_paragraph(
 
 /// The README patch list opens with the 0.17.0 block, which names every item
 /// of the release and tells consumers `new_from_hex_string` has validated its
-/// input since 0.14.1; the demoted 0.16.0 block below it still names every item.
+/// input since 0.14.1, and runs 0.16.0, then 0.15.1 below it; the demoted
+/// 0.16.0 block's content is pinned by the test above.
 #[test]
 fn readme_patch_list_opens_with_the_0_17_0_block_and_keeps_the_0_16_0_paragraph() {
     let readme = read_repo_file("crates/libs/rns-transport/README.md");
@@ -188,14 +188,6 @@ fn readme_patch_list_opens_with_the_0_17_0_block_and_keeps_the_0_16_0_paragraph(
         assert!(
             block_0_17_0.contains(needle),
             "the README 0.17.0 block should say {needle:?}:\n{block_0_17_0}"
-        );
-    }
-
-    let block_0_16_0 = &patch_list[at_0_16_0..at_0_15_1];
-    for needle in README_0_16_0_BLOCK_NEEDLES {
-        assert!(
-            block_0_16_0.contains(needle),
-            "the README 0.16.0 block should still say {needle:?}:\n{block_0_16_0}"
         );
     }
 }

@@ -1,9 +1,10 @@
 // Usage-pattern pins over the 0.17.0 release cut beyond `release_0_17_0_probe.rs`:
 // the additive-minor rule's two ordering edges (the sentence must OPEN the
 // prose; the exclusive-shapes rule holds whichever side the bullets sit on),
-// the release headings a consumer reads newest-first with ISO dates, and the
-// split of this contract into parts (every part file included exactly once
-// and named by the CHANGELOG bullet that announces the split).
+// the release headings a consumer reads newest-first with ISO dates (a
+// non-digit `## ` heading such as an `## Unreleased` stub is skipped), and
+// the split of this contract into parts (every part file included exactly
+// once and named by the CHANGELOG bullet that announces the split).
 
 /// The rule says a bullet-less `### Breaking` MUST open with the additive
 /// sentence: prose placed before it is not an opening, however the sentence
@@ -65,25 +66,63 @@ fn release_heading(line: &str) -> Option<((u64, u64, u64), String)> {
     date_ok.then(|| (triple, date.to_string()))
 }
 
+/// The release headings of a CHANGELOG in file order, each as the heading
+/// line, its version triple and its ISO date. A `## ` heading that does not
+/// open with a digit (an `## Unreleased` stub) is not a release heading and
+/// is skipped; one that does must read `## X.Y.Z - YYYY-MM-DD` or the whole
+/// parse is an `Err` naming it.
+fn release_headings(changelog: &str) -> Result<Vec<(String, (u64, u64, u64), String)>, String> {
+    changelog
+        .lines()
+        .filter(|line| {
+            line.strip_prefix("## ")
+                .is_some_and(|rest| rest.starts_with(|c: char| c.is_ascii_digit()))
+        })
+        .map(|line| {
+            release_heading(line).map(|(triple, date)| (line.to_string(), triple, date)).ok_or_else(
+                || format!("a release heading should read `## X.Y.Z - YYYY-MM-DD`, got {line:?}"),
+            )
+        })
+        .collect()
+}
+
+/// An `## Unreleased` stub above the release headings is the publish
+/// contract's business, not this pin's: it is skipped, and the release
+/// headings below it parse as before. A digit-leading heading that is not
+/// `## X.Y.Z - YYYY-MM-DD` is still rejected, so a two-digit version or a
+/// date missing its zero padding cannot pass as a release.
+#[test]
+fn release_headings_skip_an_unreleased_stub_and_reject_a_malformed_release_heading() {
+    let with_stub =
+        "# Changelog\n\n## Unreleased\n\n## 1.2.3 - 2026-01-02\n\n## 1.2.2 - 2026-01-01\n";
+    assert_eq!(
+        release_headings(with_stub).expect("the stub should be skipped, not rejected"),
+        vec![
+            ("## 1.2.3 - 2026-01-02".to_string(), (1, 2, 3), "2026-01-02".to_string()),
+            ("## 1.2.2 - 2026-01-01".to_string(), (1, 2, 2), "2026-01-01".to_string()),
+        ]
+    );
+
+    for malformed in ["## 1.2 - 2026-01-01\n", "## 1.2.3 - 2026-1-1\n"] {
+        assert!(
+            release_headings(malformed).is_err(),
+            "a digit-leading heading that is not `## X.Y.Z - YYYY-MM-DD` should be rejected: {malformed:?}"
+        );
+    }
+}
+
 /// A consumer reads the CHANGELOG top to bottom expecting the newest release
-/// first: every `## ` heading below the preamble is a release heading with
-/// an ISO `YYYY-MM-DD` date (no `## Unreleased` stub survives a release
-/// tree), versions strictly descend, dates never ascend, the first heading is
-/// the crate's manifest version, and its date is not earlier than the day the
-/// previous release's tag was cut.
+/// first: a `## ` heading that does not open with a digit, such as an
+/// `## Unreleased` stub, is skipped (the publish contract decides when a stub
+/// may exist); every digit-leading heading reads `## X.Y.Z - YYYY-MM-DD`,
+/// versions strictly descend, dates never ascend, the first release heading
+/// is the crate's manifest version, and its date is not earlier than the day
+/// the previous release's tag was cut.
 #[test]
 fn changelog_release_headings_read_newest_first_with_iso_dates() {
     let changelog = read_repo_file("crates/libs/rns-transport/CHANGELOG.md");
-    let headings: Vec<(String, (u64, u64, u64), String)> = changelog
-        .lines()
-        .filter(|line| line.starts_with("## "))
-        .map(|line| {
-            let parsed = release_heading(line).unwrap_or_else(|| {
-                panic!("every `## ` heading should read `## X.Y.Z - YYYY-MM-DD`, got {line:?}")
-            });
-            (line.to_string(), parsed.0, parsed.1)
-        })
-        .collect();
+    let headings = release_headings(&changelog)
+        .unwrap_or_else(|reason| panic!("the CHANGELOG release headings should parse: {reason}"));
     assert!(headings.len() >= 2, "the CHANGELOG should carry at least two releases");
 
     let newest = format!("## {} - ", crate_version());

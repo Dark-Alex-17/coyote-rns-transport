@@ -3,6 +3,12 @@
 
 include!("tests_parts/module_prelude.rs");
 
+impl Transport {
+    pub(crate) fn get_handler(&self) -> Arc<Mutex<TransportHandler>> {
+        self.handler.clone()
+    }
+}
+
 include!("tests_parts/path_table_api.rs");
 
 include!("tests_parts/reticulum_path_restore_bad_cache.rs");

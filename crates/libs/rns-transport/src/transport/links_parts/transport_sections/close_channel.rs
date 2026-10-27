@@ -464,10 +464,4 @@ impl Transport {
         let destination = destination.lock().await;
         Some(destination.desc)
     }
-
-    #[cfg(test)]
-    pub(crate) fn get_handler(&self) -> Arc<Mutex<TransportHandler>> {
-        // direct access to handler for testing purposes
-        self.handler.clone()
-    }
 }

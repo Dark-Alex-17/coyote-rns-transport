@@ -96,7 +96,7 @@ fn readme_0_17_0_register_and_changelog_0_17_0_point_at_test_files_that_exist() 
             pointers.push(("README 0.17.0 register", span));
         }
     }
-    for span in backticked(&changelog_0_17_0_section()) {
+    for span in backticked(&joined_prose(&changelog_0_17_0_section())) {
         if span.starts_with("tests/") && span.ends_with(".rs") {
             pointers.push(("CHANGELOG 0.17.0", span));
         }
@@ -118,14 +118,14 @@ fn readme_0_17_0_register_and_changelog_0_17_0_point_at_test_files_that_exist() 
     );
 }
 
-/// Three ledgers (README register, CHANGELOG `### Added`, PATCHSET narrative)
-/// say `tests/connect_events_api.rs` carries six tests: the two register pins
-/// that drive
-/// `TcpClient::with_connect_events` and `LocalUnixClient::with_connect_events`
-/// from outside the crate, read the `connect_events_enabled` getter and watch
-/// the reconnect channel beside the connect channel, and the four dropped- or
-/// full-channel pins. The file must carry the six tests and the five call
-/// shapes the claim rests on.
+/// The CHANGELOG `### Added` bullet and the PATCHSET 0.17.0 narrative say
+/// `tests/connect_events_api.rs` carries six tests: the two register pins
+/// that drive `TcpClient::with_connect_events` and
+/// `LocalUnixClient::with_connect_events` from outside the crate, read the
+/// `connect_events_enabled` getter and watch the reconnect channel beside the
+/// connect channel, and the four dropped- or full-channel pins; the README
+/// register names the file without a count. The file must carry the six
+/// tests and the five call shapes the claim rests on.
 #[test]
 fn connect_events_api_pins_carry_what_the_three_ledgers_describe() {
     let source = read_repo_file("crates/libs/rns-transport/tests/connect_events_api.rs");
@@ -142,7 +142,14 @@ fn connect_events_api_pins_carry_what_the_three_ledgers_describe() {
     }
     let changelog = changelog_0_17_0_section();
     let patchset = read_repo_file("docs/fork/PATCHSET.md");
-    for (doc, text) in [("CHANGELOG 0.17.0", changelog.as_str()), ("PATCHSET", patchset.as_str())] {
+    let heading = "\n## 0.17.0 (upstream 0.14.0)\n";
+    let start = patchset.find(heading).expect("PATCHSET should carry the 0.17.0 heading");
+    let body = &patchset[start + heading.len()..];
+    let end = body.find("\n## ").unwrap_or(body.len());
+    let patchset_0_17_0 = &body[..end];
+    for (doc, text) in
+        [("CHANGELOG 0.17.0", changelog.as_str()), ("PATCHSET 0.17.0", patchset_0_17_0)]
+    {
         let joined = joined_prose(text);
         assert!(
             joined.contains("connect_events_api.rs") && joined.contains("reconnect channel"),

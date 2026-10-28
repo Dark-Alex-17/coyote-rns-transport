@@ -1,8 +1,9 @@
 //! Release-documentation contracts of the fork: every public item added over
 //! the upstream baseline cites its Python counterpart in rustdoc or says it is
 //! fork-only, the README divergence register cites Python line numbers, the
-//! release notes carry `### Breaking` with migrations on a minor bump, the
-//! README's Rust snippets are pinned verbatim by the public-API tests, and
+//! release notes open with `### Breaking` on a minor bump, listing each break
+//! with a migration or saying in one sentence that the release is additive,
+//! the README's Rust snippets are pinned verbatim by the public-API tests, and
 //! the enums the docs call `#[non_exhaustive]` carry the attribute.
 
 use std::fs;
@@ -236,3 +237,5 @@ include!("fork_release_docs_contract_parts/release_0_17_0_probe.rs");
 include!("fork_release_docs_contract_parts/release_0_17_0_probe2.rs");
 
 include!("fork_release_docs_contract_parts/release_0_17_0_probe3.rs");
+
+include!("fork_release_docs_contract_parts/release_0_17_0_probe4.rs");

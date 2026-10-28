@@ -136,9 +136,10 @@ into rather than a patch to absorb.
   by the connect-event unit tests in
   `iface/tcp_client.rs` and `iface/local.rs` (one event per established
   stream, the first included) and by `tests/connect_events_api.rs` (the two
-  clients driven from outside the crate: the getter reports the installed
-  sender, the first stream fires a connect event with the reconnect channel
-  silent, the second fires both), by
+  clients driven from outside the crate with a 50 ms reconnect wait on
+  both: the getter reports the installed sender, the first stream fires a
+  connect event with the reconnect channel silent, the second fires both,
+  and exactly one connect event arrives per stream), by
   `two_transport_shared_instance_reconnect.rs` and
   `two_transport_shared_instance_probe16.rs` (the hand-driven consumer tests
   carry the new third channel), by `tests/shared_instance_api.rs` (the
@@ -177,22 +178,29 @@ into rather than a patch to absorb.
   its helpers and includes its tests from
   `fork_release_docs_contract_parts/` (`request_layer_api_docs.rs`,
   `crate_readme_sections.rs`, `release_notes_breaking.rs`,
-  `readme_patch_list.rs`, the `release_0_17_0_probe.rs` above and
-  `release_0_17_0_probe2.rs`); the `### Breaking` verdict rejects the
-  additive sentence without a reason clause and rejects it beside bullets,
-  since a section cannot both say `None.` and list changes, each shape
-  pinned by a fixture in `release_notes_breaking.rs`; the minor-bump test
-  also requires the README policy to say an additive release may bump the
-  minor digit; the 0.16.0 patch-list test is named for what it now pins,
-  the demoted block kept above the 0.15.1 history, with the 0.17.0 twin
-  asserting that its block opens the list, the order below it and the
-  0.17.0 items alone (`readme_patch_list.rs`); and
+  `readme_patch_list.rs`, the `release_0_17_0_probe.rs` above,
+  `release_0_17_0_probe2.rs` and `release_0_17_0_probe3.rs`); the
+  `### Breaking` verdict rejects the additive sentence without a reason
+  clause and rejects it beside bullets, since a section cannot both say
+  `None.` and list changes, each shape pinned by a fixture in
+  `release_notes_breaking.rs`; the minor-bump test also requires the README
+  policy to say an additive release may bump the minor digit; the 0.16.0
+  patch-list test is named for what it now pins, the demoted block kept
+  above the 0.15.1 history, with the 0.17.0 twin asserting that its block
+  opens the list, the order below it and the 0.17.0 items alone
+  (`readme_patch_list.rs`); and
   `release_0_17_0_probe2.rs` adds two more verdict fixtures, prose placed
   before the additive sentence and bullets followed by it, pins the release
   headings to newest-first order with ISO dates, skipping a non-digit `## `
   heading such as an `## Unreleased` stub and still rejecting a malformed
-  release heading (both pinned by a fixture), and requires every part file
-  to be included once by the root and named in this bullet.
+  release heading (both pinned by a fixture), each heading read into a
+  named `ReleaseHeading`, and requires every part file to be included once
+  by the root and named in this bullet; and `release_0_17_0_probe3.rs`
+  holds the 0.17.0 register's `ResponseOutcome` variant list to the enum's
+  declared variants, payload included, requires every test file the README
+  0.17.0 block and this section name to exist under the crate, and requires
+  `tests/connect_events_api.rs` to carry the two tests and the call shapes
+  the ledgers describe.
 - Shared-instance state tests, test-only: the full-channel test pins the
   four events dropped at debug in place of a non-empty drop record, the
   hand-driven consumer tests share one read-to-end helper

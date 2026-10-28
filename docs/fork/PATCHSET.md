@@ -45,8 +45,8 @@ hygiene` patch is fork commits `0b5b2dff`, `09ee7c45` and `7cfab1ef`; the
 fork commit `79aae7ed`, also a `response outcomes` commit; the `release 0.17.0`
 patch carries no other id and is fork commits `972318f6`, `a3451134`,
 `4b2208f3`, `f0c32509`, `7fc78269`, `e2e9cdc6`, `8b7619b7`, `e6f5dc52`,
-`92568aa7`, `1facb7a4`, `81d19f77`, `3fc9bbd4`, `5e64379e`, `b724477f` and
-`c9ed6456`.
+`92568aa7`, `1facb7a4`, `81d19f77`, `3fc9bbd4`, `5e64379e`, `b724477f`,
+`c9ed6456`, `ea1b3446`, `ced5eeb1` and `1f69d695`.
 
 | File | Patch |
 | --- | --- |
@@ -60,6 +60,7 @@ patch carries no other id and is fork commits `972318f6`, `a3451134`,
 | `crates/apps/reticulumd/tests/fork_release_docs_contract_parts/readme_patch_list.rs` | release 0.17.0 |
 | `crates/apps/reticulumd/tests/fork_release_docs_contract_parts/release_0_17_0_probe.rs` | release 0.17.0 |
 | `crates/apps/reticulumd/tests/fork_release_docs_contract_parts/release_0_17_0_probe2.rs` | release 0.17.0 |
+| `crates/apps/reticulumd/tests/fork_release_docs_contract_parts/release_0_17_0_probe3.rs` | release 0.17.0 |
 | `crates/apps/reticulumd/tests/fork_release_docs_contract_parts/release_notes_breaking.rs` | release 0.17.0 |
 | `crates/apps/reticulumd/tests/fork_release_docs_contract_parts/request_layer_api_docs.rs` | release 0.17.0 |
 | `crates/apps/reticulumd/tests/fork_release_docs_contract.rs` | destination lookup, ledger contracts, response outcomes, shared-instance state, release 0.17.0 |
@@ -412,7 +413,8 @@ one, the release section's Python-in-the-loop proof rows.
 
 Fork commits `972318f6`, `a3451134`, `4b2208f3`, `f0c32509`, `7fc78269`,
 `e2e9cdc6`, `8b7619b7`, `e6f5dc52`, `92568aa7`, `1facb7a4`, `81d19f77`,
-`3fc9bbd4`, `5e64379e`, `b724477f` and `c9ed6456`:
+`3fc9bbd4`, `5e64379e`, `b724477f`, `c9ed6456`, `ea1b3446`, `ced5eeb1` and
+`1f69d695`:
 release 0.17.0. The first retargets the promotion-sensitive pins to the
 literal 0.17.0 label, since a released section is frozen:
 `crates/apps/reticulumd/tests/fork_publish_contract_parts/ledger_contract.rs`
@@ -543,8 +545,25 @@ from outside the crate: the `connect_events_enabled` getter reports the
 installed sender, the first established stream fires a connect event carrying
 the interface address while the reconnect channel stays silent, and the second
 stream fires both; the register's shared-instance item cites the file. The
-ledger commits that cite the fifteen commits above touch only this file and
-the crate CHANGELOG.
+sixteenth names the heading `release_0_17_0_probe2.rs` parses:
+`release_headings` returns a `ReleaseHeading` (line, version triple, date) in
+place of a nested tuple. The seventeenth adopts
+`crates/apps/reticulumd/tests/fork_release_docs_contract_parts/release_0_17_0_probe3.rs`,
+included from the same root, whose three tests hold the 0.17.0 register's
+`ResponseOutcome` variant list to the enum's declared variants, payload
+included
+(`readme_0_17_0_register_names_exactly_the_response_outcome_variants`),
+require every `tests/*.rs` the README 0.17.0 block and the CHANGELOG 0.17.0
+section name to exist under the crate
+(`readme_0_17_0_register_and_changelog_0_17_0_point_at_test_files_that_exist`),
+and require `tests/connect_events_api.rs` to carry the two tests and the five
+call shapes the three ledgers describe
+(`connect_events_api_pins_carry_what_the_three_ledgers_describe`). The
+eighteenth gives the TCP twin in
+`crates/libs/rns-transport/tests/connect_events_api.rs` the same 50 ms
+reconnect wait as the unix twin and has both twins check that exactly one
+connect event arrives per stream. The ledger commits that cite the eighteen
+commits above touch only this file and the crate CHANGELOG.
 
 ## 0.16.0 (upstream 0.14.0)
 

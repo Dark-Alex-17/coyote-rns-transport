@@ -46,7 +46,8 @@ fork commit `79aae7ed`, also a `response outcomes` commit; the `release 0.17.0`
 patch carries no other id and is fork commits `972318f6`, `a3451134`,
 `4b2208f3`, `f0c32509`, `7fc78269`, `e2e9cdc6`, `8b7619b7`, `e6f5dc52`,
 `92568aa7`, `1facb7a4`, `81d19f77`, `3fc9bbd4`, `5e64379e`, `b724477f`,
-`c9ed6456`, `ea1b3446`, `ced5eeb1`, `1f69d695` and `26c1fdc7`.
+`c9ed6456`, `ea1b3446`, `ced5eeb1`, `1f69d695`, `26c1fdc7`, `cd22920e`,
+`e48b07d4` and `fc5cf7f5`.
 
 | File | Patch |
 | --- | --- |
@@ -61,6 +62,7 @@ patch carries no other id and is fork commits `972318f6`, `a3451134`,
 | `crates/apps/reticulumd/tests/fork_release_docs_contract_parts/release_0_17_0_probe.rs` | release 0.17.0 |
 | `crates/apps/reticulumd/tests/fork_release_docs_contract_parts/release_0_17_0_probe2.rs` | release 0.17.0 |
 | `crates/apps/reticulumd/tests/fork_release_docs_contract_parts/release_0_17_0_probe3.rs` | release 0.17.0 |
+| `crates/apps/reticulumd/tests/fork_release_docs_contract_parts/release_0_17_0_probe4.rs` | release 0.17.0 |
 | `crates/apps/reticulumd/tests/fork_release_docs_contract_parts/release_notes_breaking.rs` | release 0.17.0 |
 | `crates/apps/reticulumd/tests/fork_release_docs_contract_parts/request_layer_api_docs.rs` | release 0.17.0 |
 | `crates/apps/reticulumd/tests/fork_release_docs_contract.rs` | destination lookup, ledger contracts, response outcomes, shared-instance state, release 0.17.0 |
@@ -101,6 +103,7 @@ patch carries no other id and is fork commits `972318f6`, `a3451134`,
 | `crates/libs/rns-transport/src/transport/tests_parts/two_transport_shared_instance_state_events_probe4.rs` | shared-instance state, batch hygiene, release 0.17.0 |
 | `crates/libs/rns-transport/src/transport/tests.rs` | destination lookup, response outcomes, shared-instance state, batch hygiene |
 | `crates/libs/rns-transport/tests/connect_events_api.rs` | release 0.17.0 |
+| `crates/libs/rns-transport/tests/connect_events_log_api.rs` | release 0.17.0 |
 | `crates/libs/rns-transport/tests/destination_desc_api.rs` | destination lookup |
 | `crates/libs/rns-transport/tests/request_handler_api.rs` | response outcomes |
 | `crates/libs/rns-transport/tests/request_receipt_api.rs` | response outcomes |
@@ -414,7 +417,7 @@ one, the release section's Python-in-the-loop proof rows.
 Fork commits `972318f6`, `a3451134`, `4b2208f3`, `f0c32509`, `7fc78269`,
 `e2e9cdc6`, `8b7619b7`, `e6f5dc52`, `92568aa7`, `1facb7a4`, `81d19f77`,
 `3fc9bbd4`, `5e64379e`, `b724477f`, `c9ed6456`, `ea1b3446`, `ced5eeb1`,
-`1f69d695` and `26c1fdc7`:
+`1f69d695`, `26c1fdc7`, `cd22920e`, `e48b07d4` and `fc5cf7f5`:
 release 0.17.0. The first retargets the promotion-sensitive pins to the
 literal 0.17.0 label, since a released section is frozen:
 `crates/apps/reticulumd/tests/fork_publish_contract_parts/ledger_contract.rs`
@@ -565,13 +568,43 @@ reconnect wait as the unix twin and has both twins check that exactly one
 connect event arrives per stream. The nineteenth adds four tests to
 `crates/libs/rns-transport/tests/connect_events_api.rs`: for each client a
 connect receiver dropped before the first stream and a capacity-one connect
-channel never read both leave the second stream established and the reconnect
-channel served, the full channel buffering exactly the first connect event
+channel left unread while both streams come up both leave the second stream
+established and the reconnect channel served, the full channel buffering
+exactly the first connect event
 (`tcp_client_keeps_serving_when_the_connect_receiver_is_gone`,
 `tcp_client_drops_the_connect_event_on_a_full_channel_and_keeps_serving` and
 their unix twins); the count pin in `release_0_17_0_probe3.rs` reads six. The
-ledger commits that cite the nineteen commits above touch only this file and
-the crate CHANGELOG.
+twentieth adds `crates/libs/rns-transport/tests/connect_events_log_api.rs`,
+whose four tests hold the level and the line of the drop the CHANGELOG
+promises "at debug": a capacity-one connect channel left unread yields exactly
+one debug line naming the interface and the endpoint
+(`tcp_client_logs_a_dropped_connect_event_at_debug_once_per_drop`), a
+receiver dropped before the first stream yields one such line per dropped
+event, two in all
+(`tcp_client_logs_each_connect_event_dropped_on_a_closed_channel_at_debug`),
+and their unix twins the same; no dropped connect event reaches warn or
+error. The file is its own test target because `log::set_logger` is
+process-wide and the register pins in `tests/connect_events_api.rs` must not
+run under a capturing logger. The twenty-first adds
+`crates/apps/reticulumd/tests/fork_release_docs_contract_parts/release_0_17_0_probe4.rs`,
+included from the same root, whose two tests require every backticked
+snake_case name of five or more segments in this narrative to be a `fn` under
+`crates/`
+(`release_0_17_0_narrative_names_only_test_functions_that_exist`) and
+require both connect-event test files to pair every `tcp_client_<x>` test
+with a `local_unix_client_<x>` twin, three pairs and two
+(`connect_event_tcp_pins_each_have_a_unix_twin`); the same commit has the
+contract's module doc state the additive-minor rule for `### Breaking`, slices
+the PATCHSET needle of
+`connect_events_api_pins_carry_what_the_three_ledgers_describe` to the 0.17.0
+section, and reads the CHANGELOG `tests/*.rs` pointers from whitespace-joined
+prose so a span wrapped across two lines is still one span. The twenty-second
+hoists the `#[cfg(unix)]` imports of
+`crates/libs/rns-transport/tests/connect_events_api.rs` to module level,
+copies the ordering comment on the full-channel pin to its unix twin, and
+says above the first 50 ms reconnect wait that it is a safety net against a
+future back-off. The ledger commits that cite the twenty-two commits above
+touch only this file and the crate CHANGELOG.
 
 ## 0.16.0 (upstream 0.14.0)
 

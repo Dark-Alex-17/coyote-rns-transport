@@ -140,9 +140,12 @@ into rather than a patch to absorb.
   both: the getter reports the installed sender, the first stream fires a
   connect event with the reconnect channel silent, the second fires both,
   and exactly one connect event arrives per stream; a connect receiver
-  dropped before the first stream and a capacity-one connect channel never
-  read both leave the second stream established and the reconnect channel
-  served, the full channel keeping only the first connect event), by
+  dropped before the first stream and a capacity-one connect channel left
+  unread while both streams come up both leave the second stream
+  established and the reconnect channel served, the full channel keeping
+  only the first connect event), and by `tests/connect_events_log_api.rs`
+  (the drop of a connect event on a full or closed channel is one debug
+  line per event naming the interface and the endpoint, never a warning), by
   `two_transport_shared_instance_reconnect.rs` and
   `two_transport_shared_instance_probe16.rs` (the hand-driven consumer tests
   carry the new third channel), by `tests/shared_instance_api.rs` (the
@@ -182,9 +185,10 @@ into rather than a patch to absorb.
   `fork_release_docs_contract_parts/` (`request_layer_api_docs.rs`,
   `crate_readme_sections.rs`, `release_notes_breaking.rs`,
   `readme_patch_list.rs`, the `release_0_17_0_probe.rs` above,
-  `release_0_17_0_probe2.rs` and `release_0_17_0_probe3.rs`); the
-  `### Breaking` verdict rejects the additive sentence without a reason
-  clause and rejects it beside bullets, since a section cannot both say
+  `release_0_17_0_probe2.rs`, `release_0_17_0_probe3.rs` and
+  `release_0_17_0_probe4.rs`); the `### Breaking` verdict rejects the
+  additive sentence without a reason clause and rejects it beside bullets,
+  since a section cannot both say
   `None.` and list changes, each shape pinned by a fixture in
   `release_notes_breaking.rs`; the minor-bump test also requires the README
   policy to say an additive release may bump the minor digit; the 0.16.0
@@ -203,7 +207,13 @@ into rather than a patch to absorb.
   declared variants, payload included, requires every test file the README
   0.17.0 block and this section name to exist under the crate, and requires
   `tests/connect_events_api.rs` to carry the six tests and the call shapes
-  the ledgers describe.
+  the ledgers describe, reading its PATCHSET needle from the 0.17.0 section
+  alone; `release_0_17_0_probe4.rs` requires every test function the
+  PATCHSET 0.17.0 narrative names to exist under `crates/` and every
+  `tcp_client_<x>` test in the two connect-event test files to have a
+  `local_unix_client_<x>` twin; and the contract's module doc states the
+  additive-minor rule, a `### Breaking` section that lists each break with
+  a migration or says in one sentence that the release is additive.
 - Shared-instance state tests, test-only: the full-channel test pins the
   four events dropped at debug in place of a non-empty drop record, the
   hand-driven consumer tests share one read-to-end helper

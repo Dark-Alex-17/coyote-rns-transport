@@ -296,6 +296,28 @@ async fn shared_instance_reconnect_unflagged_iface_does_not_flush() {
         .expect("restarted shared instance stop completes");
 }
 
+/// A consumer over a fresh transport named `name` with nothing attached, driven directly
+/// by the tests below, with the transport it reads, returned so the caller keeps the
+/// transport alive for the run; the consumer holds clones of its parts. `reconnect_wait`
+/// is zero so a reconnect's re-announce task is due at once.
+fn shared_instance_reconnect_consumer(
+    name: &str,
+    iface: AddressHash,
+) -> (Transport, super::links::SharedInstanceReconnectConsumer) {
+    let identity = PrivateIdentity::new_from_rand(OsRng);
+    let transport = Transport::new(TransportConfig::new(name, &identity, false));
+    let consumer = super::links::SharedInstanceReconnectConsumer {
+        handler: transport.get_handler(),
+        iface_manager: transport.iface_manager(),
+        cancel: tokio_util::sync::CancellationToken::new(),
+        name: name.to_string(),
+        tasks: transport.shared_instance_tasks.clone(),
+        iface,
+        reconnect_wait: Duration::ZERO,
+    };
+    (transport, consumer)
+}
+
 /// With a disconnect and the reconnect that follows it both waiting when the consumer
 /// polls, the disconnect is served first: the drop's flush must not land after the tunnel
 /// re-synthesis of the same cycle. The consumer is driven directly with nothing attached,
@@ -308,29 +330,21 @@ async fn shared_instance_reconnect_consumer_serves_the_disconnect_before_the_rec
     install_test_logger();
     for round in 0..20 {
         let name = format!("shared-instance-reconnect-order-{round}");
-        let identity = PrivateIdentity::new_from_rand(OsRng);
-        let transport = Transport::new(TransportConfig::new(&name, &identity, false));
         let iface = AddressHash::new_from_rand(OsRng);
         let (reconnects_tx, reconnects) = tokio::sync::mpsc::channel(1);
+        let (connects_tx, connects) = tokio::sync::mpsc::channel(1);
         let (disconnects_tx, disconnects) = tokio::sync::mpsc::channel(1);
         reconnects_tx.send(iface).await.expect("queue the reconnect");
         disconnects_tx.send(iface).await.expect("queue the disconnect");
         drop(reconnects_tx);
 
-        let consumer = super::links::SharedInstanceReconnectConsumer {
-            handler: transport.get_handler(),
-            iface_manager: transport.iface_manager(),
-            cancel: tokio_util::sync::CancellationToken::new(),
-            name: name.clone(),
-            tasks: transport.shared_instance_tasks.clone(),
-            iface,
-            reconnect_wait: Duration::ZERO,
-        };
+        let (_transport, consumer) = shared_instance_reconnect_consumer(&name, iface);
         let cancel = consumer.cancel.clone();
-        timeout(STOP_TIMEOUT, consumer.run(reconnects, disconnects))
+        timeout(STOP_TIMEOUT, consumer.run(reconnects, connects, disconnects, None))
             .await
             .expect("the consumer exits once the reconnect channel is drained and closed");
         cancel.cancel();
+        drop(connects_tx);
         drop(disconnects_tx);
 
         let records: Vec<String> =

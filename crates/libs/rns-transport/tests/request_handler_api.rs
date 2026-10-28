@@ -1,17 +1,18 @@
 //! Black-box usage of the request handler registry from outside the crate, in the shape
 //! the README's "Request handlers" section shows: the public paths resolve, a closure is a
 //! handler through the blanket impl, a hand-written `RequestHandler` is accepted too, an
-//! empty path is refused with `RnsError::InvalidArgument`, and `deregister_request_handler`
-//! reports whether a handler was there (`RNS/Destination.py:381-412`).
+//! empty path is refused with `RnsError::InvalidArgument`, `deregister_request_handler`
+//! reports whether a handler was there (`RNS/Destination.py:381-412`), and a handler that
+//! keeps the `ResponseOutcomeReceiver` from `track_outcome` registers like any other.
 
 use std::collections::HashSet;
 use std::future::Future;
 use std::pin::Pin;
-use std::sync::Arc;
+use std::sync::{Arc, Mutex};
 
 use rand_core::OsRng;
 use rns_transport::destination::request::{
-    InboundRequest, RequestAllow, RequestHandler, RequestResponse,
+    InboundRequest, RequestAllow, RequestHandler, RequestResponse, ResponseOutcomeReceiver,
 };
 use rns_transport::destination::{DestinationName, SingleInputDestination};
 use rns_transport::error::RnsError;
@@ -33,6 +34,23 @@ impl RequestHandler for Silent {
         _request: InboundRequest,
     ) -> Pin<Box<dyn Future<Output = Option<RequestResponse>> + Send + '_>> {
         Box::pin(async { None })
+    }
+}
+
+/// Echoes the request and keeps the outcome receiver for a later await,
+/// taking it before `into_data` consumes the request.
+struct TrackedEcho {
+    outcome: Mutex<Option<ResponseOutcomeReceiver>>,
+}
+
+impl RequestHandler for TrackedEcho {
+    fn handle(
+        &self,
+        mut request: InboundRequest,
+    ) -> Pin<Box<dyn Future<Output = Option<RequestResponse>> + Send + '_>> {
+        let receiver = request.track_outcome();
+        *self.outcome.lock().expect("outcome slot") = Some(receiver);
+        Box::pin(async move { Some(RequestResponse::Value(request.into_data())) })
     }
 }
 
@@ -99,4 +117,18 @@ fn a_second_registration_replaces_the_first_without_error() {
         .expect("second registration replaces the first");
     assert!(destination.deregister_request_handler("/echo"), "one row for the path");
     assert!(!destination.deregister_request_handler("/echo"), "and only one");
+}
+
+#[test]
+fn a_handler_that_tracks_the_outcome_registers() {
+    let mut destination = destination();
+    let handler = Arc::new(TrackedEcho { outcome: Mutex::new(None) });
+    destination
+        .register_request_handler("/echo", handler.clone(), RequestAllow::All, true)
+        .expect("a handler holding a ResponseOutcomeReceiver registers");
+    assert!(
+        handler.outcome.lock().expect("outcome slot").is_none(),
+        "the slot starts empty; dispatch is pinned in-crate"
+    );
+    assert!(destination.deregister_request_handler("/echo"));
 }

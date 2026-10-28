@@ -905,6 +905,7 @@ pub struct TcpClient {
     socket_tuning: TcpSocketTuning,
     hdlc_watchdog: Option<HdlcStreamWatchdog>,
     forced_bitrate_bps: Option<u64>,
+    connect_events: Option<tokio::sync::mpsc::Sender<crate::hash::AddressHash>>,
     reconnect_events: Option<tokio::sync::mpsc::Sender<crate::hash::AddressHash>>,
     disconnect_events: Option<tokio::sync::mpsc::Sender<crate::hash::AddressHash>>,
     connect_timeout: Duration,
@@ -935,6 +936,7 @@ impl TcpClient {
             socket_tuning: TcpSocketTuning::default(),
             hdlc_watchdog: None,
             forced_bitrate_bps: None,
+            connect_events: None,
             reconnect_events: None,
             disconnect_events: None,
             connect_timeout: Self::DEFAULT_CONNECT_TIMEOUT,
@@ -960,6 +962,7 @@ impl TcpClient {
             socket_tuning: TcpSocketTuning::default(),
             hdlc_watchdog: None,
             forced_bitrate_bps: None,
+            connect_events: None,
             reconnect_events: None,
             disconnect_events: None,
             connect_timeout: Self::DEFAULT_CONNECT_TIMEOUT,
@@ -1003,6 +1006,19 @@ impl TcpClient {
         self.forced_bitrate_bps = (bitrate_bps > 0).then_some(bitrate_bps);
         self.runtime_status.lock().expect("tcp runtime status mutex poisoned").forced_bitrate_bps =
             self.forced_bitrate_bps;
+        self
+    }
+
+    /// Sends the interface address on `events` each time a stream to the
+    /// endpoint is established, the first included
+    /// ([`Self::with_reconnect_events`] fires from the second on); a full
+    /// or closed channel drops the event at debug. Fork-only.
+    #[must_use]
+    pub fn with_connect_events(
+        mut self,
+        events: tokio::sync::mpsc::Sender<crate::hash::AddressHash>,
+    ) -> Self {
+        self.connect_events = Some(events);
         self
     }
 
@@ -1100,6 +1116,13 @@ impl TcpClient {
         self.forced_bitrate_bps
     }
 
+    /// Whether a connect-event sender is installed.
+    #[must_use]
+    pub fn connect_events_enabled(&self) -> bool {
+        self.connect_events.is_some()
+    }
+
+    /// Whether a reconnect-event sender is installed.
     #[must_use]
     pub fn reconnect_events_enabled(&self) -> bool {
         self.reconnect_events.is_some()
@@ -1187,9 +1210,14 @@ impl TcpClient {
         let ifac_violations = context.channel.ifac_violations.clone();
         let online = context.channel.online.clone();
         online.store(false, std::sync::atomic::Ordering::Release);
-        let (mut stream, reconnect_events, disconnect_events) = {
+        let (mut stream, connect_events, reconnect_events, disconnect_events) = {
             let mut guard = context.inner.lock().unwrap();
-            (guard.stream.take(), guard.reconnect_events.clone(), guard.disconnect_events.clone())
+            (
+                guard.stream.take(),
+                guard.connect_events.clone(),
+                guard.reconnect_events.clone(),
+                guard.disconnect_events.clone(),
+            )
         };
 
         let (rx_channel, mut tx_channel) = context.channel.split();
@@ -1269,6 +1297,16 @@ impl TcpClient {
             let connected_at = Instant::now();
 
             log::info!("connected to <{}>", addr);
+            if let Some(events) = connect_events.as_ref() {
+                if let Err(err) = events.try_send(iface_address) {
+                    log::debug!(
+                        "dropped TCP connect event iface={} endpoint={} err={}",
+                        iface_address,
+                        addr,
+                        err
+                    );
+                }
+            }
             if has_connected {
                 if let Some(events) = reconnect_events.as_ref() {
                     if let Err(err) = events.try_send(iface_address) {
@@ -2286,6 +2324,54 @@ mod tests {
 
         assert!(iface_stop.is_cancelled());
         assert_eq!(reconnected_iface, iface_address);
+    }
+
+    #[tokio::test]
+    #[deny(clippy::await_holding_invalid_type)]
+    async fn tcp_client_reports_connect_events_on_every_connection_the_first_included() {
+        let listener = TcpListener::bind("127.0.0.1:0").await.expect("bind listener");
+        let addr = listener.local_addr().expect("listener addr");
+        let (connect_tx, mut connect_rx) = tokio::sync::mpsc::channel(32);
+        let client = TcpClient::new(addr.to_string()).with_connect_events(connect_tx);
+        assert!(client.connect_events_enabled());
+        let mut manager = InterfaceManager::new(8);
+        let context = manager.new_context(client);
+        let iface_address = context.channel.address;
+        let cancel = context.cancel.clone();
+        let iface_stop = context.channel.stop.clone();
+        let task = tokio::spawn(TcpClient::spawn(context));
+
+        let (first_stream, _) = tokio::time::timeout(Duration::from_secs(2), listener.accept())
+            .await
+            .expect("first connect timed out")
+            .expect("first accept");
+        let first_connected = tokio::time::timeout(Duration::from_secs(2), connect_rx.recv())
+            .await
+            .expect("first connect event timed out")
+            .expect("first connect event");
+        assert_eq!(first_connected, iface_address);
+        assert!(connect_rx.try_recv().is_err(), "the first stream reports exactly one connect");
+        drop(first_stream);
+
+        let (second_stream, _) = tokio::time::timeout(Duration::from_secs(2), listener.accept())
+            .await
+            .expect("redial timed out")
+            .expect("second accept");
+        let second_connected = tokio::time::timeout(Duration::from_secs(2), connect_rx.recv())
+            .await
+            .expect("second connect event timed out")
+            .expect("second connect event");
+        assert_eq!(second_connected, iface_address);
+
+        cancel.cancel();
+        drop(second_stream);
+        tokio::time::timeout(Duration::from_secs(2), task)
+            .await
+            .expect("client task timed out")
+            .expect("client task");
+
+        assert!(iface_stop.is_cancelled());
+        assert!(connect_rx.try_recv().is_err(), "the redial reports exactly one connect");
     }
 
     #[tokio::test]

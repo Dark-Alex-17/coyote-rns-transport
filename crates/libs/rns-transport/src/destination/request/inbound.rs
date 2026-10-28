@@ -1,6 +1,8 @@
 use core::fmt;
+use std::sync::PoisonError;
 
-use super::{PathHash, RequestId};
+use super::frame::RequestFrame;
+use super::{OutcomeSlot, PathHash, RequestId, ResponseOutcomeReceiver};
 use crate::hash::AddressHash;
 use crate::identity::Identity;
 
@@ -16,19 +18,33 @@ pub struct InboundRequest {
     link_id: AddressHash,
     remote_identity: Option<Identity>,
     requested_at: f64,
+    outcome: OutcomeSlot,
 }
 
 impl InboundRequest {
+    /// `frame` is the decoded `[requested_at, path_hash, data]` the requester
+    /// sent (`RNS/Link.py:805-808`); `outcome` is the slot
+    /// [`track_outcome`](Self::track_outcome) fills, of which the dispatcher
+    /// keeps its own clone so it can resolve the verdict after `into_data`
+    /// has consumed the request.
     pub(crate) fn new(
         path: String,
-        path_hash: PathHash,
-        data: rmpv::Value,
+        frame: RequestFrame,
         request_id: RequestId,
         link_id: AddressHash,
         remote_identity: Option<Identity>,
-        requested_at: f64,
+        outcome: OutcomeSlot,
     ) -> Self {
-        Self { path, path_hash, data, request_id, link_id, remote_identity, requested_at }
+        Self {
+            path,
+            path_hash: frame.path_hash(),
+            requested_at: frame.requested_at(),
+            data: frame.into_data(),
+            request_id,
+            link_id,
+            remote_identity,
+            outcome,
+        }
     }
 
     /// The path the handler was registered under, `request_handler[0]`
@@ -79,6 +95,24 @@ impl InboundRequest {
     pub fn requested_at(&self) -> f64 {
         self.requested_at
     }
+
+    /// A future that resolves with what became of this request's response.
+    /// Call it inside the handler, before the handler returns and before
+    /// [`into_data`](Self::into_data) consumes the request: the dispatcher
+    /// takes the sender as the handler returns and resolves the future after
+    /// that, so awaiting it inside the handler deadlocks that handler, and a
+    /// sender installed once the handler has returned is never taken and
+    /// resolves [`ResponseOutcome::NotSent`](super::ResponseOutcome::NotSent)
+    /// only when the request is dropped. A second call replaces the first
+    /// sender and the earlier receiver resolves `NotSent`.
+    ///
+    /// Fork-only: Python's `handle_request` keeps nothing of the response it
+    /// sends (`RNS/Link.py:846-852`).
+    pub fn track_outcome(&mut self) -> ResponseOutcomeReceiver {
+        let (tx, rx) = tokio::sync::oneshot::channel();
+        *self.outcome.lock().unwrap_or_else(PoisonError::into_inner) = Some(tx);
+        ResponseOutcomeReceiver::new(rx)
+    }
 }
 
 impl fmt::Debug for InboundRequest {
@@ -91,6 +125,10 @@ impl fmt::Debug for InboundRequest {
             .field("link_id", &self.link_id)
             .field("remote_identity", &self.remote_identity.map(|identity| identity.address_hash))
             .field("requested_at", &self.requested_at)
+            .field(
+                "outcome_tracked",
+                &self.outcome.lock().unwrap_or_else(PoisonError::into_inner).is_some(),
+            )
             .finish()
     }
 }

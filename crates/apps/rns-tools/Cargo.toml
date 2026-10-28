@@ -25,7 +25,7 @@ tracing-subscriber = { workspace = true }
 rns-embedded-core = { path = "../../libs/rns-embedded-core", version = "0.14.0" }
 rns-embedded-runtime = { path = "../../libs/rns-embedded-runtime", version = "0.14.0", features = ["std"] }
 rns_rpc = { package = "reticulum-rs-rpc", path = "../../libs/rns-rpc", version = "0.14.0" }
-rns_transport = { package = "coyote-rns-transport", path = "../../libs/rns-transport", version = "0.16.0" }
+rns_transport = { package = "coyote-rns-transport", path = "../../libs/rns-transport", version = "0.17.0" }
 rand_core = { workspace = true, features = ["getrandom"] }
 bzip2.workspace = true
 # process-wrap 8.2 keeps process-tree cleanup compatible with the workspace MSRV.

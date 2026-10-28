@@ -12,20 +12,23 @@ Apart from the patch list below and the API breaks `CHANGELOG.md` lists under
 upstream resolves unchanged against this crate.
 
 The version follows cargo semver relative to the upstream baseline. `0.14.0`
-is upstream `0.14.0` renamed, with the link-close patch applied. Fork patches
-that do not break the public API (additive API, internal fixes) bump the patch
-digit; a fork change that breaks the public API bumps the minor digit, and
-`0.15.0` is the first such minor bump; its breaking changes are listed under
-`### Breaking` in `CHANGELOG.md`. When upstream ships a release the fork is
-rebased onto it and takes the first version above both the upstream number
-and the fork's last published number: the next minor digit when the rebase
-breaks the fork's public API, the next patch digit otherwise.
+is upstream `0.14.0` renamed, with the link-close patch applied. A fork
+release that only fixes bugs, or adds API a consumer need not opt into, bumps
+the patch digit; a fork change that breaks the public API bumps the minor
+digit, and `0.15.0` is the first such minor bump; its breaking changes are
+listed under `### Breaking` in `CHANGELOG.md`. A fork release that adds public
+API without breaking any may bump the minor digit too, so the digit tells a
+consumer there is new surface to opt into; `0.17.0` is the first such additive
+minor, and its `### Breaking` says so in place of a list. When upstream ships a
+release the fork is rebased onto it and takes the first version above both the
+upstream number and the fork's last published number: the next minor digit
+when the rebase breaks the fork's public API, the next patch digit otherwise.
 
 ## Consumer
 
 ```toml
 [dependencies]
-coyote-rns-transport = "0.16.0"
+coyote-rns-transport = "0.17.0"
 ```
 
 ```rust
@@ -105,6 +108,22 @@ Both advertise the request id in `q` with the response flag `p` set, and both
 honour the registration's `auto_compress`. A response Resource reaches the
 requester through `Transport::resource_events()` and resolves its
 `RequestReceipt`.
+
+A handler that wants to know what became of its response calls
+`request.track_outcome()` before `into_data` consumes the request and gets
+a `ResponseOutcomeReceiver`, a future the dispatcher resolves after the
+handler has returned, so it is awaited outside the handler. The
+`ResponseOutcome` it resolves to is `#[non_exhaustive]`: `Resource` carries
+the `OutboundResult` of every response that leaves as a Resource, the
+`Resource` form and an oversize `Value` or `Bytes` alike; `Packet` says the
+`RESPONSE` packet reached at least one interface, and no more, since a packet
+response is never proved (see Delivery proofs on a link); `NotSent` covers a
+handler that returned `None`, a link that could no longer exchange data, a
+send that failed before dispatch, a handler that panicked after tracking,
+and a response task that `Transport::stop` or `cancel` aborted before the
+outcome was known: every path that drops the sender. Calling `track_outcome` a
+second time resolves the earlier receiver as `NotSent`. Python has no
+counterpart: `handle_request` sends and keeps nothing (`RNS/Link.py:846-852`).
 
 `LinkEvent::Data` with `PacketContext::Request` keeps posting for every
 inbound request packet, its `LinkPayload` carrying the request id, and
@@ -306,6 +325,41 @@ on the request still goes out on every outgoing interface, as
 `RNS/Transport.py:1439-1443` floods a packet without a path entry.
 `RnsError` is `#[non_exhaustive]`, so a match on it keeps a wildcard arm.
 
+`Transport::destination_desc` returns `Option<DestinationDesc>` for a
+destination learned from an announce (the same map is also filled when a
+cached path table is restored), `Some` exactly when
+`Transport::destination_identity` is `Some`. The desc's `name` is the
+announce's truncated name hash as `DestinationName::new_from_hash_slice`
+stores it, not the full hash `DestinationName::new` computes, so compare
+names with `as_name_hash_slice()` rather than against a freshly built
+`DestinationName`. The entry outlives `Transport::expire_path`, which
+touches only the path table, and is removed only by
+`Transport::deregister_destination`. The desc is the argument
+`Transport::link` takes, though the link still needs a path
+as described above.
+
+Looking up a learned destination and opening a link with it, on the transport
+that learned the announce and with `destination_hash` the `AddressHash` the
+announce carried:
+
+```rust
+use rns_transport::destination::DestinationName;
+
+let desc = transport
+    .destination_desc(&destination_hash)
+    .await
+    .ok_or("the announce has not been learned yet")?;
+assert_eq!(
+    desc.name.as_name_hash_slice(),
+    DestinationName::new("example", "echo").as_name_hash_slice(),
+);
+let link = transport.link(desc).await?;
+```
+
+`crates/libs/rns-transport/tests/destination_desc_api.rs` runs this snippet
+verbatim on a transport that learned the announce over a loopback `TcpClient`
+and reads the link's `Activated` event back on the announcing side.
+
 `AnnounceEvent::is_path_response` is true for an announce the destination
 sent in answer to a path request, which it files under
 `PacketContext::PathResponse` (`RNS/Destination.py:308`), and false for an
@@ -370,7 +424,8 @@ connection that outlived the window resets the streak.
 `TcpClient`/`LocalUnixClient` constructors would, with the `mtu` and
 `forced_bitrate_bps` getters reading the first two back; `LocalUnixClient`
 exposes `addr`, `mtu_value`, `forced_bitrate_bps`, `reconnect_wait`,
-`reconnect_events_enabled` and `disconnect_events_enabled` for inspection.
+`connect_events_enabled`, `reconnect_events_enabled` and
+`disconnect_events_enabled` for inspection.
 While
 attached, a `SINGLE` destination is announced as a path
 response 0.25 s after `register_destination` (`RNS/Transport.py:2911-2916`,
@@ -426,6 +481,41 @@ posture goes through the attach. `Transport::stop` joins the tasks the
 client spawns (the delayed announces and the reconnect consumer) within its
 budget, so none runs on a stopped transport.
 
+`SharedInstanceOptions::with_state_events` takes a
+`tokio::sync::mpsc::Sender<SharedInstanceEvent>` and delivers the client's
+connection state on it.
+`SharedInstanceEvent` is `#[non_exhaustive]`, so match it with a wildcard
+arm; its variants are `Connecting`, `Connected` and `Disconnected`. The
+attach itself sends the first `Connecting` once the interface is spawned and
+the slot taken, the connected posture already set when `Connecting` arrives
+while the slot still holds the interface (a refused attach sends nothing; in
+the documented attach/stop race the attach returns `Ok` and `Connecting`
+goes out with the posture off, the stream ending at once); the consumer task
+sends `Connected` on every established stream, the first included, and after
+every dropped connection `Disconnected`, once the flush above, which runs
+only while the transport is still attached, has run, then `Connecting` at
+once, so one cycle reads `Disconnected`, `Connecting`, `Connected`. Under a
+reconnect storm the cycles can interleave: queued disconnects are served
+before connects, so two `Disconnected` can precede their `Connected`s; the
+per-cycle order holds, the cycles may nest. A client attached while nothing
+listens stays in `Connecting` until the socket exists. Every event goes out
+with `try_send`: a full channel drops the event at debug and never blocks
+the consumer, so size the channel for the burst expected. The attach's clone
+of the sender is dropped on `detach_shared_instance`, `Transport::stop` or
+when the client worker exits; the stream ends once no other clone, a
+retained `SharedInstanceOptions` clone included, is alive. A detach or a
+stop sends no `Disconnected`, but a drop that was already queued when the
+detach landed is still served and read as `Disconnected`, `Connecting`
+before the stream ends (a connect already queued is read as `Connected`).
+`connected_to_shared_instance()` is the posture flag and is unchanged by the
+events: it stays set across a `Disconnected` until detach or stop. Python's
+`LocalClientInterface` exposes no such stream; its reconnect loop is
+`RNS/Interfaces/LocalInterface.py:155-181` and its drop path
+`RNS/Interfaces/LocalInterface.py:255-261`. Underneath, `TcpClient` and
+`LocalUnixClient` gained `with_connect_events`, which fires on every
+established stream, the first included, where `with_reconnect_events` fires
+from the second on, and a `connect_events_enabled` getter.
+
 A `Tcp` endpoint whose address is not loopback is refused with
 `RnsError::SharedInstanceEndpointNotLoopback` before any lock is taken, with
 one warning, since Python's `LocalClientInterface` connects to `127.0.0.1`
@@ -480,6 +570,35 @@ listener as the shared instance and read a local client's announce at zero
 attaches this crate to a Python `rnsd` (RNS 1.5.2) shared instance on a free
 port next to a Python local client and proves the zero-hop path, announce and
 `Link.request` both ways, over TCP everywhere and over an abstract unix socket on Linux.
+
+A client that attaches with a state stream and logs every transition until
+the stream ends, with `transport` the client transport and `endpoint` the
+owner's `SocketAddr`:
+
+```rust
+use rns_transport::transport::{SharedInstanceEndpoint, SharedInstanceEvent, SharedInstanceOptions};
+use tokio::sync::mpsc;
+
+let (events_tx, mut events) = mpsc::channel(8);
+transport
+    .attach_shared_instance(
+        SharedInstanceEndpoint::Tcp(endpoint),
+        SharedInstanceOptions::default().with_state_events(events_tx),
+    )
+    .await?;
+while let Some(event) = events.recv().await {
+    match event {
+        SharedInstanceEvent::Connecting => log::info!("shared instance: dialing"),
+        SharedInstanceEvent::Connected => log::info!("shared instance: connected"),
+        SharedInstanceEvent::Disconnected => log::warn!("shared instance: dropped, redialing"),
+        _ => {}
+    }
+}
+```
+
+`crates/libs/rns-transport/tests/shared_instance_api.rs` runs this snippet
+verbatim too: it reads `Connecting` then `Connected` against the in-process
+shared instance and sees the stream end on the detach.
 
 ## Known divergences from Python RNS
 
@@ -668,8 +787,43 @@ full `refs/tags/coyote-rns-transport-v<version>` ref, and
 
 `docs/fork/PATCHSET.md` is the single per-release ledger of every file changed
 since the previous release, with the commit that changed it and the upstream
-site; earlier sections carry the earlier patches. What `0.16.0` carries on top
-of `0.15.1`:
+site; earlier sections carry the earlier patches. What `0.17.0` carries on top
+of `0.16.0`:
+
+- The destination lookup: `Transport::destination_desc` returns
+  `Option<DestinationDesc>` for an announced destination, `Some` exactly when
+  `destination_identity` is. The desc's name is the announce's truncated name
+  hash as `DestinationName::new_from_hash_slice` stores it, so callers
+  compare names with `as_name_hash_slice()`. The entry survives `expire_path`
+  and is pruned only by `deregister_destination`; a restored path table fills
+  it too.
+- The responder outcome: `InboundRequest::track_outcome` returns a
+  `ResponseOutcomeReceiver` that resolves with a `ResponseOutcome`, one of
+  `Packet`, `Resource(OutboundResult)` or `NotSent`. `NotSent` covers every
+  path that drops the sender: a silent handler, a link no longer able to
+  exchange data, a stop or cancel under the response, a handler that panicked
+  after tracking. Opt-in; a handler that never calls it sees no change.
+- The shared-instance state events:
+  `SharedInstanceOptions::with_state_events(Sender<SharedInstanceEvent>)`
+  delivers the `#[non_exhaustive]` `Connecting`, `Connected` and
+  `Disconnected` events with a non-blocking `try_send`, a full or closed
+  channel dropping the event at debug; a drop or connect already queued when
+  the attach ended is still drained and served. Underneath,
+  `TcpClient::with_connect_events` and `LocalUnixClient::with_connect_events`
+  with their `connect_events_enabled` getters fire on every established
+  stream, the first included; `tests/connect_events_api.rs` drives both
+  clients that way.
+- For the consumer parsing hashes: `AddressHash::new_from_hex_string` has
+  decoded its input with `hex::decode` and returned `RnsError::IncorrectHash`
+  on any malformed string since 0.14.1 (that release's `### Fixed` in
+  `CHANGELOG.md`); nothing new was needed here.
+- Test-only hygiene: the loopback connector, the interop request-handler
+  record and the hand-driven shared-instance consumer each share one helper
+  in place of a copy per test file, three outcome probe tests that repeated a
+  sibling's pin are gone, and the test-only `get_handler` accessor lives in
+  `transport/tests.rs`.
+
+What `0.16.0` carries on top of `0.15.1`:
 
 - The loopback-only shared-instance default: `attach_shared_instance` refuses
   a non-loopback `Tcp` endpoint with

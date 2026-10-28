@@ -75,6 +75,7 @@ async fn shared_instance_probe16_reconnect_without_its_disconnect_keeps_the_tabl
     let interfaces_before = client.transport.interface_hashes().await;
 
     let (reconnects_tx, reconnects) = tokio::sync::mpsc::channel(1);
+    let (connects_tx, connects) = tokio::sync::mpsc::channel(1);
     let (disconnects_tx, disconnects) = tokio::sync::mpsc::channel(1);
     reconnects_tx.send(client.iface).await.expect("queue the lone reconnect");
     drop(reconnects_tx);
@@ -88,10 +89,11 @@ async fn shared_instance_probe16_reconnect_without_its_disconnect_keeps_the_tabl
         reconnect_wait: Duration::ZERO,
     };
     let cancel = consumer.cancel.clone();
-    timeout(STOP_TIMEOUT, consumer.run(reconnects, disconnects))
+    timeout(STOP_TIMEOUT, consumer.run(reconnects, connects, disconnects, None))
         .await
         .expect("the consumer exits once the reconnect channel is drained and closed");
     cancel.cancel();
+    drop(connects_tx);
     drop(disconnects_tx);
 
     assert!(

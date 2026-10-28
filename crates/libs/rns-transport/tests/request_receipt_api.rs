@@ -3,7 +3,8 @@
 //! builds with the documented builders, the status and error enums carry
 //! the documented variants (`RNS/Link.py:1318-1322`), `RequestError` is an error type a `?`
 //! in the README snippet can convert, and the receipt is a `Clone + Send + Sync` handle a
-//! consumer can move into another task.
+//! consumer can move into another task; `ResponseOutcomeReceiver` is a `Send + Sync`
+//! future resolving to a `#[non_exhaustive]` `ResponseOutcome`.
 
 use std::error::Error;
 use std::fmt::Debug;
@@ -11,12 +12,17 @@ use std::time::Duration;
 
 use rns_transport::destination::request::{
     FrameDecodeError, RequestAllow, RequestError, RequestOptions, RequestReceipt, RequestResponse,
-    RequestResponseData, RequestStatus,
+    RequestResponseData, RequestStatus, ResponseOutcome, ResponseOutcomeReceiver,
 };
+use rns_transport::resource::OutboundResult;
 use rns_transport::transport::AnnounceEvent;
 
 fn assert_clone_send_sync<T: Clone + Send + Sync + 'static>() {}
 fn assert_send_sync<T: Send + Sync + 'static>() {}
+fn assert_future_resolves_to_outcome<
+    F: std::future::Future<Output = ResponseOutcome> + Send + 'static,
+>() {
+}
 fn assert_clone_default_debug<T: Clone + Default + Debug>() {}
 
 #[test]
@@ -68,6 +74,8 @@ fn receipt_and_response_are_handles_a_consumer_can_share() {
     assert_send_sync::<RequestOptions>();
     assert_send_sync::<RequestError>();
     assert_send_sync::<RequestStatus>();
+    assert_send_sync::<ResponseOutcomeReceiver>();
+    assert_future_resolves_to_outcome::<ResponseOutcomeReceiver>();
 }
 
 /// The CHANGELOG says the request-layer enums are `#[non_exhaustive]` (the README says so of
@@ -137,6 +145,16 @@ fn frame_decode_error_name(error: &FrameDecodeError) -> &'static str {
     }
 }
 
+#[deny(unreachable_patterns)]
+fn response_outcome_name(outcome: &ResponseOutcome) -> &'static str {
+    match outcome {
+        ResponseOutcome::Packet => "packet",
+        ResponseOutcome::Resource(_) => "resource",
+        ResponseOutcome::NotSent => "not sent",
+        _ => "an outcome this match predates",
+    }
+}
+
 /// `AnnounceEvent` is `#[non_exhaustive]`: a consumer reads the documented `is_path_response`
 /// flag through a `..` destructure; the struct-literal ban itself is pinned by
 /// `tests/breaking_changes_compile_fail.rs`.
@@ -152,5 +170,9 @@ fn request_layer_enums_are_non_exhaustive_outside_the_crate() {
     assert_eq!(request_allow_name(&RequestAllow::All), "all");
     assert_eq!(request_response_name(&RequestResponse::Bytes(Vec::new())), "bytes");
     assert_eq!(frame_decode_error_name(&FrameDecodeError::Truncated), "truncated");
+    assert_eq!(
+        response_outcome_name(&ResponseOutcome::Resource(OutboundResult::Complete)),
+        "resource"
+    );
     let _reads_the_flag: fn(&AnnounceEvent) -> bool = announce_is_path_response;
 }

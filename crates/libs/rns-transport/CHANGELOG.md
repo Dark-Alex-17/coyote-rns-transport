@@ -8,6 +8,231 @@ no library behaviour (a test-only change such as a fixture hardening or a
 test hygiene pass, release tooling, CI) is a Changed (or, for a deleted file,
 Removed) bullet of its own, marked as such.
 
+## 0.17.0 - 2026-10-27
+
+### Breaking
+
+None. This minor release is additive; it adds consumer-facing surface
+(responder outcomes, shared-instance state events, a destination lookup) that
+a consumer adopts deliberately, so the minor digit signals new surface to opt
+into rather than a patch to absorb.
+
+### Added
+
+- `Transport::destination_desc` returns `Option<DestinationDesc>` for a
+  destination learned from an announce (the same map is also filled when a
+  cached path table is restored)
+  (`links_parts/transport_sections/close_channel.rs`, beside
+  `destination_identity`); it is `Some` exactly when `destination_identity`
+  is `Some`. The desc's `name` is the announce's truncated name hash as
+  `DestinationName::new_from_hash_slice` stores it (zero-padded, not the
+  full hash `DestinationName::new` computes), so callers compare names with
+  `as_name_hash_slice()`. The entry survives `expire_path`, which
+  touches only the path table, and is pruned only by
+  `deregister_destination`. Pinned by `two_transport_destination_desc.rs`
+  and `two_transport_destination_desc_probe.rs`, which also covers the
+  `deregister_destination` prune and opening a link with the returned desc,
+  by `reticulum_path_restore_destination_desc_probe.rs` for the restore fill
+  site and for the link still needing a path once the desc has outlived
+  `expire_path`, and by `two_transport_destination_desc_probe2.rs` for two
+  announced peers resolving to their own entries and for the two accessors
+  agreeing when called from parallel tasks; the README snippet in the link
+  section is run verbatim by `tests/destination_desc_api.rs`, before and
+  after the announce is learned.
+- `InboundRequest::track_outcome` returns a `ResponseOutcomeReceiver`, a
+  future the request dispatcher resolves with a `ResponseOutcome` after the
+  handler has returned (`destination/request/inbound.rs`,
+  `destination/request/outcome.rs`, `transport/request_dispatch.rs`; both
+  types are re-exported beside `InboundRequest`). Call it before `into_data`
+  consumes the request, and await it outside the handler. The enum is
+  `#[non_exhaustive]`: `Resource(OutboundResult)` is the transfer verdict of
+  every response that leaves as a Resource, the `Resource` form and an
+  oversize `Value` or `Bytes` alike; `Packet` says the `RESPONSE` packet
+  reached at least one interface, and no more, because RNS proves no packet
+  response (crate README, `## Delivery proofs on a link`);
+  `NotSent` covers a handler that returned `None`, a link no longer able to
+  exchange data, a send that failed before dispatch (a packet that would not
+  build, no ingress interface, metadata that does not pack, a packet that
+  reached no interface), a handler that panicked after tracking, and a
+  response task that `Transport::stop` or `cancel` aborted before the verdict,
+  where a bare `OutboundOutcome` would resolve `Failed(LinkClosed)`: every
+  path that drops the sender. A handler that never calls `track_outcome`
+  keeps the previous dispatcher behaviour. Pinned by
+  `two_transport_loopback_requests_outcome.rs` (packet, Resource form,
+  oversize `Value` and `Bytes`, a wire teardown and a local reset under the
+  transfer, a silent handler, a packet dispatched to zero interfaces, a stop
+  mid-transfer, a replaced receiver), by
+  `two_transport_loopback_requests_outcome_probe.rs` (a dropped receiver, a
+  link the handler closed before answering, a handler awaiting its own
+  receiver, a call made after the handler returned), by
+  `two_transport_loopback_requests_outcome_probe2.rs` (two requests in
+  flight on one link, a request that arrived as a Resource, a handler that
+  panicked after tracking), by
+  `two_transport_loopback_requests_outcome_probe3.rs` (a panic after
+  tracking beside a parked tracked sibling) and against a Python requester
+  by `python_to_rust_request_outcome.rs`;
+  `tests/request_handler_api.rs` and
+  `tests/request_receipt_api.rs` cover the public paths, and
+  `fork_release_docs_contract.rs` pins the README paragraph, the private
+  receiver field and the `non_exhaustive` attribute.
+- `SharedInstanceOptions::with_state_events(tokio::sync::mpsc::Sender<SharedInstanceEvent>)`
+  delivers the shared-instance client's connection state
+  (`transport/shared_instance.rs`; the enum is re-exported beside
+  `SharedInstanceOptions`). `SharedInstanceEvent` is `#[non_exhaustive]`:
+  `Connecting` says the attach is in place and the client is dialing,
+  `Connected` that a stream to the shared instance is established, the
+  first included, and `Disconnected` that an established stream ended
+  while attached and the flush, which runs only while the transport is
+  still attached, has run. The attach itself sends the first
+  `Connecting` once the interface is spawned, the slot taken and, when the
+  slot still holds the interface, the posture set (a refused attach sends
+  nothing; in the documented attach/stop race the attach returns `Ok` and
+  `Connecting` goes out with the posture off, the stream ending at once);
+  the consumer task
+  (`links_parts/transport_sections/shared_instance_reconnect.rs`) sends
+  every event after it, `Connected` on each established stream and, after
+  each dropped connection, `Disconnected` then `Connecting` at once, so one
+  cycle reads `Disconnected`, `Connecting`, `Connected`; a client attached
+  while nothing listens stays in `Connecting` until the socket exists.
+  Under a reconnect storm the cycles can interleave: queued disconnects
+  are served before connects, so two `Disconnected` can precede their
+  `Connected`s; the per-cycle order holds, the cycles may nest.
+  Every event goes out with `try_send`: a full channel drops the event at
+  debug and never blocks the consumer. The attach's clone of the sender is
+  dropped on `detach_shared_instance`, `Transport::stop` or when the client
+  worker exits; the stream ends once no other clone, a retained
+  `SharedInstanceOptions` clone included, is alive. A detach or a stop
+  sends no `Disconnected`, but a drop that was already queued when the
+  detach landed is still served and read as `Disconnected`, `Connecting`
+  before the stream ends (a connect already queued is read as `Connected`);
+  the consumer drains both queues once the worker's channels close and
+  leaves a queued reconnect, logging the counts it served at debug when it
+  served anything. The posture flag `connected_to_shared_instance`
+  is unchanged by the events and stays set across a `Disconnected` until
+  detach or stop. Underneath,
+  `TcpClient::with_connect_events` and `LocalUnixClient::with_connect_events`
+  with their `connect_events_enabled` getters (`iface/tcp_client.rs`,
+  `iface/local.rs`) fire on every established stream, the first included,
+  where `with_reconnect_events` fires from the second on; a full or closed
+  channel drops the connect event at debug. Pinned by
+  `two_transport_shared_instance_state_events.rs` (the TCP restart sequence
+  with the posture check, the attach while the listener is down, the unix
+  twin, the capacity-one channel dropping its four later events at debug
+  while the re-announce still lands, the hand-driven consumer's per-cycle
+  order and a connect served beside its reconnect), by
+  `two_transport_shared_instance_state_events_probe.rs` (a stop ending the
+  stream without a `Disconnected`, a refused attach sending nothing, a
+  dropped receiver leaving the consumer serving, two restarts in a row, a
+  detach while dialing), by
+  `two_transport_shared_instance_state_events_probe2.rs` (a retained options
+  clone keeping the stream open after a detach, a drop queued when the
+  senders went away still served, two cycles nesting under a storm), by
+  `two_transport_shared_instance_state_events_probe3.rs` (a connect queued
+  when the senders went away still served, with the disconnect channel
+  closed and with it still open), by
+  `two_transport_shared_instance_state_events_probe4.rs` (a queued drop
+  drained before the queued connect, a queued reconnect left, a cancel
+  serving nothing queued, `Connecting` sent with the posture already on),
+  by the connect-event unit tests in
+  `iface/tcp_client.rs` and `iface/local.rs` (one event per established
+  stream, the first included) and by `tests/connect_events_api.rs` (the two
+  clients driven from outside the crate with a 50 ms reconnect wait on
+  both: the getter reports the installed sender, the first stream fires a
+  connect event with the reconnect channel silent, the second fires both,
+  and exactly one connect event arrives per stream; a connect receiver
+  dropped before the first stream and a capacity-one connect channel left
+  unread while both streams come up both leave the second stream
+  established and the reconnect channel served, the full channel keeping
+  only the first connect event), and by `tests/connect_events_log_api.rs`
+  (the drop of a connect event on a full or closed channel is one debug
+  line per event naming the interface and the endpoint, never a warning), by
+  `two_transport_shared_instance_reconnect.rs` and
+  `two_transport_shared_instance_probe16.rs` (the hand-driven consumer tests
+  carry the new third channel), by `tests/shared_instance_api.rs` (the
+  README snippet verbatim) and by `fork_release_docs_contract.rs` (the
+  README paragraph, the second fence and the `non_exhaustive` attribute).
+
+### Changed
+
+- The crate version is `0.17.0`; the discovery announce carries it in the
+  `TRANSPORT_VERS` field (`discovery/announce.rs`). The bump is a minor one
+  under the README policy because the release adds public API: `### Breaking`
+  above says so and lists nothing. The README's sentence on the patch digit
+  now also covers API a consumer need not opt into. `cargo semver-checks`
+  against `v0.16.0` reports 0 major and 0 minor findings; additive changes
+  are below cargo-semver-checks' default lint level, so the patch-level run
+  the release check makes has nothing to report. The release contracts are
+  pinned by `crates/apps/reticulumd/tests/fork_publish_contract.rs` and
+  `fork_release_docs_contract.rs`, the latter holding the additive-minor
+  `### Breaking` rule and the 0.17.0 README patch-list register; its
+  `fork_release_docs_contract_parts/release_0_17_0_probe.rs` pins the whole
+  `### Breaking` sentence, the semver wording above and the README policy
+  paragraph sentence by sentence. The 0.17.0 register names the `Resource`
+  variant's payload `OutboundResult`, as the request-layer section does.
+- Ledger contracts, test-only: the full-hash ledger pin covered the open
+  `## Unreleased` section while the work was in progress and names the
+  `0.17.0` label now that it is released
+  (`fork_publish_contract_parts/ledger_contract.rs`), the manifest-version
+  pin admits an `## Unreleased` stub above the manifest-version section,
+  never below it, and only while the manifest version is the newest fork
+  tag reachable from HEAD, and a release tree carries none
+  (`fork_publish_contract_parts/release_frozen_sections_probe2.rs`), and the
+  crate README's description of `Transport::destination_desc` and its link
+  snippet are pinned, line by line and as one block
+  (`fork_release_docs_contract.rs`).
+- Release docs contract, test-only: `fork_release_docs_contract.rs` keeps
+  its helpers and includes its tests from
+  `fork_release_docs_contract_parts/` (`request_layer_api_docs.rs`,
+  `crate_readme_sections.rs`, `release_notes_breaking.rs`,
+  `readme_patch_list.rs`, the `release_0_17_0_probe.rs` above,
+  `release_0_17_0_probe2.rs`, `release_0_17_0_probe3.rs` and
+  `release_0_17_0_probe4.rs`); the `### Breaking` verdict rejects the
+  additive sentence without a reason clause and rejects it beside bullets,
+  since a section cannot both say
+  `None.` and list changes, each shape pinned by a fixture in
+  `release_notes_breaking.rs`; the minor-bump test also requires the README
+  policy to say an additive release may bump the minor digit; the 0.16.0
+  patch-list test is named for what it now pins, the demoted block kept
+  above the 0.15.1 history, with the 0.17.0 twin asserting that its block
+  opens the list, the order below it and the 0.17.0 items alone
+  (`readme_patch_list.rs`); and
+  `release_0_17_0_probe2.rs` adds two more verdict fixtures, prose placed
+  before the additive sentence and bullets followed by it, pins the release
+  headings to newest-first order with ISO dates, skipping a non-digit `## `
+  heading such as an `## Unreleased` stub and still rejecting a malformed
+  release heading (both pinned by a fixture), each heading read into a
+  named `ReleaseHeading`, and requires every part file to be included once
+  by the root and named in this bullet; and `release_0_17_0_probe3.rs`
+  holds the 0.17.0 register's `ResponseOutcome` variant list to the enum's
+  declared variants, payload included, requires every test file the README
+  0.17.0 block and this section name to exist under the crate, and requires
+  `tests/connect_events_api.rs` to carry the six tests and the call shapes
+  the ledgers describe, reading its PATCHSET needle from the 0.17.0 section
+  alone; `release_0_17_0_probe4.rs` requires every test function the
+  PATCHSET 0.17.0 narrative names to exist under `crates/` and every
+  `tcp_client_<x>` test in the two connect-event test files to have a
+  `local_unix_client_<x>` twin; and the contract's module doc states the
+  additive-minor rule, a `### Breaking` section that lists each break with
+  a migration or says in one sentence that the release is additive.
+- Shared-instance state tests, test-only: the full-channel test pins the
+  four events dropped at debug in place of a non-empty drop record, the
+  hand-driven consumer tests share one read-to-end helper
+  (`two_transport_shared_instance_state_events.rs`), and the README's
+  queued-drop and queued-connect sentences are pinned
+  (`fork_release_docs_contract.rs`).
+- Test helpers, test-only: the loopback connector takes an optional
+  `InterfaceSharedConfig` (`two_transport_loopback.rs`), the interop request
+  handler record takes a per-request hook
+  (`python_to_rust_request_handler.rs`) and the hand-driven shared-instance
+  consumer is driven from one spec
+  (`two_transport_shared_instance_state_events.rs`), each replacing a copy
+  of the helper in a sibling test file; three outcome probe tests that
+  repeated a sibling's pin are gone
+  (`two_transport_loopback_requests_outcome_probe2.rs`,
+  `two_transport_loopback_requests_outcome_probe3.rs`); and the test-only
+  `get_handler` accessor lives in `transport/tests.rs` instead of
+  `links_parts/transport_sections/close_channel.rs`.
+
 ## 0.16.0 - 2026-10-25
 
 ### Breaking

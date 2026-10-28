@@ -3,6 +3,12 @@
 
 include!("tests_parts/module_prelude.rs");
 
+impl Transport {
+    pub(crate) fn get_handler(&self) -> Arc<Mutex<TransportHandler>> {
+        self.handler.clone()
+    }
+}
+
 include!("tests_parts/path_table_api.rs");
 
 include!("tests_parts/reticulum_path_restore_bad_cache.rs");
@@ -109,6 +115,11 @@ include!("tests_parts/request_dispatch_closed_link_probe.rs");
 
 include!("tests_parts/two_transport_loopback_requests_probe.rs");
 
+include!("tests_parts/two_transport_loopback_requests_outcome.rs");
+include!("tests_parts/two_transport_loopback_requests_outcome_probe.rs");
+include!("tests_parts/two_transport_loopback_requests_outcome_probe2.rs");
+include!("tests_parts/two_transport_loopback_requests_outcome_probe3.rs");
+
 include!("tests_parts/two_transport_loopback_requests_routing.rs");
 
 include!("tests_parts/two_transport_loopback_requests_malformed.rs");
@@ -199,6 +210,11 @@ include!("tests_parts/link_no_path_fast_fail.rs");
 
 include!("tests_parts/two_transport_loopback_announce_path_response.rs");
 
+include!("tests_parts/two_transport_destination_desc.rs");
+include!("tests_parts/two_transport_destination_desc_probe.rs");
+include!("tests_parts/two_transport_destination_desc_probe2.rs");
+include!("tests_parts/reticulum_path_restore_destination_desc_probe.rs");
+
 include!("tests_parts/two_transport_loopback_resources_accept_hook.rs");
 
 include!("tests_parts/two_transport_loopback_resources_outcome_stop.rs");
@@ -262,3 +278,9 @@ include!("tests_parts/two_transport_shared_instance_probe16.rs");
 include!("tests_parts/two_transport_shared_instance_probe17.rs");
 
 include!("tests_parts/two_transport_shared_instance_probe17_unix.rs");
+
+include!("tests_parts/two_transport_shared_instance_state_events.rs");
+include!("tests_parts/two_transport_shared_instance_state_events_probe.rs");
+include!("tests_parts/two_transport_shared_instance_state_events_probe2.rs");
+include!("tests_parts/two_transport_shared_instance_state_events_probe3.rs");
+include!("tests_parts/two_transport_shared_instance_state_events_probe4.rs");

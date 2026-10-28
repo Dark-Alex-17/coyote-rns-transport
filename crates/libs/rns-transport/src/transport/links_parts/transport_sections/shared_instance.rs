@@ -22,6 +22,10 @@ impl Transport {
     /// every registered destination as a path response `reconnect_wait`
     /// plus two seconds later (`RNS/Interfaces/LocalInterface.py:178-181`).
     /// A detach or stop flushes nothing.
+    /// With [`SharedInstanceOptions::with_state_events`] set, the attach
+    /// sends [`SharedInstanceEvent::Connecting`] once and that task sends
+    /// the events of every connection cycle after it; the stream ends when
+    /// the task does and no other sender clone is alive.
     /// Python also forces transport, remote management and probes off when it
     /// attaches (`RNS/Reticulum.py:438-440`); this method leaves
     /// `transport_enabled` as configured, since the crate supports a
@@ -83,6 +87,7 @@ impl Transport {
         }
         let (reconnect_tx, reconnect_rx) = tokio::sync::mpsc::channel(8);
         let (disconnect_tx, disconnect_rx) = tokio::sync::mpsc::channel(8);
+        let (connect_tx, connect_rx) = tokio::sync::mpsc::channel(8);
         // Lock order: the std slot is innermost, under the iface_manager here
         // and under the handler below as in detach and stop; the two tokio
         // locks are never nested. The second section re-reads the slot since
@@ -98,6 +103,7 @@ impl Transport {
                 SharedInstanceEndpoint::Tcp(addr) => {
                     let mut client = TcpClient::new(addr.to_string())
                         .with_reconnect_wait(options.reconnect_wait())
+                        .with_connect_events(connect_tx)
                         .with_reconnect_events(reconnect_tx)
                         .with_disconnect_events(disconnect_tx);
                     if let Some(mtu) = options.mtu() {
@@ -117,6 +123,7 @@ impl Transport {
                 SharedInstanceEndpoint::Unix(endpoint) => {
                     let mut client = LocalUnixClient::new_connect(endpoint)
                         .with_reconnect_wait(options.reconnect_wait())
+                        .with_connect_events(connect_tx)
                         .with_reconnect_events(reconnect_tx)
                         .with_disconnect_events(disconnect_tx);
                     if let Some(mtu) = options.mtu() {
@@ -145,12 +152,6 @@ impl Transport {
                 addr
             );
         }
-        self.spawn_shared_instance_reconnect_consumer(
-            iface,
-            options.reconnect_wait(),
-            reconnect_rx,
-            disconnect_rx,
-        );
         {
             let mut handler = self.handler.lock().await;
             let slot = self.shared_instance.lock().unwrap_or_else(|poisoned| poisoned.into_inner());
@@ -158,6 +159,27 @@ impl Transport {
                 handler.config.set_connected_to_shared_instance(true);
             }
         }
+        // The consumer is the only sender of `Connected` and is spawned
+        // below, so this `Connecting` precedes it even when the client has
+        // already connected and queued its event. The posture above is set
+        // before it only when the slot still holds the interface, so a
+        // reader of `Connecting` finds it on; in the attach/stop race the
+        // rustdoc describes the attach returns `Ok` and `Connecting` goes
+        // out with the posture off, the stream ending at once.
+        send_shared_instance_state_event(
+            &self.name,
+            iface,
+            options.state_events(),
+            SharedInstanceEvent::Connecting,
+        );
+        self.spawn_shared_instance_reconnect_consumer(
+            iface,
+            options.reconnect_wait(),
+            reconnect_rx,
+            connect_rx,
+            disconnect_rx,
+            options.state_events().cloned(),
+        );
         if !self.synthesize_tunnel_on_interface(iface).await {
             log::debug!(
                 "tp({}): shared instance iface={} removed by a detach, stop or stop_interface that raced the attach, tunnel not synthesized",

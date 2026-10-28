@@ -1,6 +1,8 @@
 use std::net::SocketAddr;
 use std::time::Duration;
 
+use tokio::sync::mpsc;
+
 #[cfg(unix)]
 use crate::iface::local::LocalUnixEndpoint;
 use crate::iface::InterfaceMode;
@@ -24,6 +26,35 @@ pub enum SharedInstanceEndpoint {
     Unix(LocalUnixEndpoint),
 }
 
+/// Fork-only: the connection state of the client
+/// [`Transport::attach_shared_instance`](crate::transport::Transport::attach_shared_instance)
+/// spawned, delivered on the sender given to
+/// [`SharedInstanceOptions::with_state_events`]. Python's
+/// `LocalClientInterface` exposes no such stream; its reconnect loop is
+/// `RNS/Interfaces/LocalInterface.py:155-181`.
+#[non_exhaustive]
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum SharedInstanceEvent {
+    /// Fork-only: the attach is in place and the client is dialing; sent
+    /// once by the attach itself and again after every [`Self::Disconnected`].
+    /// A client attached while nothing listens stays here until the socket
+    /// exists.
+    Connecting,
+    /// Fork-only: a stream to the shared instance is established, the first
+    /// included; the tunnel is synthesized on it next.
+    Connected,
+    /// Fork-only: an established stream ended while attached
+    /// (`RNS/Interfaces/LocalInterface.py:255-261` is the Python drop path);
+    /// the flush, which runs only while the transport is still attached,
+    /// has run; [`Self::Connecting`] follows at once. A detach or
+    /// [`Transport::stop`](crate::transport::Transport::stop) ends the
+    /// stream without one: the sender is dropped instead, though a drop
+    /// that was already queued when the detach landed is still served
+    /// and read as `Disconnected`, `Connecting` before the stream ends (a
+    /// connect already queued is read as `Connected`).
+    Disconnected,
+}
+
 /// Options for
 /// [`Transport::attach_shared_instance`](crate::transport::Transport::attach_shared_instance).
 ///
@@ -41,6 +72,7 @@ pub struct SharedInstanceOptions {
     mtu: Option<usize>,
     forced_bitrate_bps: Option<u64>,
     interface_mode: InterfaceMode,
+    state_events: Option<mpsc::Sender<SharedInstanceEvent>>,
 }
 
 impl Default for SharedInstanceOptions {
@@ -51,6 +83,7 @@ impl Default for SharedInstanceOptions {
             mtu: None,
             forced_bitrate_bps: None,
             interface_mode: InterfaceMode::Full,
+            state_events: None,
         }
     }
 }
@@ -116,6 +149,38 @@ impl SharedInstanceOptions {
         self
     }
 
+    /// Fork-only: delivers the client's [`SharedInstanceEvent`]s on `events`.
+    /// Each cycle is `Disconnected`, `Connecting`, `Connected` in that order,
+    /// after the attach's own `Connecting`, sent with the connected posture
+    /// already set when `Connecting` arrives while the slot still holds the
+    /// interface (a refused attach sends nothing; in the documented
+    /// attach/stop race the attach returns `Ok` and `Connecting` goes out
+    /// with the posture off, the stream ending at once), and the first
+    /// `Connected`. Every event is sent with `try_send`: a full channel
+    /// drops the event at debug and never blocks the consumer, so size the
+    /// channel for the burst expected. Under a reconnect storm the cycles
+    /// can interleave: queued disconnects are served before connects, so
+    /// two `Disconnected` can precede their `Connected`s; the per-cycle
+    /// order holds, the cycles may nest. The attach's clone of the sender
+    /// is dropped on
+    /// [`Transport::detach_shared_instance`](crate::transport::Transport::detach_shared_instance),
+    /// [`Transport::stop`](crate::transport::Transport::stop) or when the
+    /// client worker exits; the stream ends once no other clone, a
+    /// retained `SharedInstanceOptions` clone included, is alive. A detach
+    /// or a stop sends no `Disconnected`, but a drop that was already
+    /// queued when the detach landed is still served and read as
+    /// `Disconnected`, `Connecting` before the stream ends (a connect
+    /// already queued is read as `Connected`). The posture flag
+    /// [`Transport::connected_to_shared_instance`](crate::transport::Transport::connected_to_shared_instance)
+    /// is unchanged by these events: it stays set across a `Disconnected`
+    /// until detach or stop. Python's `LocalClientInterface` exposes no
+    /// such stream (`RNS/Interfaces/LocalInterface.py:155-181`).
+    #[must_use]
+    pub fn with_state_events(mut self, events: mpsc::Sender<SharedInstanceEvent>) -> Self {
+        self.state_events = Some(events);
+        self
+    }
+
     /// Fork-only: the reconnect wait in force.
     pub(crate) fn reconnect_wait(&self) -> Duration {
         self.reconnect_wait
@@ -141,5 +206,10 @@ impl SharedInstanceOptions {
     /// Fork-only: the interface mode the client is registered under.
     pub(crate) fn interface_mode(&self) -> InterfaceMode {
         self.interface_mode
+    }
+
+    /// Fork-only: the state-event sender set with [`Self::with_state_events`], if any.
+    pub(crate) fn state_events(&self) -> Option<&mpsc::Sender<SharedInstanceEvent>> {
+        self.state_events.as_ref()
     }
 }

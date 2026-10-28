@@ -1,11 +1,12 @@
-//! The README's "Attaching to a shared instance" snippet, verbatim, run from outside the
+//! The README's "Attaching to a shared instance" snippets, verbatim, run from outside the
 //! crate against an in-process shared instance: a transport-enabled node with a `TcpServer`
 //! on 127.0.0.1. Around the snippet, the claims a first-time consumer reads next: the attach
 //! is reported by `shared_instance()` and `connected_to_shared_instance()`, the on-demand
 //! announce reaches the shared instance as a path response, and the detach releases the
 //! interface and the posture. The plain server here reads the announce at one hop; rnsd and
 //! reticulumd flag their listener as the shared instance and read a local client's announce
-//! at zero (`RNS/Transport.py:1938`), which the live test against rnsd pins.
+//! at zero (`RNS/Transport.py:1938`), which the live test against rnsd pins. The state-stream
+//! snippet reads `Connecting` then `Connected` and sees the stream end on the detach.
 
 use std::error::Error;
 use std::net::SocketAddr;
@@ -19,10 +20,11 @@ use rns_transport::identity::PrivateIdentity;
 use rns_transport::iface::tcp_server::TcpServer;
 use rns_transport::rand_core::OsRng;
 use rns_transport::transport::{
-    AnnounceEvent, SharedInstanceEndpoint, SharedInstanceOptions, Transport, TransportConfig,
+    AnnounceEvent, SharedInstanceEndpoint, SharedInstanceEvent, SharedInstanceOptions, Transport,
+    TransportConfig,
 };
 use tokio::sync::broadcast::error::RecvError;
-use tokio::sync::{broadcast, Mutex};
+use tokio::sync::{broadcast, mpsc, Mutex};
 use tokio::time::timeout;
 
 const WAIT: Duration = Duration::from_secs(15);
@@ -124,6 +126,32 @@ async fn readme_attach_and_announce(
     Ok((iface, destination))
 }
 
+/// The README's state-stream snippet, verbatim except the log calls, which are reduced to
+/// labels sent on `labels`; it returns once the stream ends, which drops `labels` too.
+#[deny(clippy::await_holding_invalid_type)]
+async fn readme_attach_and_follow_state_events(
+    transport: &Transport,
+    endpoint: SocketAddr,
+    labels: mpsc::UnboundedSender<&'static str>,
+) -> Result<(), Box<dyn Error + Send + Sync>> {
+    let (events_tx, mut events) = mpsc::channel(8);
+    transport
+        .attach_shared_instance(
+            SharedInstanceEndpoint::Tcp(endpoint),
+            SharedInstanceOptions::default().with_state_events(events_tx),
+        )
+        .await?;
+    while let Some(event) = events.recv().await {
+        match event {
+            SharedInstanceEvent::Connecting => labels.send("connecting")?,
+            SharedInstanceEvent::Connected => labels.send("connected")?,
+            SharedInstanceEvent::Disconnected => labels.send("disconnected")?,
+            _ => {}
+        }
+    }
+    Ok(())
+}
+
 #[tokio::test]
 #[deny(clippy::await_holding_invalid_type)]
 async fn readme_snippet_attaches_announces_and_detaches() {
@@ -157,6 +185,46 @@ async fn readme_snippet_attaches_announces_and_detaches() {
     assert!(!transport.connected_to_shared_instance().await, "the client posture is cleared");
     assert!(!transport.interface_hashes().await.contains(&iface), "the iface is gone");
     assert!(!transport.detach_shared_instance().await, "a second detach finds nothing");
+
+    timeout(WAIT, transport.stop()).await.expect("client stop completes");
+    timeout(WAIT, shared.transport.stop()).await.expect("shared instance stop completes");
+}
+
+#[tokio::test]
+#[deny(clippy::await_holding_invalid_type)]
+async fn readme_state_events_snippet_reads_connecting_then_connected_and_ends_on_detach() {
+    let shared = shared_instance().await;
+    let endpoint = shared.endpoint;
+    let transport = Arc::new(Transport::new(TransportConfig::new(
+        "readme-shared-instance-state-client",
+        &PrivateIdentity::new_from_rand(OsRng),
+        false,
+    )));
+    let (labels_tx, mut labels) = mpsc::unbounded_channel();
+    let follower = tokio::spawn({
+        let transport = Arc::clone(&transport);
+        async move { readme_attach_and_follow_state_events(&transport, endpoint, labels_tx).await }
+    });
+
+    let mut seen = Vec::new();
+    while seen.len() < 2 {
+        let label = timeout(WAIT, labels.recv())
+            .await
+            .expect("a state event arrives")
+            .expect("the snippet is still following the stream");
+        seen.push(label);
+    }
+    assert_eq!(seen, ["connecting", "connected"], "the attach dials, then connects");
+    assert!(transport.connected_to_shared_instance().await, "the client posture is set");
+
+    assert!(transport.detach_shared_instance().await);
+    timeout(WAIT, follower)
+        .await
+        .expect("the stream ends on the detach")
+        .expect("the follower task completes")
+        .expect("the README snippet");
+    assert_eq!(labels.recv().await, None, "a detach sends no `Disconnected`");
+    assert!(!transport.connected_to_shared_instance().await, "the client posture is cleared");
 
     timeout(WAIT, transport.stop()).await.expect("client stop completes");
     timeout(WAIT, shared.transport.stop()).await.expect("shared instance stop completes");

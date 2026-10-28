@@ -431,16 +431,37 @@ impl Transport {
         self.handler.lock().await.is_identity_blackholed(identity)
     }
 
+    async fn single_out_destination(
+        &self,
+        address: &AddressHash,
+    ) -> Option<Arc<Mutex<SingleOutputDestination>>> {
+        self.handler.lock().await.single_out_destinations.get(address).cloned()
+    }
+
+    /// Returns the identity of a destination learned from an announce; the lifetime
+    /// contract is the one `destination_desc` documents, since both read the same map.
     pub async fn destination_identity(&self, address: &AddressHash) -> Option<Identity> {
-        let destination =
-            { self.handler.lock().await.single_out_destinations.get(address).cloned() }?;
+        let destination = self.single_out_destination(address).await?;
         let destination = destination.lock().await;
         Some(destination.identity)
     }
 
-    #[cfg(test)]
-    pub(crate) fn get_handler(&self) -> Arc<Mutex<TransportHandler>> {
-        // direct access to handler for testing purposes
-        self.handler.clone()
+    /// Returns the description of a destination learned from an announce.
+    ///
+    /// The result is `Some` exactly when `destination_identity` is `Some`: both
+    /// read the same map, which is filled when an announce is accepted or a
+    /// cached path table is restored. The returned `name` is the announce's
+    /// truncated name hash as the receiver stores it through
+    /// `DestinationName::new_from_hash_slice` (the first
+    /// `NAME_HASH_LENGTH` bytes, zero-padded), not the full hash
+    /// `DestinationName::new` computes, so callers compare names with
+    /// `as_name_hash_slice()`. Only `deregister_destination` prunes the map;
+    /// `expire_path` touches the path table alone, so the entry survives it.
+    /// Fork-only accessor; the loose Python analogue is `RNS/Identity.py::recall`,
+    /// which returns the identity alone.
+    pub async fn destination_desc(&self, address: &AddressHash) -> Option<DestinationDesc> {
+        let destination = self.single_out_destination(address).await?;
+        let destination = destination.lock().await;
+        Some(destination.desc)
     }
 }

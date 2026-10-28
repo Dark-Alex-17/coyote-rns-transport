@@ -26,6 +26,586 @@ parity rows this file plus the crate README `## Known divergences from
 Python RNS` are the parity ledger; `docs/status/*` matrices are not updated
 per fork task.
 
+## 0.17.0 (upstream 0.14.0)
+
+Every file changed since the `0.16.0` release and the patch each change
+belongs to. Patch ids: J1 is destination lookup, J2 is ledger contracts,
+J3 is response outcomes, J4 is shared-instance state, J5 is batch hygiene.
+The `destination lookup` patch is fork commits `5246fc9c`, `15278355`,
+`e8e64626`, `20d67e43`, `1c74645b`, `49a5b27f`, `fad0f72e`, `f24e4ec3`,
+`5093b5b6`, `338811b0` and `94d76ac8`; the `ledger contracts` patch is fork
+commits `d2f871f7`, `e8e64626`, `f24e4ec3`, `0b86c14b`, `338811b0` and
+`94d76ac8`; the `response outcomes` patch is fork commits `d6cfbb58`,
+`7ef891be`, `79aae7ed`, `72242c71`, `c627c6d7`, `dea9af76`, `d2854884`
+and `c18ea340`; the `shared-instance state` patch is fork commits
+`b87cd69a`, `42795c1c`, `c4704519`, `43b03644`, `d62ab8b3`, `80b0c73e`,
+`28c9973d`, `53c6267a`, `32bd4b00`, `f36f1b7b` and `24f178dd`; the `batch
+hygiene` patch is fork commits `0b5b2dff`, `09ee7c45` and `7cfab1ef`; the
+`Python-in-the-loop request outcome interop` patch carries no other id and is
+fork commit `79aae7ed`, also a `response outcomes` commit; the `release 0.17.0`
+patch carries no other id and is fork commits `972318f6`, `a3451134`,
+`4b2208f3`, `f0c32509`, `7fc78269`, `e2e9cdc6`, `8b7619b7`, `e6f5dc52`,
+`92568aa7`, `1facb7a4`, `81d19f77`, `3fc9bbd4`, `5e64379e`, `b724477f`,
+`c9ed6456`, `ea1b3446`, `ced5eeb1`, `1f69d695`, `26c1fdc7`, `cd22920e`,
+`e48b07d4` and `fc5cf7f5`.
+
+| File | Patch |
+| --- | --- |
+| `Cargo.lock` | release 0.17.0 |
+| `Cargo.toml` | release 0.17.0 |
+| `crates/apps/reticulumd/Cargo.toml` | release 0.17.0 |
+| `crates/apps/reticulumd/tests/fork_publish_contract_parts/ledger_contract.rs` | ledger contracts, release 0.17.0 |
+| `crates/apps/reticulumd/tests/fork_publish_contract_parts/release_frozen_sections_probe2.rs` | ledger contracts |
+| `crates/apps/reticulumd/tests/fork_publish_contract.rs` | release 0.17.0 |
+| `crates/apps/reticulumd/tests/fork_release_docs_contract_parts/crate_readme_sections.rs` | release 0.17.0 |
+| `crates/apps/reticulumd/tests/fork_release_docs_contract_parts/readme_patch_list.rs` | release 0.17.0 |
+| `crates/apps/reticulumd/tests/fork_release_docs_contract_parts/release_0_17_0_probe.rs` | release 0.17.0 |
+| `crates/apps/reticulumd/tests/fork_release_docs_contract_parts/release_0_17_0_probe2.rs` | release 0.17.0 |
+| `crates/apps/reticulumd/tests/fork_release_docs_contract_parts/release_0_17_0_probe3.rs` | release 0.17.0 |
+| `crates/apps/reticulumd/tests/fork_release_docs_contract_parts/release_0_17_0_probe4.rs` | release 0.17.0 |
+| `crates/apps/reticulumd/tests/fork_release_docs_contract_parts/release_notes_breaking.rs` | release 0.17.0 |
+| `crates/apps/reticulumd/tests/fork_release_docs_contract_parts/request_layer_api_docs.rs` | release 0.17.0 |
+| `crates/apps/reticulumd/tests/fork_release_docs_contract.rs` | destination lookup, ledger contracts, response outcomes, shared-instance state, release 0.17.0 |
+| `crates/apps/reticulumd/tests/python_channel_interop.rs` | response outcomes, Python-in-the-loop request outcome interop |
+| `crates/apps/reticulumd/tests/python_channel_interop_parts/python_to_rust_request_handler.rs` | batch hygiene |
+| `crates/apps/reticulumd/tests/python_channel_interop_parts/python_to_rust_request_outcome.rs` | response outcomes, batch hygiene, Python-in-the-loop request outcome interop |
+| `crates/apps/rns-tools/Cargo.toml` | release 0.17.0 |
+| `crates/libs/rns-transport/CHANGELOG.md` | destination lookup, response outcomes, shared-instance state, batch hygiene, release 0.17.0 |
+| `crates/libs/rns-transport/Cargo.toml` | release 0.17.0 |
+| `crates/libs/rns-transport/README.md` | destination lookup, response outcomes, shared-instance state, release 0.17.0 |
+| `crates/libs/rns-transport/fuzz/Cargo.lock` | release 0.17.0 |
+| `crates/libs/rns-transport/src/destination/request/inbound.rs` | response outcomes |
+| `crates/libs/rns-transport/src/destination/request/mod.rs` | response outcomes |
+| `crates/libs/rns-transport/src/destination/request/outcome.rs` | response outcomes |
+| `crates/libs/rns-transport/src/iface/local.rs` | shared-instance state |
+| `crates/libs/rns-transport/src/iface/tcp_client.rs` | shared-instance state |
+| `crates/libs/rns-transport/src/transport/links_parts/transport_sections/close_channel.rs` | destination lookup, batch hygiene |
+| `crates/libs/rns-transport/src/transport/links_parts/transport_sections/shared_instance.rs` | shared-instance state |
+| `crates/libs/rns-transport/src/transport/links_parts/transport_sections/shared_instance_reconnect.rs` | shared-instance state |
+| `crates/libs/rns-transport/src/transport/mod.rs` | shared-instance state |
+| `crates/libs/rns-transport/src/transport/request_dispatch.rs` | response outcomes |
+| `crates/libs/rns-transport/src/transport/shared_instance.rs` | shared-instance state |
+| `crates/libs/rns-transport/src/transport/tests_parts/reticulum_path_restore_destination_desc_probe.rs` | destination lookup |
+| `crates/libs/rns-transport/src/transport/tests_parts/two_transport_destination_desc.rs` | destination lookup |
+| `crates/libs/rns-transport/src/transport/tests_parts/two_transport_destination_desc_probe.rs` | destination lookup |
+| `crates/libs/rns-transport/src/transport/tests_parts/two_transport_destination_desc_probe2.rs` | destination lookup, batch hygiene |
+| `crates/libs/rns-transport/src/transport/tests_parts/two_transport_loopback.rs` | batch hygiene, release 0.17.0 |
+| `crates/libs/rns-transport/src/transport/tests_parts/two_transport_loopback_requests_outcome.rs` | response outcomes |
+| `crates/libs/rns-transport/src/transport/tests_parts/two_transport_loopback_requests_outcome_probe.rs` | response outcomes |
+| `crates/libs/rns-transport/src/transport/tests_parts/two_transport_loopback_requests_outcome_probe2.rs` | response outcomes, batch hygiene |
+| `crates/libs/rns-transport/src/transport/tests_parts/two_transport_loopback_requests_outcome_probe3.rs` | response outcomes, batch hygiene |
+| `crates/libs/rns-transport/src/transport/tests_parts/two_transport_shared_instance_probe16.rs` | shared-instance state |
+| `crates/libs/rns-transport/src/transport/tests_parts/two_transport_shared_instance_reconnect.rs` | shared-instance state |
+| `crates/libs/rns-transport/src/transport/tests_parts/two_transport_shared_instance_state_events.rs` | shared-instance state, batch hygiene, release 0.17.0 |
+| `crates/libs/rns-transport/src/transport/tests_parts/two_transport_shared_instance_state_events_probe.rs` | shared-instance state |
+| `crates/libs/rns-transport/src/transport/tests_parts/two_transport_shared_instance_state_events_probe2.rs` | shared-instance state, batch hygiene |
+| `crates/libs/rns-transport/src/transport/tests_parts/two_transport_shared_instance_state_events_probe3.rs` | shared-instance state, batch hygiene |
+| `crates/libs/rns-transport/src/transport/tests_parts/two_transport_shared_instance_state_events_probe4.rs` | shared-instance state, batch hygiene, release 0.17.0 |
+| `crates/libs/rns-transport/src/transport/tests.rs` | destination lookup, response outcomes, shared-instance state, batch hygiene |
+| `crates/libs/rns-transport/tests/connect_events_api.rs` | release 0.17.0 |
+| `crates/libs/rns-transport/tests/connect_events_log_api.rs` | release 0.17.0 |
+| `crates/libs/rns-transport/tests/destination_desc_api.rs` | destination lookup |
+| `crates/libs/rns-transport/tests/request_handler_api.rs` | response outcomes |
+| `crates/libs/rns-transport/tests/request_receipt_api.rs` | response outcomes |
+| `crates/libs/rns-transport/tests/shared_instance_api.rs` | shared-instance state |
+| `docs/fork/PATCHSET.md` | destination lookup, response outcomes, shared-instance state, batch hygiene, release 0.17.0 |
+| `docs/getting-started.md` | release 0.17.0 |
+
+Fork commits `5246fc9c`, `15278355`, `e8e64626`, `20d67e43`, `1c74645b`,
+`49a5b27f`, `fad0f72e`, `f24e4ec3`, `5093b5b6`, `338811b0` and `94d76ac8`:
+J1, destination lookup. `5246fc9c` adds `Transport::destination_desc`
+beside `destination_identity` in
+`links_parts/transport_sections/close_channel.rs`: the same lookup in the
+announced-destination map, returning the stored `DestinationDesc` (whose
+`name` is the announce's truncated name hash, so callers compare with
+`as_name_hash_slice()`) instead of the identity alone; the entry outlives
+`expire_path` and is pruned only by `deregister_destination`. Pinned by
+`two_transport_destination_desc.rs`; the README link section and the crate
+CHANGELOG describe it. `15278355` adds
+`two_transport_destination_desc_probe.rs`, which opens a link with the desc
+the accessor returns, checks the zero-padded name, and shows
+`deregister_destination` pruning the desc and the identity together.
+`e8e64626` pins the README's description of `destination_desc` in
+`fork_release_docs_contract.rs`. `20d67e43` records the restore of a cached
+path table as the map's other fill site in the accessor's rustdoc, qualifies
+the README's link claim with the path it still needs, and adds the test-only
+Changed bullet to the crate CHANGELOG. `1c74645b` adds
+`reticulum_path_restore_destination_desc_probe.rs`, which shows a restored
+path table filling the map with the announced identity and a desc that has
+outlived `expire_path` still refused by `link` with `NoPath`. `49a5b27f`
+moves the map lookup both accessors share into a private
+`single_out_destination` helper in `close_channel.rs`, names the restore
+fill site in the README and CHANGELOG prose, pins the README's
+`DestinationName::new` contrast in `fork_release_docs_contract.rs`, and
+renames the loopback test to say it survives `expire_path`. `fad0f72e` adds
+`two_transport_destination_desc_probe2.rs`, which resolves two announced
+peers to their own entries through the shared lookup and calls the two
+accessors concurrently. `f24e4ec3` adds a `destination_desc` snippet to the
+README link section, run verbatim by `tests/destination_desc_api.rs` over a
+loopback `TcpServer`/`TcpClient` pair and registered with the README snippet
+pin in `fork_release_docs_contract.rs`, and names `Identity.recall` as the
+loose Python analogue in the accessor's rustdoc. `5093b5b6` runs the
+concurrent accessor pin on a two-worker runtime with the accessor batches as
+spawned tasks, turns ingress control off on the two-peer probe's connector
+in place of a one-second announce spacing, and makes the link probe assert
+that neither accessor self-learns on the announcing side. `338811b0` adopts
+the README snippet block pin in `fork_release_docs_contract.rs`, which wants
+the link-section snippet as one contiguous block in
+`tests/destination_desc_api.rs`, and the cold-start test in that file, which
+runs the snippet before the announce is learned and again after. `94d76ac8`
+cites the Python analogue as `RNS/Identity.py::recall` in the accessor's
+rustdoc, names the snippet's free variables in the README lead-in, and wraps
+the link-section paragraph at its neighbours' width. No library behaviour
+changes beyond the new accessor.
+
+Fork commits `d2f871f7`, `e8e64626`, `f24e4ec3`, `0b86c14b`, `338811b0` and
+`94d76ac8`:
+J2, ledger contracts. No library behaviour changes. `d2f871f7` extends the
+full-hash ledger pin in `ledger_contract.rs` to the open `Unreleased`
+section and lets the manifest-version pin in
+`release_frozen_sections_probe2.rs` admit an `## Unreleased` stub while the
+manifest version is the newest fork tag reachable from HEAD, with fixtures
+for both arms. `e8e64626` makes the manifest-version pin say when it skips
+the stub rule for want of a reachable fork tag. `f24e4ec3` and `338811b0`
+extend the README snippet pins in `fork_release_docs_contract.rs` to the
+link-section block. `0b86c14b` pins the stub above the first release
+section, refusing one that sits below the manifest-version heading, with a
+fixture for the misplaced case; `94d76ac8` makes that fixture assert the
+position message's own wording rather than a word the release-tree message
+shares.
+
+Fork commits `d6cfbb58`, `7ef891be`, `79aae7ed`, `72242c71`, `c627c6d7`,
+`dea9af76`, `d2854884` and `c18ea340`:
+J3, response outcomes. The library behaviour changes are: a request handler
+can learn what became of the response it returned. `d6cfbb58` adds
+`InboundRequest::track_outcome` (`destination/request/inbound.rs`), which
+arms a slot the request dispatcher (`transport/request_dispatch.rs`) resolves
+after the handler has returned, and the `ResponseOutcome` enum with its
+`ResponseOutcomeReceiver` future (`destination/request/outcome.rs`,
+re-exported beside `InboundRequest`). `Packet` means the `RESPONSE` packet
+reached at least one interface, which is all a packet response can report
+since RNS proves no packet response (crate README, `## Delivery proofs on a
+link`); `Resource` carries the `OutboundResult` of every response that leaves
+as a resource, the `Resource` form and an oversize `Value` or `Bytes` alike;
+`NotSent` covers a handler that returned `None`, a link no longer able to
+exchange data, a send that failed before dispatch (a packet that would not
+build, a link without an ingress interface, metadata that does not pack, a
+packet that reached no interface), a handler that panicked after tracking,
+and a response task that `Transport::stop` or `cancel` aborted: every path
+that drops the sender. A handler that never calls `track_outcome` keeps the
+dispatcher's previous control flow: the transfer's `OutboundOutcome` is
+dropped unawaited and the task ends once the response is registered; only a
+tracked response makes the task await the verdict, outside every guard.
+`InboundRequest::new`, which is crate-private, now takes the decoded
+`RequestFrame` and the slot. `RequestHandler`, `RequestResponse` and every
+`InboundRequest` getter are unchanged. The README request-handler section
+describes the accessor; `fork_release_docs_contract.rs` scans the new file,
+lists `ResponseOutcomeReceiver` among the private-field structs and
+`ResponseOutcome` among the `non_exhaustive` enums;
+`tests/request_handler_api.rs` registers a handler that tracks its outcome
+and `tests/request_receipt_api.rs` matches `ResponseOutcome` with a wildcard
+arm. `7ef891be` pins the verdicts on the loopback request pair in
+`two_transport_loopback_requests_outcome.rs` (included from `tests.rs`),
+including the packet that reaches no interface and the responder that stops
+mid-transfer. `79aae7ed` adds `python_to_rust_request_outcome.rs` (included
+from `python_channel_interop.rs`): a Python requester taking a 48 KiB reply
+as a response Resource resolves `Resource(Complete)` on the Rust handler, a
+short reply resolves `Packet`. `72242c71` adds
+`two_transport_loopback_requests_outcome_probe.rs`: a dropped receiver still
+delivers the response, a link the handler closed before answering resolves
+`NotSent` for both response forms, a handler awaiting its own receiver wedges
+only itself, and a `track_outcome` call made after the handler returned
+resolves `NotSent` once the request drops. `c627c6d7` pins the README
+request-handler paragraph in `fork_release_docs_contract.rs`, raises its
+docs-walker floor, says in the `track_outcome` rustdoc that the call belongs
+inside the handler, names the two types in the module doc, pins the receiver
+as `Send + Sync` and as a future in `tests/request_receipt_api.rs`, and
+makes the crate CHANGELOG cite the README's proofs section by heading alone;
+it also waits for the oversize verdicts under the resource budget and marks
+the last loopback test with the lock lint. `dea9af76` adds
+`two_transport_loopback_requests_outcome_probe2.rs`: a receiver awaited in a
+task the handler spawned, two requests in flight on one link each resolving
+their own verdict, and a request that arrived as a request Resource; it also
+formats the included outcome test files with the repo rustfmt config.
+`d2854884` names the rule behind `NotSent` in the rustdoc and the README,
+every path that drops the sender, a handler that panics after tracking
+included, and pins that arm in the second probe file while a sibling request
+on the link is still answered. `c18ea340` adds
+`two_transport_loopback_requests_outcome_probe3.rs`: a handler that panics
+after tracking while a second tracked request on the same link is still
+parked, the reap of the panicked task leaving that sibling to resolve
+`Packet`; a request that arrived as a request Resource whose handler panics
+after tracking; and the README's spawned awaiter on a multi-thread runtime;
+it also makes the README paragraph pin in `fork_release_docs_contract.rs`
+require the panicking-handler arm and the dropped-sender rule.
+
+Fork commits `b87cd69a`, `42795c1c`, `c4704519`, `43b03644`, `d62ab8b3`,
+`80b0c73e`, `28c9973d`, `53c6267a`, `32bd4b00`, `f36f1b7b` and `24f178dd`:
+J4, shared-instance state. The library behaviour changes are: a client
+attached to a shared instance can follow its connection state. `b87cd69a`
+adds the `SharedInstanceEvent` enum, `#[non_exhaustive]` with `Connecting`,
+`Connected` and `Disconnected`, and
+`SharedInstanceOptions::with_state_events` (`transport/shared_instance.rs`,
+the enum re-exported in `transport/mod.rs`), and the additive
+`TcpClient::with_connect_events` and `LocalUnixClient::with_connect_events`
+with their `connect_events_enabled` getters (`iface/tcp_client.rs`,
+`iface/local.rs`), which fire on every established stream, the first
+included, where `with_reconnect_events` fires from the second on.
+`attach_shared_instance` (`links_parts/transport_sections/shared_instance.rs`)
+opens a third `mpsc::channel(8)` for the connects beside the reconnect and
+disconnect channels and sends the first `Connecting` after the slot is
+taken and before the consumer is spawned, so it precedes every `Connected`
+even when the client has already connected. The consumer's `run`
+(`links_parts/transport_sections/shared_instance_reconnect.rs`) takes the
+connect receiver and the state sender as parameters; its select is biased
+disconnects, then connects, then reconnects, and it sends `Disconnected`
+then `Connecting` once a disconnect's flush, which runs only while attached,
+has run and `Connected` on each connect, every event with `try_send` and a
+debug line when the channel is full. The sender is a parameter rather than
+a field so that it drops when
+the task returns: the re-announce task clones the consumer and outlives a
+detach by `reconnect_wait` plus the grace, and must not hold the stream
+open. `connected_to_shared_instance`, the tunnel synthesis, the flush and
+the re-announce are unchanged. `42795c1c` adds
+`two_transport_shared_instance_state_events.rs` (included from
+`tests.rs`): `shared_instance_state_events_follow_a_tcp_restart`,
+`shared_instance_state_consumer_reports_connected_and_serves_the_reconnect`,
+`shared_instance_state_consumer_orders_a_whole_cycle`,
+`shared_instance_state_events_wait_in_connecting_while_the_listener_is_down`,
+`shared_instance_state_events_follow_a_unix_restart` on unix targets and
+`shared_instance_state_events_full_channel_drops_at_debug_without_stalling`;
+the hand-driven consumer tests in
+`two_transport_shared_instance_reconnect.rs` and
+`two_transport_shared_instance_probe16.rs` gain the third channel.
+`c4704519` describes the stream in the README shared-instance section, with
+a second snippet that reads it until the detach ends it, run verbatim by
+`tests/shared_instance_api.rs`, extends the `LocalUnixClient` getter list
+with `connect_events_enabled`, and pins the paragraph, the second fence,
+the `non_exhaustive` attribute and the five new public items in
+`fork_release_docs_contract.rs`. `43b03644` adds
+`two_transport_shared_instance_state_events_probe.rs` (included from
+`tests.rs`):
+`shared_instance_state_stream_ends_on_stop_without_a_disconnected`,
+`shared_instance_state_refused_attach_sends_nothing_and_ends_the_stream`,
+`shared_instance_state_dropped_receiver_keeps_the_consumer_serving`,
+`shared_instance_state_events_follow_two_tcp_restarts` and
+`shared_instance_state_detach_while_connecting_ends_the_stream`; adds the
+client-level connect-event pins
+`tcp_client_reports_connect_events_on_every_connection_the_first_included`
+(`iface/tcp_client.rs`, which also gains the `connect_events_enabled`
+rustdoc its unix twin had) and
+`local_unix_connect_client_reports_connect_events_on_every_connection_the_first_included`
+(`iface/local.rs`, whose getter test also reads `connect_events_enabled`);
+and in `two_transport_shared_instance_state_events.rs` reuses the sibling
+`SHARED_INSTANCE_RECONNECT_WAIT` in place of its own copy, mirrors the
+posture and slot asserts into the unix restart and the listener-down test,
+and pins the skipped-flush record of the hand-driven cycle, whose consumer
+runs unattached. `d62ab8b3` qualifies the `Disconnected` and
+`with_state_events` rustdoc (`transport/shared_instance.rs`) and the README
+paragraph for the unattached drop (the flush runs only while attached; a
+drop queued before a detach is still served), retained sender clones (a
+kept `SharedInstanceOptions` clone holds the stream open) and storm
+interleaving (cycles may nest), extends the `run` rustdoc's loss argument
+to the connect channel, and adds the two README claims to
+`fork_release_docs_contract.rs`. `80b0c73e` adds
+`two_transport_shared_instance_state_events_probe2.rs` (included from
+`tests.rs`):
+`shared_instance_state_retained_options_clone_keeps_the_stream_open_after_detach`,
+`shared_instance_state_consumer_serves_a_queued_drop_before_the_stream_ends`
+and `shared_instance_state_consumer_nests_the_cycles_under_a_storm`; aligns
+the remaining doc twins (the `run` and `attach_shared_instance` rustdoc,
+the state-events test-file header and the `transport/mod.rs` module
+comment) with those qualifications and gives `reconnect_events_enabled` in
+`iface/tcp_client.rs` the getter rustdoc its unix twin had; names the shape a
+drop queued before a detach reads
+as, `Disconnected`, `Connecting`, in the `Disconnected` and
+`with_state_events` rustdoc and the README; pins the retained `Connecting`
+in the full-channel test and the exact reconnect record of the hand-built
+consumer; and shares the README rust-fence collector between the two pin
+tests in `fork_release_docs_contract.rs`. `28c9973d` makes the consumer's
+`run` (`links_parts/transport_sections/shared_instance_reconnect.rs`)
+serve what the exited worker left queued before it returns: the select
+broke on the first closed channel, so with the worker's three senders gone
+the empty and closed disconnect channel ended the task before a queued
+connect was polled; now a closed channel leads into a `try_recv` drain of
+the queued disconnects, each served as the live arm serves it, then the
+queued connects, each `Connected`, while a cancel still returns at once
+and queued reconnects are left; `attach_shared_instance`
+(`links_parts/transport_sections/shared_instance.rs`) sets
+`connected_to_shared_instance`, when the slot still holds the interface,
+before it sends `Connecting`, so a reader of that event finds the posture
+on; a refused attach sends nothing, and in the documented attach/stop race
+the attach returns `Ok` and `Connecting` goes out with the posture off, the
+stream ending at once; and it adds
+`two_transport_shared_instance_state_events_probe3.rs` (included from
+`tests.rs`):
+`shared_instance_state_consumer_serves_a_queued_connect_before_the_stream_ends`
+and
+`shared_instance_state_consumer_reads_a_queued_connect_while_disconnects_stay_open`.
+`53c6267a` pins the full-channel test's drop record to its four events in
+`two_transport_shared_instance_state_events.rs`, which also gains the
+read-to-end helper the hand-driven consumer tests there and in
+`two_transport_shared_instance_state_events_probe2.rs` and
+`two_transport_shared_instance_state_events_probe3.rs` share, and adds the
+queued-drop and queued-connect README claims to
+`fork_release_docs_contract.rs`. `32bd4b00` names the closed channel in
+the `with_connect_events` rustdoc twins (`iface/tcp_client.rs`,
+`iface/local.rs`), wraps the `transport/mod.rs` module comment and
+corrects the snippet-runner doc in `tests/shared_instance_api.rs`.
+`f36f1b7b` adds `two_transport_shared_instance_state_events_probe4.rs`
+(included from `tests.rs`), which pins the drain and the posture order:
+`shared_instance_state_consumer_drains_a_queued_drop_then_the_queued_connect`,
+`shared_instance_state_consumer_leaves_a_queued_reconnect_when_the_worker_is_gone`,
+`shared_instance_state_consumer_cancelled_before_it_polls_serves_nothing_queued`
+and
+`shared_instance_state_connecting_is_not_sent_before_the_connected_posture_is_set`.
+`24f178dd` qualifies the posture-before-`Connecting` claim in the
+`with_state_events` rustdoc (`transport/shared_instance.rs`), the attach
+comment (`links_parts/transport_sections/shared_instance.rs`), the README
+and the CHANGELOG: the posture is set before `Connecting` only when the
+slot still holds the interface, and in the documented attach/stop race
+`Connecting` goes out with the posture off; pins the README's qualified
+sentence in `fork_release_docs_contract.rs`; and has the consumer's drain
+(`links_parts/transport_sections/shared_instance_reconnect.rs`) log the
+disconnects and connects it served at debug when it served anything, the
+quiet exit staying silent.
+
+Fork commits `0b5b2dff`, `09ee7c45` and `7cfab1ef`:
+J5, batch hygiene. No library behaviour changes. `0b5b2dff` shares three
+test helpers that had grown a per-file twin: `connector_with` in
+`two_transport_loopback.rs` takes an optional `InterfaceSharedConfig` for
+the `TcpClient` iface, so `two_transport_destination_desc_probe2.rs` drops
+its ingress-control copy of `connector`; `RequestHandlerRecord::handler_with`
+in `python_to_rust_request_handler.rs` runs a hook on each request before it
+answers, so `TrackedHandlerRecord` in `python_to_rust_request_outcome.rs`
+delegates its `track_outcome` call instead of repeating the handler body;
+and `shared_instance_state_drive_consumer_with` in
+`two_transport_shared_instance_state_events.rs` drives the hand-built
+consumer from a `DriveSpec` (the events queued, the senders closed before
+the run, a cancel before the first poll, the exit message), so the eight
+hand-driven arrange blocks (the wrapper in that file and seven probe sites
+in
+`two_transport_shared_instance_state_events_probe2.rs`,
+`two_transport_shared_instance_state_events_probe3.rs` and
+`two_transport_shared_instance_state_events_probe4.rs`) become calls with the
+same queued order, channel capacities and asserts. `09ee7c45` drops three
+outcome probe tests that re-pinned a sibling:
+`two_transport_loopback_request_outcome_awaited_in_a_task_the_handler_spawned`
+in `two_transport_loopback_requests_outcome_probe2.rs` repeated
+`two_transport_loopback_request_packet_response_outcome_is_packet` from
+`two_transport_loopback_requests_outcome.rs` (the receiver's `Send +
+'static` bound is pinned by `tests/request_receipt_api.rs`), and
+`two_transport_loopback_request_resource_form_request_panic_after_tracking_resolves_not_sent`
+and
+`two_transport_loopback_request_panic_after_tracking_reaches_a_spawned_awaiter_multi_thread`
+in `two_transport_loopback_requests_outcome_probe3.rs` both repeated
+`two_transport_loopback_request_handler_panicking_after_tracking_resolves_not_sent`
+from the second probe file (the packet and Resource request forms converge
+on one spawned task in `transport/request_dispatch.rs`, and the multi-thread
+flavour changes no code path). `7cfab1ef` moves the `#[cfg(test)]`
+`get_handler` accessor from `links_parts/transport_sections/close_channel.rs`
+into `transport/tests.rs`, which is already compiled only under test.
+
+Fork commit `79aae7ed`: Python-in-the-loop request outcome interop. The
+third response-outcomes commit above: a Rust handler that tracks its
+outcome against a Python requester
+(`crates/apps/reticulumd/tests/python_channel_interop_parts/python_to_rust_request_outcome.rs`
+included from `crates/apps/reticulumd/tests/python_channel_interop.rs`)
+resolves `Resource(Complete)` for a 48 KiB reply and `Packet` for a short
+one, the release section's Python-in-the-loop proof rows.
+
+Fork commits `972318f6`, `a3451134`, `4b2208f3`, `f0c32509`, `7fc78269`,
+`e2e9cdc6`, `8b7619b7`, `e6f5dc52`, `92568aa7`, `1facb7a4`, `81d19f77`,
+`3fc9bbd4`, `5e64379e`, `b724477f`, `c9ed6456`, `ea1b3446`, `ced5eeb1`,
+`1f69d695`, `26c1fdc7`, `cd22920e`, `e48b07d4` and `fc5cf7f5`:
+release 0.17.0. The first retargets the promotion-sensitive pins to the
+literal 0.17.0 label, since a released section is frozen:
+`crates/apps/reticulumd/tests/fork_publish_contract_parts/ledger_contract.rs`
+expects the full-hash contract to cover `0.17.0`, `0.16.0` and `0.15.1`
+and the bullet-cite contract the same three, and the two version pins in
+`crates/apps/reticulumd/tests/fork_publish_contract.rs` read `0.17.0`. The
+same commit relaxes the minor-bump rule in
+`crates/apps/reticulumd/tests/fork_release_docs_contract.rs` for an
+additive minor: the `### Breaking` verdict moves into
+`breaking_subsection_verdict`, a pure helper over the lines of the release
+section, which still requires a `Migration:` clause on every bullet when
+bullets are present and, when none are, requires the prose to open with
+the exact `None. This minor release is additive;` sentence followed by a
+non-empty reason; five fixture tests pin a bare `None.`, the additive
+sentence with a reason, a bullet without and with a migration, and an
+empty subsection. The same file gains a 0.17.0 twin of the patch-list
+test, asserting the 0.17.0, 0.16.0, 0.15.1 order and the 0.17.0 block's
+items, with the 0.16.0 needle list shared through a const. The second
+bumps the crate version to 0.17.0 at every manifest and consumer-snippet
+site (`Cargo.toml`, `crates/libs/rns-transport/Cargo.toml`,
+`crates/apps/reticulumd/Cargo.toml`, `crates/apps/rns-tools/Cargo.toml`,
+the snippet in `crates/libs/rns-transport/README.md` and
+`docs/getting-started.md`) and regenerates `Cargo.lock` and
+`crates/libs/rns-transport/fuzz/Cargo.lock`; the root `VERSION` file and
+the `x509-parser` pin stay. The third promotes `## Unreleased` to
+`## 0.17.0 - 2026-10-27` in the crate `CHANGELOG.md` with a `### Breaking`
+subsection first, whose one sentence says the release is additive and
+why in place of a list, and a version bullet at the head of `### Changed`
+(the announce field, the minor-bump reasoning, the `cargo semver-checks`
+result against `v0.16.0`, 0 major and 0 minor with the additive changes
+below the tool's default lint level (as `a11e4c23` later words it), and the
+contract tests that pin the release). The fourth amends the versioning
+paragraph of
+`crates/libs/rns-transport/README.md`: a fork release that only fixes bugs, or
+adds API a consumer need not opt into, bumps the patch digit (as `92568aa7`
+later words it), a fork release that adds public API may bump the minor digit
+so the digit tells a consumer there is new surface to opt into, and `0.17.0`
+is the first such additive minor; the 0.15.0 clause and the upstream-rebase
+sentence are kept. It also adds the 0.17.0 paragraph to the `## Patch list`,
+folding it into the intro sentence (the destination lookup, the responder
+outcome, the shared-instance state events, the line telling consumers
+`AddressHash::new_from_hex_string` has validated its input since 0.14.1, and
+the test-only hygiene) and leaving the 0.16.0 block as a standalone paragraph
+with its bullets unchanged. The fifth carries two test-only precision edits:
+`connector_with` in
+`crates/libs/rns-transport/src/transport/tests_parts/two_transport_loopback.rs`
+asserts the `bool` that `set_shared_config` returns instead of discarding
+it, and the `DriveSpec` doc in
+`crates/libs/rns-transport/src/transport/tests_parts/two_transport_shared_instance_state_events.rs`
+and the cancel test header in
+`crates/libs/rns-transport/src/transport/tests_parts/two_transport_shared_instance_state_events_probe4.rs`
+say the consumer's cancel token is cancelled before the poll, not the
+transport. The ledger promotion itself touches only this file and names
+the Python-in-the-loop request outcome interop patch above. The sixth
+splits `crates/apps/reticulumd/tests/fork_release_docs_contract.rs` into
+included parts: the root keeps the shared helpers and includes
+`crates/apps/reticulumd/tests/fork_release_docs_contract_parts/request_layer_api_docs.rs`
+(the rustdoc citation, private-field and `non_exhaustive` pins),
+`crate_readme_sections.rs` (the README section and snippet pins),
+`release_notes_breaking.rs` (the `### Breaking` verdict, the minor-bump
+test and its fixtures) and `readme_patch_list.rs` (the patch-list and
+Codex bullet pins), with every test name and body unchanged. The seventh
+adopts
+`crates/apps/reticulumd/tests/fork_release_docs_contract_parts/release_0_17_0_probe.rs`,
+included from the same root, whose four tests hold the 0.17.0
+`### Breaking` body to the whole additive sentence
+(`release_0_17_0_breaking_is_exactly_the_additive_sentence`), the
+version bullet to the semver verdict
+(`release_0_17_0_version_bullet_records_the_semver_verdict`), the README
+policy to the digit each kind of release bumps
+(`crate_readme_release_policy_names_the_digit_each_release_kind_bumps`)
+and the register's `AddressHash::new_from_hex_string` claim against the
+crate (`release_0_17_0_register_hex_parsing_claim_holds_against_the_crate`).
+The eighth adds two fixtures to `release_notes_breaking.rs`, the additive
+sentence without a reason clause and the additive sentence beside bullets,
+and the rule the second needs: prose beside bullets must not open with the
+additive sentence, since a section cannot both say `None.` and list
+changes; the minor-bump test also requires the README policy to say an
+additive release may bump the minor digit; and in `readme_patch_list.rs`
+the 0.16.0 block test is renamed
+`readme_patch_list_keeps_the_0_16_0_block_above_the_0_15_1_paragraph` for
+what it pins, while the 0.17.0 twin drops its copy of the 0.16.0 needle
+loop. The ninth tightens the release prose: the versioning paragraph of
+`crates/libs/rns-transport/README.md` says a release that only fixes bugs,
+or adds API a consumer need not opt into, bumps the patch digit (the
+probe's needle follows), the version bullet of the crate `CHANGELOG.md`
+names the probe, its ledger-contracts bullet says the full-hash pin covered
+`## Unreleased` during the cycle and names `0.17.0` now, a new test-only
+bullet records the split, the fixtures, the README needle and the rename,
+and the legend above says the interop patch's commit is also a `response
+outcomes` commit. The tenth renames the probe's first test to
+`release_0_17_0_breaking_is_exactly_the_additive_sentence` and its
+constant to `ADDITIVE_BREAKING_SENTENCE`, so the probe reads on its own
+terms. The eleventh narrows the probe's semver pin to the version bullet
+itself, the one `### Changed` bullet that opens with the crate version, and adds
+`release_0_17_0_ledgers_name_the_shared_interop_commit_and_the_promoted_pin`,
+which holds this file's legend to the shared interop commit wording and the
+CHANGELOG ledger-contracts bullet to the promoted pin wording. The twelfth
+adopts
+`crates/apps/reticulumd/tests/fork_release_docs_contract_parts/release_0_17_0_probe2.rs`,
+included from the same root, whose four tests require the `### Breaking`
+verdict to reject prose placed before the additive sentence
+(`breaking_verdict_rejects_prose_placed_before_the_additive_sentence`) and
+bullets followed by it
+(`breaking_verdict_rejects_bullets_followed_by_the_additive_sentence`), and
+hold the CHANGELOG release headings to newest-first order with ISO dates
+(`changelog_release_headings_read_newest_first_with_iso_dates`) and the
+root's include list to the part files on disk, each named by the CHANGELOG
+bullet that records the split
+(`every_release_docs_contract_part_is_included_once_and_named_by_the_changelog`);
+the same commit makes the 0.17.0 patch-list test in `readme_patch_list.rs`
+require its block to be the first in the list, and adds the README's
+upstream-rebase sentence to the policy needles in `release_0_17_0_probe.rs`.
+The thirteenth corrects the 0.17.0 register of
+`crates/libs/rns-transport/README.md`, whose responder-outcome item named the
+`Resource` variant's payload `OutboundOutcome` where the type is
+`OutboundResult`, and adds the `Resource(OutboundResult)` needle to the 0.17.0
+block test in `readme_patch_list.rs`. The fourteenth changes the release
+headings pin in `release_0_17_0_probe2.rs` to read only the digit-leading
+`## ` headings, so an `## Unreleased` stub above them is skipped while a
+digit-leading heading that does not read `## X.Y.Z - YYYY-MM-DD` is still
+rejected, with the parse in a `release_headings` helper that
+`release_headings_skip_an_unreleased_stub_and_reject_a_malformed_release_heading`
+exercises on fixtures. The fifteenth adds
+`crates/libs/rns-transport/tests/connect_events_api.rs`, whose two tests drive
+`TcpClient::with_connect_events` and `LocalUnixClient::with_connect_events`
+from outside the crate: the `connect_events_enabled` getter reports the
+installed sender, the first established stream fires a connect event carrying
+the interface address while the reconnect channel stays silent, and the second
+stream fires both; the register's shared-instance item cites the file. The
+sixteenth names the heading `release_0_17_0_probe2.rs` parses:
+`release_headings` returns a `ReleaseHeading` (line, version triple, date) in
+place of a nested tuple. The seventeenth adopts
+`crates/apps/reticulumd/tests/fork_release_docs_contract_parts/release_0_17_0_probe3.rs`,
+included from the same root, whose three tests hold the 0.17.0 register's
+`ResponseOutcome` variant list to the enum's declared variants, payload
+included
+(`readme_0_17_0_register_names_exactly_the_response_outcome_variants`),
+require every `tests/*.rs` the README 0.17.0 block and the CHANGELOG 0.17.0
+section name to exist under the crate
+(`readme_0_17_0_register_and_changelog_0_17_0_point_at_test_files_that_exist`),
+and require `tests/connect_events_api.rs` to carry the two tests and the five
+call shapes the three ledgers describe
+(`connect_events_api_pins_carry_what_the_three_ledgers_describe`). The
+eighteenth gives the TCP twin in
+`crates/libs/rns-transport/tests/connect_events_api.rs` the same 50 ms
+reconnect wait as the unix twin and has both twins check that exactly one
+connect event arrives per stream. The nineteenth adds four tests to
+`crates/libs/rns-transport/tests/connect_events_api.rs`: for each client a
+connect receiver dropped before the first stream and a capacity-one connect
+channel left unread while both streams come up both leave the second stream
+established and the reconnect channel served, the full channel buffering
+exactly the first connect event
+(`tcp_client_keeps_serving_when_the_connect_receiver_is_gone`,
+`tcp_client_drops_the_connect_event_on_a_full_channel_and_keeps_serving` and
+their unix twins); the count pin in `release_0_17_0_probe3.rs` reads six. The
+twentieth adds `crates/libs/rns-transport/tests/connect_events_log_api.rs`,
+whose four tests hold the level and the line of the drop the CHANGELOG
+promises "at debug": a capacity-one connect channel left unread yields exactly
+one debug line naming the interface and the endpoint
+(`tcp_client_logs_a_dropped_connect_event_at_debug_once_per_drop`), a
+receiver dropped before the first stream yields one such line per dropped
+event, two in all
+(`tcp_client_logs_each_connect_event_dropped_on_a_closed_channel_at_debug`),
+and their unix twins the same; no dropped connect event reaches warn or
+error. The file is its own test target because `log::set_logger` is
+process-wide and the register pins in `tests/connect_events_api.rs` must not
+run under a capturing logger. The twenty-first adds
+`crates/apps/reticulumd/tests/fork_release_docs_contract_parts/release_0_17_0_probe4.rs`,
+included from the same root, whose two tests require every backticked
+snake_case name of five or more segments in this narrative to be a `fn` under
+`crates/`
+(`release_0_17_0_narrative_names_only_test_functions_that_exist`) and
+require both connect-event test files to pair every `tcp_client_<x>` test
+with a `local_unix_client_<x>` twin, three pairs and two
+(`connect_event_tcp_pins_each_have_a_unix_twin`); the same commit has the
+contract's module doc state the additive-minor rule for `### Breaking`, slices
+the PATCHSET needle of
+`connect_events_api_pins_carry_what_the_three_ledgers_describe` to the 0.17.0
+section, and reads the CHANGELOG `tests/*.rs` pointers from whitespace-joined
+prose so a span wrapped across two lines is still one span. The twenty-second
+hoists the `#[cfg(unix)]` imports of
+`crates/libs/rns-transport/tests/connect_events_api.rs` to module level,
+copies the ordering comment on the full-channel pin to its unix twin, and
+says above the first 50 ms reconnect wait that it is a safety net against a
+future back-off. The ledger commits that cite the twenty-two commits above
+touch only this file and the crate CHANGELOG.
+
 ## 0.16.0 (upstream 0.14.0)
 
 Every file changed since the `0.15.1` release and the patch each change

@@ -5,9 +5,10 @@
 //! (`RNS/Link.py:486-488`), a response as `[request_id, body]`
 //! (`RNS/Link.py:848`). [`RequestFrame`] and [`ResponseFrame`] encode and
 //! decode those arrays; [`PathHash`] and [`RequestId`] are the two truncated
-//! hashes they carry. [`RequestHandler`], [`RequestAllow`], [`InboundRequest`]
-//! and [`RequestResponse`] are the responder API a destination registers
-//! handlers with; [`RequestOptions`], [`RequestReceipt`], [`RequestStatus`],
+//! hashes they carry. [`RequestHandler`], [`RequestAllow`], [`InboundRequest`],
+//! [`RequestResponse`], [`ResponseOutcome`] and [`ResponseOutcomeReceiver`]
+//! are the responder API a destination registers handlers with;
+//! [`RequestOptions`], [`RequestReceipt`], [`RequestStatus`],
 //! [`RequestError`] and [`RequestResponseData`] are the requester's side of
 //! `Transport::request`.
 //!
@@ -40,6 +41,7 @@ mod frame;
 mod handler;
 mod id;
 mod inbound;
+mod outcome;
 mod receipt;
 #[cfg(test)]
 mod receipt_order_tests;
@@ -56,6 +58,8 @@ pub(crate) use handler::RegisteredHandler;
 pub use handler::{RequestHandler, RequestResponse};
 pub use id::{PathHash, RequestId};
 pub use inbound::InboundRequest;
+pub(crate) use outcome::{empty_outcome_slot, OutcomeSlot};
+pub use outcome::{ResponseOutcome, ResponseOutcomeReceiver};
 pub(crate) use receipt::ResponseArrival;
 #[cfg(test)]
 pub(crate) use receipt::RESPONSE_GRACE;

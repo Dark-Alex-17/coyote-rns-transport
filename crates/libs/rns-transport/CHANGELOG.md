@@ -139,7 +139,10 @@ into rather than a patch to absorb.
   clients driven from outside the crate with a 50 ms reconnect wait on
   both: the getter reports the installed sender, the first stream fires a
   connect event with the reconnect channel silent, the second fires both,
-  and exactly one connect event arrives per stream), by
+  and exactly one connect event arrives per stream; a connect receiver
+  dropped before the first stream and a capacity-one connect channel never
+  read both leave the second stream established and the reconnect channel
+  served, the full channel keeping only the first connect event), by
   `two_transport_shared_instance_reconnect.rs` and
   `two_transport_shared_instance_probe16.rs` (the hand-driven consumer tests
   carry the new third channel), by `tests/shared_instance_api.rs` (the
@@ -199,7 +202,7 @@ into rather than a patch to absorb.
   holds the 0.17.0 register's `ResponseOutcome` variant list to the enum's
   declared variants, payload included, requires every test file the README
   0.17.0 block and this section name to exist under the crate, and requires
-  `tests/connect_events_api.rs` to carry the two tests and the call shapes
+  `tests/connect_events_api.rs` to carry the six tests and the call shapes
   the ledgers describe.
 - Shared-instance state tests, test-only: the full-channel test pins the
   four events dropped at debug in place of a non-empty drop record, the

@@ -46,7 +46,7 @@ fork commit `79aae7ed`, also a `response outcomes` commit; the `release 0.17.0`
 patch carries no other id and is fork commits `972318f6`, `a3451134`,
 `4b2208f3`, `f0c32509`, `7fc78269`, `e2e9cdc6`, `8b7619b7`, `e6f5dc52`,
 `92568aa7`, `1facb7a4`, `81d19f77`, `3fc9bbd4`, `5e64379e`, `b724477f`,
-`c9ed6456`, `ea1b3446`, `ced5eeb1` and `1f69d695`.
+`c9ed6456`, `ea1b3446`, `ced5eeb1`, `1f69d695` and `26c1fdc7`.
 
 | File | Patch |
 | --- | --- |
@@ -413,8 +413,8 @@ one, the release section's Python-in-the-loop proof rows.
 
 Fork commits `972318f6`, `a3451134`, `4b2208f3`, `f0c32509`, `7fc78269`,
 `e2e9cdc6`, `8b7619b7`, `e6f5dc52`, `92568aa7`, `1facb7a4`, `81d19f77`,
-`3fc9bbd4`, `5e64379e`, `b724477f`, `c9ed6456`, `ea1b3446`, `ced5eeb1` and
-`1f69d695`:
+`3fc9bbd4`, `5e64379e`, `b724477f`, `c9ed6456`, `ea1b3446`, `ced5eeb1`,
+`1f69d695` and `26c1fdc7`:
 release 0.17.0. The first retargets the promotion-sensitive pins to the
 literal 0.17.0 label, since a released section is frozen:
 `crates/apps/reticulumd/tests/fork_publish_contract_parts/ledger_contract.rs`
@@ -562,8 +562,16 @@ call shapes the three ledgers describe
 eighteenth gives the TCP twin in
 `crates/libs/rns-transport/tests/connect_events_api.rs` the same 50 ms
 reconnect wait as the unix twin and has both twins check that exactly one
-connect event arrives per stream. The ledger commits that cite the eighteen
-commits above touch only this file and the crate CHANGELOG.
+connect event arrives per stream. The nineteenth adds four tests to
+`crates/libs/rns-transport/tests/connect_events_api.rs`: for each client a
+connect receiver dropped before the first stream and a capacity-one connect
+channel never read both leave the second stream established and the reconnect
+channel served, the full channel buffering exactly the first connect event
+(`tcp_client_keeps_serving_when_the_connect_receiver_is_gone`,
+`tcp_client_drops_the_connect_event_on_a_full_channel_and_keeps_serving` and
+their unix twins); the count pin in `release_0_17_0_probe3.rs` reads six. The
+ledger commits that cite the nineteen commits above touch only this file and
+the crate CHANGELOG.
 
 ## 0.16.0 (upstream 0.14.0)
 

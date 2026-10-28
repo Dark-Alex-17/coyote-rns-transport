@@ -234,3 +234,5 @@ include!("fork_release_docs_contract_parts/readme_patch_list.rs");
 include!("fork_release_docs_contract_parts/release_0_17_0_probe.rs");
 
 include!("fork_release_docs_contract_parts/release_0_17_0_probe2.rs");
+
+include!("fork_release_docs_contract_parts/release_0_17_0_probe3.rs");

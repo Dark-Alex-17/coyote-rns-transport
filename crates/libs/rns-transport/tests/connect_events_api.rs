@@ -22,9 +22,13 @@
 use std::time::Duration;
 
 use rns_transport::hash::AddressHash;
+#[cfg(unix)]
+use rns_transport::iface::local::{LocalUnixClient, LocalUnixEndpoint};
 use rns_transport::iface::tcp_client::TcpClient;
 use rns_transport::iface::InterfaceManager;
 use tokio::net::TcpListener;
+#[cfg(unix)]
+use tokio::net::UnixListener;
 use tokio::sync::mpsc;
 use tokio::time::timeout;
 
@@ -57,6 +61,8 @@ async fn tcp_client_connect_events_fire_on_the_first_stream_and_every_later_one(
 
     let (connect_tx, mut connect_rx) = mpsc::channel(4);
     let (reconnect_tx, mut reconnect_rx) = mpsc::channel(4);
+    // Safety net: the first short drop retries immediately today; if that
+    // ever backs off, this keeps the test fast.
     let client = TcpClient::new(addr.to_string())
         .with_reconnect_wait(Duration::from_millis(50))
         .with_connect_events(connect_tx)
@@ -102,9 +108,6 @@ async fn tcp_client_connect_events_fire_on_the_first_stream_and_every_later_one(
 #[cfg(unix)]
 #[tokio::test]
 async fn local_unix_client_connect_events_fire_on_the_first_stream_and_every_later_one() {
-    use rns_transport::iface::local::{LocalUnixClient, LocalUnixEndpoint};
-    use tokio::net::UnixListener;
-
     let dir = tempfile::tempdir().expect("socket dir");
     let socket = dir.path().join("connect-events.sock");
     let listener = UnixListener::bind(&socket).expect("bind unix listener");
@@ -262,9 +265,6 @@ async fn tcp_client_drops_the_connect_event_on_a_full_channel_and_keeps_serving(
 #[cfg(unix)]
 #[tokio::test]
 async fn local_unix_client_keeps_serving_when_the_connect_receiver_is_gone() {
-    use rns_transport::iface::local::{LocalUnixClient, LocalUnixEndpoint};
-    use tokio::net::UnixListener;
-
     let dir = tempfile::tempdir().expect("socket dir");
     let socket = dir.path().join("connect-events-closed.sock");
     let listener = UnixListener::bind(&socket).expect("bind unix listener");
@@ -316,9 +316,6 @@ async fn local_unix_client_keeps_serving_when_the_connect_receiver_is_gone() {
 #[cfg(unix)]
 #[tokio::test]
 async fn local_unix_client_drops_the_connect_event_on_a_full_channel_and_keeps_serving() {
-    use rns_transport::iface::local::{LocalUnixClient, LocalUnixEndpoint};
-    use tokio::net::UnixListener;
-
     let dir = tempfile::tempdir().expect("socket dir");
     let socket = dir.path().join("connect-events-full.sock");
     let listener = UnixListener::bind(&socket).expect("bind unix listener");
@@ -352,6 +349,8 @@ async fn local_unix_client_drops_the_connect_event_on_a_full_channel_and_keeps_s
         iface,
         "the sibling channel is served although the connect channel is full"
     );
+    // The reconnect event is sent after the second connect attempt, so by
+    // now the connect channel has seen both tries: one buffered, one dropped.
     assert_eq!(connect_rx.try_recv().ok(), Some(iface), "the first connect event is buffered");
     assert!(connect_rx.try_recv().is_err(), "the second connect event was dropped, not queued");
 

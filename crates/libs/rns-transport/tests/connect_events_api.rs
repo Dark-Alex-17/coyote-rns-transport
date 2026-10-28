@@ -50,6 +50,7 @@ async fn tcp_client_connect_events_fire_on_the_first_stream_and_every_later_one(
     let (connect_tx, mut connect_rx) = mpsc::channel(4);
     let (reconnect_tx, mut reconnect_rx) = mpsc::channel(4);
     let client = TcpClient::new(addr.to_string())
+        .with_reconnect_wait(Duration::from_millis(50))
         .with_connect_events(connect_tx)
         .with_reconnect_events(reconnect_tx);
     assert!(client.connect_events_enabled(), "the getter should report the installed sender");
@@ -69,6 +70,7 @@ async fn tcp_client_connect_events_fire_on_the_first_stream_and_every_later_one(
     let fired = recv_within("first connect event", &mut connect_rx).await;
     assert_eq!(fired, iface, "the connect event carries the interface address");
     assert_silent("the reconnect event on the first stream", &mut reconnect_rx).await;
+    assert!(connect_rx.try_recv().is_err(), "exactly one connect per stream");
 
     // Second stream: both fire, same interface identity.
     drop(first);
@@ -79,6 +81,7 @@ async fn tcp_client_connect_events_fire_on_the_first_stream_and_every_later_one(
         .0;
     assert_eq!(recv_within("second connect event", &mut connect_rx).await, iface);
     assert_eq!(recv_within("reconnect event", &mut reconnect_rx).await, iface);
+    assert!(connect_rx.try_recv().is_err(), "exactly one connect per stream");
 
     cancel.cancel();
     drop(second);
@@ -125,6 +128,7 @@ async fn local_unix_client_connect_events_fire_on_the_first_stream_and_every_lat
         .0;
     assert_eq!(recv_within("first connect event", &mut connect_rx).await, iface);
     assert_silent("the reconnect event on the first stream", &mut reconnect_rx).await;
+    assert!(connect_rx.try_recv().is_err(), "exactly one connect per stream");
 
     drop(first);
     let second = timeout(Duration::from_secs(2), listener.accept())
@@ -134,6 +138,7 @@ async fn local_unix_client_connect_events_fire_on_the_first_stream_and_every_lat
         .0;
     assert_eq!(recv_within("second connect event", &mut connect_rx).await, iface);
     assert_eq!(recv_within("reconnect event", &mut reconnect_rx).await, iface);
+    assert!(connect_rx.try_recv().is_err(), "exactly one connect per stream");
 
     cancel.cancel();
     drop(second);

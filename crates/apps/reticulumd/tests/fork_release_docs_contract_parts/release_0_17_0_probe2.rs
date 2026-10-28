@@ -48,13 +48,22 @@ fn breaking_verdict_rejects_bullets_followed_by_the_additive_sentence() {
     );
 }
 
-/// A `## X.Y.Z - YYYY-MM-DD` CHANGELOG heading split into its version triple
-/// and ISO date, or `None` for any other `## ` heading.
-fn release_heading(line: &str) -> Option<((u64, u64, u64), String)> {
+/// A `## X.Y.Z - YYYY-MM-DD` CHANGELOG heading: the line itself, its
+/// version triple and its ISO date.
+#[derive(Debug, PartialEq, Eq)]
+struct ReleaseHeading {
+    line: String,
+    version: (u64, u64, u64),
+    date: String,
+}
+
+/// The `ReleaseHeading` a `## X.Y.Z - YYYY-MM-DD` line parses to, or `None`
+/// for any other `## ` heading.
+fn release_heading(line: &str) -> Option<ReleaseHeading> {
     let rest = line.strip_prefix("## ")?;
     let (version, date) = rest.split_once(" - ")?;
     let mut parts = version.split('.').map(|part| part.parse::<u64>().ok());
-    let triple = (parts.next()??, parts.next()??, parts.next()??);
+    let version = (parts.next()??, parts.next()??, parts.next()??);
     if parts.next().is_some() {
         return None;
     }
@@ -63,15 +72,14 @@ fn release_heading(line: &str) -> Option<((u64, u64, u64), String)> {
             4 | 7 => byte == b'-',
             _ => byte.is_ascii_digit(),
         });
-    date_ok.then(|| (triple, date.to_string()))
+    date_ok.then(|| ReleaseHeading { line: line.to_string(), version, date: date.to_string() })
 }
 
-/// The release headings of a CHANGELOG in file order, each as the heading
-/// line, its version triple and its ISO date. A `## ` heading that does not
-/// open with a digit (an `## Unreleased` stub) is not a release heading and
-/// is skipped; one that does must read `## X.Y.Z - YYYY-MM-DD` or the whole
-/// parse is an `Err` naming it.
-fn release_headings(changelog: &str) -> Result<Vec<(String, (u64, u64, u64), String)>, String> {
+/// The release headings of a CHANGELOG in file order. A `## ` heading that
+/// does not open with a digit (an `## Unreleased` stub) is not a release
+/// heading and is skipped; one that does must read `## X.Y.Z - YYYY-MM-DD`
+/// or the whole parse is an `Err` naming it.
+fn release_headings(changelog: &str) -> Result<Vec<ReleaseHeading>, String> {
     changelog
         .lines()
         .filter(|line| {
@@ -79,9 +87,9 @@ fn release_headings(changelog: &str) -> Result<Vec<(String, (u64, u64, u64), Str
                 .is_some_and(|rest| rest.starts_with(|c: char| c.is_ascii_digit()))
         })
         .map(|line| {
-            release_heading(line).map(|(triple, date)| (line.to_string(), triple, date)).ok_or_else(
-                || format!("a release heading should read `## X.Y.Z - YYYY-MM-DD`, got {line:?}"),
-            )
+            release_heading(line).ok_or_else(|| {
+                format!("a release heading should read `## X.Y.Z - YYYY-MM-DD`, got {line:?}")
+            })
         })
         .collect()
 }
@@ -98,8 +106,16 @@ fn release_headings_skip_an_unreleased_stub_and_reject_a_malformed_release_headi
     assert_eq!(
         release_headings(with_stub).expect("the stub should be skipped, not rejected"),
         vec![
-            ("## 1.2.3 - 2026-01-02".to_string(), (1, 2, 3), "2026-01-02".to_string()),
-            ("## 1.2.2 - 2026-01-01".to_string(), (1, 2, 2), "2026-01-01".to_string()),
+            ReleaseHeading {
+                line: "## 1.2.3 - 2026-01-02".to_string(),
+                version: (1, 2, 3),
+                date: "2026-01-02".to_string(),
+            },
+            ReleaseHeading {
+                line: "## 1.2.2 - 2026-01-01".to_string(),
+                version: (1, 2, 2),
+                date: "2026-01-01".to_string(),
+            },
         ]
     );
 
@@ -127,32 +143,30 @@ fn changelog_release_headings_read_newest_first_with_iso_dates() {
 
     let newest = format!("## {} - ", crate_version());
     assert!(
-        headings[0].0.starts_with(&newest),
+        headings[0].line.starts_with(&newest),
         "the first release heading should be the manifest version, got {:?}",
-        headings[0].0
+        headings[0].line
     );
     for pair in headings.windows(2) {
         let (above, below) = (&pair[0], &pair[1]);
         assert!(
-            above.1 > below.1,
+            above.version > below.version,
             "release headings should descend by version: {:?} sits above {:?}",
-            above.0,
-            below.0
+            above.line,
+            below.line
         );
         assert!(
-            above.2 >= below.2,
+            above.date >= below.date,
             "a newer release cannot be dated before an older one: {:?} sits above {:?}",
-            above.0,
-            below.0
+            above.line,
+            below.line
         );
     }
 
     // The previous release's tag date (committer date of the tagged commit)
     // bounds the new release's date from below; `ls-remote`-free, local only.
-    let previous = format!(
-        "coyote-rns-transport-v{}.{}.{}",
-        headings[1].1 .0, headings[1].1 .1, headings[1].1 .2
-    );
+    let (major, minor, patch) = headings[1].version;
+    let previous = format!("coyote-rns-transport-v{major}.{minor}.{patch}");
     let tag_date = std::process::Command::new("git")
         .args(["log", "-1", "--format=%cs", &previous])
         .current_dir(repo_root())
@@ -161,9 +175,9 @@ fn changelog_release_headings_read_newest_first_with_iso_dates() {
     assert!(tag_date.status.success(), "tag {previous} should exist locally");
     let tag_date = String::from_utf8_lossy(&tag_date.stdout).trim().to_string();
     assert!(
-        headings[0].2 >= tag_date,
+        headings[0].date >= tag_date,
         "{:?} should not be dated before the {previous} tag ({tag_date})",
-        headings[0].0
+        headings[0].line
     );
 }
 

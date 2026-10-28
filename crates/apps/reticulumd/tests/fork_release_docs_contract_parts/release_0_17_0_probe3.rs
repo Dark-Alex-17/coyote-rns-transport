@@ -4,7 +4,7 @@
 // list must be the enum's list, payload included; the register and the
 // CHANGELOG point the consumer at `tests/*.rs` files for the behaviour they
 // promise, so every such file must exist under the crate; and
-// `tests/connect_events_api.rs` must carry the two tests and the five call
+// `tests/connect_events_api.rs` must carry the six tests and the five call
 // shapes the three ledgers describe.
 
 use std::collections::BTreeSet;
@@ -119,16 +119,18 @@ fn readme_0_17_0_register_and_changelog_0_17_0_point_at_test_files_that_exist() 
 }
 
 /// Three ledgers (README register, CHANGELOG `### Added`, PATCHSET narrative)
-/// say `tests/connect_events_api.rs` carries two tests that drive
+/// say `tests/connect_events_api.rs` carries six tests: the two register pins
+/// that drive
 /// `TcpClient::with_connect_events` and `LocalUnixClient::with_connect_events`
 /// from outside the crate, read the `connect_events_enabled` getter and watch
-/// the reconnect channel beside the connect channel. The file must carry the
-/// two tests and the five call shapes the claim rests on.
+/// the reconnect channel beside the connect channel, and the four dropped- or
+/// full-channel pins. The file must carry the six tests and the five call
+/// shapes the claim rests on.
 #[test]
 fn connect_events_api_pins_carry_what_the_three_ledgers_describe() {
     let source = read_repo_file("crates/libs/rns-transport/tests/connect_events_api.rs");
     let tests = source.lines().filter(|line| line.trim() == "#[tokio::test]").count();
-    assert_eq!(tests, 2, "the ledgers say the file carries two tests");
+    assert_eq!(tests, 6, "the ledgers describe six tests");
     for shape in [
         "TcpClient::new(",
         "LocalUnixClient::new_connect(",

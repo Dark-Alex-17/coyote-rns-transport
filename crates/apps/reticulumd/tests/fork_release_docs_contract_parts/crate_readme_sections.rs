@@ -223,6 +223,54 @@ fn crate_readme_request_handler_section_describes_track_outcome() {
     }
 }
 
+/// The request-handler section describes `into_parts` and the responder's
+/// response cap the way the dispatcher behaves: the tracker `into_parts`
+/// returns and its arm-before-return rule, the three destination accessors,
+/// the `TooLarge` outcome a refused response resolves, and one sentence that
+/// sets the responder's cap beside the requester's
+/// `RequestOptions::with_max_response_size` so a reader does not take one
+/// for the other.
+#[test]
+fn crate_readme_request_handler_section_describes_into_parts_and_the_response_cap() {
+    let readme = read_repo_file("crates/libs/rns-transport/README.md");
+    let section = crate_readme_section(&readme, "Request handlers");
+    for claim in [
+        "`into_parts`",
+        "`ResponseOutcomeTracker`",
+        "`set_max_response_size`",
+        "`clear_max_response_size`",
+        "`max_response_size`",
+        "`TooLarge`",
+        "`RequestOptions::with_max_response_size`",
+        "at the cap goes out",
+        "logs one warn",
+        "logs nothing",
+    ] {
+        assert!(
+            section.contains(claim),
+            "the request-handler section should mention {claim}:\n{section}"
+        );
+    }
+
+    let requester_cap = "`RequestOptions::with_max_response_size`";
+    let flattened = section.split_whitespace().collect::<Vec<_>>().join(" ");
+    let cross_reference = flattened
+        .split(". ")
+        .find(|sentence| sentence.contains(requester_cap))
+        .expect("the request-handler section names the requester's cap");
+    for claim in ["`set_max_response_size`", "requester", "responder"] {
+        assert!(
+            cross_reference.contains(claim),
+            "the sentence naming {requester_cap} should also carry {claim}, got {cross_reference:?}"
+        );
+    }
+    assert_eq!(
+        flattened.matches(requester_cap).count(),
+        1,
+        "the request-handler section should name the requester's cap once, in the cross-reference"
+    );
+}
+
 /// The link section's `destination_desc` snippet is pinned as one block, not
 /// line by line: the per-line pin below matches squashed substrings, so a
 /// snippet that swapped `destination_desc` for `destination_identity` would

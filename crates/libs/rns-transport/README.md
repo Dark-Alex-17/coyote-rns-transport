@@ -85,6 +85,23 @@ oversize one is rejected there, which the requester sees as
 receipt. Once an accepted request Resource is assembled the same handler
 runs, with the request id recomputed from the assembled bytes.
 
+`set_max_response_size`, `clear_max_response_size` and `max_response_size`
+on the destination bound the size of a response it sends; with no limit set
+every size goes out. The dispatcher measures a `Value` or `Bytes` response
+as its packed `[request_id, body]` frame, before the MDU check that would
+turn an oversize frame into a Resource, and a `RequestResponse::Resource`
+as its `data` plus the packed metadata, uncompressed, the twin of how
+`max_request_size` reads the advertised size rather than the compressed one.
+A response at the cap goes out; one over it is not sent at all: the
+dispatcher logs one warn naming the request id, the link, the measured
+length and the cap, and a handler that tracked its outcome resolves
+`ResponseOutcome::TooLarge { len, max }`. A handler that did not track is
+told nothing, and the requester sees an unanswered request. The requester's
+cap on what it will accept is `RequestOptions::with_max_response_size`;
+`set_max_response_size` is the responder's cap on what it will send. Python
+has no responder cap: `handle_request` sends whatever the handler returns
+(`RNS/Link.py:846-852`).
+
 Between a link and the transport's request dispatch worker sits a bounded
 queue of 1024 requests; a full queue drops the request with a debug log
 rather than blocking the link. This is a resource limit, not a protocol
@@ -117,13 +134,24 @@ handler has returned, so it is awaited outside the handler. The
 the `OutboundResult` of every response that leaves as a Resource, the
 `Resource` form and an oversize `Value` or `Bytes` alike; `Packet` says the
 `RESPONSE` packet reached at least one interface, and no more, since a packet
-response is never proved (see Delivery proofs on a link); `NotSent` covers a
-handler that returned `None`, a link that could no longer exchange data, a
-send that failed before dispatch, a handler that panicked after tracking,
-and a response task that `Transport::stop` or `cancel` aborted before the
-outcome was known: every path that drops the sender. Calling `track_outcome` a
+response is never proved (see Delivery proofs on a link); `TooLarge` says
+the destination's `max_response_size` refused the response and nothing left,
+its `len` the measured size and `max` the cap; `NotSent` covers a handler
+that returned `None`, a link that could no longer exchange data, a send that
+failed before dispatch, a handler that panicked after tracking, and a
+response task that `Transport::stop` or `cancel` aborted before the outcome
+was known: every path that drops the sender. Calling `track_outcome` a
 second time resolves the earlier receiver as `NotSent`. Python has no
 counterpart: `handle_request` sends and keeps nothing (`RNS/Link.py:846-852`).
+
+A handler that wants the request body owned before it decides whether to
+watch the response calls `into_parts` instead, which consumes the request
+and returns the data and a `ResponseOutcomeTracker`; the tracker's `outcome`
+hands out the `ResponseOutcomeReceiver` under the same rule as
+`track_outcome`, armed inside the handler before it returns. A tracker
+dropped without being armed leaves the slot empty, so the dispatcher has
+nothing to resolve and logs nothing: a handler that chose not to watch
+leaves no "outcome receiver dropped" line behind.
 
 `LinkEvent::Data` with `PacketContext::Request` keeps posting for every
 inbound request packet, its `LinkPayload` carrying the request id, and

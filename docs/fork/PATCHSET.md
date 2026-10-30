@@ -26,6 +26,98 @@ parity rows this file plus the crate README `## Known divergences from
 Python RNS` are the parity ledger; `docs/status/*` matrices are not updated
 per fork task.
 
+## Unreleased (upstream 0.14.0)
+
+Every file changed since the `0.17.0` release and the patch each change
+belongs to. Patch ids: K1 is outcome tracker, K2 is response cap, K3 is
+ledger contracts. The `outcome tracker` patch is fork commits `c3a317d7`
+and `ca32feac`; the `response cap` patch is fork commits `355a0ddf` and
+`ca32feac`; the `ledger contracts` patch is fork commit `ca32feac`.
+
+| File | Patch |
+| --- | --- |
+| `crates/apps/reticulumd/tests/fork_publish_contract_parts/ledger_contract.rs` | ledger contracts |
+| `crates/apps/reticulumd/tests/fork_release_docs_contract_parts/crate_readme_sections.rs` | outcome tracker, response cap |
+| `crates/apps/reticulumd/tests/fork_release_docs_contract_parts/release_0_17_0_probe3.rs` | response cap |
+| `crates/apps/reticulumd/tests/fork_release_docs_contract_parts/request_layer_api_docs.rs` | outcome tracker |
+| `crates/libs/rns-transport/CHANGELOG.md` | outcome tracker, response cap, ledger contracts |
+| `crates/libs/rns-transport/README.md` | outcome tracker, response cap |
+| `crates/libs/rns-transport/src/destination_parts/destination.rs` | response cap |
+| `crates/libs/rns-transport/src/destination_parts/module_core.rs` | response cap |
+| `crates/libs/rns-transport/src/destination/request/inbound.rs` | outcome tracker |
+| `crates/libs/rns-transport/src/destination/request/mod.rs` | outcome tracker |
+| `crates/libs/rns-transport/src/destination/request/outcome.rs` | outcome tracker, response cap |
+| `crates/libs/rns-transport/src/destination/tests.rs` | response cap |
+| `crates/libs/rns-transport/src/transport/request_dispatch_parts/response_limits.rs` | response cap |
+| `crates/libs/rns-transport/src/transport/request_dispatch.rs` | response cap |
+| `crates/libs/rns-transport/src/transport/tests_parts/two_transport_loopback_requests_into_parts.rs` | outcome tracker |
+| `crates/libs/rns-transport/src/transport/tests_parts/two_transport_loopback_requests_isolation.rs` | outcome tracker, response cap |
+| `crates/libs/rns-transport/src/transport/tests_parts/two_transport_loopback_requests_response_cap.rs` | response cap |
+| `crates/libs/rns-transport/src/transport/tests.rs` | outcome tracker, response cap |
+| `crates/libs/rns-transport/tests/request_handler_api.rs` | outcome tracker |
+| `docs/fork/PATCHSET.md` | outcome tracker, response cap, ledger contracts |
+
+Fork commits `c3a317d7` and `ca32feac`: K1, outcome tracker. The library
+behaviour changes are: a handler can take the request data by value and
+still decide afterwards whether to watch the response. `c3a317d7` adds
+`InboundRequest::into_parts` (`destination/request/inbound.rs`), which
+returns the data together with a `ResponseOutcomeTracker` over the
+request's outcome slot, and the tracker itself
+(`destination/request/outcome.rs`, re-exported beside `InboundRequest` in
+`destination/request/mod.rs`); `ResponseOutcomeTracker::outcome` arms the
+slot under the same timing rule as `track_outcome`, inside the handler
+before it returns, and a tracker dropped unarmed leaves the slot empty so
+the dispatcher resolves and logs nothing for it. Pinned by
+`two_transport_loopback_requests_into_parts.rs` (included from `tests.rs`):
+a packet response and a `Resource` response tracked through the tracker, an
+unarmed tracker dropped with no dispatcher line, and an armed slot whose
+receiver is dropped logging once as the positive control; the shared
+`TestLogger` of `two_transport_loopback_requests_isolation.rs` gains the
+store those pins read the dispatcher's dropped-receiver debug lines from;
+`tests/request_handler_api.rs` registers a closure that splits the request
+with `into_parts` and arms the tracker; `request_layer_api_docs.rs` lists
+the tracker among the private-field structs. `ca32feac` describes
+`into_parts` and the tracker in the README request-handler section, after
+the `track_outcome` paragraph, and pins that prose in
+`crate_readme_sections.rs`.
+
+Fork commits `355a0ddf` and `ca32feac`: K2, response cap. The library
+behaviour changes are: a destination can bound the size of the responses it
+sends. `355a0ddf` adds `set_max_response_size`, `clear_max_response_size`
+and `max_response_size` to the single input destination
+(`destination_parts/destination.rs`, the field in
+`destination_parts/module_core.rs`) and enforces the cap in the request
+dispatcher (`transport/request_dispatch.rs`, the limits value and its
+refusal in `transport/request_dispatch_parts/response_limits.rs`): the cap
+is read under the same destination guard as `max_request_size`; a `Value`
+or `Bytes` response is measured as its packed `[request_id, body]` frame
+before the MDU check that would turn an oversize frame into a Resource; a
+`RequestResponse::Resource` is measured as its data plus the packed
+metadata, uncompressed, the twin of how `max_request_size` reads the
+advertised size `d` rather than the compressed `t`; at the cap the response
+goes out; over it nothing is sent, one warn names the request id, the link,
+the measured length and the cap, and a tracked outcome resolves the new
+`ResponseOutcome::TooLarge { len, max }` variant
+(`destination/request/outcome.rs`, additive under `#[non_exhaustive]`).
+Pinned by `two_transport_loopback_requests_response_cap.rs` (included from
+`tests.rs`): a packet response at the cap and over it, a `Resource`
+response at the cap and over it, and an oversize `Bytes` body refused
+before the Resource transfer it would otherwise start, each refusal with
+nothing on the wire and exactly one warn, read from the refused-response
+store the shared `TestLogger` of
+`two_transport_loopback_requests_isolation.rs` gains; the destination unit
+test in `destination/tests.rs` covers the accessors. `release_0_17_0_probe3.rs`
+compares the README's 0.17.0 register of `ResponseOutcome` variants against
+the enum at the `coyote-rns-transport-v0.17.0` tag, so the additive variant
+leaves the frozen register green while every name it lists must still be
+declared. `ca32feac` describes the cap in the README request-handler
+section, beside the `max_request_size` paragraph, lists `TooLarge` with the
+other outcomes, and pins that prose in `crate_readme_sections.rs`.
+
+Fork commit `ca32feac`: K3, ledger contracts. No library behaviour changes.
+`ca32feac` extends the full-hash ledger pin in `ledger_contract.rs` to the
+reopened `Unreleased` section beside the released ones.
+
 ## 0.17.0 (upstream 0.14.0)
 
 Every file changed since the `0.16.0` release and the patch each change

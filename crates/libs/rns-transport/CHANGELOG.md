@@ -8,6 +8,78 @@ no library behaviour (a test-only change such as a fixture hardening or a
 test hygiene pass, release tooling, CI) is a Changed (or, for a deleted file,
 Removed) bullet of its own, marked as such.
 
+## Unreleased
+
+### Added
+
+- `InboundRequest::into_parts` returns the request data by value together
+  with a `ResponseOutcomeTracker` over the request's outcome slot
+  (`destination/request/inbound.rs`, `destination/request/outcome.rs`; the
+  tracker is re-exported beside `InboundRequest`), for a handler that wants
+  the data owned before it decides whether to watch the response.
+  `ResponseOutcomeTracker::outcome` hands out the `ResponseOutcomeReceiver`
+  under the same timing rule as `track_outcome`: arm it inside the handler,
+  before the handler returns. A tracker dropped unarmed leaves the slot
+  empty, so the dispatcher (`transport/request_dispatch.rs`) resolves
+  nothing and logs nothing for it, where a receiver that was armed and then
+  dropped still costs the dispatcher one debug line. Pinned by
+  `two_transport_loopback_requests_into_parts.rs` (a packet response and a
+  `Resource` response tracked through the tracker, an unarmed tracker
+  dropped with no dispatcher line, and an armed slot whose receiver is
+  dropped logging once as the positive control) and by
+  `tests/request_handler_api.rs` (a closure that splits the request with
+  `into_parts` and arms the tracker registers); `request_layer_api_docs.rs`
+  lists the tracker among the private-field structs.
+- `SingleInputDestination::set_max_response_size`,
+  `clear_max_response_size` and `max_response_size` bound the size of a
+  response the destination sends (`destination_parts/destination.rs`, the
+  field in `destination_parts/module_core.rs`); with no limit set every
+  size goes out. The request dispatcher reads the cap under the same
+  destination guard as `max_request_size` and carries it with the
+  registration's `auto_compress` flag as one value
+  (`transport/request_dispatch_parts/response_limits.rs`,
+  `transport/request_dispatch.rs`). A `Value` or `Bytes` response is
+  measured as its packed `[request_id, body]` frame, before the MDU check
+  that would turn an oversize frame into a Resource; a
+  `RequestResponse::Resource` is measured as its data plus the packed
+  metadata, uncompressed, the twin of how `max_request_size` reads the
+  advertised size `d` rather than the compressed `t`. A response at the cap
+  goes out; one over it is not sent at all, the dispatcher logs one warn
+  naming the request id, the link, the measured length and the cap, and a
+  tracked outcome resolves the new `ResponseOutcome::TooLarge { len, max }`
+  variant (`destination/request/outcome.rs`; the enum is
+  `#[non_exhaustive]`, so the variant is additive). This is the responder's
+  cap on what it sends; the requester's cap on what it accepts stays
+  `RequestOptions::with_max_response_size`. Pinned by
+  `two_transport_loopback_requests_response_cap.rs` (a packet response at
+  the cap going out and one over it refused, a `Resource` response at the
+  cap going out and one over it refused, and an oversize `Bytes` body
+  refused before the Resource transfer it would otherwise start, each
+  refusal with nothing on the wire and exactly one warn), by the
+  destination unit test in `destination/tests.rs` (unbounded by default,
+  set, read back and cleared), and by `crate_readme_sections.rs`, which
+  pins the README request-handler prose for both this cap and
+  `into_parts`.
+
+### Changed
+
+- Request-layer tests and ledger contracts, test-only: the shared
+  `TestLogger` of `two_transport_loopback_requests_isolation.rs` keeps the
+  dispatcher's dropped-outcome-receiver debug lines and the refused-response
+  warns in stores of their own, read back per link;
+  `release_0_17_0_probe3.rs` compares the README's 0.17.0 register of
+  `ResponseOutcome` variants against the enum as declared at the
+  `coyote-rns-transport-v0.17.0` tag, so a later additive variant does not
+  fail the frozen register while every name it lists must still be
+  declared; the full-hash ledger pin in
+  `fork_publish_contract_parts/ledger_contract.rs` covers the reopened
+  `## Unreleased` section beside the released ones; and
+  `crate_readme_sections.rs` pins the README request-handler prose for
+  `into_parts` and the response cap, including the one sentence that names
+  the requester's and the responder's caps side by side. The README patch
+  list is unchanged: the register of what the next release carries on top
+  of `0.17.0` is written at release time.
+
 ## 0.17.0 - 2026-10-27
 
 ### Breaking

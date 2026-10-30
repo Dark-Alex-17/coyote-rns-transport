@@ -22,8 +22,9 @@ impl ResponseLimits {
         len: usize,
     ) -> Option<ResponseDispatch> {
         let max = self.max_response_size.filter(|max| len > *max)?;
-        // The test logger in tests_parts/two_transport_loopback_requests_isolation.rs
-        // matches this text by substring; reword both together.
+        // The test logger in tests_parts/two_transport_loopback_requests_isolation.rs and
+        // assert_one_refusal_warn in tests_parts/two_transport_loopback_requests_response_cap.rs
+        // match this text by substring; reword all three together.
         log::warn!(
             "tp: response {} on link {} refused, {}B exceeds the destination response limit {}B",
             request_id,

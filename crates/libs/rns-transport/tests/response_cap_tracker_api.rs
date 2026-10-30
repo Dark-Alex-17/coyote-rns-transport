@@ -2,7 +2,7 @@
 //! from outside the crate the way a handler author sees them: the three cap accessors on a
 //! fresh `SingleInputDestination` start unbounded and round-trip a value, setting zero is
 //! accepted (every response then measures over it), `ResponseOutcome::TooLarge { len, max }`
-//! destructures by field name and is `Copy`-comparable, and `ResponseOutcomeTracker` is
+//! destructures by field name and compares with `PartialEq`, and `ResponseOutcomeTracker` is
 //! `Send + Sync`, prints as an opaque struct and is deliberately not `Clone`, so a handler
 //! cannot arm the same slot twice through two handles.
 

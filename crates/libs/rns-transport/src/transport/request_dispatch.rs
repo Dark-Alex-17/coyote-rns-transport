@@ -198,8 +198,10 @@ async fn handle_and_respond(
 /// before anything leaves: to the packed `[request_id, body]` frame of a
 /// `Value` or `Bytes` response, ahead of the MDU check that would otherwise
 /// turn an oversize frame into a resource, and to the uncompressed payload
-/// of a `Resource` response, the twin of how `max_request_size` reads the
-/// advertised `d` rather than the compressed `t` (`resource_wire.rs`).
+/// of a `Resource` response, like `max_request_size`, which reads the
+/// advertised `d` rather than the compressed `t` (the response measure
+/// leaves out the 3-byte metadata length prefix `d` counts;
+/// `resource_wire.rs`).
 #[deny(clippy::await_holding_invalid_type)]
 async fn send_response(
     handler: &Arc<Mutex<TransportHandler>>,

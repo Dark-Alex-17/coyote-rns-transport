@@ -38,12 +38,7 @@ async fn two_transport_loopback_request_clearing_max_response_size_lifts_the_gat
     assert_ne!(answered, refused, "a fresh request id for the second send");
     assert_eq!(await_response(&mut pair, answered).await, rmpv::Value::from("gated then free"));
     assert_eq!(await_outcome(&mut outcomes).await, ResponseOutcome::Packet);
-    let warns = refused_response_records_for(link_id);
-    assert_eq!(warns.len(), 1, "only the gated response was refused: {warns:?}");
-    assert!(
-        warns[0].1.contains(&format!("response {refused} on link {link_id}")),
-        "the one warn names the refused request: {warns:?}"
-    );
+    assert_one_refusal_warn(link_id, refused, len, max);
 }
 
 /// Zeros compress to a few bytes under bz2, so a cap sitting one byte under the raw payload

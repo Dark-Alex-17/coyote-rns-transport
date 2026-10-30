@@ -193,8 +193,8 @@ fn crate_readme_shared_instance_section_describes_state_events() {
 }
 
 /// The request-handler section describes `track_outcome` the way the
-/// dispatcher behaves: the receiver it returns, when to call it, the three
-/// outcomes and what each one proves, the proof section a packet outcome
+/// dispatcher behaves: the receiver it returns, when to call it, each
+/// outcome and what it proves, the proof section a packet outcome
 /// defers to, the stop and the panicking handler that resolve `NotSent`, the
 /// dropped-sender rule they are instances of, and the Python it diverges
 /// from.

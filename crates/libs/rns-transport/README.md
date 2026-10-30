@@ -87,24 +87,30 @@ runs, with the request id recomputed from the assembled bytes.
 
 `set_max_response_size`, `clear_max_response_size` and `max_response_size`
 on the destination bound the size of a response it sends; with no limit set
-every size goes out. The dispatcher measures a `Value` or `Bytes` response
-as its packed `[request_id, body]` frame, before the MDU check that would
-turn an oversize frame into a Resource, and a `RequestResponse::Resource`
-as its `data` plus the packed metadata, uncompressed, like
-`max_request_size`, which reads the advertised size rather than the
-compressed one. The Resource measure leaves out the 3-byte metadata length
-prefix that the advertisement's size field counts, so a requester cap set to
-the same number refuses a metadata-bearing Resource response the responder
-let through; set the requester's cap at least 3 bytes higher when both are
-used. A response at the cap goes out; one over it is not sent at all: the
-dispatcher logs one warn naming the request id, the link, the measured
-length and the cap, and a handler that tracked its outcome resolves
-`ResponseOutcome::TooLarge { len, max }`. A handler that did not track is
-told nothing, and the requester sees an unanswered request. The requester's
-cap on what it will accept is `RequestOptions::with_max_response_size`;
-`set_max_response_size` is the responder's cap on what it will send. Python
-has no responder cap: `handle_request` sends whatever the handler returns
-(`RNS/Link.py:846-852`).
+every size goes out. The cap covers the responses the dispatcher sends for
+the destination's registered handlers; `Transport::send_response` and
+`Transport::send_response_resource` are addressed to a link, not a
+destination, and are not measured. The dispatcher measures a `Value` or
+`Bytes` response as its packed `[request_id, body]` frame, before the MDU
+check that would turn an oversize frame into a Resource, and a
+`RequestResponse::Resource` as its `data` plus the packed metadata,
+uncompressed, like `max_request_size`, which reads the advertised size
+rather than the compressed one. A packet response is measured here as its
+whole `[request_id, body]` frame while the requester measures the packed
+body alone, so for the packet form the responder refuses first. The Resource
+measure leaves out the 3-byte metadata length prefix that the
+advertisement's size field counts, so a requester cap set to the same number
+refuses a metadata-bearing Resource response the responder let through;
+where both caps are in use and a Resource response carries metadata, set
+the requester's at least 3 bytes higher. A response at the cap goes out; one
+over it is not sent at all: the dispatcher logs one warn naming the request
+id, the link, the measured length and the cap, and a handler that tracked
+its outcome resolves `ResponseOutcome::TooLarge { len, max }`. A handler
+that did not track is told nothing, and the requester sees an unanswered
+request. The requester's cap on what it will accept is
+`RequestOptions::with_max_response_size`; `set_max_response_size` is the
+responder's cap on what it will send. Python has no responder cap:
+`handle_request` sends whatever the handler returns (`RNS/Link.py:846-852`).
 
 Between a link and the transport's request dispatch worker sits a bounded
 queue of 1024 requests; a full queue drops the request with a debug log

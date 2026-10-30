@@ -52,7 +52,10 @@ async fn assert_nothing_sent_for(
             Err(TryRecvError::Lagged(skipped)) => {
                 panic!("resource event receiver lagged by {skipped}; silence check is unreliable")
             }
-            Err(TryRecvError::Empty) | Err(TryRecvError::Closed) => return,
+            Err(TryRecvError::Closed) => {
+                panic!("resource event channel closed; silence check is unreliable")
+            }
+            Err(TryRecvError::Empty) => return,
         }
     }
 }

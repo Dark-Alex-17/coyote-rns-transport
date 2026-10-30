@@ -59,6 +59,21 @@ fn request_layer_public_items_cite_python_or_say_fork_only() {
             "deregister_request_handler",
         ),
         (
+            "crates/libs/rns-transport/src/destination_parts/destination.rs",
+            ItemKind::Method,
+            "set_max_response_size",
+        ),
+        (
+            "crates/libs/rns-transport/src/destination_parts/destination.rs",
+            ItemKind::Method,
+            "clear_max_response_size",
+        ),
+        (
+            "crates/libs/rns-transport/src/destination_parts/destination.rs",
+            ItemKind::Method,
+            "max_response_size",
+        ),
+        (
             "crates/libs/rns-transport/src/transport/links_parts/transport_sections/request.rs",
             ItemKind::Method,
             "request",
@@ -167,7 +182,7 @@ fn request_layer_public_items_cite_python_or_say_fork_only() {
     }
 
     assert!(
-        checked >= 147,
+        checked >= 154,
         "the request layer should expose the receipt, frame, handler and outcome surface; found only {checked} public items"
     );
     assert!(

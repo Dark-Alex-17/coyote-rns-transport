@@ -28,8 +28,11 @@ Removed) bullet of its own, marked as such.
   dropped with no dispatcher line, and an armed slot whose receiver is
   dropped logging once as the positive control) and by
   `tests/request_handler_api.rs` (a closure that splits the request with
-  `into_parts` and arms the tracker registers); `request_layer_api_docs.rs`
-  lists the tracker among the private-field structs.
+  `into_parts` and arms the tracker registers, the tuple typed so a rename
+  of the tracker fails the file) and `tests/response_cap_tracker_api.rs`
+  (the tracker is `Send + Sync`, prints as an opaque struct and is not
+  `Clone`); `request_layer_api_docs.rs` lists the tracker among the
+  private-field structs.
 - `SingleInputDestination::set_max_response_size`,
   `clear_max_response_size` and `max_response_size` bound the size of a
   response the destination sends (`destination_parts/destination.rs`, the
@@ -42,10 +45,13 @@ Removed) bullet of its own, marked as such.
   measured as its packed `[request_id, body]` frame, before the MDU check
   that would turn an oversize frame into a Resource; a
   `RequestResponse::Resource` is measured as its data plus the packed
-  metadata, uncompressed, the twin of how `max_request_size` reads the
-  advertised size `d` rather than the compressed `t`. A response at the cap
-  goes out; one over it is not sent at all, the dispatcher logs one warn
-  naming the request id, the link, the measured length and the cap, and a
+  metadata, uncompressed, like `max_request_size`, which reads the
+  advertised size `d` rather than the compressed `t`, though without the
+  3-byte metadata length prefix the advertised size counts, so a requester
+  cap set to the same number refuses a metadata-bearing Resource response
+  this cap let through. A response at the cap goes out; one over it is not
+  sent at all, the dispatcher logs one warn naming the request id, the
+  link, the measured length and the cap, and a
   tracked outcome resolves the new `ResponseOutcome::TooLarge { len, max }`
   variant (`destination/request/outcome.rs`; the enum is
   `#[non_exhaustive]`, so the variant is additive). This is the responder's
@@ -55,10 +61,18 @@ Removed) bullet of its own, marked as such.
   the cap going out and one over it refused, a `Resource` response at the
   cap going out and one over it refused, and an oversize `Bytes` body
   refused before the Resource transfer it would otherwise start, each
-  refusal with nothing on the wire and exactly one warn), by the
-  destination unit test in `destination/tests.rs` (unbounded by default,
-  set, read back and cleared), and by `crate_readme_sections.rs`, which
-  pins the README request-handler prose for both this cap and
+  refusal with nothing on the wire and exactly one warn), by
+  `two_transport_loopback_requests_response_cap_probe.rs` (clearing the
+  cap lifts the gate for the next request, a compressible `Resource` is
+  refused on its uncompressed size, a metadata-less `Resource` at the cap
+  measures exactly its data, an untracked refusal costs one warn and
+  answers nothing, an `into_parts` tracker resolves `TooLarge`, and a
+  tracker armed after the handler returned resolves `NotSent` at once), by
+  `tests/response_cap_tracker_api.rs` (the three accessors from outside
+  the crate, a zero cap accepted, `TooLarge` destructured by field), by
+  the destination unit test in `destination/tests.rs` (unbounded by
+  default, set, read back and cleared), and by `crate_readme_sections.rs`,
+  which pins the README request-handler prose for both this cap and
   `into_parts`.
 
 ### Changed
@@ -78,7 +92,12 @@ Removed) bullet of its own, marked as such.
   `into_parts` and the response cap, including the one sentence that names
   the requester's and the responder's caps side by side. The README patch
   list is unchanged: the register of what the next release carries on top
-  of `0.17.0` is written at release time.
+  of `0.17.0` is written at release time. The `assert_nothing_sent_for`
+  helper of `two_transport_loopback_requests_response_cap.rs` panics with
+  the skipped count when its resource event receiver lags, as the sibling
+  silence checks do, instead of reading on; `tests/request_handler_api.rs`
+  types the `into_parts` tuple so a rename or un-export of
+  `ResponseOutcomeTracker` fails the file.
 
 ## 0.17.0 - 2026-10-27
 

@@ -97,7 +97,10 @@ Removed) bullet of its own, marked as such.
   the skipped count when its resource event receiver lags, as the sibling
   silence checks do, instead of reading on; `tests/request_handler_api.rs`
   types the `into_parts` tuple so a rename or un-export of
-  `ResponseOutcomeTracker` fails the file.
+  `ResponseOutcomeTracker` fails the file. The header of
+  `tests/response_cap_tracker_api.rs` says `TooLarge` compares with
+  `PartialEq` (the enum is not `Copy`), and the note at the refused-response
+  warn names every test that matches its text by substring.
 
 ## 0.17.0 - 2026-10-27
 

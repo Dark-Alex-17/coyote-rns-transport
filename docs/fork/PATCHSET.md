@@ -31,9 +31,9 @@ per fork task.
 Every file changed since the `0.17.0` release and the patch each change
 belongs to. Patch ids: K1 is outcome tracker, K2 is response cap, K3 is
 ledger contracts. The `outcome tracker` patch is fork commits `c3a317d7`,
-`ca32feac` and `223cdd80`; the `response cap` patch is fork commits
-`355a0ddf`, `ca32feac` and `223cdd80`; the `ledger contracts` patch is
-fork commit `ca32feac`.
+`ca32feac`, `223cdd80` and `716fb2be`; the `response cap` patch is fork
+commits `355a0ddf`, `ca32feac`, `223cdd80` and `716fb2be`; the `ledger
+contracts` patch is fork commit `ca32feac`.
 
 | File | Patch |
 | --- | --- |
@@ -60,9 +60,10 @@ fork commit `ca32feac`.
 | `crates/libs/rns-transport/tests/response_cap_tracker_api.rs` | outcome tracker, response cap |
 | `docs/fork/PATCHSET.md` | outcome tracker, response cap, ledger contracts |
 
-Fork commits `c3a317d7`, `ca32feac` and `223cdd80`: K1, outcome tracker.
-The library behaviour changes are: a handler can take the request data by
-value and still decide afterwards whether to watch the response.
+Fork commits `c3a317d7`, `ca32feac`, `223cdd80` and `716fb2be`: K1,
+outcome tracker. The library behaviour changes are: a handler can take the
+request data by value and still decide afterwards whether to watch the
+response.
 `c3a317d7` adds
 `InboundRequest::into_parts` (`destination/request/inbound.rs`), which
 returns the data together with a `ResponseOutcomeTracker` over the
@@ -91,10 +92,12 @@ struct and is not `Clone`, and names both fillers of the outcome slot in
 the `inbound.rs` constructor doc and the receiver doc of `outcome.rs`,
 where `ResponseOutcomeTracker::outcome` now says it replaces a sender
 `track_outcome` installed earlier and that receiver resolves `NotSent`.
+`716fb2be` corrects the header of `tests/response_cap_tracker_api.rs`,
+which compares `TooLarge` with `PartialEq`; the outcome enum is not `Copy`.
 
-Fork commits `355a0ddf`, `ca32feac` and `223cdd80`: K2, response cap. The
-library behaviour changes are: a destination can bound the size of the
-responses it sends. `355a0ddf` adds `set_max_response_size`,
+Fork commits `355a0ddf`, `ca32feac`, `223cdd80` and `716fb2be`: K2,
+response cap. The library behaviour changes are: a destination can bound
+the size of the responses it sends. `355a0ddf` adds `set_max_response_size`,
 `clear_max_response_size` and `max_response_size` to the single input
 destination (`destination_parts/destination.rs`, the field in
 `destination_parts/module_core.rs`) and enforces the cap in the request
@@ -144,6 +147,9 @@ notes at the dispatcher's debug and warn lines that the shared
 `TestLogger` matches their text by substring, and notes in
 `release_0_17_0_probe3.rs` that `enum_variants` yields one entry per body
 line, so a brace variant such as `TooLarge` appears as its lines.
+`716fb2be` widens the note at the warn in `response_limits.rs` to name
+`assert_one_refusal_warn` of `two_transport_loopback_requests_response_cap.rs`
+as a second substring matcher of that text.
 
 Fork commit `ca32feac`: K3, ledger contracts. No library behaviour changes.
 `ca32feac` extends the full-hash ledger pin in `ledger_contract.rs` to the

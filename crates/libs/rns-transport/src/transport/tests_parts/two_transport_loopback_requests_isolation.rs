@@ -13,9 +13,10 @@ const SLOW_HANDLER_SLEEP: Duration = Duration::from_secs(30);
 /// plus the debug lines of the shared-instance client, and from the resource target the
 /// dropped-outcome-receiver lines and the rejected-advertisement warnings, from the link
 /// target the closed-link packet warnings, from the request-dispatch target the responses
-/// dropped for a closed link and the response verdicts whose receiver was gone, from the
-/// jobs target the resource-retry diagnostics, and from the packet disk cache the warnings
-/// about hashlist orphans the sweep could not remove.
+/// dropped for a closed link, the response verdicts whose receiver was gone and the
+/// responses refused over the destination's response limit, from the jobs target the
+/// resource-retry diagnostics, and from the packet disk cache the warnings about hashlist
+/// orphans the sweep could not remove.
 /// Tests share one process and
 /// `log::set_logger` installs once, so there must be exactly one logger in the binary and
 /// this is it; a record is attributed to a test by the link id, resource hash or
@@ -29,6 +30,7 @@ struct TestLogger {
     closed_link_packet_warnings: StdMutex<Vec<String>>,
     closed_link_responses: StdMutex<Vec<String>>,
     dispatch_outcome_receiver_dropped: StdMutex<Vec<String>>,
+    refused_responses: StdMutex<Vec<(log::Level, String)>>,
     resource_diag: StdMutex<Vec<String>>,
     hashlist_orphan_warnings: StdMutex<Vec<String>>,
 }
@@ -41,6 +43,7 @@ static TEST_LOG: TestLogger = TestLogger {
     closed_link_packet_warnings: StdMutex::new(Vec::new()),
     closed_link_responses: StdMutex::new(Vec::new()),
     dispatch_outcome_receiver_dropped: StdMutex::new(Vec::new()),
+    refused_responses: StdMutex::new(Vec::new()),
     resource_diag: StdMutex::new(Vec::new()),
     hashlist_orphan_warnings: StdMutex::new(Vec::new()),
 };
@@ -107,6 +110,11 @@ impl log::Log for TestLogger {
                     .lock()
                     .expect("dispatch dropped-outcome-receiver record store")
                     .push(message);
+            } else if message.contains("exceeds the destination response limit") {
+                self.refused_responses
+                    .lock()
+                    .expect("refused-response record store")
+                    .push((record.level(), message));
             }
         } else if record.target() == JOBS_LOG_TARGET {
             if message.contains("[resource-diag]") {
@@ -218,6 +226,20 @@ fn dispatch_outcome_receiver_dropped_records_for(link_id: AddressHash) -> Vec<St
         .expect("dispatch dropped-outcome-receiver record store")
         .iter()
         .filter(|record| record.contains(&needle))
+        .cloned()
+        .collect()
+}
+
+/// The responses the request dispatcher refused on `link_id` for exceeding the
+/// destination's `max_response_size`, oldest first, with the level each was logged at.
+fn refused_response_records_for(link_id: AddressHash) -> Vec<(log::Level, String)> {
+    let needle = link_id.to_string();
+    TEST_LOG
+        .refused_responses
+        .lock()
+        .expect("refused-response record store")
+        .iter()
+        .filter(|(_, record)| record.contains(&needle))
         .cloned()
         .collect()
 }

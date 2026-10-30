@@ -9,6 +9,7 @@ impl Destination<PrivateIdentity, Input, Single> {
             identity,
             desc: DestinationDesc { identity: pub_identity, name, address_hash },
             max_request_size: None,
+            max_response_size: None,
             request_handlers: HashMap::new(),
             ratchet_state: RatchetState::default(),
             path_responses: BTreeMap::new(),
@@ -76,6 +77,31 @@ impl Destination<PrivateIdentity, Input, Single> {
     /// Return the configured packed request-size limit, if any.
     pub fn max_request_size(&self) -> Option<usize> {
         self.max_request_size
+    }
+
+    /// Set the maximum response size this destination will send. The
+    /// dispatcher measures the packed response frame for a response that
+    /// goes out as a packet and the uncompressed payload (data plus packed
+    /// metadata) for a `RequestResponse::Resource`, and refuses a response
+    /// over the cap with `ResponseOutcome::TooLarge` instead of sending it.
+    /// This is the responder's cap on what it sends; the requester's cap on
+    /// what it accepts is `RequestOptions::with_max_response_size`.
+    ///
+    /// Fork-only: Python's `handle_request` sends whatever the handler
+    /// returns (`RNS/Link.py:846-852`).
+    pub fn set_max_response_size(&mut self, max_response_size: usize) -> Result<(), RnsError> {
+        self.max_response_size = Some(max_response_size);
+        Ok(())
+    }
+
+    /// Remove the outbound response-size limit. Fork-only.
+    pub fn clear_max_response_size(&mut self) {
+        self.max_response_size = None;
+    }
+
+    /// Return the configured response-size limit, if any. Fork-only.
+    pub fn max_response_size(&self) -> Option<usize> {
+        self.max_response_size
     }
 
     /// Registers `handler` for `path`, replacing any earlier registration
@@ -319,6 +345,7 @@ impl Destination<Identity, Output, Single> {
             identity,
             desc: DestinationDesc { identity, name, address_hash },
             max_request_size: None,
+            max_response_size: None,
             request_handlers: HashMap::new(),
             ratchet_state: RatchetState::default(),
             path_responses: BTreeMap::new(),
@@ -338,6 +365,7 @@ impl<D: Direction> Destination<EmptyIdentity, D, Plain> {
             identity,
             desc: DestinationDesc { identity: Default::default(), name, address_hash },
             max_request_size: None,
+            max_response_size: None,
             request_handlers: HashMap::new(),
             ratchet_state: RatchetState::default(),
             path_responses: BTreeMap::new(),

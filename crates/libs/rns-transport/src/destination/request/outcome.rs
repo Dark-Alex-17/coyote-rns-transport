@@ -26,6 +26,17 @@ pub enum ResponseOutcome {
     /// after tracking, or `Transport::stop` or `cancel` aborted the
     /// dispatcher task before it resolved: every path that drops the sender.
     NotSent,
+    /// Fork-only: the response exceeded the destination's
+    /// `max_response_size` and nothing was sent. `len` is the size the
+    /// dispatcher measured, the packed response frame for a packet response
+    /// or the uncompressed payload (data plus packed metadata) for a
+    /// `RequestResponse::Resource`; `max` is the cap in force.
+    TooLarge {
+        /// Fork-only: the measured response size in bytes.
+        len: usize,
+        /// Fork-only: the destination's `max_response_size` at dispatch.
+        max: usize,
+    },
 }
 
 /// Resolves once with the [`ResponseOutcome`] of the request it was issued

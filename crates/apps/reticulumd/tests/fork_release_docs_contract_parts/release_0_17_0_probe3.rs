@@ -1,7 +1,8 @@
 // Usage-pattern pins over the 0.17.0 release docs, read the way a consumer
 // reads them: the 0.17.0 register of the crate README names the
 // `ResponseOutcome` variants a `track_outcome` caller will match on, so that
-// list must be the enum's list, payload included; the register and the
+// list must be the enum's list at the 0.17.0 tag, payload included, and every
+// name on it must still be declared; the register and the
 // CHANGELOG point the consumer at `tests/*.rs` files for the behaviour they
 // promise, so every such file must exist under the crate; and
 // `tests/connect_events_api.rs` must carry the six tests and the five call
@@ -57,13 +58,30 @@ fn enum_variants(source: &str, name: &str) -> BTreeSet<String> {
         .collect()
 }
 
+/// `path` as committed at the `coyote-rns-transport-v0.17.0` tag, read from the
+/// local repository.
+fn file_at_0_17_0_tag(path: &str) -> String {
+    let tag = "coyote-rns-transport-v0.17.0";
+    let shown = std::process::Command::new("git")
+        .args(["show", &format!("{tag}:{path}")])
+        .current_dir(repo_root())
+        .output()
+        .expect("git show should run");
+    assert!(shown.status.success(), "tag {tag} should exist locally and carry {path}");
+    String::from_utf8(shown.stdout).expect("the tagged source should be UTF-8")
+}
+
 /// The 0.17.0 register tells a `track_outcome` caller the `ResponseOutcome` it
 /// resolves with is "one of `Packet`, `Resource(OutboundResult)` or `NotSent`":
-/// a consumer writes their match arms from that sentence, so the variants it
-/// names (payload included) must be exactly the variants the enum declares.
-/// A payload named after a neighbouring type (`OutboundOutcome` for
-/// `OutboundResult`) is the kind of drift this catches for any of the three
-/// names, not just the one the string needles pin.
+/// a consumer of 0.17.0 writes their match arms from that sentence, so the
+/// variants it names (payload included) must be exactly the variants the enum
+/// declared at the 0.17.0 tag, and every one of them must still be declared
+/// today, so a later rename or removal shows up as a dead pointer. A later
+/// release may add variants (the enum is `#[non_exhaustive]`) without the
+/// 0.17.0 register having to list them. A payload named after a neighbouring
+/// type (`OutboundOutcome` for `OutboundResult`) is the kind of drift this
+/// catches for any of the three names, not just the one the string needles
+/// pin.
 #[test]
 fn readme_0_17_0_register_names_exactly_the_response_outcome_variants() {
     let block = readme_0_17_0_block();
@@ -72,15 +90,20 @@ fn readme_0_17_0_register_names_exactly_the_response_outcome_variants() {
     let sentence = &block[at + lead.len()..];
     let sentence = &sentence[..sentence.find(". ").expect("the variant sentence should end")];
     let named: BTreeSet<String> = backticked(sentence).into_iter().collect();
-    assert_eq!(named.len(), 3, "the register should name three variants, got {sentence:?}");
 
-    let declared = enum_variants(
-        &read_repo_file("crates/libs/rns-transport/src/destination/request/outcome.rs"),
-        "ResponseOutcome",
-    );
+    let outcome_source = "crates/libs/rns-transport/src/destination/request/outcome.rs";
+    let declared_at_0_17_0 = enum_variants(&file_at_0_17_0_tag(outcome_source), "ResponseOutcome");
     assert_eq!(
-        named, declared,
-        "the register's `ResponseOutcome` variants should be exactly the enum's (payload included)"
+        named, declared_at_0_17_0,
+        "the register's `ResponseOutcome` variants should be exactly the enum's at the 0.17.0 tag (payload included)"
+    );
+
+    let declared = enum_variants(&read_repo_file(outcome_source), "ResponseOutcome");
+    let gone: Vec<&String> = named.difference(&declared).collect();
+    assert_eq!(
+        gone,
+        Vec::<&String>::new(),
+        "every variant the 0.17.0 register names should still be declared"
     );
 }
 

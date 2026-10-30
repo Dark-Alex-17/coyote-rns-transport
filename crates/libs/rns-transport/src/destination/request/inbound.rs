@@ -2,7 +2,7 @@ use core::fmt;
 use std::sync::PoisonError;
 
 use super::frame::RequestFrame;
-use super::{OutcomeSlot, PathHash, RequestId, ResponseOutcomeReceiver};
+use super::{OutcomeSlot, PathHash, RequestId, ResponseOutcomeReceiver, ResponseOutcomeTracker};
 use crate::hash::AddressHash;
 use crate::identity::Identity;
 
@@ -69,6 +69,21 @@ impl InboundRequest {
     /// value; the owned twin of [`data`](Self::data).
     pub fn into_data(self) -> rmpv::Value {
         self.data
+    }
+
+    /// The `data` argument of `response_generator` (`RNS/Link.py:831`) by
+    /// value, together with a [`ResponseOutcomeTracker`] over this request's
+    /// outcome slot, for a handler that wants the data owned before it
+    /// decides whether to watch the response. Calling
+    /// [`ResponseOutcomeTracker::outcome`] has the same timing rule as
+    /// [`track_outcome`](Self::track_outcome): arm it before the handler
+    /// returns. A tracker dropped unarmed leaves the slot empty and the
+    /// dispatcher resolves and logs nothing.
+    ///
+    /// Fork-only: Python's `handle_request` keeps nothing of the response it
+    /// sends (`RNS/Link.py:846-852`).
+    pub fn into_parts(self) -> (rmpv::Value, ResponseOutcomeTracker) {
+        (self.data, ResponseOutcomeTracker::from_slot(self.outcome))
     }
 
     /// The `request_id` argument of `response_generator`

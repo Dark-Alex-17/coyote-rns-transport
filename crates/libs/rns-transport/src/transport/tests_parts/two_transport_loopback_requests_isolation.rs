@@ -13,8 +13,9 @@ const SLOW_HANDLER_SLEEP: Duration = Duration::from_secs(30);
 /// plus the debug lines of the shared-instance client, and from the resource target the
 /// dropped-outcome-receiver lines and the rejected-advertisement warnings, from the link
 /// target the closed-link packet warnings, from the request-dispatch target the responses
-/// dropped for a closed link, from the jobs target the resource-retry diagnostics, and from
-/// the packet disk cache the warnings about hashlist orphans the sweep could not remove.
+/// dropped for a closed link and the response verdicts whose receiver was gone, from the
+/// jobs target the resource-retry diagnostics, and from the packet disk cache the warnings
+/// about hashlist orphans the sweep could not remove.
 /// Tests share one process and
 /// `log::set_logger` installs once, so there must be exactly one logger in the binary and
 /// this is it; a record is attributed to a test by the link id, resource hash or
@@ -27,6 +28,7 @@ struct TestLogger {
     rejected_advertisement_warns: StdMutex<Vec<(log::Level, String)>>,
     closed_link_packet_warnings: StdMutex<Vec<String>>,
     closed_link_responses: StdMutex<Vec<String>>,
+    dispatch_outcome_receiver_dropped: StdMutex<Vec<String>>,
     resource_diag: StdMutex<Vec<String>>,
     hashlist_orphan_warnings: StdMutex<Vec<String>>,
 }
@@ -38,6 +40,7 @@ static TEST_LOG: TestLogger = TestLogger {
     rejected_advertisement_warns: StdMutex::new(Vec::new()),
     closed_link_packet_warnings: StdMutex::new(Vec::new()),
     closed_link_responses: StdMutex::new(Vec::new()),
+    dispatch_outcome_receiver_dropped: StdMutex::new(Vec::new()),
     resource_diag: StdMutex::new(Vec::new()),
     hashlist_orphan_warnings: StdMutex::new(Vec::new()),
 };
@@ -98,6 +101,11 @@ impl log::Log for TestLogger {
                 self.closed_link_responses
                     .lock()
                     .expect("closed-link response record store")
+                    .push(message);
+            } else if message.contains("outcome receiver dropped before the verdict") {
+                self.dispatch_outcome_receiver_dropped
+                    .lock()
+                    .expect("dispatch dropped-outcome-receiver record store")
                     .push(message);
             }
         } else if record.target() == JOBS_LOG_TARGET {
@@ -194,6 +202,20 @@ fn closed_link_response_records_for(link_id: AddressHash) -> Vec<String> {
         .closed_link_responses
         .lock()
         .expect("closed-link response record store")
+        .iter()
+        .filter(|record| record.contains(&needle))
+        .cloned()
+        .collect()
+}
+
+/// The response verdicts the request dispatcher could not deliver for `link_id` because
+/// the tracked receiver was already gone, oldest first.
+fn dispatch_outcome_receiver_dropped_records_for(link_id: AddressHash) -> Vec<String> {
+    let needle = link_id.to_string();
+    TEST_LOG
+        .dispatch_outcome_receiver_dropped
+        .lock()
+        .expect("dispatch dropped-outcome-receiver record store")
         .iter()
         .filter(|record| record.contains(&needle))
         .cloned()

@@ -3,7 +3,8 @@
 //! handler through the blanket impl, a hand-written `RequestHandler` is accepted too, an
 //! empty path is refused with `RnsError::InvalidArgument`, `deregister_request_handler`
 //! reports whether a handler was there (`RNS/Destination.py:381-412`), and a handler that
-//! keeps the `ResponseOutcomeReceiver` from `track_outcome` registers like any other.
+//! keeps the `ResponseOutcomeReceiver` from `track_outcome`, or arms one through
+//! `into_parts`, registers like any other.
 
 use std::collections::HashSet;
 use std::future::Future;
@@ -130,5 +131,26 @@ fn a_handler_that_tracks_the_outcome_registers() {
         handler.outcome.lock().expect("outcome slot").is_none(),
         "the slot starts empty; dispatch is pinned in-crate"
     );
+    assert!(destination.deregister_request_handler("/echo"));
+}
+
+#[test]
+fn a_closure_that_splits_the_request_with_into_parts_registers() {
+    let mut destination = destination();
+    let outcome: Arc<Mutex<Option<ResponseOutcomeReceiver>>> = Arc::new(Mutex::new(None));
+    let slot = outcome.clone();
+    destination
+        .register_request_handler(
+            "/echo",
+            Arc::new(move |request: InboundRequest| {
+                let (data, tracker) = request.into_parts();
+                *slot.lock().expect("outcome slot") = Some(tracker.outcome());
+                async move { Some(RequestResponse::Value(data)) }
+            }),
+            RequestAllow::All,
+            true,
+        )
+        .expect("a closure that arms the tracker after into_parts registers");
+    assert!(outcome.lock().expect("outcome slot").is_none(), "the slot starts empty");
     assert!(destination.deregister_request_handler("/echo"));
 }

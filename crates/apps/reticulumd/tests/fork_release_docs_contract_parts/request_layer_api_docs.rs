@@ -205,6 +205,7 @@ fn fork_new_public_structs_keep_their_fields_private() {
         "RequestResponseData",
         "ResponseFrame",
         "ResponseOutcomeReceiver",
+        "ResponseOutcomeTracker",
         "SharedInstanceOptions",
     ];
     let mut found = Vec::new();

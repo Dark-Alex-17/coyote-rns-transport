@@ -49,7 +49,9 @@ async fn assert_nothing_sent_for(
                 "unexpected resource event on link {link_id}: {:?}",
                 event.kind
             ),
-            Err(TryRecvError::Lagged(_)) => continue,
+            Err(TryRecvError::Lagged(skipped)) => {
+                panic!("resource event receiver lagged by {skipped}; silence check is unreliable")
+            }
             Err(TryRecvError::Empty) | Err(TryRecvError::Closed) => return,
         }
     }

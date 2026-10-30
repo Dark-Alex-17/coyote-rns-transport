@@ -90,9 +90,13 @@ on the destination bound the size of a response it sends; with no limit set
 every size goes out. The dispatcher measures a `Value` or `Bytes` response
 as its packed `[request_id, body]` frame, before the MDU check that would
 turn an oversize frame into a Resource, and a `RequestResponse::Resource`
-as its `data` plus the packed metadata, uncompressed, the twin of how
-`max_request_size` reads the advertised size rather than the compressed one.
-A response at the cap goes out; one over it is not sent at all: the
+as its `data` plus the packed metadata, uncompressed, like
+`max_request_size`, which reads the advertised size rather than the
+compressed one. The Resource measure leaves out the 3-byte metadata length
+prefix that the advertisement's size field counts, so a requester cap set to
+the same number refuses a metadata-bearing Resource response the responder
+let through; set the requester's cap at least 3 bytes higher when both are
+used. A response at the cap goes out; one over it is not sent at all: the
 dispatcher logs one warn naming the request id, the link, the measured
 length and the cap, and a handler that tracked its outcome resolves
 `ResponseOutcome::TooLarge { len, max }`. A handler that did not track is
@@ -404,10 +408,10 @@ Send + Sync>`, consulted from then on for every inbound plain resource
 advertisement, one that is neither a request nor a response, with the link
 it arrived on and the peer's identity when it has identified itself on that
 link. This is the `ACCEPT_APP` callback of `RNS/Link.py:1066-1074`; request
-and response advertisements stay under `max_request_size` and
-`max_response_size` (`RNS/Link.py:1036-1064`) and never reach the hook.
-`false` refuses the transfer with a receiver cancel, exactly as the size
-caps do, so the sender reads `Rejected(PeerCancelled)` on its outcome and
+and response advertisements stay under `max_request_size` and the
+requester's `max_response_size` (`RNS/Link.py:1036-1064`) and never reach
+the hook. `false` refuses the transfer with a receiver cancel, exactly as the
+size caps do, so the sender reads `Rejected(PeerCancelled)` on its outcome and
 `ResourceEventKind::OutboundRejected` on its events, nothing is assembled,
 and the link survives. A split resource consults the hook once per segment
 advertisement, so a refusal is consulted once and later segments are never
@@ -646,8 +650,8 @@ parity ledger; the `docs/status/*` matrices are not updated per fork task.
   fails a receipt that reached `DELIVERED` (`RNS/Link.py:1398`
   `request_timed_out`, `:1408` `response_rejected`), so a never-answered
   packet-form request stays pending forever there.
-- A packet-form response over `max_response_size` fails the receipt with
-  `RequestError::Oversize`. Python rejects the response
+- A packet-form response over the requester's `max_response_size` fails the
+  receipt with `RequestError::Oversize`. Python rejects the response
   (`RNS/Link.py:874-876`) but the `DELIVERED` guard in `:1408` leaves that
   receipt pending.
 - A response Resource that fails in transfer (a part failure, receiver retry
@@ -691,9 +695,9 @@ parity ledger; the `docs/status/*` matrices are not updated per fork task.
 - A legacy-length request id, one that is not 16 bytes, is not size-gated
   on the packet Response path. Python keys responses on the 16-byte receipt
   id alone (`RNS/Link.py:857-884`).
-- An assembled response Resource is measured against `max_response_size`
-  once more on completion and withheld if over. Python trusts the advertised
-  size (`RNS/Link.py:1049`).
+- An assembled response Resource is measured against the requester's
+  `max_response_size` once more on completion and withheld if over. Python
+  trusts the advertised size (`RNS/Link.py:1049`).
 - `Transport::request` on a link that is not `Active`, `Stale` included, is
   refused with `RnsError::ConnectionError`. Python drops a packet only on a
   `CLOSED` link (`RNS/Packet.py:294-297`).

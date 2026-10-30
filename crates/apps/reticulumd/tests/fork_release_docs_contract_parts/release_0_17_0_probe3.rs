@@ -44,7 +44,10 @@ fn backticked(text: &str) -> Vec<String> {
 
 /// The variant texts of `pub enum <name>` in a source file: each line of the
 /// body that is not a doc comment or attribute, with its trailing comma
-/// dropped (`Packet`, `Resource(OutboundResult)`).
+/// dropped (`Packet`, `Resource(OutboundResult)`). One entry per body line,
+/// so a brace variant such as `TooLarge { len, max }` appears as its lines
+/// (`TooLarge {`, `len: usize`, `max: usize`, `}`); a later register naming
+/// it needs this helper taught to join brace bodies first.
 fn enum_variants(source: &str, name: &str) -> BTreeSet<String> {
     let opener = format!("pub enum {name} {{");
     let start = source.find(&opener).unwrap_or_else(|| panic!("`{opener}` should exist"));

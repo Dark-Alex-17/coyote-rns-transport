@@ -24,9 +24,11 @@ pub struct InboundRequest {
 impl InboundRequest {
     /// `frame` is the decoded `[requested_at, path_hash, data]` the requester
     /// sent (`RNS/Link.py:805-808`); `outcome` is the slot
-    /// [`track_outcome`](Self::track_outcome) fills, of which the dispatcher
-    /// keeps its own clone so it can resolve the verdict after `into_data`
-    /// has consumed the request.
+    /// [`track_outcome`](Self::track_outcome) or the
+    /// [`ResponseOutcomeTracker`] from
+    /// [`into_parts`](Self::into_parts) fills, of which the dispatcher keeps
+    /// its own clone so it can resolve the verdict after `into_data` has
+    /// consumed the request.
     pub(crate) fn new(
         path: String,
         frame: RequestFrame,

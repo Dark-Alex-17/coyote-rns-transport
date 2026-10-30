@@ -184,6 +184,8 @@ async fn handle_and_respond(
         ResponseDispatch::TooLarge { len, max } => ResponseOutcome::TooLarge { len, max },
     };
     if tracked.send(verdict).is_err() {
+        // The test logger in tests_parts/two_transport_loopback_requests_isolation.rs
+        // matches this text by substring; reword both together.
         log::debug!(
             "tp: response {} on link {} outcome receiver dropped before the verdict",
             request_id,

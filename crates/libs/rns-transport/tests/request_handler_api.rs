@@ -14,6 +14,7 @@ use std::sync::{Arc, Mutex};
 use rand_core::OsRng;
 use rns_transport::destination::request::{
     InboundRequest, RequestAllow, RequestHandler, RequestResponse, ResponseOutcomeReceiver,
+    ResponseOutcomeTracker,
 };
 use rns_transport::destination::{DestinationName, SingleInputDestination};
 use rns_transport::error::RnsError;
@@ -143,7 +144,7 @@ fn a_closure_that_splits_the_request_with_into_parts_registers() {
         .register_request_handler(
             "/echo",
             Arc::new(move |request: InboundRequest| {
-                let (data, tracker) = request.into_parts();
+                let (data, tracker): (rmpv::Value, ResponseOutcomeTracker) = request.into_parts();
                 *slot.lock().expect("outcome slot") = Some(tracker.outcome());
                 async move { Some(RequestResponse::Value(data)) }
             }),

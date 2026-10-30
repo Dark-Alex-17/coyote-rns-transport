@@ -28,9 +28,10 @@ pub enum ResponseOutcome {
     NotSent,
     /// Fork-only: the response exceeded the destination's
     /// `max_response_size` and nothing was sent. `len` is the size the
-    /// dispatcher measured, the packed response frame for a packet response
-    /// or the uncompressed payload (data plus packed metadata) for a
-    /// `RequestResponse::Resource`; `max` is the cap in force.
+    /// dispatcher measured, the packed `[request_id, body]` frame for a
+    /// `Value` or `Bytes` response, or the uncompressed payload (data plus
+    /// packed metadata) for a `RequestResponse::Resource`; `max` is the cap
+    /// in force.
     TooLarge {
         /// Fork-only: the measured response size in bytes.
         len: usize,
@@ -42,7 +43,8 @@ pub enum ResponseOutcome {
 /// Resolves once with the [`ResponseOutcome`] of the request it was issued
 /// for.
 ///
-/// Handed out by [`InboundRequest::track_outcome`]. `Transport::stop` or
+/// Handed out by [`InboundRequest::track_outcome`] and
+/// [`ResponseOutcomeTracker::outcome`]. `Transport::stop` or
 /// `cancel` drops the dispatcher's `JoinSet`, which aborts the response task
 /// and drops the sender, so the future resolves
 /// [`ResponseOutcome::NotSent`] rather than hanging; a bare
@@ -116,7 +118,9 @@ impl ResponseOutcomeTracker {
     }
 
     /// A future that resolves with what became of the response, under the
-    /// timing rule in the type docs.
+    /// timing rule in the type docs. Replaces any sender an earlier
+    /// `track_outcome` installed on the same request; that receiver
+    /// resolves [`ResponseOutcome::NotSent`].
     ///
     /// Fork-only: Python's `handle_request` keeps nothing of the response it
     /// sends (`RNS/Link.py:846-852`).

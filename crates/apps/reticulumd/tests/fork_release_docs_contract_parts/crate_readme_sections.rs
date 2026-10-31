@@ -189,6 +189,75 @@ fn crate_readme_link_section_describes_resolve_destination() {
     }
 }
 
+/// The link-opening section carries exactly one `rust` fence, the
+/// `destination_desc` snippet, and no fence of any other kind. The block pin
+/// below reads only the first fence, so a second one would slip past it;
+/// the resolve prose is meant to stay prose.
+#[test]
+fn crate_readme_link_section_carries_one_rust_fence() {
+    let readme = read_repo_file("crates/libs/rns-transport/README.md");
+    let section = crate_readme_section(&readme, "Opening links and admitting resources");
+    let fences: Vec<&str> =
+        section.lines().map(str::trim_start).filter(|line| line.starts_with("```")).collect();
+    assert_eq!(
+        fences,
+        vec!["```rust", "```"],
+        "the link-opening section should carry exactly one rust fence and no other"
+    );
+}
+
+/// The three places that describe what an unknown destination costs
+/// `Transport::resolve_destination` say the same thing: exactly one path
+/// request is attempted, a `Broadcast` on every outgoing interface. The
+/// README, the `Unreleased` changelog bullet and the method's rustdoc each
+/// carry both phrases, and none spells the message type bare, so the
+/// capitalised word reads as the `TxMessageType` variant it names.
+#[test]
+fn crate_readme_resolve_destination_prose_matches_the_rustdoc_and_the_changelog() {
+    let readme = read_repo_file("crates/libs/rns-transport/README.md");
+    let section = crate_readme_section(&readme, "Opening links and admitting resources");
+    let changelog = read_repo_file("crates/libs/rns-transport/CHANGELOG.md");
+    let unreleased = changelog
+        .split("\n## Unreleased")
+        .nth(1)
+        .and_then(|rest| rest.split("\n## ").next())
+        .expect("the changelog carries an Unreleased section");
+    let rustdoc = read_repo_file(
+        "crates/libs/rns-transport/src/transport/links_parts/transport_sections/resolve_destination.rs",
+    );
+    let rustdoc: String = rustdoc
+        .lines()
+        .map(str::trim_start)
+        .filter(|line| line.starts_with("///"))
+        .map(|line| line.trim_start_matches('/').trim())
+        .collect::<Vec<_>>()
+        .join(" ");
+
+    for (name, text) in [
+        ("the README link-opening section", section),
+        ("the changelog Unreleased section", unreleased),
+        ("the resolve_destination rustdoc", rustdoc.as_str()),
+    ] {
+        // Line wraps differ between the three, so the claims are matched with
+        // whitespace removed; the bare spelling is looked for as a whole word
+        // on a single line, so punctuation around it does not hide it.
+        let flattened = squash(text);
+        for claim in
+            ["exactly one path request is attempted", "a `Broadcast` on every outgoing interface"]
+        {
+            assert!(flattened.contains(&squash(claim)), "{name} should say {claim:?}:\n{text}");
+        }
+        let bare = text.lines().find(|line| {
+            line.split(|c: char| !c.is_alphanumeric() && c != '_' && c != '`')
+                .any(|word| word == "Broadcast")
+        });
+        assert!(
+            bare.is_none(),
+            "{name} should backtick the message type as the rustdoc does, found {bare:?}"
+        );
+    }
+}
+
 /// The shared-instance section describes the state stream the way the
 /// attach and its consumer task behave: the option that installs it, the
 /// `non_exhaustive` enum and its three variants, the non-blocking send and

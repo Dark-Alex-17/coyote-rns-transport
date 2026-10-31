@@ -192,11 +192,13 @@ fn crate_readme_link_section_describes_resolve_destination() {
 /// The link proof section describes the per-link `ProofStrategy` the way
 /// it behaves: the setter and its `All` default, the destination default
 /// copied onto an accepted link, the deferred proof from the payload's
-/// packet hash, Channel frames proved under every strategy, and the Python
-/// arms the strategy mirrors. The divergence register states the `All`
-/// default and the accept-time copy, and no longer says the link always
-/// proves. The changelog section that names the deferred call carries the
-/// same names.
+/// packet hash, Channel frames proved under every strategy, the three ways
+/// `prove_link_packet` refuses (an unknown link, a link it holds but cannot
+/// prove on, and a closed link until the link-maintenance pass evicts it),
+/// and the Python arms the strategy mirrors. The divergence register states
+/// the `All` default and the accept-time copy, and no longer says the link
+/// always proves. The changelog section that names the deferred call
+/// carries the same names and the same eviction clause.
 #[test]
 fn crate_readme_proof_section_describes_the_link_proof_strategy() {
     let readme = read_repo_file("crates/libs/rns-transport/README.md");
@@ -207,6 +209,9 @@ fn crate_readme_proof_section_describes_the_link_proof_strategy() {
         "`Transport::prove_link_packet`",
         "`LinkPayload::packet_hash`",
         "`set_link_proof_strategy`",
+        "refuses an unknown link as `InvalidArgument`",
+        "`ConnectionError`",
+        "until the link-maintenance pass (at most 1 s later) evicts it",
         "`RNS/Link.py:961-968`",
         "`RNS/Link.py:1151`",
         "`RNS/Packet.py:336-341`",
@@ -236,6 +241,7 @@ fn crate_readme_proof_section_describes_the_link_proof_strategy() {
         "`Link::set_proof_strategy`",
         "`set_link_proof_strategy`",
         "`Link::prove_hash`",
+        "until the link-maintenance pass (at most 1 s later) evicts it",
         "`two_transport_loopback_link_proof_strategy.rs`",
         "`python_to_rust_link_proof_strategy.rs`",
     ] {
@@ -442,10 +448,11 @@ fn doc_comment_text(source: &str) -> String {
 
 /// The shared-instance section describes the state stream the way the
 /// attach and its consumer task behave: the option that installs it, the
-/// `non_exhaustive` enum and its three variants, the non-blocking send and
+/// `non_exhaustive` enum and its four variants, the non-blocking send and
 /// what a full channel does, the posture flag the events leave alone, the
-/// client builders and getters underneath, and the Python reconnect loop
-/// that has no such stream.
+/// client builders and getters underneath, the first-connect timeout and
+/// the consumer-gone case that shares its error, and the Python reconnect
+/// loop that has no such stream.
 #[test]
 fn crate_readme_shared_instance_section_describes_state_events() {
     let readme = read_repo_file("crates/libs/rns-transport/README.md");
@@ -470,7 +477,10 @@ fn crate_readme_shared_instance_section_describes_state_events() {
         "`DialFailureKind`",
         "`SharedInstanceOptions::with_first_connect_timeout`",
         "`RnsError::SharedInstanceConnectTimeout`",
+        "when the attach's consumer ends first",
+        "may still be read as `Connected` before the stream ends",
         "`with_dial_failure_events`",
+        "`dial_failure_events_enabled`",
         "`RNS/Interfaces/LocalInterface.py:159-167`",
     ] {
         assert!(
@@ -485,10 +495,15 @@ fn crate_readme_shared_instance_section_describes_state_events() {
         "`DialFailureKind`",
         "`SharedInstanceOptions::with_first_connect_timeout`",
         "`RnsError::SharedInstanceConnectTimeout`",
+        "when the attach's consumer ends first",
+        "may still be read as `Connected` before the stream ends",
         "`TcpClient::with_dial_failure_events`",
         "`LocalUnixClient::with_dial_failure_events`",
+        "`dial_failure_events_enabled()`",
         "`two_transport_shared_instance_dial_failures.rs`",
         "`tests/dial_failure_events_api.rs`",
+        "`tests/dial_failure_channel_probe.rs`",
+        "`tests/shared_instance_first_connect_api.rs`",
     ] {
         assert!(changelog_section.contains(claim), "the changelog should mention {claim}");
     }

@@ -298,9 +298,9 @@ proves it later from `LinkPayload::packet_hash` through
 it is a second proof the sender ignores, its one record already consumed.
 `prove_link_packet` refuses an unknown link as `InvalidArgument` and a link
 it holds but that is not `Active`, or whose proof cannot be sent, as
-`ConnectionError`; a closed link becomes unknown once the 1 s link
-maintenance pass evicts it. A Python application does the same with
-`packet.prove()`
+`ConnectionError`; a closed link reads `ConnectionError` only
+until the link-maintenance pass (at most 1 s later) evicts it, after which
+it is unknown. A Python application does the same with `packet.prove()`
 (`RNS/Packet.py:336-341`), and its link proves by the destination's
 `proof_strategy`, `PROVE_ALL` or `PROVE_APP` (`RNS/Link.py:961-968`), one
 setting that this crate keeps apart from the opportunistic `proof_strategy`
@@ -604,24 +604,31 @@ A client attached while nothing listens also reports each failed attempt:
 `SharedInstanceEvent::DialFailed { reason }` goes out once per attempt,
 `reconnect_wait` apart, with `reason` a `DialFailureKind`, `Refused` for a
 TCP port nothing listens on, `NotFound` for a unix socket path nothing has
-bound, `Timeout` for an attempt that outlived the client's connect timeout,
-and `Io(kind)` for any other io error (`Io` never carries those three
-kinds). The TCP client's "couldn't connect" warn now carries the io error's
-text as well. By default the attach returns as soon as the client is
-spawned and keeps dialing, as Python's `LocalClientInterface` does
-(`RNS/Interfaces/LocalInterface.py:159-167`, which logs each failed attempt
-at debug and retries). `SharedInstanceOptions::with_first_connect_timeout`
+bound, `Timeout` for an attempt that outlived the TCP client's connect
+timeout, or an OS `TimedOut`, and `Io(kind)` for any other io error (`Io`
+never carries those three kinds). The TCP client's "couldn't connect" warn
+now carries the io error's text as well. By default the attach returns as
+soon as the client is spawned and keeps dialing, as Python's
+`LocalClientInterface` does (`RNS/Interfaces/LocalInterface.py:159-167`,
+which logs each failed attempt at debug and retries).
+`SharedInstanceOptions::with_first_connect_timeout`
 opts into waiting: the attach waits that long for the first served connect
-and otherwise detaches again and returns
+and otherwise detaches again, as it does
+when the attach's consumer ends first (a stop or detach during the wait),
+and returns
 `RnsError::SharedInstanceConnectTimeout`, with `shared_instance()` back to
 `None`, the posture off, and the stream reading `Connecting`, zero or more
 `DialFailed`, then ending; a connect that lands between the timeout and the
-detach may still be read as `Connected` before the stream ends. Underneath,
-`TcpClient` and `LocalUnixClient` gained `with_dial_failure_events`, which
-takes a `tokio::sync::mpsc::Sender<DialFailure>` and sends one `DialFailure`
-per failed attempt, `DialFailure::iface()` naming the interface and
-`DialFailure::kind()` the `DialFailureKind`; `DialFailure`, `DialFailureKind`
-and `DisconnectReason` live in `iface::events` and are re-exported from
+detach may still be read as `Connected` before the stream ends. That detach
+releases the slot only while it still holds the timed-out attach's own
+interface, so a detach and a second attach taken during the wait are left
+in place. Underneath, `TcpClient` and `LocalUnixClient` gained
+`with_dial_failure_events`, which takes a
+`tokio::sync::mpsc::Sender<DialFailure>` and sends one `DialFailure` per
+failed attempt, `DialFailure::iface()` naming the interface and
+`DialFailure::kind()` the `DialFailureKind`, and a
+`dial_failure_events_enabled` getter; `DialFailure`, `DialFailureKind` and
+`DisconnectReason` live in `iface::events` and are re-exported from
 `transport`.
 
 A `Tcp` endpoint whose address is not loopback is refused with

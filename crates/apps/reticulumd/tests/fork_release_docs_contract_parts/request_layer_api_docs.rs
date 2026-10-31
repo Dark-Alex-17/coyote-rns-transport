@@ -27,6 +27,11 @@ fn request_layer_public_items_cite_python_or_say_fork_only() {
             "NoPath",
         ),
         (
+            "crates/libs/rns-transport/src/error.rs",
+            ItemKind::Variant { enum_name: "RnsError" },
+            "SharedInstanceConnectTimeout",
+        ),
+        (
             "crates/libs/rns-transport/src/transport/mod.rs",
             ItemKind::Field { owner: "AnnounceEvent" },
             "is_path_response",
@@ -154,11 +159,6 @@ fn request_layer_public_items_cite_python_or_say_fork_only() {
             "track_prepared_with_outcome",
         ),
         (
-            "crates/libs/rns-transport/src/transport/shared_instance.rs",
-            ItemKind::Method,
-            "with_first_connect_timeout",
-        ),
-        (
             "crates/libs/rns-transport/src/iface/tcp_client.rs",
             ItemKind::Method,
             "with_dial_failure_events",
@@ -242,7 +242,7 @@ fn request_layer_public_items_cite_python_or_say_fork_only() {
     }
 
     assert!(
-        checked >= 155,
+        checked >= 181,
         "the request layer should expose the receipt, frame, handler and outcome surface; found only {checked} public items"
     );
     assert!(

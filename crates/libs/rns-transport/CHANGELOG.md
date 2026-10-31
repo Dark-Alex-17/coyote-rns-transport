@@ -234,8 +234,9 @@ Removed) bullet of its own, marked as such.
   a `CLOSED` link, `RNS/Packet.py:294-299`), and a proof that cannot be
   sent, the link having no bound interface or the interface taking nothing,
   are `Err(RnsError::ConnectionError)`; a closed link reads
-  `ConnectionError` only until the 1 s link-maintenance pass evicts it, after
-  which it is unknown and reads `InvalidArgument`. Pinned by
+  `ConnectionError` only
+  until the link-maintenance pass (at most 1 s later) evicts it, after which
+  it is unknown and reads `InvalidArgument`. Pinned by
   `two_transport_loopback_link_proof_strategy.rs` (under `App` the sender
   sees no `PacketProven` until the call, then exactly one; the same from an
   out-link set to `None`; the unknown-link refusal; a link closed after it
@@ -270,21 +271,34 @@ Removed) bullet of its own, marked as such.
   `LocalUnixClient::with_dial_failure_events` (`iface/local.rs`) take a
   `tokio::sync::mpsc::Sender<DialFailure>` and send one `DialFailure` per
   failed connect attempt, `Refused` for a TCP port nothing listens on,
-  `NotFound` for a unix socket path nothing has bound, `Timeout` for an
-  attempt that outlived the TCP client's connect timeout; a full or closed
-  channel drops the event at debug, as the connect events do. The TCP
-  client's "couldn't connect to <endpoint>" warn now carries the io error's
-  text, or "connect timed out after <timeout>" when the attempt ran out of
-  time, which it dropped before: the connect loop keeps the failure apart
-  from the stream result instead of flattening both into
-  `ConnectionError`. Python's shared-instance client logs each failed
+  `NotFound` only when the OS reports `ErrorKind::NotFound`, as it does for
+  a unix socket path nothing has bound (a TCP name that does not resolve
+  arrives as `Io(kind)`), `Timeout` for an attempt that outlived the TCP
+  client's connect timeout or that the OS timed out; a full or closed
+  channel drops the event at debug, as the connect events do. Both clients
+  gained a `dial_failure_events_enabled()` getter beside
+  `connect_events_enabled()`. The TCP client's "couldn't connect to
+  <endpoint>" warn now carries the io error's text, or "connect timed out
+  after <timeout>" when the attempt ran out of time, which it dropped
+  before, and the same text follows the endpoint in the `mark_reconnecting`
+  reason the client's runtime status reads back as `last_error`
+  ("tcp connect failed endpoint=<endpoint>: <text>"): the connect loop
+  keeps the failure apart from the stream result instead of flattening
+  both into `ConnectionError`. Python's shared-instance client logs each failed
   attempt at debug and retries without telling the failures apart
   (`RNS/Interfaces/LocalInterface.py:159-167`). Pinned by
   `tests/dial_failure_events_api.rs` (both clients report two failures with
   the expected kind and the interface address, then connect once the
-  socket is bound and report no failure after it) and by
-  the same file's capturing logger (the TCP warn names the endpoint and
-  carries "Connection refused").
+  socket is bound and report no failure after it; the getter reads false
+  by default and true after the builder), by the same file's capturing
+  logger (the TCP warn names the endpoint and carries "Connection
+  refused"), by `tests/dial_failure_channel_probe.rs` (a full capacity-one
+  channel and a dropped receiver each leave the client dialing and
+  connecting once the socket appears, with exactly one buffered failure in
+  the full case; a stale unix socket file reads `Refused`, not `NotFound`;
+  the reason types are one set under `iface::events` and `transport` and
+  all `Copy`) and by the TCP client's reconnect-budget unit test, which
+  reads `last_error` on its endpoint prefix.
 - `SharedInstanceEvent::DialFailed` (`transport/shared_instance.rs`) carries
   `reason: DialFailureKind` and is sent on the attach's state stream once
   per failed attempt by the client the attach spawned, `reconnect_wait`
@@ -303,26 +317,51 @@ Removed) bullet of its own, marked as such.
   `tests.rs`: `Connecting` then `DialFailed { Refused }` per attempt over
   TCP and `DialFailed { NotFound }` over a unix path, posture and slot set,
   `Connected` once the socket exists with no `DialFailed` after it; the
-  hand-driven consumer serves the queued failures last) and by
+  hand-driven consumer serves the queued failures last in the drain, and a
+  failure queued while the other three senders stay open through the live
+  select arm, with no drain record) and by
   `tests/dial_failure_events_api.rs` (the enum is still `Copy`). The
-  restart pins of `two_transport_shared_instance_state_events.rs` and its
-  probe files read the cycle events past any `DialFailed` the redial that
-  beat the rebind produced, and count the full-channel drops without them;
-  the `DriveSpec` of the hand-driven consumer gained `Queued::DialFailure`.
+  state-event helpers of `two_transport_shared_instance_state_events.rs`
+  split in two: `shared_instance_state_next` reads whatever arrives, for
+  the pins whose listener is up, and `shared_instance_state_next_cycle_event`
+  skips a `DialFailed`, for the pins that read while nothing listens or
+  across a listener restart, where whether a redial was refused before the
+  rebind is a race; the quiet-window check splits the same way. Those
+  redialing pins pass a 64-slot state channel
+  (`SHARED_INSTANCE_STATE_REDIAL_CAPACITY`), since a refusal every 100 ms
+  queues a `DialFailed` nobody drains while the pin waits on the rebind.
+  The `DriveSpec` of the hand-driven consumer gained `Queued::DialFailure`
+  and a `first_connect` notifier that can be armed or abandoned before the
+  drive runs.
 - `SharedInstanceOptions::with_first_connect_timeout`
   (`transport/shared_instance.rs`) makes `Transport::attach_shared_instance`
   (`links_parts/transport_sections/shared_instance.rs`) wait that long for
   the first served connect before the tunnel is synthesized; without one it
-  detaches again and returns the new `RnsError::SharedInstanceConnectTimeout`
+  detaches again, as it does when the attach's consumer ends first (a stop
+  or detach during the wait), and returns the new
+  `RnsError::SharedInstanceConnectTimeout`
   (`error.rs`), the stream reading `Connecting`, zero or more `DialFailed`,
   then ending, with `shared_instance()` back to `None` and the posture off.
-  A connect that lands between the timeout and the detach may still be
-  read as `Connected` first. Without the option the attach returns as soon
+  A connect that lands between the timeout and the detach
+  may still be read as `Connected` before the stream ends. The timed-out
+  attach releases the slot only while it still holds its own interface, so
+  a detach and a second attach taken during the wait are left in place; the
+  consumer that serves a connect after its attach stopped waiting notes it
+  at debug and keeps serving. Without the option the attach returns as soon
   as the client is spawned, as before. Pinned by
   `two_transport_shared_instance_dial_failures.rs` (the timeout against a
-  port nobody listens on, and the positive control against a listening
-  server) and by `crate_readme_sections.rs`, which pins the README
-  shared-instance prose and this section.
+  port nobody listens on, reading at least one refused `DialFailed` before
+  the stream ends, the positive control against a listening server, and
+  the hand-driven consumer serving a connect to a notifier whose receiver
+  is gone), by `tests/shared_instance_first_connect_api.rs` (the README's
+  default attach returning at once and connecting when the server appears;
+  the timed-out attach leaving nothing behind so the same transport
+  attaches again; a detach and a replacement attach taken during the wait
+  surviving the timed-out attach's cleanup; the attach returning on the
+  connect, not on the timer), by `request_layer_api_docs.rs`, which names
+  `RnsError::SharedInstanceConnectTimeout` among the items whose rustdoc
+  must cite Python or say fork-only, and by `crate_readme_sections.rs`,
+  which pins the README shared-instance prose and this section.
 
 ### Changed
 

@@ -277,7 +277,9 @@ Removed) bullet of its own, marked as such.
   request-handler section and the first changelog section that names
   `set_max_response_size` to one description of the Resource measure (both
   tests select their section through one `changelog_section_naming` helper,
-  each anchored on the API name its bullet is about). `resource_response_len`
+  each anchored on the API name its bullet is about; the helper itself is
+  pinned in `crate_readme_sections.rs` on a reopened-stub fixture and a
+  no-match panic fixture). `resource_response_len`
   of `two_transport_loopback_requests_response_cap.rs` takes
   `Option<&rmpv::Value>` and applies the dispatcher's `map_or(0, ..)`, so the
   metadata-less pin of

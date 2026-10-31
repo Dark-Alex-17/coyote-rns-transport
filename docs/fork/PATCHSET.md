@@ -37,8 +37,8 @@ commits `355a0ddf`, `ca32feac`, `223cdd80`, `716fb2be`, `f43321f4`,
 `9eb35226`, `d3b234e6`, `d36f65df`, `813f421a`, `2aca9568`, `6fef8927`,
 `ac5a81ae` and `f9751b59`; the `ledger contracts` patch is fork commit
 `ca32feac`; the `destination resolve` patch is fork commits `3136f1bf`,
-`d36f65df`, `813f421a`, `2aca9568`, `79308556`, `6fef8927`, `ac5a81ae` and
-`f9751b59`; the `reject cadence` patch is fork commits `265d6929`,
+`d36f65df`, `813f421a`, `2aca9568`, `79308556`, `6fef8927`, `ac5a81ae`,
+`f9751b59` and `402598e3`; the `reject cadence` patch is fork commits `265d6929`,
 `d36f65df`, `813f421a`, `6fef8927`, `ac5a81ae` and `f9751b59`.
 
 | File | Patch |
@@ -299,7 +299,7 @@ Fork commit `ca32feac`: K3, ledger contracts. No library behaviour changes.
 reopened `Unreleased` section beside the released ones.
 
 Fork commits `3136f1bf`, `d36f65df`, `813f421a`, `2aca9568`, `79308556`,
-`6fef8927`, `ac5a81ae` and `f9751b59`: K4, destination resolve. The library
+`6fef8927`, `ac5a81ae`, `f9751b59` and `402598e3`: K4, destination resolve. The library
 behaviour changes are: a caller can look up a destination and wait for its
 path in one call, and `await_path` holds any timeout and returns at its
 deadline.
@@ -431,7 +431,11 @@ the response-cap twin test anchors on `set_max_response_size` instead, each
 pin skipping a reopened `## Unreleased` stub that does not name its call,
 and has the `await_path` rustdoc say one request is attempted rather than
 goes out, since `request_path` can find no interface, and cite
-`RNS/Transport.py:3279` and `:3126`.
+`RNS/Transport.py:3279` and `:3126`. `402598e3` pins that helper on two
+fixtures in `crate_readme_sections.rs`: a reopened empty `## Unreleased` stub
+above a promoted section is skipped and the newest section naming the anchor
+wins, with the preamble never a candidate, and a changelog naming the anchor
+nowhere panics naming it.
 
 Fork commits `265d6929`, `d36f65df`, `813f421a`, `6fef8927`, `ac5a81ae` and
 `f9751b59`: K5, reject cadence. The library behaviour changes are: the warn

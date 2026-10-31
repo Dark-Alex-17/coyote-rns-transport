@@ -233,7 +233,9 @@ Removed) bullet of its own, marked as such.
   `Transport::request` refuses it (Python's `Packet.send` drops a packet on
   a `CLOSED` link, `RNS/Packet.py:294-299`), and a proof that cannot be
   sent, the link having no bound interface or the interface taking nothing,
-  are `Err(RnsError::ConnectionError)`. Pinned by
+  are `Err(RnsError::ConnectionError)`; a closed link reads
+  `ConnectionError` only until the 1 s link-maintenance pass evicts it, after
+  which it is unknown and reads `InvalidArgument`. Pinned by
   `two_transport_loopback_link_proof_strategy.rs` (under `App` the sender
   sees no `PacketProven` until the call, then exactly one; the same from an
   out-link set to `None`; the unknown-link refusal; a link closed after it
@@ -245,7 +247,9 @@ Removed) bullet of its own, marked as such.
   and then reads `DELIVERED`), by `tests/link_proof_strategy_api.rs` (the
   deferred proof and both refusals as a downstream crate sees them, the
   gone interface read as `ConnectionError`, and exactly one `PacketProven`
-  for the application's proof on an in-link accepted under `None`) and by
+  for the application's proof on an in-link accepted under `None`; an
+  in-link closed locally refuses the proof as `ConnectionError` and lets
+  none reach the sender) and by
   `crate_readme_sections.rs`, which pins the README proof prose and this
   section.
 

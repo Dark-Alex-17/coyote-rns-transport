@@ -20,7 +20,9 @@ impl Transport {
     /// the link is not yet or no longer `Active`, as `Transport::request`
     /// does (Python's `Packet.send` drops a packet on a `CLOSED` link,
     /// `RNS/Packet.py:294-299`), or when the proof cannot be sent, the link
-    /// having no bound interface or the interface taking nothing.
+    /// having no bound interface or the interface taking nothing. A closed
+    /// link reads `ConnectionError` only until the 1 s link-maintenance
+    /// pass evicts it; after that it is unknown and reads `InvalidArgument`.
     ///
     /// Fork-only convenience: a Python application calls `packet.prove()`
     /// on the packet its link callback received (`RNS/Packet.py:336-341`),

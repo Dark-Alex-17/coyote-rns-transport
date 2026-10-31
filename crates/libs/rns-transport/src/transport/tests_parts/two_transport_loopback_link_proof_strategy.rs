@@ -209,7 +209,9 @@ async fn two_transport_loopback_link_proof_strategy_unknown_link_is_refused() {
 
 /// A link the transport still tracks but that is no longer `Active` refuses the proof, the
 /// way `Transport::request` does. The interface stays bound after `close()` and would still
-/// carry the packet; the status guard in `prove_link_packet` is what turns it away.
+/// carry the packet; the status guard in `prove_link_packet` is what turns it away. The
+/// `ConnectionError` reading lasts until the 1 s link-maintenance pass evicts the closed link,
+/// after which it is unknown and reads `InvalidArgument`; this test proves well inside that.
 #[tokio::test]
 #[deny(clippy::await_holding_invalid_type)]
 async fn two_transport_loopback_link_proof_strategy_closed_link_is_refused() {

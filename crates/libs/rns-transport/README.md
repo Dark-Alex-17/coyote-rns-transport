@@ -295,8 +295,12 @@ directly. `None` never auto-proves. Channel frames are proved under every
 strategy (`RNS/Link.py:1151`). An application that holds a packet back
 proves it later from `LinkPayload::packet_hash` through
 `Transport::prove_link_packet`, which works under any strategy; under `All`
-it is a second proof the sender ignores, its one record already consumed. A
-Python application does the same with `packet.prove()`
+it is a second proof the sender ignores, its one record already consumed.
+`prove_link_packet` refuses an unknown link as `InvalidArgument` and a link
+it holds but that is not `Active`, or whose proof cannot be sent, as
+`ConnectionError`; a closed link becomes unknown once the 1 s link
+maintenance pass evicts it. A Python application does the same with
+`packet.prove()`
 (`RNS/Packet.py:336-341`), and its link proves by the destination's
 `proof_strategy`, `PROVE_ALL` or `PROVE_APP` (`RNS/Link.py:961-968`), one
 setting that this crate keeps apart from the opportunistic `proof_strategy`

@@ -146,6 +146,23 @@ pub(crate) enum HdlcStreamEvent {
     Error { message: String },
 }
 
+/// Why one HDLC stream ended, as `run_hdlc_stream_with_runtime_and_ifac`
+/// reports it to the client that owns the connection.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(crate) enum HdlcStreamExit {
+    /// The peer closed the stream in an orderly way (a zero-length read).
+    PeerClosed,
+    /// The read watchdog found the stream quiet past its read timeout.
+    ReadTimeout,
+    /// The read side failed with this io error kind.
+    ReadError(io::ErrorKind),
+    /// The write side (a frame, a keepalive or a flush) failed with this kind.
+    WriteError(io::ErrorKind),
+    /// The stream was ended locally: a cancel, a stop, or the transport's
+    /// receive queue closing. Nothing about the peer is known.
+    Cancelled,
+}
+
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub(crate) struct HdlcStreamWatchdog {
     pub keepalive_after: Duration,
@@ -523,7 +540,8 @@ pub(crate) async fn run_hdlc_stream_with_runtime<R, W>(
     read_stream: R,
     write_stream: W,
     runtime: HdlcStreamRuntime,
-) where
+) -> HdlcStreamExit
+where
     R: AsyncRead + Unpin + Send + 'static,
     W: AsyncWrite + Unpin + Send + 'static,
 {
@@ -541,13 +559,14 @@ pub(crate) async fn run_hdlc_stream_with_runtime<R, W>(
         write_stream,
         runtime,
     )
-    .await;
+    .await
 }
 
 /// Drives one HDLC-framed connection. The rx side runs as its own task; the
 /// tx side runs here so the caller keeps ownership of `tx_channel` and the
 /// packets queued on it survive into the next connection. Returns once both
-/// sides have exited.
+/// sides have exited, with the rx side's exit unless that side only followed
+/// the tx side's stop.
 #[allow(clippy::too_many_arguments)]
 pub(crate) async fn run_hdlc_stream_with_runtime_and_ifac<R, W>(
     label: String,
@@ -562,7 +581,8 @@ pub(crate) async fn run_hdlc_stream_with_runtime_and_ifac<R, W>(
     read_stream: R,
     write_stream: W,
     runtime: HdlcStreamRuntime,
-) where
+) -> HdlcStreamExit
+where
     R: AsyncRead + Unpin + Send + 'static,
     W: AsyncWrite + Unpin + Send + 'static,
 {
@@ -590,14 +610,14 @@ pub(crate) async fn run_hdlc_stream_with_runtime_and_ifac<R, W>(
             loop {
                 tokio::select! {
                     _ = cancel.cancelled() => {
-                            break;
+                            break HdlcStreamExit::Cancelled;
                     }
                     _ = iface_stop_rx.cancelled() => {
                             stop.cancel();
-                            break;
+                            break HdlcStreamExit::Cancelled;
                     }
                     _ = stop.cancelled() => {
-                            break;
+                            break HdlcStreamExit::Cancelled;
                     }
                     result = stream.read(buffers.tcp.as_mut_slice()) => {
                             match result {
@@ -605,7 +625,7 @@ pub(crate) async fn run_hdlc_stream_with_runtime_and_ifac<R, W>(
                                     log::warn!("connection closed");
                                     send_hdlc_stream_event(&events, HdlcStreamEvent::Closed);
                                     stop.cancel();
-                                    break;
+                                    break HdlcStreamExit::PeerClosed;
                                 }
                                 Ok(n) => {
                                     *last_read_at
@@ -665,7 +685,7 @@ pub(crate) async fn run_hdlc_stream_with_runtime_and_ifac<R, W>(
                                                         label
                                                     );
                                                     stop.cancel();
-                                                    return;
+                                                    return HdlcStreamExit::Cancelled;
                                                 }
                                                 }
                                                 Err(error) => {
@@ -724,7 +744,7 @@ pub(crate) async fn run_hdlc_stream_with_runtime_and_ifac<R, W>(
                                     // tcp_client's caller never gets reached for
                                     // exactly the reset case it was added for.
                                     stop.cancel();
-                                    break;
+                                    break HdlcStreamExit::ReadError(e.kind());
                                 }
                             }
                         },
@@ -746,19 +766,19 @@ pub(crate) async fn run_hdlc_stream_with_runtime_and_ifac<R, W>(
             watchdog_tick.set_missed_tick_behavior(tokio::time::MissedTickBehavior::Delay);
             loop {
                 if stop.is_cancelled() {
-                    break;
+                    break HdlcStreamExit::Cancelled;
                 }
 
                 tokio::select! {
                     _ = cancel.cancelled() => {
-                            break;
+                            break HdlcStreamExit::Cancelled;
                     }
                     _ = iface_stop_tx.cancelled() => {
                             stop.cancel();
-                            break;
+                            break HdlcStreamExit::Cancelled;
                     }
                     _ = stop.cancelled() => {
-                            break;
+                            break HdlcStreamExit::Cancelled;
                     }
                     _ = watchdog_tick.tick(), if watchdog.is_some() => {
                         let watchdog = watchdog.as_ref().expect("guarded by select condition");
@@ -777,7 +797,7 @@ pub(crate) async fn run_hdlc_stream_with_runtime_and_ifac<R, W>(
                             );
                             send_hdlc_stream_event(&events, HdlcStreamEvent::ReadTimeout);
                             stop.cancel();
-                            break;
+                            break HdlcStreamExit::ReadTimeout;
                         }
 
                         if read_idle > watchdog.stale_after {
@@ -800,7 +820,7 @@ pub(crate) async fn run_hdlc_stream_with_runtime_and_ifac<R, W>(
                                             HdlcStreamEvent::Error { message: err.to_string() },
                                         );
                                         stop.cancel();
-                                        break;
+                                        break HdlcStreamExit::WriteError(err.kind());
                                     }
                                     last_write_at = Instant::now();
                                     send_hdlc_stream_event(&events, HdlcStreamEvent::Keepalive);
@@ -812,7 +832,7 @@ pub(crate) async fn run_hdlc_stream_with_runtime_and_ifac<R, W>(
                                         HdlcStreamEvent::Error { message: err.to_string() },
                                     );
                                     stop.cancel();
-                                    break;
+                                    break HdlcStreamExit::WriteError(err.kind());
                                 }
                             }
                         }
@@ -828,12 +848,12 @@ pub(crate) async fn run_hdlc_stream_with_runtime_and_ifac<R, W>(
                             if let Some(bitrate_bps) = forced_bitrate_bps {
                                 if let Some(delay) = forced_bitrate_delay(raw_len, bitrate_bps) {
                                     tokio::select! {
-                                        _ = cancel.cancelled() => break,
+                                        _ = cancel.cancelled() => break HdlcStreamExit::Cancelled,
                                         _ = iface_stop_tx.cancelled() => {
                                             stop.cancel();
-                                            break;
+                                            break HdlcStreamExit::Cancelled;
                                         }
-                                        _ = stop.cancelled() => break,
+                                        _ = stop.cancelled() => break HdlcStreamExit::Cancelled,
                                         _ = tokio::time::sleep(delay) => {}
                                     }
                                 }
@@ -845,7 +865,7 @@ pub(crate) async fn run_hdlc_stream_with_runtime_and_ifac<R, W>(
                                         HdlcStreamEvent::Error { message: err.to_string() },
                                     );
                                     stop.cancel();
-                                    break;
+                                    break HdlcStreamExit::WriteError(err.kind());
                                 }
                                 if let Err(err) = stream.flush().await {
                                     log::warn!("[tp-diag] flush failed iface={} err={}", iface_address, err);
@@ -854,7 +874,7 @@ pub(crate) async fn run_hdlc_stream_with_runtime_and_ifac<R, W>(
                                         HdlcStreamEvent::Error { message: err.to_string() },
                                     );
                                     stop.cancel();
-                                    break;
+                                    break HdlcStreamExit::WriteError(err.kind());
                                 }
                                 last_write_at = Instant::now();
                                 send_hdlc_stream_event(
@@ -884,8 +904,12 @@ pub(crate) async fn run_hdlc_stream_with_runtime_and_ifac<R, W>(
         }
     };
 
-    tx_loop.await;
-    rx_task.await.unwrap();
+    let tx_exit = tx_loop.await;
+    let rx_exit = rx_task.await.unwrap();
+    match rx_exit {
+        HdlcStreamExit::Cancelled => tx_exit,
+        exit => exit,
+    }
 }
 
 fn send_hdlc_stream_event(
@@ -1555,7 +1579,7 @@ mod tests {
     use super::{
         classify_dial_error, forced_bitrate_delay, max_hdlc_frame_buffer_len,
         prefer_ipv6_socket_addrs, run_hdlc_stream_with_runtime, tcp_wire_buffer_capacity,
-        trim_malformed_hdlc_backlog, DialError, HdlcStreamEvent, HdlcStreamRuntime,
+        trim_malformed_hdlc_backlog, DialError, HdlcStreamEvent, HdlcStreamExit, HdlcStreamRuntime,
         HdlcStreamWatchdog, TcpClient, TcpSocketTuning, HDLC_STREAM_EVENT_CHANNEL_CAPACITY,
     };
     use crate::buffer::OutputBuffer;
@@ -2612,10 +2636,11 @@ mod tests {
             HdlcStreamRuntime::new().with_events(event_tx),
         ));
 
-        tokio::time::timeout(Duration::from_secs(2), handle)
+        let exit = tokio::time::timeout(Duration::from_secs(2), handle)
             .await
             .expect("run_hdlc_stream_with_runtime hung: tx loop never saw stop cancelled")
             .expect("hdlc stream task panicked");
+        assert_eq!(exit, HdlcStreamExit::ReadError(std::io::ErrorKind::ConnectionReset));
 
         let mut saw_error_event = false;
         while let Ok(event) = event_rx.try_recv() {
@@ -2624,6 +2649,111 @@ mod tests {
             }
         }
         assert!(saw_error_event, "expected an Error event from the simulated reset");
+    }
+
+    /// One stream runner on its own task, with the cancel token it watches
+    /// and the far ends of its transport channels, which stay open as long
+    /// as the harness lives.
+    struct StreamRunner {
+        handle: tokio::task::JoinHandle<HdlcStreamExit>,
+        cancel: CancellationToken,
+        _rx_messages: crate::iface::InterfaceRxReceiver,
+        _tx_sender: crate::iface::InterfaceTxSender,
+    }
+
+    fn spawn_stream_runner<R, W>(
+        read_stream: R,
+        write_stream: W,
+        runtime: HdlcStreamRuntime,
+    ) -> StreamRunner
+    where
+        R: tokio::io::AsyncRead + Unpin + Send + 'static,
+        W: tokio::io::AsyncWrite + Unpin + Send + 'static,
+    {
+        let cancel = CancellationToken::new();
+        let (rx_channel, rx_messages) = tokio::sync::mpsc::channel(1);
+        let (tx_sender, tx_receiver) = tokio::sync::mpsc::channel(1);
+        let handle = tokio::spawn(run_hdlc_stream_with_runtime(
+            "test".to_string(),
+            AddressHash::new([0x48; 16]),
+            256,
+            cancel.clone(),
+            CancellationToken::new(),
+            rx_channel,
+            tx_receiver,
+            read_stream,
+            write_stream,
+            runtime,
+        ));
+        StreamRunner { handle, cancel, _rx_messages: rx_messages, _tx_sender: tx_sender }
+    }
+
+    async fn stream_exit_within(
+        handle: tokio::task::JoinHandle<HdlcStreamExit>,
+        within: Duration,
+    ) -> HdlcStreamExit {
+        tokio::time::timeout(within, handle)
+            .await
+            .expect("run_hdlc_stream_with_runtime did not return in time")
+            .expect("hdlc stream task panicked")
+    }
+
+    #[tokio::test]
+    async fn a_peer_that_closes_the_stream_exits_as_peer_closed() {
+        let listener = TcpListener::bind("127.0.0.1:0").await.expect("bind");
+        let addr = listener.local_addr().expect("local addr");
+        let (client, peer) = tokio::join!(TcpStream::connect(addr), listener.accept());
+        let (read_stream, write_stream) = client.expect("connect").into_split();
+        let runner = spawn_stream_runner(read_stream, write_stream, HdlcStreamRuntime::new());
+
+        drop(peer.expect("accept").0);
+
+        assert_eq!(
+            stream_exit_within(runner.handle, Duration::from_secs(2)).await,
+            HdlcStreamExit::PeerClosed
+        );
+    }
+
+    #[tokio::test]
+    async fn a_cancel_on_an_open_stream_exits_as_cancelled() {
+        let (local, far) = tokio::io::duplex(1024);
+        let (read_stream, write_stream) = tokio::io::split(local);
+        let runner = spawn_stream_runner(read_stream, write_stream, HdlcStreamRuntime::new());
+
+        tokio::task::yield_now().await;
+        runner.cancel.cancel();
+
+        assert_eq!(
+            stream_exit_within(runner.handle, Duration::from_secs(2)).await,
+            HdlcStreamExit::Cancelled
+        );
+        drop(far);
+    }
+
+    #[tokio::test]
+    async fn a_silent_stream_past_the_read_timeout_exits_as_read_timeout() {
+        let (local, far) = tokio::io::duplex(1024);
+        let (read_stream, write_stream) = tokio::io::split(local);
+        let runner = spawn_stream_runner(
+            read_stream,
+            write_stream,
+            HdlcStreamRuntime::new().with_watchdog(HdlcStreamWatchdog {
+                keepalive_after: Duration::from_secs(3600),
+                stale_after: Duration::from_secs(3600),
+                read_timeout: Duration::from_millis(200),
+            }),
+        );
+
+        let started = Instant::now();
+        assert_eq!(
+            stream_exit_within(runner.handle, Duration::from_secs(3)).await,
+            HdlcStreamExit::ReadTimeout
+        );
+        assert!(
+            started.elapsed() >= Duration::from_millis(200),
+            "the watchdog fired before the read timeout elapsed"
+        );
+        drop(far);
     }
 }
 

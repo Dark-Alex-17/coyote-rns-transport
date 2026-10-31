@@ -45,8 +45,8 @@ commits `355a0ddf`, `ca32feac`, `223cdd80`, `716fb2be`, `f43321f4`,
 `92346ece`, `e0a2feae`, `2624206e`, `ecf809d6`, `ac841458`, `c38e6b22`,
 `e8cda738`, `4ed2ebec`, `95ae6d37`, `fdf40d01`, `94c27a5c`, `1779c8c8`,
 `3be3b15c`, `719067c4`, `07e98279`, `a02ba4b7`, `bcee2bff` and `7cba2066`;
-the `dial failures` patch is fork commits `61429992`, `874c871b`, `aa6d2fac`
-and `593fa930`.
+the `dial failures` patch is fork commits `61429992`, `874c871b`, `aa6d2fac`,
+`593fa930`, `7fbd176e` and `7eab8566`.
 
 | File | Patch |
 | --- | --- |
@@ -656,12 +656,13 @@ section say a closed link reads `ConnectionError` only until the 1 s
 link-maintenance pass evicts it, after which it is unknown and reads
 `InvalidArgument`.
 
-Fork commits `61429992`, `874c871b`, `aa6d2fac` and `593fa930`: K7, dial
-failures. The library behaviour changes are: a stream client reports each
-failed connect attempt with a typed reason, the shared-instance state stream
-carries it, and an attach can be told to give up when the first connect does
-not come. `61429992` adds `iface::events` (`iface/events.rs`, registered in
-`iface.rs`, re-exported from `transport/mod.rs`) with `DialFailureKind`
+Fork commits `61429992`, `874c871b`, `aa6d2fac`, `593fa930`, `7fbd176e` and
+`7eab8566`: K7, dial failures. The library behaviour changes are: a stream
+client reports each failed connect attempt with a typed reason, the
+shared-instance state stream carries it, and an attach can be told to give up
+when the first connect does not come. `61429992` adds `iface::events`
+(`iface/events.rs`, registered in `iface.rs`, re-exported from
+`transport/mod.rs`) with `DialFailureKind`
 (`Timeout`, `Refused`, `NotFound`, `Io(ErrorKind)`, the last never carrying
 the three named kinds), `DialFailure` (the interface address and the kind of
 one failed attempt, private fields) and `DisconnectReason`, reserved for the
@@ -681,7 +682,7 @@ biased select and in the post-exit drain, which moves to
 `shared_instance_reconnect_parts/drain_queued.rs`; adds
 `SharedInstanceOptions::with_first_connect_timeout`, under which
 `attach_shared_instance` (`links_parts/transport_sections/shared_instance.rs`)
-waits for the first served connect after the tunnel is synthesized and,
+waits for the first served connect and,
 without one, detaches and returns the new
 `RnsError::SharedInstanceConnectTimeout` (`error.rs`); and has the
 hand-driven consumer callers and the state-event pins in `tests_parts` take
@@ -701,6 +702,14 @@ changelog, adds `iface/events.rs` to the docs contract's fork-new walk set,
 `DialFailure` to its private-field structs, both enums to its
 `#[non_exhaustive]` list and the three builders to its cited-rustdoc list,
 and pins the new README needles with a changelog twin.
+`7fbd176e` moves the first-connect wait in `attach_shared_instance` to run
+before the tunnel is synthesized rather than after it, so a timed-out attach
+synthesizes no tunnel on the interface it detaches, and rewords the attach
+rustdoc and the changelog bullet to match. `7eab8566` records in the
+changelog bullet and the variant rustdoc that `SharedInstanceEvent` carries
+data from `DialFailed` on, which cargo-semver-checks reports as
+`enum_discriminants_undefined_non_unit_variant`, the one finding the
+release's semver gate names.
 
 ## 0.17.0 (upstream 0.14.0)
 

@@ -42,7 +42,8 @@ commits `355a0ddf`, `ca32feac`, `223cdd80`, `716fb2be`, `f43321f4`,
 `f9751b59` and `402598e3`; the `reject cadence` patch is fork commits `265d6929`,
 `d36f65df`, `813f421a`, `6fef8927`, `ac5a81ae` and `f9751b59`; the
 `link proof strategy` patch is fork commits `8e47a675`, `1a9e25c4`,
-`92346ece`, `e0a2feae` and `2624206e`.
+`92346ece`, `e0a2feae`, `2624206e`, `ecf809d6`, `ac841458` and
+`c38e6b22`.
 
 | File | Patch |
 | --- | --- |
@@ -90,6 +91,7 @@ commits `355a0ddf`, `ca32feac`, `223cdd80`, `716fb2be`, `f43321f4`,
 | `crates/libs/rns-transport/src/transport/tests_parts/request_advert_reject_warn_cadence_probe.rs` | reject cadence |
 | `crates/libs/rns-transport/src/transport/tests_parts/request_advert_reject_warn_cadence_probe2.rs` | reject cadence |
 | `crates/libs/rns-transport/src/transport/tests_parts/two_transport_loopback_link_proof_strategy.rs` | link proof strategy |
+| `crates/libs/rns-transport/src/transport/tests_parts/two_transport_loopback_link_proof_strategy_probe.rs` | link proof strategy |
 | `crates/libs/rns-transport/src/transport/tests_parts/two_transport_loopback_requests_into_parts.rs` | outcome tracker |
 | `crates/libs/rns-transport/src/transport/tests_parts/two_transport_loopback_requests_isolation.rs` | outcome tracker, response cap, reject cadence |
 | `crates/libs/rns-transport/src/transport/tests_parts/two_transport_loopback_requests_response_cap.rs` | response cap |
@@ -508,8 +510,9 @@ advertisement was accepted: an initiator cancel naming it draws the
 `InboundFailed` only a receiver the destination created can publish, where
 a refused advertisement leaves none to cancel.
 
-Fork commits `8e47a675`, `1a9e25c4`, `92346ece`, `e0a2feae` and `2624206e`: K6,
-link proof strategy. The library behaviour changes are: a link proves the plain
+Fork commits `8e47a675`, `1a9e25c4`, `92346ece`, `e0a2feae`, `2624206e`,
+`ecf809d6`, `ac841458` and `c38e6b22`: K6, link proof strategy. The
+library behaviour changes are: a link proves the plain
 Data packets it receives by a strategy of its own instead of always, and an
 application can prove a received packet later. `8e47a675` pins, in
 `crate_readme_sections.rs`, that the changelog section selector stops at
@@ -564,6 +567,24 @@ section and divergence register, pins those names and the changelog's in
 `request_layer_api_docs.rs`, and gives the two getters their rustdoc cites.
 `2624206e` adds `link-data-receipt` to the client's accepted payload kinds in
 `python_channel_endpoint.py`, which argparse had refused before the arm ran.
+`ecf809d6` narrows `LinkPayload::with_packet_hash` to `pub(crate)`
+(`destination/link/payload.rs`), its one caller being `new.rs`, and refreshes
+the rustdoc of `ProofStrategy` and `ProofRequestedHandler`
+(`destination_parts/module_core.rs`), `link_proof_strategy`
+(`destination_parts/destination.rs`) and `prove_link_packet`
+(`transport_sections/prove_link_packet.rs`), whose `ConnectionError` covers
+every unsent proof. `ac841458` replaces the `prove_hash` twin test in
+`proof_strategy_tests.rs` with a pin of the proof's wire shape and has its
+counting callback record the packet hash; adds
+`two_transport_loopback_link_proof_strategy_probe.rs` (registered in
+`transport/tests.rs`): the destination default copied at accept only, an
+out-link under `App` waiting for its own callback, and `prove_link_packet`
+under `All` as a quiet second proof; and in `python_channel_endpoint.py`
+raises the link's `traffic_timeout_factor` before the send and reports
+`CULLED` by name, while `python_to_rust_link_proof_strategy.rs` derives
+its threshold from the deferred delay and tolerates a lagged event stream.
+`c38e6b22` adds the accept-time snapshot to the README divergence register
+and reworks the changelog bullets to match.
 
 ## 0.17.0 (upstream 0.14.0)
 

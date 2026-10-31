@@ -42,8 +42,8 @@ commits `355a0ddf`, `ca32feac`, `223cdd80`, `716fb2be`, `f43321f4`,
 `f9751b59` and `402598e3`; the `reject cadence` patch is fork commits `265d6929`,
 `d36f65df`, `813f421a`, `6fef8927`, `ac5a81ae` and `f9751b59`; the
 `link proof strategy` patch is fork commits `8e47a675`, `1a9e25c4`,
-`92346ece`, `e0a2feae`, `2624206e`, `ecf809d6`, `ac841458` and
-`c38e6b22`.
+`92346ece`, `e0a2feae`, `2624206e`, `ecf809d6`, `ac841458`, `c38e6b22`,
+`e8cda738`, `4ed2ebec` and `95ae6d37`.
 
 | File | Patch |
 | --- | --- |
@@ -63,6 +63,7 @@ commits `355a0ddf`, `ca32feac`, `223cdd80`, `716fb2be`, `f43321f4`,
 | `crates/libs/rns-transport/src/destination/link_parts/link_sections/new.rs` | link proof strategy |
 | `crates/libs/rns-transport/src/destination/link_parts/link_sections/proof_strategy_tests.rs` | link proof strategy |
 | `crates/libs/rns-transport/src/destination/link_parts/link_sections/proof_strategy.rs` | link proof strategy |
+| `crates/libs/rns-transport/src/destination/link_parts/link_sections/request_dispatch_tests.rs` | link proof strategy |
 | `crates/libs/rns-transport/src/destination/link_parts/link.rs` | link proof strategy |
 | `crates/libs/rns-transport/src/destination/link_parts/linkhandleresult.rs` | link proof strategy |
 | `crates/libs/rns-transport/src/destination/link_parts/module_prelude.rs` | link proof strategy |
@@ -104,6 +105,7 @@ commits `355a0ddf`, `ca32feac`, `223cdd80`, `716fb2be`, `f43321f4`,
 | `crates/libs/rns-transport/src/transport/tests_parts/two_transport_resolve_destination_probe2.rs` | destination resolve |
 | `crates/libs/rns-transport/src/transport/tests.rs` | outcome tracker, response cap, destination resolve, reject cadence, link proof strategy |
 | `crates/libs/rns-transport/tests/destination_desc_api.rs` | destination resolve |
+| `crates/libs/rns-transport/tests/link_proof_strategy_api.rs` | link proof strategy |
 | `crates/libs/rns-transport/tests/request_handler_api.rs` | outcome tracker |
 | `crates/libs/rns-transport/tests/resolve_destination_deadline_api.rs` | destination resolve |
 | `crates/libs/rns-transport/tests/response_cap_tracker_api.rs` | outcome tracker, response cap |
@@ -511,8 +513,8 @@ advertisement was accepted: an initiator cancel naming it draws the
 a refused advertisement leaves none to cancel.
 
 Fork commits `8e47a675`, `1a9e25c4`, `92346ece`, `e0a2feae`, `2624206e`,
-`ecf809d6`, `ac841458` and `c38e6b22`: K6, link proof strategy. The
-library behaviour changes are: a link proves the plain
+`ecf809d6`, `ac841458`, `c38e6b22`, `e8cda738`, `4ed2ebec` and `95ae6d37`: K6,
+link proof strategy. The library behaviour changes are: a link proves the plain
 Data packets it receives by a strategy of its own instead of always, and an
 application can prove a received packet later. `8e47a675` pins, in
 `crate_readme_sections.rs`, that the changelog section selector stops at
@@ -584,7 +586,22 @@ raises the link's `traffic_timeout_factor` before the send and reports
 `CULLED` by name, while `python_to_rust_link_proof_strategy.rs` derives
 its threshold from the deferred delay and tolerates a lagged event stream.
 `c38e6b22` adds the accept-time snapshot to the README divergence register
-and reworks the changelog bullets to match.
+and reworks the changelog bullets to match. `e8cda738` has the
+`proof_strategy()` rustdoc and the `Link` field doc say that a link a
+destination accepts starts with that destination's strategy and callback,
+marks `set_link_proof_strategy` fork-only like its getter, and has `new.rs`
+hash the inbound packet once. `4ed2ebec` adds
+`tests/link_proof_strategy_api.rs`, which drives the README proof surface as
+a downstream crate and compiles a consumer with `rustc` to pin that
+`with_packet_hash` stays private; has `crate_readme_sections.rs` read the
+divergence register for the `All` default, the accept-time copy, the Python
+cite and the absence of "always proves"; pins `packet_hash` under `All` and
+in the Request context (`request_dispatch_tests.rs`), closes the deferred
+loop under `None`, reads the refused payload, filters the loopback pair's
+`Activated` on its own link id and denies `await_holding_invalid_type` on
+`wait_for_in_link_payload`. `95ae6d37` has the README say the peer proves by
+default, names the link strategy and the callback as what is copied at
+accept, and cites the new pins in the changelog.
 
 ## 0.17.0 (upstream 0.14.0)
 

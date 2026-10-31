@@ -17,10 +17,14 @@ impl Transport {
     /// learned or `timeout` passes, returning `None` after it. The entry
     /// read is the one `destination_desc` and `destination_identity` read,
     /// filled when an announce is accepted or a cached path table is
-    /// restored. A destination [`Self::deregister_destination`] removed
-    /// while its path table entry stands is the one exception: `await_path`
-    /// takes the known path as its answer, so the call returns `None` at
-    /// once without a request.
+    /// restored. That entry and the path table can part ways. A destination
+    /// [`Self::deregister_destination`] removed while its path table entry
+    /// stands answers `None` at once without a request, because `await_path`
+    /// takes the standing path as its answer. A destination whose entry is
+    /// still held but whose path table entry [`Self::expire_path`] or aging
+    /// removed answers `Some` at once without a request, so a caller that
+    /// then needs a next hop for [`Self::link`] still calls `await_path`
+    /// itself.
     ///
     /// Fork-only convenience: a Python application does the same by hand
     /// with `RNS.Transport.request_path` (`RNS/Transport.py:3279`) and a

@@ -160,8 +160,9 @@ fn crate_readme_link_section_describes_destination_desc() {
 
 /// The link-opening section describes `Transport::resolve_destination` the
 /// way the call behaves: the timeout it takes, the two accessors it joins,
-/// the single path request an unknown destination costs, and the Python
-/// calls an application strings together by hand instead.
+/// the single path request an unknown destination costs, the two ways the
+/// desc and the path table part, and the Python calls an application
+/// strings together by hand instead.
 #[test]
 fn crate_readme_link_section_describes_resolve_destination() {
     let readme = read_repo_file("crates/libs/rns-transport/README.md");
@@ -173,6 +174,8 @@ fn crate_readme_link_section_describes_resolve_destination() {
         "one path request",
         "`Transport::await_path`",
         "`Transport::request_path`",
+        "`Transport::deregister_destination`",
+        "`Transport::expire_path`",
         "`RNS/Transport.py:3279`",
         "`RNS/Transport.py:3126`",
     ] {

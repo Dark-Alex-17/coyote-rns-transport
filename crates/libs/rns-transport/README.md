@@ -94,7 +94,8 @@ destination, and are not measured. The dispatcher measures a `Value` or
 `Bytes` response as its packed `[request_id, body]` frame, before the MDU
 check that would turn an oversize frame into a Resource, and a
 `RequestResponse::Resource` as the size its advertisement carries, the
-uncompressed `data` behind the packed metadata and its length prefix, like
+uncompressed `data` behind the packed metadata and its length prefix (a
+metadata-less Resource measures as its data alone), like
 `max_request_size`, which reads the advertised size rather than the
 compressed one. A packet response is measured here as its whole
 `[request_id, body]` frame while the requester measures the packed body
@@ -157,9 +158,10 @@ watch the response calls `into_parts` instead, which consumes the request
 and returns the data and a `ResponseOutcomeTracker`; the tracker's `outcome`
 hands out the `ResponseOutcomeReceiver` under the same rule as
 `track_outcome`, armed inside the handler before it returns. A tracker
-dropped without being armed leaves the slot empty, so the dispatcher has
-nothing to resolve and logs nothing: a handler that chose not to watch
-leaves no "outcome receiver dropped" line behind.
+dropped without being armed leaves the slot as it was: with no earlier
+`track_outcome`, the dispatcher logs nothing and resolves nothing, so a
+handler that chose not to watch leaves no "outcome receiver dropped" line
+behind.
 
 `LinkEvent::Data` with `PacketContext::Request` keeps posting for every
 inbound request packet, its `LinkPayload` carrying the request id, and
@@ -382,7 +384,14 @@ zero timeout is a cached lookup alone and returns `None` for an unknown
 destination without sending anything. Otherwise exactly one path request
 goes out, a broadcast on every outgoing interface as
 `Transport::request_path` sends it, and the call polls every 50 ms until
-the announce is learned or the timeout passes, returning `None` after it.
+the announce is learned or the timeout passes, returning `None` after it. The
+desc and the path table can part ways: a destination
+`Transport::deregister_destination` removed while its path table entry stands
+answers `None` at once with no request, since `await_path` takes the standing
+path as its answer, and a destination whose desc is still held but whose path
+`Transport::expire_path` or aging removed answers `Some` at once with no
+request, so a caller that then needs a next hop for `Transport::link` still
+calls `await_path` itself.
 The convenience is fork-only: a Python application writes the same by hand
 with `RNS.Transport.request_path` (`RNS/Transport.py:3279`), a
 `RNS.Transport.has_path` poll (`RNS/Transport.py:3126`) and

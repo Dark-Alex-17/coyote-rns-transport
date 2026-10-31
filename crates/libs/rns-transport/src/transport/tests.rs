@@ -70,6 +70,7 @@ include!("tests_parts/packet_hashlist_flush_probe.rs");
 include!("tests_parts/packet_hashlist_flush_probe2.rs");
 include!("tests_parts/resource_advert_reject_warn_cadence.rs");
 include!("tests_parts/request_advert_reject_warn_cadence.rs");
+include!("tests_parts/request_advert_reject_warn_cadence_probe.rs");
 include!("tests_parts/accepted_child_ifac_rotation.rs");
 
 include!("tests_parts/reticulum_runtime_management.rs");
@@ -216,6 +217,7 @@ include!("tests_parts/link_no_path_fast_fail.rs");
 
 include!("tests_parts/two_transport_loopback_announce_path_response.rs");
 include!("tests_parts/two_transport_resolve_destination.rs");
+include!("tests_parts/two_transport_resolve_destination_probe.rs");
 
 include!("tests_parts/two_transport_destination_desc.rs");
 include!("tests_parts/two_transport_destination_desc_probe.rs");

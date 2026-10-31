@@ -300,3 +300,48 @@ async fn resolve_destination_answers_known_and_reachable_destinations() {
     timeout(WAIT, connector.stop()).await.expect("connector stop completes");
     timeout(WAIT, listener.transport.stop()).await.expect("listener stop completes");
 }
+
+/// From outside the crate, a miss is bounded by the caller's timeout: the unreachable arm
+/// returns `None` no sooner than the timeout and well before a second one would pass, so
+/// a caller that budgets `timeout` for the lookup is not held past it. A fresh identity
+/// resolves the same way afterwards, so a miss is not remembered against the transport.
+#[tokio::test]
+#[deny(clippy::await_holding_invalid_type)]
+async fn resolve_destination_miss_is_bounded_by_the_timeout_and_not_remembered() {
+    let listener = listener().await;
+    let (connector, mut announces) = connector(listener.port).await;
+    wait_until("the listener to accept", || {
+        listener.status.to_json()["accepted_connections"].as_u64() == Some(1)
+    })
+    .await;
+
+    let unknown = AddressHash::new_from_rand(OsRng);
+    let budget = Duration::from_millis(400);
+    let started = Instant::now();
+    let missed = connector.resolve_destination(&unknown, budget).await;
+    let elapsed = started.elapsed();
+    assert!(missed.is_none(), "nobody holds the destination");
+    assert!(elapsed >= budget, "the call waits out the budget, waited {elapsed:?}");
+    assert!(
+        elapsed < budget * 2,
+        "the call returns within a poll interval of the budget, waited {elapsed:?}"
+    );
+
+    let quiet = listener
+        .transport
+        .add_destination(
+            PrivateIdentity::new_from_rand(OsRng),
+            DestinationName::new("example", "quiet-after-miss"),
+        )
+        .await;
+    let quiet_hash = quiet.lock().await.desc.address_hash;
+    let learned = connector
+        .resolve_destination(&quiet_hash, WAIT)
+        .await
+        .expect("the miss before it does not stop the next lookup");
+    assert_eq!(learned.address_hash, quiet_hash);
+    learn_announce(&mut announces, &quiet_hash).await;
+
+    timeout(WAIT, connector.stop()).await.expect("connector stop completes");
+    timeout(WAIT, listener.transport.stop()).await.expect("listener stop completes");
+}

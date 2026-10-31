@@ -88,7 +88,7 @@ mod proof_strategy_tests {
 
     #[test]
     fn app_with_a_refusing_callback_is_consulted_and_does_not_prove() {
-        let (outbound, mut inbound, iface, _) = linked_pair();
+        let (outbound, mut inbound, iface, mut rx) = linked_pair();
         let (callback, record) = counting_callback(false);
         inbound.set_proof_strategy(ProofStrategy::App);
         inbound.set_proof_requested_callback(callback);
@@ -97,30 +97,41 @@ mod proof_strategy_tests {
         assert!(matches!(inbound.handle_packet(&data, iface), LinkHandleResult::None));
         assert_eq!(record.calls.load(Ordering::SeqCst), 1);
         assert_eq!(*record.last_hash.lock().expect("callback record lock"), Some(data.hash()));
+        assert_eq!(first_data_payload(&mut rx).as_slice(), b"ask first");
     }
 
+    /// `None` delivers without proving or asking; the deferred `prove_hash`
+    /// still closes the loop for the sender, as under `App`.
     #[test]
     fn none_never_proves_and_never_asks_the_callback() {
-        let (outbound, mut inbound, iface, mut rx) = linked_pair();
+        let (mut outbound, mut inbound, iface, mut rx) = linked_pair();
         let (callback, record) = counting_callback(true);
         inbound.set_proof_strategy(ProofStrategy::None);
         inbound.set_proof_requested_callback(callback);
         let data = outbound.data_packet(b"silence").expect("data packet");
+        let hash = data.hash();
+        outbound.note_data_sent(hash);
 
         assert!(matches!(inbound.handle_packet(&data, iface), LinkHandleResult::None));
         assert_eq!(record.calls.load(Ordering::SeqCst), 0);
         assert_eq!(first_data_payload(&mut rx).as_slice(), b"silence");
+        assert_eq!(packet_proven_events(&mut rx), vec![]);
+
+        let proof = inbound.prove_hash(&hash);
+        assert!(matches!(outbound.handle_packet(&proof, iface), LinkHandleResult::None));
+        assert_eq!(packet_proven_events(&mut rx), vec![hash]);
     }
 
     #[test]
     fn all_proves_without_asking_the_callback() {
-        let (outbound, mut inbound, iface, _) = linked_pair();
+        let (outbound, mut inbound, iface, mut rx) = linked_pair();
         let (callback, record) = counting_callback(false);
         inbound.set_proof_requested_callback(callback);
         let data = outbound.data_packet(b"always").expect("data packet");
 
         assert!(matches!(inbound.handle_packet(&data, iface), LinkHandleResult::Proof(_)));
         assert_eq!(record.calls.load(Ordering::SeqCst), 0);
+        assert_eq!(first_data_payload(&mut rx).packet_hash(), Some(data.hash()));
     }
 
     /// A Channel frame is proved under every strategy (`RNS/Link.py:1151`).

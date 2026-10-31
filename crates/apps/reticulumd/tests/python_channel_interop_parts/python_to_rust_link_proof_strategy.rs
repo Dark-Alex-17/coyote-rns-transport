@@ -40,6 +40,7 @@ fn receipt_lines(stdout: &str) -> Vec<ReceiptLine> {
         .collect()
 }
 
+#[deny(clippy::await_holding_invalid_type)]
 async fn wait_for_in_link_payload(
     events: &mut tokio::sync::broadcast::Receiver<LinkEventData>,
     link_id: AddressHash,

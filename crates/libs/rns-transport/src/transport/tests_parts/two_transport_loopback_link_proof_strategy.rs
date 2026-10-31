@@ -44,9 +44,10 @@ async fn proof_strategy_pair(
     }
     let learned = learn_announce(&mut connector.announces, &desc.address_hash).await;
     let (link, link_id) = open_link(&connector.transport, learned).await;
-    let activated =
-        await_event(&mut in_events, |event| matches!(event.event, LinkEvent::Activated)).await;
-    assert_eq!(activated.id, link_id, "both ends share one link id");
+    await_event(&mut in_events, |event| {
+        event.id == link_id && matches!(event.event, LinkEvent::Activated)
+    })
+    .await;
     ProofStrategyPair { listener, connector, link, link_id, in_events, out_events }
 }
 

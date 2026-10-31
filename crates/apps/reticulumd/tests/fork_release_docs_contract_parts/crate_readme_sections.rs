@@ -193,8 +193,10 @@ fn crate_readme_link_section_describes_resolve_destination() {
 /// it behaves: the setter and its `All` default, the destination default
 /// copied onto an accepted link, the deferred proof from the payload's
 /// packet hash, Channel frames proved under every strategy, and the Python
-/// arms the strategy mirrors. The changelog section that names the deferred
-/// call carries the same names.
+/// arms the strategy mirrors. The divergence register states the `All`
+/// default and the accept-time copy, and no longer says the link always
+/// proves. The changelog section that names the deferred call carries the
+/// same names.
 #[test]
 fn crate_readme_proof_section_describes_the_link_proof_strategy() {
     let readme = read_repo_file("crates/libs/rns-transport/README.md");
@@ -211,6 +213,22 @@ fn crate_readme_proof_section_describes_the_link_proof_strategy() {
     ] {
         assert!(section.contains(claim), "the proof section should mention {claim}:\n{section}");
     }
+    let divergences = crate_readme_section(&readme, "Known divergences from Python RNS");
+    for claim in [
+        "proves plain Data packets by default (`ProofStrategy::All`",
+        "`link_proof_strategy` (default `All`)",
+        "`proof_requested_callback` are copied onto a link",
+        "`RNS/Link.py:961-967`",
+    ] {
+        assert!(
+            divergences.contains(claim),
+            "the divergence register should mention {claim}:\n{divergences}"
+        );
+    }
+    assert!(
+        !divergences.contains("always proves"),
+        "the divergence register should not call the link's proof unconditional:\n{divergences}"
+    );
     let changelog = read_repo_file("crates/libs/rns-transport/CHANGELOG.md");
     let changelog_section = changelog_section_naming(&changelog, "`Transport::prove_link_packet`");
     for claim in [

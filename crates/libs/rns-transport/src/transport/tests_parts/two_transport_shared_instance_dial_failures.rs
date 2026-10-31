@@ -266,8 +266,8 @@ async fn shared_instance_state_consumer_serves_a_dial_failure_live() {
 }
 
 /// A first-connect notifier whose receiver is already gone when the connect is served: the
-/// attach stopped waiting (its timeout ran out, or a stop or detach ended it), so the
-/// consumer records that at debug, still sends `Connected`, and keeps serving.
+/// attach stopped waiting (its timeout ran out, or a stop, detach or `stop_interface` ended
+/// it), so the consumer records that at debug, still sends `Connected`, and keeps serving.
 #[tokio::test]
 #[deny(clippy::await_holding_invalid_type)]
 async fn shared_instance_state_consumer_notes_a_connect_after_the_attach_stopped_waiting() {

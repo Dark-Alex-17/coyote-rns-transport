@@ -23,12 +23,13 @@ async fn shared_instance_state_next(
     timeout(LOOPBACK_TIMEOUT, events.recv()).await.expect("timed out waiting for a state event")
 }
 
-/// Reads the next cycle event (`Connecting`, `Connected`, `Disconnected`) within
-/// `LOOPBACK_TIMEOUT`; `None` is the stream's end. A `DialFailed` is skipped, so this is
-/// for the reads a client makes while nothing listens: whether a redial was refused before
-/// the rebind landed is a race, and the cycle order is what such a pin cares about.
-/// The stream-end read after a `Connected` that followed redials takes it too: a refusal
-/// queued on the dial-failure channel before the connect may still land after `Connected`.
+/// Reads the next cycle event (`Connecting`, `Connected`, `Disconnected`,
+/// `DisconnectedWithReason`) within `LOOPBACK_TIMEOUT`; `None` is the stream's end. A
+/// `DialFailed` is skipped, so this is for the reads a client makes while nothing listens:
+/// whether a redial was refused before the rebind landed is a race, and the cycle order is
+/// what such a pin cares about. The stream-end read after a `Connected` that followed
+/// redials takes it too: a refusal queued on the dial-failure channel before the connect
+/// may still land after `Connected`.
 #[deny(clippy::await_holding_invalid_type)]
 async fn shared_instance_state_next_cycle_event(
     events: &mut tokio::sync::mpsc::Receiver<SharedInstanceEvent>,

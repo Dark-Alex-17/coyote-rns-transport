@@ -12,8 +12,9 @@
 //! channel. `Timeout` is pinned in the crate's own `iface/tcp_client.rs`
 //! tests, since only a client built with the crate-private read watchdog
 //! builder produces it; `Io(kind)` and the unix client's `Reset` and
-//! `Timeout` arms cannot be produced over real loopback sockets and are
-//! pinned by the `from_stream_exit` unit mapping in `iface/events.rs`.
+//! `Timeout` arms cannot be produced portably over real sockets (Linux
+//! `af_unix` resets on an unread close; macOS reads EOF) and are pinned by
+//! the `from_stream_exit` unit mapping in `iface/events.rs`.
 
 use std::time::Duration;
 

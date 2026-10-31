@@ -46,7 +46,8 @@ commits `355a0ddf`, `ca32feac`, `223cdd80`, `716fb2be`, `f43321f4`,
 `e8cda738`, `4ed2ebec`, `95ae6d37`, `fdf40d01`, `94c27a5c`, `1779c8c8`,
 `3be3b15c`, `719067c4`, `07e98279`, `a02ba4b7`, `bcee2bff` and `7cba2066`;
 the `dial failures` patch is fork commits `61429992`, `874c871b`, `aa6d2fac`,
-`593fa930`, `7fbd176e` and `7eab8566`.
+`593fa930`, `7fbd176e`, `7eab8566`, `c492846d`, `9a13ade9`, `74279dfb` and
+`b0635aea`.
 
 | File | Patch |
 | --- | --- |
@@ -91,7 +92,7 @@ the `dial failures` patch is fork commits `61429992`, `874c871b`, `aa6d2fac`,
 | `crates/libs/rns-transport/src/transport/links_parts/transport.rs` | destination resolve, link proof strategy |
 | `crates/libs/rns-transport/src/transport/links_parts/transport_sections/await_path.rs` | destination resolve |
 | `crates/libs/rns-transport/src/transport/links_parts/transport_sections/close_channel.rs` | destination resolve |
-| `crates/libs/rns-transport/src/transport/links_parts/transport_sections/prove_link_packet.rs` | link proof strategy |
+| `crates/libs/rns-transport/src/transport/links_parts/transport_sections/prove_link_packet.rs` | link proof strategy, dial failures |
 | `crates/libs/rns-transport/src/transport/links_parts/transport_sections/resolve_destination.rs` | destination resolve |
 | `crates/libs/rns-transport/src/transport/links_parts/transport_sections/shared_instance.rs` | dial failures |
 | `crates/libs/rns-transport/src/transport/links_parts/transport_sections/shared_instance_reconnect.rs` | dial failures |
@@ -107,7 +108,7 @@ the `dial failures` patch is fork commits `61429992`, `874c871b`, `aa6d2fac`,
 | `crates/libs/rns-transport/src/transport/tests_parts/request_advert_reject_warn_cadence.rs` | reject cadence |
 | `crates/libs/rns-transport/src/transport/tests_parts/request_advert_reject_warn_cadence_probe.rs` | reject cadence |
 | `crates/libs/rns-transport/src/transport/tests_parts/request_advert_reject_warn_cadence_probe2.rs` | reject cadence |
-| `crates/libs/rns-transport/src/transport/tests_parts/two_transport_loopback_link_proof_strategy.rs` | link proof strategy |
+| `crates/libs/rns-transport/src/transport/tests_parts/two_transport_loopback_link_proof_strategy.rs` | link proof strategy, dial failures |
 | `crates/libs/rns-transport/src/transport/tests_parts/two_transport_loopback_link_proof_strategy_probe.rs` | link proof strategy |
 | `crates/libs/rns-transport/src/transport/tests_parts/two_transport_loopback_requests_into_parts.rs` | outcome tracker |
 | `crates/libs/rns-transport/src/transport/tests_parts/two_transport_loopback_requests_isolation.rs` | outcome tracker, response cap, reject cadence |
@@ -124,14 +125,18 @@ the `dial failures` patch is fork commits `61429992`, `874c871b`, `aa6d2fac`,
 | `crates/libs/rns-transport/src/transport/tests_parts/two_transport_shared_instance_reconnect.rs` | dial failures |
 | `crates/libs/rns-transport/src/transport/tests_parts/two_transport_shared_instance_state_events.rs` | dial failures |
 | `crates/libs/rns-transport/src/transport/tests_parts/two_transport_shared_instance_state_events_probe.rs` | dial failures |
+| `crates/libs/rns-transport/src/transport/tests_parts/two_transport_shared_instance_state_events_probe2.rs` | dial failures |
+| `crates/libs/rns-transport/src/transport/tests_parts/two_transport_shared_instance_state_events_probe3.rs` | dial failures |
 | `crates/libs/rns-transport/src/transport/tests_parts/two_transport_shared_instance_state_events_probe4.rs` | dial failures |
 | `crates/libs/rns-transport/tests/destination_desc_api.rs` | destination resolve |
+| `crates/libs/rns-transport/tests/dial_failure_channel_probe.rs` | dial failures |
 | `crates/libs/rns-transport/tests/dial_failure_events_api.rs` | dial failures |
-| `crates/libs/rns-transport/tests/link_proof_strategy_api.rs` | link proof strategy |
+| `crates/libs/rns-transport/tests/link_proof_strategy_api.rs` | link proof strategy, dial failures |
 | `crates/libs/rns-transport/tests/request_handler_api.rs` | outcome tracker |
 | `crates/libs/rns-transport/tests/resolve_destination_deadline_api.rs` | destination resolve |
 | `crates/libs/rns-transport/tests/response_cap_tracker_api.rs` | outcome tracker, response cap |
-| `docs/fork/PATCHSET.md` | outcome tracker, response cap, ledger contracts, destination resolve, reject cadence, link proof strategy |
+| `crates/libs/rns-transport/tests/shared_instance_first_connect_api.rs` | dial failures |
+| `docs/fork/PATCHSET.md` | outcome tracker, response cap, ledger contracts, destination resolve, reject cadence, link proof strategy, dial failures |
 
 Fork commits `c3a317d7`, `ca32feac`, `223cdd80`, `716fb2be`, `d3b234e6` and
 `d36f65df`: K1, outcome tracker. The library behaviour changes are: a
@@ -656,11 +661,14 @@ section say a closed link reads `ConnectionError` only until the 1 s
 link-maintenance pass evicts it, after which it is unknown and reads
 `InvalidArgument`.
 
-Fork commits `61429992`, `874c871b`, `aa6d2fac`, `593fa930`, `7fbd176e` and
-`7eab8566`: K7, dial failures. The library behaviour changes are: a stream
+Fork commits `61429992`, `874c871b`, `aa6d2fac`, `593fa930`, `7fbd176e`,
+`7eab8566`, `c492846d`, `9a13ade9`, `74279dfb` and `b0635aea`: K7, dial
+failures. The library behaviour changes are: a stream
 client reports each failed connect attempt with a typed reason, the
 shared-instance state stream carries it, and an attach can be told to give up
-when the first connect does not come. `61429992` adds `iface::events`
+when the first connect does not come, giving up also when its consumer ends
+first and releasing the slot only while it still holds its own interface.
+`61429992` adds `iface::events`
 (`iface/events.rs`, registered in `iface.rs`, re-exported from
 `transport/mod.rs`) with `DialFailureKind`
 (`Timeout`, `Refused`, `NotFound`, `Io(ErrorKind)`, the last never carrying
@@ -709,7 +717,40 @@ rustdoc and the changelog bullet to match. `7eab8566` records in the
 changelog bullet and the variant rustdoc that `SharedInstanceEvent` carries
 data from `DialFailed` on, which cargo-semver-checks reports as
 `enum_discriminants_undefined_non_unit_variant`, the one finding the
-release's semver gate names.
+release's semver gate names. `c492846d` has the attach that gives up waiting
+release the slot through the new slot-guarded `detach_shared_instance_if`
+(`links_parts/transport_sections/shared_instance.rs`), which takes the slot
+only while it still holds the attach's own interface and shares its
+unflag-and-stop tail with `detach_shared_instance`, splits the consumer-gone
+arm (a stop or detach during the wait, logged at debug) from the elapsed
+timer while both return `SharedInstanceConnectTimeout`, adds
+`dial_failure_events_enabled` to `TcpClient` (`iface/tcp_client.rs`) and
+`LocalUnixClient` (`iface/local.rs`), has the TCP dial-failure rustdoc claim
+`NotFound` only when the OS reports it, appends the connect error text to
+the `mark_reconnecting` reason, moves `pub mod events;` in `iface.rs` to its
+alphabetical place, and rewords the attach, option and error rustdocs with
+the consumer-gone clause and one late-connect caveat. `9a13ade9` reads the
+reconnect-budget unit test's `last_error` on its endpoint prefix, since the
+text that follows is the OS's. `74279dfb` adopts
+`tests/dial_failure_channel_probe.rs` (a full or dropped dial-failure channel
+leaves the client dialing, a stale socket file reads `Refused`, the reason
+types are one set under both paths) and
+`tests/shared_instance_first_connect_api.rs` (the README's default attach,
+the timed-out attach leaving nothing behind, a detach and replacement attach
+surviving the timed-out attach's cleanup, the attach returning on the
+connect), restores the strict `shared_instance_state_next` and moves the
+`DialFailed`-skipping read into `shared_instance_state_next_cycle_event`
+with a 64-slot state channel for the pins that redial a closed port, gives
+the hand-driven consumer's `DriveSpec` a first-connect notifier and pins
+the live dial-failure arm and the abandoned notifier, pins
+`dial_failure_events_enabled` on both clients, and makes the `None` proof
+test compare the proven hash. `b0635aea` describes the slot-guarded detach,
+the consumer-gone clause, the getter and the error text in the README and
+the changelog, has the four eviction-clause twins read "until the
+link-maintenance pass (at most 1 s later) evicts it", pins the proof
+section's refusal arms and the new shared-instance needles in
+`crate_readme_sections.rs`, and names `RnsError::SharedInstanceConnectTimeout`
+in `request_layer_api_docs.rs` at a walker floor of 181.
 
 ## 0.17.0 (upstream 0.14.0)
 

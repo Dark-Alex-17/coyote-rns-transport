@@ -264,7 +264,14 @@ Removed) bullet of its own, marked as such.
   `Copy` and re-exported from `transport` (`transport/mod.rs`). Pinned by
   the classification tests in `iface/events.rs`, by
   `tests/dial_failure_events_api.rs` (`DialFailure` is `Copy + Send + Sync`
-  from outside the crate) and by `request_layer_api_docs.rs`, which lists
+  from outside the crate), by `tests/dial_failure_reason_contract_probe.rs`
+  (both enums are `#[non_exhaustive]`, `Eq` and `Debug` from outside the
+  crate, a downstream match needing the wildcard arm under
+  `#[deny(unreachable_patterns)]`; its rustc harness, driven against the
+  linked rlib as `breaking_changes_compile_fail.rs` does, compiles the
+  migrated consumer and rejects `SharedInstanceEvent::Connected as isize`,
+  a `DialFailure { .. }` literal over the private fields and an exhaustive
+  match on either enum) and by `request_layer_api_docs.rs`, which lists
   `DialFailure` among the private-field structs and both enums among the
   `#[non_exhaustive]` ones.
 - `TcpClient::with_dial_failure_events` (`iface/tcp_client.rs`) and
@@ -294,7 +301,11 @@ Removed) bullet of its own, marked as such.
   logger (the TCP warn names the endpoint and carries "Connection
   refused"; a dial against the black-holed TEST-NET-1 address that outlives
   a 200 ms connect timeout reads `Timeout` and warns "connect timed out
-  after 200ms"), by the `classify_dial_error` unit tests in
+  after 200ms"; on unix, a bound socket inside a directory the user cannot
+  search reads `Io(PermissionDenied)` and the unix client's warn carries
+  the OS error's text, the directory's mode restored by a drop guard and
+  the pin skipped for a user the mode does not stop), by the
+  `classify_dial_error` unit tests in
   `iface/tcp_client.rs` (every arm of the kind and warn text), by
   `tests/dial_failure_channel_probe.rs` (a full capacity-one
   channel and a dropped receiver each leave the client dialing and
@@ -310,8 +321,8 @@ Removed) bullet of its own, marked as such.
   (`links_parts/transport_sections/shared_instance_reconnect.rs`, the
   post-exit drain in
   `shared_instance_reconnect_parts/drain_queued.rs`) serves the client's
-  dial failures behind its disconnects, connects and reconnects, live and
-  in the drain alike. The enum stays `Copy`; it carries data from this
+  dial failures behind its disconnects and connects in the drain, and
+  behind reconnects as well live. The enum stays `Copy`; it carries data from this
   variant on, so a numeric cast of its unit variants (`as isize`) no
   longer compiles, downstream code matches on the variants (the enum is
   `#[non_exhaustive]`), and `cargo semver-checks` reports this as
@@ -366,7 +377,12 @@ Removed) bullet of its own, marked as such.
   `tests/shared_instance_first_connect_interrupt_probe.rs` (a detach or a
   `stop` during a 10 s wait answers `SharedInstanceConnectTimeout` within
   5 s, the slot empty, the posture off and the stream ending without a
-  `Connected`), by `request_layer_api_docs.rs`, which names
+  `Connected`), by `tests/dial_failure_reason_contract_probe.rs` (the unix
+  twin: the timeout over a tempdir path nothing has bound reads
+  `Connecting`, one or more `DialFailed { NotFound }`, then ends without a
+  `Connected`, the slot empty and the posture off, and the same transport
+  attaches again once a `LocalUnixServer` binds the path), by
+  `request_layer_api_docs.rs`, which names
   `RnsError::SharedInstanceConnectTimeout` among the items whose rustdoc
   must cite Python or say fork-only, and by `crate_readme_sections.rs`,
   which pins the README shared-instance prose and this section.
@@ -488,6 +504,12 @@ Removed) bullet of its own, marked as such.
   advertisement between its refusals was accepted, through an initiator
   cancel that draws the `InboundFailed` only a receiver the destination
   created can publish.
+- Test-only: rustfmt over
+  `tests_parts/two_transport_shared_instance_dial_failures.rs` and
+  `tests_parts/two_transport_shared_instance_state_events.rs`, the two
+  `include!`'d shared-instance parts that failed `rustfmt --check`; one
+  `assert_eq!` joins onto a single line and one `consumer.run` call wraps
+  per argument, the token stream otherwise identical and no test changed.
 
 ## 0.17.0 - 2026-10-27
 

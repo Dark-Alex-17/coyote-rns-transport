@@ -481,6 +481,7 @@ fn crate_readme_shared_instance_section_describes_state_events() {
         "may still be read as `Connected` before the stream ends",
         "`with_dial_failure_events`",
         "`dial_failure_events_enabled`",
+        "connect timed out after",
         "`RNS/Interfaces/LocalInterface.py:159-167`",
     ] {
         assert!(
@@ -504,6 +505,10 @@ fn crate_readme_shared_instance_section_describes_state_events() {
         "`tests/dial_failure_events_api.rs`",
         "`tests/dial_failure_channel_probe.rs`",
         "`tests/shared_instance_first_connect_api.rs`",
+        "`tests/shared_instance_first_connect_interrupt_probe.rs`",
+        "`tests/dial_failure_reason_contract_probe.rs`",
+        "`classify_dial_error`",
+        "`Io(PermissionDenied)`",
     ] {
         assert!(changelog_section.contains(claim), "the changelog should mention {claim}");
     }

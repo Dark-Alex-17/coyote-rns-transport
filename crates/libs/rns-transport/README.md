@@ -300,7 +300,7 @@ it is a second proof the sender ignores, its one record already consumed.
 it holds but that is not `Active`, or whose proof cannot be sent, as
 `ConnectionError`; a closed link reads `ConnectionError` only
 until the link-maintenance pass (at most 1 s later) evicts it, after which
-it is unknown. A Python application does the same with `packet.prove()`
+it is unknown and reads `InvalidArgument`. A Python application does the same with `packet.prove()`
 (`RNS/Packet.py:336-341`), and its link proves by the destination's
 `proof_strategy`, `PROVE_ALL` or `PROVE_APP` (`RNS/Link.py:961-968`), one
 setting that this crate keeps apart from the opportunistic `proof_strategy`

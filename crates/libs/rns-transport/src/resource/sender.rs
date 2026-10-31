@@ -1,4 +1,7 @@
 const MAX_AWAITING_PROOF_RETRIES: u8 = 3;
+/// Big-endian length that heads the metadata block in the resource data
+/// (`RNS/Resource.py:261-269`); the advertised `d` counts it.
+pub(crate) const METADATA_LENGTH_PREFIX_LEN: usize = 3;
 
 #[derive(Debug, Clone)]
 struct ResourceSender {
@@ -89,8 +92,8 @@ impl ResourceSender {
             }
             let size = payload.len() as u32;
             let size_bytes = size.to_be_bytes();
-            let mut prefix = Vec::with_capacity(3 + payload.len());
-            prefix.extend_from_slice(&size_bytes[1..]);
+            let mut prefix = Vec::with_capacity(METADATA_LENGTH_PREFIX_LEN + payload.len());
+            prefix.extend_from_slice(&size_bytes[size_bytes.len() - METADATA_LENGTH_PREFIX_LEN..]);
             prefix.extend_from_slice(payload);
             prefix
         } else {

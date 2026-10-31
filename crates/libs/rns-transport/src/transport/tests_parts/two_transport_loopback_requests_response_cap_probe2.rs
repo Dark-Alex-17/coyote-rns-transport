@@ -2,10 +2,10 @@
 // the cap in force is the one read when the request was dispatched, so a cap tightened
 // while the handler runs lets that response out and refuses the next one; a tracker from
 // `into_parts` armed after an earlier `track_outcome` retires that first receiver with
-// `NotSent`; and the responder's Resource measure sits 3 bytes under the advertised size
-// the requester's cap reads, so a requester cap equal to the responder's, or 2 bytes above
-// it, refuses the metadata-bearing response the responder let through and one 3 bytes above
-// accepts it. Helpers come from the sibling `tests_parts` files.
+// `NotSent`; and the responder's Resource measure is the advertised size the requester's
+// cap reads, so equal caps admit a metadata-bearing response at that size, a requester cap
+// one under it rejects the advertisement, and a responder cap one under it refuses before
+// anything is sent. Helpers come from the sibling `tests_parts` files.
 
 /// A handler that tracks the outcome, then holds its answer until `release` is notified.
 /// The receiver arriving on `outcomes` proves the dispatcher already read the cap.
@@ -134,10 +134,9 @@ async fn meta_response_under_requester_cap(
 
 #[tokio::test]
 #[deny(clippy::await_holding_invalid_type)]
-async fn two_transport_loopback_request_requester_cap_needs_three_bytes_over_the_responder_resource_measure(
-) {
+async fn two_transport_loopback_request_equal_requester_and_responder_caps_compose() {
     install_test_logger();
-    let pair = loopback_request_pair("request-response-cap-probe2-both-ends").await;
+    let mut pair = loopback_request_pair("request-response-cap-probe2-both-ends").await;
     let link_id = pair.handles.link_id;
     let data = random_payload(96);
     let metadata = rmpv::Value::from("named by the responder");
@@ -155,29 +154,37 @@ async fn two_transport_loopback_request_requester_cap_needs_three_bytes_over_the
     )
     .await;
 
-    for requester_max in [measure, measure + 2] {
-        let (verdict, outcome) =
-            meta_response_under_requester_cap(&pair, &mut outcomes, requester_max).await;
-        assert_eq!(
-            verdict,
-            Err(RequestError::Oversize),
-            "a requester cap of {requester_max} refuses what the responder measured at {measure}"
-        );
-        assert_eq!(
-            outcome,
-            ResponseOutcome::Resource(OutboundResult::Rejected(RejectReason::PeerCancelled)),
-            "the responder let the response through and saw the requester's reject"
-        );
-    }
-
-    let (verdict, outcome) =
-        meta_response_under_requester_cap(&pair, &mut outcomes, measure + 3).await;
-    let response = verdict.expect("3 bytes of headroom admits the advertisement");
+    let (verdict, outcome) = meta_response_under_requester_cap(&pair, &mut outcomes, measure).await;
+    let response = verdict.expect("a requester cap equal to the responder's admits the response");
     assert_eq!(response.data(), Some(expected.as_slice()));
     assert_eq!(outcome, ResponseOutcome::Resource(OutboundResult::Complete));
+
+    let (verdict, outcome) =
+        meta_response_under_requester_cap(&pair, &mut outcomes, measure - 1).await;
+    assert_eq!(
+        verdict,
+        Err(RequestError::Oversize),
+        "a requester cap one under the responder's measure {measure} rejects the advertisement"
+    );
+    assert_eq!(
+        outcome,
+        ResponseOutcome::Resource(OutboundResult::Rejected(RejectReason::PeerCancelled)),
+        "the responder let the response through and saw the requester's reject"
+    );
     assert!(
         refused_response_records_for(link_id).is_empty(),
         "the responder's own cap refused nothing: {:?}",
         refused_response_records_for(link_id)
     );
+
+    // The two transfers above left their packets in the connector tap; the silence check
+    // below reads the tap and the resource events from empty.
+    drain_connector_tap(&mut pair).await;
+    let mut resource_events = pair.handles.connector.transport.resource_events();
+    let max = measure - 1;
+    set_max_response_size(&pair, max).await;
+    let id = send_request(&pair, "/meta", rmpv::Value::Nil).await;
+    assert_eq!(await_outcome(&mut outcomes).await, ResponseOutcome::TooLarge { len: measure, max });
+    assert_nothing_sent_for(&mut pair, &mut resource_events, id).await;
+    assert_one_refusal_warn(link_id, id, measure, max);
 }

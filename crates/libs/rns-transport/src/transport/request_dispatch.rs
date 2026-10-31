@@ -3,7 +3,7 @@ use crate::destination::request::{
     empty_outcome_slot, DispatchForm, InboundRequest, OutcomeSlot, RequestAllow, RequestFrame,
     RequestHandler, RequestId, RequestResponse, ResponseFrame, ResponseOutcome,
 };
-use crate::resource::OutboundOutcome;
+use crate::resource::{OutboundOutcome, METADATA_LENGTH_PREFIX_LEN};
 use std::sync::PoisonError;
 use tokio::sync::mpsc;
 use tokio::task::JoinSet;
@@ -197,11 +197,12 @@ async fn handle_and_respond(
 /// Builds the response and applies the destination's `max_response_size`
 /// before anything leaves: to the packed `[request_id, body]` frame of a
 /// `Value` or `Bytes` response, ahead of the MDU check that would otherwise
-/// turn an oversize frame into a resource, and to the uncompressed payload
-/// of a `Resource` response, like `max_request_size`, which reads the
-/// advertised `d` rather than the compressed `t` (the response measure
-/// leaves out the 3-byte metadata length prefix `d` counts;
-/// `resource_wire.rs`).
+/// turn an oversize frame into a resource, and to the advertised size `d`
+/// of a `Resource` response, the uncompressed data behind the metadata
+/// block and its length prefix, like `max_request_size` reads `d` rather
+/// than the compressed `t` (`resource_wire.rs`). The requester's
+/// `RequestOptions::with_max_response_size` reads the same `d`, so the two
+/// caps compose at one number.
 #[deny(clippy::await_holding_invalid_type)]
 async fn send_response(
     handler: &Arc<Mutex<TransportHandler>>,
@@ -225,7 +226,8 @@ async fn send_response(
                     return ResponseDispatch::NotSent;
                 }
             };
-            let len = data.len() + metadata.as_ref().map_or(0, Vec::len);
+            let len = data.len()
+                + metadata.as_ref().map_or(0, |packed| METADATA_LENGTH_PREFIX_LEN + packed.len());
             if let Some(refused) = limits.refusal(link_id, request_id, len) {
                 return refused;
             }

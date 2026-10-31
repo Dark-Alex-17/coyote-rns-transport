@@ -1,9 +1,10 @@
 // Loopback coverage for the destination's `max_response_size`, the responder's own cap on
 // what it sends: a packet response exactly at the cap goes out and one byte over is refused
 // with `TooLarge`, nothing on the wire and one warn record; a `Resource` response is
-// measured on its uncompressed payload, data plus packed metadata, with the same at-cap and
-// over-cap edges; and a `Bytes` body too big for a packet is refused before it would fall
-// through to a response Resource. Helpers come from the sibling `tests_parts` files.
+// measured at its advertised size, the uncompressed data behind the length-prefixed packed
+// metadata, with the same at-cap and over-cap edges; and a `Bytes` body too big for a packet
+// is refused before it would fall through to a response Resource. Helpers come from the
+// sibling `tests_parts` files.
 
 #[deny(clippy::await_holding_invalid_type)]
 async fn set_max_response_size(pair: &LoopbackRequestPair, max: usize) {
@@ -17,12 +18,12 @@ fn packet_response_len(body: rmpv::Value) -> usize {
     ResponseFrame::new(RequestId::new([0u8; 16]), body).encode().len()
 }
 
-/// The size the dispatcher measures a `Resource` response at: the data plus the packed
-/// metadata, before any compression.
+/// The size the dispatcher measures a `Resource` response at, the advertised `d`: the data
+/// plus the packed metadata behind its length prefix, before any compression.
 fn resource_response_len(data: &[u8], metadata: &rmpv::Value) -> usize {
     let mut packed = Vec::new();
     rmpv::encode::write_value(&mut packed, metadata).expect("metadata packs");
-    data.len() + packed.len()
+    data.len() + crate::resource::METADATA_LENGTH_PREFIX_LEN + packed.len()
 }
 
 /// Bounds the window with a data round trip in both directions, then checks that neither

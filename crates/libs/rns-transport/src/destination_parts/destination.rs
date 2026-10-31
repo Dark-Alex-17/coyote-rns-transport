@@ -86,18 +86,16 @@ impl Destination<PrivateIdentity, Input, Single> {
     /// destination, and are not measured. The dispatcher measures a `Value`
     /// or `Bytes` response as its packed `[request_id, body]` frame, before
     /// the MDU check that would otherwise send it as a resource, and a
-    /// `RequestResponse::Resource` as its data plus the packed metadata,
-    /// uncompressed (a metadata-less resource measures as its data alone),
+    /// `RequestResponse::Resource` as the size its advertisement carries:
+    /// the uncompressed data behind the packed metadata and its length
+    /// prefix (a metadata-less resource measures as its data alone),
     /// and refuses a response over the cap with `ResponseOutcome::TooLarge`
     /// instead of sending it. The cap in force is the one read when the
     /// request was dispatched; a cap changed while a handler runs applies
-    /// to the next request. The resource measure excludes the 3-byte
-    /// metadata length prefix that the advertisement's size field counts,
-    /// so a requester cap set to the same number refuses a metadata-bearing
-    /// resource response this cap let through; set the requester's cap at
-    /// least 3 bytes above when both are used.
-    /// This is the responder's cap on what it sends; the requester's cap on
-    /// what it accepts is `RequestOptions::with_max_response_size`.
+    /// to the next request. This is the responder's cap on what it sends;
+    /// the requester's cap on what it accepts,
+    /// `RequestOptions::with_max_response_size`, reads the same advertised
+    /// size, so the two compose at one number.
     ///
     /// Fork-only: Python's `handle_request` sends whatever the handler
     /// returns (`RNS/Link.py:846-852`).

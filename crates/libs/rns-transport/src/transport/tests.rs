@@ -209,6 +209,8 @@ include!("tests_parts/two_transport_loopback_requests_receipt_orders.rs");
 
 include!("tests_parts/two_transport_loopback_link_packet_proven_probe.rs");
 
+include!("tests_parts/two_transport_loopback_link_proof_strategy.rs");
+
 include!("tests_parts/two_transport_loopback_link_packet_proven_probe2.rs");
 
 include!("tests_parts/two_transport_loopback_link_packet_proven_probe3.rs");

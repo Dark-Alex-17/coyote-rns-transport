@@ -17,3 +17,4 @@ include!("link_sections/pending_requests_resolve_tests.rs");
 include!("link_sections/response_packet_tests.rs");
 include!("link_sections/response_record_tests.rs");
 include!("link_sections/data_proof_tests.rs");
+include!("link_sections/proof_strategy_tests.rs");

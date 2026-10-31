@@ -9,7 +9,7 @@ mod data_proof_tests {
     use tokio::sync::broadcast;
     use tokio::sync::broadcast::error::TryRecvError;
 
-    fn packet_proven_events(rx: &mut broadcast::Receiver<LinkEventData>) -> Vec<Hash> {
+    pub(super) fn packet_proven_events(rx: &mut broadcast::Receiver<LinkEventData>) -> Vec<Hash> {
         let mut hashes = Vec::new();
         loop {
             match rx.try_recv() {

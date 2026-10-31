@@ -7,7 +7,9 @@
 //! no proof until the application calls `Transport::prove_link_packet`, after which the sender
 //! sees exactly one `LinkEvent::PacketProven` for that hash; `Link::prove_hash` builds a
 //! `Proof` packet addressed to the link; an unknown link id is `InvalidArgument` and a link
-//! whose interface is gone is `ConnectionError`, never `InvalidArgument`. The in-crate
+//! whose interface is gone is `ConnectionError`, never `InvalidArgument`; a link accepted
+//! under `App` asks the callback it copied at accept per packet and keeps it after the
+//! destination changes strategy and callback. The in-crate
 //! `tests_parts` fixtures pin the same behaviour from inside, where `pub(crate)` items are
 //! visible too; this file is the consumer's view, and its last test drives `rustc` the way
 //! `breaking_changes_compile_fail.rs` does to pin that `LinkPayload::with_packet_hash` is not
@@ -16,11 +18,14 @@
 use std::fs;
 use std::path::{Path, PathBuf};
 use std::process::Command;
+use std::sync::atomic::{AtomicUsize, Ordering};
 use std::sync::Arc;
 use std::time::{Duration, Instant};
 
 use rns_transport::destination::link::{Link, LinkEvent, LinkEventData, LinkPayload};
-use rns_transport::destination::{DestinationName, ProofStrategy};
+use rns_transport::destination::{
+    DestinationName, ProofRequestedHandler, ProofStrategy, SingleInputDestination,
+};
 use rns_transport::error::RnsError;
 use rns_transport::hash::{AddressHash, Hash};
 use rns_transport::identity::PrivateIdentity;
@@ -29,7 +34,7 @@ use rns_transport::iface::tcp_server::{TcpListenerRuntimeStatusHandle, TcpServer
 use rns_transport::rand_core::OsRng;
 use rns_transport::transport::{AnnounceEvent, SendPacketOutcome, Transport, TransportConfig};
 use rns_transport::{DestinationType, Packet, PacketType};
-use tokio::sync::broadcast::error::RecvError;
+use tokio::sync::broadcast::error::{RecvError, TryRecvError};
 use tokio::sync::{broadcast, Mutex};
 use tokio::time::timeout;
 
@@ -160,8 +165,9 @@ async fn proven_after_quiet(
                     }
                 }
             }
-            Err(broadcast::error::TryRecvError::Lagged(_)) => continue,
-            Err(_) => return seen,
+            Err(TryRecvError::Lagged(_)) => continue,
+            Err(TryRecvError::Empty) => return seen,
+            Err(TryRecvError::Closed) => panic!("link event channel closed"),
         }
     }
 }
@@ -170,6 +176,7 @@ async fn proven_after_quiet(
 /// link to it, and both event streams subscribed before the link request went out.
 struct ProofPair {
     listener: Listener,
+    destination: Arc<Mutex<SingleInputDestination>>,
     connector: Transport,
     link: Arc<Mutex<Link>>,
     link_id: AddressHash,
@@ -179,6 +186,16 @@ struct ProofPair {
 
 #[deny(clippy::await_holding_invalid_type)]
 async fn proof_pair(aspect: &str, strategy: ProofStrategy) -> ProofPair {
+    proof_pair_with_callback(aspect, strategy, None).await
+}
+
+/// `proof_pair` whose destination also had `callback` set before the link was accepted.
+#[deny(clippy::await_holding_invalid_type)]
+async fn proof_pair_with_callback(
+    aspect: &str,
+    strategy: ProofStrategy,
+    callback: Option<Box<dyn ProofRequestedHandler>>,
+) -> ProofPair {
     let listener = listener().await;
     let (connector, mut announces) = connector(listener.port).await;
     wait_until("the listener to accept", || {
@@ -202,6 +219,9 @@ async fn proof_pair(aspect: &str, strategy: ProofStrategy) -> ProofPair {
     );
     destination.lock().await.set_link_proof_strategy(strategy);
     assert_eq!(destination.lock().await.link_proof_strategy(), strategy);
+    if let Some(callback) = callback {
+        destination.lock().await.set_proof_requested_callback(callback);
+    }
     let destination_hash = destination.lock().await.desc.address_hash;
     let announce = destination.lock().await.announce(OsRng, None).expect("valid announce packet");
     listener.transport.send_packet(announce).await;
@@ -220,7 +240,7 @@ async fn proof_pair(aspect: &str, strategy: ProofStrategy) -> ProofPair {
         matches!(event, LinkEvent::Activated).then_some(())
     })
     .await;
-    ProofPair { listener, connector, link, link_id, in_events, out_events }
+    ProofPair { listener, destination, connector, link, link_id, in_events, out_events }
 }
 
 /// Sends `body` as a plain Data packet over the out-link and returns the packet's hash.
@@ -370,6 +390,104 @@ async fn prove_link_packet_tells_an_unknown_link_from_a_gone_interface() {
         }
     }
 
+    timeout(WAIT, pair.listener.transport.stop()).await.expect("listener stop completes");
+}
+
+/// A callback that answers `verdict` and counts how often the link asked it.
+fn counting_callback(verdict: bool) -> (Box<dyn ProofRequestedHandler>, Arc<AtomicUsize>) {
+    let calls = Arc::new(AtomicUsize::new(0));
+    let counter = calls.clone();
+    (
+        Box::new(move |_: &Packet| {
+            counter.fetch_add(1, Ordering::SeqCst);
+            verdict
+        }),
+        calls,
+    )
+}
+
+/// The divergence register's "copied onto a link when it is accepted" sentence, callback
+/// half: an in-link accepted under `App` with a refusing destination callback keeps asking
+/// that callback after the destination is switched to `All` and handed a consenting one;
+/// neither change reaches the link, the consumer reads the link's own `App` back, and the
+/// deferred `prove_link_packet` still closes the loop for the sender.
+#[tokio::test]
+#[deny(clippy::await_holding_invalid_type)]
+async fn accepted_link_keeps_the_callback_it_was_handed_at_accept() {
+    let (refusing, refusals) = counting_callback(false);
+    let mut pair =
+        proof_pair_with_callback("callback-snapshot", ProofStrategy::App, Some(refusing)).await;
+    let link_id = pair.link_id;
+
+    let first = send_plain_data(&pair.connector, &pair.link, b"ask-me").await;
+    await_event(&mut pair.in_events, link_id, "the first plain Data event", |event| {
+        matches!(event, LinkEvent::Data(payload) if payload.as_slice() == b"ask-me").then_some(())
+    })
+    .await;
+    assert_eq!(refusals.load(Ordering::SeqCst), 1, "the copied callback was asked once");
+    assert!(
+        proven_after_quiet(&mut pair.out_events, link_id).await.is_empty(),
+        "a refusing callback leaves the packet unproved"
+    );
+
+    // Change both halves on the destination after the accept.
+    let (consenting, consents) = counting_callback(true);
+    let in_link = pair
+        .listener
+        .transport
+        .find_in_link(&link_id)
+        .await
+        .expect("the listener holds the accepted in-link");
+    assert_eq!(
+        in_link.lock().await.proof_strategy(),
+        ProofStrategy::App,
+        "the accepted link reads back the strategy it was handed"
+    );
+    {
+        let mut destination = pair.destination.lock().await;
+        destination.set_link_proof_strategy(ProofStrategy::All);
+        destination.set_proof_requested_callback(consenting);
+        assert_eq!(destination.link_proof_strategy(), ProofStrategy::All);
+    }
+
+    let second = send_plain_data(&pair.connector, &pair.link, b"ask-me-again").await;
+    await_event(&mut pair.in_events, link_id, "the second plain Data event", |event| {
+        matches!(event, LinkEvent::Data(payload) if payload.as_slice() == b"ask-me-again")
+            .then_some(())
+    })
+    .await;
+    assert_eq!(refusals.load(Ordering::SeqCst), 2, "the link still asks the callback it copied");
+    assert_eq!(consents.load(Ordering::SeqCst), 0, "the destination's new callback is not reached");
+    assert!(
+        proven_after_quiet(&mut pair.out_events, link_id).await.is_empty(),
+        "neither the destination's new strategy nor its new callback proves on the old link"
+    );
+    assert_eq!(
+        in_link.lock().await.proof_strategy(),
+        ProofStrategy::App,
+        "the destination's switch to `All` did not reach the accepted link"
+    );
+    assert_ne!(first, second, "two distinct packets were sent");
+
+    pair.listener
+        .transport
+        .prove_link_packet(&link_id, &second)
+        .await
+        .expect("the deferred proof still goes out");
+    let proven =
+        await_event(
+            &mut pair.out_events,
+            link_id,
+            "the sender's PacketProven",
+            |event| match event {
+                LinkEvent::PacketProven { packet_hash } => Some(*packet_hash),
+                _ => None,
+            },
+        )
+        .await;
+    assert_eq!(proven, second);
+
+    timeout(WAIT, pair.connector.stop()).await.expect("connector stop completes");
     timeout(WAIT, pair.listener.transport.stop()).await.expect("listener stop completes");
 }
 

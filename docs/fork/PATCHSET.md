@@ -31,7 +31,7 @@ per fork task.
 Every file changed since the `0.17.0` release and the patch each change
 belongs to. Patch ids: K1 is outcome tracker, K2 is response cap, K3 is
 ledger contracts, K4 is destination resolve, K5 is reject cadence, K6 is
-link proof strategy, K7 is dial failures. The
+link proof strategy, K7 is dial failures, K8 is disconnect reasons. The
 `outcome tracker` patch is fork commits `c3a317d7`, `ca32feac`, `223cdd80`,
 `716fb2be`, `d3b234e6` and `d36f65df`; the `response cap` patch is fork
 commits `355a0ddf`, `ca32feac`, `223cdd80`, `716fb2be`, `f43321f4`,
@@ -48,21 +48,22 @@ commits `355a0ddf`, `ca32feac`, `223cdd80`, `716fb2be`, `f43321f4`,
 the `dial failures` patch is fork commits `61429992`, `874c871b`, `aa6d2fac`,
 `593fa930`, `7fbd176e`, `7eab8566`, `c492846d`, `9a13ade9`, `74279dfb`,
 `b0635aea`, `8fc49d91`, `dd31f874`, `59b0ee7c`, `986dca4a`, `5188138e`,
-`8f348131`, `9c0bb5c6`, `b68ef92c`, `45bcadfc`, `fdfa83dd`, `f45595c5`,
-`b819ab22`, `bb247215` and `0a8f5cf8`.
+`8f348131`, `9c0bb5c6` and `b68ef92c`; the `disconnect reasons` patch is
+fork commits `45bcadfc`, `fdfa83dd`, `f45595c5`, `b819ab22`, `bb247215`,
+`0a8f5cf8` and `cc5c3092`.
 
 | File | Patch |
 | --- | --- |
 | `crates/apps/reticulumd/tests/fork_publish_contract_parts/ledger_contract.rs` | ledger contracts |
 | `crates/apps/reticulumd/tests/fork_release_docs_contract.rs` | dial failures |
-| `crates/apps/reticulumd/tests/fork_release_docs_contract_parts/crate_readme_sections.rs` | outcome tracker, response cap, destination resolve, link proof strategy, dial failures |
+| `crates/apps/reticulumd/tests/fork_release_docs_contract_parts/crate_readme_sections.rs` | outcome tracker, response cap, destination resolve, link proof strategy, dial failures, disconnect reasons |
 | `crates/apps/reticulumd/tests/fork_release_docs_contract_parts/release_0_17_0_probe3.rs` | response cap |
-| `crates/apps/reticulumd/tests/fork_release_docs_contract_parts/request_layer_api_docs.rs` | outcome tracker, response cap, destination resolve, link proof strategy, dial failures |
+| `crates/apps/reticulumd/tests/fork_release_docs_contract_parts/request_layer_api_docs.rs` | outcome tracker, response cap, destination resolve, link proof strategy, dial failures, disconnect reasons |
 | `crates/apps/reticulumd/tests/python_channel_interop.rs` | link proof strategy |
 | `crates/apps/reticulumd/tests/python_channel_interop_parts/python_to_rust_link_proof_strategy.rs` | link proof strategy |
 | `crates/apps/reticulumd/tests/support/python_channel_endpoint.py` | link proof strategy |
-| `crates/libs/rns-transport/CHANGELOG.md` | outcome tracker, response cap, ledger contracts, destination resolve, reject cadence, link proof strategy, dial failures |
-| `crates/libs/rns-transport/README.md` | outcome tracker, response cap, destination resolve, link proof strategy, dial failures |
+| `crates/libs/rns-transport/CHANGELOG.md` | outcome tracker, response cap, ledger contracts, destination resolve, reject cadence, link proof strategy, dial failures, disconnect reasons |
+| `crates/libs/rns-transport/README.md` | outcome tracker, response cap, destination resolve, link proof strategy, dial failures, disconnect reasons |
 | `crates/libs/rns-transport/src/destination/link/payload.rs` | link proof strategy |
 | `crates/libs/rns-transport/src/destination/link_parts/link.rs` | link proof strategy |
 | `crates/libs/rns-transport/src/destination/link_parts/link_sections/data_proof_tests.rs` | link proof strategy |
@@ -82,9 +83,9 @@ the `dial failures` patch is fork commits `61429992`, `874c871b`, `aa6d2fac`,
 | `crates/libs/rns-transport/src/destination_parts/module_core.rs` | response cap, link proof strategy |
 | `crates/libs/rns-transport/src/error.rs` | dial failures |
 | `crates/libs/rns-transport/src/iface.rs` | dial failures |
-| `crates/libs/rns-transport/src/iface/events.rs` | dial failures |
-| `crates/libs/rns-transport/src/iface/local.rs` | dial failures |
-| `crates/libs/rns-transport/src/iface/tcp_client.rs` | dial failures |
+| `crates/libs/rns-transport/src/iface/events.rs` | dial failures, disconnect reasons |
+| `crates/libs/rns-transport/src/iface/local.rs` | dial failures, disconnect reasons |
+| `crates/libs/rns-transport/src/iface/tcp_client.rs` | dial failures, disconnect reasons |
 | `crates/libs/rns-transport/src/resource.rs` | reject cadence |
 | `crates/libs/rns-transport/src/resource/advertisement_limits.rs` | reject cadence |
 | `crates/libs/rns-transport/src/resource/link_stats.rs` | reject cadence |
@@ -96,18 +97,18 @@ the `dial failures` patch is fork commits `61429992`, `874c871b`, `aa6d2fac`,
 | `crates/libs/rns-transport/src/transport/links_parts/transport_sections/close_channel.rs` | destination resolve |
 | `crates/libs/rns-transport/src/transport/links_parts/transport_sections/prove_link_packet.rs` | link proof strategy, dial failures |
 | `crates/libs/rns-transport/src/transport/links_parts/transport_sections/resolve_destination.rs` | destination resolve |
-| `crates/libs/rns-transport/src/transport/links_parts/transport_sections/shared_instance.rs` | dial failures |
-| `crates/libs/rns-transport/src/transport/links_parts/transport_sections/shared_instance_reconnect.rs` | dial failures |
-| `crates/libs/rns-transport/src/transport/links_parts/transport_sections/shared_instance_reconnect_parts/disconnected_event.rs` | dial failures |
-| `crates/libs/rns-transport/src/transport/links_parts/transport_sections/shared_instance_reconnect_parts/drain_queued.rs` | dial failures |
+| `crates/libs/rns-transport/src/transport/links_parts/transport_sections/shared_instance.rs` | dial failures, disconnect reasons |
+| `crates/libs/rns-transport/src/transport/links_parts/transport_sections/shared_instance_reconnect.rs` | dial failures, disconnect reasons |
+| `crates/libs/rns-transport/src/transport/links_parts/transport_sections/shared_instance_reconnect_parts/disconnected_event.rs` | disconnect reasons |
+| `crates/libs/rns-transport/src/transport/links_parts/transport_sections/shared_instance_reconnect_parts/drain_queued.rs` | dial failures, disconnect reasons |
 | `crates/libs/rns-transport/src/transport/mod.rs` | dial failures |
 | `crates/libs/rns-transport/src/transport/path.rs` | link proof strategy |
 | `crates/libs/rns-transport/src/transport/path_requests_parts/module_prelude.rs` | destination resolve |
 | `crates/libs/rns-transport/src/transport/request_dispatch.rs` | response cap |
 | `crates/libs/rns-transport/src/transport/request_dispatch_parts/response_limits.rs` | response cap |
 | `crates/libs/rns-transport/src/transport/resource_wire.rs` | reject cadence |
-| `crates/libs/rns-transport/src/transport/shared_instance.rs` | dial failures |
-| `crates/libs/rns-transport/src/transport/tests.rs` | outcome tracker, response cap, destination resolve, reject cadence, link proof strategy, dial failures |
+| `crates/libs/rns-transport/src/transport/shared_instance.rs` | dial failures, disconnect reasons |
+| `crates/libs/rns-transport/src/transport/tests.rs` | outcome tracker, response cap, destination resolve, reject cadence, link proof strategy, dial failures, disconnect reasons |
 | `crates/libs/rns-transport/src/transport/tests_parts/request_advert_reject_warn_cadence.rs` | reject cadence |
 | `crates/libs/rns-transport/src/transport/tests_parts/request_advert_reject_warn_cadence_probe.rs` | reject cadence |
 | `crates/libs/rns-transport/src/transport/tests_parts/request_advert_reject_warn_cadence_probe2.rs` | reject cadence |
@@ -123,20 +124,20 @@ the `dial failures` patch is fork commits `61429992`, `874c871b`, `aa6d2fac`,
 | `crates/libs/rns-transport/src/transport/tests_parts/two_transport_resolve_destination.rs` | destination resolve |
 | `crates/libs/rns-transport/src/transport/tests_parts/two_transport_resolve_destination_probe.rs` | destination resolve |
 | `crates/libs/rns-transport/src/transport/tests_parts/two_transport_resolve_destination_probe2.rs` | destination resolve |
-| `crates/libs/rns-transport/src/transport/tests_parts/two_transport_shared_instance_dial_failures.rs` | dial failures |
-| `crates/libs/rns-transport/src/transport/tests_parts/two_transport_shared_instance_disconnect_reasons.rs` | dial failures |
-| `crates/libs/rns-transport/src/transport/tests_parts/two_transport_shared_instance_probe16.rs` | dial failures |
-| `crates/libs/rns-transport/src/transport/tests_parts/two_transport_shared_instance_reconnect.rs` | dial failures |
-| `crates/libs/rns-transport/src/transport/tests_parts/two_transport_shared_instance_state_events.rs` | dial failures |
+| `crates/libs/rns-transport/src/transport/tests_parts/two_transport_shared_instance_dial_failures.rs` | dial failures, disconnect reasons |
+| `crates/libs/rns-transport/src/transport/tests_parts/two_transport_shared_instance_disconnect_reasons.rs` | disconnect reasons |
+| `crates/libs/rns-transport/src/transport/tests_parts/two_transport_shared_instance_probe16.rs` | dial failures, disconnect reasons |
+| `crates/libs/rns-transport/src/transport/tests_parts/two_transport_shared_instance_reconnect.rs` | dial failures, disconnect reasons |
+| `crates/libs/rns-transport/src/transport/tests_parts/two_transport_shared_instance_state_events.rs` | dial failures, disconnect reasons |
 | `crates/libs/rns-transport/src/transport/tests_parts/two_transport_shared_instance_state_events_probe.rs` | dial failures |
-| `crates/libs/rns-transport/src/transport/tests_parts/two_transport_shared_instance_state_events_probe2.rs` | dial failures |
-| `crates/libs/rns-transport/src/transport/tests_parts/two_transport_shared_instance_state_events_probe3.rs` | dial failures |
-| `crates/libs/rns-transport/src/transport/tests_parts/two_transport_shared_instance_state_events_probe4.rs` | dial failures |
+| `crates/libs/rns-transport/src/transport/tests_parts/two_transport_shared_instance_state_events_probe2.rs` | dial failures, disconnect reasons |
+| `crates/libs/rns-transport/src/transport/tests_parts/two_transport_shared_instance_state_events_probe3.rs` | dial failures, disconnect reasons |
+| `crates/libs/rns-transport/src/transport/tests_parts/two_transport_shared_instance_state_events_probe4.rs` | dial failures, disconnect reasons |
 | `crates/libs/rns-transport/tests/destination_desc_api.rs` | destination resolve |
 | `crates/libs/rns-transport/tests/dial_failure_channel_probe.rs` | dial failures |
 | `crates/libs/rns-transport/tests/dial_failure_events_api.rs` | dial failures |
 | `crates/libs/rns-transport/tests/dial_failure_reason_contract_probe.rs` | dial failures |
-| `crates/libs/rns-transport/tests/disconnect_reason_events_api.rs` | dial failures |
+| `crates/libs/rns-transport/tests/disconnect_reason_events_api.rs` | disconnect reasons |
 | `crates/libs/rns-transport/tests/link_proof_strategy_api.rs` | link proof strategy, dial failures |
 | `crates/libs/rns-transport/tests/request_handler_api.rs` | outcome tracker |
 | `crates/libs/rns-transport/tests/resolve_destination_deadline_api.rs` | destination resolve |
@@ -144,7 +145,7 @@ the `dial failures` patch is fork commits `61429992`, `874c871b`, `aa6d2fac`,
 | `crates/libs/rns-transport/tests/shared_instance_first_connect_api.rs` | dial failures |
 | `crates/libs/rns-transport/tests/shared_instance_first_connect_interrupt_probe.rs` | dial failures |
 | `crates/libs/rns-transport/tests/shared_instance_first_connect_stop_interface_probe.rs` | dial failures |
-| `docs/fork/PATCHSET.md` | outcome tracker, response cap, ledger contracts, destination resolve, reject cadence, link proof strategy, dial failures |
+| `docs/fork/PATCHSET.md` | outcome tracker, response cap, ledger contracts, destination resolve, reject cadence, link proof strategy, dial failures, disconnect reasons |
 
 Fork commits `c3a317d7`, `ca32feac`, `223cdd80`, `716fb2be`, `d3b234e6` and
 `d36f65df`: K1, outcome tracker. The library behaviour changes are: a
@@ -671,9 +672,8 @@ link-maintenance pass evicts it, after which it is unknown and reads
 
 Fork commits `61429992`, `874c871b`, `aa6d2fac`, `593fa930`, `7fbd176e`,
 `7eab8566`, `c492846d`, `9a13ade9`, `74279dfb`, `b0635aea`, `8fc49d91`,
-`dd31f874`, `59b0ee7c`, `986dca4a`, `5188138e`, `8f348131`, `9c0bb5c6`,
-`b68ef92c`, `45bcadfc`, `fdfa83dd`, `f45595c5`, `b819ab22`, `bb247215` and `0a8f5cf8`:
-K7, dial failures. The library behaviour changes are: a stream
+`dd31f874`, `59b0ee7c`, `986dca4a`, `5188138e`, `8f348131`, `9c0bb5c6` and
+`b68ef92c`: K7, dial failures. The library behaviour changes are: a stream
 client reports each failed connect attempt with a typed reason, the
 shared-instance state stream carries it, and an attach can be told to give up
 when the first connect does not come, giving up also when its consumer ends
@@ -809,7 +809,20 @@ and needles the cite in `crate_readme_sections.rs`. `b68ef92c` names
 `stop_interface` in the README, CHANGELOG and interrupt-probe wording twins,
 says in `with_state_events` that `DialFailed` interleaves after
 `Connecting` while nothing answers, re-wraps two README lines to 80 columns
-and needles the README wording in `crate_readme_sections.rs`. `45bcadfc`
+and needles the README wording in `crate_readme_sections.rs`.
+
+Fork commits `45bcadfc`, `fdfa83dd`, `f45595c5`, `b819ab22`, `bb247215`,
+`0a8f5cf8` and `cc5c3092`: K8, disconnect reasons. The library behaviour
+changes are: the HDLC stream runner reports how a stream ended, `TcpClient`
+and `LocalUnixClient` can send that as a typed `DisconnectReason` on a
+channel of their own beside the plain disconnect event, the shared-instance
+attach installs that channel on its client, and an attach that opts in reads
+`DisconnectedWithReason { reason }` where its state stream read
+`Disconnected`; without the opt-in the stream is unchanged. A stop, detach
+or `stop_interface` still reports nothing, and the attach's clients run no
+read watchdog, so `Timeout` reaches the stream only for a read or write
+that failed with `TimedOut`, never for a quiet socket. The `DisconnectReason`
+enum itself arrived with K7 (`61429992`). `45bcadfc`
 has `run_hdlc_stream_with_runtime_and_ifac` return an `HdlcStreamExit`
 (`PeerClosed`, `ReadTimeout`, `ReadError`, `WriteError` or `Cancelled`),
 the rx side's exit unless that side only followed the tx side's stop, and
@@ -845,7 +858,12 @@ closes read the plain `Disconnected` without the opt-in, that the unix
 client reads `PeerClosed` the same way, and that the hand-driven consumer
 puts the reason where `Disconnected` sits in the cycle. `0a8f5cf8` corrects
 the `DisconnectedWithReason` rustdoc: `Timeout` is read for a read or write
-that failed with `ErrorKind::TimedOut`, watchdog or not.
+that failed with `ErrorKind::TimedOut`, watchdog or not. `cc5c3092` lists
+the two `with_disconnect_reason_events` twins in `request_layer_api_docs.rs`,
+adds the README paragraph on `with_disconnect_reasons` and the two
+changelog bullets (the clients' reason channel and stream exit, the
+shared-instance variant and option), and needles both in
+`crate_readme_sections.rs`.
 
 ## 0.17.0 (upstream 0.14.0)
 

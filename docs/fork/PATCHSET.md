@@ -48,7 +48,8 @@ commits `355a0ddf`, `ca32feac`, `223cdd80`, `716fb2be`, `f43321f4`,
 the `dial failures` patch is fork commits `61429992`, `874c871b`, `aa6d2fac`,
 `593fa930`, `7fbd176e`, `7eab8566`, `c492846d`, `9a13ade9`, `74279dfb`,
 `b0635aea`, `8fc49d91`, `dd31f874`, `59b0ee7c`, `986dca4a`, `5188138e`,
-`8f348131`, `9c0bb5c6`, `b68ef92c`, `45bcadfc`, `fdfa83dd` and `f45595c5`.
+`8f348131`, `9c0bb5c6`, `b68ef92c`, `45bcadfc`, `fdfa83dd`, `f45595c5`,
+`b819ab22` and `bb247215`.
 
 | File | Patch |
 | --- | --- |
@@ -97,6 +98,7 @@ the `dial failures` patch is fork commits `61429992`, `874c871b`, `aa6d2fac`,
 | `crates/libs/rns-transport/src/transport/links_parts/transport_sections/resolve_destination.rs` | destination resolve |
 | `crates/libs/rns-transport/src/transport/links_parts/transport_sections/shared_instance.rs` | dial failures |
 | `crates/libs/rns-transport/src/transport/links_parts/transport_sections/shared_instance_reconnect.rs` | dial failures |
+| `crates/libs/rns-transport/src/transport/links_parts/transport_sections/shared_instance_reconnect_parts/disconnected_event.rs` | dial failures |
 | `crates/libs/rns-transport/src/transport/links_parts/transport_sections/shared_instance_reconnect_parts/drain_queued.rs` | dial failures |
 | `crates/libs/rns-transport/src/transport/mod.rs` | dial failures |
 | `crates/libs/rns-transport/src/transport/path.rs` | link proof strategy |
@@ -122,6 +124,7 @@ the `dial failures` patch is fork commits `61429992`, `874c871b`, `aa6d2fac`,
 | `crates/libs/rns-transport/src/transport/tests_parts/two_transport_resolve_destination_probe.rs` | destination resolve |
 | `crates/libs/rns-transport/src/transport/tests_parts/two_transport_resolve_destination_probe2.rs` | destination resolve |
 | `crates/libs/rns-transport/src/transport/tests_parts/two_transport_shared_instance_dial_failures.rs` | dial failures |
+| `crates/libs/rns-transport/src/transport/tests_parts/two_transport_shared_instance_disconnect_reasons.rs` | dial failures |
 | `crates/libs/rns-transport/src/transport/tests_parts/two_transport_shared_instance_probe16.rs` | dial failures |
 | `crates/libs/rns-transport/src/transport/tests_parts/two_transport_shared_instance_reconnect.rs` | dial failures |
 | `crates/libs/rns-transport/src/transport/tests_parts/two_transport_shared_instance_state_events.rs` | dial failures |
@@ -669,7 +672,7 @@ link-maintenance pass evicts it, after which it is unknown and reads
 Fork commits `61429992`, `874c871b`, `aa6d2fac`, `593fa930`, `7fbd176e`,
 `7eab8566`, `c492846d`, `9a13ade9`, `74279dfb`, `b0635aea`, `8fc49d91`,
 `dd31f874`, `59b0ee7c`, `986dca4a`, `5188138e`, `8f348131`, `9c0bb5c6`,
-`b68ef92c`, `45bcadfc`, `fdfa83dd` and `f45595c5`:
+`b68ef92c`, `45bcadfc`, `fdfa83dd`, `f45595c5`, `b819ab22` and `bb247215`:
 K7, dial failures. The library behaviour changes are: a stream
 client reports each failed connect attempt with a typed reason, the
 shared-instance state stream carries it, and an attach can be told to give up
@@ -820,7 +823,27 @@ adds `tests/disconnect_reason_events_api.rs`, which holds that a TCP peer's
 orderly close reads `PeerClosed` and its linger-zero close `Reset`, that a
 stop while connected sends nothing, that the unix client reports
 `PeerClosed`, and that a full channel drops the reason while the client
-keeps reconnecting.
+keeps reconnecting. `b819ab22` adds `SharedInstanceEvent::DisconnectedWithReason`
+and `SharedInstanceOptions::with_disconnect_reasons`
+(`transport/shared_instance.rs`): the attach
+(`links_parts/transport_sections/shared_instance.rs`) installs
+`with_disconnect_reason_events` on both clients in place of the plain
+disconnect channel, the consumer's `run`, `serve_disconnected` and
+`drain_queued` carry the reason, and the new
+`shared_instance_reconnect_parts/disconnected_event.rs` picks
+`DisconnectedWithReason` or the plain `Disconnected` by the attach's opt-in;
+the hand-driven consumer fixtures in `two_transport_shared_instance_reconnect.rs`,
+`two_transport_shared_instance_probe16.rs`,
+`two_transport_shared_instance_state_events.rs` and the `DriveSpec` literals of
+its probes and `two_transport_shared_instance_dial_failures.rs` gain the
+field. `bb247215` adds
+`two_transport_shared_instance_disconnect_reasons.rs`, included from
+`tests.rs`, which holds over a raw listener that an orderly close reads
+`DisconnectedWithReason { PeerClosed }` and a linger-zero close
+`DisconnectedWithReason { Reset }`, each before `Connecting`, that the same
+closes read the plain `Disconnected` without the opt-in, that the unix
+client reads `PeerClosed` the same way, and that the hand-driven consumer
+puts the reason where `Disconnected` sits in the cycle.
 
 ## 0.17.0 (upstream 0.14.0)
 

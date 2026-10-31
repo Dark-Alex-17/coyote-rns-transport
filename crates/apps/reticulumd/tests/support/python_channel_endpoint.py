@@ -1062,6 +1062,7 @@ def main() -> int:
             "resource-reader-failure",
             "resource-file-reader-failure",
             "link-data",
+            "link-data-receipt",
             "request",
             "large-request",
             "mdu-boundary",

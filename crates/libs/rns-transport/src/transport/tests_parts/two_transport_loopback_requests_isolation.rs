@@ -54,8 +54,10 @@ static TEST_LOG: TestLogger = TestLogger {
 /// section file is `include!`d, via `links_parts/transport.rs`, into the links module.
 const SHARED_INSTANCE_LOG_TARGET: &str = "rns_transport::transport::links";
 
-/// The target `conclude_outbound` logs under: `resource/outcome.rs` is `include!`d into
-/// the resource module.
+/// The target `conclude_outbound` (`resource/outcome.rs`) and both reject cadences
+/// (`resource/advertisement_limits.rs`) log under: each file is `include!`d into the
+/// resource module. The request dispatcher's own dropped-receiver line is not here; it
+/// logs under `REQUEST_DISPATCH_LOG_TARGET`.
 const RESOURCE_LOG_TARGET: &str = "rns_transport::resource";
 
 /// The target the responder side of the request layer logs under.

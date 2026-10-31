@@ -82,7 +82,7 @@ async fn two_transport_loopback_request_resource_without_metadata_measures_its_d
     let mut resource_events = pair.handles.connector.transport.resource_events();
     let link_id = pair.handles.link_id;
     let data = random_payload(96);
-    set_max_response_size(&pair, data.len()).await;
+    set_max_response_size(&pair, resource_response_len(&data, None)).await;
     let (outcome_tx, mut outcomes) = tokio::sync::mpsc::unbounded_channel();
     register_handler(
         &pair,

@@ -140,7 +140,7 @@ async fn two_transport_loopback_request_equal_requester_and_responder_caps_compo
     let link_id = pair.handles.link_id;
     let data = random_payload(96);
     let metadata = rmpv::Value::from("named by the responder");
-    let measure = resource_response_len(&data, &metadata);
+    let measure = resource_response_len(&data, Some(&metadata));
     set_max_response_size(&pair, measure).await;
     let (outcome_tx, mut outcomes) = tokio::sync::mpsc::unbounded_channel();
     let expected = data.clone();

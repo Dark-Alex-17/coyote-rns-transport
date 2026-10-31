@@ -1,10 +1,10 @@
 // Loopback coverage for the destination's `max_response_size`, the responder's own cap on
 // what it sends: a packet response exactly at the cap goes out and one byte over is refused
 // with `TooLarge`, nothing on the wire and one warn record; a `Resource` response is
-// measured at its advertised size, the uncompressed data behind the length-prefixed packed
-// metadata, with the same at-cap and over-cap edges; and a `Bytes` body too big for a packet
-// is refused before it would fall through to a response Resource. Helpers come from the
-// sibling `tests_parts` files.
+// measured at its advertised size, the uncompressed data together with the packed metadata
+// and its length prefix, with the same at-cap and over-cap edges; and a `Bytes` body too big
+// for a packet is refused before it would fall through to a response Resource. Helpers come
+// from the sibling `tests_parts` files.
 
 #[deny(clippy::await_holding_invalid_type)]
 async fn set_max_response_size(pair: &LoopbackRequestPair, max: usize) {
@@ -19,11 +19,16 @@ fn packet_response_len(body: rmpv::Value) -> usize {
 }
 
 /// The size the dispatcher measures a `Resource` response at, the advertised `d`: the data
-/// plus the packed metadata behind its length prefix, before any compression.
-fn resource_response_len(data: &[u8], metadata: &rmpv::Value) -> usize {
-    let mut packed = Vec::new();
-    rmpv::encode::write_value(&mut packed, metadata).expect("metadata packs");
-    data.len() + crate::resource::METADATA_LENGTH_PREFIX_LEN + packed.len()
+/// together with the packed metadata and its length prefix when there is metadata, the data
+/// alone when there is none, before any compression; the same `map_or(0, ..)` the
+/// dispatcher applies.
+fn resource_response_len(data: &[u8], metadata: Option<&rmpv::Value>) -> usize {
+    data.len()
+        + metadata.map_or(0, |metadata| {
+            let mut packed = Vec::new();
+            rmpv::encode::write_value(&mut packed, metadata).expect("metadata packs");
+            crate::resource::METADATA_LENGTH_PREFIX_LEN + packed.len()
+        })
 }
 
 /// Bounds the window with a data round trip in both directions, then checks that neither
@@ -130,7 +135,7 @@ async fn two_transport_loopback_request_resource_response_at_the_cap_goes_out() 
     let link_id = pair.handles.link_id;
     let data = random_payload(64);
     let metadata = rmpv::Value::Map(vec![(rmpv::Value::from("name"), rmpv::Value::from("a.bin"))]);
-    set_max_response_size(&pair, resource_response_len(&data, &metadata)).await;
+    set_max_response_size(&pair, resource_response_len(&data, Some(&metadata))).await;
     let (outcome_tx, mut outcomes) = tokio::sync::mpsc::unbounded_channel();
     register_handler(
         &pair,
@@ -164,7 +169,7 @@ async fn two_transport_loopback_request_resource_response_over_the_cap_is_too_la
     let link_id = pair.handles.link_id;
     let data = random_payload(64);
     let metadata = rmpv::Value::Map(vec![(rmpv::Value::from("name"), rmpv::Value::from("a.bin"))]);
-    let len = resource_response_len(&data, &metadata);
+    let len = resource_response_len(&data, Some(&metadata));
     let max = len - 1;
     set_max_response_size(&pair, max).await;
     let (outcome_tx, mut outcomes) = tokio::sync::mpsc::unbounded_channel();

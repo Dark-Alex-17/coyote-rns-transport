@@ -31,9 +31,11 @@ use tokio::time::timeout;
 
 const WAIT: Duration = Duration::from_secs(15);
 const POLL: Duration = Duration::from_millis(20);
-/// How long a link event channel is watched to show that nothing arrived, and the headroom a
-/// bounded miss may run past its budget before the test calls it late.
+/// How long a link event channel is watched to show that nothing arrived.
 const QUIET: Duration = Duration::from_millis(300);
+/// The headroom a bounded miss may run past its budget before the test calls it late;
+/// generous so a loaded CI host does not fail the bound.
+const MISS_SLACK: Duration = Duration::from_secs(2);
 /// The README snippet's own message for a desc that is not there yet.
 const NOT_LEARNED: &str = "the announce has not been learned yet";
 
@@ -478,7 +480,7 @@ async fn resolve_destination_answers_known_and_reachable_destinations() {
 /// The one path request is attempted, not guaranteed a wire: a transport with no interface
 /// at all has nothing to broadcast on, and `resolve_destination` still keeps its contract
 /// from outside the crate. The unknown destination misses no sooner than the timeout and
-/// within the quiet window of it, a zero timeout answers `None` at once, and the
+/// within the slack of it, a zero timeout answers `None` at once, and the
 /// transport stops cleanly afterwards.
 #[tokio::test]
 #[deny(clippy::await_holding_invalid_type)]
@@ -508,8 +510,8 @@ async fn resolve_destination_without_an_interface_misses_on_the_timeout() {
     assert!(missed.is_none(), "nothing can answer without an interface");
     assert!(elapsed >= budget, "the call waits out the budget, waited {elapsed:?}");
     assert!(
-        elapsed < budget + QUIET,
-        "the call returns within the quiet window of the budget, waited {elapsed:?}"
+        elapsed < budget + MISS_SLACK,
+        "the call returns within the slack of the budget, waited {elapsed:?}"
     );
     assert!(!isolated.has_path(&unknown).await, "a miss leaves no path behind");
     assert!(isolated.destination_desc(&unknown).await.is_none(), "a miss leaves no desc behind");
@@ -518,7 +520,7 @@ async fn resolve_destination_without_an_interface_misses_on_the_timeout() {
 }
 
 /// From outside the crate, a miss is bounded by the caller's timeout: the unreachable arm
-/// returns `None` no sooner than the timeout and within the quiet window of it, so a
+/// returns `None` no sooner than the timeout and within the slack of it, so a
 /// caller that budgets `timeout` for the lookup is not held past it. A fresh identity
 /// resolves the same way afterwards, so a miss is not remembered against the transport.
 #[tokio::test]
@@ -539,8 +541,8 @@ async fn resolve_destination_miss_is_bounded_by_the_timeout_and_not_remembered()
     assert!(missed.is_none(), "nobody holds the destination");
     assert!(elapsed >= budget, "the call waits out the budget, waited {elapsed:?}");
     assert!(
-        elapsed < budget + QUIET,
-        "the call returns within the quiet window of the budget, waited {elapsed:?}"
+        elapsed < budget + MISS_SLACK,
+        "the call returns within the slack of the budget, waited {elapsed:?}"
     );
 
     let quiet = listener

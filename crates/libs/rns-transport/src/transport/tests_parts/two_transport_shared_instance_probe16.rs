@@ -88,6 +88,7 @@ async fn shared_instance_probe16_reconnect_without_its_disconnect_keeps_the_tabl
         tasks: client.transport.shared_instance_tasks.clone(),
         iface: client.iface,
         reconnect_wait: Duration::ZERO,
+        disconnect_reasons: false,
     };
     let cancel = consumer.cancel.clone();
     timeout(

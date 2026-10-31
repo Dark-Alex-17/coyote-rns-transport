@@ -218,6 +218,7 @@ async fn shared_instance_state_consumer_serves_dial_failures_last() {
             ],
             cancel_before_run: false,
             first_connect_abandoned: false,
+            disconnect_reasons: false,
             exits: "the consumer exits once the channels are closed",
         },
     )
@@ -250,6 +251,7 @@ async fn shared_instance_state_consumer_serves_a_dial_failure_live() {
             close_before_run: &[Queued::DialFailure(DialFailureKind::Refused)],
             cancel_before_run: false,
             first_connect_abandoned: false,
+            disconnect_reasons: false,
             exits: "the consumer exits once the dial-failure channel is drained and closed",
         },
     )
@@ -278,6 +280,7 @@ async fn shared_instance_state_consumer_notes_a_connect_after_the_attach_stopped
             close_before_run: &[Queued::Reconnect],
             cancel_before_run: false,
             first_connect_abandoned: true,
+            disconnect_reasons: false,
             exits: "the consumer exits once the reconnect channel is closed",
         },
     )

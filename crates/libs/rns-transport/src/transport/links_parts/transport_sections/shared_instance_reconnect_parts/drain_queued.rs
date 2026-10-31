@@ -11,15 +11,15 @@ impl SharedInstanceReconnectConsumer {
     #[deny(clippy::await_holding_invalid_type)]
     async fn drain_queued(
         &self,
-        disconnects: &mut mpsc::Receiver<AddressHash>,
+        disconnects: &mut mpsc::Receiver<(AddressHash, DisconnectReason)>,
         connects: &mut mpsc::Receiver<AddressHash>,
         dial_failures: &mut mpsc::Receiver<DialFailure>,
         state_events: Option<&mpsc::Sender<SharedInstanceEvent>>,
         first_connect: &mut Option<oneshot::Sender<()>>,
     ) {
         let mut disconnects_served = 0usize;
-        while disconnects.try_recv().is_ok() {
-            self.serve_disconnected(state_events).await;
+        while let Ok((_, reason)) = disconnects.try_recv() {
+            self.serve_disconnected(state_events, reason).await;
             disconnects_served += 1;
         }
         let mut connects_served = 0usize;

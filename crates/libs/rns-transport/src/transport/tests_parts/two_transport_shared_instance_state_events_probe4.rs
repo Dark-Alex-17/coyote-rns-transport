@@ -25,6 +25,7 @@ async fn shared_instance_state_consumer_drains_a_queued_drop_then_the_queued_con
             close_before_run: &[Queued::Reconnect, Queued::Connect, Queued::Disconnect],
             cancel_before_run: false,
             first_connect_abandoned: false,
+            disconnect_reasons: false,
             exits: "the consumer exits once the channels are closed",
         },
     )
@@ -61,6 +62,7 @@ async fn shared_instance_state_consumer_leaves_a_queued_reconnect_when_the_worke
             close_before_run: &[Queued::Reconnect, Queued::Connect, Queued::Disconnect],
             cancel_before_run: false,
             first_connect_abandoned: false,
+            disconnect_reasons: false,
             exits: "the consumer exits once the channels are closed",
         },
     )
@@ -90,6 +92,7 @@ async fn shared_instance_state_consumer_cancelled_before_it_polls_serves_nothing
             close_before_run: &[],
             cancel_before_run: true,
             first_connect_abandoned: false,
+            disconnect_reasons: false,
             exits: "the consumer returns on the cancel",
         },
     )

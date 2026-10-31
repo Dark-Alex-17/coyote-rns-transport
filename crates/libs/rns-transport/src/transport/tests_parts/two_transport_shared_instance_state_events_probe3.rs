@@ -24,6 +24,7 @@ async fn shared_instance_state_consumer_serves_a_queued_connect_before_the_strea
             close_before_run: &[Queued::Reconnect, Queued::Connect, Queued::Disconnect],
             cancel_before_run: false,
             first_connect_abandoned: false,
+            disconnect_reasons: false,
             exits: "the consumer exits once the channels are closed",
         },
     )
@@ -51,6 +52,7 @@ async fn shared_instance_state_consumer_reads_a_queued_connect_while_disconnects
             close_before_run: &[Queued::Reconnect, Queued::Connect],
             cancel_before_run: false,
             first_connect_abandoned: false,
+            disconnect_reasons: false,
             exits: "the consumer exits once the connect channel is drained and closed",
         },
     )

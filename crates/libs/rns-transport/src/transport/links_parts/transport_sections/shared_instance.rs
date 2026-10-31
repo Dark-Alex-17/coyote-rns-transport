@@ -116,7 +116,7 @@ impl Transport {
                         .with_reconnect_wait(options.reconnect_wait())
                         .with_connect_events(connect_tx)
                         .with_reconnect_events(reconnect_tx)
-                        .with_disconnect_events(disconnect_tx)
+                        .with_disconnect_reason_events(disconnect_tx)
                         .with_dial_failure_events(dial_failure_tx);
                     if let Some(mtu) = options.mtu() {
                         client = client.with_mtu(mtu);
@@ -137,7 +137,7 @@ impl Transport {
                         .with_reconnect_wait(options.reconnect_wait())
                         .with_connect_events(connect_tx)
                         .with_reconnect_events(reconnect_tx)
-                        .with_disconnect_events(disconnect_tx)
+                        .with_disconnect_reason_events(disconnect_tx)
                         .with_dial_failure_events(dial_failure_tx);
                     if let Some(mtu) = options.mtu() {
                         client = client.with_mtu(mtu);
@@ -190,6 +190,7 @@ impl Transport {
         self.spawn_shared_instance_reconnect_consumer(
             iface,
             options.reconnect_wait(),
+            options.disconnect_reasons(),
             SharedInstanceClientEvents {
                 reconnects: reconnect_rx,
                 connects: connect_rx,

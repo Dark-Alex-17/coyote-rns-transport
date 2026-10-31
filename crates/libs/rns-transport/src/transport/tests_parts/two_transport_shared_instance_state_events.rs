@@ -168,18 +168,21 @@ enum Queued {
 /// How a hand-built consumer is driven: the events queued, in order, before it first polls;
 /// the senders already gone by then (the rest go after it returns); whether the consumer's
 /// cancel token is cancelled before the poll; whether it is handed a first-connect notifier
-/// whose receiver is already gone; and what the consumer's exit within `STOP_TIMEOUT` pins.
+/// whose receiver is already gone; whether it sends `DisconnectedWithReason` in place of
+/// `Disconnected`; and what the consumer's exit within `STOP_TIMEOUT` pins.
 struct DriveSpec<'a> {
     queued: &'a [Queued],
     close_before_run: &'a [Queued],
     cancel_before_run: bool,
     first_connect_abandoned: bool,
+    disconnect_reasons: bool,
     exits: &'a str,
 }
 
 /// Drives a hand-built consumer named `name` as `spec` says and returns what the state
 /// stream read until it ended; the consumer's return drops the sender. Each event channel
-/// holds what is queued on it, so the queueing never blocks.
+/// holds what is queued on it, so the queueing never blocks. A queued disconnect carries
+/// `PeerClosed`.
 #[deny(clippy::await_holding_invalid_type)]
 async fn shared_instance_state_drive_consumer_with(
     name: &str,
@@ -197,7 +200,10 @@ async fn shared_instance_state_drive_consumer_with(
     for kind in spec.queued {
         match kind {
             Queued::Disconnect => {
-                disconnects_tx.send(iface).await.expect("queue the disconnect");
+                disconnects_tx
+                    .send((iface, DisconnectReason::PeerClosed))
+                    .await
+                    .expect("queue the disconnect");
             }
             Queued::Connect => connects_tx.send(iface).await.expect("queue the connect"),
             Queued::Reconnect => reconnects_tx.send(iface).await.expect("queue the reconnect"),
@@ -209,17 +215,16 @@ async fn shared_instance_state_drive_consumer_with(
             }
         }
     }
-    let mut open = vec![
-        (Queued::Reconnect, reconnects_tx),
-        (Queued::Connect, connects_tx),
-        (Queued::Disconnect, disconnects_tx),
-    ];
+    let mut open = vec![(Queued::Reconnect, reconnects_tx), (Queued::Connect, connects_tx)];
     open.retain(|(kind, _)| !spec.close_before_run.contains(kind));
+    let disconnects_tx =
+        (!spec.close_before_run.contains(&Queued::Disconnect)).then_some(disconnects_tx);
     let dial_failures_tx =
         (!spec.close_before_run.iter().any(|queued| matches!(queued, Queued::DialFailure(_))))
             .then_some(dial_failures_tx);
 
-    let (_transport, consumer) = shared_instance_reconnect_consumer(name, iface);
+    let (_transport, mut consumer) = shared_instance_reconnect_consumer(name, iface);
+    consumer.disconnect_reasons = spec.disconnect_reasons;
     let cancel = consumer.cancel.clone();
     if spec.cancel_before_run {
         cancel.cancel();
@@ -246,6 +251,7 @@ async fn shared_instance_state_drive_consumer_with(
         cancel.cancel();
     }
     drop(open);
+    drop(disconnects_tx);
     drop(dial_failures_tx);
 
     shared_instance_state_read_to_end(&mut state).await
@@ -271,6 +277,7 @@ async fn shared_instance_state_drive_consumer(
             close_before_run: &[Queued::Reconnect],
             cancel_before_run: false,
             first_connect_abandoned: false,
+            disconnect_reasons: false,
             exits: "the consumer exits once the reconnect channel is drained and closed",
         },
     )

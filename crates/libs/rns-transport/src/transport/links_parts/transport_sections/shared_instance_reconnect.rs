@@ -9,12 +9,15 @@ const SHARED_INSTANCE_REAPPEARED_ANNOUNCE_GRACE: Duration = Duration::from_secs(
 impl Transport {
     /// Spawns the task that reacts to the attached client's events and
     /// forwards the attach's state events on `state_events`;
-    /// `first_connect` fires once, on the first connect served; see
+    /// `first_connect` fires once, on the first connect served;
+    /// `disconnect_reasons` is the attach's
+    /// [`SharedInstanceOptions::with_disconnect_reasons`]; see
     /// [`SharedInstanceReconnectConsumer::run`].
     fn spawn_shared_instance_reconnect_consumer(
         &self,
         iface: AddressHash,
         reconnect_wait: Duration,
+        disconnect_reasons: bool,
         events: SharedInstanceClientEvents,
         state_events: Option<mpsc::Sender<SharedInstanceEvent>>,
         first_connect: Option<oneshot::Sender<()>>,
@@ -27,6 +30,7 @@ impl Transport {
             tasks: self.shared_instance_tasks.clone(),
             iface,
             reconnect_wait,
+            disconnect_reasons,
         };
         let SharedInstanceClientEvents { reconnects, connects, disconnects, dial_failures } =
             events;
@@ -49,7 +53,7 @@ impl Transport {
 struct SharedInstanceClientEvents {
     reconnects: mpsc::Receiver<AddressHash>,
     connects: mpsc::Receiver<AddressHash>,
-    disconnects: mpsc::Receiver<AddressHash>,
+    disconnects: mpsc::Receiver<(AddressHash, DisconnectReason)>,
     dial_failures: mpsc::Receiver<DialFailure>,
 }
 
@@ -128,6 +132,9 @@ pub(super) struct SharedInstanceReconnectConsumer {
     pub(super) tasks: Arc<std::sync::Mutex<JoinSet<()>>>,
     pub(super) iface: AddressHash,
     pub(super) reconnect_wait: Duration,
+    /// Whether `serve_disconnected` sends `DisconnectedWithReason` in place
+    /// of `Disconnected`.
+    pub(super) disconnect_reasons: bool,
 }
 
 impl SharedInstanceReconnectConsumer {
@@ -162,11 +169,12 @@ impl SharedInstanceReconnectConsumer {
     /// change the public `Sender<AddressHash>` payload and is deferred.
     ///
     /// `state_events` is the attach's stream: a served disconnect sends
-    /// `Disconnected` then `Connecting` after the drop is served; the flush
-    /// itself runs only while the transport is still attached. A served
-    /// connect sends `Connected` and, the first time, fires `first_connect`;
-    /// a served dial failure sends `DialFailed` with its kind. Each event
-    /// goes with `try_send`. The
+    /// `Disconnected`, or `DisconnectedWithReason` with the reason the
+    /// client reported when `disconnect_reasons` is set, then `Connecting`
+    /// after the drop is served; the flush itself runs only while the
+    /// transport is still attached. A served connect sends `Connected` and,
+    /// the first time, fires `first_connect`; a served dial failure sends
+    /// `DialFailed` with its kind. Each event goes with `try_send`. The
     /// sender is a parameter rather than a field so it drops when this task
     /// returns: the re-announce task clones `self` and outlives a detach by
     /// `reconnect_wait` plus the grace, and must not hold the stream open.
@@ -179,7 +187,7 @@ impl SharedInstanceReconnectConsumer {
         self,
         mut reconnects: mpsc::Receiver<AddressHash>,
         mut connects: mpsc::Receiver<AddressHash>,
-        mut disconnects: mpsc::Receiver<AddressHash>,
+        mut disconnects: mpsc::Receiver<(AddressHash, DisconnectReason)>,
         mut dial_failures: mpsc::Receiver<DialFailure>,
         state_events: Option<mpsc::Sender<SharedInstanceEvent>>,
         mut first_connect: Option<oneshot::Sender<()>>,
@@ -192,10 +200,10 @@ impl SharedInstanceReconnectConsumer {
                 biased;
                 _ = self.cancel.cancelled() => return,
                 disconnected = disconnects.recv() => {
-                    if disconnected.is_none() {
+                    let Some((_, reason)) = disconnected else {
                         break;
-                    }
-                    self.serve_disconnected(state_events.as_ref()).await;
+                    };
+                    self.serve_disconnected(state_events.as_ref(), reason).await;
                 }
                 connected = connects.recv() => {
                     if connected.is_none() {
@@ -254,9 +262,13 @@ impl SharedInstanceReconnectConsumer {
     }
 
     #[deny(clippy::await_holding_invalid_type)]
-    async fn serve_disconnected(&self, state_events: Option<&mpsc::Sender<SharedInstanceEvent>>) {
+    async fn serve_disconnected(
+        &self,
+        state_events: Option<&mpsc::Sender<SharedInstanceEvent>>,
+        reason: DisconnectReason,
+    ) {
         self.on_disconnected().await;
-        self.send_state_event(state_events, SharedInstanceEvent::Disconnected);
+        self.send_state_event(state_events, self.disconnected_event(reason));
         self.send_state_event(state_events, SharedInstanceEvent::Connecting);
     }
 
@@ -461,3 +473,4 @@ fn drain_links(links: &mut HashMap<AddressHash, Arc<Mutex<Link>>>) -> Vec<Arc<Mu
 }
 
 include!("shared_instance_reconnect_parts/drain_queued.rs");
+include!("shared_instance_reconnect_parts/disconnected_event.rs");

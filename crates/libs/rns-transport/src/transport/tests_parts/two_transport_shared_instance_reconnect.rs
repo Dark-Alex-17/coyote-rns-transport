@@ -314,6 +314,7 @@ fn shared_instance_reconnect_consumer(
         tasks: transport.shared_instance_tasks.clone(),
         iface,
         reconnect_wait: Duration::ZERO,
+        disconnect_reasons: false,
     };
     (transport, consumer)
 }
@@ -336,7 +337,10 @@ async fn shared_instance_reconnect_consumer_serves_the_disconnect_before_the_rec
         let (disconnects_tx, disconnects) = tokio::sync::mpsc::channel(1);
         let (dial_failures_tx, dial_failures) = tokio::sync::mpsc::channel(1);
         reconnects_tx.send(iface).await.expect("queue the reconnect");
-        disconnects_tx.send(iface).await.expect("queue the disconnect");
+        disconnects_tx
+            .send((iface, DisconnectReason::PeerClosed))
+            .await
+            .expect("queue the disconnect");
         drop(reconnects_tx);
 
         let (_transport, consumer) = shared_instance_reconnect_consumer(&name, iface);

@@ -49,18 +49,21 @@ Removed) bullet of its own, marked as such.
   measured as its packed `[request_id, body]` frame, before the MDU check
   that would turn an oversize frame into a Resource; a
   `RequestResponse::Resource` is measured at its advertised size `d`, the
-  uncompressed data behind the packed metadata and its length prefix
-  (`resource/sender.rs` names that prefix once), like `max_request_size`,
-  which reads `d` rather than the compressed `t`; the requester's cap reads
-  the same `d`, so the two caps compose at one number, and a metadata-less
-  Resource measures as its data alone. A response at the cap goes out; one
-  over it is not sent at all, the dispatcher logs one warn naming the
-  request id, the link, the measured length and the cap, and a tracked
-  outcome resolves the new `ResponseOutcome::TooLarge { len, max }` variant
+  uncompressed data together with the packed metadata and its length prefix
+  (`resource/sender.rs` names that prefix once as
+  `METADATA_LENGTH_PREFIX_LEN`, and `resource/receiver.rs` parses it through
+  the same constant), like `max_request_size`, which reads `d` rather than
+  the compressed `t`; the requester's cap reads the same `d`, so the two
+  caps compose at one number, and a metadata-less Resource measures as its
+  data alone. A response at the cap goes out; one over it is not sent at
+  all, the dispatcher logs one warn naming the request id, the link, the
+  measured length and the cap, and a tracked outcome resolves the new
+  `ResponseOutcome::TooLarge { len, max }` variant
   (`destination/request/outcome.rs`; the enum is `#[non_exhaustive]`, so the
-  variant is additive). This is the responder's cap on what it sends; the
-  requester's cap on what it accepts stays
-  `RequestOptions::with_max_response_size`. Pinned by
+  variant is additive), whose rustdoc describes the Resource measure in the
+  same words as `set_max_response_size` and the README. This is the
+  responder's cap on what it sends; the requester's cap on what it accepts
+  stays `RequestOptions::with_max_response_size`. Pinned by
   `two_transport_loopback_requests_response_cap.rs` (a packet response at
   the cap going out and one over it refused, a `Resource` response at the
   cap going out and one over it refused, and an oversize `Bytes` body
@@ -105,20 +108,27 @@ Removed) bullet of its own, marked as such.
   knows answers at once and no path request goes out. A zero timeout is a
   cached lookup alone and returns `None` for an unknown destination without
   sending anything. Otherwise exactly one path request is attempted, a
-  `Broadcast` on every outgoing interface as `request_path` sends it, and the call polls
-  every 50 ms until the announce is learned or the timeout passes, returning
-  `None` after it. The entry read is the one `destination_desc` and
-  `destination_identity` read, filled by an accepted announce or a restored
-  path table. That entry and the path table can part ways, and the call
-  follows the entry: a destination `deregister_destination` removed while
-  its path table entry stands answers `None` at once with no request, since
-  `await_path` takes the standing path as its answer; a destination whose
-  entry is still held but whose path `expire_path` or aging removed answers
-  `Some` at once with no request, so a caller that then needs a next hop
-  for `link` still calls `await_path` itself.
-  Fork-only: a Python application writes the same by hand with
-  `RNS.Transport.request_path`, a `has_path` poll and `RNS.Identity.recall`.
-  A test-only `PathRequests::outgoing_request_count`
+  `Broadcast` on every outgoing interface as `request_path` sends it, and
+  the call waits until a path is learned, polling every 50 ms or the time
+  left, whichever is shorter, or the timeout passes, returning `None` after
+  it. A timeout the clock cannot hold, `Duration::MAX` included, waits
+  indefinitely instead of panicking: `Transport::await_path`, which the
+  call delegates its wait to and which now lives in
+  `links_parts/transport_sections/await_path.rs`, computes its deadline
+  with a checked add that saturates to a far future and sleeps the shorter
+  of 50 ms and the time left, so a timeout shorter than one poll returns at
+  its deadline rather than a poll later. The entry read is the one
+  `destination_desc` and `destination_identity` read, filled by an accepted
+  announce or a restored path table. That entry and the path table can part
+  ways, and the call follows the entry: a destination
+  `deregister_destination` removed while its path table entry stands
+  answers `None` at once with no request, since `await_path` takes the
+  standing path as its answer; a destination whose entry is still held but
+  whose path `expire_path` or aging removed answers `Some` at once with no
+  request, so a caller that then needs a next hop for `link` still calls
+  `await_path` itself. Fork-only: a Python application writes the same by
+  hand with `RNS.Transport.request_path`, a `has_path` poll and
+  `RNS.Identity.recall`. A test-only `PathRequests::outgoing_request_count`
   (`path_requests_parts/module_prelude.rs`) counts the path requests sent
   for a destination and not yet pruned by the job that applies the throttle
   window, one per send. Pinned by
@@ -132,20 +142,28 @@ Removed) bullet of its own, marked as such.
   exactly one more request per call; a repeat on a learned destination
   sends nothing; the deregistered-with-standing-path arm answers `None` at
   once with no request; the held-desc-with-expired-path arm answers `Some`
-  at once with no request), by `tests/destination_desc_api.rs` (the known,
-  the silent-but-reachable and the zero-timeout arms from outside the
-  crate; a miss that returns no sooner than the timeout and within the
-  file's 300 ms quiet window of it and is not remembered against the next
-  lookup; a transport with no interface at all, which has nothing to
-  broadcast on, answering `None` at once on a zero timeout and missing on
-  the timeout otherwise; and both splits walked as a consumer would: an
-  expired path answers at once, then `await_path` relearns the next hop and
-  the desc opens a link, and a destination deregistered with a standing
-  path answers `None` until `expire_path` turns it back into the reachable
-  case and one request draws the announce), and by
-  `crate_readme_sections.rs`, which pins the README link-opening prose for
-  the call, both splits included; `request_layer_api_docs.rs` names the
-  method among the items whose rustdoc must cite Python or say fork-only.
+  at once with no request; `Duration::MAX` on `resolve_destination` and on
+  `await_path` outlives an outer one-second bound instead of panicking,
+  one request sent; a 10 ms miss returns no sooner than 10 ms and inside
+  200 ms after one request), by
+  `two_transport_resolve_destination_probe2.rs` (a 1 ms timeout spends one
+  request whether it hits or misses and the late answer is cached for a
+  zero-timeout retry that sends nothing; two concurrent callers each spend
+  one request and both read the one entry the table holds), by
+  `tests/destination_desc_api.rs` (the known, the silent-but-reachable and
+  the zero-timeout arms from outside the crate; a miss that returns no
+  sooner than the timeout and within two seconds of it and is not
+  remembered against the next lookup; a transport with no interface at all,
+  which has nothing to broadcast on, answering `None` at once on a zero
+  timeout and missing on the timeout otherwise; and both splits walked as a
+  consumer would: an expired path answers at once, then `await_path`
+  relearns the next hop and the desc opens a link, and a destination
+  deregistered with a standing path answers `None` until `expire_path`
+  turns it back into the reachable case and one request draws the
+  announce), and by `crate_readme_sections.rs`, which pins the README
+  link-opening prose for the call, both splits included;
+  `request_layer_api_docs.rs` names the method among the items whose
+  rustdoc must cite Python or say fork-only.
 
 ### Changed
 
@@ -156,19 +174,27 @@ Removed) bullet of its own, marked as such.
   (`resource/advertisement_limits.rs`), called from
   `transport/resource_wire.rs` where the unconditional warn was, and the
   `[resource-diag] reject_request_advertisement` line is logged at warn on
-  the first refusal and on every 64th after it, at debug otherwise, with a
-  `rejected=<n>` running count appended; an operator tailing warn still sees
-  a peer that keeps sending oversized requests, once rather than once per
-  advertisement. The rejection itself (the receiver cancel) is unchanged.
-  `LinkStats` and `ewma` move from `resource.rs` into `resource/link_stats.rs`
-  to keep `resource.rs` under the module-size budget; the move changes no
-  behaviour. Pinned by `request_advert_reject_warn_cadence.rs` (65 refusals
+  the first refusal and on every 64th after it (the stride is
+  `REJECT_WARN_STRIDE`, shared with the over-cap advertisement cadence), at
+  debug otherwise, with a `rejected=<n>` running count appended; an operator
+  tailing warn still sees a peer that keeps sending oversized requests, once
+  rather than once per advertisement. Since the line is now emitted from
+  the `include!`d `advertisement_limits.rs`, its log target moves from
+  `rns_transport::transport::resource_wire` to `rns_transport::resource`.
+  The rejection itself (the receiver cancel) is unchanged. `LinkStats` and
+  `ewma` move from `resource.rs` into `resource/link_stats.rs` to keep
+  `resource.rs` under the module-size budget; the move normalised two
+  doc-comment glyphs (an arrow to "to", an em dash to a comma) and changed
+  no code. Pinned by `request_advert_reject_warn_cadence.rs` (65 refusals
   on one link warn at the first and the 64th and debug the rest, each record
   naming the link and the running count; a second link starts its own count
   and is warned on its first refusal; the sibling `rejected_advertisements`
   count stays untouched), by `request_advert_reject_warn_cadence_probe.rs`
   (129 refusals on one link warn at the first, the 64th and the 128th and
-  debug the rest) and by the counter-level pin in
+  debug the rest), by `request_advert_reject_warn_cadence_probe2.rs` (an
+  accepted at-limit request advertisement and a data round trip between the
+  63rd and the 64th refusal neither reset nor advance the count) and by the
+  counter-level pin in
   `resource/tests_advert_limits.rs` (two refusals leave
   `rejected_request_advertisements` at 2 and `rejected_advertisements` at
   0, with the mirror assertion in the over-cap sibling); the shared
@@ -222,12 +248,27 @@ Removed) bullet of its own, marked as such.
   `release_0_17_0_probe3.rs` states that its enum pin needs the
   `coyote-rns-transport-v0.17.0` tag in the clone, as the full-depth
   contracts job has, and fails rather than skips without it. The two miss
-  bounds of `tests/destination_desc_api.rs` widen to the file's `QUIET`
-  window, and `crate_readme_sections.rs` gains
+  upper bounds of `tests/destination_desc_api.rs` widen to two seconds past
+  the budget, the lower bounds unchanged, and `crate_readme_sections.rs`
+  gains
   `crate_readme_link_section_carries_one_rust_fence` (the link-opening
   section carries one rust fence and no other) and
   `crate_readme_resolve_destination_prose_matches_the_rustdoc_and_the_changelog`
-  (README, CHANGELOG and rustdoc agree on the attempted-request wording).
+  (README, CHANGELOG and rustdoc agree on the attempted-request wording),
+  which reads the newest changelog section by position, the text after the
+  first `## ` heading, rather than by the `Unreleased` label, so it survives
+  the release cut; `crate_readme_sections.rs` also gains
+  `response_cap_rustdoc_twins_describe_the_resource_measure_alike`, which
+  holds the `TooLarge` rustdoc, the `set_max_response_size` rustdoc and the
+  README request-handler section to one description of the Resource
+  measure. `resource_response_len` of
+  `two_transport_loopback_requests_response_cap.rs` takes
+  `Option<&rmpv::Value>` and applies the dispatcher's `map_or(0, ..)`, so
+  the metadata-less pin of
+  `two_transport_loopback_requests_response_cap_probe.rs` measures through
+  it; and the `RESOURCE_LOG_TARGET` comment of
+  `two_transport_loopback_requests_isolation.rs` names both `include!`d
+  sources of the lines it captures.
 
 ## 0.17.0 - 2026-10-27
 

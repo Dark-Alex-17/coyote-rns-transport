@@ -34,11 +34,12 @@ ledger contracts, K4 is destination resolve, K5 is reject cadence. The
 `outcome tracker` patch is fork commits `c3a317d7`, `ca32feac`, `223cdd80`,
 `716fb2be`, `d3b234e6` and `d36f65df`; the `response cap` patch is fork
 commits `355a0ddf`, `ca32feac`, `223cdd80`, `716fb2be`, `f43321f4`,
-`9eb35226`, `d3b234e6`, `d36f65df`, `813f421a` and `2aca9568`; the `ledger
-contracts` patch is fork commit `ca32feac`; the `destination resolve` patch
-is fork commits `3136f1bf`, `d36f65df`, `813f421a`, `2aca9568` and
-`79308556`; the `reject cadence` patch is fork commits `265d6929`,
-`d36f65df` and `813f421a`.
+`9eb35226`, `d3b234e6`, `d36f65df`, `813f421a`, `2aca9568`, `6fef8927` and
+`ac5a81ae`; the `ledger contracts` patch is fork commit `ca32feac`; the
+`destination resolve` patch is fork commits `3136f1bf`, `d36f65df`,
+`813f421a`, `2aca9568`, `79308556`, `6fef8927` and `ac5a81ae`; the `reject
+cadence` patch is fork commits `265d6929`, `d36f65df`, `813f421a`,
+`6fef8927` and `ac5a81ae`.
 
 | File | Patch |
 | --- | --- |
@@ -57,8 +58,11 @@ is fork commits `3136f1bf`, `d36f65df`, `813f421a`, `2aca9568` and
 | `crates/libs/rns-transport/src/resource.rs` | reject cadence |
 | `crates/libs/rns-transport/src/resource/advertisement_limits.rs` | reject cadence |
 | `crates/libs/rns-transport/src/resource/link_stats.rs` | reject cadence |
+| `crates/libs/rns-transport/src/resource/receiver.rs` | response cap |
 | `crates/libs/rns-transport/src/resource/sender.rs` | response cap |
 | `crates/libs/rns-transport/src/resource/tests_advert_limits.rs` | reject cadence |
+| `crates/libs/rns-transport/src/transport/links_parts/transport_sections/await_path.rs` | destination resolve |
+| `crates/libs/rns-transport/src/transport/links_parts/transport_sections/close_channel.rs` | destination resolve |
 | `crates/libs/rns-transport/src/transport/links_parts/transport_sections/resolve_destination.rs` | destination resolve |
 | `crates/libs/rns-transport/src/transport/links_parts/transport.rs` | destination resolve |
 | `crates/libs/rns-transport/src/transport/path_requests_parts/module_prelude.rs` | destination resolve |
@@ -67,6 +71,7 @@ is fork commits `3136f1bf`, `d36f65df`, `813f421a`, `2aca9568` and
 | `crates/libs/rns-transport/src/transport/resource_wire.rs` | reject cadence |
 | `crates/libs/rns-transport/src/transport/tests_parts/request_advert_reject_warn_cadence.rs` | reject cadence |
 | `crates/libs/rns-transport/src/transport/tests_parts/request_advert_reject_warn_cadence_probe.rs` | reject cadence |
+| `crates/libs/rns-transport/src/transport/tests_parts/request_advert_reject_warn_cadence_probe2.rs` | reject cadence |
 | `crates/libs/rns-transport/src/transport/tests_parts/two_transport_loopback_requests_into_parts.rs` | outcome tracker |
 | `crates/libs/rns-transport/src/transport/tests_parts/two_transport_loopback_requests_isolation.rs` | outcome tracker, response cap, reject cadence |
 | `crates/libs/rns-transport/src/transport/tests_parts/two_transport_loopback_requests_response_cap.rs` | response cap |
@@ -76,6 +81,7 @@ is fork commits `3136f1bf`, `d36f65df`, `813f421a`, `2aca9568` and
 | `crates/libs/rns-transport/src/transport/tests_parts/two_transport_loopback_requests_response_cap_probe4.rs` | response cap |
 | `crates/libs/rns-transport/src/transport/tests_parts/two_transport_resolve_destination.rs` | destination resolve |
 | `crates/libs/rns-transport/src/transport/tests_parts/two_transport_resolve_destination_probe.rs` | destination resolve |
+| `crates/libs/rns-transport/src/transport/tests_parts/two_transport_resolve_destination_probe2.rs` | destination resolve |
 | `crates/libs/rns-transport/src/transport/tests.rs` | outcome tracker, response cap, destination resolve, reject cadence |
 | `crates/libs/rns-transport/tests/destination_desc_api.rs` | destination resolve |
 | `crates/libs/rns-transport/tests/request_handler_api.rs` | outcome tracker |
@@ -128,9 +134,9 @@ slot as it was, so with no earlier `track_outcome` the dispatcher logs
 nothing and resolves nothing.
 
 Fork commits `355a0ddf`, `ca32feac`, `223cdd80`, `716fb2be`, `f43321f4`,
-`9eb35226`, `d3b234e6`, `d36f65df`, `813f421a` and `2aca9568`: K2, response
-cap. The library behaviour changes are: a destination can bound the size of
-the responses it sends. `355a0ddf`
+`9eb35226`, `d3b234e6`, `d36f65df`, `813f421a`, `2aca9568`, `6fef8927` and
+`ac5a81ae`: K2, response cap. The library behaviour changes are: a
+destination can bound the size of the responses it sends. `355a0ddf`
 adds `set_max_response_size`, `clear_max_response_size` and
 `max_response_size` to the single input destination
 (`destination_parts/destination.rs`, the field in
@@ -253,15 +259,41 @@ the body length the responder measures the frame and refuses first with
 `TooLarge`, nothing sent and one warn. The same commit adds needles to
 `crate_readme_sections.rs` for the README cap and slot sentences: the caps
 compose at one number, a metadata-less Resource measures as its data alone,
-and an unarmed tracker leaves the slot as it was.
+and an unarmed tracker leaves the slot as it was. `6fef8927` has the
+`ResponseOutcome::TooLarge` rustdoc (`destination/request/outcome.rs`)
+describe the Resource measure as the `set_max_response_size` rustdoc and
+the README do, the uncompressed data together with the packed metadata and
+its length prefix, with a metadata-less resource measuring as its data
+alone; adds that phrase as a needle to `crate_readme_sections.rs` and the
+test `response_cap_rustdoc_twins_describe_the_resource_measure_alike`, which
+reads the two rustdocs and the README section and fails if any of the three
+drops it; has `resource/receiver.rs` parse the metadata length prefix
+through `METADATA_LENGTH_PREFIX_LEN` (a zero-padded big-endian read of that
+many bytes and bounds checks through the constant, behaviour unchanged, the
+existing split-metadata tests pinning it) and the `send_response_resource`
+rustdoc of `transport/request_dispatch.rs` cite the constant in place of
+the literal width. `ac5a81ae` changes `resource_response_len` of
+`two_transport_loopback_requests_response_cap.rs` to take
+`Option<&rmpv::Value>` and apply the dispatcher's `map_or(0, ..)`, so the
+metadata-less pin of
+`two_transport_loopback_requests_response_cap_probe.rs` measures through it
+and the metadata-bearing callers there and in
+`two_transport_loopback_requests_response_cap_probe2.rs` pass `Some`; and
+has the `RESOURCE_LOG_TARGET` comment of
+`two_transport_loopback_requests_isolation.rs` name both `include!`d
+sources of the lines it captures, `resource/outcome.rs` and
+`resource/advertisement_limits.rs`, and say the request dispatcher's
+dropped-receiver line logs under its own target.
 
 Fork commit `ca32feac`: K3, ledger contracts. No library behaviour changes.
 `ca32feac` extends the full-hash ledger pin in `ledger_contract.rs` to the
 reopened `Unreleased` section beside the released ones.
 
-Fork commits `3136f1bf`, `d36f65df`, `813f421a`, `2aca9568` and `79308556`:
-K4, destination resolve. The library behaviour changes are: a caller can look
-up a destination and wait for its path in one call. `3136f1bf` adds
+Fork commits `3136f1bf`, `d36f65df`, `813f421a`, `2aca9568`, `79308556`,
+`6fef8927` and `ac5a81ae`: K4, destination resolve. The library behaviour
+changes are: a caller can look up a destination and wait for its path in
+one call, and `await_path` holds any timeout and returns at its deadline.
+`3136f1bf` adds
 `Transport::resolve_destination` in the new include
 `links_parts/transport_sections/resolve_destination.rs` (registered in
 `links_parts/transport.rs`), which takes an `AddressHash` and a `Duration`
@@ -337,20 +369,59 @@ other) and
 (the README paragraph, the `Unreleased` changelog bullet and the method's
 rustdoc each say exactly one path request is attempted, a `Broadcast` on
 every outgoing interface, with the message type backticked in all three).
+`6fef8927` fixes two edges of `Transport::await_path`, which
+`resolve_destination` delegates its wait to: the deadline was a plain
+`Instant` add that panics on `Duration::MAX`, and every poll slept a full
+50 ms, so a timeout shorter than one poll returned a poll late. The method
+moves from `links_parts/transport_sections/close_channel.rs` into the new
+include `links_parts/transport_sections/await_path.rs` (registered in
+`links_parts/transport.rs`), computes its deadline with a checked add that
+saturates to a far future, so a timeout the clock cannot hold waits
+indefinitely, and sleeps the shorter of 50 ms and the time left; the
+`has_path` short-circuit, the single `request_path` and the final
+`has_path` read are as they were. Its rustdoc says so, and the
+`resolve_destination` rustdoc and the README link-opening paragraph say
+the call waits until a path is learned, polling every 50 ms or the time
+left, whichever is shorter, and that `Duration::MAX` waits instead of
+panicking. Pinned in `two_transport_resolve_destination_probe.rs`:
+`resolve_destination` and `await_path` with `Duration::MAX` on an
+unreachable destination outlive an outer one-second bound instead of
+panicking, each having sent one request (both fail against the plain add),
+and a 10 ms miss returns no sooner than 10 ms, inside 200 ms, after one
+request. The same commit has
+`crate_readme_resolve_destination_prose_matches_the_rustdoc_and_the_changelog`
+of `crate_readme_sections.rs` read the newest changelog section by
+position, the text after the first `## ` heading, rather than by the
+`Unreleased` label, so the pin survives the release cut that promotes the
+stub. `ac5a81ae` adds `two_transport_resolve_destination_probe2.rs`
+(included from `tests.rs`): a 1 ms timeout on a destination registered
+without announcing spends exactly one path request whether it hits or
+misses, the path response lands afterwards, and a zero-timeout retry
+answers `Some` from the cache with no second request; and two callers
+resolving the same unknown destination at once each spend one request,
+both resolve, and both read the one entry the table holds. The same commit
+widens the two miss upper bounds of `tests/destination_desc_api.rs` from
+the 300 ms quiet window to two seconds past the budget, the lower bound
+unchanged, so CI load cannot flake them.
 
-Fork commits `265d6929`, `d36f65df` and `813f421a`: K5, reject cadence. The library
-behaviour changes are: the warn for a request advertisement refused over the
-destination's `max_request_size` has a per-link cadence. `265d6929` adds the
+Fork commits `265d6929`, `d36f65df`, `813f421a`, `6fef8927` and `ac5a81ae`:
+K5, reject cadence. The library behaviour changes are: the warn for a
+request advertisement refused over the destination's `max_request_size`
+has a per-link cadence. `265d6929` adds the
 `LinkStats.rejected_request_advertisements` counter and moves `LinkStats`
 with `ewma` from `resource.rs` into the new include
 `resource/link_stats.rs`, so `resource.rs` stays under the module-size
-budget (the move changes no behaviour); adds
+budget (the move normalised two doc-comment glyphs, an arrow to "to" and an
+em dash to a comma, and changed no code); adds
 `ResourceManager::record_rejected_request_advertisement`
 (`resource/advertisement_limits.rs`), which counts the refusal against the
 link and logs the same diagnostic line with a `rejected=<n>` suffix, at warn
 on the first refusal and on every 64th after it and at debug otherwise; and
 calls it from `transport/resource_wire.rs` where the unconditional warn
-was, the receiver cancel that rejects the advertisement unchanged.
+was, the receiver cancel that rejects the advertisement unchanged. The
+cadenced line is emitted from the `include!`d `advertisement_limits.rs`, so
+its log target moves from `rns_transport::transport::resource_wire` to
+`rns_transport::resource`.
 `FLAG_REQUEST` becomes `pub(crate)` so the wire-side test can build a
 request advertisement. Pinned by `request_advert_reject_warn_cadence.rs`
 (included from `tests.rs`): 65 over-limit request advertisements on one
@@ -372,7 +443,16 @@ with the mirror assertion in the over-cap sibling. `813f421a` has both
 cadence pins match the `rejected=<n>` field as the record's tail with
 `ends_with` rather than by substring, and has the probe's seed-offset
 comment say the offset only keeps a mixed log readable, since records are
-attributed by link id.
+attributed by link id. `6fef8927` names the stride once:
+`REJECT_WARN_STRIDE` in `resource/advertisement_limits.rs`, read by both
+`record_rejected_advertisement` and
+`record_rejected_request_advertisement`, the tests keeping their literal
+64 and 128. `ac5a81ae` adds `request_advert_reject_warn_cadence_probe2.rs`
+(included from `tests.rs`): an at-limit request advertisement the
+destination accepts and a plain data round trip between the 63rd and the
+64th refusal leave no refusal record and neither reset nor advance the
+count, so the 64th refusal still warns and the 65th is debug, with the
+over-cap count untouched.
 
 ## 0.17.0 (upstream 0.14.0)
 

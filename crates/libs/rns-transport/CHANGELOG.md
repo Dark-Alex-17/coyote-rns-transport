@@ -20,17 +20,18 @@ Removed) bullet of its own, marked as such.
   `ResponseOutcomeTracker::outcome` hands out the `ResponseOutcomeReceiver`
   under the same timing rule as `track_outcome`: arm it inside the handler,
   before the handler returns. A tracker dropped unarmed leaves the slot
-  empty, so the dispatcher (`transport/request_dispatch.rs`) resolves
-  nothing and logs nothing for it, where a receiver that was armed and then
-  dropped still costs the dispatcher one debug line. Pinned by
+  as it was: with no earlier `track_outcome`, the dispatcher
+  (`transport/request_dispatch.rs`) resolves nothing and logs nothing for
+  it, where a receiver that was armed and then dropped still costs the
+  dispatcher one debug line. Pinned by
   `two_transport_loopback_requests_into_parts.rs` (a packet response and a
   `Resource` response tracked through the tracker, an unarmed tracker
   dropped with no dispatcher line, and an armed slot whose receiver is
-  dropped logging once as the positive control) and by
+  dropped, through the tracker, logging once as the positive control) and by
   `tests/request_handler_api.rs` (a closure that splits the request with
   `into_parts` and arms the tracker registers, the tuple typed so a rename
   of the tracker fails the file) and `tests/response_cap_tracker_api.rs`
-  (the tracker is `Send + Sync`, prints as an opaque struct and is not
+  (the tracker is `Send + Sync`, implements `Debug` and is not
   `Clone`); `request_layer_api_docs.rs` lists the tracker among the
   private-field structs.
 - `SingleInputDestination::set_max_response_size`,
@@ -47,15 +48,15 @@ Removed) bullet of its own, marked as such.
   `transport/request_dispatch.rs`). A `Value` or `Bytes` response is
   measured as its packed `[request_id, body]` frame, before the MDU check
   that would turn an oversize frame into a Resource; a
-  `RequestResponse::Resource` is measured as its data plus the packed
-  metadata, uncompressed, like `max_request_size`, which reads the
-  advertised size `d` rather than the compressed `t`, though without the
-  3-byte metadata length prefix the advertised size counts, so a requester
-  cap set to the same number refuses a metadata-bearing Resource response
-  this cap let through. A response at the cap goes out; one over it is not
-  sent at all, the dispatcher logs one warn naming the request id, the
-  link, the measured length and the cap, and a tracked outcome resolves
-  the new `ResponseOutcome::TooLarge { len, max }` variant
+  `RequestResponse::Resource` is measured at its advertised size `d`, the
+  uncompressed data behind the packed metadata and its length prefix
+  (`resource/sender.rs` names that prefix once), like `max_request_size`,
+  which reads `d` rather than the compressed `t`; the requester's cap reads
+  the same `d`, so the two caps compose at one number, and a metadata-less
+  Resource measures as its data alone. A response at the cap goes out; one
+  over it is not sent at all, the dispatcher logs one warn naming the
+  request id, the link, the measured length and the cap, and a tracked
+  outcome resolves the new `ResponseOutcome::TooLarge { len, max }` variant
   (`destination/request/outcome.rs`; the enum is `#[non_exhaustive]`, so the
   variant is additive). This is the responder's cap on what it sends; the
   requester's cap on what it accepts stays
@@ -74,7 +75,17 @@ Removed) bullet of its own, marked as such.
   `two_transport_loopback_requests_response_cap_probe2.rs` (the cap read
   at dispatch, so one tightened mid-handler applies to the next request;
   an `into_parts` tracker retiring an earlier `track_outcome` receiver with
-  `NotSent`; and the 3-byte requester margin over the Resource measure), by
+  `NotSent`; and equal requester and responder caps admitting a
+  metadata-bearing Resource response at that size, where a requester cap
+  one under rejects the advertisement and a responder cap one under refuses
+  with `TooLarge { len, max }` before anything is sent), by
+  `two_transport_loopback_requests_response_cap_probe3.rs` (a request that
+  arrived as a Resource earns a response measured like any other, over the
+  cap refused and at the cap sent; `into_parts` on such a request yields
+  the assembled bytes; a cap of zero refuses even a `Nil` body; a handler
+  answering `None` under a cap stays `NotSent` with no refusal warn; and
+  `Transport::send_response` goes out untouched by a cap that would refuse
+  the same frame from a handler), by
   `tests/response_cap_tracker_api.rs` (the three accessors from outside
   the crate, a zero cap accepted, `TooLarge` destructured by field), by
   the destination unit test in `destination/tests.rs` (unbounded by
@@ -114,7 +125,18 @@ Removed) bullet of its own, marked as such.
   on a closed resource event channel; `request_layer_api_docs.rs` names
   `set_max_response_size`, `clear_max_response_size` and
   `max_response_size` among the items whose rustdoc must say fork-only,
-  and its walker floor rises to the current count of 154 public items.
+  and its walker floor rises to the current count of 154 public items. The
+  both-ends pin of `two_transport_loopback_requests_response_cap_probe2.rs`
+  asserts equal caps compose now that the Resource measure counts the
+  metadata length prefix, and `resource_response_len` of
+  `two_transport_loopback_requests_response_cap.rs` counts it too; the
+  metadata-less pin of `two_transport_loopback_requests_response_cap_probe.rs`
+  installs the test logger before reading its records; the positive control
+  of `two_transport_loopback_requests_into_parts.rs` arms through the
+  `into_parts` tracker it sits beside; and the module doc of
+  `release_0_17_0_probe3.rs` states that its enum pin needs the
+  `coyote-rns-transport-v0.17.0` tag in the clone, as the full-depth
+  contracts job has, and fails rather than skips without it.
 
 ## 0.17.0 - 2026-10-27
 

@@ -571,18 +571,18 @@ connection state on it.
 `SharedInstanceEvent` is `#[non_exhaustive]`, so match it with a wildcard
 arm; its variants are `Connecting`, `Connected`, `Disconnected`,
 `DialFailed { reason }` and `DisconnectedWithReason { reason }` (the last
-two are described below). The
-attach itself sends the first `Connecting` once the interface is spawned and
-the slot taken, the connected posture already set when `Connecting` arrives
-while the slot still holds the interface (a refused attach sends nothing; in
-the documented attach/stop race the attach returns `Ok` and `Connecting`
-goes out with the posture off, the stream ending at once); the consumer task
-sends `Connected` on every established stream, the first included, and after
-every dropped connection `Disconnected`, once the flush above, which runs
-only while the transport is still attached, has run, then `Connecting` at
-once, so one cycle reads `Disconnected`, `Connecting`, `Connected`. Under a
-reconnect storm the cycles can interleave: queued disconnects are served
-before connects, so two `Disconnected` can precede their `Connected`s; the
+two are described below). The attach itself sends the first `Connecting`
+once the interface is spawned and the slot taken, the connected posture
+already set when `Connecting` arrives while the slot still holds the
+interface (a refused attach sends nothing; in the documented attach/stop
+race the attach returns `Ok` and `Connecting` goes out with the posture
+off, the stream ending at once); the consumer task sends `Connected` on
+every established stream, the first included, and after every dropped
+connection `Disconnected`, once the flush above, which runs only while the
+transport is still attached, has run, then `Connecting` at once, so one
+cycle reads `Disconnected`, `Connecting`, `Connected`. Under a reconnect
+storm the cycles can interleave: queued disconnects are served before
+connects, so two `Disconnected` can precede their `Connected`s; the
 per-cycle order holds, the cycles may nest. A client attached while nothing
 listens stays in `Connecting` until the socket exists. Every event goes out
 with `try_send`: a full channel drops the event at debug and never blocks
@@ -597,7 +597,7 @@ before the stream ends (a connect already queued is read as `Connected`).
 events: it stays set across a `Disconnected` until detach or stop. Python's
 `LocalClientInterface` exposes no such stream; its reconnect loop is
 `RNS/Interfaces/LocalInterface.py:155-181` and its drop path
-`RNS/Interfaces/LocalInterface.py:255-261`. Underneath, `TcpClient` and
+`RNS/Interfaces/LocalInterface.py:255-266`. Underneath, `TcpClient` and
 `LocalUnixClient` gained `with_connect_events`, which fires on every
 established stream, the first included, where `with_reconnect_events` fires
 from the second on, and a `connect_events_enabled` getter.
@@ -635,23 +635,24 @@ failed attempt, `DialFailure::iface()` naming the interface and
 
 `SharedInstanceOptions::with_disconnect_reasons(true)` opts into reading why
 each established connection ended: the stream then carries
-`SharedInstanceEvent::DisconnectedWithReason { reason }`
-in place of `Disconnected`, at the same position in the cycle, the rest of
-the stream unchanged; off by default, so a caller that matches on
-`Disconnected` keeps reading it. `reason` is a `DisconnectReason`:
-`PeerClosed` for an orderly close (the shared instance closed the socket),
-`Reset` for a connection reset, `Timeout` for a read or write that failed
-with `ErrorKind::TimedOut` (the attach's clients run no read watchdog, so a
-quiet socket is not reported; only a `TcpClient` built with
-`with_backbone_liveness` has one), and `Io(kind)` for any other io error
-(`Io` never carries `ConnectionReset` or `TimedOut`). A stop, detach or
-`stop_interface` still sends nothing.
+`SharedInstanceEvent::DisconnectedWithReason { reason }`, at the same
+position in the cycle, in place of `Disconnected`, the rest of the stream
+unchanged; off by default, so a caller that matches on `Disconnected` keeps
+reading it. `reason` is a `DisconnectReason`: `PeerClosed` for an orderly close
+(the shared instance closed the socket), `Reset` for a connection reset (a
+write that fails before the read side sees the reset reads `Io(BrokenPipe)`
+instead), `Timeout` for a read or write that failed with `ErrorKind::TimedOut`
+(the attach's clients run no read watchdog, so a quiet socket is not
+reported; only a `TcpClient` built with `with_backbone_liveness` has one),
+and `Io(kind)` for any other io error (`Io` never carries `ConnectionReset`
+or `TimedOut`). A stop, detach or `stop_interface` still sends nothing.
 Underneath, `TcpClient` and `LocalUnixClient` gained
 `with_disconnect_reason_events`, which takes a
 `tokio::sync::mpsc::Sender<(AddressHash, DisconnectReason)>` and sends one
 pair each time an established stream ends while the client is neither
-cancelled nor stopped, beside the existing `with_disconnect_events` (which
-keeps its `Sender<AddressHash>` and keeps firing), and a
+cancelled nor stopped nor ended by the transport's receive queue closing,
+beside the existing `with_disconnect_events` (which keeps its
+`Sender<AddressHash>` and keeps firing), and a
 `disconnect_reason_events_enabled` getter; the attach now installs the
 reason channel on its client. Python's `LocalClientInterface` only notices
 the socket closed and reconnects (`RNS/Interfaces/LocalInterface.py:255-266`)

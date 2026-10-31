@@ -405,9 +405,10 @@ Removed) bullet of its own, marked as such.
   the read side only followed the write side's stop, in which case the
   write side's), which `DisconnectReason::from_stream_exit`
   (`iface/events.rs`) reads as `PeerClosed` for a zero-length read, `Reset`
-  for `ConnectionReset` on either side, `Timeout` for the read watchdog or
-  `TimedOut` on either side, `Io(kind)` for any other io error, and as
-  nothing for a stream the client ended itself. Python's
+  for `ConnectionReset` on either side (a write that fails before the read
+  side sees the reset reads `Io(BrokenPipe)` instead), `Timeout` for the
+  read watchdog or `TimedOut` on either side, `Io(kind)` for any other io
+  error, and as nothing for a stream the client ended itself. Python's
   `LocalClientInterface` only notices the socket closed and reconnects
   (`RNS/Interfaces/LocalInterface.py:255-266`). Pinned by the
   `from_stream_exit` unit tests in `iface/events.rs`

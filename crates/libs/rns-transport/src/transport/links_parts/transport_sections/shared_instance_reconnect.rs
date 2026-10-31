@@ -354,7 +354,7 @@ impl SharedInstanceReconnectConsumer {
 
     /// `shared_connection_disappeared` (`RNS/Transport.py:3690-3702`), run
     /// only while attached as Python's `receive` does
-    /// (`RNS/Interfaces/LocalInterface.py:255-261`): every active and
+    /// (`RNS/Interfaces/LocalInterface.py:255-266`): every active and
     /// pending link is torn down as `Link.teardown` does
     /// (`RNS/Transport.py:3692`, `:3695`, `RNS/Link.py:657-668`): a
     /// LINKCLOSE packet goes to the peer of each link past `Pending` on the

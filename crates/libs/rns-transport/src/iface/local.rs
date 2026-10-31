@@ -420,7 +420,7 @@ impl LocalUnixClient {
     /// reconnect to. A full channel drops the event at debug. Python's
     /// shared-instance client treats a socket closed while connected and
     /// not detached as the shared connection disappearing and
-    /// then reconnects (`RNS/Interfaces/LocalInterface.py:255-261`).
+    /// then reconnects (`RNS/Interfaces/LocalInterface.py:255-266`).
     #[must_use]
     pub fn with_disconnect_events(
         mut self,

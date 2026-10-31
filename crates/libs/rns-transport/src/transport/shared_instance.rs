@@ -45,7 +45,7 @@ pub enum SharedInstanceEvent {
     /// included; the tunnel is synthesized on it next.
     Connected,
     /// Fork-only: an established stream ended while attached
-    /// (`RNS/Interfaces/LocalInterface.py:255-261` is the Python drop path);
+    /// (`RNS/Interfaces/LocalInterface.py:255-266` is the Python drop path);
     /// the flush, which runs only while the transport is still attached,
     /// has run; [`Self::Connecting`] follows at once. An attach that opted
     /// in with [`SharedInstanceOptions::with_disconnect_reasons`] reads
@@ -76,7 +76,7 @@ pub enum SharedInstanceEvent {
     /// (the attach's clients run no read watchdog), `Io(kind)` for any
     /// other io error. Python's
     /// `LocalClientInterface` only notices the socket closed and reconnects
-    /// (`RNS/Interfaces/LocalInterface.py:255-261`).
+    /// (`RNS/Interfaces/LocalInterface.py:255-266`).
     DisconnectedWithReason { reason: DisconnectReason },
 }
 

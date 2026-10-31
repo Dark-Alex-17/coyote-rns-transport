@@ -529,6 +529,7 @@ fn crate_readme_shared_instance_section_describes_disconnect_reasons() {
     for claim in [
         "`SharedInstanceOptions::with_disconnect_reasons(true)`",
         "`DisconnectedWithReason { reason }`",
+        "`SharedInstanceEvent::DisconnectedWithReason { reason }`",
         "in place of `Disconnected`",
         "`PeerClosed` for an orderly close",
         "`Reset` for a connection reset",

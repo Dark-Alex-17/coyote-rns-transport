@@ -9,7 +9,11 @@
 //! channel. A full channel drops the reason and nothing else: the client
 //! keeps reconnecting. Both clients answer
 //! `disconnect_reason_events_enabled()` false until the builder sets the
-//! channel.
+//! channel. `Timeout` is pinned in the crate's own `iface/tcp_client.rs`
+//! tests, since only a client built with the crate-private read watchdog
+//! builder produces it; `Io(kind)` and the unix client's `Reset` and
+//! `Timeout` arms cannot be produced over real loopback sockets and are
+//! pinned by the `from_stream_exit` unit mapping in `iface/events.rs`.
 
 use std::time::Duration;
 
@@ -58,6 +62,16 @@ async fn accept_within(listener: &TcpListener, what: &str) -> TcpStream {
         .0
 }
 
+#[cfg(unix)]
+#[deny(clippy::await_holding_invalid_type)]
+async fn accept_unix_within(listener: &UnixListener, what: &str) -> tokio::net::UnixStream {
+    timeout(Duration::from_secs(2), listener.accept())
+        .await
+        .unwrap_or_else(|_| panic!("{what} timed out"))
+        .unwrap_or_else(|err| panic!("{what} failed: {err}"))
+        .0
+}
+
 #[deny(clippy::await_holding_invalid_type)]
 async fn join_within(task: tokio::task::JoinHandle<()>, what: &str) {
     timeout(Duration::from_secs(2), task)
@@ -91,6 +105,8 @@ async fn tcp_client_reports_peer_closed_then_reset_with_the_reason() {
     let first = accept_within(&listener, "first TCP connection").await;
     assert_eq!(recv_within("first connect event", &mut connect_rx).await, iface);
     drop(first);
+    // The two channels are independent, so the order the two events arrive
+    // in is arbitrary; each is read on its own channel.
     assert_eq!(
         recv_within("peer-closed reason", &mut reason_rx).await,
         (iface, DisconnectReason::PeerClosed)
@@ -121,7 +137,7 @@ async fn tcp_client_reports_peer_closed_then_reset_with_the_reason() {
 
 #[tokio::test]
 #[deny(clippy::await_holding_invalid_type)]
-async fn tcp_client_stopped_while_connected_sends_no_reason() {
+async fn tcp_client_cancelled_while_connected_sends_no_reason() {
     let listener = TcpListener::bind("127.0.0.1:0").await.expect("bind listener");
     let addr = listener.local_addr().expect("listener address");
     let (reason_tx, mut reason_rx) = mpsc::channel(4);
@@ -167,11 +183,7 @@ async fn local_unix_client_reports_peer_closed_with_the_reason() {
     let cancel = context.cancel.clone();
     let task = tokio::spawn(LocalUnixClient::spawn(context));
 
-    let first = timeout(Duration::from_secs(2), listener.accept())
-        .await
-        .expect("first unix connection timed out")
-        .expect("first unix connection failed")
-        .0;
+    let first = accept_unix_within(&listener, "first unix connection").await;
     assert_eq!(recv_within("first connect event", &mut connect_rx).await, iface);
     drop(first);
     assert_eq!(
@@ -179,11 +191,7 @@ async fn local_unix_client_reports_peer_closed_with_the_reason() {
         (iface, DisconnectReason::PeerClosed)
     );
 
-    let second = timeout(Duration::from_secs(2), listener.accept())
-        .await
-        .expect("second unix connection timed out")
-        .expect("second unix connection failed")
-        .0;
+    let second = accept_unix_within(&listener, "second unix connection").await;
     assert_eq!(recv_within("second connect event", &mut connect_rx).await, iface);
     cancel.cancel();
     join_within(task, "unix client task").await;
@@ -229,4 +237,46 @@ async fn tcp_client_drops_the_reason_on_a_full_channel_and_keeps_reconnecting() 
     cancel.cancel();
     drop(third);
     join_within(task, "TCP client task").await;
+}
+
+/// The unix twin of the full-channel pin: the second reason is dropped and
+/// the client dials a third time.
+#[cfg(unix)]
+#[tokio::test]
+#[deny(clippy::await_holding_invalid_type)]
+async fn local_unix_client_drops_the_reason_on_a_full_channel_and_keeps_reconnecting() {
+    let dir = tempfile::tempdir().expect("socket dir");
+    let socket = dir.path().join("full-channel.sock");
+    let listener = UnixListener::bind(&socket).expect("bind unix listener");
+    let (reason_tx, mut reason_rx) = mpsc::channel(1);
+    let client = LocalUnixClient::new_connect(LocalUnixEndpoint::filesystem(&socket))
+        .with_reconnect_wait(RECONNECT_WAIT)
+        .with_disconnect_reason_events(reason_tx);
+
+    let mut manager = InterfaceManager::new(8);
+    let context = manager.new_context(client);
+    let iface = context.channel.address;
+    let cancel = context.cancel.clone();
+    let task = tokio::spawn(LocalUnixClient::spawn(context));
+
+    let first = accept_unix_within(&listener, "first unix connection").await;
+    drop(first);
+    let second = accept_unix_within(&listener, "second unix connection").await;
+    drop(second);
+    let third = accept_unix_within(
+        &listener,
+        "third unix connection: a full reason channel must not stop the client",
+    )
+    .await;
+
+    assert_eq!(
+        reason_rx.try_recv().ok(),
+        Some((iface, DisconnectReason::PeerClosed)),
+        "the first reason is buffered"
+    );
+    assert!(reason_rx.try_recv().is_err(), "the second reason was dropped, not queued");
+
+    cancel.cancel();
+    drop(third);
+    join_within(task, "unix client task").await;
 }

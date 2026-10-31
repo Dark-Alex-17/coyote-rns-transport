@@ -1637,7 +1637,7 @@ mod tests {
     };
     use crate::buffer::OutputBuffer;
     use crate::hash::AddressHash;
-    use crate::iface::events::DialFailureKind;
+    use crate::iface::events::{DialFailureKind, DisconnectReason};
     use crate::iface::hdlc::Hdlc;
     use crate::iface::{InterfaceManager, TxMessage, TxMessageType};
     use crate::packet::{Packet, PacketDataBuffer};
@@ -2435,6 +2435,49 @@ mod tests {
         assert_eq!(status["keepalives_sent"].as_u64(), Some(1));
     }
 
+    /// Only a client built with a read watchdog can report `Timeout`, so the
+    /// value is pinned here, where the crate-private builder is in reach: a
+    /// peer that is accepted and then held silent past `read_timeout` ends
+    /// the stream as `ReadTimeout`, which the reason channel reads as
+    /// `Timeout`.
+    #[tokio::test]
+    #[deny(clippy::await_holding_invalid_type)]
+    async fn tcp_client_reports_a_silent_stream_past_the_read_watchdog_as_timeout() {
+        let listener = TcpListener::bind("127.0.0.1:0").await.expect("bind listener");
+        let addr = listener.local_addr().expect("listener addr");
+        let (reason_tx, mut reason_rx) = tokio::sync::mpsc::channel(4);
+        let client = TcpClient::new(addr.to_string())
+            .with_hdlc_watchdog(HdlcStreamWatchdog {
+                keepalive_after: Duration::from_secs(3600),
+                stale_after: Duration::from_secs(3600),
+                read_timeout: Duration::from_millis(200),
+            })
+            .with_disconnect_reason_events(reason_tx);
+        let mut manager = InterfaceManager::new(8);
+        let context = manager.new_context(client);
+        let iface_address = context.channel.address;
+        let cancel = context.cancel.clone();
+        let task = tokio::spawn(TcpClient::spawn(context));
+
+        let (silent_peer, _) = tokio::time::timeout(Duration::from_secs(2), listener.accept())
+            .await
+            .expect("accept deadline")
+            .expect("accept stream");
+        assert_eq!(
+            tokio::time::timeout(Duration::from_secs(5), reason_rx.recv())
+                .await
+                .expect("the read watchdog did not report the silent stream in time"),
+            Some((iface_address, DisconnectReason::Timeout))
+        );
+
+        cancel.cancel();
+        drop(silent_peer);
+        tokio::time::timeout(Duration::from_secs(2), task)
+            .await
+            .expect("client task timed out")
+            .expect("client task");
+    }
+
     #[tokio::test]
     async fn tcp_client_without_watchdog_does_not_emit_idle_keepalive() {
         let listener = TcpListener::bind("127.0.0.1:0").await.expect("bind listener");
@@ -2711,7 +2754,7 @@ mod tests {
         handle: tokio::task::JoinHandle<HdlcStreamExit>,
         cancel: CancellationToken,
         _rx_messages: crate::iface::InterfaceRxReceiver,
-        _tx_sender: crate::iface::InterfaceTxSender,
+        tx_sender: crate::iface::InterfaceTxSender,
     }
 
     fn spawn_stream_runner<R, W>(
@@ -2738,9 +2781,10 @@ mod tests {
             write_stream,
             runtime,
         ));
-        StreamRunner { handle, cancel, _rx_messages: rx_messages, _tx_sender: tx_sender }
+        StreamRunner { handle, cancel, _rx_messages: rx_messages, tx_sender }
     }
 
+    #[deny(clippy::await_holding_invalid_type)]
     async fn stream_exit_within(
         handle: tokio::task::JoinHandle<HdlcStreamExit>,
         within: Duration,
@@ -2752,6 +2796,7 @@ mod tests {
     }
 
     #[tokio::test]
+    #[deny(clippy::await_holding_invalid_type)]
     async fn a_peer_that_closes_the_stream_exits_as_peer_closed() {
         let listener = TcpListener::bind("127.0.0.1:0").await.expect("bind");
         let addr = listener.local_addr().expect("local addr");
@@ -2768,6 +2813,7 @@ mod tests {
     }
 
     #[tokio::test]
+    #[deny(clippy::await_holding_invalid_type)]
     async fn a_cancel_on_an_open_stream_exits_as_cancelled() {
         let (local, far) = tokio::io::duplex(1024);
         let (read_stream, write_stream) = tokio::io::split(local);
@@ -2784,6 +2830,7 @@ mod tests {
     }
 
     #[tokio::test]
+    #[deny(clippy::await_holding_invalid_type)]
     async fn a_silent_stream_past_the_read_timeout_exits_as_read_timeout() {
         let (local, far) = tokio::io::duplex(1024);
         let (read_stream, write_stream) = tokio::io::split(local);
@@ -2805,6 +2852,29 @@ mod tests {
         assert!(
             started.elapsed() >= Duration::from_millis(200),
             "the watchdog fired before the read timeout elapsed"
+        );
+        drop(far);
+    }
+
+    /// A write that fails ends the tx loop with the write's kind and cancels
+    /// the rx loop, whose `Cancelled` exit then defers to the tx side's: the
+    /// runner reports `WriteError(BrokenPipe)`, not `Cancelled`.
+    #[tokio::test]
+    #[deny(clippy::await_holding_invalid_type)]
+    async fn a_write_that_fails_exits_as_write_error() {
+        let (local, far) = tokio::io::duplex(1024);
+        let runner =
+            spawn_stream_runner(local, super::memory_tests::BrokenWriter, HdlcStreamRuntime::new());
+
+        runner
+            .tx_sender
+            .send(TxMessage { tx_type: TxMessageType::Broadcast(None), packet: Packet::default() })
+            .await
+            .expect("queue the packet");
+
+        assert_eq!(
+            stream_exit_within(runner.handle, Duration::from_secs(2)).await,
+            HdlcStreamExit::WriteError(std::io::ErrorKind::BrokenPipe)
         );
         drop(far);
     }

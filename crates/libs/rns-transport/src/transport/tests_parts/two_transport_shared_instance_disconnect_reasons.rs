@@ -197,6 +197,35 @@ async fn shared_instance_disconnect_reasons_consumer_orders_a_whole_cycle_with_t
     );
 }
 
+/// A drop queued before the consumer runs, with every sender gone, is served as
+/// `DisconnectedWithReason { PeerClosed }` then `Connecting` under the opt-in: the drain of
+/// the queued channels carries the reason the same way the live select does. The twin of
+/// `shared_instance_state_consumer_serves_a_queued_drop_before_the_stream_ends`.
+#[tokio::test]
+#[deny(clippy::await_holding_invalid_type)]
+async fn shared_instance_disconnect_reasons_consumer_serves_a_queued_drop_with_the_reason() {
+    let read = shared_instance_state_drive_consumer_with(
+        "shared-instance-disconnect-reasons-consumer-queued-drop",
+        DriveSpec {
+            queued: &[Queued::Disconnect],
+            close_before_run: &[Queued::Reconnect, Queued::Connect, Queued::Disconnect],
+            cancel_before_run: false,
+            first_connect_abandoned: false,
+            disconnect_reasons: true,
+            exits: "the consumer exits once the queued drop is served and the channels are closed",
+        },
+    )
+    .await;
+    assert_eq!(
+        read,
+        [
+            SharedInstanceEvent::DisconnectedWithReason { reason: DisconnectReason::PeerClosed },
+            SharedInstanceEvent::Connecting
+        ],
+        "the queued drop is served with its reason before the stream ends"
+    );
+}
+
 /// The unix twin: a peer's orderly close on a raw `UnixListener` reads
 /// `DisconnectedWithReason { PeerClosed }` then `Connecting`; the redial is accepted and
 /// read as `Connected` before the detach ends the stream.

@@ -59,6 +59,10 @@ pub enum SharedInstanceEvent {
     /// attached while nothing listens sends one of these per attempt,
     /// `reconnect_wait` apart, after its `Connecting`. Python's reconnect
     /// loop logs the failure at debug (`RNS/Interfaces/LocalInterface.py:159-167`).
+    /// The enum carries data from this variant on, so a numeric cast of its
+    /// unit variants (`as isize`) no longer compiles; match on the variants,
+    /// as `#[non_exhaustive]` already asks. cargo-semver-checks reports the
+    /// change as `enum_discriminants_undefined_non_unit_variant`.
     DialFailed { reason: DialFailureKind },
 }
 

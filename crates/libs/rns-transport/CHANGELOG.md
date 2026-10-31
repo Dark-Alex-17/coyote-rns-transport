@@ -293,7 +293,12 @@ Removed) bullet of its own, marked as such.
   post-exit drain in
   `shared_instance_reconnect_parts/drain_queued.rs`) serves the client's
   dial failures behind its disconnects, connects and reconnects, live and
-  in the drain alike. The enum stays `Copy`. Pinned by
+  in the drain alike. The enum stays `Copy`; it carries data from this
+  variant on, so a numeric cast of its unit variants (`as isize`) no
+  longer compiles, downstream code matches on the variants (the enum is
+  `#[non_exhaustive]`), and `cargo semver-checks` reports this as
+  `enum_discriminants_undefined_non_unit_variant`, the one finding the
+  release's semver gate names. Pinned by
   `two_transport_shared_instance_dial_failures.rs` (included from
   `tests.rs`: `Connecting` then `DialFailed { Refused }` per attempt over
   TCP and `DialFailed { NotFound }` over a unix path, posture and slot set,

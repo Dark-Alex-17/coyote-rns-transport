@@ -654,7 +654,7 @@ cancelled nor stopped, beside the existing `with_disconnect_events` (which
 keeps its `Sender<AddressHash>` and keeps firing), and a
 `disconnect_reason_events_enabled` getter; the attach now installs the
 reason channel on its client. Python's `LocalClientInterface` only notices
-the socket closed and reconnects (`RNS/Interfaces/LocalInterface.py:255-261`)
+the socket closed and reconnects (`RNS/Interfaces/LocalInterface.py:255-266`)
 and reports no reason.
 
 A `Tcp` endpoint whose address is not loopback is refused with

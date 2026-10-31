@@ -1,6 +1,7 @@
 // The disconnect event an attach reads, `include!`d into
-// `transport_sections/shared_instance_reconnect.rs` so that section stays
-// below the repository's 500-line limit; a file boundary, not a privacy one.
+// `transport_sections/shared_instance_reconnect.rs` and kept beside
+// `drain_queued` so the section keeps headroom under the repository's
+// 500-line limit; a file boundary, not a privacy one.
 
 impl SharedInstanceReconnectConsumer {
     /// The event a served disconnect sends before its `Connecting`:

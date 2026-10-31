@@ -453,11 +453,14 @@ impl LocalUnixClient {
     /// says why: `PeerClosed` for an orderly close, `Reset` for an
     /// `ErrorKind::ConnectionReset` on either side, `Timeout` for an
     /// `ErrorKind::TimedOut` on either side, since the unix client runs no
-    /// read watchdog, and `Io(kind)` for any other io error. A stream the
-    /// client ended itself (cancel, stop) sends nothing. A full or closed
-    /// channel drops the event at debug. Fork-only: Python's shared-instance
-    /// client only notices the socket closed and reconnects
-    /// (`RNS/Interfaces/LocalInterface.py:255-261`).
+    /// read watchdog, and `Io(kind)` for any other io error. A write that
+    /// fails after the peer went away reports the write's kind (often
+    /// `BrokenPipe`) when it is observed before the read side's reset. A
+    /// stream the client ended itself (cancel, stop, the transport's
+    /// receive queue closed) sends nothing. A full or closed channel drops
+    /// the event at debug. Fork-only: Python's shared-instance client only
+    /// notices the socket closed and reconnects
+    /// (`RNS/Interfaces/LocalInterface.py:255-266`).
     #[must_use]
     pub fn with_disconnect_reason_events(
         mut self,

@@ -537,7 +537,7 @@ fn crate_readme_shared_instance_section_describes_disconnect_reasons() {
         "`with_disconnect_reason_events`",
         "`disconnect_reason_events_enabled`",
         "`tokio::sync::mpsc::Sender<(AddressHash, DisconnectReason)>`",
-        "`RNS/Interfaces/LocalInterface.py:255-261`",
+        "`RNS/Interfaces/LocalInterface.py:255-266`",
     ] {
         assert!(
             section.contains(claim),
@@ -557,6 +557,7 @@ fn crate_readme_shared_instance_section_describes_disconnect_reasons() {
         "run no read watchdog",
         "`two_transport_shared_instance_disconnect_reasons.rs`",
         "`tests/disconnect_reason_events_api.rs`",
+        "`tests/shared_instance_disconnect_reasons_api.rs`",
         "`shared_instance_reconnect_parts/disconnected_event.rs`",
     ] {
         assert!(changelog_section.contains(claim), "the changelog should mention {claim}");

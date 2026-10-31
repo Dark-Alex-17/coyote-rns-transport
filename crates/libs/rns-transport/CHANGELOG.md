@@ -409,7 +409,7 @@ Removed) bullet of its own, marked as such.
   `TimedOut` on either side, `Io(kind)` for any other io error, and as
   nothing for a stream the client ended itself. Python's
   `LocalClientInterface` only notices the socket closed and reconnects
-  (`RNS/Interfaces/LocalInterface.py:255-261`). Pinned by the
+  (`RNS/Interfaces/LocalInterface.py:255-266`). Pinned by the
   `from_stream_exit` unit tests in `iface/events.rs`
   (`a_peer_close_and_a_read_timeout_read_as_their_own_reasons`,
   `a_reset_or_timed_out_io_error_on_either_side_reads_as_reset_or_timeout`,
@@ -419,20 +419,27 @@ Removed) bullet of its own, marked as such.
   tests in `iface/tcp_client.rs`
   (`a_peer_that_closes_the_stream_exits_as_peer_closed`,
   `a_cancel_on_an_open_stream_exits_as_cancelled`,
-  `a_silent_stream_past_the_read_timeout_exits_as_read_timeout`) and by
+  `a_silent_stream_past_the_read_timeout_exits_as_read_timeout`,
+  `a_write_that_fails_exits_as_write_error` and the earlier
+  `read_error_cancels_stop_so_the_tx_loop_does_not_hang_forever`), by
+  `tcp_client_reports_a_silent_stream_past_the_read_watchdog_as_timeout`
+  in the same module, where `Timeout` is pinned at client level because
+  only a `TcpClient` built with a read watchdog can produce it (the
+  attach configures none), and by
   `tests/disconnect_reason_events_api.rs` (the TCP client reports an
   orderly close as `PeerClosed` and a linger-zero close as `Reset`, each
-  with its interface address; a client stopped while connected sends
+  with its interface address; a client cancelled while connected sends
   nothing; the unix client reports `PeerClosed`; a full capacity-one
-  channel drops the reason at debug and the client keeps reconnecting).
+  channel drops the reason at debug and either client keeps
+  reconnecting).
 - `SharedInstanceEvent::DisconnectedWithReason` and
   `SharedInstanceOptions::with_disconnect_reasons`
   (`transport/shared_instance.rs`): an attach that opted in reads
   `DisconnectedWithReason { reason: DisconnectReason }` in place of
   `Disconnected`, at the same position in the cycle, the rest of the
-  stream unchanged; without the opt-in the stream is byte-identical to the
-  previous release's, so a caller that matches on `Disconnected` keeps
-  reading it. The attach
+  stream unchanged; without the opt-in the stream is unchanged for every
+  disconnect the client reports, so a caller that matches on
+  `Disconnected` keeps reading it. The attach
   (`links_parts/transport_sections/shared_instance.rs`) installs the
   clients' reason channel in place of the plain disconnect channel, and
   the consumer task (`shared_instance_reconnect.rs`, the event choice in
@@ -446,11 +453,19 @@ Removed) bullet of its own, marked as such.
   reads `DisconnectedWithReason { PeerClosed }` and a linger-zero close
   `DisconnectedWithReason { Reset }`, each followed by `Connecting`; the
   same two closes without the opt-in read the plain `Disconnected`; the
-  unix twin reads `PeerClosed`; the hand-driven consumer with
+  unix twin reads `PeerClosed` for an orderly close; the hand-driven
+  consumer with
   `disconnect_reasons` set reads `DisconnectedWithReason { PeerClosed }`,
-  `Connecting`, `Connected` for one cycle, the `DriveSpec` of
+  `Connecting`, `Connected` for one cycle and serves a drop queued before
+  it ran as `DisconnectedWithReason { PeerClosed }`, `Connecting`, the
+  `DriveSpec` of
   `two_transport_shared_instance_state_events.rs` having gained a
-  `disconnect_reasons` flag) and by the opt-out pins already in place,
+  `disconnect_reasons` flag), by
+  `tests/shared_instance_disconnect_reasons_api.rs` (from outside the
+  crate: the opt-in reads `PeerClosed` and `Reset` over a raw listener, a
+  socket the peer holds quiet sends nothing, the default attach and one
+  switched back off read the plain `Disconnected`, and a README-shaped
+  consumer labels every reason) and by the opt-out pins already in place,
   whose assertions are unchanged and still read `Disconnected`:
   `two_transport_shared_instance_state_events.rs`,
   `two_transport_shared_instance_state_events_probe2.rs` and

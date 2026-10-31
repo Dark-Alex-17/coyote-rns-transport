@@ -166,7 +166,9 @@ impl SharedInstanceReconnectConsumer {
     /// `Connected` goes with its reconnect, and the next cycle's connect
     /// heals the stream the same way. A per-cycle sequence number that
     /// would let the consumer detect a lost reconnect outright would
-    /// change the public `Sender<AddressHash>` payload and is deferred.
+    /// change the public payloads (the plain `with_disconnect_events` and
+    /// `with_connect_events` senders stay `Sender<AddressHash>`) and is
+    /// deferred.
     ///
     /// `state_events` is the attach's stream: a served disconnect sends
     /// `Disconnected`, or `DisconnectedWithReason` with the reason the

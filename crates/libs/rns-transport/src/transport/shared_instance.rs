@@ -53,8 +53,9 @@ pub enum SharedInstanceEvent {
     /// [`Transport::stop`](crate::transport::Transport::stop) ends the
     /// stream without one: the sender is dropped instead, though a drop
     /// that was already queued when the detach landed is still served
-    /// and read as `Disconnected`, `Connecting` before the stream ends (a
-    /// connect already queued is read as `Connected`).
+    /// and read as `Disconnected`, `Connecting` (or `DisconnectedWithReason`
+    /// for an attach that opted in) before the stream ends (a connect
+    /// already queued is read as `Connected`).
     Disconnected,
     /// Fork-only: one dial attempt by the client failed and `reason` says
     /// why; the attach keeps dialing until the socket exists, so a client
@@ -202,8 +203,9 @@ impl SharedInstanceOptions {
     /// retained `SharedInstanceOptions` clone included, is alive. A detach
     /// or a stop sends no `Disconnected`, but a drop that was already
     /// queued when the detach landed is still served and read as
-    /// `Disconnected`, `Connecting` before the stream ends (a connect
-    /// already queued is read as `Connected`). The posture flag
+    /// `Disconnected`, `Connecting` (or `DisconnectedWithReason` for an
+    /// attach that opted in) before the stream ends (a connect already
+    /// queued is read as `Connected`). The posture flag
     /// [`Transport::connected_to_shared_instance`](crate::transport::Transport::connected_to_shared_instance)
     /// is unchanged by these events: it stays set across a `Disconnected`
     /// until detach or stop. Python's `LocalClientInterface` exposes no

@@ -49,7 +49,8 @@ pub enum DisconnectReason {
     PeerClosed,
     /// Fork-only: the connection was reset (`ErrorKind::ConnectionReset`).
     Reset,
-    /// Fork-only: the stream went quiet past the client's read timeout.
+    /// Fork-only: the stream went quiet past the client's read timeout, or
+    /// a read or write failed with `ErrorKind::TimedOut`.
     Timeout,
     /// Fork-only: any other io error, by its kind. Never carries
     /// `ConnectionReset` or `TimedOut`; those read as the variants above.

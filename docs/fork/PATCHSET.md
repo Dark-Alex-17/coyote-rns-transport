@@ -50,7 +50,8 @@ the `dial failures` patch is fork commits `61429992`, `874c871b`, `aa6d2fac`,
 `b0635aea`, `8fc49d91`, `dd31f874`, `59b0ee7c`, `986dca4a`, `5188138e`,
 `8f348131`, `9c0bb5c6` and `b68ef92c`; the `disconnect reasons` patch is
 fork commits `45bcadfc`, `fdfa83dd`, `f45595c5`, `b819ab22`, `bb247215`,
-`0a8f5cf8`, `cc5c3092`, `3ab8f323`, `200b8810` and `b86af8d6`.
+`0a8f5cf8`, `cc5c3092`, `3ab8f323`, `200b8810`, `b86af8d6` and
+`272c3f2c`.
 
 | File | Patch |
 | --- | --- |
@@ -814,9 +815,9 @@ says in `with_state_events` that `DialFailed` interleaves after
 and needles the README wording in `crate_readme_sections.rs`.
 
 Fork commits `45bcadfc`, `fdfa83dd`, `f45595c5`, `b819ab22`, `bb247215`,
-`0a8f5cf8`, `cc5c3092`, `3ab8f323`, `200b8810` and `b86af8d6`: K8,
-disconnect reasons. The library behaviour
-changes are: the HDLC stream runner reports how a stream ended, `TcpClient`
+`0a8f5cf8`, `cc5c3092`, `3ab8f323`, `200b8810`, `b86af8d6` and
+`272c3f2c`: K8, disconnect reasons. The library behaviour changes are:
+the HDLC stream runner reports how a stream ended, `TcpClient`
 and `LocalUnixClient` can send that as a typed `DisconnectReason` on a
 channel of their own beside the plain disconnect event, the shared-instance
 attach installs that channel on its client, and an attach that opts in reads
@@ -893,6 +894,9 @@ went away, `Timeout` names the `TimedOut` io error, the `Disconnected` and
 under the opt-in), names the new pins and the adopted file in the
 changelog, and drops the byte-identical claim for the opt-out stream in
 favour of "unchanged for every disconnect the client reports".
+`272c3f2c` moves the comment on why each close lands on a held stream
+onto the accept-and-close sequence it describes in
+`tests/shared_instance_disconnect_reasons_api.rs`.
 
 ## 0.17.0 (upstream 0.14.0)
 

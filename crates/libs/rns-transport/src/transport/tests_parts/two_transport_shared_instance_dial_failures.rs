@@ -178,10 +178,7 @@ async fn shared_instance_first_connect_timeout_passes_when_the_server_listens() 
         shared_instance_state_next(&mut events).await,
         Some(SharedInstanceEvent::Connecting)
     );
-    assert_eq!(
-        shared_instance_state_next(&mut events).await,
-        Some(SharedInstanceEvent::Connected)
-    );
+    assert_eq!(shared_instance_state_next(&mut events).await, Some(SharedInstanceEvent::Connected));
 
     timeout(STOP_TIMEOUT, client.transport.stop()).await.expect("client stop completes");
     timeout(STOP_TIMEOUT, server.transport.stop()).await.expect("shared instance stop completes");

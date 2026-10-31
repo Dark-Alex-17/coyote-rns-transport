@@ -225,7 +225,14 @@ async fn shared_instance_state_drive_consumer_with(
     });
     timeout(
         STOP_TIMEOUT,
-        consumer.run(reconnects, connects, disconnects, dial_failures, Some(state_tx), first_connect),
+        consumer.run(
+            reconnects,
+            connects,
+            disconnects,
+            dial_failures,
+            Some(state_tx),
+            first_connect,
+        ),
     )
     .await
     .expect(spec.exits);

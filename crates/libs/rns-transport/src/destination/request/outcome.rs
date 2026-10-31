@@ -29,9 +29,10 @@ pub enum ResponseOutcome {
     /// Fork-only: the response exceeded the destination's
     /// `max_response_size` and nothing was sent. `len` is the size the
     /// dispatcher measured, the packed `[request_id, body]` frame for a
-    /// `Value` or `Bytes` response, or the uncompressed payload (data plus
-    /// packed metadata) for a `RequestResponse::Resource`; `max` is the cap
-    /// in force.
+    /// `Value` or `Bytes` response, or, for a `RequestResponse::Resource`,
+    /// the size its advertisement carries: the uncompressed data together
+    /// with the packed metadata and its length prefix (a metadata-less
+    /// resource measures as its data alone); `max` is the cap in force.
     TooLarge {
         /// Fork-only: the measured response size in bytes.
         len: usize,

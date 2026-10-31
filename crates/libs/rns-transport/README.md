@@ -94,8 +94,8 @@ destination, and are not measured. The dispatcher measures a `Value` or
 `Bytes` response as its packed `[request_id, body]` frame, before the MDU
 check that would turn an oversize frame into a Resource, and a
 `RequestResponse::Resource` as the size its advertisement carries, the
-uncompressed `data` behind the packed metadata and its length prefix (a
-metadata-less Resource measures as its data alone), like
+uncompressed `data` together with the packed metadata and its length prefix
+(a metadata-less Resource measures as its data alone), like
 `max_request_size`, which reads the advertised size rather than the
 compressed one. A packet response is measured here as its whole
 `[request_id, body]` frame while the requester measures the packed body
@@ -382,10 +382,12 @@ timeout and returning the same `Option<DestinationDesc>`. A destination the
 transport already knows answers at once and no path request goes out. A
 zero timeout is a cached lookup alone and returns `None` for an unknown
 destination without sending anything. Otherwise exactly one path request is
-attempted, a `Broadcast` on every outgoing interface as `Transport::request_path`
-sends it, and the call polls every 50 ms until the announce is learned or
-the timeout passes, returning `None` after it. The
-desc and the path table can part ways: a destination
+attempted, a `Broadcast` on every outgoing interface as
+`Transport::request_path` sends it, and the call waits until a path is
+learned, polling every 50 ms or the time left, whichever is shorter, or the
+timeout passes, returning `None` after it. A timeout the clock cannot hold,
+`Duration::MAX` included, waits indefinitely instead of panicking. The desc
+and the path table can part ways: a destination
 `Transport::deregister_destination` removed while its path table entry stands
 answers `None` at once with no request, since `await_path` takes the standing
 path as its answer, and a destination whose desc is still held but whose path

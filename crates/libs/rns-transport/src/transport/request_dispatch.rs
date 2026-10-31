@@ -411,8 +411,8 @@ pub(super) async fn resource_mtu_for_iface(
 /// Sends `data` as a response resource on `link_id` (`RNS/Link.py:846,852`):
 /// `request_id` becomes the advertisement's `q` and `is_response` its `p`
 /// flag (`RNS/Resource.py:1305-1318`). `metadata`, when present, sets the
-/// `x` flag and travels at the head of the resource data behind a 3-byte
-/// length (`RNS/Resource.py:261-269,338`).
+/// `x` flag and travels at the head of the resource data behind a length of
+/// [`METADATA_LENGTH_PREFIX_LEN`] bytes (`RNS/Resource.py:261-269,338`).
 ///
 /// `auto_compress` is the registration's flag; some handlers, such as
 /// NomadNet media, return raw binary and turn it off.

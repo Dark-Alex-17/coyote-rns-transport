@@ -3,6 +3,12 @@
 /// and logged so the link stays usable.
 pub(crate) const MAX_REFERENCE_ADVERTISED_TRANSFER_SIZE: u64 = 3 * (MAX_EFFICIENT_SIZE as u64);
 
+/// A rejected advertisement warns on the first refusal a link accrues and on
+/// every multiple of this count after it; the refusals between are debug or
+/// silent, so a peer that keeps offering over-cap resources or oversized
+/// requests stays visible without one warn per advertisement.
+pub(crate) const REJECT_WARN_STRIDE: u32 = 64;
+
 /// Enforces the inbound advertisement caps before any receiver state is
 /// created (issue #514): a hostile peer must not get a `ResourceReceiver`
 /// (and the part-tracking allocations that come with it) for a resource
@@ -41,10 +47,9 @@ fn advertisement_exceeds_inbound_limits(
 
 impl ResourceManager {
     /// Counts the drop against the link and warns on the first one and on
-    /// every 64th after that, so a peer that keeps offering over-cap
-    /// resources stays visible without one warn per advertisement. Covers
-    /// both the manager's own guards and the bounds the receiver constructor
-    /// re-checks, so every dropped advertisement shares one count.
+    /// every `REJECT_WARN_STRIDE`th after that. Covers both the manager's
+    /// own guards and the bounds the receiver constructor re-checks, so
+    /// every dropped advertisement shares one count.
     fn record_rejected_advertisement(
         &mut self,
         advertisement: &ResourceAdvertisement,
@@ -53,7 +58,7 @@ impl ResourceManager {
         let stats = self.link_stats.entry(*link_id).or_insert_with(LinkStats::new);
         stats.rejected_advertisements = stats.rejected_advertisements.saturating_add(1);
         let count = stats.rejected_advertisements;
-        if count == 1 || count.is_multiple_of(64) {
+        if count == 1 || count.is_multiple_of(REJECT_WARN_STRIDE) {
             log::warn!(
                 "rejecting resource advertisement over inbound limits \
                  link={} hash={} transfer_size={} data_size={} parts={} rejected={}",
@@ -69,10 +74,9 @@ impl ResourceManager {
 
     /// Counts a request advertisement refused for exceeding the destination's
     /// `max_request_size` (the size check mirrors `RNS/Link.py:1036-1046`)
-    /// against the link and warns on the first one and on every 64th after
-    /// that, so a peer that keeps sending oversized requests stays visible
-    /// without one warn per advertisement. The reference logs every refusal;
-    /// the cadence is fork-only.
+    /// against the link and warns on the first one and on every
+    /// `REJECT_WARN_STRIDE`th after that, logging the rest at debug. The
+    /// reference logs every refusal; the cadence is fork-only.
     pub(crate) fn record_rejected_request_advertisement(
         &mut self,
         advertisement: &ResourceAdvertisement,
@@ -83,7 +87,7 @@ impl ResourceManager {
         stats.rejected_request_advertisements =
             stats.rejected_request_advertisements.saturating_add(1);
         let count = stats.rejected_request_advertisements;
-        let level = if count == 1 || count.is_multiple_of(64) {
+        let level = if count == 1 || count.is_multiple_of(REJECT_WARN_STRIDE) {
             log::Level::Warn
         } else {
             log::Level::Debug

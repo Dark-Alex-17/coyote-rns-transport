@@ -281,27 +281,30 @@ impl ResourceReceiver {
             // Only the *first* segment of a split resource carries the metadata
             // block. A sender flags every segment as metadata-bearing so the
             // receiver can account for those bytes in `total_data_size`, but it
-            // prefixes the 3-byte-length block to segment 1 alone. Stripping it
-            // from later segments reads three bytes of payload as a length and
+            // prefixes the length-led block to segment 1 alone. Stripping it
+            // from later segments reads the first payload bytes as a length and
             // silently deletes that many bytes of real data.
             let carries_metadata_block = self.has_metadata && self.segment_index == 1;
-            let (metadata, data_payload) = if carries_metadata_block && payload.len() >= 3 {
-                let size = ((payload[0] as usize) << 16)
-                    | ((payload[1] as usize) << 8)
-                    | payload[2] as usize;
-                if size > METADATA_MAX_SIZE {
-                    return self.fail("metadata_size_exceeded");
-                }
-                if payload.len() >= 3 + size {
-                    let meta = payload[3..3 + size].to_vec();
-                    let data = payload[3 + size..].to_vec();
-                    (Some(meta), data)
+            let (metadata, data_payload) =
+                if carries_metadata_block && payload.len() >= METADATA_LENGTH_PREFIX_LEN {
+                    let mut size_bytes = [0u8; 4];
+                    size_bytes[4 - METADATA_LENGTH_PREFIX_LEN..]
+                        .copy_from_slice(&payload[..METADATA_LENGTH_PREFIX_LEN]);
+                    let size = u32::from_be_bytes(size_bytes) as usize;
+                    if size > METADATA_MAX_SIZE {
+                        return self.fail("metadata_size_exceeded");
+                    }
+                    let metadata_end = METADATA_LENGTH_PREFIX_LEN + size;
+                    if payload.len() >= metadata_end {
+                        let meta = payload[METADATA_LENGTH_PREFIX_LEN..metadata_end].to_vec();
+                        let data = payload[metadata_end..].to_vec();
+                        (Some(meta), data)
+                    } else {
+                        (None, payload.clone())
+                    }
                 } else {
                     (None, payload.clone())
-                }
-            } else {
-                (None, payload.clone())
-            };
+                };
 
             let mut hasher = sha2::Sha256::new();
             hasher.update(&payload);

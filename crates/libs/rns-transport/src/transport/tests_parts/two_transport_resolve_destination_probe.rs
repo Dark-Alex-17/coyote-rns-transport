@@ -4,7 +4,90 @@
 // two documented splits hold: a destination deregistered while its path table entry stands
 // answers `None` at once without a request, and a destination whose desc is held but whose
 // path has expired answers `Some` at once without a request. Helpers come from the sibling
-// `tests_parts` files included into this module.
+// `tests_parts` files included into this module. The two edges of the timeout are pinned
+// as well: `Duration::MAX` waits instead of panicking, and a timeout shorter than one poll
+// returns at its deadline.
+
+/// A timeout the clock cannot hold: the call must wait, not panic on the deadline sum.
+const RESOLVE_FOREVER: Duration = Duration::MAX;
+
+/// A timeout shorter than the 50 ms poll, so the poll has to be cut to the time left.
+const RESOLVE_SHORT: Duration = Duration::from_millis(10);
+
+/// The upper bound on a short miss; generous so a loaded CI host does not fail the pin.
+const RESOLVE_SHORT_SLACK: Duration = Duration::from_millis(200);
+
+/// `Duration::MAX` is treated as waiting indefinitely: the call outlives an outer one-second
+/// bound instead of panicking on the deadline sum, and it still spends its one path request.
+#[tokio::test]
+#[deny(clippy::await_holding_invalid_type)]
+async fn resolve_destination_with_a_max_timeout_waits_instead_of_panicking() {
+    let listener = listener("loopback-listener", TcpClient::DEFAULT_MTU).await;
+    let connector = connector("loopback-connector", listener.port, TcpClient::DEFAULT_MTU).await;
+    listener.await_accepted_connections(1).await;
+
+    let unknown = AddressHash::new_from_rand(OsRng);
+    let outcome = timeout(
+        Duration::from_secs(1),
+        connector.transport.resolve_destination(&unknown, RESOLVE_FOREVER),
+    )
+    .await;
+    assert!(outcome.is_err(), "an unbounded wait on an unreachable destination never returns");
+    assert_eq!(
+        outgoing_request_count(&connector.transport, &unknown).await,
+        1,
+        "the unbounded wait still spends exactly one path request"
+    );
+}
+
+/// The same edge on `await_path` itself, which `resolve_destination` delegates the wait to.
+#[tokio::test]
+#[deny(clippy::await_holding_invalid_type)]
+async fn await_path_with_a_max_timeout_waits_instead_of_panicking() {
+    let listener = listener("loopback-listener", TcpClient::DEFAULT_MTU).await;
+    let connector = connector("loopback-connector", listener.port, TcpClient::DEFAULT_MTU).await;
+    listener.await_accepted_connections(1).await;
+
+    let unknown = AddressHash::new_from_rand(OsRng);
+    let outcome = timeout(
+        Duration::from_secs(1),
+        connector.transport.await_path(&unknown, RESOLVE_FOREVER, None),
+    )
+    .await;
+    assert!(outcome.is_err(), "an unbounded wait for a path nobody holds never returns");
+    assert_eq!(
+        outgoing_request_count(&connector.transport, &unknown).await,
+        1,
+        "the unbounded wait still spends exactly one path request"
+    );
+}
+
+/// A timeout shorter than one poll still returns: the miss takes at least the timeout,
+/// stays under a generous bound and spends one request.
+#[tokio::test]
+#[deny(clippy::await_holding_invalid_type)]
+async fn resolve_destination_with_a_timeout_shorter_than_a_poll_returns_at_the_deadline() {
+    let listener = listener("loopback-listener", TcpClient::DEFAULT_MTU).await;
+    let connector = connector("loopback-connector", listener.port, TcpClient::DEFAULT_MTU).await;
+    listener.await_accepted_connections(1).await;
+
+    let unknown = AddressHash::new_from_rand(OsRng);
+    let started = Instant::now();
+    let resolved = connector.transport.resolve_destination(&unknown, RESOLVE_SHORT).await;
+    let elapsed = started.elapsed();
+
+    assert!(resolved.is_none(), "nobody holds the destination");
+    assert!(elapsed >= RESOLVE_SHORT, "the call waits out its timeout, waited {elapsed:?}");
+    assert!(
+        elapsed < RESOLVE_SHORT_SLACK,
+        "a short timeout does not hold the caller, waited {elapsed:?}"
+    );
+    assert_eq!(
+        outgoing_request_count(&connector.transport, &unknown).await,
+        1,
+        "the short wait spends exactly one path request"
+    );
+}
 
 /// Two misses on an unreachable destination are two calls, each sending exactly one path
 /// request; a caller that retries sees the count grow by one per call, never by more.

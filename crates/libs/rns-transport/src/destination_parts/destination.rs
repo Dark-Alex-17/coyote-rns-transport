@@ -87,8 +87,8 @@ impl Destination<PrivateIdentity, Input, Single> {
     /// or `Bytes` response as its packed `[request_id, body]` frame, before
     /// the MDU check that would otherwise send it as a resource, and a
     /// `RequestResponse::Resource` as the size its advertisement carries:
-    /// the uncompressed data behind the packed metadata and its length
-    /// prefix (a metadata-less resource measures as its data alone),
+    /// the uncompressed data together with the packed metadata and its
+    /// length prefix (a metadata-less resource measures as its data alone),
     /// and refuses a response over the cap with `ResponseOutcome::TooLarge`
     /// instead of sending it. The cap in force is the one read when the
     /// request was dispatched; a cap changed while a handler runs applies

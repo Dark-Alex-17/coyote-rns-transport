@@ -16,9 +16,11 @@ impl Transport {
     /// an out-link alike.
     ///
     /// Returns `Err(RnsError::InvalidArgument)` when no link of this
-    /// transport has `link_id`, and `Err(RnsError::ConnectionError)` when the
-    /// proof cannot be sent, the link having no bound interface or the
-    /// interface taking nothing.
+    /// transport has `link_id`, and `Err(RnsError::ConnectionError)` when
+    /// the link is not yet or no longer `Active`, as `Transport::request`
+    /// does (Python's `Packet.send` drops a packet on a `CLOSED` link,
+    /// `RNS/Packet.py:294-299`), or when the proof cannot be sent, the link
+    /// having no bound interface or the interface taking nothing.
     ///
     /// Fork-only convenience: a Python application calls `packet.prove()`
     /// on the packet its link callback received (`RNS/Packet.py:336-341`),
@@ -32,7 +34,13 @@ impl Transport {
         let Some(link) = self.find_any_link(link_id).await else {
             return Err(RnsError::InvalidArgument);
         };
-        let proof = link.lock().await.prove_hash(packet_hash);
+        let proof = {
+            let guard = link.lock().await;
+            if guard.status() != LinkStatus::Active {
+                return Err(RnsError::ConnectionError);
+            }
+            guard.prove_hash(packet_hash)
+        };
         if self.send_link_packet_on_bound_iface(&link, proof).await.is_sent() {
             Ok(())
         } else {

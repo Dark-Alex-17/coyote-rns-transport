@@ -4,8 +4,8 @@
 // it and the application proves later from `LinkPayload::packet_hash`, the way a Python
 // application calls `packet.prove()` on the packet its callback got (`RNS/Packet.py:336-341`,
 // `RNS/Link.py:961-968`); an out-link set to `None` by hand does the same from the connector's
-// side; and a proof for an unknown link is refused. Helpers come from the sibling
-// `tests_parts` files.
+// side; and a proof for an unknown link or a link no longer active is refused. Helpers come
+// from the sibling `tests_parts` files.
 
 use crate::destination::ProofRequestedHandler;
 
@@ -205,4 +205,24 @@ async fn two_transport_loopback_link_proof_strategy_unknown_link_is_refused() {
         .prove_link_packet(&AddressHash::new_from_rand(OsRng), &Hash::new_from_slice(b"x"))
         .await;
     assert!(matches!(outcome, Err(RnsError::InvalidArgument)), "{outcome:?}");
+}
+
+/// A link the transport still tracks but that is no longer `Active` refuses the proof, the
+/// way `Transport::request` does: the interface the link bound before it closed, and just
+/// carried a proof on, does not let this one out.
+#[tokio::test]
+#[deny(clippy::await_holding_invalid_type)]
+async fn two_transport_loopback_link_proof_strategy_closed_link_is_refused() {
+    let mut pair = proof_strategy_pair("proof-closed", ProofStrategy::All, None).await;
+    let link_id = pair.link_id;
+
+    let sent =
+        packet_proven_send_plain_data(&pair.connector.transport, &pair.link, b"before-close")
+            .await;
+    assert_eq!(packet_proven_probe_collect(&mut pair.out_events, link_id, 1).await, vec![sent]);
+
+    pair.link.lock().await.close();
+    assert_eq!(pair.link.lock().await.status(), LinkStatus::Closed);
+    let outcome = pair.connector.transport.prove_link_packet(&link_id, &sent).await;
+    assert!(matches!(outcome, Err(RnsError::ConnectionError)), "{outcome:?}");
 }

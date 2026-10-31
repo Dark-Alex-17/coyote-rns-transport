@@ -50,8 +50,8 @@ the `dial failures` patch is fork commits `61429992`, `874c871b`, `aa6d2fac`,
 `b0635aea`, `8fc49d91`, `dd31f874`, `59b0ee7c`, `986dca4a`, `5188138e`,
 `8f348131`, `9c0bb5c6` and `b68ef92c`; the `disconnect reasons` patch is
 fork commits `45bcadfc`, `fdfa83dd`, `f45595c5`, `b819ab22`, `bb247215`,
-`0a8f5cf8`, `cc5c3092`, `3ab8f323`, `200b8810`, `b86af8d6` and
-`272c3f2c`.
+`0a8f5cf8`, `cc5c3092`, `3ab8f323`, `200b8810`, `b86af8d6`, `272c3f2c`
+and `a1241d2f`.
 
 | File | Patch |
 | --- | --- |
@@ -140,6 +140,7 @@ fork commits `45bcadfc`, `fdfa83dd`, `f45595c5`, `b819ab22`, `bb247215`,
 | `crates/libs/rns-transport/tests/dial_failure_events_api.rs` | dial failures |
 | `crates/libs/rns-transport/tests/dial_failure_reason_contract_probe.rs` | dial failures |
 | `crates/libs/rns-transport/tests/disconnect_reason_events_api.rs` | disconnect reasons |
+| `crates/libs/rns-transport/tests/disconnect_reason_receive_queue_probe.rs` | disconnect reasons |
 | `crates/libs/rns-transport/tests/link_proof_strategy_api.rs` | link proof strategy, dial failures |
 | `crates/libs/rns-transport/tests/request_handler_api.rs` | outcome tracker |
 | `crates/libs/rns-transport/tests/resolve_destination_deadline_api.rs` | destination resolve |
@@ -815,8 +816,8 @@ says in `with_state_events` that `DialFailed` interleaves after
 and needles the README wording in `crate_readme_sections.rs`.
 
 Fork commits `45bcadfc`, `fdfa83dd`, `f45595c5`, `b819ab22`, `bb247215`,
-`0a8f5cf8`, `cc5c3092`, `3ab8f323`, `200b8810`, `b86af8d6` and
-`272c3f2c`: K8, disconnect reasons. The library behaviour changes are:
+`0a8f5cf8`, `cc5c3092`, `3ab8f323`, `200b8810`, `b86af8d6`, `272c3f2c`
+and `a1241d2f`: K8, disconnect reasons. The library behaviour changes are:
 the HDLC stream runner reports how a stream ended, `TcpClient`
 and `LocalUnixClient` can send that as a typed `DisconnectReason` on a
 channel of their own beside the plain disconnect event, the shared-instance
@@ -897,6 +898,11 @@ favour of "unchanged for every disconnect the client reports".
 `272c3f2c` moves the comment on why each close lands on a held stream
 onto the accept-and-close sequence it describes in
 `tests/shared_instance_disconnect_reasons_api.rs`.
+`a1241d2f` adopts `tests/disconnect_reason_receive_queue_probe.rs` (a
+stream ended by the transport's receive queue closing fires the plain
+disconnect channel, leaves the reason channel empty and the client
+redials), cites it in the changelog and the README needle list, and puts
+the stream exit on both clients' `disconnected from` info log lines.
 
 ## 0.17.0 (upstream 0.14.0)
 

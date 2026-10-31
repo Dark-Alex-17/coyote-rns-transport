@@ -61,9 +61,10 @@ Removed) bullet of its own, marked as such.
   `ResponseOutcome::TooLarge { len, max }` variant
   (`destination/request/outcome.rs`; the enum is `#[non_exhaustive]`, so the
   variant is additive), whose rustdoc describes the Resource measure in the
-  same words as `set_max_response_size` and the README. This is the
-  responder's cap on what it sends; the requester's cap on what it accepts
-  stays `RequestOptions::with_max_response_size`. Pinned by
+  same words as `set_max_response_size`, the dispatcher's `send_response`
+  and the README. This is the responder's cap on what it sends; the
+  requester's cap on what it accepts stays
+  `RequestOptions::with_max_response_size`. Pinned by
   `two_transport_loopback_requests_response_cap.rs` (a packet response at
   the cap going out and one over it refused, a `Resource` response at the
   cap going out and one over it refused, and an oversize `Bytes` body
@@ -104,9 +105,9 @@ Removed) bullet of its own, marked as such.
   in one call, taking the `AddressHash` and a `Duration` timeout and
   returning the same `Option<DestinationDesc>`
   (`links_parts/transport_sections/resolve_destination.rs`, included from
-  `links_parts/transport.rs`). A destination the transport already
-  knows answers at once and no path request goes out. A zero timeout is a
-  cached lookup alone and returns `None` for an unknown destination without
+  `links_parts/transport.rs`). A destination the transport already knows
+  answers at once and no path request goes out. A zero timeout is a cached
+  lookup alone and returns `None` for an unknown destination without
   sending anything. Otherwise exactly one path request is attempted, a
   `Broadcast` on every outgoing interface as `request_path` sends it, and
   the call waits until a path is learned, polling every 50 ms or the time
@@ -160,8 +161,16 @@ Removed) bullet of its own, marked as such.
   relearns the next hop and the desc opens a link, and a destination
   deregistered with a standing path answers `None` until `expire_path`
   turns it back into the reachable case and one request draws the
-  announce), and by `crate_readme_sections.rs`, which pins the README
-  link-opening prose for the call, both splits included;
+  announce), by `tests/resolve_destination_deadline_api.rs` (on a
+  transport with no interface, where every miss is decided by the deadline
+  alone, the fastest of three 10 ms misses of `resolve_destination` and of
+  `await_path` lands under 40 ms and the fastest of three 120 ms misses
+  under 140 ms, so the last poll is cut to the time left rather than
+  rounded up, every run waiting out its timeout; and `Duration::MAX` on
+  both calls outlives an outer one-second bound with nothing to broadcast
+  on), and by `crate_readme_sections.rs`, which pins the README
+  link-opening prose for the call, both splits included, and holds the
+  README, this section and the rustdoc to the wait wording;
   `request_layer_api_docs.rs` names the method among the items whose
   rustdoc must cite Python or say fork-only.
 
@@ -216,10 +225,10 @@ Removed) bullet of its own, marked as such.
   the requester's and the responder's caps side by side and the phrases
   that the caps compose at one number, that a metadata-less Resource
   measures as its data alone and that an unarmed tracker leaves the slot
-  as it was. The README patch
-  list is unchanged: the register of what the next release carries on top
-  of `0.17.0` is written at release time. The `assert_nothing_sent_for`
-  helper of `two_transport_loopback_requests_response_cap.rs` panics with
+  as it was. The README patch list is unchanged: the register of what the
+  next release carries on top of `0.17.0` is written at release time. The
+  `assert_nothing_sent_for` helper of
+  `two_transport_loopback_requests_response_cap.rs` panics with
   the skipped count when its resource event receiver lags, as the sibling
   silence checks do, instead of reading on; `tests/request_handler_api.rs`
   types the `into_parts` tuple so a rename or un-export of
@@ -254,21 +263,32 @@ Removed) bullet of its own, marked as such.
   `crate_readme_link_section_carries_one_rust_fence` (the link-opening
   section carries one rust fence and no other) and
   `crate_readme_resolve_destination_prose_matches_the_rustdoc_and_the_changelog`
-  (README, CHANGELOG and rustdoc agree on the attempted-request wording),
-  which reads the newest changelog section by position, the text after the
-  first `## ` heading, rather than by the `Unreleased` label, so it survives
-  the release cut; `crate_readme_sections.rs` also gains
+  (README, CHANGELOG and rustdoc agree on the attempted-request wording and
+  on the wait wording: until a path is learned, polling every 50 ms or the
+  time left, whichever is shorter, and `Duration::MAX` included, waits
+  indefinitely instead of panicking), which reads the first changelog
+  section that names `Transport::resolve_destination`, whatever its
+  heading, rather than the `Unreleased` section or the first section by
+  position, so it survives both the release cut and the next reopened
+  stub; `crate_readme_sections.rs` also gains
   `response_cap_rustdoc_twins_describe_the_resource_measure_alike`, which
-  holds the `TooLarge` rustdoc, the `set_max_response_size` rustdoc and the
-  README request-handler section to one description of the Resource
-  measure. `resource_response_len` of
-  `two_transport_loopback_requests_response_cap.rs` takes
-  `Option<&rmpv::Value>` and applies the dispatcher's `map_or(0, ..)`, so
-  the metadata-less pin of
+  holds the `TooLarge` rustdoc, the `set_max_response_size` rustdoc, the
+  `send_response` rustdoc of `transport/request_dispatch.rs`, the README
+  request-handler section and the first changelog section that names
+  `set_max_response_size` to one description of the Resource measure (both
+  tests select their section through one `changelog_section_naming` helper,
+  each anchored on the API name its bullet is about). `resource_response_len`
+  of `two_transport_loopback_requests_response_cap.rs` takes
+  `Option<&rmpv::Value>` and applies the dispatcher's `map_or(0, ..)`, so the
+  metadata-less pin of
   `two_transport_loopback_requests_response_cap_probe.rs` measures through
-  it; and the `RESOURCE_LOG_TARGET` comment of
+  it; the `RESOURCE_LOG_TARGET` comment of
   `two_transport_loopback_requests_isolation.rs` names both `include!`d
-  sources of the lines it captures.
+  sources of the lines it captures; and
+  `request_advert_reject_warn_cadence_probe2.rs` shows the at-limit
+  advertisement between its refusals was accepted, through an initiator
+  cancel that draws the `InboundFailed` only a receiver the destination
+  created can publish.
 
 ## 0.17.0 - 2026-10-27
 

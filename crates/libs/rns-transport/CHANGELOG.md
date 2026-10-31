@@ -104,22 +104,35 @@ Removed) bullet of its own, marked as such.
   every 50 ms until the announce is learned or the timeout passes, returning
   `None` after it. The entry read is the one `destination_desc` and
   `destination_identity` read, filled by an accepted announce or a restored
-  path table. Fork-only: a Python application writes the same by hand with
+  path table. That entry and the path table can part ways, and the call
+  follows the entry: a destination `deregister_destination` removed while
+  its path table entry stands answers `None` at once with no request, since
+  `await_path` takes the standing path as its answer; a destination whose
+  entry is still held but whose path `expire_path` or aging removed answers
+  `Some` at once with no request, so a caller that then needs a next hop
+  for `link` still calls `await_path` itself.
+  Fork-only: a Python application writes the same by hand with
   `RNS.Transport.request_path`, a `has_path` poll and `RNS.Identity.recall`.
   A test-only `PathRequests::outgoing_request_count`
   (`path_requests_parts/module_prelude.rs`) counts the path requests sent
-  for a destination, one per send. Pinned by
+  for a destination still inside the throttle window, one per send. Pinned by
   `two_transport_resolve_destination.rs` (a known destination answers with
   no path request and no path response following; a destination registered
   without announcing is learned through exactly one path request, answered
   by exactly one path-response announce; an unreachable destination returns
   `None` after the timeout with one request sent; a zero timeout sends
   nothing for an unknown destination and still answers a known one), by
-  `tests/destination_desc_api.rs` (the known, the silent-but-reachable and
-  the zero-timeout arms from outside the crate), and by
+  `two_transport_resolve_destination_probe.rs` (a retry after a miss sends
+  exactly one more request per call; a repeat on a learned destination
+  sends nothing; the deregistered-with-standing-path arm answers `None` at
+  once with no request; the held-desc-with-expired-path arm answers `Some`
+  at once with no request), by `tests/destination_desc_api.rs` (the known,
+  the silent-but-reachable and the zero-timeout arms from outside the
+  crate, and a miss that returns within a poll interval of the timeout and
+  is not remembered against the next lookup), and by
   `crate_readme_sections.rs`, which pins the README link-opening prose for
-  the call; `request_layer_api_docs.rs` names the method among the items
-  whose rustdoc must cite Python or say fork-only.
+  the call, both splits included; `request_layer_api_docs.rs` names the
+  method among the items whose rustdoc must cite Python or say fork-only.
 
 ### Changed
 
@@ -140,9 +153,14 @@ Removed) bullet of its own, marked as such.
   on one link warn at the first and the 64th and debug the rest, each record
   naming the link and the running count; a second link starts its own count
   and is warned on its first refusal; the sibling `rejected_advertisements`
-  count stays untouched); the shared `TestLogger` of
-  `two_transport_loopback_requests_isolation.rs` keeps those records in a
-  store of their own, read back per link.
+  count stays untouched), by `request_advert_reject_warn_cadence_probe.rs`
+  (129 refusals on one link warn at the first, the 64th and the 128th and
+  debug the rest) and by the counter-level pin in
+  `resource/tests_advert_limits.rs` (two refusals leave
+  `rejected_request_advertisements` at 2 and `rejected_advertisements` at
+  0, with the mirror assertion in the over-cap sibling); the shared
+  `TestLogger` of `two_transport_loopback_requests_isolation.rs` keeps
+  those records in a store of their own, read back per link.
 - Request-layer tests and ledger contracts, test-only: the shared
   `TestLogger` of `two_transport_loopback_requests_isolation.rs` keeps the
   dispatcher's dropped-outcome-receiver debug lines and the refused-response
@@ -173,7 +191,10 @@ Removed) bullet of its own, marked as such.
   on a closed resource event channel; `request_layer_api_docs.rs` names
   `set_max_response_size`, `clear_max_response_size` and
   `max_response_size` among the items whose rustdoc must say fork-only,
-  and its walker floor rises to the current count of 154 public items. The
+  and its walker floor rises to the current count of 155 public items. The
+  README request-handler section says an unarmed tracker leaves the slot as
+  it was, so with no earlier `track_outcome` the dispatcher logs nothing
+  and resolves nothing, as the `inbound.rs` and `outcome.rs` rustdoc do. The
   both-ends pin of `two_transport_loopback_requests_response_cap_probe2.rs`
   asserts equal caps compose now that the Resource measure counts the
   metadata length prefix, and `resource_response_len` of

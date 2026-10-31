@@ -32,11 +32,12 @@ Every file changed since the `0.17.0` release and the patch each change
 belongs to. Patch ids: K1 is outcome tracker, K2 is response cap, K3 is
 ledger contracts, K4 is destination resolve, K5 is reject cadence. The
 `outcome tracker` patch is fork commits `c3a317d7`, `ca32feac`, `223cdd80`,
-`716fb2be` and `d3b234e6`; the `response cap` patch is fork commits
-`355a0ddf`, `ca32feac`, `223cdd80`, `716fb2be`, `f43321f4`, `9eb35226` and
-`d3b234e6`; the `ledger contracts` patch is fork commit `ca32feac`; the
-`destination resolve` patch is fork commit `3136f1bf`; the `reject cadence`
-patch is fork commit `265d6929`.
+`716fb2be`, `d3b234e6` and `d36f65df`; the `response cap` patch is fork
+commits `355a0ddf`, `ca32feac`, `223cdd80`, `716fb2be`, `f43321f4`,
+`9eb35226`, `d3b234e6` and `d36f65df`; the `ledger contracts` patch is fork
+commit `ca32feac`; the `destination resolve` patch is fork commits
+`3136f1bf` and `d36f65df`; the `reject cadence` patch is fork commits
+`265d6929` and `d36f65df`.
 
 | File | Patch |
 | --- | --- |
@@ -56,6 +57,7 @@ patch is fork commit `265d6929`.
 | `crates/libs/rns-transport/src/resource/advertisement_limits.rs` | reject cadence |
 | `crates/libs/rns-transport/src/resource/link_stats.rs` | reject cadence |
 | `crates/libs/rns-transport/src/resource/sender.rs` | response cap |
+| `crates/libs/rns-transport/src/resource/tests_advert_limits.rs` | reject cadence |
 | `crates/libs/rns-transport/src/transport/links_parts/transport_sections/resolve_destination.rs` | destination resolve |
 | `crates/libs/rns-transport/src/transport/links_parts/transport.rs` | destination resolve |
 | `crates/libs/rns-transport/src/transport/path_requests_parts/module_prelude.rs` | destination resolve |
@@ -63,6 +65,7 @@ patch is fork commit `265d6929`.
 | `crates/libs/rns-transport/src/transport/request_dispatch.rs` | response cap |
 | `crates/libs/rns-transport/src/transport/resource_wire.rs` | reject cadence |
 | `crates/libs/rns-transport/src/transport/tests_parts/request_advert_reject_warn_cadence.rs` | reject cadence |
+| `crates/libs/rns-transport/src/transport/tests_parts/request_advert_reject_warn_cadence_probe.rs` | reject cadence |
 | `crates/libs/rns-transport/src/transport/tests_parts/two_transport_loopback_requests_into_parts.rs` | outcome tracker |
 | `crates/libs/rns-transport/src/transport/tests_parts/two_transport_loopback_requests_isolation.rs` | outcome tracker, response cap, reject cadence |
 | `crates/libs/rns-transport/src/transport/tests_parts/two_transport_loopback_requests_response_cap.rs` | response cap |
@@ -70,16 +73,17 @@ patch is fork commit `265d6929`.
 | `crates/libs/rns-transport/src/transport/tests_parts/two_transport_loopback_requests_response_cap_probe2.rs` | response cap |
 | `crates/libs/rns-transport/src/transport/tests_parts/two_transport_loopback_requests_response_cap_probe3.rs` | response cap |
 | `crates/libs/rns-transport/src/transport/tests_parts/two_transport_resolve_destination.rs` | destination resolve |
+| `crates/libs/rns-transport/src/transport/tests_parts/two_transport_resolve_destination_probe.rs` | destination resolve |
 | `crates/libs/rns-transport/src/transport/tests.rs` | outcome tracker, response cap, destination resolve, reject cadence |
 | `crates/libs/rns-transport/tests/destination_desc_api.rs` | destination resolve |
 | `crates/libs/rns-transport/tests/request_handler_api.rs` | outcome tracker |
 | `crates/libs/rns-transport/tests/response_cap_tracker_api.rs` | outcome tracker, response cap |
 | `docs/fork/PATCHSET.md` | outcome tracker, response cap, ledger contracts, destination resolve, reject cadence |
 
-Fork commits `c3a317d7`, `ca32feac`, `223cdd80`, `716fb2be` and `d3b234e6`:
-K1, outcome tracker. The library behaviour changes are: a handler can take
-the request data by value and still decide afterwards whether to watch
-the response. `c3a317d7` adds `InboundRequest::into_parts`
+Fork commits `c3a317d7`, `ca32feac`, `223cdd80`, `716fb2be`, `d3b234e6` and
+`d36f65df`: K1, outcome tracker. The library behaviour changes are: a
+handler can take the request data by value and still decide afterwards
+whether to watch the response. `c3a317d7` adds `InboundRequest::into_parts`
 (`destination/request/inbound.rs`), which returns the data together with a
 `ResponseOutcomeTracker` over the request's outcome slot, and the tracker
 itself (`destination/request/outcome.rs`, re-exported beside `InboundRequest`
@@ -102,8 +106,8 @@ the `track_outcome` paragraph, and pins that prose in
 `crate_readme_sections.rs`. `223cdd80` pins the `into_parts` tuple type in
 `tests/request_handler_api.rs`, so a rename or un-export of the tracker
 fails that file, adds `tests/response_cap_tracker_api.rs`, which pins from
-outside the crate that the tracker is `Send + Sync`, prints as an opaque
-struct and is not `Clone`, and names both fillers of the outcome slot in
+outside the crate that the tracker is `Send + Sync`, implements `Debug`
+and is not `Clone`, and names both fillers of the outcome slot in
 the `inbound.rs` constructor doc and the receiver doc of `outcome.rs`,
 where `ResponseOutcomeTracker::outcome` now says it replaces a sender
 `track_outcome` installed earlier and that receiver resolves `NotSent`.
@@ -111,15 +115,19 @@ where `ResponseOutcomeTracker::outcome` now says it replaces a sender
 which compares `TooLarge` with `PartialEq`; the outcome enum is not `Copy`.
 `d3b234e6` has that header say the tracker implements `Debug` rather than
 how it prints (the opaque form is pinned in
-`two_transport_loopback_requests_response_cap_probe.rs`), has the unarmed
+`two_transport_loopback_requests_response_cap_probe.rs:187`), has the unarmed
 tracker rustdoc in `inbound.rs` and `outcome.rs` say the slot is left as it
 was, and arms the dropped-receiver positive control of
 `two_transport_loopback_requests_into_parts.rs` through the `into_parts`
-tracker instead of `track_outcome`.
+tracker instead of `track_outcome`. `d36f65df` has the README
+request-handler section say the same of an unarmed tracker: it leaves the
+slot as it was, so with no earlier `track_outcome` the dispatcher logs
+nothing and resolves nothing.
 
 Fork commits `355a0ddf`, `ca32feac`, `223cdd80`, `716fb2be`, `f43321f4`,
-`9eb35226` and `d3b234e6`: K2, response cap. The library behaviour changes
-are: a destination can bound the size of the responses it sends. `355a0ddf`
+`9eb35226`, `d3b234e6` and `d36f65df`: K2, response cap. The library
+behaviour changes are: a destination can bound the size of the responses it
+sends. `355a0ddf`
 adds `set_max_response_size`, `clear_max_response_size` and
 `max_response_size` to the single input destination
 (`destination_parts/destination.rs`, the field in
@@ -202,7 +210,8 @@ say so in place of the prefix disclosure; `resource_response_len` of
 at-cap and over-cap pins keep measuring what the dispatcher measures; and
 the both-ends pin of
 `two_transport_loopback_requests_response_cap_probe2.rs` becomes
-`equal_requester_and_responder_caps_compose`: equal caps admit the response
+`two_transport_loopback_request_equal_requester_and_responder_caps_compose`:
+equal caps admit the response
 with outcome `Resource(Complete)`, a requester cap one under rejects the
 advertisement with `Oversize` and outcome `Rejected(PeerCancelled)`, and a
 responder cap one under resolves `TooLarge { len, max }` with nothing
@@ -221,14 +230,18 @@ logger before it reads the refused-response store, and states in the module
 doc of `release_0_17_0_probe3.rs` that its enum pin reads the
 `coyote-rns-transport-v0.17.0` tag with `git show`, as the full-depth
 contracts job can, and fails rather than skips on a clone without it.
+`d36f65df` adds to the README cap paragraph that a metadata-less Resource
+measures as its data alone, and raises the walker floor of
+`request_layer_api_docs.rs` to the current count of 155 public items.
 
 Fork commit `ca32feac`: K3, ledger contracts. No library behaviour changes.
 `ca32feac` extends the full-hash ledger pin in `ledger_contract.rs` to the
 reopened `Unreleased` section beside the released ones.
 
-Fork commit `3136f1bf`: K4, destination resolve. The library behaviour
-changes are: a caller can look up a destination and wait for its path in one
-call. `3136f1bf` adds `Transport::resolve_destination` in the new include
+Fork commits `3136f1bf` and `d36f65df`: K4, destination resolve. The library
+behaviour changes are: a caller can look up a destination and wait for its
+path in one call. `3136f1bf` adds `Transport::resolve_destination` in the
+new include
 `links_parts/transport_sections/resolve_destination.rs` (registered in
 `links_parts/transport.rs`), which takes an `AddressHash` and a `Duration`
 timeout and returns the `Option<DestinationDesc>` that `destination_desc`
@@ -237,7 +250,13 @@ path request goes out; a zero timeout is a cached lookup alone and returns
 `None` for an unknown destination without sending anything; otherwise
 exactly one path request goes out, through `await_path`, and the call polls
 every 50 ms until the announce is learned or the timeout passes, then
-returns `None`. The same commit adds the test-only
+returns `None`. The learned entry and the path table can part ways, and the
+call follows the entry: a destination `deregister_destination` removed while
+its path table entry stands answers `None` at once with no request, since
+`await_path` takes the standing path as its answer; a destination whose entry
+is still held but whose path `expire_path` or aging removed answers `Some` at
+once with no request, so a caller that then needs a next hop for `link`
+still calls `await_path` itself. The same commit adds the test-only
 `PathRequests::outgoing_request_count` (`path_requests_parts/module_prelude.rs`),
 which counts the `outgoing_request_queue` entries for a destination, one per
 send. Pinned by `two_transport_resolve_destination.rs` (included from
@@ -252,10 +271,23 @@ silent-but-reachable and the zero-timeout arms from outside the crate; the
 README link-opening section describes the call beside `destination_desc`,
 pinned by `crate_readme_sections.rs`; `request_layer_api_docs.rs` names the
 method among the items whose rustdoc must cite Python or say fork-only.
+`d36f65df` adds `two_transport_resolve_destination_probe.rs` (included from
+`tests.rs`): a caller that retries after a miss sends exactly one more path
+request per call; a second call on a learned destination answers from the
+table and sends nothing; the deregistered-with-standing-path arm answers
+`None` at once with no request; and the held-desc-with-expired-path arm
+answers `Some` at once with no request. The same commit adds to
+`tests/destination_desc_api.rs` a black-box pin that a miss returns within
+a poll interval of the caller's timeout and is not remembered against the
+next lookup, states both splits in the `resolve_destination` rustdoc and
+the README link-opening paragraph, adds a README needle for each to
+`crate_readme_sections.rs`, and has the `outgoing_request_count` rustdoc
+say the entries it counts are the ones not yet pruned by the job that
+applies the throttle window.
 
-Fork commit `265d6929`: K5, reject cadence. The library behaviour changes
-are: the warn for a request advertisement refused over the destination's
-`max_request_size` has a per-link cadence. `265d6929` adds the
+Fork commits `265d6929` and `d36f65df`: K5, reject cadence. The library
+behaviour changes are: the warn for a request advertisement refused over the
+destination's `max_request_size` has a per-link cadence. `265d6929` adds the
 `LinkStats.rejected_request_advertisements` counter and moves `LinkStats`
 with `ewma` from `resource.rs` into the new include
 `resource/link_stats.rs`, so `resource.rs` stays under the module-size
@@ -276,7 +308,14 @@ the sibling `rejected_advertisements` count stays untouched. The shared
 `TestLogger` of `two_transport_loopback_requests_isolation.rs` gains the
 store those records are read from, keyed by link;
 `resource_advert_reject_warn_cadence.rs`, which pins the over-cap
-advertisement cadence, is unchanged.
+advertisement cadence, is unchanged. `d36f65df` adds
+`request_advert_reject_warn_cadence_probe.rs` (included from `tests.rs`):
+129 refusals on one link cross the second stride, warning at the first,
+the 64th and the 128th and debug otherwise, and adds to
+`resource/tests_advert_limits.rs` a counter-level pin that two calls to
+`record_rejected_request_advertisement` leave
+`rejected_request_advertisements` at 2 and `rejected_advertisements` at 0,
+with the mirror assertion in the over-cap sibling.
 
 ## 0.17.0 (upstream 0.14.0)
 

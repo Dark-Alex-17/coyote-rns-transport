@@ -377,7 +377,11 @@ Removed) bullet of its own, marked as such.
   `tests/shared_instance_first_connect_interrupt_probe.rs` (a detach or a
   `stop` during a 10 s wait answers `SharedInstanceConnectTimeout` within
   5 s, the slot empty, the posture off and the stream ending without a
-  `Connected`), by `tests/dial_failure_reason_contract_probe.rs` (the unix
+  `Connected`), by
+  `tests/shared_instance_first_connect_stop_interface_probe.rs` (a
+  `stop_interface` on the attached interface during the same 10 s wait
+  answers the same way, the slot released by the timeout cleanup) and by
+  `tests/dial_failure_reason_contract_probe.rs` (the unix
   twin: the timeout over a tempdir path nothing has bound reads
   `Connecting`, one or more `DialFailed { NotFound }`, then ends without a
   `Connected`, the slot empty and the posture off, and the same transport

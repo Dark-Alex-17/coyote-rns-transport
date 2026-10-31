@@ -9,9 +9,12 @@
 //! once for the binary, that each failed attempt warns with the endpoint
 //! and the io error's own text, "Connection refused" for a closed port, so
 //! a reader of the log can tell a refusal from a timeout; the records are
-//! attributed by the endpoint they name. Both clients answer
-//! `dial_failure_events_enabled()` false until the builder sets the channel.
-//! The last pin holds at compile time that `DialFailure` is
+//! attributed by the endpoint they name. A dial against the black-holed
+//! TEST-NET-1 address that outlives `with_connect_timeout` reports `Timeout`
+//! and warns "connect timed out after" the configured timeout, the arm no
+//! io error reaches. Both clients answer `dial_failure_events_enabled()`
+//! false until the builder sets the channel. The last pin holds at compile
+//! time that `DialFailure` is
 //! `Copy + Send + Sync` and that `SharedInstanceEvent` stayed `Copy` with its
 //! new `DialFailed` variant.
 
@@ -164,6 +167,43 @@ async fn tcp_client_reports_refused_dials_until_a_listener_binds_the_port() {
 
     cancel.cancel();
     drop(stream);
+    timeout(Duration::from_secs(2), task)
+        .await
+        .expect("TCP client task timed out")
+        .expect("TCP client task panicked");
+}
+
+/// 192.0.2.1 (TEST-NET-1) is never routed, so the SYN gets no answer and
+/// only the connect timeout ends the dial.
+#[tokio::test]
+#[deny(clippy::await_holding_invalid_type)]
+async fn tcp_client_reports_a_black_holed_dial_as_a_timeout_naming_the_connect_timeout() {
+    install_capture_logger();
+    let addr = "192.0.2.1:1";
+    let connect_timeout = Duration::from_millis(200);
+    let (failure_tx, mut failure_rx) = mpsc::channel(8);
+    let client = TcpClient::new(addr)
+        .with_connect_timeout(connect_timeout)
+        .with_reconnect_wait(RECONNECT_WAIT)
+        .with_dial_failure_events(failure_tx);
+
+    let mut manager = InterfaceManager::new(8);
+    let context = manager.new_context(client);
+    let iface = context.channel.address;
+    let cancel = context.cancel.clone();
+    let task = tokio::spawn(TcpClient::spawn(context));
+
+    let failure = recv_within("timed-out dial failure", &mut failure_rx).await;
+    assert_eq!(failure.iface(), iface, "the failure names the interface");
+    assert_eq!(failure.kind(), DialFailureKind::Timeout);
+    let warns = failed_dial_warns(addr);
+    let expected = format!("connect timed out after {connect_timeout:?}");
+    assert!(
+        warns.iter().any(|message| message.contains(&expected)),
+        "the warn names the connect timeout: {warns:?}"
+    );
+
+    cancel.cancel();
     timeout(Duration::from_secs(2), task)
         .await
         .expect("TCP client task timed out")

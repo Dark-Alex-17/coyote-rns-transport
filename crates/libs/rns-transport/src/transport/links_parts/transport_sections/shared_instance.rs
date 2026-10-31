@@ -205,23 +205,25 @@ impl Transport {
             match tokio::time::timeout(timeout, first_connect).await {
                 Ok(Ok(())) => {}
                 Err(_elapsed) => {
+                    let detached = self.detach_shared_instance_if(iface).await;
                     log::warn!(
-                        "tp({}): shared instance iface={} kind={} did not connect within {:?}, detaching",
+                        "tp({}): shared instance iface={} kind={} did not connect within {:?}, detached={}",
                         self.name,
                         iface,
                         kind,
-                        timeout
+                        timeout,
+                        detached
                     );
-                    self.detach_shared_instance_if(iface).await;
                     return Err(RnsError::SharedInstanceConnectTimeout);
                 }
                 Ok(Err(_)) => {
+                    let detached = self.detach_shared_instance_if(iface).await;
                     log::debug!(
-                        "tp({}): shared instance iface={} consumer ended before the first connect, detaching",
+                        "tp({}): shared instance iface={} consumer ended before the first connect, detached={}",
                         self.name,
-                        iface
+                        iface,
+                        detached
                     );
-                    self.detach_shared_instance_if(iface).await;
                     return Err(RnsError::SharedInstanceConnectTimeout);
                 }
             }

@@ -38,6 +38,6 @@ pub enum RnsError {
     /// attach's consumer ended first (a stop or detach during the wait),
     /// and it detached again. Python's `LocalClientInterface` keeps dialing
     /// in the background instead (`RNS/Interfaces/LocalInterface.py:159-167`).
-    #[error("shared instance did not connect within the first-connect timeout")]
+    #[error("shared instance did not connect before the first-connect wait ended")]
     SharedInstanceConnectTimeout,
 }

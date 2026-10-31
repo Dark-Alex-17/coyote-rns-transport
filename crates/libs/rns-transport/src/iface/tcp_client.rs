@@ -1294,15 +1294,7 @@ impl TcpClient {
                 Err(failure) => {
                     online.store(false, std::sync::atomic::Ordering::Release);
                     failed_connect_attempts = failed_connect_attempts.saturating_add(1);
-                    let (kind, text) = match failure {
-                        DialError::Elapsed => (
-                            DialFailureKind::Timeout,
-                            format!("connect timed out after {connect_timeout:?}"),
-                        ),
-                        DialError::Io(err) => {
-                            (DialFailureKind::from_io_error(&err), err.to_string())
-                        }
-                    };
+                    let (kind, text) = classify_dial_error(failure, connect_timeout);
                     runtime_status
                         .lock()
                         .expect("tcp runtime status mutex poisoned")
@@ -1506,6 +1498,18 @@ enum DialError {
     Io(io::Error),
 }
 
+/// The event kind and warn text for one failed dial. The timeout arm names
+/// the configured connect timeout because `tokio::time::timeout` yields no
+/// io error to quote.
+fn classify_dial_error(err: DialError, connect_timeout: Duration) -> (DialFailureKind, String) {
+    match err {
+        DialError::Elapsed => {
+            (DialFailureKind::Timeout, format!("connect timed out after {connect_timeout:?}"))
+        }
+        DialError::Io(err) => (DialFailureKind::from_io_error(&err), err.to_string()),
+    }
+}
+
 async fn connect_tcp_stream(addr: String, prefer_ipv6: bool) -> io::Result<TcpStream> {
     if !prefer_ipv6 {
         return TcpStream::connect(addr).await;
@@ -1549,13 +1553,14 @@ mod tests {
     use std::time::{Duration, Instant};
 
     use super::{
-        forced_bitrate_delay, max_hdlc_frame_buffer_len, prefer_ipv6_socket_addrs,
-        run_hdlc_stream_with_runtime, tcp_wire_buffer_capacity, trim_malformed_hdlc_backlog,
-        HdlcStreamEvent, HdlcStreamRuntime, HdlcStreamWatchdog, TcpClient, TcpSocketTuning,
-        HDLC_STREAM_EVENT_CHANNEL_CAPACITY,
+        classify_dial_error, forced_bitrate_delay, max_hdlc_frame_buffer_len,
+        prefer_ipv6_socket_addrs, run_hdlc_stream_with_runtime, tcp_wire_buffer_capacity,
+        trim_malformed_hdlc_backlog, DialError, HdlcStreamEvent, HdlcStreamRuntime,
+        HdlcStreamWatchdog, TcpClient, TcpSocketTuning, HDLC_STREAM_EVENT_CHANNEL_CAPACITY,
     };
     use crate::buffer::OutputBuffer;
     use crate::hash::AddressHash;
+    use crate::iface::events::DialFailureKind;
     use crate::iface::hdlc::Hdlc;
     use crate::iface::{InterfaceManager, TxMessage, TxMessageType};
     use crate::packet::{Packet, PacketDataBuffer};
@@ -1618,6 +1623,39 @@ mod tests {
 
         assert_eq!(prefer_ipv6_socket_addrs([v4, v6], false), vec![v4, v6]);
         assert_eq!(prefer_ipv6_socket_addrs([v4, v6], true), vec![v6, v4]);
+    }
+
+    #[test]
+    fn tcp_client_classifies_an_elapsed_dial_as_a_timeout_naming_the_connect_timeout() {
+        let (kind, text) = classify_dial_error(DialError::Elapsed, Duration::from_millis(200));
+
+        assert_eq!(kind, DialFailureKind::Timeout);
+        assert_eq!(text, "connect timed out after 200ms");
+    }
+
+    #[test]
+    fn tcp_client_classifies_io_dial_errors_by_their_kind() {
+        let connect_timeout = Duration::from_secs(5);
+        for (io_kind, expected) in [
+            (std::io::ErrorKind::TimedOut, DialFailureKind::Timeout),
+            (std::io::ErrorKind::ConnectionRefused, DialFailureKind::Refused),
+            (std::io::ErrorKind::NotFound, DialFailureKind::NotFound),
+        ] {
+            let err = std::io::Error::from(io_kind);
+            let expected_text = err.to_string();
+            let (kind, text) = classify_dial_error(DialError::Io(err), connect_timeout);
+            assert_eq!(kind, expected, "{io_kind:?}");
+            assert_eq!(text, expected_text, "{io_kind:?}");
+        }
+    }
+
+    #[test]
+    fn tcp_client_classifies_other_io_dial_errors_as_io_quoting_the_error() {
+        let err = std::io::Error::new(std::io::ErrorKind::PermissionDenied, "no raw sockets");
+        let (kind, text) = classify_dial_error(DialError::Io(err), Duration::from_secs(5));
+
+        assert_eq!(kind, DialFailureKind::Io(std::io::ErrorKind::PermissionDenied));
+        assert_eq!(text, "no raw sockets");
     }
 
     #[tokio::test]

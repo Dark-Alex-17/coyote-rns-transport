@@ -325,7 +325,8 @@ Removed) bullet of its own, marked as such.
   behind reconnects as well live. The enum stays `Copy`; it carries data from this
   variant on, so a numeric cast of its unit variants (`as isize`) no
   longer compiles, downstream code matches on the variants (the enum is
-  `#[non_exhaustive]`), and `cargo semver-checks` reports this as
+  `#[non_exhaustive]`; `DisconnectedWithReason`, below, is the second
+  data-carrying variant), and `cargo semver-checks` reports this as
   `enum_discriminants_undefined_non_unit_variant`, the one finding the
   release's semver gate names. Pinned by
   `two_transport_shared_instance_dial_failures.rs` (included from
@@ -390,6 +391,73 @@ Removed) bullet of its own, marked as such.
   `RnsError::SharedInstanceConnectTimeout` among the items whose rustdoc
   must cite Python or say fork-only, and by `crate_readme_sections.rs`,
   which pins the README shared-instance prose and this section.
+- `TcpClient::with_disconnect_reason_events` (`iface/tcp_client.rs`) and
+  `LocalUnixClient::with_disconnect_reason_events` (`iface/local.rs`) take a
+  `tokio::sync::mpsc::Sender<(AddressHash, DisconnectReason)>` and send one
+  pair each time an established stream ends while the client is neither
+  cancelled nor stopped; a full or closed channel drops the event at debug,
+  as the other client events do. Both clients gained a
+  `disconnect_reason_events_enabled()` getter. The plain
+  `with_disconnect_events` keeps its `Sender<AddressHash>` and keeps firing
+  beside the new channel. Underneath, the stream runner
+  `run_hdlc_stream_with_runtime_and_ifac` (`iface/tcp_client.rs`) now
+  returns a crate-private `HdlcStreamExit` (the read side's exit, unless
+  the read side only followed the write side's stop, in which case the
+  write side's), which `DisconnectReason::from_stream_exit`
+  (`iface/events.rs`) reads as `PeerClosed` for a zero-length read, `Reset`
+  for `ConnectionReset` on either side, `Timeout` for the read watchdog or
+  `TimedOut` on either side, `Io(kind)` for any other io error, and as
+  nothing for a stream the client ended itself. Python's
+  `LocalClientInterface` only notices the socket closed and reconnects
+  (`RNS/Interfaces/LocalInterface.py:255-261`). Pinned by the
+  `from_stream_exit` unit tests in `iface/events.rs`
+  (`a_peer_close_and_a_read_timeout_read_as_their_own_reasons`,
+  `a_reset_or_timed_out_io_error_on_either_side_reads_as_reset_or_timeout`,
+  `any_other_io_error_reads_as_io_with_that_kind`,
+  `io_never_carries_reset_or_timed_out`,
+  `a_locally_ended_stream_has_no_reason`), by the stream runner's exit
+  tests in `iface/tcp_client.rs`
+  (`a_peer_that_closes_the_stream_exits_as_peer_closed`,
+  `a_cancel_on_an_open_stream_exits_as_cancelled`,
+  `a_silent_stream_past_the_read_timeout_exits_as_read_timeout`) and by
+  `tests/disconnect_reason_events_api.rs` (the TCP client reports an
+  orderly close as `PeerClosed` and a linger-zero close as `Reset`, each
+  with its interface address; a client stopped while connected sends
+  nothing; the unix client reports `PeerClosed`; a full capacity-one
+  channel drops the reason at debug and the client keeps reconnecting).
+- `SharedInstanceEvent::DisconnectedWithReason` and
+  `SharedInstanceOptions::with_disconnect_reasons`
+  (`transport/shared_instance.rs`): an attach that opted in reads
+  `DisconnectedWithReason { reason: DisconnectReason }` in place of
+  `Disconnected`, at the same position in the cycle, the rest of the
+  stream unchanged; without the opt-in the stream is byte-identical to the
+  previous release's, so a caller that matches on `Disconnected` keeps
+  reading it. The attach
+  (`links_parts/transport_sections/shared_instance.rs`) installs the
+  clients' reason channel in place of the plain disconnect channel, and
+  the consumer task (`shared_instance_reconnect.rs`, the event choice in
+  `shared_instance_reconnect_parts/disconnected_event.rs`, the post-exit
+  drain in `shared_instance_reconnect_parts/drain_queued.rs`) carries the
+  reason through to the stream. The enum stays `Copy`. `Timeout` reaches
+  this stream only for a read or write that failed with `TimedOut`: the
+  attach's clients run no read watchdog, so a quiet socket is not
+  reported. Pinned by `two_transport_shared_instance_disconnect_reasons.rs`
+  (included from `tests.rs`: over a raw `TcpListener` an orderly close
+  reads `DisconnectedWithReason { PeerClosed }` and a linger-zero close
+  `DisconnectedWithReason { Reset }`, each followed by `Connecting`; the
+  same two closes without the opt-in read the plain `Disconnected`; the
+  unix twin reads `PeerClosed`; the hand-driven consumer with
+  `disconnect_reasons` set reads `DisconnectedWithReason { PeerClosed }`,
+  `Connecting`, `Connected` for one cycle, the `DriveSpec` of
+  `two_transport_shared_instance_state_events.rs` having gained a
+  `disconnect_reasons` flag) and by the opt-out pins already in place,
+  whose assertions are unchanged and still read `Disconnected`:
+  `two_transport_shared_instance_state_events.rs`,
+  `two_transport_shared_instance_state_events_probe2.rs` and
+  `tests/shared_instance_api.rs`. `with_disconnect_reason_events` on both
+  clients is listed in `request_layer_api_docs.rs` among the items whose
+  rustdoc must cite Python or say fork-only, and `crate_readme_sections.rs`
+  pins the README paragraph and this bullet.
 
 ### Changed
 

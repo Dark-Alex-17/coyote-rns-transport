@@ -569,7 +569,9 @@ budget, so none runs on a stopped transport.
 `tokio::sync::mpsc::Sender<SharedInstanceEvent>` and delivers the client's
 connection state on it.
 `SharedInstanceEvent` is `#[non_exhaustive]`, so match it with a wildcard
-arm; its variants are `Connecting`, `Connected` and `Disconnected`. The
+arm; its variants are `Connecting`, `Connected`, `Disconnected`,
+`DialFailed { reason }` and `DisconnectedWithReason { reason }` (the last
+two are described below). The
 attach itself sends the first `Connecting` once the interface is spawned and
 the slot taken, the connected posture already set when `Connecting` arrives
 while the slot still holds the interface (a refused attach sends nothing; in
@@ -630,6 +632,30 @@ failed attempt, `DialFailure::iface()` naming the interface and
 `dial_failure_events_enabled` getter; `DialFailure`, `DialFailureKind` and
 `DisconnectReason` live in `iface::events` and are re-exported from
 `transport`.
+
+`SharedInstanceOptions::with_disconnect_reasons(true)` opts into reading why
+each established connection ended: the stream then carries
+`SharedInstanceEvent::DisconnectedWithReason { reason }`
+in place of `Disconnected`, at the same position in the cycle, the rest of
+the stream unchanged; off by default, so a caller that matches on
+`Disconnected` keeps reading it. `reason` is a `DisconnectReason`:
+`PeerClosed` for an orderly close (the shared instance closed the socket),
+`Reset` for a connection reset, `Timeout` for a read or write that failed
+with `ErrorKind::TimedOut` (the attach's clients run no read watchdog, so a
+quiet socket is not reported; only a `TcpClient` built with
+`with_backbone_liveness` has one), and `Io(kind)` for any other io error
+(`Io` never carries `ConnectionReset` or `TimedOut`). A stop, detach or
+`stop_interface` still sends nothing.
+Underneath, `TcpClient` and `LocalUnixClient` gained
+`with_disconnect_reason_events`, which takes a
+`tokio::sync::mpsc::Sender<(AddressHash, DisconnectReason)>` and sends one
+pair each time an established stream ends while the client is neither
+cancelled nor stopped, beside the existing `with_disconnect_events` (which
+keeps its `Sender<AddressHash>` and keeps firing), and a
+`disconnect_reason_events_enabled` getter; the attach now installs the
+reason channel on its client. Python's `LocalClientInterface` only notices
+the socket closed and reconnects (`RNS/Interfaces/LocalInterface.py:255-261`)
+and reports no reason.
 
 A `Tcp` endpoint whose address is not loopback is refused with
 `RnsError::SharedInstanceEndpointNotLoopback` before any lock is taken, with

@@ -168,6 +168,16 @@ fn request_layer_public_items_cite_python_or_say_fork_only() {
             ItemKind::Method,
             "with_dial_failure_events",
         ),
+        (
+            "crates/libs/rns-transport/src/iface/tcp_client.rs",
+            ItemKind::Method,
+            "with_disconnect_reason_events",
+        ),
+        (
+            "crates/libs/rns-transport/src/iface/local.rs",
+            ItemKind::Method,
+            "with_disconnect_reason_events",
+        ),
     ];
 
     let mut checked = 0usize;

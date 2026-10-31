@@ -448,7 +448,7 @@ fn doc_comment_text(source: &str) -> String {
 
 /// The shared-instance section describes the state stream the way the
 /// attach and its consumer task behave: the option that installs it, the
-/// `non_exhaustive` enum and its four variants, the non-blocking send and
+/// `non_exhaustive` enum and its five variants, the non-blocking send and
 /// what a full channel does, the posture flag the events leave alone, the
 /// client builders and getters underneath, the first-connect timeout and
 /// the consumer-gone case that shares its error, and the Python reconnect
@@ -511,6 +511,53 @@ fn crate_readme_shared_instance_section_describes_state_events() {
         "`tests/dial_failure_reason_contract_probe.rs`",
         "`classify_dial_error`",
         "`Io(PermissionDenied)`",
+    ] {
+        assert!(changelog_section.contains(claim), "the changelog should mention {claim}");
+    }
+}
+
+/// The shared-instance section describes the opt-in disconnect reasons the
+/// way the attach and its consumer behave: the option, the variant that
+/// takes `Disconnected`'s place, what each reason means and the watchdog
+/// the attach's clients lack, the client builders and getter underneath,
+/// and the Python drop path that reports no reason; the changelog bullet
+/// names the same items and the tests that pin them.
+#[test]
+fn crate_readme_shared_instance_section_describes_disconnect_reasons() {
+    let readme = read_repo_file("crates/libs/rns-transport/README.md");
+    let section = crate_readme_section(&readme, "Attaching to a shared instance");
+    for claim in [
+        "`SharedInstanceOptions::with_disconnect_reasons(true)`",
+        "`DisconnectedWithReason { reason }`",
+        "in place of `Disconnected`",
+        "`PeerClosed` for an orderly close",
+        "`Reset` for a connection reset",
+        "run no read watchdog",
+        "`with_backbone_liveness`",
+        "`with_disconnect_reason_events`",
+        "`disconnect_reason_events_enabled`",
+        "`tokio::sync::mpsc::Sender<(AddressHash, DisconnectReason)>`",
+        "`RNS/Interfaces/LocalInterface.py:255-261`",
+    ] {
+        assert!(
+            section.contains(claim),
+            "the shared-instance section should mention {claim}:\n{section}"
+        );
+    }
+    let changelog = read_repo_file("crates/libs/rns-transport/CHANGELOG.md");
+    let changelog_section =
+        changelog_section_naming(&changelog, "`SharedInstanceEvent::DisconnectedWithReason`");
+    for claim in [
+        "`SharedInstanceOptions::with_disconnect_reasons`",
+        "`TcpClient::with_disconnect_reason_events`",
+        "`LocalUnixClient::with_disconnect_reason_events`",
+        "`disconnect_reason_events_enabled()`",
+        "`HdlcStreamExit`",
+        "`DisconnectReason::from_stream_exit`",
+        "run no read watchdog",
+        "`two_transport_shared_instance_disconnect_reasons.rs`",
+        "`tests/disconnect_reason_events_api.rs`",
+        "`shared_instance_reconnect_parts/disconnected_event.rs`",
     ] {
         assert!(changelog_section.contains(claim), "the changelog should mention {claim}");
     }

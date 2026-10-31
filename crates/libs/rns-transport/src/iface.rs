@@ -4,6 +4,8 @@ pub mod auto_runtime;
 
 pub mod driver;
 
+pub mod events;
+
 pub mod hdlc;
 
 pub mod i2p;
@@ -31,8 +33,6 @@ mod rnode_bearer_status;
 pub mod rnode_spp;
 
 pub mod serial;
-
-pub mod events;
 
 pub mod tcp_client;
 

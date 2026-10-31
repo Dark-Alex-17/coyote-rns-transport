@@ -1056,8 +1056,9 @@ impl TcpClient {
     /// fails, naming the interface and why: `Timeout` when the attempt
     /// outlives [`Self::with_connect_timeout`] or the OS times it out,
     /// `Refused` when nothing listens at the endpoint, `NotFound` when the
-    /// endpoint does not resolve or exist, and `Io(kind)` for any other io
-    /// error. A full or closed channel drops the event at debug. Fork-only:
+    /// OS reports `ErrorKind::NotFound`, and `Io(kind)` for any other io
+    /// error (a name that does not resolve arrives as `Io(kind)`). A full
+    /// or closed channel drops the event at debug. Fork-only:
     /// Python's shared-instance client logs each failed attempt at debug
     /// and retries without telling the failures apart
     /// (`RNS/Interfaces/LocalInterface.py:159-167`).
@@ -1153,6 +1154,13 @@ impl TcpClient {
     #[must_use]
     pub fn disconnect_events_enabled(&self) -> bool {
         self.disconnect_events.is_some()
+    }
+
+    /// Fork-only: whether a dial-failure sender is installed with
+    /// [`Self::with_dial_failure_events`].
+    #[must_use]
+    pub fn dial_failure_events_enabled(&self) -> bool {
+        self.dial_failure_events.is_some()
     }
 
     #[must_use]
@@ -1286,10 +1294,6 @@ impl TcpClient {
                 Err(failure) => {
                     online.store(false, std::sync::atomic::Ordering::Release);
                     failed_connect_attempts = failed_connect_attempts.saturating_add(1);
-                    runtime_status
-                        .lock()
-                        .expect("tcp runtime status mutex poisoned")
-                        .mark_reconnecting(format!("tcp connect failed endpoint={addr}"));
                     let (kind, text) = match failure {
                         DialError::Elapsed => (
                             DialFailureKind::Timeout,
@@ -1299,6 +1303,10 @@ impl TcpClient {
                             (DialFailureKind::from_io_error(&err), err.to_string())
                         }
                     };
+                    runtime_status
+                        .lock()
+                        .expect("tcp runtime status mutex poisoned")
+                        .mark_reconnecting(format!("tcp connect failed endpoint={addr}: {text}"));
                     log::warn!("couldn't connect to <{}>: {}", addr, text);
                     if let Some(events) = dial_failure_events.as_ref() {
                         if let Err(err) = events.try_send(DialFailure::new(iface_address, kind)) {

@@ -485,6 +485,13 @@ impl LocalUnixClient {
         self.disconnect_events.is_some()
     }
 
+    /// Fork-only: whether a dial-failure sender is installed with
+    /// [`Self::with_dial_failure_events`].
+    #[must_use]
+    pub fn dial_failure_events_enabled(&self) -> bool {
+        self.dial_failure_events.is_some()
+    }
+
     pub async fn spawn(context: InterfaceContext<Self>) {
         let iface_stop = context.channel.stop.clone();
         let iface_address = context.channel.address;

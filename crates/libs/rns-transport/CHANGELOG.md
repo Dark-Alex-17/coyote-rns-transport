@@ -173,6 +173,55 @@ Removed) bullet of its own, marked as such.
   README, this section and the rustdoc to the wait wording;
   `request_layer_api_docs.rs` names the method among the items whose
   rustdoc must cite Python or say fork-only.
+- A `Link` proves the plain Data packets it receives by its own
+  `ProofStrategy` (`link_parts/link_sections/proof_strategy.rs`, included
+  from `link_parts/link.rs`): `Link::set_proof_strategy` and
+  `Link::proof_strategy`, default `All`, which proves every plain Data
+  packet as before; `App` consults the `ProofRequestedHandler` registered
+  with `Link::set_proof_requested_callback` per packet and proves nothing
+  without one; `None` never proves. The decision is taken in
+  `link_sections/new.rs` after the `LinkEvent::Data` is posted, so the
+  packet is delivered either way, and Channel frames are proved under every
+  strategy. Python has one `proof_strategy` per destination, read by its
+  links as `PROVE_ALL`/`PROVE_APP`. A `SingleInputDestination` carries the
+  default for the links it accepts: `set_link_proof_strategy` and
+  `link_proof_strategy` (`destination_parts/destination.rs`, default `All`)
+  are copied onto the link at accept in `transport/path.rs` together with
+  the destination's `proof_requested_callback`, which the opportunistic path
+  shares; the destination's own `proof_strategy` (default `None`) is
+  untouched. An out-link, built without a destination, keeps `All` until
+  set directly. Pinned by `link_sections/proof_strategy_tests.rs` (each
+  strategy with and without a callback, the callback counted, Channel
+  frames under `App` and `None`, and the default on both constructors) and
+  by `two_transport_loopback_link_proof_strategy.rs` (the destination
+  default copied onto the accepted link, the consenting and the refusing
+  callback over the wire, and an out-link set to `None` by hand).
+- `LinkPayload::packet_hash` is the hash of the link packet a received
+  payload came from, `None` for a payload not built from a packet;
+  `LinkPayload::with_packet_hash` sets it (`destination/link/payload.rs`),
+  and `link_sections/new.rs` sets it on every `LinkEvent::Data`.
+  `Link::prove_hash` builds the proof of a link packet from its hash alone
+  (`link_sections/proof_strategy.rs`); `Link::prove_packet` now delegates
+  to it. Pinned by `link_sections/proof_strategy_tests.rs` (the posted
+  payload names the packet; `prove_hash` and `prove_packet` build the same
+  proof) and by `request_layer_api_docs.rs`, which names both among the
+  items whose rustdoc must cite Python or say fork-only.
+- `Transport::prove_link_packet` proves a received link packet to the peer
+  by link id and packet hash
+  (`links_parts/transport_sections/prove_link_packet.rs`, included from
+  `links_parts/transport.rs`), the deferred path for an application that
+  reads `LinkPayload::packet_hash` and decides later, as a Python
+  application calls `packet.prove()`. It works under any strategy; under
+  `All` it is a second proof the sender ignores. An unknown link id is
+  `Err(RnsError::InvalidArgument)`, a link with no bound interface
+  `Err(RnsError::ConnectionError)`. Pinned by
+  `two_transport_loopback_link_proof_strategy.rs` (under `App` the sender
+  sees no `PacketProven` until the call, then exactly one; the same from an
+  out-link set to `None`; the unknown-link refusal), by
+  `python_to_rust_link_proof_strategy.rs` (a Python initiator's
+  `PacketReceipt` stays `SENT` until the Rust application proves the packet
+  and then reads `DELIVERED`) and by `crate_readme_sections.rs`, which pins
+  the README proof prose and this section.
 
 ### Changed
 

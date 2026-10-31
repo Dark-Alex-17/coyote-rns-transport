@@ -30,7 +30,8 @@ per fork task.
 
 Every file changed since the `0.17.0` release and the patch each change
 belongs to. Patch ids: K1 is outcome tracker, K2 is response cap, K3 is
-ledger contracts, K4 is destination resolve, K5 is reject cadence. The
+ledger contracts, K4 is destination resolve, K5 is reject cadence, K6 is
+link proof strategy. The
 `outcome tracker` patch is fork commits `c3a317d7`, `ca32feac`, `223cdd80`,
 `716fb2be`, `d3b234e6` and `d36f65df`; the `response cap` patch is fork
 commits `355a0ddf`, `ca32feac`, `223cdd80`, `716fb2be`, `f43321f4`,
@@ -39,18 +40,32 @@ commits `355a0ddf`, `ca32feac`, `223cdd80`, `716fb2be`, `f43321f4`,
 `ca32feac`; the `destination resolve` patch is fork commits `3136f1bf`,
 `d36f65df`, `813f421a`, `2aca9568`, `79308556`, `6fef8927`, `ac5a81ae`,
 `f9751b59` and `402598e3`; the `reject cadence` patch is fork commits `265d6929`,
-`d36f65df`, `813f421a`, `6fef8927`, `ac5a81ae` and `f9751b59`.
+`d36f65df`, `813f421a`, `6fef8927`, `ac5a81ae` and `f9751b59`; the
+`link proof strategy` patch is fork commits `8e47a675`, `1a9e25c4`,
+`92346ece` and `e0a2feae`.
 
 | File | Patch |
 | --- | --- |
 | `crates/apps/reticulumd/tests/fork_publish_contract_parts/ledger_contract.rs` | ledger contracts |
-| `crates/apps/reticulumd/tests/fork_release_docs_contract_parts/crate_readme_sections.rs` | outcome tracker, response cap, destination resolve |
+| `crates/apps/reticulumd/tests/fork_release_docs_contract_parts/crate_readme_sections.rs` | outcome tracker, response cap, destination resolve, link proof strategy |
 | `crates/apps/reticulumd/tests/fork_release_docs_contract_parts/release_0_17_0_probe3.rs` | response cap |
-| `crates/apps/reticulumd/tests/fork_release_docs_contract_parts/request_layer_api_docs.rs` | outcome tracker, response cap, destination resolve |
-| `crates/libs/rns-transport/CHANGELOG.md` | outcome tracker, response cap, ledger contracts, destination resolve, reject cadence |
-| `crates/libs/rns-transport/README.md` | outcome tracker, response cap, destination resolve |
-| `crates/libs/rns-transport/src/destination_parts/destination.rs` | response cap |
-| `crates/libs/rns-transport/src/destination_parts/module_core.rs` | response cap |
+| `crates/apps/reticulumd/tests/fork_release_docs_contract_parts/request_layer_api_docs.rs` | outcome tracker, response cap, destination resolve, link proof strategy |
+| `crates/apps/reticulumd/tests/python_channel_interop_parts/python_to_rust_link_proof_strategy.rs` | link proof strategy |
+| `crates/apps/reticulumd/tests/python_channel_interop.rs` | link proof strategy |
+| `crates/apps/reticulumd/tests/support/python_channel_endpoint.py` | link proof strategy |
+| `crates/libs/rns-transport/CHANGELOG.md` | outcome tracker, response cap, ledger contracts, destination resolve, reject cadence, link proof strategy |
+| `crates/libs/rns-transport/README.md` | outcome tracker, response cap, destination resolve, link proof strategy |
+| `crates/libs/rns-transport/src/destination_parts/destination.rs` | response cap, link proof strategy |
+| `crates/libs/rns-transport/src/destination_parts/module_core.rs` | response cap, link proof strategy |
+| `crates/libs/rns-transport/src/destination/link_parts/link_sections/data_proof_tests.rs` | link proof strategy |
+| `crates/libs/rns-transport/src/destination/link_parts/link_sections/new_from_request.rs` | link proof strategy |
+| `crates/libs/rns-transport/src/destination/link_parts/link_sections/new.rs` | link proof strategy |
+| `crates/libs/rns-transport/src/destination/link_parts/link_sections/proof_strategy_tests.rs` | link proof strategy |
+| `crates/libs/rns-transport/src/destination/link_parts/link_sections/proof_strategy.rs` | link proof strategy |
+| `crates/libs/rns-transport/src/destination/link_parts/link.rs` | link proof strategy |
+| `crates/libs/rns-transport/src/destination/link_parts/linkhandleresult.rs` | link proof strategy |
+| `crates/libs/rns-transport/src/destination/link_parts/module_prelude.rs` | link proof strategy |
+| `crates/libs/rns-transport/src/destination/link/payload.rs` | link proof strategy |
 | `crates/libs/rns-transport/src/destination/request/inbound.rs` | outcome tracker |
 | `crates/libs/rns-transport/src/destination/request/mod.rs` | outcome tracker |
 | `crates/libs/rns-transport/src/destination/request/outcome.rs` | outcome tracker, response cap |
@@ -63,15 +78,18 @@ commits `355a0ddf`, `ca32feac`, `223cdd80`, `716fb2be`, `f43321f4`,
 | `crates/libs/rns-transport/src/resource/tests_advert_limits.rs` | reject cadence |
 | `crates/libs/rns-transport/src/transport/links_parts/transport_sections/await_path.rs` | destination resolve |
 | `crates/libs/rns-transport/src/transport/links_parts/transport_sections/close_channel.rs` | destination resolve |
+| `crates/libs/rns-transport/src/transport/links_parts/transport_sections/prove_link_packet.rs` | link proof strategy |
 | `crates/libs/rns-transport/src/transport/links_parts/transport_sections/resolve_destination.rs` | destination resolve |
-| `crates/libs/rns-transport/src/transport/links_parts/transport.rs` | destination resolve |
+| `crates/libs/rns-transport/src/transport/links_parts/transport.rs` | destination resolve, link proof strategy |
 | `crates/libs/rns-transport/src/transport/path_requests_parts/module_prelude.rs` | destination resolve |
+| `crates/libs/rns-transport/src/transport/path.rs` | link proof strategy |
 | `crates/libs/rns-transport/src/transport/request_dispatch_parts/response_limits.rs` | response cap |
 | `crates/libs/rns-transport/src/transport/request_dispatch.rs` | response cap |
 | `crates/libs/rns-transport/src/transport/resource_wire.rs` | reject cadence |
 | `crates/libs/rns-transport/src/transport/tests_parts/request_advert_reject_warn_cadence.rs` | reject cadence |
 | `crates/libs/rns-transport/src/transport/tests_parts/request_advert_reject_warn_cadence_probe.rs` | reject cadence |
 | `crates/libs/rns-transport/src/transport/tests_parts/request_advert_reject_warn_cadence_probe2.rs` | reject cadence |
+| `crates/libs/rns-transport/src/transport/tests_parts/two_transport_loopback_link_proof_strategy.rs` | link proof strategy |
 | `crates/libs/rns-transport/src/transport/tests_parts/two_transport_loopback_requests_into_parts.rs` | outcome tracker |
 | `crates/libs/rns-transport/src/transport/tests_parts/two_transport_loopback_requests_isolation.rs` | outcome tracker, response cap, reject cadence |
 | `crates/libs/rns-transport/src/transport/tests_parts/two_transport_loopback_requests_response_cap.rs` | response cap |
@@ -82,12 +100,12 @@ commits `355a0ddf`, `ca32feac`, `223cdd80`, `716fb2be`, `f43321f4`,
 | `crates/libs/rns-transport/src/transport/tests_parts/two_transport_resolve_destination.rs` | destination resolve |
 | `crates/libs/rns-transport/src/transport/tests_parts/two_transport_resolve_destination_probe.rs` | destination resolve |
 | `crates/libs/rns-transport/src/transport/tests_parts/two_transport_resolve_destination_probe2.rs` | destination resolve |
-| `crates/libs/rns-transport/src/transport/tests.rs` | outcome tracker, response cap, destination resolve, reject cadence |
+| `crates/libs/rns-transport/src/transport/tests.rs` | outcome tracker, response cap, destination resolve, reject cadence, link proof strategy |
 | `crates/libs/rns-transport/tests/destination_desc_api.rs` | destination resolve |
 | `crates/libs/rns-transport/tests/request_handler_api.rs` | outcome tracker |
 | `crates/libs/rns-transport/tests/resolve_destination_deadline_api.rs` | destination resolve |
 | `crates/libs/rns-transport/tests/response_cap_tracker_api.rs` | outcome tracker, response cap |
-| `docs/fork/PATCHSET.md` | outcome tracker, response cap, ledger contracts, destination resolve, reject cadence |
+| `docs/fork/PATCHSET.md` | outcome tracker, response cap, ledger contracts, destination resolve, reject cadence, link proof strategy |
 
 Fork commits `c3a317d7`, `ca32feac`, `223cdd80`, `716fb2be`, `d3b234e6` and
 `d36f65df`: K1, outcome tracker. The library behaviour changes are: a
@@ -489,6 +507,60 @@ over-cap count untouched. `f9751b59` has that probe show the at-limit
 advertisement was accepted: an initiator cancel naming it draws the
 `InboundFailed` only a receiver the destination created can publish, where
 a refused advertisement leaves none to cancel.
+
+Fork commits `8e47a675`, `1a9e25c4`, `92346ece` and `e0a2feae`: K6, link
+proof strategy. The library behaviour changes are: a link proves the plain
+Data packets it receives by a strategy of its own instead of always, and an
+application can prove a received packet later. `8e47a675` pins, in
+`crate_readme_sections.rs`, that the changelog section selector stops at
+the next `## ` heading and does not read a `### ` sub-heading as a section
+boundary. `1a9e25c4` adds the `proof_strategy` and
+`proof_requested_callback` fields to `Link` (`link_parts/linkhandleresult.rs`),
+set to `ProofStrategy::All` and `None` by both constructors
+(`link_sections/new.rs`, `link_sections/new_from_request.rs`), imports
+`ProofStrategy`, `ProofRequestedHandler` and `Arc` into the link module
+(`link_parts/module_prelude.rs`), and adds the include
+`link_sections/proof_strategy.rs` (registered in `link_parts/link.rs`) with
+`Link::set_proof_strategy`, `Link::proof_strategy`,
+`Link::set_proof_requested_callback`, the crate-private `set_proof_policy`
+and `should_auto_prove`, and `Link::prove_hash`, which takes over the body
+of `Link::prove_packet`; the plain-Data arm of `handle_data_packet` in
+`new.rs` proves only when `should_auto_prove` says so, after the
+`LinkEvent::Data` is posted, the Channel arm unchanged. `LinkPayload`
+(`destination/link/payload.rs`) gains `packet_hash`, `with_packet_hash` and
+a `packet_hash` field every existing constructor leaves `None`, and `new.rs`
+sets it from the received packet. `Destination` (`destination_parts/module_core.rs`)
+gains `link_proof_strategy`, `All` in all three constructors, with
+`set_link_proof_strategy` and `link_proof_strategy` on the single IN
+destination (`destination_parts/destination.rs`), and
+`handle_link_request_as_destination` (`transport/path.rs`) copies it and the
+destination's `proof_requested_callback` onto the accepted link.
+`Transport::prove_link_packet` is added in the new include
+`links_parts/transport_sections/prove_link_packet.rs` (registered in
+`links_parts/transport.rs`): it finds the link by id, builds the proof with
+`prove_hash` under the link lock and sends it on the link's bound
+interface, `InvalidArgument` for an unknown link and `ConnectionError` when
+nothing is sent. `92346ece` adds `link_sections/proof_strategy_tests.rs`
+(registered in `link_parts/link.rs`; `data_proof_tests.rs` opens
+`packet_proven_events` to it): the default on both constructors, each
+strategy with and without a callback and the callback counted, `None` not
+consulting the callback, Channel frames proved under `App` and `None`, the
+posted payload naming the packet and `prove_hash` matching `prove_packet`;
+adds `two_transport_loopback_link_proof_strategy.rs` (registered in
+`transport/tests.rs`): the destination default copied onto the accepted
+link, no `PacketProven` under `App` until `prove_link_packet` and exactly
+one after it, the consenting and the refusing callback, an out-link set to
+`None` by hand proved from the connector, and the unknown-link refusal;
+and adds the Python-in-the-loop `python_to_rust_link_proof_strategy.rs`
+(registered in `python_channel_interop.rs`) with the `link-data-receipt`
+client arm of `support/python_channel_endpoint.py`, which raises the
+receipt timeout and prints each receipt status change, so a Python
+initiator's `PacketReceipt` is seen to stay `SENT` until the Rust
+application proves the packet. `e0a2feae` describes the strategy, the
+destination default and the deferred proof in the crate README's link proof
+section and divergence register, pins those names and the changelog's in
+`crate_readme_sections.rs`, lists the new public items in
+`request_layer_api_docs.rs`, and gives the two getters their rustdoc cites.
 
 ## 0.17.0 (upstream 0.14.0)
 

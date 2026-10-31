@@ -217,8 +217,7 @@ async fn two_transport_loopback_link_proof_strategy_closed_link_is_refused() {
     let link_id = pair.link_id;
 
     let sent =
-        packet_proven_send_plain_data(&pair.connector.transport, &pair.link, b"before-close")
-            .await;
+        packet_proven_send_plain_data(&pair.connector.transport, &pair.link, b"before-close").await;
     assert_eq!(packet_proven_probe_collect(&mut pair.out_events, link_id, 1).await, vec![sent]);
 
     pair.link.lock().await.close();

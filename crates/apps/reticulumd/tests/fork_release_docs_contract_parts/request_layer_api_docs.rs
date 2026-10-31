@@ -94,6 +94,11 @@ fn request_layer_public_items_cite_python_or_say_fork_only() {
             "send_response_resource_with_outcome",
         ),
         (
+            "crates/libs/rns-transport/src/transport/links_parts/transport_sections/resolve_destination.rs",
+            ItemKind::Method,
+            "resolve_destination",
+        ),
+        (
             "crates/libs/rns-transport/src/destination/link_parts/link_sections/response_packet.rs",
             ItemKind::Method,
             "expect_response",

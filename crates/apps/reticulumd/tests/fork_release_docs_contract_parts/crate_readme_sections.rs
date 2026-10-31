@@ -158,6 +158,31 @@ fn crate_readme_link_section_describes_destination_desc() {
     }
 }
 
+/// The link-opening section describes `Transport::resolve_destination` the
+/// way the call behaves: the timeout it takes, the two accessors it joins,
+/// the single path request an unknown destination costs, and the Python
+/// calls an application strings together by hand instead.
+#[test]
+fn crate_readme_link_section_describes_resolve_destination() {
+    let readme = read_repo_file("crates/libs/rns-transport/README.md");
+    let section = crate_readme_section(&readme, "Opening links and admitting resources");
+    for claim in [
+        "`Transport::resolve_destination`",
+        "`Duration`",
+        "timeout",
+        "one path request",
+        "`Transport::await_path`",
+        "`Transport::request_path`",
+        "`RNS/Transport.py:3279`",
+        "`RNS/Transport.py:3126`",
+    ] {
+        assert!(
+            section.contains(claim),
+            "the link-opening section should mention {claim}:\n{section}"
+        );
+    }
+}
+
 /// The shared-instance section describes the state stream the way the
 /// attach and its consumer task behave: the option that installs it, the
 /// `non_exhaustive` enum and its three variants, the non-blocking send and

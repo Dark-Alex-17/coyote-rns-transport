@@ -374,6 +374,20 @@ touches only the path table, and is removed only by
 `Transport::link` takes, though the link still needs a path
 as described above.
 
+`Transport::resolve_destination` is `destination_desc` and
+`Transport::await_path` in one call, taking the address and a `Duration`
+timeout and returning the same `Option<DestinationDesc>`. A destination the
+transport already knows answers at once and no path request goes out. A
+zero timeout is a cached lookup alone and returns `None` for an unknown
+destination without sending anything. Otherwise exactly one path request
+goes out, a broadcast on every outgoing interface as
+`Transport::request_path` sends it, and the call polls every 50 ms until
+the announce is learned or the timeout passes, returning `None` after it.
+The convenience is fork-only: a Python application writes the same by hand
+with `RNS.Transport.request_path` (`RNS/Transport.py:3279`), a
+`RNS.Transport.has_path` poll (`RNS/Transport.py:3126`) and
+`RNS.Identity.recall`.
+
 Looking up a learned destination and opening a link with it, on the transport
 that learned the announce and with `destination_hash` the `AddressHash` the
 announce carried:

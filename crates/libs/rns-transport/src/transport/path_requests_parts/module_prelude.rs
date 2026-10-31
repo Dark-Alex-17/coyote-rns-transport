@@ -465,4 +465,15 @@ impl PathRequests {
             .map(|request| request.requesting_ifaces.clone())
             .unwrap_or_default()
     }
+
+    /// How many path requests for `destination` have been sent and not yet
+    /// aged out of the throttle window; one entry per send, unlike the
+    /// per-destination `outgoing_requests` map.
+    #[cfg(test)]
+    pub(crate) fn outgoing_request_count(&self, destination: &AddressHash) -> usize {
+        self.outgoing_request_queue
+            .iter()
+            .filter(|(requested, _)| requested == destination)
+            .count()
+    }
 }

@@ -6,7 +6,9 @@
 //! side under the same id. The cold-start path runs the same snippet before the announce
 //! has been learned: it stops at its own guard with no link and `destination_identity`
 //! `None`, and the very same transport then resolves the same address once the announce
-//! arrives, so a miss is not remembered.
+//! arrives, so a miss is not remembered. `resolve_destination` is exercised the same way
+//! from outside the crate: an announced destination answers at once, one registered without
+//! announcing is learned through the path request, and a zero timeout never asks the network.
 
 use std::error::Error;
 use std::sync::Arc;
@@ -236,6 +238,64 @@ async fn readme_snippet_before_the_announce_names_the_miss_and_resolves_once_lea
     let link_id = *link.lock().await.id();
     let activated = await_activated(&mut in_events).await;
     assert_eq!(activated.id, link_id, "both ends share one link id");
+
+    timeout(WAIT, connector.stop()).await.expect("connector stop completes");
+    timeout(WAIT, listener.transport.stop()).await.expect("listener stop completes");
+}
+
+#[tokio::test]
+#[deny(clippy::await_holding_invalid_type)]
+async fn resolve_destination_answers_known_and_reachable_destinations() {
+    let listener = listener().await;
+    let (connector, mut announces) = connector(listener.port).await;
+    wait_until("the listener to accept", || {
+        listener.status.to_json()["accepted_connections"].as_u64() == Some(1)
+    })
+    .await;
+
+    let announced = listener
+        .transport
+        .add_destination(
+            PrivateIdentity::new_from_rand(OsRng),
+            DestinationName::new("example", "echo"),
+        )
+        .await;
+    let announced_hash = announced.lock().await.desc.address_hash;
+    let packet = announced.lock().await.announce(OsRng, None).expect("valid announce packet");
+    listener.transport.send_packet(packet).await;
+    learn_announce(&mut announces, &announced_hash).await;
+
+    let known =
+        timeout(Duration::from_secs(1), connector.resolve_destination(&announced_hash, WAIT))
+            .await
+            .expect("a learned destination answers without waiting")
+            .expect("the announce was learned");
+    assert_eq!(known.address_hash, announced_hash);
+
+    // Registered on the announcing side but never announced: only the path request the
+    // call sends draws the announce that fills the desc.
+    let silent = listener
+        .transport
+        .add_destination(
+            PrivateIdentity::new_from_rand(OsRng),
+            DestinationName::new("example", "quiet"),
+        )
+        .await;
+    let silent_hash = silent.lock().await.desc.address_hash;
+    assert!(connector.destination_desc(&silent_hash).await.is_none());
+
+    let learned = connector
+        .resolve_destination(&silent_hash, WAIT)
+        .await
+        .expect("the path request drew the announce");
+    assert_eq!(learned.address_hash, silent_hash);
+    assert!(connector.destination_identity(&silent_hash).await.is_some());
+
+    let unknown = AddressHash::new_from_rand(OsRng);
+    assert!(
+        connector.resolve_destination(&unknown, Duration::ZERO).await.is_none(),
+        "a zero timeout is a cached lookup alone"
+    );
 
     timeout(WAIT, connector.stop()).await.expect("connector stop completes");
     timeout(WAIT, listener.transport.stop()).await.expect("listener stop completes");

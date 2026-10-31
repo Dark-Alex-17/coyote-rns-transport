@@ -77,6 +77,7 @@ async fn two_transport_loopback_request_compressible_resource_over_the_cap_is_me
 #[tokio::test]
 #[deny(clippy::await_holding_invalid_type)]
 async fn two_transport_loopback_request_resource_without_metadata_measures_its_data_at_the_cap() {
+    install_test_logger();
     let pair = loopback_request_pair("request-response-cap-probe-no-metadata").await;
     let mut resource_events = pair.handles.connector.transport.resource_events();
     let link_id = pair.handles.link_id;

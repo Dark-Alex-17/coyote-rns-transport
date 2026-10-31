@@ -88,7 +88,7 @@ async fn two_transport_loopback_request_into_parts_unarmed_tracker_drop_logs_not
     // would log, so let the dispatcher finish before asserting it stayed silent.
     tokio::time::sleep(Duration::from_millis(300)).await;
     let dropped = dispatch_outcome_receiver_dropped_records_for(link_id);
-    assert!(dropped.is_empty(), "an unarmed tracker leaves the slot empty: {dropped:?}");
+    assert!(dropped.is_empty(), "an unarmed tracker leaves the slot as it was: {dropped:?}");
 }
 
 /// The receiver dies before the handler returns, so the sender the dispatcher takes has
@@ -99,9 +99,10 @@ async fn two_transport_loopback_request_armed_slot_with_a_dropped_receiver_logs_
     install_test_logger();
     let mut pair = loopback_request_pair("request-into-parts-dropped-receiver").await;
     let link_id = pair.handles.link_id;
-    register_handler(&pair, "/echo", RequestAllow::All, |mut request: InboundRequest| {
-        drop(request.track_outcome());
-        std::future::ready(Some(RequestResponse::Value(request.into_data())))
+    register_handler(&pair, "/echo", RequestAllow::All, |request: InboundRequest| {
+        let (data, tracker) = request.into_parts();
+        drop(tracker.outcome());
+        std::future::ready(Some(RequestResponse::Value(data)))
     })
     .await;
 

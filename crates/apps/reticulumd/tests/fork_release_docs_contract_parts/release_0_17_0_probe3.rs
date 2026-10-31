@@ -6,7 +6,12 @@
 // CHANGELOG point the consumer at `tests/*.rs` files for the behaviour they
 // promise, so every such file must exist under the crate; and
 // `tests/connect_events_api.rs` must carry the six tests and the five call
-// shapes the three ledgers describe.
+// shapes the three ledgers describe. The enum pin reads the source at the
+// `coyote-rns-transport-v0.17.0` tag with `git show`, so it needs the tag in
+// the local clone; the contracts CI job checks out at full depth. On a
+// tag-less clone it fails rather than skipping, unlike the frozen-section pins
+// of `fork_publish_contract`: the 0.17.0 register exists only to be checked
+// against that tag, and a silent pass would say it was.
 
 use std::collections::BTreeSet;
 

@@ -92,9 +92,10 @@ impl std::future::Future for ResponseOutcomeReceiver {
 /// slot and drops when the dispatcher releases it (or at once, if the
 /// dispatcher has already finished), and the receiver resolves
 /// [`ResponseOutcome::NotSent`] without ever learning whether the response
-/// went out. Dropping a tracker that was never armed leaves the slot empty,
-/// so the dispatcher logs nothing and resolves nothing: there is no
-/// "outcome receiver dropped" line for a handler that chose not to watch.
+/// went out. Dropping a tracker that was never armed leaves the slot as it
+/// was: with no earlier `track_outcome`, the dispatcher logs nothing and
+/// resolves nothing, and there is no "outcome receiver dropped" line for a
+/// handler that chose not to watch.
 ///
 /// Fork-only: Python's `handle_request` keeps nothing of the response it
 /// sends (`RNS/Link.py:846-852`).

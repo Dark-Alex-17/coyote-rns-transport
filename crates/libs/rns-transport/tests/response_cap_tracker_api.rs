@@ -3,7 +3,7 @@
 //! fresh `SingleInputDestination` start unbounded and round-trip a value, setting zero is
 //! accepted (every response then measures over it), `ResponseOutcome::TooLarge { len, max }`
 //! destructures by field name and compares with `PartialEq`, and `ResponseOutcomeTracker` is
-//! `Send + Sync`, prints as an opaque struct and is deliberately not `Clone`, so a handler
+//! `Send + Sync`, implements `Debug` and is deliberately not `Clone`, so a handler
 //! cannot arm the same slot twice through two handles.
 
 use std::marker::PhantomData;

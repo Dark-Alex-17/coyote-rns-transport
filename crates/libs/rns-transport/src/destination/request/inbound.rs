@@ -79,8 +79,8 @@ impl InboundRequest {
     /// decides whether to watch the response. Calling
     /// [`ResponseOutcomeTracker::outcome`] has the same timing rule as
     /// [`track_outcome`](Self::track_outcome): arm it before the handler
-    /// returns. A tracker dropped unarmed leaves the slot empty and the
-    /// dispatcher resolves and logs nothing.
+    /// returns. A tracker dropped unarmed leaves the slot as it was; with no
+    /// earlier `track_outcome`, the dispatcher resolves and logs nothing.
     ///
     /// Fork-only: Python's `handle_request` keeps nothing of the response it
     /// sends (`RNS/Link.py:846-852`).

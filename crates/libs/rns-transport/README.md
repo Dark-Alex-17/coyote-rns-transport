@@ -264,7 +264,8 @@ sent (see Known divergences).
 
 ## Delivery proofs on a link
 
-A plain Data packet sent on a link is proved by the peer (`RNS/Link.py:950-962`),
+A plain Data packet sent on a link is proved by the peer by default
+(`ProofStrategy::All`, below; `RNS/Link.py:950-962`),
 and the proof posts `LinkEvent::PacketProven { packet_hash }` on the link's
 event stream, on whichever side sent the packet, once per packet: the hash is
 recorded when the packet is sent and the first valid proof naming it consumes
@@ -768,10 +769,11 @@ parity ledger; the `docs/status/*` matrices are not updated per fork task.
   `PacketProven` here. Python has one `proof_strategy` per destination for
   its opportunistic packets and its links' packets alike
   (`RNS/Destination.py:360-367`); this crate keeps `proof_strategy` (default
-  `None`) and `link_proof_strategy` (default `All`) apart. Both are copied
-  onto a link when it is accepted; Python's link reads the destination's
-  strategy and callback live per packet (`RNS/Link.py:961-967`), so a
-  destination-level change here reaches only links accepted afterwards.
+  `None`) and `link_proof_strategy` (default `All`) apart. The link strategy
+  and the destination's `proof_requested_callback` are copied onto a link
+  when it is accepted; Python's link reads the destination's strategy and
+  callback live per packet (`RNS/Link.py:961-967`), so a destination-level
+  change here reaches only links accepted afterwards.
 - A retried Resource advertisement re-sends the identical prepared packet,
   so the receiver's duplicate filter drops it and the
   `ResourceAcceptHook` runs once per advertisement. Python builds a fresh

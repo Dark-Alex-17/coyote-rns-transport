@@ -201,7 +201,10 @@ Removed) bullet of its own, marked as such.
   `two_transport_loopback_link_proof_strategy_probe.rs` (a link accepted
   under `All` keeps proving after the destination is switched to `App`
   while a link accepted afterwards starts out `App`; an out-link under
-  `App` waits for its own callback).
+  `App` waits for its own callback). `crate_readme_sections.rs` pins the
+  README divergence register's `All` default, the accept-time copy and the
+  `RNS/Link.py:961-967` cite, and that the register no longer calls the
+  link's proof unconditional.
 - `LinkPayload::packet_hash` is the hash of the link packet a received
   payload came from, `None` for a payload not built from a packet;
   `link_sections/new.rs` sets it on every payload posted as
@@ -210,8 +213,11 @@ Removed) bullet of its own, marked as such.
   (`link_sections/proof_strategy.rs`); `Link::prove_packet` now delegates
   to it. Pinned by `link_sections/proof_strategy_tests.rs` (the posted
   payload names the packet; the proof carries the hash, the signature and
-  `PacketContext::None`) and by `request_layer_api_docs.rs`, which names
-  both among the items whose rustdoc must cite Python or say fork-only.
+  `PacketContext::None`), by `request_layer_api_docs.rs`, which names
+  both among the items whose rustdoc must cite Python or say fork-only,
+  and by `tests/link_proof_strategy_api.rs`, which compiles a downstream
+  consumer of every README item with `rustc` and pins that the
+  crate-private `LinkPayload::with_packet_hash` is not among them.
 - `Transport::prove_link_packet` proves a received link packet to the peer
   by link id and packet hash
   (`links_parts/transport_sections/prove_link_packet.rs`, included from
@@ -229,8 +235,11 @@ Removed) bullet of its own, marked as such.
   second proof earns the sender no second `PacketProven`), by
   `python_to_rust_link_proof_strategy.rs` (a Python initiator's
   `PacketReceipt` stays `SENT` until the Rust application proves the packet
-  and then reads `DELIVERED`) and by `crate_readme_sections.rs`, which pins
-  the README proof prose and this section.
+  and then reads `DELIVERED`), by `tests/link_proof_strategy_api.rs` (the
+  deferred proof and both refusals as a downstream crate sees them, the
+  gone interface read as `ConnectionError`) and by
+  `crate_readme_sections.rs`, which pins the README proof prose and this
+  section.
 
 ### Changed
 

@@ -51,7 +51,7 @@ the `dial failures` patch is fork commits `61429992`, `874c871b`, `aa6d2fac`,
 `8f348131`, `9c0bb5c6` and `b68ef92c`; the `disconnect reasons` patch is
 fork commits `45bcadfc`, `fdfa83dd`, `f45595c5`, `b819ab22`, `bb247215`,
 `0a8f5cf8`, `cc5c3092`, `3ab8f323`, `200b8810`, `b86af8d6`, `272c3f2c`,
-`a1241d2f` and `e07d20d2`.
+`a1241d2f`, `e07d20d2` and `0d5f60da`.
 
 | File | Patch |
 | --- | --- |
@@ -138,7 +138,7 @@ fork commits `45bcadfc`, `fdfa83dd`, `f45595c5`, `b819ab22`, `bb247215`,
 | `crates/libs/rns-transport/tests/destination_desc_api.rs` | destination resolve |
 | `crates/libs/rns-transport/tests/dial_failure_channel_probe.rs` | dial failures |
 | `crates/libs/rns-transport/tests/dial_failure_events_api.rs` | dial failures |
-| `crates/libs/rns-transport/tests/dial_failure_reason_contract_probe.rs` | dial failures |
+| `crates/libs/rns-transport/tests/dial_failure_reason_contract_probe.rs` | dial failures, disconnect reasons |
 | `crates/libs/rns-transport/tests/disconnect_reason_events_api.rs` | disconnect reasons |
 | `crates/libs/rns-transport/tests/disconnect_reason_receive_queue_probe.rs` | disconnect reasons |
 | `crates/libs/rns-transport/tests/link_proof_strategy_api.rs` | link proof strategy, dial failures |
@@ -147,7 +147,7 @@ fork commits `45bcadfc`, `fdfa83dd`, `f45595c5`, `b819ab22`, `bb247215`,
 | `crates/libs/rns-transport/tests/response_cap_tracker_api.rs` | outcome tracker, response cap |
 | `crates/libs/rns-transport/tests/shared_instance_disconnect_reasons_api.rs` | disconnect reasons |
 | `crates/libs/rns-transport/tests/shared_instance_first_connect_api.rs` | dial failures |
-| `crates/libs/rns-transport/tests/shared_instance_first_connect_interrupt_probe.rs` | dial failures |
+| `crates/libs/rns-transport/tests/shared_instance_first_connect_interrupt_probe.rs` | dial failures, disconnect reasons |
 | `crates/libs/rns-transport/tests/shared_instance_first_connect_stop_interface_probe.rs` | dial failures |
 | `docs/fork/PATCHSET.md` | outcome tracker, response cap, ledger contracts, destination resolve, reject cadence, link proof strategy, dial failures, disconnect reasons |
 
@@ -817,17 +817,17 @@ and needles the README wording in `crate_readme_sections.rs`.
 
 Fork commits `45bcadfc`, `fdfa83dd`, `f45595c5`, `b819ab22`, `bb247215`,
 `0a8f5cf8`, `cc5c3092`, `3ab8f323`, `200b8810`, `b86af8d6`, `272c3f2c`,
-`a1241d2f` and `e07d20d2`: K8, disconnect reasons. The library behaviour
-changes are: the HDLC stream runner reports how a stream ended, `TcpClient`
-and `LocalUnixClient` can send that as a typed `DisconnectReason` on a
-channel of their own beside the plain disconnect event, the shared-instance
-attach installs that channel on its client, and an attach that opts in reads
-`DisconnectedWithReason { reason }` where its state stream read
-`Disconnected`; without the opt-in the stream is unchanged. A stop, detach
-or `stop_interface` still reports nothing, and the attach's clients run no
-read watchdog, so `Timeout` reaches the stream only for a read or write
-that failed with `TimedOut`, never for a quiet socket. The `DisconnectReason`
-enum itself arrived with K7 (`61429992`). `45bcadfc`
+`a1241d2f`, `e07d20d2` and `0d5f60da`: K8, disconnect reasons. The library
+behaviour changes are: the HDLC stream runner reports how a stream ended,
+`TcpClient` and `LocalUnixClient` can send that as a typed `DisconnectReason`
+on a channel of their own beside the plain disconnect event, the
+shared-instance attach installs that channel on its client, and an attach
+that opts in reads `DisconnectedWithReason { reason }` where its state
+stream read `Disconnected`; without the opt-in the stream is unchanged. A
+stop, detach or `stop_interface` still reports nothing, and the attach's
+clients run no read watchdog, so `Timeout` reaches the stream only for a
+read or write that failed with `TimedOut`, never for a quiet socket. The
+`DisconnectReason` enum itself arrived with K7 (`61429992`). `45bcadfc`
 has `run_hdlc_stream_with_runtime_and_ifac` return an `HdlcStreamExit`
 (`PeerClosed`, `ReadTimeout`, `ReadError`, `WriteError` or `Cancelled`),
 the rx side's exit unless that side only followed the tx side's stop, and
@@ -907,7 +907,12 @@ the stream exit on both clients' `disconnected from` info log lines.
 twin) read the redial's tunnel bytes from the second accepted stream
 before the linger-zero close, so the reset can only reach the client as
 a read-side `ConnectionReset`, and tightens the surrounding test rustdoc
-and headers.
+and headers. `0d5f60da` says in the README paragraph and the changelog
+bullet that a write failing before the read side sees the reset reads
+`Io(BrokenPipe)` rather than `Reset`, adds the receive queue's close to
+the README's list of silent stream ends, needles the paragraph-form
+variant name, and moves the unreleased `LocalInterface.py` drop-path
+cites to `:255-266`.
 
 ## 0.17.0 (upstream 0.14.0)
 

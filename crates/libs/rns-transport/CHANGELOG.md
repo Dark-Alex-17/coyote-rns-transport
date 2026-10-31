@@ -37,9 +37,12 @@ Removed) bullet of its own, marked as such.
   `clear_max_response_size` and `max_response_size` bound the size of a
   response the destination sends (`destination_parts/destination.rs`, the
   field in `destination_parts/module_core.rs`); with no limit set every
-  size goes out. The request dispatcher reads the cap under the same
-  destination guard as `max_request_size` and carries it with the
-  registration's `auto_compress` flag as one value
+  size goes out. The cap covers the responses the dispatcher sends for the
+  destination's registered handlers; `Transport::send_response` and
+  `Transport::send_response_resource` are addressed to a link, not a
+  destination, and are not measured. The request dispatcher reads the cap
+  under the same destination guard as `max_request_size` and carries it
+  with the registration's `auto_compress` flag as one value
   (`transport/request_dispatch_parts/response_limits.rs`,
   `transport/request_dispatch.rs`). A `Value` or `Bytes` response is
   measured as its packed `[request_id, body]` frame, before the MDU check
@@ -51,11 +54,11 @@ Removed) bullet of its own, marked as such.
   cap set to the same number refuses a metadata-bearing Resource response
   this cap let through. A response at the cap goes out; one over it is not
   sent at all, the dispatcher logs one warn naming the request id, the
-  link, the measured length and the cap, and a
-  tracked outcome resolves the new `ResponseOutcome::TooLarge { len, max }`
-  variant (`destination/request/outcome.rs`; the enum is
-  `#[non_exhaustive]`, so the variant is additive). This is the responder's
-  cap on what it sends; the requester's cap on what it accepts stays
+  link, the measured length and the cap, and a tracked outcome resolves
+  the new `ResponseOutcome::TooLarge { len, max }` variant
+  (`destination/request/outcome.rs`; the enum is `#[non_exhaustive]`, so the
+  variant is additive). This is the responder's cap on what it sends; the
+  requester's cap on what it accepts stays
   `RequestOptions::with_max_response_size`. Pinned by
   `two_transport_loopback_requests_response_cap.rs` (a packet response at
   the cap going out and one over it refused, a `Resource` response at the
@@ -68,6 +71,10 @@ Removed) bullet of its own, marked as such.
   measures exactly its data, an untracked refusal costs one warn and
   answers nothing, an `into_parts` tracker resolves `TooLarge`, and a
   tracker armed after the handler returned resolves `NotSent` at once), by
+  `two_transport_loopback_requests_response_cap_probe2.rs` (the cap read
+  at dispatch, so one tightened mid-handler applies to the next request;
+  an `into_parts` tracker retiring an earlier `track_outcome` receiver with
+  `NotSent`; and the 3-byte requester margin over the Resource measure), by
   `tests/response_cap_tracker_api.rs` (the three accessors from outside
   the crate, a zero cap accepted, `TooLarge` destructured by field), by
   the destination unit test in `destination/tests.rs` (unbounded by
@@ -100,7 +107,14 @@ Removed) bullet of its own, marked as such.
   `ResponseOutcomeTracker` fails the file. The header of
   `tests/response_cap_tracker_api.rs` says `TooLarge` compares with
   `PartialEq` (the enum is not `Copy`), and the note at the refused-response
-  warn names every test that matches its text by substring.
+  warn names the two matchers of its text, the shared `TestLogger` and
+  `assert_one_refusal_warn`, the helper
+  `two_transport_loopback_requests_response_cap_probe.rs` now calls in
+  place of its own substring check. `assert_nothing_sent_for` also panics
+  on a closed resource event channel; `request_layer_api_docs.rs` names
+  `set_max_response_size`, `clear_max_response_size` and
+  `max_response_size` among the items whose rustdoc must say fork-only,
+  and its walker floor rises to the current count of 154 public items.
 
 ## 0.17.0 - 2026-10-27
 

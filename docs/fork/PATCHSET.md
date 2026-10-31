@@ -32,15 +32,15 @@ Every file changed since the `0.17.0` release and the patch each change
 belongs to. Patch ids: K1 is outcome tracker, K2 is response cap, K3 is
 ledger contracts. The `outcome tracker` patch is fork commits `c3a317d7`,
 `ca32feac`, `223cdd80` and `716fb2be`; the `response cap` patch is fork
-commits `355a0ddf`, `ca32feac`, `223cdd80` and `716fb2be`; the `ledger
-contracts` patch is fork commit `ca32feac`.
+commits `355a0ddf`, `ca32feac`, `223cdd80`, `716fb2be` and `f43321f4`; the
+`ledger contracts` patch is fork commit `ca32feac`.
 
 | File | Patch |
 | --- | --- |
 | `crates/apps/reticulumd/tests/fork_publish_contract_parts/ledger_contract.rs` | ledger contracts |
 | `crates/apps/reticulumd/tests/fork_release_docs_contract_parts/crate_readme_sections.rs` | outcome tracker, response cap |
 | `crates/apps/reticulumd/tests/fork_release_docs_contract_parts/release_0_17_0_probe3.rs` | response cap |
-| `crates/apps/reticulumd/tests/fork_release_docs_contract_parts/request_layer_api_docs.rs` | outcome tracker |
+| `crates/apps/reticulumd/tests/fork_release_docs_contract_parts/request_layer_api_docs.rs` | outcome tracker, response cap |
 | `crates/libs/rns-transport/CHANGELOG.md` | outcome tracker, response cap, ledger contracts |
 | `crates/libs/rns-transport/README.md` | outcome tracker, response cap |
 | `crates/libs/rns-transport/src/destination_parts/destination.rs` | response cap |
@@ -55,6 +55,7 @@ contracts` patch is fork commit `ca32feac`.
 | `crates/libs/rns-transport/src/transport/tests_parts/two_transport_loopback_requests_isolation.rs` | outcome tracker, response cap |
 | `crates/libs/rns-transport/src/transport/tests_parts/two_transport_loopback_requests_response_cap.rs` | response cap |
 | `crates/libs/rns-transport/src/transport/tests_parts/two_transport_loopback_requests_response_cap_probe.rs` | response cap |
+| `crates/libs/rns-transport/src/transport/tests_parts/two_transport_loopback_requests_response_cap_probe2.rs` | response cap |
 | `crates/libs/rns-transport/src/transport/tests.rs` | outcome tracker, response cap |
 | `crates/libs/rns-transport/tests/request_handler_api.rs` | outcome tracker |
 | `crates/libs/rns-transport/tests/response_cap_tracker_api.rs` | outcome tracker, response cap |
@@ -63,13 +64,11 @@ contracts` patch is fork commit `ca32feac`.
 Fork commits `c3a317d7`, `ca32feac`, `223cdd80` and `716fb2be`: K1,
 outcome tracker. The library behaviour changes are: a handler can take the
 request data by value and still decide afterwards whether to watch the
-response.
-`c3a317d7` adds
-`InboundRequest::into_parts` (`destination/request/inbound.rs`), which
-returns the data together with a `ResponseOutcomeTracker` over the
-request's outcome slot, and the tracker itself
-(`destination/request/outcome.rs`, re-exported beside `InboundRequest` in
-`destination/request/mod.rs`); `ResponseOutcomeTracker::outcome` arms the
+response. `c3a317d7` adds `InboundRequest::into_parts`
+(`destination/request/inbound.rs`), which returns the data together with a
+`ResponseOutcomeTracker` over the request's outcome slot, and the tracker
+itself (`destination/request/outcome.rs`, re-exported beside `InboundRequest`
+in `destination/request/mod.rs`); `ResponseOutcomeTracker::outcome` arms the
 slot under the same timing rule as `track_outcome`, inside the handler
 before it returns, and a tracker dropped unarmed leaves the slot empty so
 the dispatcher resolves and logs nothing for it. Pinned by
@@ -95,8 +94,8 @@ where `ResponseOutcomeTracker::outcome` now says it replaces a sender
 `716fb2be` corrects the header of `tests/response_cap_tracker_api.rs`,
 which compares `TooLarge` with `PartialEq`; the outcome enum is not `Copy`.
 
-Fork commits `355a0ddf`, `ca32feac`, `223cdd80` and `716fb2be`: K2,
-response cap. The library behaviour changes are: a destination can bound
+Fork commits `355a0ddf`, `ca32feac`, `223cdd80`, `716fb2be` and `f43321f4`:
+K2, response cap. The library behaviour changes are: a destination can bound
 the size of the responses it sends. `355a0ddf` adds `set_max_response_size`,
 `clear_max_response_size` and `max_response_size` to the single input
 destination (`destination_parts/destination.rs`, the field in
@@ -109,10 +108,10 @@ before the MDU check that would turn an oversize frame into a Resource; a
 `RequestResponse::Resource` is measured as its data plus the packed
 metadata, uncompressed, like `max_request_size`, which reads the advertised
 size `d` rather than the compressed `t`, though without the 3-byte metadata
-length prefix the advertised size counts; at the cap the response
-goes out; over it nothing is sent, one warn names the request id, the link,
-the measured length and the cap, and a tracked outcome resolves the new
-`ResponseOutcome::TooLarge { len, max }` variant
+length prefix the advertised size counts for a metadata-bearing Resource;
+at the cap the response goes out; over it nothing is sent, one warn names
+the request id, the link, the measured length and the cap, and a tracked
+outcome resolves the new `ResponseOutcome::TooLarge { len, max }` variant
 (`destination/request/outcome.rs`, additive under `#[non_exhaustive]`).
 Pinned by `two_transport_loopback_requests_response_cap.rs` (included from
 `tests.rs`): a packet response at the cap and over it, a `Resource`
@@ -149,7 +148,24 @@ notes at the dispatcher's debug and warn lines that the shared
 line, so a brace variant such as `TooLarge` appears as its lines.
 `716fb2be` widens the note at the warn in `response_limits.rs` to name
 `assert_one_refusal_warn` of `two_transport_loopback_requests_response_cap.rs`
-as a second substring matcher of that text.
+as a second substring matcher of that text. `f43321f4` adds
+`two_transport_loopback_requests_response_cap_probe2.rs` (included from
+`tests.rs`): a cap tightened while the handler runs lets that response out
+and refuses the next request, an `into_parts` tracker armed after an
+earlier `track_outcome` retires that first receiver with `NotSent`, and a
+requester cap needs 3 bytes over the responder's Resource measure to admit
+a metadata-bearing response; routes the probe file's refusal warn check
+through `assert_one_refusal_warn`, so the warn text has exactly the two
+matchers the note names; makes `assert_nothing_sent_for` panic on a closed
+resource event channel as it does on a lagged one; pins the three cap
+accessors by name in `request_layer_api_docs.rs` and raises its walker
+floor to the current count; and states in the `set_max_response_size`
+rustdoc and the README that the cap covers the responses the dispatcher
+sends for the destination's registered handlers, while
+`Transport::send_response` and `Transport::send_response_resource` are
+addressed to a link and are not measured, with the README also noting that
+a packet response is measured as the whole frame here and as the packed
+body by the requester.
 
 Fork commit `ca32feac`: K3, ledger contracts. No library behaviour changes.
 `ca32feac` extends the full-hash ledger pin in `ledger_contract.rs` to the

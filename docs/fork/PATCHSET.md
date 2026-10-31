@@ -34,10 +34,10 @@ ledger contracts, K4 is destination resolve, K5 is reject cadence. The
 `outcome tracker` patch is fork commits `c3a317d7`, `ca32feac`, `223cdd80`,
 `716fb2be`, `d3b234e6` and `d36f65df`; the `response cap` patch is fork
 commits `355a0ddf`, `ca32feac`, `223cdd80`, `716fb2be`, `f43321f4`,
-`9eb35226`, `d3b234e6` and `d36f65df`; the `ledger contracts` patch is fork
-commit `ca32feac`; the `destination resolve` patch is fork commits
-`3136f1bf` and `d36f65df`; the `reject cadence` patch is fork commits
-`265d6929` and `d36f65df`.
+`9eb35226`, `d3b234e6`, `d36f65df` and `813f421a`; the `ledger contracts`
+patch is fork commit `ca32feac`; the `destination resolve` patch is fork
+commits `3136f1bf`, `d36f65df` and `813f421a`; the `reject cadence` patch is
+fork commits `265d6929`, `d36f65df` and `813f421a`.
 
 | File | Patch |
 | --- | --- |
@@ -115,7 +115,8 @@ where `ResponseOutcomeTracker::outcome` now says it replaces a sender
 which compares `TooLarge` with `PartialEq`; the outcome enum is not `Copy`.
 `d3b234e6` has that header say the tracker implements `Debug` rather than
 how it prints (the opaque form is pinned in
-`two_transport_loopback_requests_response_cap_probe.rs:187`), has the unarmed
+`two_transport_loopback_request_into_parts_tracker_armed_after_the_handler_returned_resolves_not_sent`
+of `two_transport_loopback_requests_response_cap_probe.rs`), has the unarmed
 tracker rustdoc in `inbound.rs` and `outcome.rs` say the slot is left as it
 was, and arms the dropped-receiver positive control of
 `two_transport_loopback_requests_into_parts.rs` through the `into_parts`
@@ -125,7 +126,7 @@ slot as it was, so with no earlier `track_outcome` the dispatcher logs
 nothing and resolves nothing.
 
 Fork commits `355a0ddf`, `ca32feac`, `223cdd80`, `716fb2be`, `f43321f4`,
-`9eb35226`, `d3b234e6` and `d36f65df`: K2, response cap. The library
+`9eb35226`, `d3b234e6`, `d36f65df` and `813f421a`: K2, response cap. The library
 behaviour changes are: a destination can bound the size of the responses it
 sends. `355a0ddf`
 adds `set_max_response_size`, `clear_max_response_size` and
@@ -233,12 +234,16 @@ contracts job can, and fails rather than skips on a clone without it.
 `d36f65df` adds to the README cap paragraph that a metadata-less Resource
 measures as its data alone, and raises the walker floor of
 `request_layer_api_docs.rs` to the current count of 155 public items.
+`813f421a` qualifies the compose sentence of the `set_max_response_size`
+rustdoc to the Resource form and adds that for the packet form the cap
+measures the whole `[request_id, body]` frame while the requester measures
+the packed body alone, so the responder refuses first, as the README says.
 
 Fork commit `ca32feac`: K3, ledger contracts. No library behaviour changes.
 `ca32feac` extends the full-hash ledger pin in `ledger_contract.rs` to the
 reopened `Unreleased` section beside the released ones.
 
-Fork commits `3136f1bf` and `d36f65df`: K4, destination resolve. The library
+Fork commits `3136f1bf`, `d36f65df` and `813f421a`: K4, destination resolve. The library
 behaviour changes are: a caller can look up a destination and wait for its
 path in one call. `3136f1bf` adds `Transport::resolve_destination` in the
 new include
@@ -248,7 +253,8 @@ timeout and returns the `Option<DestinationDesc>` that `destination_desc`
 returns: a destination the transport already knows answers at once and no
 path request goes out; a zero timeout is a cached lookup alone and returns
 `None` for an unknown destination without sending anything; otherwise
-exactly one path request goes out, through `await_path`, and the call polls
+exactly one path request is attempted through `await_path`, a `Broadcast`
+on every outgoing interface as `request_path` sends it, and the call polls
 every 50 ms until the announce is learned or the timeout passes, then
 returns `None`. The learned entry and the path table can part ways, and the
 call follows the entry: a destination `deregister_destination` removed while
@@ -277,15 +283,30 @@ request per call; a second call on a learned destination answers from the
 table and sends nothing; the deregistered-with-standing-path arm answers
 `None` at once with no request; and the held-desc-with-expired-path arm
 answers `Some` at once with no request. The same commit adds to
-`tests/destination_desc_api.rs` a black-box pin that a miss returns within
-a poll interval of the caller's timeout and is not remembered against the
+`tests/destination_desc_api.rs` a black-box pin that a miss is bounded by
+the caller's timeout and is not remembered against the
 next lookup, states both splits in the `resolve_destination` rustdoc and
 the README link-opening paragraph, adds a README needle for each to
 `crate_readme_sections.rs`, and has the `outgoing_request_count` rustdoc
 say the entries it counts are the ones not yet pruned by the job that
-applies the throttle window.
+applies the throttle window. `813f421a` adds to
+`tests/destination_desc_api.rs` both splits walked as a consumer would:
+`readme_split_expired_path_answers_at_once_and_await_path_relearns_the_next_hop`
+(an expired path answers `Some` at once with no path response following,
+then `await_path` sends the one request that draws exactly one path
+response and the desc opens a link that activates on the announcing side)
+and
+`readme_split_deregistered_with_a_standing_path_answers_none_until_the_path_expires`
+(a deregistered destination with a standing path answers `None` at once on
+repeated calls with no request, and `expire_path` turns it back into the
+reachable case, one request drawing one path response); tightens the miss
+pin so a miss returns no sooner than the timeout and within three poll
+intervals of it; adds needles to `crate_readme_sections.rs` that only the
+README's split sentences carry; and has the rustdoc and the README say the
+one path request is attempted, a `Broadcast` on every outgoing interface,
+since `request_path` records a request only when an interface took it.
 
-Fork commits `265d6929` and `d36f65df`: K5, reject cadence. The library
+Fork commits `265d6929`, `d36f65df` and `813f421a`: K5, reject cadence. The library
 behaviour changes are: the warn for a request advertisement refused over the
 destination's `max_request_size` has a per-link cadence. `265d6929` adds the
 `LinkStats.rejected_request_advertisements` counter and moves `LinkStats`
@@ -315,7 +336,11 @@ the 64th and the 128th and debug otherwise, and adds to
 `resource/tests_advert_limits.rs` a counter-level pin that two calls to
 `record_rejected_request_advertisement` leave
 `rejected_request_advertisements` at 2 and `rejected_advertisements` at 0,
-with the mirror assertion in the over-cap sibling.
+with the mirror assertion in the over-cap sibling. `813f421a` has both
+cadence pins match the `rejected=<n>` field as the record's tail with
+`ends_with` rather than by substring, and has the probe's seed-offset
+comment say the offset only keeps a mixed log readable, since records are
+attributed by link id.
 
 ## 0.17.0 (upstream 0.14.0)
 

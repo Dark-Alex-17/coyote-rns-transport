@@ -99,8 +99,8 @@ Removed) bullet of its own, marked as such.
   `links_parts/transport.rs`). A destination the transport already
   knows answers at once and no path request goes out. A zero timeout is a
   cached lookup alone and returns `None` for an unknown destination without
-  sending anything. Otherwise exactly one path request goes out, a broadcast
-  on every outgoing interface as `request_path` sends it, and the call polls
+  sending anything. Otherwise exactly one path request is attempted, a
+  Broadcast on every outgoing interface as `request_path` sends it, and the call polls
   every 50 ms until the announce is learned or the timeout passes, returning
   `None` after it. The entry read is the one `destination_desc` and
   `destination_identity` read, filled by an accepted announce or a restored
@@ -115,7 +115,8 @@ Removed) bullet of its own, marked as such.
   `RNS.Transport.request_path`, a `has_path` poll and `RNS.Identity.recall`.
   A test-only `PathRequests::outgoing_request_count`
   (`path_requests_parts/module_prelude.rs`) counts the path requests sent
-  for a destination still inside the throttle window, one per send. Pinned by
+  for a destination and not yet pruned by the job that applies the throttle
+  window, one per send. Pinned by
   `two_transport_resolve_destination.rs` (a known destination answers with
   no path request and no path response following; a destination registered
   without announcing is learned through exactly one path request, answered
@@ -128,8 +129,13 @@ Removed) bullet of its own, marked as such.
   once with no request; the held-desc-with-expired-path arm answers `Some`
   at once with no request), by `tests/destination_desc_api.rs` (the known,
   the silent-but-reachable and the zero-timeout arms from outside the
-  crate, and a miss that returns within a poll interval of the timeout and
-  is not remembered against the next lookup), and by
+  crate; a miss that returns no sooner than the timeout and within three
+  poll intervals of it and is not remembered against the next lookup; and
+  both splits walked as a consumer would: an expired path answers at once,
+  then `await_path` relearns the next hop and the desc opens a link, and a
+  destination deregistered with a standing path answers `None` until
+  `expire_path` turns it back into the reachable case and one request
+  draws the announce), and by
   `crate_readme_sections.rs`, which pins the README link-opening prose for
   the call, both splits included; `request_layer_api_docs.rs` names the
   method among the items whose rustdoc must cite Python or say fork-only.

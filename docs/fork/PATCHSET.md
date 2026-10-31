@@ -47,8 +47,8 @@ commits `355a0ddf`, `ca32feac`, `223cdd80`, `716fb2be`, `f43321f4`,
 `3be3b15c`, `719067c4`, `07e98279`, `a02ba4b7`, `bcee2bff` and `7cba2066`;
 the `dial failures` patch is fork commits `61429992`, `874c871b`, `aa6d2fac`,
 `593fa930`, `7fbd176e`, `7eab8566`, `c492846d`, `9a13ade9`, `74279dfb`,
-`b0635aea`, `8fc49d91`, `dd31f874`, `59b0ee7c`, `986dca4a`, `5188138e` and
-`8f348131`.
+`b0635aea`, `8fc49d91`, `dd31f874`, `59b0ee7c`, `986dca4a`, `5188138e`,
+`8f348131`, `9c0bb5c6` and `b68ef92c`.
 
 | File | Patch |
 | --- | --- |
@@ -139,6 +139,7 @@ the `dial failures` patch is fork commits `61429992`, `874c871b`, `aa6d2fac`,
 | `crates/libs/rns-transport/tests/response_cap_tracker_api.rs` | outcome tracker, response cap |
 | `crates/libs/rns-transport/tests/shared_instance_first_connect_api.rs` | dial failures |
 | `crates/libs/rns-transport/tests/shared_instance_first_connect_interrupt_probe.rs` | dial failures |
+| `crates/libs/rns-transport/tests/shared_instance_first_connect_stop_interface_probe.rs` | dial failures |
 | `docs/fork/PATCHSET.md` | outcome tracker, response cap, ledger contracts, destination resolve, reject cadence, link proof strategy, dial failures |
 
 Fork commits `c3a317d7`, `ca32feac`, `223cdd80`, `716fb2be`, `d3b234e6` and
@@ -666,7 +667,8 @@ link-maintenance pass evicts it, after which it is unknown and reads
 
 Fork commits `61429992`, `874c871b`, `aa6d2fac`, `593fa930`, `7fbd176e`,
 `7eab8566`, `c492846d`, `9a13ade9`, `74279dfb`, `b0635aea`, `8fc49d91`,
-`dd31f874`, `59b0ee7c`, `986dca4a`, `5188138e` and `8f348131`:
+`dd31f874`, `59b0ee7c`, `986dca4a`, `5188138e`, `8f348131`, `9c0bb5c6` and
+`b68ef92c`:
 K7, dial failures. The library behaviour changes are: a stream
 client reports each failed connect attempt with a typed reason, the
 shared-instance state stream carries it, and an attach can be told to give up
@@ -794,7 +796,16 @@ the drain serves dial failures behind disconnects and connects while
 reconnects are served live only, records the `8fc49d91` rustfmt pass as a
 test-only Changed bullet, ends the README's closed-link prove sentence on
 `InvalidArgument`, and pins the new cites and the "connect timed out after"
-warn text in `crate_readme_sections.rs`.
+warn text in `crate_readme_sections.rs`. `9c0bb5c6` adopts
+`tests/shared_instance_first_connect_stop_interface_probe.rs`, which holds
+that a `stop_interface` taken during a 10 s first-connect wait answers
+`SharedInstanceConnectTimeout` well ahead of the timer with the slot empty
+and the posture off, cites it from the `with_first_connect_timeout` bullet
+and needles the cite in `crate_readme_sections.rs`. `b68ef92c` names
+`stop_interface` in the README, CHANGELOG and interrupt-probe wording twins,
+says in `with_state_events` that `DialFailed` interleaves after
+`Connecting` while nothing answers, re-wraps two README lines to 80 columns
+and needles the README wording in `crate_readme_sections.rs`.
 
 ## 0.17.0 (upstream 0.14.0)
 

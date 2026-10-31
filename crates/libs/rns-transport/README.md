@@ -768,7 +768,10 @@ parity ledger; the `docs/status/*` matrices are not updated per fork task.
   `PacketProven` here. Python has one `proof_strategy` per destination for
   its opportunistic packets and its links' packets alike
   (`RNS/Destination.py:360-367`); this crate keeps `proof_strategy` (default
-  `None`) and `link_proof_strategy` (default `All`) apart.
+  `None`) and `link_proof_strategy` (default `All`) apart. Both are copied
+  onto a link when it is accepted; Python's link reads the destination's
+  strategy and callback live per packet (`RNS/Link.py:961-967`), so a
+  destination-level change here reaches only links accepted afterwards.
 - A retried Resource advertisement re-sends the identical prepared packet,
   so the receiver's duplicate filter drops it and the
   `ResourceAcceptHook` runs once per advertisement. Python builds a fresh

@@ -529,7 +529,8 @@ of `Link::prove_packet`; the plain-Data arm of `handle_data_packet` in
 `LinkEvent::Data` is posted, the Channel arm unchanged. `LinkPayload`
 (`destination/link/payload.rs`) gains `packet_hash`, `with_packet_hash` and
 a `packet_hash` field every existing constructor leaves `None`, and `new.rs`
-sets it from the received packet. `Destination` (`destination_parts/module_core.rs`)
+sets it from the received packet. `Destination`
+(`destination_parts/module_core.rs`)
 gains `link_proof_strategy`, `All` in all three constructors, with
 `set_link_proof_strategy` and `link_proof_strategy` on the single IN
 destination (`destination_parts/destination.rs`), and

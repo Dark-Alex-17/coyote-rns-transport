@@ -382,7 +382,7 @@ timeout and returning the same `Option<DestinationDesc>`. A destination the
 transport already knows answers at once and no path request goes out. A
 zero timeout is a cached lookup alone and returns `None` for an unknown
 destination without sending anything. Otherwise exactly one path request is
-attempted, a Broadcast on every outgoing interface as `Transport::request_path`
+attempted, a `Broadcast` on every outgoing interface as `Transport::request_path`
 sends it, and the call polls every 50 ms until the announce is learned or
 the timeout passes, returning `None` after it. The
 desc and the path table can part ways: a destination

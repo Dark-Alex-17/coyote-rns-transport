@@ -276,6 +276,9 @@ fn crate_readme_request_handler_section_describes_into_parts_and_the_response_ca
         "at the cap goes out",
         "logs one warn",
         "logs nothing",
+        "compose at one number",
+        "measures as its data alone",
+        "leaves the slot as it was",
     ] {
         assert!(
             section.contains(claim),

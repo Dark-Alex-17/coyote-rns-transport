@@ -126,6 +126,7 @@ include!("tests_parts/two_transport_loopback_requests_response_cap.rs");
 include!("tests_parts/two_transport_loopback_requests_response_cap_probe.rs");
 include!("tests_parts/two_transport_loopback_requests_response_cap_probe2.rs");
 include!("tests_parts/two_transport_loopback_requests_response_cap_probe3.rs");
+include!("tests_parts/two_transport_loopback_requests_response_cap_probe4.rs");
 
 include!("tests_parts/two_transport_loopback_requests_routing.rs");
 

@@ -50,7 +50,7 @@ the `dial failures` patch is fork commits `61429992`, `874c871b`, `aa6d2fac`,
 `b0635aea`, `8fc49d91`, `dd31f874`, `59b0ee7c`, `986dca4a`, `5188138e`,
 `8f348131`, `9c0bb5c6` and `b68ef92c`; the `disconnect reasons` patch is
 fork commits `45bcadfc`, `fdfa83dd`, `f45595c5`, `b819ab22`, `bb247215`,
-`0a8f5cf8` and `cc5c3092`.
+`0a8f5cf8`, `cc5c3092`, `3ab8f323`, `200b8810` and `b86af8d6`.
 
 | File | Patch |
 | --- | --- |
@@ -86,6 +86,7 @@ fork commits `45bcadfc`, `fdfa83dd`, `f45595c5`, `b819ab22`, `bb247215`,
 | `crates/libs/rns-transport/src/iface/events.rs` | dial failures, disconnect reasons |
 | `crates/libs/rns-transport/src/iface/local.rs` | dial failures, disconnect reasons |
 | `crates/libs/rns-transport/src/iface/tcp_client.rs` | dial failures, disconnect reasons |
+| `crates/libs/rns-transport/src/iface/tcp_client_memory_tests.rs` | disconnect reasons |
 | `crates/libs/rns-transport/src/resource.rs` | reject cadence |
 | `crates/libs/rns-transport/src/resource/advertisement_limits.rs` | reject cadence |
 | `crates/libs/rns-transport/src/resource/link_stats.rs` | reject cadence |
@@ -142,6 +143,7 @@ fork commits `45bcadfc`, `fdfa83dd`, `f45595c5`, `b819ab22`, `bb247215`,
 | `crates/libs/rns-transport/tests/request_handler_api.rs` | outcome tracker |
 | `crates/libs/rns-transport/tests/resolve_destination_deadline_api.rs` | destination resolve |
 | `crates/libs/rns-transport/tests/response_cap_tracker_api.rs` | outcome tracker, response cap |
+| `crates/libs/rns-transport/tests/shared_instance_disconnect_reasons_api.rs` | disconnect reasons |
 | `crates/libs/rns-transport/tests/shared_instance_first_connect_api.rs` | dial failures |
 | `crates/libs/rns-transport/tests/shared_instance_first_connect_interrupt_probe.rs` | dial failures |
 | `crates/libs/rns-transport/tests/shared_instance_first_connect_stop_interface_probe.rs` | dial failures |
@@ -812,7 +814,8 @@ says in `with_state_events` that `DialFailed` interleaves after
 and needles the README wording in `crate_readme_sections.rs`.
 
 Fork commits `45bcadfc`, `fdfa83dd`, `f45595c5`, `b819ab22`, `bb247215`,
-`0a8f5cf8` and `cc5c3092`: K8, disconnect reasons. The library behaviour
+`0a8f5cf8`, `cc5c3092`, `3ab8f323`, `200b8810` and `b86af8d6`: K8,
+disconnect reasons. The library behaviour
 changes are: the HDLC stream runner reports how a stream ended, `TcpClient`
 and `LocalUnixClient` can send that as a typed `DisconnectReason` on a
 channel of their own beside the plain disconnect event, the shared-instance
@@ -826,7 +829,8 @@ enum itself arrived with K7 (`61429992`). `45bcadfc`
 has `run_hdlc_stream_with_runtime_and_ifac` return an `HdlcStreamExit`
 (`PeerClosed`, `ReadTimeout`, `ReadError`, `WriteError` or `Cancelled`),
 the rx side's exit unless that side only followed the tx side's stop, and
-pins each value in the `tcp_client` unit tests. `fdfa83dd` adds
+pins `PeerClosed`, `Cancelled` and `ReadTimeout` in the `tcp_client` unit
+tests beside the earlier `ReadError` pin. `fdfa83dd` adds
 `DisconnectReason::from_stream_exit`, which reads an exit as `PeerClosed`,
 `Reset`, `Timeout` or `Io(kind)` and a locally ended stream as nothing, and
 gives `TcpClient` and `LocalUnixClient` a `with_disconnect_reason_events`
@@ -834,7 +838,7 @@ builder and `disconnect_reason_events_enabled` getter that send
 `(interface address, reason)` beside the plain disconnect event. `f45595c5`
 adds `tests/disconnect_reason_events_api.rs`, which holds that a TCP peer's
 orderly close reads `PeerClosed` and its linger-zero close `Reset`, that a
-stop while connected sends nothing, that the unix client reports
+cancel while connected sends nothing, that the unix client reports
 `PeerClosed`, and that a full channel drops the reason while the client
 keeps reconnecting. `b819ab22` adds `SharedInstanceEvent::DisconnectedWithReason`
 and `SharedInstanceOptions::with_disconnect_reasons`
@@ -863,7 +867,32 @@ the two `with_disconnect_reason_events` twins in `request_layer_api_docs.rs`,
 adds the README paragraph on `with_disconnect_reasons` and the two
 changelog bullets (the clients' reason channel and stream exit, the
 shared-instance variant and option), and needles both in
-`crate_readme_sections.rs`.
+`crate_readme_sections.rs`. `3ab8f323` has the unix pin in
+`two_transport_shared_instance_disconnect_reasons.rs` shut its accepted
+socket down and drain it before the drop: Linux marks the peer of a unix
+socket closed with an unread receive queue `ECONNRESET`, which read as
+`Reset` where macOS read EOF. `200b8810` pins `WriteError` in the
+`tcp_client` unit tests (a failing writer, borrowed from
+`tcp_client_memory_tests.rs`, exits as `WriteError(BrokenPipe)` over the
+rx side's `Cancelled`) and `Timeout` at client level (a `TcpClient` built
+with a read watchdog reports a held-silent peer as `Timeout`; the attach's
+clients configure none, so no black-box test can), has the hand-driven
+consumer serve a drop queued before it ran as
+`DisconnectedWithReason { PeerClosed }`, renames the cancel test in
+`tests/disconnect_reason_events_api.rs` for what it drives and gives it a
+unix twin of the full-channel pin, and adopts
+`tests/shared_instance_disconnect_reasons_api.rs`, which holds from outside
+the crate that the opt-in reads `PeerClosed` and `Reset` over a raw
+listener, that a socket held quiet sends nothing, that the default attach
+and one switched back off read the plain `Disconnected`, and that a
+README-shaped consumer labels every reason. `b86af8d6` tightens the
+rustdoc (both `with_disconnect_reason_events` builders name the receive
+queue's close among the silent exits and a write's kind after the peer
+went away, `Timeout` names the `TimedOut` io error, the `Disconnected` and
+`with_state_events` tails name `DisconnectedWithReason` for a queued drop
+under the opt-in), names the new pins and the adopted file in the
+changelog, and drops the byte-identical claim for the opt-out stream in
+favour of "unchanged for every disconnect the client reports".
 
 ## 0.17.0 (upstream 0.14.0)
 

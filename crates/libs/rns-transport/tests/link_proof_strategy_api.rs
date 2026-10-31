@@ -424,11 +424,11 @@ async fn accepted_link_keeps_the_callback_it_was_handed_at_accept() {
         matches!(event, LinkEvent::Data(payload) if payload.as_slice() == b"ask-me").then_some(())
     })
     .await;
-    assert_eq!(refusals.load(Ordering::SeqCst), 1, "the copied callback was asked once");
     assert!(
         proven_after_quiet(&mut pair.out_events, link_id).await.is_empty(),
         "a refusing callback leaves the packet unproved"
     );
+    assert_eq!(refusals.load(Ordering::SeqCst), 1, "the copied callback was asked once");
 
     // Change both halves on the destination after the accept.
     let (consenting, consents) = counting_callback(true);
@@ -456,12 +456,12 @@ async fn accepted_link_keeps_the_callback_it_was_handed_at_accept() {
             .then_some(())
     })
     .await;
-    assert_eq!(refusals.load(Ordering::SeqCst), 2, "the link still asks the callback it copied");
-    assert_eq!(consents.load(Ordering::SeqCst), 0, "the destination's new callback is not reached");
     assert!(
         proven_after_quiet(&mut pair.out_events, link_id).await.is_empty(),
         "neither the destination's new strategy nor its new callback proves on the old link"
     );
+    assert_eq!(refusals.load(Ordering::SeqCst), 2, "the link still asks the callback it copied");
+    assert_eq!(consents.load(Ordering::SeqCst), 0, "the destination's new callback is not reached");
     assert_eq!(
         in_link.lock().await.proof_strategy(),
         ProofStrategy::App,
@@ -486,6 +486,69 @@ async fn accepted_link_keeps_the_callback_it_was_handed_at_accept() {
         )
         .await;
     assert_eq!(proven, second);
+
+    timeout(WAIT, pair.connector.stop()).await.expect("connector stop completes");
+    timeout(WAIT, pair.listener.transport.stop()).await.expect("listener stop completes");
+}
+
+/// The `None` arm of the README section seen from the receiving side: a destination that
+/// hands its links `None` (and, to tell `None` from `App`, a consenting callback) accepts an
+/// in-link that reads `None`, never asks the callback, never proves a plain Data packet on
+/// its own, and still lets `prove_link_packet` close the loop for the sender exactly once.
+#[tokio::test]
+#[deny(clippy::await_holding_invalid_type)]
+async fn none_on_the_destination_reaches_the_accepted_in_link_and_only_the_app_proves() {
+    let (consenting, consents) = counting_callback(true);
+    let mut pair =
+        proof_pair_with_callback("in-link-none", ProofStrategy::None, Some(consenting)).await;
+    let link_id = pair.link_id;
+    let in_link = pair
+        .listener
+        .transport
+        .find_in_link(&link_id)
+        .await
+        .expect("the listener tracks the accepted in-link");
+    assert_eq!(
+        in_link.lock().await.proof_strategy(),
+        ProofStrategy::None,
+        "the destination's `None` is copied onto the accepted in-link"
+    );
+    assert_eq!(
+        pair.link.lock().await.proof_strategy(),
+        ProofStrategy::All,
+        "the out-link, which no destination accepts, keeps the `All` default"
+    );
+
+    let sent = send_plain_data(&pair.connector, &pair.link, b"in-link-none").await;
+    let payload: LinkPayload =
+        await_event(&mut pair.in_events, link_id, "the plain Data event", |event| match event {
+            LinkEvent::Data(payload) if payload.as_slice() == b"in-link-none" => {
+                Some((**payload).clone())
+            }
+            _ => None,
+        })
+        .await;
+    assert_eq!(payload.packet_hash(), Some(sent), "the posted payload names the packet");
+    assert!(
+        proven_after_quiet(&mut pair.out_events, link_id).await.is_empty(),
+        "under `None` the in-link proves nothing on its own"
+    );
+    assert_eq!(
+        consents.load(Ordering::SeqCst),
+        0,
+        "`None` never consults the callback; a consenting one changes nothing"
+    );
+
+    pair.listener
+        .transport
+        .prove_link_packet(&link_id, &sent)
+        .await
+        .expect("the application's proof goes out on the link's interface");
+    assert_eq!(
+        proven_after_quiet(&mut pair.out_events, link_id).await,
+        vec![sent],
+        "exactly one PacketProven, naming the packet the application proved"
+    );
 
     timeout(WAIT, pair.connector.stop()).await.expect("connector stop completes");
     timeout(WAIT, pair.listener.transport.stop()).await.expect("listener stop completes");

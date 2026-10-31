@@ -393,6 +393,7 @@ mod identify_packet_tests {
             LinkEvent::Data(payload) => {
                 assert_eq!(payload.as_slice(), envelope, "the envelope must survive the round trip byte for byte");
                 assert_eq!(payload.context(), PacketContext::Response, "…and still be recognisable as a response");
+                assert_eq!(payload.packet_hash(), Some(packet.hash()));
             }
             _ => panic!("expected the response to arrive as LinkEvent::Data"),
         }

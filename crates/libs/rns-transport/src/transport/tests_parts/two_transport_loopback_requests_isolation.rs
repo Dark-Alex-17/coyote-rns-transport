@@ -11,12 +11,12 @@ const SLOW_HANDLER_SLEEP: Duration = Duration::from_secs(30);
 
 /// Keeps the link's drop records, from the links target every record at `Warn` or above
 /// plus the debug lines of the shared-instance client, and from the resource target the
-/// dropped-outcome-receiver lines and the rejected-advertisement warnings, from the link
-/// target the closed-link packet warnings, from the request-dispatch target the responses
-/// dropped for a closed link, the response verdicts whose receiver was gone and the
-/// responses refused over the destination's response limit, from the jobs target the
-/// resource-retry diagnostics, and from the packet disk cache the warnings about hashlist
-/// orphans the sweep could not remove.
+/// dropped-outcome-receiver lines, the rejected-advertisement warnings and the refused
+/// request-advertisement records, from the link target the closed-link packet warnings,
+/// from the request-dispatch target the responses dropped for a closed link, the response
+/// verdicts whose receiver was gone and the responses refused over the destination's
+/// response limit, from the jobs target the resource-retry diagnostics, and from the
+/// packet disk cache the warnings about hashlist orphans the sweep could not remove.
 /// Tests share one process and
 /// `log::set_logger` installs once, so there must be exactly one logger in the binary and
 /// this is it; a record is attributed to a test by the link id, resource hash or
@@ -27,6 +27,7 @@ struct TestLogger {
     shared_instance: StdMutex<Vec<(log::Level, String)>>,
     outcome_receiver_dropped: StdMutex<Vec<String>>,
     rejected_advertisement_warns: StdMutex<Vec<(log::Level, String)>>,
+    rejected_request_advertisement_records: StdMutex<Vec<(log::Level, String)>>,
     closed_link_packet_warnings: StdMutex<Vec<String>>,
     closed_link_responses: StdMutex<Vec<String>>,
     dispatch_outcome_receiver_dropped: StdMutex<Vec<String>>,
@@ -40,6 +41,7 @@ static TEST_LOG: TestLogger = TestLogger {
     shared_instance: StdMutex::new(Vec::new()),
     outcome_receiver_dropped: StdMutex::new(Vec::new()),
     rejected_advertisement_warns: StdMutex::new(Vec::new()),
+    rejected_request_advertisement_records: StdMutex::new(Vec::new()),
     closed_link_packet_warnings: StdMutex::new(Vec::new()),
     closed_link_responses: StdMutex::new(Vec::new()),
     dispatch_outcome_receiver_dropped: StdMutex::new(Vec::new()),
@@ -97,6 +99,11 @@ impl log::Log for TestLogger {
                 self.rejected_advertisement_warns
                     .lock()
                     .expect("rejected-advertisement record store")
+                    .push((record.level(), message));
+            } else if message.contains("reject_request_advertisement") {
+                self.rejected_request_advertisement_records
+                    .lock()
+                    .expect("rejected-request-advertisement record store")
                     .push((record.level(), message));
             }
         } else if record.target() == REQUEST_DISPATCH_LOG_TARGET {
@@ -189,6 +196,20 @@ fn rejected_advertisement_records_for(link_id: AddressHash) -> Vec<(log::Level, 
         .rejected_advertisement_warns
         .lock()
         .expect("rejected-advertisement record store")
+        .iter()
+        .filter(|(_, record)| record.contains(&needle))
+        .cloned()
+        .collect()
+}
+
+/// The refused request-advertisement records the resource manager emitted for `link_id`
+/// so far, oldest first, with the level each was logged at.
+fn rejected_request_advertisement_records_for(link_id: AddressHash) -> Vec<(log::Level, String)> {
+    let needle = link_id.to_string();
+    TEST_LOG
+        .rejected_request_advertisement_records
+        .lock()
+        .expect("rejected-request-advertisement record store")
         .iter()
         .filter(|(_, record)| record.contains(&needle))
         .cloned()

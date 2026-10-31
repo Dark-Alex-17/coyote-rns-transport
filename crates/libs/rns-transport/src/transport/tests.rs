@@ -69,6 +69,7 @@ include!("tests_parts/packet_hashlist_flush.rs");
 include!("tests_parts/packet_hashlist_flush_probe.rs");
 include!("tests_parts/packet_hashlist_flush_probe2.rs");
 include!("tests_parts/resource_advert_reject_warn_cadence.rs");
+include!("tests_parts/request_advert_reject_warn_cadence.rs");
 include!("tests_parts/accepted_child_ifac_rotation.rs");
 
 include!("tests_parts/reticulum_runtime_management.rs");

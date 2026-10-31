@@ -66,4 +66,37 @@ impl ResourceManager {
             );
         }
     }
+
+    /// Counts a request advertisement refused for exceeding the destination's
+    /// `max_request_size` (the size check mirrors `RNS/Link.py:1036-1046`)
+    /// against the link and warns on the first one and on every 64th after
+    /// that, so a peer that keeps sending oversized requests stays visible
+    /// without one warn per advertisement. The reference logs every refusal;
+    /// the cadence is fork-only.
+    pub(crate) fn record_rejected_request_advertisement(
+        &mut self,
+        advertisement: &ResourceAdvertisement,
+        link_id: &AddressHash,
+        limit: usize,
+    ) {
+        let stats = self.link_stats.entry(*link_id).or_insert_with(LinkStats::new);
+        stats.rejected_request_advertisements =
+            stats.rejected_request_advertisements.saturating_add(1);
+        let count = stats.rejected_request_advertisements;
+        let level = if count == 1 || count.is_multiple_of(64) {
+            log::Level::Warn
+        } else {
+            log::Level::Debug
+        };
+        log::log!(
+            level,
+            "[resource-diag] reject_request_advertisement link={} hash={} data_size={} transfer_size={} limit={} rejected={}",
+            link_id,
+            advertisement.hash,
+            advertisement.data_size,
+            advertisement.transfer_size,
+            limit,
+            count
+        );
+    }
 }

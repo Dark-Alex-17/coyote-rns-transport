@@ -163,13 +163,10 @@ pub(super) async fn handle_link_resource_packet<'a>(
                 if let Some(limit) = limit {
                     if let Some(limit) = limit.await {
                         if advertisement.data_size > u64::try_from(limit).unwrap_or(u64::MAX) {
-                            log::warn!(
-                                "[resource-diag] reject_request_advertisement link={} hash={} data_size={} transfer_size={} limit={}",
+                            handler.resource_manager.record_rejected_request_advertisement(
+                                &advertisement,
                                 link.id(),
-                                advertisement.hash,
-                                advertisement.data_size,
-                                advertisement.transfer_size,
-                                limit
+                                limit,
                             );
                             rejected = true;
                             cancels.extend(receiver_cancel(

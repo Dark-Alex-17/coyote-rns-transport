@@ -193,7 +193,11 @@ async fn shared_instance_state_events_follow_two_tcp_restarts() {
     assert!(client.transport.connected_to_shared_instance().await, "the posture is still set");
 
     assert!(client.transport.detach_shared_instance().await, "the attach is in place");
-    assert_eq!(shared_instance_state_next(&mut events).await, None, "the detach ends the stream");
+    assert_eq!(
+        shared_instance_state_next_cycle_event(&mut events).await,
+        None,
+        "the detach ends the stream"
+    );
     timeout(STOP_TIMEOUT, client.transport.stop()).await.expect("client stop completes");
     timeout(STOP_TIMEOUT, server.transport.stop()).await.expect("shared instance stop completes");
 }

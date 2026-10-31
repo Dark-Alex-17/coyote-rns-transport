@@ -27,6 +27,8 @@ async fn shared_instance_state_next(
 /// `LOOPBACK_TIMEOUT`; `None` is the stream's end. A `DialFailed` is skipped, so this is
 /// for the reads a client makes while nothing listens: whether a redial was refused before
 /// the rebind landed is a race, and the cycle order is what such a pin cares about.
+/// The stream-end read after a `Connected` that followed redials takes it too: a refusal
+/// queued on the dial-failure channel before the connect may still land after `Connected`.
 #[deny(clippy::await_holding_invalid_type)]
 async fn shared_instance_state_next_cycle_event(
     events: &mut tokio::sync::mpsc::Receiver<SharedInstanceEvent>,
@@ -142,7 +144,11 @@ async fn shared_instance_state_events_follow_a_tcp_restart() {
     );
 
     assert!(client.transport.detach_shared_instance().await, "the attach is in place");
-    assert_eq!(shared_instance_state_next(&mut events).await, None, "the detach ends the stream");
+    assert_eq!(
+        shared_instance_state_next_cycle_event(&mut events).await,
+        None,
+        "the detach ends the stream"
+    );
 
     timeout(STOP_TIMEOUT, client.transport.stop()).await.expect("client stop completes");
     timeout(STOP_TIMEOUT, restarted.transport.stop())
@@ -411,7 +417,11 @@ async fn shared_instance_state_events_follow_a_unix_restart() {
     );
 
     assert!(client.transport.detach_shared_instance().await, "the attach is in place");
-    assert_eq!(shared_instance_state_next(&mut events).await, None, "the detach ends the stream");
+    assert_eq!(
+        shared_instance_state_next_cycle_event(&mut events).await,
+        None,
+        "the detach ends the stream"
+    );
 
     drop(stream);
     timeout(STOP_TIMEOUT, client.transport.stop()).await.expect("client stop completes");

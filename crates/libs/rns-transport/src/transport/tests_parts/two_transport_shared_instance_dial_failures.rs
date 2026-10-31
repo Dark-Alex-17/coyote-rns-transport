@@ -66,7 +66,7 @@ async fn shared_instance_dial_failures_read_refused_until_the_tcp_listener_binds
     let (client, mut events) = shared_instance_state_client(
         "shared-instance-dial-refused",
         SharedInstanceEndpoint::Tcp(SocketAddr::from(([127, 0, 0, 1], port))),
-        16,
+        SHARED_INSTANCE_STATE_REDIAL_CAPACITY,
     )
     .await;
     assert_eq!(
@@ -99,7 +99,7 @@ async fn shared_instance_dial_failures_read_not_found_until_the_unix_socket_is_b
     let (client, mut events) = shared_instance_state_client(
         "shared-instance-dial-not-found",
         SharedInstanceEndpoint::Unix(LocalUnixEndpoint::filesystem(socket.clone())),
-        16,
+        SHARED_INSTANCE_STATE_REDIAL_CAPACITY,
     )
     .await;
     assert_eq!(

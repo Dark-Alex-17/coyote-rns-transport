@@ -26,6 +26,13 @@ impl Transport {
     /// sends [`SharedInstanceEvent::Connecting`] once and that task sends
     /// the events of every connection cycle after it; the stream ends when
     /// the task does and no other sender clone is alive.
+    /// With [`SharedInstanceOptions::with_first_connect_timeout`] set, the
+    /// attach also waits that long for the first served connect, after the
+    /// tunnel is synthesized; without one it detaches again and returns
+    /// [`RnsError::SharedInstanceConnectTimeout`], the stream reading
+    /// `Connecting`, zero or more [`SharedInstanceEvent::DialFailed`], and
+    /// then ending (a connect landing between the timeout and the detach
+    /// may still be read as `Connected` first).
     /// Python also forces transport, remote management and probes off when it
     /// attaches (`RNS/Reticulum.py:438-440`); this method leaves
     /// `transport_enabled` as configured, since the crate supports a
@@ -88,6 +95,7 @@ impl Transport {
         let (reconnect_tx, reconnect_rx) = tokio::sync::mpsc::channel(8);
         let (disconnect_tx, disconnect_rx) = tokio::sync::mpsc::channel(8);
         let (connect_tx, connect_rx) = tokio::sync::mpsc::channel(8);
+        let (dial_failure_tx, dial_failure_rx) = tokio::sync::mpsc::channel(8);
         // Lock order: the std slot is innermost, under the iface_manager here
         // and under the handler below as in detach and stop; the two tokio
         // locks are never nested. The second section re-reads the slot since
@@ -105,7 +113,8 @@ impl Transport {
                         .with_reconnect_wait(options.reconnect_wait())
                         .with_connect_events(connect_tx)
                         .with_reconnect_events(reconnect_tx)
-                        .with_disconnect_events(disconnect_tx);
+                        .with_disconnect_events(disconnect_tx)
+                        .with_dial_failure_events(dial_failure_tx);
                     if let Some(mtu) = options.mtu() {
                         client = client.with_mtu(mtu);
                     }
@@ -125,7 +134,8 @@ impl Transport {
                         .with_reconnect_wait(options.reconnect_wait())
                         .with_connect_events(connect_tx)
                         .with_reconnect_events(reconnect_tx)
-                        .with_disconnect_events(disconnect_tx);
+                        .with_disconnect_events(disconnect_tx)
+                        .with_dial_failure_events(dial_failure_tx);
                     if let Some(mtu) = options.mtu() {
                         client = client.with_mtu(mtu);
                     }
@@ -172,13 +182,19 @@ impl Transport {
             options.state_events(),
             SharedInstanceEvent::Connecting,
         );
+        let (first_connect_tx, first_connect_rx) =
+            options.first_connect_timeout().map(|_| tokio::sync::oneshot::channel()).unzip();
         self.spawn_shared_instance_reconnect_consumer(
             iface,
             options.reconnect_wait(),
-            reconnect_rx,
-            connect_rx,
-            disconnect_rx,
+            SharedInstanceClientEvents {
+                reconnects: reconnect_rx,
+                connects: connect_rx,
+                disconnects: disconnect_rx,
+                dial_failures: dial_failure_rx,
+            },
             options.state_events().cloned(),
+            first_connect_tx,
         );
         if !self.synthesize_tunnel_on_interface(iface).await {
             log::debug!(
@@ -186,6 +202,23 @@ impl Transport {
                 self.name,
                 iface
             );
+        }
+        if let (Some(timeout), Some(first_connect)) =
+            (options.first_connect_timeout(), first_connect_rx)
+        {
+            // `Ok(Err(_))` is the consumer gone before any connect, which is
+            // as much "not connected" as the timer running out.
+            if !matches!(tokio::time::timeout(timeout, first_connect).await, Ok(Ok(()))) {
+                log::warn!(
+                    "tp({}): shared instance iface={} kind={} did not connect within {:?}, detaching",
+                    self.name,
+                    iface,
+                    kind,
+                    timeout
+                );
+                self.detach_shared_instance().await;
+                return Err(RnsError::SharedInstanceConnectTimeout);
+            }
         }
         log::debug!(
             "tp({}): attached shared instance iface={} kind={} reconnect_wait={:?}",

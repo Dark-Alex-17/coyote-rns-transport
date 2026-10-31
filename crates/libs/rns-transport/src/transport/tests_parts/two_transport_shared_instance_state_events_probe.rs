@@ -172,10 +172,11 @@ async fn shared_instance_state_events_follow_two_tcp_restarts() {
             Some(SharedInstanceEvent::Connecting),
             "cycle {cycle}"
         );
-        assert!(
-            timeout(SHARED_INSTANCE_STATE_QUIET, events.recv()).await.is_err(),
-            "cycle {cycle}: no Connected before the listener is back"
-        );
+        shared_instance_state_assert_no_cycle_event(
+            &mut events,
+            &format!("cycle {cycle}: no Connected before the listener is back"),
+        )
+        .await;
         server = shared_instance_server_on(port).await;
         server.await_accepted_connections(1).await;
         assert_eq!(

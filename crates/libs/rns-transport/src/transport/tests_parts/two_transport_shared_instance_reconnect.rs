@@ -334,18 +334,23 @@ async fn shared_instance_reconnect_consumer_serves_the_disconnect_before_the_rec
         let (reconnects_tx, reconnects) = tokio::sync::mpsc::channel(1);
         let (connects_tx, connects) = tokio::sync::mpsc::channel(1);
         let (disconnects_tx, disconnects) = tokio::sync::mpsc::channel(1);
+        let (dial_failures_tx, dial_failures) = tokio::sync::mpsc::channel(1);
         reconnects_tx.send(iface).await.expect("queue the reconnect");
         disconnects_tx.send(iface).await.expect("queue the disconnect");
         drop(reconnects_tx);
 
         let (_transport, consumer) = shared_instance_reconnect_consumer(&name, iface);
         let cancel = consumer.cancel.clone();
-        timeout(STOP_TIMEOUT, consumer.run(reconnects, connects, disconnects, None))
-            .await
-            .expect("the consumer exits once the reconnect channel is drained and closed");
+        timeout(
+            STOP_TIMEOUT,
+            consumer.run(reconnects, connects, disconnects, dial_failures, None, None),
+        )
+        .await
+        .expect("the consumer exits once the reconnect channel is drained and closed");
         cancel.cancel();
         drop(connects_tx);
         drop(disconnects_tx);
+        drop(dial_failures_tx);
 
         let records: Vec<String> =
             shared_instance_records_for(&name).into_iter().map(|(_, record)| record).collect();

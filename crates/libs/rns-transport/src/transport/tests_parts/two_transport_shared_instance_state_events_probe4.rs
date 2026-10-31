@@ -145,10 +145,8 @@ async fn shared_instance_state_connecting_is_not_sent_before_the_connected_postu
     let (attached, ()) = tokio::join!(attach, watch);
     let iface = attached.expect("attach to the shared instance");
     assert_eq!(transport.shared_instance(), Some(iface), "the slot keeps the iface");
-    assert!(
-        timeout(SHARED_INSTANCE_STATE_QUIET, events.recv()).await.is_err(),
-        "nothing more while nothing listens"
-    );
+    shared_instance_state_assert_no_cycle_event(&mut events, "nothing more while nothing listens")
+        .await;
 
     timeout(STOP_TIMEOUT, transport.stop()).await.expect("client stop completes");
 }

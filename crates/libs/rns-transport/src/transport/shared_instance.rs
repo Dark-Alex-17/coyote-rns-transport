@@ -3,6 +3,7 @@ use std::time::Duration;
 
 use tokio::sync::mpsc;
 
+use crate::iface::events::DialFailureKind;
 #[cfg(unix)]
 use crate::iface::local::LocalUnixEndpoint;
 use crate::iface::InterfaceMode;
@@ -53,6 +54,12 @@ pub enum SharedInstanceEvent {
     /// and read as `Disconnected`, `Connecting` before the stream ends (a
     /// connect already queued is read as `Connected`).
     Disconnected,
+    /// Fork-only: one dial attempt by the client failed and `reason` says
+    /// why; the attach keeps dialing until the socket exists, so a client
+    /// attached while nothing listens sends one of these per attempt,
+    /// `reconnect_wait` apart, after its `Connecting`. Python's reconnect
+    /// loop logs the failure at debug (`RNS/Interfaces/LocalInterface.py:159-167`).
+    DialFailed { reason: DialFailureKind },
 }
 
 /// Options for
@@ -73,6 +80,7 @@ pub struct SharedInstanceOptions {
     forced_bitrate_bps: Option<u64>,
     interface_mode: InterfaceMode,
     state_events: Option<mpsc::Sender<SharedInstanceEvent>>,
+    first_connect_timeout: Option<Duration>,
 }
 
 impl Default for SharedInstanceOptions {
@@ -84,6 +92,7 @@ impl Default for SharedInstanceOptions {
             forced_bitrate_bps: None,
             interface_mode: InterfaceMode::Full,
             state_events: None,
+            first_connect_timeout: None,
         }
     }
 }
@@ -181,6 +190,24 @@ impl SharedInstanceOptions {
         self
     }
 
+    /// Fork-only, opt-in: makes
+    /// [`Transport::attach_shared_instance`](crate::transport::Transport::attach_shared_instance)
+    /// wait up to `timeout` for the first served connect; without one it
+    /// detaches again and returns
+    /// [`RnsError::SharedInstanceConnectTimeout`](crate::error::RnsError::SharedInstanceConnectTimeout),
+    /// the state stream reading `Connecting`, zero or more
+    /// [`SharedInstanceEvent::DialFailed`], and then ending. A connect that
+    /// lands between the timeout and the detach may still be read as
+    /// `Connected` before the stream ends. By default the attach returns
+    /// as soon as the client is spawned, as Python's `LocalClientInterface`
+    /// keeps dialing in the background
+    /// (`RNS/Interfaces/LocalInterface.py:159-167`).
+    #[must_use]
+    pub fn with_first_connect_timeout(mut self, timeout: Duration) -> Self {
+        self.first_connect_timeout = Some(timeout);
+        self
+    }
+
     /// Fork-only: the reconnect wait in force.
     pub(crate) fn reconnect_wait(&self) -> Duration {
         self.reconnect_wait
@@ -211,5 +238,10 @@ impl SharedInstanceOptions {
     /// Fork-only: the state-event sender set with [`Self::with_state_events`], if any.
     pub(crate) fn state_events(&self) -> Option<&mpsc::Sender<SharedInstanceEvent>> {
         self.state_events.as_ref()
+    }
+
+    /// Fork-only: the first-connect timeout set with [`Self::with_first_connect_timeout`], if any.
+    pub(crate) fn first_connect_timeout(&self) -> Option<Duration> {
+        self.first_connect_timeout
     }
 }

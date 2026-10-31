@@ -10,12 +10,48 @@
 /// How long a client attached to a closed port is watched for an event that must not come.
 const SHARED_INSTANCE_STATE_QUIET: Duration = Duration::from_millis(500);
 
-/// Reads the next state event within `LOOPBACK_TIMEOUT`; `None` is the stream's end.
+/// Reads the next cycle event (`Connecting`, `Connected`, `Disconnected`) within
+/// `LOOPBACK_TIMEOUT`; `None` is the stream's end. A `DialFailed` is skipped: a restart
+/// pin cares about the cycle order, and whether the redial beat the rebind is a race.
 #[deny(clippy::await_holding_invalid_type)]
 async fn shared_instance_state_next(
     events: &mut tokio::sync::mpsc::Receiver<SharedInstanceEvent>,
 ) -> Option<SharedInstanceEvent> {
+    loop {
+        match shared_instance_state_next_any(events).await {
+            Some(SharedInstanceEvent::DialFailed { .. }) => continue,
+            other => return other,
+        }
+    }
+}
+
+/// Reads the next state event of any kind within `LOOPBACK_TIMEOUT`; `None` is the
+/// stream's end.
+#[deny(clippy::await_holding_invalid_type)]
+async fn shared_instance_state_next_any(
+    events: &mut tokio::sync::mpsc::Receiver<SharedInstanceEvent>,
+) -> Option<SharedInstanceEvent> {
     timeout(LOOPBACK_TIMEOUT, events.recv()).await.expect("timed out waiting for a state event")
+}
+
+/// Watches `events` for `SHARED_INSTANCE_STATE_QUIET` and fails on any cycle event or on the
+/// stream's end; the `DialFailed` of a client dialing a closed port are let through.
+#[deny(clippy::await_holding_invalid_type)]
+async fn shared_instance_state_assert_no_cycle_event(
+    events: &mut tokio::sync::mpsc::Receiver<SharedInstanceEvent>,
+    what: &str,
+) {
+    let watched = timeout(SHARED_INSTANCE_STATE_QUIET, async {
+        while let Some(event) = events.recv().await {
+            assert!(
+                matches!(event, SharedInstanceEvent::DialFailed { .. }),
+                "{what}, got {event:?}"
+            );
+        }
+        panic!("{what}, but the stream ended");
+    })
+    .await;
+    assert!(watched.is_err(), "{what}: the quiet window runs out first");
 }
 
 /// Reads `state` until the stream ends, within `STOP_TIMEOUT`; the hand-driven consumer's
@@ -108,6 +144,7 @@ enum Queued {
     Disconnect,
     Connect,
     Reconnect,
+    DialFailure(DialFailureKind),
 }
 
 /// How a hand-built consumer is driven: the events queued, in order, before it first polls;
@@ -134,6 +171,9 @@ async fn shared_instance_state_drive_consumer_with(
     let (reconnects_tx, reconnects) = tokio::sync::mpsc::channel(capacity(Queued::Reconnect));
     let (connects_tx, connects) = tokio::sync::mpsc::channel(capacity(Queued::Connect));
     let (disconnects_tx, disconnects) = tokio::sync::mpsc::channel(capacity(Queued::Disconnect));
+    let dial_failure_count =
+        spec.queued.iter().filter(|queued| matches!(queued, Queued::DialFailure(_))).count();
+    let (dial_failures_tx, dial_failures) = tokio::sync::mpsc::channel(dial_failure_count.max(1));
     let (state_tx, mut state) = tokio::sync::mpsc::channel(8);
     for kind in spec.queued {
         match kind {
@@ -142,6 +182,12 @@ async fn shared_instance_state_drive_consumer_with(
             }
             Queued::Connect => connects_tx.send(iface).await.expect("queue the connect"),
             Queued::Reconnect => reconnects_tx.send(iface).await.expect("queue the reconnect"),
+            Queued::DialFailure(reason) => {
+                dial_failures_tx
+                    .send(DialFailure::new(iface, *reason))
+                    .await
+                    .expect("queue the dial failure");
+            }
         }
     }
     let mut open = vec![
@@ -150,19 +196,26 @@ async fn shared_instance_state_drive_consumer_with(
         (Queued::Disconnect, disconnects_tx),
     ];
     open.retain(|(kind, _)| !spec.close_before_run.contains(kind));
+    let dial_failures_tx =
+        (!spec.close_before_run.iter().any(|queued| matches!(queued, Queued::DialFailure(_))))
+            .then_some(dial_failures_tx);
 
     let (_transport, consumer) = shared_instance_reconnect_consumer(name, iface);
     let cancel = consumer.cancel.clone();
     if spec.cancel_before_run {
         cancel.cancel();
     }
-    timeout(STOP_TIMEOUT, consumer.run(reconnects, connects, disconnects, Some(state_tx)))
-        .await
-        .expect(spec.exits);
+    timeout(
+        STOP_TIMEOUT,
+        consumer.run(reconnects, connects, disconnects, dial_failures, Some(state_tx), None),
+    )
+    .await
+    .expect(spec.exits);
     if !spec.cancel_before_run {
         cancel.cancel();
     }
     drop(open);
+    drop(dial_failures_tx);
 
     shared_instance_state_read_to_end(&mut state).await
 }
@@ -239,8 +292,9 @@ async fn shared_instance_state_consumer_orders_a_whole_cycle() {
     );
 }
 
-/// A client attached to a port nothing listens on reads `Connecting` and nothing more
-/// until a shared instance binds the port, then `Connected`.
+/// A client attached to a port nothing listens on reads `Connecting` and no cycle event
+/// (only the `DialFailed` of each refused attempt) until a shared instance binds the port,
+/// then `Connected`.
 #[tokio::test]
 #[deny(clippy::await_holding_invalid_type)]
 async fn shared_instance_state_events_wait_in_connecting_while_the_listener_is_down() {
@@ -255,10 +309,11 @@ async fn shared_instance_state_events_wait_in_connecting_while_the_listener_is_d
         shared_instance_state_next(&mut events).await,
         Some(SharedInstanceEvent::Connecting)
     );
-    assert!(
-        timeout(SHARED_INSTANCE_STATE_QUIET, events.recv()).await.is_err(),
-        "no event while nothing listens"
-    );
+    shared_instance_state_assert_no_cycle_event(
+        &mut events,
+        "no cycle event while nothing listens",
+    )
+    .await;
     assert!(
         client.transport.connected_to_shared_instance().await,
         "the connected posture is set by the attach"
@@ -357,6 +412,7 @@ async fn shared_instance_state_events_full_channel_drops_at_debug_without_stalli
             *level == log::Level::Debug
                 && record.contains("state event")
                 && record.contains("dropped, channel full")
+                && !record.contains("DialFailed")
         })
         .map(|(_, record)| record)
         .collect();

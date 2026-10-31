@@ -33,4 +33,10 @@ pub enum RnsError {
     /// `[::ffff:127.0.0.1]` count as loopback here.
     #[error("shared instance endpoint is not a loopback address")]
     SharedInstanceEndpointNotLoopback,
+    /// Fork-only: `Transport::attach_shared_instance` saw no served connect
+    /// within `SharedInstanceOptions::with_first_connect_timeout` and
+    /// detached again. Python's `LocalClientInterface` keeps dialing in the
+    /// background instead (`RNS/Interfaces/LocalInterface.py:159-167`).
+    #[error("shared instance did not connect within the first-connect timeout")]
+    SharedInstanceConnectTimeout,
 }

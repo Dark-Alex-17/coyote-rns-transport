@@ -286,8 +286,9 @@ divergences).
 Whether a link proves a plain Data packet it receives is its `ProofStrategy`
 (`Link::set_proof_strategy`, default `All`, so every link proves unless told
 otherwise). `App` consults a `ProofRequestedHandler` per packet
-(`Link::set_proof_requested_callback`); a link accepted by a destination
-copies `SingleInputDestination::link_proof_strategy` and the destination's
+(`Link::set_proof_requested_callback`) and proves nothing when none is
+registered; a link accepted by a destination copies
+`SingleInputDestination::link_proof_strategy` and the destination's
 `proof_requested_callback` at accept (`set_link_proof_strategy`, default
 `All`), while an out-link has no destination to copy from and must be set
 directly. `None` never auto-proves. Channel frames are proved under every

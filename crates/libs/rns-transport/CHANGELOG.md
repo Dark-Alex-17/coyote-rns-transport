@@ -201,10 +201,14 @@ Removed) bullet of its own, marked as such.
   `two_transport_loopback_link_proof_strategy_probe.rs` (a link accepted
   under `All` keeps proving after the destination is switched to `App`
   while a link accepted afterwards starts out `App`; an out-link under
-  `App` waits for its own callback). `crate_readme_sections.rs` pins the
-  README divergence register's `All` default, the accept-time copy and the
-  `RNS/Link.py:961-968` cite, and that the register no longer calls the
-  link's proof unconditional.
+  `App` waits for its own callback) and by
+  `tests/link_proof_strategy_api.rs` (an in-link accepted under `App` keeps
+  the refusing callback it copied after the destination is handed `All` and
+  a consenting one; a destination's `None` reaches the accepted in-link,
+  never asks a callback, and leaves the out-link `All`).
+  `crate_readme_sections.rs` pins the README divergence register's `All`
+  default, the accept-time copy and the `RNS/Link.py:961-968` cite, and
+  that the register no longer calls the link's proof unconditional.
 - `LinkPayload::packet_hash` is the hash of the link packet a received
   payload came from, `None` for a payload not built from a packet;
   `link_sections/new.rs` sets it on every payload posted as
@@ -225,19 +229,23 @@ Removed) bullet of its own, marked as such.
   reads `LinkPayload::packet_hash` and decides later, as a Python
   application calls `packet.prove()`. It works under any strategy; under
   `All` it is a second proof the sender ignores. An unknown link id is
-  `Err(RnsError::InvalidArgument)`; a proof that cannot be sent, the link
-  having no bound interface or the interface taking nothing, is
-  `Err(RnsError::ConnectionError)`. Pinned by
+  `Err(RnsError::InvalidArgument)`; a link that is not `Active`, as
+  `Transport::request` refuses it (Python's `Packet.send` drops a packet on
+  a `CLOSED` link, `RNS/Packet.py:294-299`), and a proof that cannot be
+  sent, the link having no bound interface or the interface taking nothing,
+  are `Err(RnsError::ConnectionError)`. Pinned by
   `two_transport_loopback_link_proof_strategy.rs` (under `App` the sender
   sees no `PacketProven` until the call, then exactly one; the same from an
-  out-link set to `None`; the unknown-link refusal), by
+  out-link set to `None`; the unknown-link refusal; a link closed after it
+  carried a proof refuses the next one), by
   `two_transport_loopback_link_proof_strategy_probe.rs` (under `All` the
   second proof earns the sender no second `PacketProven`), by
   `python_to_rust_link_proof_strategy.rs` (a Python initiator's
   `PacketReceipt` stays `SENT` until the Rust application proves the packet
   and then reads `DELIVERED`), by `tests/link_proof_strategy_api.rs` (the
   deferred proof and both refusals as a downstream crate sees them, the
-  gone interface read as `ConnectionError`) and by
+  gone interface read as `ConnectionError`, and exactly one `PacketProven`
+  for the application's proof on an in-link accepted under `None`) and by
   `crate_readme_sections.rs`, which pins the README proof prose and this
   section.
 
@@ -309,9 +317,9 @@ Removed) bullet of its own, marked as such.
   on a closed resource event channel; `request_layer_api_docs.rs` names
   `set_max_response_size`, `clear_max_response_size` and
   `max_response_size` among the items whose rustdoc must say fork-only,
-  and its walker floor rises to the current count of 155 public items. The
-  README request-handler section says an unarmed tracker leaves the slot as
-  it was, so with no earlier `track_outcome` the dispatcher logs nothing
+  and raises its walker floor to 155 public items. The README
+  request-handler section says an unarmed tracker leaves the slot as it
+  was, so with no earlier `track_outcome` the dispatcher logs nothing
   and resolves nothing, as the `inbound.rs` and `outcome.rs` rustdoc do. The
   both-ends pin of `two_transport_loopback_requests_response_cap_probe2.rs`
   asserts equal caps compose now that the Resource measure counts the

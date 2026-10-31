@@ -16,8 +16,9 @@ impl Transport {
     /// an out-link alike.
     ///
     /// Returns `Err(RnsError::InvalidArgument)` when no link of this
-    /// transport has `link_id`, and `Err(RnsError::ConnectionError)` when
-    /// the link has no bound interface to send on.
+    /// transport has `link_id`, and `Err(RnsError::ConnectionError)` when the
+    /// proof cannot be sent, the link having no bound interface or the
+    /// interface taking nothing.
     ///
     /// Fork-only convenience: a Python application calls `packet.prove()`
     /// on the packet its link callback received (`RNS/Packet.py:336-341`),

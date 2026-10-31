@@ -18,11 +18,15 @@ pub const MIN_ANNOUNCE_DATA_LENGTH: usize =
     PUBLIC_KEY_LENGTH * 2 + NAME_HASH_LENGTH + RAND_HASH_LENGTH + SIGNATURE_LENGTH;
 
 /// Mirrors Python Reticulum's `RNS.Destination.PROVE_NONE`/`PROVE_APP`/
-/// `PROVE_ALL` (`RNS/Destination.py`) — whether this destination
-/// automatically generates a delivery proof for a plain opportunistic
-/// `Data` packet it receives (`transport::wire::handle_data`). `None` (the
-/// default, matching Python's own default) never proves; `All` always
-/// proves; `App` defers to `proof_requested_callback`, called per-packet.
+/// `PROVE_ALL` (`RNS/Destination.py:69-72`): whether a plain `Data` packet
+/// is proved on receipt. `None` never proves; `All` always proves; `App`
+/// defers to a `ProofRequestedHandler`, called per packet. As a
+/// destination's `proof_strategy` (default `None`, Python's own default) it
+/// governs the opportunistic packets `transport::wire::handle_data` sees;
+/// the same values govern a link's plain Data packets through
+/// `Link::set_proof_strategy`, or `set_link_proof_strategy` on the
+/// destination that accepts the link (default `All`), as Python's
+/// `PROVE_ALL`/`PROVE_APP` arms do in `RNS/Link.py:961-968`.
 #[derive(Copy, Clone, Debug, PartialEq, Eq, Default)]
 pub enum ProofStrategy {
     #[default]
@@ -31,18 +35,22 @@ pub enum ProofStrategy {
     All,
 }
 
-/// Mirrors Python Reticulum's `Destination.set_proof_requested_callback` —
-/// registered via `Destination::set_proof_requested_callback`, consulted by
-/// `transport::wire::handle_data` only when `proof_strategy ==
-/// ProofStrategy::App`. Implemented generically for any `Fn(&Packet) ->
-/// bool + Send + Sync` closure below, so callers can pass a closure
-/// directly; a named trait (rather than a bare `dyn Fn` field) matches this
-/// crate's existing `ReceiptHandler` convention (`transport::core`).
+/// Mirrors Python Reticulum's `Destination.set_proof_requested_callback`
+/// (`RNS/Destination.py:350-367`): registered via
+/// `Destination::set_proof_requested_callback` or
+/// `Link::set_proof_requested_callback`, consulted by
+/// `transport::wire::handle_data` when the destination's `proof_strategy`
+/// is `App` and by a link's `Link::should_auto_prove` when its strategy
+/// (copied from `link_proof_strategy` at accept or set with
+/// `Link::set_proof_strategy`) is `App`. Implemented generically for any
+/// `Fn(&Packet) -> bool + Send + Sync` closure below, so callers can pass a
+/// closure directly; a named trait (rather than a bare `dyn Fn` field)
+/// matches this crate's existing `ReceiptHandler` convention (`transport::core`).
 ///
-/// Runs synchronously, inline, while both the transport handler's lock and
-/// this destination's own lock are held (see `handle_data`) — must not
-/// block and must not attempt to re-lock the destination it was registered
-/// on; `tokio::sync::Mutex` is not reentrant.
+/// Runs synchronously, inline, under the transport handler's lock plus
+/// either the destination lock or the link lock: it must not block and must
+/// not lock the destination, the link or the transport; `tokio::sync::Mutex`
+/// is not reentrant.
 pub trait ProofRequestedHandler: Send + Sync {
     fn proof_requested(&self, packet: &Packet) -> bool;
 }

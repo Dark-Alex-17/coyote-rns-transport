@@ -55,9 +55,9 @@ impl LinkPayload {
         payload
     }
 
-    /// Records the hash of the link packet this payload was decrypted from,
-    /// read back through [`Self::packet_hash`].
-    pub fn with_packet_hash(mut self, packet_hash: Hash) -> Self {
+    /// Records the hash of the link packet this payload was decrypted from;
+    /// the link sets it on every payload it posts as `LinkEvent::Data`.
+    pub(crate) fn with_packet_hash(mut self, packet_hash: Hash) -> Self {
         self.packet_hash = Some(packet_hash);
         self
     }

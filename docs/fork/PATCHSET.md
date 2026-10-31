@@ -44,7 +44,7 @@ commits `355a0ddf`, `ca32feac`, `223cdd80`, `716fb2be`, `f43321f4`,
 `link proof strategy` patch is fork commits `8e47a675`, `1a9e25c4`,
 `92346ece`, `e0a2feae`, `2624206e`, `ecf809d6`, `ac841458`, `c38e6b22`,
 `e8cda738`, `4ed2ebec`, `95ae6d37`, `fdf40d01`, `94c27a5c`, `1779c8c8`,
-`3be3b15c`, `719067c4` and `07e98279`.
+`3be3b15c`, `719067c4`, `07e98279` and `a02ba4b7`.
 
 | File | Patch |
 | --- | --- |
@@ -516,7 +516,8 @@ a refused advertisement leaves none to cancel.
 
 Fork commits `8e47a675`, `1a9e25c4`, `92346ece`, `e0a2feae`, `2624206e`,
 `ecf809d6`, `ac841458`, `c38e6b22`, `e8cda738`, `4ed2ebec`, `95ae6d37`,
-`fdf40d01`, `94c27a5c`, `1779c8c8`, `3be3b15c`, `719067c4` and `07e98279`: K6,
+`fdf40d01`, `94c27a5c`, `1779c8c8`, `3be3b15c`, `719067c4`, `07e98279` and
+`a02ba4b7`: K6,
 link proof strategy. The library behaviour changes are: a link proves the plain
 Data packets it receives by a strategy of its own instead of always, and an
 application can prove a received packet later. `8e47a675` pins, in
@@ -623,7 +624,9 @@ callback counts after the quiet window and asserts the Response payload's
 `ConnectionError`, as `Transport::request` does, and pins it on a link closed
 after it carried a proof. `719067c4` has the README say `App` proves nothing
 without a callback and names the new arm and pins in the changelog. `07e98279`
-formats the closed-link pin as `rustfmt` lays it out.
+formats the closed-link pin as `rustfmt` lays it out. `a02ba4b7` has that pin's
+doc comment credit the refusal to the status guard in `prove_link_packet`, since
+the interface stays bound after close.
 
 ## 0.17.0 (upstream 0.14.0)
 

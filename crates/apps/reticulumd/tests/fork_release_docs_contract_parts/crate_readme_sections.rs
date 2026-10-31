@@ -302,6 +302,47 @@ fn changelog_section_naming<'a>(changelog: &'a str, anchor: &str) -> &'a str {
         .unwrap_or_else(|| panic!("a changelog section names {anchor}"))
 }
 
+/// The section selector survives both shapes the release cycle gives the
+/// changelog: the stub promoted to a version heading, and a fresh empty
+/// `## Unreleased` stub reopened above it. With the anchor named in two
+/// sections, the newest one wins, so a pin reads the release that carried
+/// the bullet and not an older restatement; the heading and the preamble
+/// above the first `## ` are never a candidate.
+#[test]
+fn changelog_section_naming_skips_a_reopened_stub_and_prefers_the_newest_match() {
+    let changelog = "# Changelog\n\nPreamble that names `Transport::resolve_destination` too.\n\
+        \n## Unreleased\n\nNothing yet.\n\
+        \n## 0.18.0 - 2026-11-01\n\n- Added `Transport::resolve_destination`, the newest bullet.\n\
+        \n## 0.17.0 - 2026-10-27\n\n- Mentions `Transport::resolve_destination` again, older.\n";
+    let section = changelog_section_naming(changelog, "`Transport::resolve_destination`");
+    assert!(
+        section.starts_with("0.18.0 - 2026-11-01\n"),
+        "the first section that names the anchor is the promoted one past the stub, got:\n{section}"
+    );
+    assert!(section.contains("the newest bullet"), "the section body is returned whole");
+    assert!(
+        !section.contains("older") && !section.contains("Preamble"),
+        "neither the older restatement nor the preamble is read, got:\n{section}"
+    );
+
+    let stubless = "# Changelog\n\n## 0.18.0 - 2026-11-01\n\n- `set_max_response_size` lands.\n";
+    assert_eq!(
+        changelog_section_naming(stubless, "`set_max_response_size`"),
+        "0.18.0 - 2026-11-01\n\n- `set_max_response_size` lands.\n",
+        "with no stub the promoted section is the first candidate"
+    );
+}
+
+/// A changelog that names the anchor nowhere fails the pin loudly, naming
+/// the anchor, rather than reading some other section.
+#[test]
+#[should_panic(expected = "a changelog section names `Transport::resolve_destination`")]
+fn changelog_section_naming_panics_when_no_section_names_the_anchor() {
+    let changelog =
+        "# Changelog\n\n## Unreleased\n\nNothing yet.\n\n## 0.17.0 - 2026-10-27\n\n- Other.\n";
+    changelog_section_naming(changelog, "`Transport::resolve_destination`");
+}
+
 /// Every `///` line of a source file joined with single spaces, so a phrase
 /// can be looked for across line wraps.
 fn doc_comment_text(source: &str) -> String {

@@ -46,8 +46,8 @@ commits `355a0ddf`, `ca32feac`, `223cdd80`, `716fb2be`, `f43321f4`,
 `e8cda738`, `4ed2ebec`, `95ae6d37`, `fdf40d01`, `94c27a5c`, `1779c8c8`,
 `3be3b15c`, `719067c4`, `07e98279`, `a02ba4b7`, `bcee2bff` and `7cba2066`;
 the `dial failures` patch is fork commits `61429992`, `874c871b`, `aa6d2fac`,
-`593fa930`, `7fbd176e`, `7eab8566`, `c492846d`, `9a13ade9`, `74279dfb` and
-`b0635aea`.
+`593fa930`, `7fbd176e`, `7eab8566`, `c492846d`, `9a13ade9`, `74279dfb`,
+`b0635aea` and `8fc49d91`.
 
 | File | Patch |
 | --- | --- |
@@ -662,8 +662,8 @@ link-maintenance pass evicts it, after which it is unknown and reads
 `InvalidArgument`.
 
 Fork commits `61429992`, `874c871b`, `aa6d2fac`, `593fa930`, `7fbd176e`,
-`7eab8566`, `c492846d`, `9a13ade9`, `74279dfb` and `b0635aea`: K7, dial
-failures. The library behaviour changes are: a stream
+`7eab8566`, `c492846d`, `9a13ade9`, `74279dfb`, `b0635aea` and `8fc49d91`:
+K7, dial failures. The library behaviour changes are: a stream
 client reports each failed connect attempt with a typed reason, the
 shared-instance state stream carries it, and an attach can be told to give up
 when the first connect does not come, giving up also when its consumer ends
@@ -750,7 +750,9 @@ the changelog, has the four eviction-clause twins read "until the
 link-maintenance pass (at most 1 s later) evicts it", pins the proof
 section's refusal arms and the new shared-instance needles in
 `crate_readme_sections.rs`, and names `RnsError::SharedInstanceConnectTimeout`
-in `request_layer_api_docs.rs` at a walker floor of 181.
+in `request_layer_api_docs.rs` at a walker floor of 181. `8fc49d91` is the
+standalone rustfmt pass over the two shared-instance test parts, one
+`assert_eq!` joined and one `run` call wrapped per argument, no test changed.
 
 ## 0.17.0 (upstream 0.14.0)
 

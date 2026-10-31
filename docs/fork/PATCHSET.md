@@ -48,7 +48,7 @@ commits `355a0ddf`, `ca32feac`, `223cdd80`, `716fb2be`, `f43321f4`,
 the `dial failures` patch is fork commits `61429992`, `874c871b`, `aa6d2fac`,
 `593fa930`, `7fbd176e`, `7eab8566`, `c492846d`, `9a13ade9`, `74279dfb`,
 `b0635aea`, `8fc49d91`, `dd31f874`, `59b0ee7c`, `986dca4a`, `5188138e`,
-`8f348131`, `9c0bb5c6` and `b68ef92c`.
+`8f348131`, `9c0bb5c6`, `b68ef92c`, `45bcadfc`, `fdfa83dd` and `f45595c5`.
 
 | File | Patch |
 | --- | --- |
@@ -133,6 +133,7 @@ the `dial failures` patch is fork commits `61429992`, `874c871b`, `aa6d2fac`,
 | `crates/libs/rns-transport/tests/dial_failure_channel_probe.rs` | dial failures |
 | `crates/libs/rns-transport/tests/dial_failure_events_api.rs` | dial failures |
 | `crates/libs/rns-transport/tests/dial_failure_reason_contract_probe.rs` | dial failures |
+| `crates/libs/rns-transport/tests/disconnect_reason_events_api.rs` | dial failures |
 | `crates/libs/rns-transport/tests/link_proof_strategy_api.rs` | link proof strategy, dial failures |
 | `crates/libs/rns-transport/tests/request_handler_api.rs` | outcome tracker |
 | `crates/libs/rns-transport/tests/resolve_destination_deadline_api.rs` | destination resolve |
@@ -667,8 +668,8 @@ link-maintenance pass evicts it, after which it is unknown and reads
 
 Fork commits `61429992`, `874c871b`, `aa6d2fac`, `593fa930`, `7fbd176e`,
 `7eab8566`, `c492846d`, `9a13ade9`, `74279dfb`, `b0635aea`, `8fc49d91`,
-`dd31f874`, `59b0ee7c`, `986dca4a`, `5188138e`, `8f348131`, `9c0bb5c6` and
-`b68ef92c`:
+`dd31f874`, `59b0ee7c`, `986dca4a`, `5188138e`, `8f348131`, `9c0bb5c6`,
+`b68ef92c`, `45bcadfc`, `fdfa83dd` and `f45595c5`:
 K7, dial failures. The library behaviour changes are: a stream
 client reports each failed connect attempt with a typed reason, the
 shared-instance state stream carries it, and an attach can be told to give up
@@ -805,7 +806,21 @@ and needles the cite in `crate_readme_sections.rs`. `b68ef92c` names
 `stop_interface` in the README, CHANGELOG and interrupt-probe wording twins,
 says in `with_state_events` that `DialFailed` interleaves after
 `Connecting` while nothing answers, re-wraps two README lines to 80 columns
-and needles the README wording in `crate_readme_sections.rs`.
+and needles the README wording in `crate_readme_sections.rs`. `45bcadfc`
+has `run_hdlc_stream_with_runtime_and_ifac` return an `HdlcStreamExit`
+(`PeerClosed`, `ReadTimeout`, `ReadError`, `WriteError` or `Cancelled`),
+the rx side's exit unless that side only followed the tx side's stop, and
+pins each value in the `tcp_client` unit tests. `fdfa83dd` adds
+`DisconnectReason::from_stream_exit`, which reads an exit as `PeerClosed`,
+`Reset`, `Timeout` or `Io(kind)` and a locally ended stream as nothing, and
+gives `TcpClient` and `LocalUnixClient` a `with_disconnect_reason_events`
+builder and `disconnect_reason_events_enabled` getter that send
+`(interface address, reason)` beside the plain disconnect event. `f45595c5`
+adds `tests/disconnect_reason_events_api.rs`, which holds that a TCP peer's
+orderly close reads `PeerClosed` and its linger-zero close `Reset`, that a
+stop while connected sends nothing, that the unix client reports
+`PeerClosed`, and that a full channel drops the reason while the client
+keeps reconnecting.
 
 ## 0.17.0 (upstream 0.14.0)
 

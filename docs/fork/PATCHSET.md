@@ -31,7 +31,7 @@ per fork task.
 Every file changed since the `0.17.0` release and the patch each change
 belongs to. Patch ids: K1 is outcome tracker, K2 is response cap, K3 is
 ledger contracts, K4 is destination resolve, K5 is reject cadence, K6 is
-link proof strategy. The
+link proof strategy, K7 is dial failures. The
 `outcome tracker` patch is fork commits `c3a317d7`, `ca32feac`, `223cdd80`,
 `716fb2be`, `d3b234e6` and `d36f65df`; the `response cap` patch is fork
 commits `355a0ddf`, `ca32feac`, `223cdd80`, `716fb2be`, `f43321f4`,
@@ -44,52 +44,66 @@ commits `355a0ddf`, `ca32feac`, `223cdd80`, `716fb2be`, `f43321f4`,
 `link proof strategy` patch is fork commits `8e47a675`, `1a9e25c4`,
 `92346ece`, `e0a2feae`, `2624206e`, `ecf809d6`, `ac841458`, `c38e6b22`,
 `e8cda738`, `4ed2ebec`, `95ae6d37`, `fdf40d01`, `94c27a5c`, `1779c8c8`,
-`3be3b15c`, `719067c4`, `07e98279`, `a02ba4b7`, `bcee2bff` and `7cba2066`.
+`3be3b15c`, `719067c4`, `07e98279`, `a02ba4b7`, `bcee2bff` and `7cba2066`;
+the `dial failures` patch is fork commits `61429992`, `874c871b`, `aa6d2fac`
+and `593fa930`.
 
 | File | Patch |
 | --- | --- |
 | `crates/apps/reticulumd/tests/fork_publish_contract_parts/ledger_contract.rs` | ledger contracts |
-| `crates/apps/reticulumd/tests/fork_release_docs_contract_parts/crate_readme_sections.rs` | outcome tracker, response cap, destination resolve, link proof strategy |
+| `crates/apps/reticulumd/tests/fork_release_docs_contract.rs` | dial failures |
+| `crates/apps/reticulumd/tests/fork_release_docs_contract_parts/crate_readme_sections.rs` | outcome tracker, response cap, destination resolve, link proof strategy, dial failures |
 | `crates/apps/reticulumd/tests/fork_release_docs_contract_parts/release_0_17_0_probe3.rs` | response cap |
-| `crates/apps/reticulumd/tests/fork_release_docs_contract_parts/request_layer_api_docs.rs` | outcome tracker, response cap, destination resolve, link proof strategy |
-| `crates/apps/reticulumd/tests/python_channel_interop_parts/python_to_rust_link_proof_strategy.rs` | link proof strategy |
+| `crates/apps/reticulumd/tests/fork_release_docs_contract_parts/request_layer_api_docs.rs` | outcome tracker, response cap, destination resolve, link proof strategy, dial failures |
 | `crates/apps/reticulumd/tests/python_channel_interop.rs` | link proof strategy |
+| `crates/apps/reticulumd/tests/python_channel_interop_parts/python_to_rust_link_proof_strategy.rs` | link proof strategy |
 | `crates/apps/reticulumd/tests/support/python_channel_endpoint.py` | link proof strategy |
-| `crates/libs/rns-transport/CHANGELOG.md` | outcome tracker, response cap, ledger contracts, destination resolve, reject cadence, link proof strategy |
-| `crates/libs/rns-transport/README.md` | outcome tracker, response cap, destination resolve, link proof strategy |
-| `crates/libs/rns-transport/src/destination_parts/destination.rs` | response cap, link proof strategy |
-| `crates/libs/rns-transport/src/destination_parts/module_core.rs` | response cap, link proof strategy |
+| `crates/libs/rns-transport/CHANGELOG.md` | outcome tracker, response cap, ledger contracts, destination resolve, reject cadence, link proof strategy, dial failures |
+| `crates/libs/rns-transport/README.md` | outcome tracker, response cap, destination resolve, link proof strategy, dial failures |
+| `crates/libs/rns-transport/src/destination/link/payload.rs` | link proof strategy |
+| `crates/libs/rns-transport/src/destination/link_parts/link.rs` | link proof strategy |
 | `crates/libs/rns-transport/src/destination/link_parts/link_sections/data_proof_tests.rs` | link proof strategy |
 | `crates/libs/rns-transport/src/destination/link_parts/link_sections/identify_packet_tests.rs` | link proof strategy |
-| `crates/libs/rns-transport/src/destination/link_parts/link_sections/new_from_request.rs` | link proof strategy |
 | `crates/libs/rns-transport/src/destination/link_parts/link_sections/new.rs` | link proof strategy |
-| `crates/libs/rns-transport/src/destination/link_parts/link_sections/proof_strategy_tests.rs` | link proof strategy |
+| `crates/libs/rns-transport/src/destination/link_parts/link_sections/new_from_request.rs` | link proof strategy |
 | `crates/libs/rns-transport/src/destination/link_parts/link_sections/proof_strategy.rs` | link proof strategy |
+| `crates/libs/rns-transport/src/destination/link_parts/link_sections/proof_strategy_tests.rs` | link proof strategy |
 | `crates/libs/rns-transport/src/destination/link_parts/link_sections/request_dispatch_tests.rs` | link proof strategy |
-| `crates/libs/rns-transport/src/destination/link_parts/link.rs` | link proof strategy |
 | `crates/libs/rns-transport/src/destination/link_parts/linkhandleresult.rs` | link proof strategy |
 | `crates/libs/rns-transport/src/destination/link_parts/module_prelude.rs` | link proof strategy |
-| `crates/libs/rns-transport/src/destination/link/payload.rs` | link proof strategy |
 | `crates/libs/rns-transport/src/destination/request/inbound.rs` | outcome tracker |
 | `crates/libs/rns-transport/src/destination/request/mod.rs` | outcome tracker |
 | `crates/libs/rns-transport/src/destination/request/outcome.rs` | outcome tracker, response cap |
 | `crates/libs/rns-transport/src/destination/tests.rs` | response cap |
+| `crates/libs/rns-transport/src/destination_parts/destination.rs` | response cap, link proof strategy |
+| `crates/libs/rns-transport/src/destination_parts/module_core.rs` | response cap, link proof strategy |
+| `crates/libs/rns-transport/src/error.rs` | dial failures |
+| `crates/libs/rns-transport/src/iface.rs` | dial failures |
+| `crates/libs/rns-transport/src/iface/events.rs` | dial failures |
+| `crates/libs/rns-transport/src/iface/local.rs` | dial failures |
+| `crates/libs/rns-transport/src/iface/tcp_client.rs` | dial failures |
 | `crates/libs/rns-transport/src/resource.rs` | reject cadence |
 | `crates/libs/rns-transport/src/resource/advertisement_limits.rs` | reject cadence |
 | `crates/libs/rns-transport/src/resource/link_stats.rs` | reject cadence |
 | `crates/libs/rns-transport/src/resource/receiver.rs` | response cap |
 | `crates/libs/rns-transport/src/resource/sender.rs` | response cap |
 | `crates/libs/rns-transport/src/resource/tests_advert_limits.rs` | reject cadence |
+| `crates/libs/rns-transport/src/transport/links_parts/transport.rs` | destination resolve, link proof strategy |
 | `crates/libs/rns-transport/src/transport/links_parts/transport_sections/await_path.rs` | destination resolve |
 | `crates/libs/rns-transport/src/transport/links_parts/transport_sections/close_channel.rs` | destination resolve |
 | `crates/libs/rns-transport/src/transport/links_parts/transport_sections/prove_link_packet.rs` | link proof strategy |
 | `crates/libs/rns-transport/src/transport/links_parts/transport_sections/resolve_destination.rs` | destination resolve |
-| `crates/libs/rns-transport/src/transport/links_parts/transport.rs` | destination resolve, link proof strategy |
-| `crates/libs/rns-transport/src/transport/path_requests_parts/module_prelude.rs` | destination resolve |
+| `crates/libs/rns-transport/src/transport/links_parts/transport_sections/shared_instance.rs` | dial failures |
+| `crates/libs/rns-transport/src/transport/links_parts/transport_sections/shared_instance_reconnect.rs` | dial failures |
+| `crates/libs/rns-transport/src/transport/links_parts/transport_sections/shared_instance_reconnect_parts/drain_queued.rs` | dial failures |
+| `crates/libs/rns-transport/src/transport/mod.rs` | dial failures |
 | `crates/libs/rns-transport/src/transport/path.rs` | link proof strategy |
-| `crates/libs/rns-transport/src/transport/request_dispatch_parts/response_limits.rs` | response cap |
+| `crates/libs/rns-transport/src/transport/path_requests_parts/module_prelude.rs` | destination resolve |
 | `crates/libs/rns-transport/src/transport/request_dispatch.rs` | response cap |
+| `crates/libs/rns-transport/src/transport/request_dispatch_parts/response_limits.rs` | response cap |
 | `crates/libs/rns-transport/src/transport/resource_wire.rs` | reject cadence |
+| `crates/libs/rns-transport/src/transport/shared_instance.rs` | dial failures |
+| `crates/libs/rns-transport/src/transport/tests.rs` | outcome tracker, response cap, destination resolve, reject cadence, link proof strategy, dial failures |
 | `crates/libs/rns-transport/src/transport/tests_parts/request_advert_reject_warn_cadence.rs` | reject cadence |
 | `crates/libs/rns-transport/src/transport/tests_parts/request_advert_reject_warn_cadence_probe.rs` | reject cadence |
 | `crates/libs/rns-transport/src/transport/tests_parts/request_advert_reject_warn_cadence_probe2.rs` | reject cadence |
@@ -105,8 +119,14 @@ commits `355a0ddf`, `ca32feac`, `223cdd80`, `716fb2be`, `f43321f4`,
 | `crates/libs/rns-transport/src/transport/tests_parts/two_transport_resolve_destination.rs` | destination resolve |
 | `crates/libs/rns-transport/src/transport/tests_parts/two_transport_resolve_destination_probe.rs` | destination resolve |
 | `crates/libs/rns-transport/src/transport/tests_parts/two_transport_resolve_destination_probe2.rs` | destination resolve |
-| `crates/libs/rns-transport/src/transport/tests.rs` | outcome tracker, response cap, destination resolve, reject cadence, link proof strategy |
+| `crates/libs/rns-transport/src/transport/tests_parts/two_transport_shared_instance_dial_failures.rs` | dial failures |
+| `crates/libs/rns-transport/src/transport/tests_parts/two_transport_shared_instance_probe16.rs` | dial failures |
+| `crates/libs/rns-transport/src/transport/tests_parts/two_transport_shared_instance_reconnect.rs` | dial failures |
+| `crates/libs/rns-transport/src/transport/tests_parts/two_transport_shared_instance_state_events.rs` | dial failures |
+| `crates/libs/rns-transport/src/transport/tests_parts/two_transport_shared_instance_state_events_probe.rs` | dial failures |
+| `crates/libs/rns-transport/src/transport/tests_parts/two_transport_shared_instance_state_events_probe4.rs` | dial failures |
 | `crates/libs/rns-transport/tests/destination_desc_api.rs` | destination resolve |
+| `crates/libs/rns-transport/tests/dial_failure_events_api.rs` | dial failures |
 | `crates/libs/rns-transport/tests/link_proof_strategy_api.rs` | link proof strategy |
 | `crates/libs/rns-transport/tests/request_handler_api.rs` | outcome tracker |
 | `crates/libs/rns-transport/tests/resolve_destination_deadline_api.rs` | destination resolve |
@@ -635,6 +655,52 @@ rustdoc, the loopback closed-link pin, the changelog and the README proof
 section say a closed link reads `ConnectionError` only until the 1 s
 link-maintenance pass evicts it, after which it is unknown and reads
 `InvalidArgument`.
+
+Fork commits `61429992`, `874c871b`, `aa6d2fac` and `593fa930`: K7, dial
+failures. The library behaviour changes are: a stream client reports each
+failed connect attempt with a typed reason, the shared-instance state stream
+carries it, and an attach can be told to give up when the first connect does
+not come. `61429992` adds `iface::events` (`iface/events.rs`, registered in
+`iface.rs`, re-exported from `transport/mod.rs`) with `DialFailureKind`
+(`Timeout`, `Refused`, `NotFound`, `Io(ErrorKind)`, the last never carrying
+the three named kinds), `DialFailure` (the interface address and the kind of
+one failed attempt, private fields) and `DisconnectReason`, reserved for the
+clients' disconnect reporting and emitted by none yet; adds
+`TcpClient::with_dial_failure_events` (`iface/tcp_client.rs`) and
+`LocalUnixClient::with_dial_failure_events` (`iface/local.rs`), which send
+one `DialFailure` per failed attempt with the connect events' debug-on-full
+discipline; and has the TCP connect loop keep the failure apart from the
+stream result, so the "couldn't connect" warn carries the io error's text,
+or the elapsed connect timeout, where it dropped both before. `874c871b`
+adds `SharedInstanceEvent::DialFailed { reason }`
+(`transport/shared_instance.rs`), sent once per failed attempt by the
+client the attach spawned; has the reconnect consumer
+(`links_parts/transport_sections/shared_instance_reconnect.rs`) take the
+client's dial-failure receiver as a fourth channel, served last in the
+biased select and in the post-exit drain, which moves to
+`shared_instance_reconnect_parts/drain_queued.rs`; adds
+`SharedInstanceOptions::with_first_connect_timeout`, under which
+`attach_shared_instance` (`links_parts/transport_sections/shared_instance.rs`)
+waits for the first served connect after the tunnel is synthesized and,
+without one, detaches and returns the new
+`RnsError::SharedInstanceConnectTimeout` (`error.rs`); and has the
+hand-driven consumer callers and the state-event pins in `tests_parts` take
+the new channel, read cycle events past any `DialFailed`, and count the
+full-channel drops without them. `aa6d2fac` adds
+`tests/dial_failure_events_api.rs` (both clients report two failures with
+the expected kind and the interface address, the TCP warn carries
+"Connection refused", and the connect fires once the socket is bound with
+no failure after it; `DialFailure` is `Copy + Send + Sync` and
+`SharedInstanceEvent` stays `Copy`) and
+`two_transport_shared_instance_dial_failures.rs`, included from `tests.rs`
+(`Connecting` then `DialFailed` per attempt over TCP and unix, `Connected`
+once the socket exists, the first-connect timeout against a closed port and
+its positive control, the hand-driven consumer serving dial failures last).
+`593fa930` describes all of it in the README shared-instance section and the
+changelog, adds `iface/events.rs` to the docs contract's fork-new walk set,
+`DialFailure` to its private-field structs, both enums to its
+`#[non_exhaustive]` list and the three builders to its cited-rustdoc list,
+and pins the new README needles with a changelog twin.
 
 ## 0.17.0 (upstream 0.14.0)
 

@@ -9,7 +9,9 @@
 //! once for the binary, that each failed attempt warns with the endpoint
 //! and the io error's own text, "Connection refused" for a closed port, so
 //! a reader of the log can tell a refusal from a timeout; the records are
-//! attributed by the endpoint they name. The last pin holds at compile time that `DialFailure` is
+//! attributed by the endpoint they name. Both clients answer
+//! `dial_failure_events_enabled()` false until the builder sets the channel.
+//! The last pin holds at compile time that `DialFailure` is
 //! `Copy + Send + Sync` and that `SharedInstanceEvent` stayed `Copy` with its
 //! new `DialFailed` variant.
 
@@ -62,7 +64,7 @@ fn install_capture_logger() {
     });
 }
 
-/// Every captured warn whose message starts with the failed-dial line for `endpoint`.
+/// Every captured warn whose message contains the failed-dial line for `endpoint`.
 fn failed_dial_warns(endpoint: &str) -> Vec<String> {
     let needle = format!("couldn't connect to <{endpoint}>: ");
     CAPTURED
@@ -75,6 +77,7 @@ fn failed_dial_warns(endpoint: &str) -> Vec<String> {
         .collect()
 }
 
+#[deny(clippy::await_holding_invalid_type)]
 async fn recv_within<T>(what: &str, rx: &mut mpsc::Receiver<T>) -> T {
     timeout(Duration::from_secs(2), rx.recv())
         .await
@@ -85,6 +88,7 @@ async fn recv_within<T>(what: &str, rx: &mut mpsc::Receiver<T>) -> T {
 /// Once the connect has fired, the dial-failure channel must stay quiet; a
 /// grace window of several reconnect waits is the only witness an absence
 /// test can have.
+#[deny(clippy::await_holding_invalid_type)]
 async fn assert_silent<T>(what: &str, rx: &mut mpsc::Receiver<T>) {
     assert!(
         timeout(Duration::from_millis(300), rx.recv()).await.is_err(),
@@ -92,6 +96,7 @@ async fn assert_silent<T>(what: &str, rx: &mut mpsc::Receiver<T>) {
     );
 }
 
+#[deny(clippy::await_holding_invalid_type)]
 async fn free_loopback_port() -> u16 {
     let probe = TcpListener::bind("127.0.0.1:0").await.expect("bind probe");
     let port = probe.local_addr().expect("probe address").port();
@@ -101,6 +106,7 @@ async fn free_loopback_port() -> u16 {
 
 /// Two failures in a row with the expected kind on `iface`: the client
 /// keeps dialing, one event per attempt.
+#[deny(clippy::await_holding_invalid_type)]
 async fn assert_two_failures(
     rx: &mut mpsc::Receiver<DialFailure>,
     iface: AddressHash,
@@ -114,6 +120,7 @@ async fn assert_two_failures(
 }
 
 #[tokio::test]
+#[deny(clippy::await_holding_invalid_type)]
 async fn tcp_client_reports_refused_dials_until_a_listener_binds_the_port() {
     install_capture_logger();
     let port = free_loopback_port().await;
@@ -122,8 +129,10 @@ async fn tcp_client_reports_refused_dials_until_a_listener_binds_the_port() {
     let (connect_tx, mut connect_rx) = mpsc::channel(4);
     let client = TcpClient::new(addr.clone())
         .with_reconnect_wait(RECONNECT_WAIT)
-        .with_connect_events(connect_tx)
-        .with_dial_failure_events(failure_tx);
+        .with_connect_events(connect_tx);
+    assert!(!client.dial_failure_events_enabled(), "no dial-failure channel by default");
+    let client = client.with_dial_failure_events(failure_tx);
+    assert!(client.dial_failure_events_enabled(), "the builder sets the channel");
 
     let mut manager = InterfaceManager::new(8);
     let context = manager.new_context(client);
@@ -163,6 +172,7 @@ async fn tcp_client_reports_refused_dials_until_a_listener_binds_the_port() {
 
 #[cfg(unix)]
 #[tokio::test]
+#[deny(clippy::await_holding_invalid_type)]
 async fn local_unix_client_reports_not_found_dials_until_the_socket_is_bound() {
     let dir = tempfile::tempdir().expect("socket dir");
     let socket = dir.path().join("never-bound.sock");
@@ -170,8 +180,10 @@ async fn local_unix_client_reports_not_found_dials_until_the_socket_is_bound() {
     let (connect_tx, mut connect_rx) = mpsc::channel(4);
     let client = LocalUnixClient::new_connect(LocalUnixEndpoint::filesystem(&socket))
         .with_reconnect_wait(RECONNECT_WAIT)
-        .with_connect_events(connect_tx)
-        .with_dial_failure_events(failure_tx);
+        .with_connect_events(connect_tx);
+    assert!(!client.dial_failure_events_enabled(), "no dial-failure channel by default");
+    let client = client.with_dial_failure_events(failure_tx);
+    assert!(client.dial_failure_events_enabled(), "the builder sets the channel");
 
     let mut manager = InterfaceManager::new(8);
     let context = manager.new_context(client);

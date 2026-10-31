@@ -1,9 +1,10 @@
-// Usage probes for the shared-instance state stream beyond the single restart cycle: a
+// Coverage for the shared-instance state stream beyond the single restart cycle: a
 // `Transport::stop` ends the stream without a `Disconnected`, a refused attach (remote
 // endpoint, or the slot already taken) sends nothing and drops the sender, a receiver the
 // caller let go does not stall the consumer (the restart is still served and the
-// re-announce lands), two restarts in a row read two whole cycles with nothing in between,
-// and a detach taken while the client is still dialing ends the stream with no `Connected`.
+// re-announce lands), two restarts in a row read two whole cycles with nothing in between
+// (the `DialFailed` of the refused redials aside), and a detach taken while the client is
+// still dialing ends the stream with no `Connected`.
 // Helpers come from the sibling `tests_parts` files included into this module.
 
 /// A client stopped while connected: the stream ends and reads no `Disconnected` first,
@@ -142,15 +143,19 @@ async fn shared_instance_state_dropped_receiver_keeps_the_consumer_serving() {
 
 /// Two restarts on the same port: the stream reads two whole `Disconnected`, `Connecting`,
 /// `Connected` cycles after the attach's pair, each `Connected` only once the listener is
-/// back, with nothing else in between, and ends on the detach.
+/// back, with nothing else in between (the `DialFailed` of the refused redials aside), and
+/// ends on the detach.
 #[tokio::test]
 #[deny(clippy::await_holding_invalid_type)]
 async fn shared_instance_state_events_follow_two_tcp_restarts() {
     let mut server = shared_instance_server().await;
     let port = server.port;
-    let (client, mut events) =
-        shared_instance_state_client("shared-instance-state-two-cycles", server.endpoint(), 8)
-            .await;
+    let (client, mut events) = shared_instance_state_client(
+        "shared-instance-state-two-cycles",
+        server.endpoint(),
+        SHARED_INSTANCE_STATE_REDIAL_CAPACITY,
+    )
+    .await;
     server.await_accepted_connections(1).await;
     assert_eq!(
         shared_instance_state_next(&mut events).await,
@@ -180,7 +185,7 @@ async fn shared_instance_state_events_follow_two_tcp_restarts() {
         server = shared_instance_server_on(port).await;
         server.await_accepted_connections(1).await;
         assert_eq!(
-            shared_instance_state_next(&mut events).await,
+            shared_instance_state_next_cycle_event(&mut events).await,
             Some(SharedInstanceEvent::Connected),
             "cycle {cycle}"
         );
@@ -193,9 +198,10 @@ async fn shared_instance_state_events_follow_two_tcp_restarts() {
     timeout(STOP_TIMEOUT, server.transport.stop()).await.expect("shared instance stop completes");
 }
 
-/// A detach taken while nothing listens: the stream read `Connecting` alone and ends on the
-/// detach, no `Connected` or `Disconnected` follows even once a shared instance binds the
-/// port, and the posture and slot are released.
+/// A detach taken while nothing listens: the stream read `Connecting` alone (the
+/// `DialFailed` of the refused redials aside) and ends on the detach, no `Connected` or
+/// `Disconnected` follows even once a shared instance binds the port, and the posture and
+/// slot are released.
 #[tokio::test]
 #[deny(clippy::await_holding_invalid_type)]
 async fn shared_instance_state_detach_while_connecting_ends_the_stream() {
@@ -203,7 +209,7 @@ async fn shared_instance_state_detach_while_connecting_ends_the_stream() {
     let (client, mut events) = shared_instance_state_client(
         "shared-instance-state-detach-dialing",
         SharedInstanceEndpoint::Tcp(SocketAddr::from(([127, 0, 0, 1], port))),
-        8,
+        SHARED_INSTANCE_STATE_REDIAL_CAPACITY,
     )
     .await;
     assert_eq!(
@@ -212,7 +218,11 @@ async fn shared_instance_state_detach_while_connecting_ends_the_stream() {
     );
 
     assert!(client.transport.detach_shared_instance().await, "the attach is in place");
-    assert_eq!(shared_instance_state_next(&mut events).await, None, "the detach ends the stream");
+    assert_eq!(
+        shared_instance_state_next_cycle_event(&mut events).await,
+        None,
+        "the detach ends the stream"
+    );
     shared_instance_assert_released(&client.transport, client.iface).await;
 
     let server = shared_instance_server_on(port).await;

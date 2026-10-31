@@ -5,7 +5,9 @@
 // no `DialFailed` after it; with `with_first_connect_timeout` the attach that sees no
 // connect in time detaches and returns `SharedInstanceConnectTimeout`, the stream ending
 // after `Connecting` and the failures, while a listening server keeps the attach `Ok`.
-// Helpers come from the sibling `tests_parts` files included into this module.
+// The hand-driven consumer pins the dial-failure arm live and in the drain, and the
+// first-connect notifier whose receiver stopped waiting. Helpers come from the sibling
+// `tests_parts` files included into this module.
 
 /// Reads `DialFailed { reason }` events until `count` have arrived; any other event fails.
 #[deny(clippy::await_holding_invalid_type)]
@@ -16,7 +18,7 @@ async fn shared_instance_expect_dial_failures(
 ) {
     for attempt in 1..=count {
         assert_eq!(
-            shared_instance_state_next_any(events).await,
+            shared_instance_state_next(events).await,
             Some(SharedInstanceEvent::DialFailed { reason }),
             "attempt {attempt}"
         );
@@ -30,7 +32,7 @@ async fn shared_instance_expect_connected_then_quiet(
     events: &mut tokio::sync::mpsc::Receiver<SharedInstanceEvent>,
 ) {
     loop {
-        match shared_instance_state_next_any(events).await {
+        match shared_instance_state_next(events).await {
             Some(SharedInstanceEvent::Connected) => break,
             Some(SharedInstanceEvent::DialFailed { .. }) => continue,
             other => panic!("expected DialFailed or Connected before the bind, got {other:?}"),
@@ -58,7 +60,7 @@ async fn shared_instance_dial_failures_read_refused_until_the_tcp_listener_binds
     )
     .await;
     assert_eq!(
-        shared_instance_state_next_any(&mut events).await,
+        shared_instance_state_next(&mut events).await,
         Some(SharedInstanceEvent::Connecting)
     );
     shared_instance_expect_dial_failures(&mut events, DialFailureKind::Refused, 2).await;
@@ -91,7 +93,7 @@ async fn shared_instance_dial_failures_read_not_found_until_the_unix_socket_is_b
     )
     .await;
     assert_eq!(
-        shared_instance_state_next_any(&mut events).await,
+        shared_instance_state_next(&mut events).await,
         Some(SharedInstanceEvent::Connecting)
     );
     shared_instance_expect_dial_failures(&mut events, DialFailureKind::NotFound, 2).await;
@@ -138,6 +140,10 @@ async fn shared_instance_first_connect_timeout_detaches_when_nothing_listens() {
     let read = shared_instance_state_read_to_end(&mut events).await;
     assert_eq!(read.first(), Some(&SharedInstanceEvent::Connecting), "{read:?}");
     assert!(
+        read.len() >= 2,
+        "a 300 ms wait over 100 ms redials on loopback reads at least one refusal: {read:?}"
+    );
+    assert!(
         read[1..].iter().all(|event| matches!(event, SharedInstanceEvent::DialFailed { .. })),
         "only dial failures follow Connecting: {read:?}"
     );
@@ -169,11 +175,11 @@ async fn shared_instance_first_connect_timeout_passes_when_the_server_listens() 
     .await;
     shared_instance_assert_attached(&client.transport, client.iface).await;
     assert_eq!(
-        shared_instance_state_next_any(&mut events).await,
+        shared_instance_state_next(&mut events).await,
         Some(SharedInstanceEvent::Connecting)
     );
     assert_eq!(
-        shared_instance_state_next_any(&mut events).await,
+        shared_instance_state_next(&mut events).await,
         Some(SharedInstanceEvent::Connected)
     );
 
@@ -181,8 +187,9 @@ async fn shared_instance_first_connect_timeout_passes_when_the_server_listens() 
     timeout(STOP_TIMEOUT, server.transport.stop()).await.expect("shared instance stop completes");
 }
 
-/// The hand-driven consumer turns a queued dial failure into `DialFailed` with its kind,
-/// behind the disconnect and the connect queued with it, live and in the drain alike.
+/// The hand-driven consumer turns the queued dial failures into `DialFailed` with their
+/// kinds in the drain, behind the disconnect served live and the connect drained ahead of
+/// them; the live arm is pinned by `shared_instance_state_consumer_serves_a_dial_failure_live`.
 #[tokio::test]
 #[deny(clippy::await_holding_invalid_type)]
 async fn shared_instance_state_consumer_serves_dial_failures_last() {
@@ -203,6 +210,7 @@ async fn shared_instance_state_consumer_serves_dial_failures_last() {
                 Queued::DialFailure(DialFailureKind::Refused),
             ],
             cancel_before_run: false,
+            first_connect_abandoned: false,
             exits: "the consumer exits once the channels are closed",
         },
     )
@@ -216,5 +224,62 @@ async fn shared_instance_state_consumer_serves_dial_failures_last() {
             SharedInstanceEvent::DialFailed { reason: DialFailureKind::Refused },
             SharedInstanceEvent::DialFailed { reason: DialFailureKind::Timeout },
         ]
+    );
+}
+
+/// The live dial-failure arm: with the other three senders still open, only the
+/// dial-failure sender is gone, so the biased select reaches its arm with the queued
+/// failure, serves it, and leaves on the `None` behind it with nothing left to drain. The
+/// absent drain record is what tells the live arm from the drain.
+#[tokio::test]
+#[deny(clippy::await_holding_invalid_type)]
+async fn shared_instance_state_consumer_serves_a_dial_failure_live() {
+    install_test_logger();
+    let name = "shared-instance-state-consumer-dial-failure-live";
+    let read = shared_instance_state_drive_consumer_with(
+        name,
+        DriveSpec {
+            queued: &[Queued::DialFailure(DialFailureKind::Refused)],
+            close_before_run: &[Queued::DialFailure(DialFailureKind::Refused)],
+            cancel_before_run: false,
+            first_connect_abandoned: false,
+            exits: "the consumer exits once the dial-failure channel is drained and closed",
+        },
+    )
+    .await;
+    assert_eq!(read, [SharedInstanceEvent::DialFailed { reason: DialFailureKind::Refused }]);
+    let records: Vec<String> =
+        shared_instance_records_for(name).into_iter().map(|(_, record)| record).collect();
+    assert!(
+        !records.iter().any(|record| record.contains("drained")),
+        "the failure was served live, not drained: {records:?}"
+    );
+}
+
+/// A first-connect notifier whose receiver is already gone when the connect is served: the
+/// attach stopped waiting (its timeout ran out, or a stop or detach ended it), so the
+/// consumer records that at debug, still sends `Connected`, and keeps serving.
+#[tokio::test]
+#[deny(clippy::await_holding_invalid_type)]
+async fn shared_instance_state_consumer_notes_a_connect_after_the_attach_stopped_waiting() {
+    install_test_logger();
+    let name = "shared-instance-state-consumer-late-first-connect";
+    let read = shared_instance_state_drive_consumer_with(
+        name,
+        DriveSpec {
+            queued: &[Queued::Connect],
+            close_before_run: &[Queued::Reconnect],
+            cancel_before_run: false,
+            first_connect_abandoned: true,
+            exits: "the consumer exits once the reconnect channel is closed",
+        },
+    )
+    .await;
+    assert_eq!(read, [SharedInstanceEvent::Connected]);
+    let records: Vec<String> =
+        shared_instance_records_for(name).into_iter().map(|(_, record)| record).collect();
+    assert!(
+        records.iter().any(|record| record.contains("connected after the attach stopped waiting")),
+        "{records:?}"
     );
 }

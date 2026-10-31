@@ -10,28 +10,33 @@
 /// How long a client attached to a closed port is watched for an event that must not come.
 const SHARED_INSTANCE_STATE_QUIET: Duration = Duration::from_millis(500);
 
-/// Reads the next cycle event (`Connecting`, `Connected`, `Disconnected`) within
-/// `LOOPBACK_TIMEOUT`; `None` is the stream's end. A `DialFailed` is skipped: a restart
-/// pin cares about the cycle order, and whether the redial beat the rebind is a race.
+/// The state channel capacity a pin that dials a closed port passes: the client redials
+/// every `SHARED_INSTANCE_RECONNECT_WAIT` (100 ms) and each refusal queues a `DialFailed`
+/// that nobody drains while the pin waits on the rebind.
+const SHARED_INSTANCE_STATE_REDIAL_CAPACITY: usize = 64;
+
+/// Reads the next state event within `LOOPBACK_TIMEOUT`; `None` is the stream's end.
 #[deny(clippy::await_holding_invalid_type)]
 async fn shared_instance_state_next(
     events: &mut tokio::sync::mpsc::Receiver<SharedInstanceEvent>,
 ) -> Option<SharedInstanceEvent> {
+    timeout(LOOPBACK_TIMEOUT, events.recv()).await.expect("timed out waiting for a state event")
+}
+
+/// Reads the next cycle event (`Connecting`, `Connected`, `Disconnected`) within
+/// `LOOPBACK_TIMEOUT`; `None` is the stream's end. A `DialFailed` is skipped, so this is
+/// for the reads a client makes while nothing listens: whether a redial was refused before
+/// the rebind landed is a race, and the cycle order is what such a pin cares about.
+#[deny(clippy::await_holding_invalid_type)]
+async fn shared_instance_state_next_cycle_event(
+    events: &mut tokio::sync::mpsc::Receiver<SharedInstanceEvent>,
+) -> Option<SharedInstanceEvent> {
     loop {
-        match shared_instance_state_next_any(events).await {
+        match shared_instance_state_next(events).await {
             Some(SharedInstanceEvent::DialFailed { .. }) => continue,
             other => return other,
         }
     }
-}
-
-/// Reads the next state event of any kind within `LOOPBACK_TIMEOUT`; `None` is the
-/// stream's end.
-#[deny(clippy::await_holding_invalid_type)]
-async fn shared_instance_state_next_any(
-    events: &mut tokio::sync::mpsc::Receiver<SharedInstanceEvent>,
-) -> Option<SharedInstanceEvent> {
-    timeout(LOOPBACK_TIMEOUT, events.recv()).await.expect("timed out waiting for a state event")
 }
 
 /// Watches `events` for `SHARED_INSTANCE_STATE_QUIET` and fails on any cycle event or on the
@@ -94,13 +99,17 @@ async fn shared_instance_state_client(
 /// The TCP shared instance goes away and comes back on the same port: the stream reads
 /// `Connecting`, `Connected`, then `Disconnected`, `Connecting` with the connected posture
 /// and the slot untouched, then `Connected` on the restart, and ends on the detach with
-/// nothing else in between.
+/// nothing else in between (the `DialFailed` of the refused redials aside).
 #[tokio::test]
 #[deny(clippy::await_holding_invalid_type)]
 async fn shared_instance_state_events_follow_a_tcp_restart() {
     let server = shared_instance_server().await;
-    let (client, mut events) =
-        shared_instance_state_client("shared-instance-state-tcp", server.endpoint(), 8).await;
+    let (client, mut events) = shared_instance_state_client(
+        "shared-instance-state-tcp",
+        server.endpoint(),
+        SHARED_INSTANCE_STATE_REDIAL_CAPACITY,
+    )
+    .await;
     server.await_accepted_connections(1).await;
     shared_instance_assert_attached(&client.transport, client.iface).await;
     assert_eq!(
@@ -127,7 +136,10 @@ async fn shared_instance_state_events_follow_a_tcp_restart() {
 
     let restarted = shared_instance_server_on(port).await;
     restarted.await_accepted_connections(1).await;
-    assert_eq!(shared_instance_state_next(&mut events).await, Some(SharedInstanceEvent::Connected));
+    assert_eq!(
+        shared_instance_state_next_cycle_event(&mut events).await,
+        Some(SharedInstanceEvent::Connected)
+    );
 
     assert!(client.transport.detach_shared_instance().await, "the attach is in place");
     assert_eq!(shared_instance_state_next(&mut events).await, None, "the detach ends the stream");
@@ -149,12 +161,13 @@ enum Queued {
 
 /// How a hand-built consumer is driven: the events queued, in order, before it first polls;
 /// the senders already gone by then (the rest go after it returns); whether the consumer's
-/// cancel token is cancelled before the poll; and what the consumer's exit within
-/// `STOP_TIMEOUT` pins.
+/// cancel token is cancelled before the poll; whether it is handed a first-connect notifier
+/// whose receiver is already gone; and what the consumer's exit within `STOP_TIMEOUT` pins.
 struct DriveSpec<'a> {
     queued: &'a [Queued],
     close_before_run: &'a [Queued],
     cancel_before_run: bool,
+    first_connect_abandoned: bool,
     exits: &'a str,
 }
 
@@ -205,9 +218,14 @@ async fn shared_instance_state_drive_consumer_with(
     if spec.cancel_before_run {
         cancel.cancel();
     }
+    let first_connect = spec.first_connect_abandoned.then(|| {
+        let (notify, waiting) = tokio::sync::oneshot::channel();
+        drop(waiting);
+        notify
+    });
     timeout(
         STOP_TIMEOUT,
-        consumer.run(reconnects, connects, disconnects, dial_failures, Some(state_tx), None),
+        consumer.run(reconnects, connects, disconnects, dial_failures, Some(state_tx), first_connect),
     )
     .await
     .expect(spec.exits);
@@ -239,6 +257,7 @@ async fn shared_instance_state_drive_consumer(
             queued,
             close_before_run: &[Queued::Reconnect],
             cancel_before_run: false,
+            first_connect_abandoned: false,
             exits: "the consumer exits once the reconnect channel is drained and closed",
         },
     )
@@ -302,7 +321,7 @@ async fn shared_instance_state_events_wait_in_connecting_while_the_listener_is_d
     let (client, mut events) = shared_instance_state_client(
         "shared-instance-state-down",
         SharedInstanceEndpoint::Tcp(SocketAddr::from(([127, 0, 0, 1], port))),
-        8,
+        SHARED_INSTANCE_STATE_REDIAL_CAPACITY,
     )
     .await;
     assert_eq!(
@@ -322,7 +341,10 @@ async fn shared_instance_state_events_wait_in_connecting_while_the_listener_is_d
 
     let server = shared_instance_server_on(port).await;
     server.await_accepted_connections(1).await;
-    assert_eq!(shared_instance_state_next(&mut events).await, Some(SharedInstanceEvent::Connected));
+    assert_eq!(
+        shared_instance_state_next_cycle_event(&mut events).await,
+        Some(SharedInstanceEvent::Connected)
+    );
 
     timeout(STOP_TIMEOUT, client.transport.stop()).await.expect("client stop completes");
     timeout(STOP_TIMEOUT, server.transport.stop()).await.expect("shared instance stop completes");
@@ -340,7 +362,7 @@ async fn shared_instance_state_events_follow_a_unix_restart() {
     let (client, mut events) = shared_instance_state_client(
         "shared-instance-state-unix",
         SharedInstanceEndpoint::Unix(LocalUnixEndpoint::filesystem(socket.clone())),
-        8,
+        SHARED_INSTANCE_STATE_REDIAL_CAPACITY,
     )
     .await;
     let (stream, _) = timeout(LOOPBACK_TIMEOUT, listener.accept())
@@ -376,7 +398,10 @@ async fn shared_instance_state_events_follow_a_unix_restart() {
         .await
         .expect("timed out waiting for the unix client to redial")
         .expect("accept");
-    assert_eq!(shared_instance_state_next(&mut events).await, Some(SharedInstanceEvent::Connected));
+    assert_eq!(
+        shared_instance_state_next_cycle_event(&mut events).await,
+        Some(SharedInstanceEvent::Connected)
+    );
 
     assert!(client.transport.detach_shared_instance().await, "the attach is in place");
     assert_eq!(shared_instance_state_next(&mut events).await, None, "the detach ends the stream");

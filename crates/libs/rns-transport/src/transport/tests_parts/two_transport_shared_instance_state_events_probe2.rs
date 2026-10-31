@@ -66,6 +66,7 @@ async fn shared_instance_state_consumer_serves_a_queued_drop_before_the_stream_e
             queued: &[Queued::Disconnect],
             close_before_run: &[Queued::Reconnect, Queued::Connect, Queued::Disconnect],
             cancel_before_run: false,
+            first_connect_abandoned: false,
             exits: "the consumer exits once the queued drop is served and the channels are closed",
         },
     )
@@ -100,6 +101,7 @@ async fn shared_instance_state_consumer_nests_the_cycles_under_a_storm() {
             ],
             close_before_run: &[Queued::Reconnect],
             cancel_before_run: false,
+            first_connect_abandoned: false,
             exits: "the consumer exits once the reconnect channel is drained and closed",
         },
     )

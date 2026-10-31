@@ -7,7 +7,8 @@
 //! no proof until the application calls `Transport::prove_link_packet`, after which the sender
 //! sees exactly one `LinkEvent::PacketProven` for that hash; `Link::prove_hash` builds a
 //! `Proof` packet addressed to the link; an unknown link id is `InvalidArgument` and a link
-//! whose interface is gone is `ConnectionError`, never `InvalidArgument`; a link accepted
+//! whose interface is gone is `ConnectionError`, never `InvalidArgument`, as is a link the
+//! application closed locally, whose proof never leaves; a link accepted
 //! under `App` asks the callback it copied at accept per packet and keeps it after the
 //! destination changes strategy and callback. The in-crate
 //! `tests_parts` fixtures pin the same behaviour from inside, where `pub(crate)` items are
@@ -544,11 +545,18 @@ async fn none_on_the_destination_reaches_the_accepted_in_link_and_only_the_app_p
         .prove_link_packet(&link_id, &sent)
         .await
         .expect("the application's proof goes out on the link's interface");
-    await_event(&mut pair.out_events, link_id, "the sender's PacketProven", |event| {
-        matches!(event, LinkEvent::PacketProven { packet_hash } if *packet_hash == sent)
-            .then_some(())
-    })
-    .await;
+    let proven =
+        await_event(
+            &mut pair.out_events,
+            link_id,
+            "the sender's PacketProven",
+            |event| match event {
+                LinkEvent::PacketProven { packet_hash } => Some(*packet_hash),
+                _ => None,
+            },
+        )
+        .await;
+    assert_eq!(proven, sent, "the sender's PacketProven names the packet the application proved");
     assert!(
         proven_after_quiet(&mut pair.out_events, link_id).await.is_empty(),
         "exactly one PacketProven: the application's proof is not repeated"
@@ -563,7 +571,7 @@ async fn none_on_the_destination_reaches_the_accepted_in_link_and_only_the_app_p
 /// pending) and then proves. `prove_link_packet` answers `ConnectionError` and, the part the
 /// error alone cannot show, no proof leaves on the still-bound interface: the sender never
 /// sees `PacketProven`. The sibling `None` test above is the positive control that a proof
-/// sent on this very pair does reach the sender as `PacketProven`.
+/// sent on an identically built pair does reach the sender as `PacketProven`.
 #[tokio::test]
 #[deny(clippy::await_holding_invalid_type)]
 async fn a_closed_in_link_refuses_the_proof_and_lets_none_reach_the_sender() {

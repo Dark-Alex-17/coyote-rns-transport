@@ -47,7 +47,8 @@ commits `355a0ddf`, `ca32feac`, `223cdd80`, `716fb2be`, `f43321f4`,
 `3be3b15c`, `719067c4`, `07e98279`, `a02ba4b7`, `bcee2bff` and `7cba2066`;
 the `dial failures` patch is fork commits `61429992`, `874c871b`, `aa6d2fac`,
 `593fa930`, `7fbd176e`, `7eab8566`, `c492846d`, `9a13ade9`, `74279dfb`,
-`b0635aea`, `8fc49d91`, `dd31f874` and `59b0ee7c`.
+`b0635aea`, `8fc49d91`, `dd31f874`, `59b0ee7c`, `986dca4a`, `5188138e` and
+`8f348131`.
 
 | File | Patch |
 | --- | --- |
@@ -131,6 +132,7 @@ the `dial failures` patch is fork commits `61429992`, `874c871b`, `aa6d2fac`,
 | `crates/libs/rns-transport/tests/destination_desc_api.rs` | destination resolve |
 | `crates/libs/rns-transport/tests/dial_failure_channel_probe.rs` | dial failures |
 | `crates/libs/rns-transport/tests/dial_failure_events_api.rs` | dial failures |
+| `crates/libs/rns-transport/tests/dial_failure_reason_contract_probe.rs` | dial failures |
 | `crates/libs/rns-transport/tests/link_proof_strategy_api.rs` | link proof strategy, dial failures |
 | `crates/libs/rns-transport/tests/request_handler_api.rs` | outcome tracker |
 | `crates/libs/rns-transport/tests/resolve_destination_deadline_api.rs` | destination resolve |
@@ -664,7 +666,7 @@ link-maintenance pass evicts it, after which it is unknown and reads
 
 Fork commits `61429992`, `874c871b`, `aa6d2fac`, `593fa930`, `7fbd176e`,
 `7eab8566`, `c492846d`, `9a13ade9`, `74279dfb`, `b0635aea`, `8fc49d91`,
-`dd31f874` and `59b0ee7c`:
+`dd31f874`, `59b0ee7c`, `986dca4a`, `5188138e` and `8f348131`:
 K7, dial failures. The library behaviour changes are: a stream
 client reports each failed connect attempt with a typed reason, the
 shared-instance state stream carries it, and an attach can be told to give up
@@ -770,6 +772,29 @@ address, has both first-connect wait arms log the slot-guarded detach's
 empty), lets a stale refusal trail `Connected` by one reconnect wait in the
 dial-failure pins, widens the README-default api pin's state channel to 64
 slots, and names the warn text of the `Timeout` arm in the README.
+`986dca4a` adopts `tests/dial_failure_reason_contract_probe.rs` (both
+reason enums `#[non_exhaustive]`, `Eq` and `Debug` from outside the crate; a
+rustc harness over the linked rlib that compiles the migrated consumer and
+rejects the `isize` cast, a `DialFailure` literal and exhaustive matches;
+the first-connect timeout over an unbound unix path) and folds the unix
+`Io(PermissionDenied)` pin, a bound socket inside a mode-000 directory with
+the OS error's text in the warn, into `tests/dial_failure_events_api.rs`,
+has the two redialing dial-failure pins pass
+`SHARED_INSTANCE_STATE_REDIAL_CAPACITY` where they wrote the literal, turns
+the strict stream-end reads that follow a leniently read redial-era
+`Connected` into `shared_instance_state_next_cycle_event` reads, and names
+that second use in the helper's doc. `5188138e` renames the shadowing
+`try_send` error in `iface/local.rs` to `send_err` and the attach's local
+timeout binding to `first_connect_timeout`, adds `kind=` to the
+consumer-gone debug line, and has the three consumer-gone rustdoc twins name
+`stop_interface` beside stop and detach. `8f348131` cites the adopted probes
+and the unix `Io(PermissionDenied)` pin in the changelog's `iface::events`,
+`with_dial_failure_events` and `with_first_connect_timeout` bullets, says
+the drain serves dial failures behind disconnects and connects while
+reconnects are served live only, records the `8fc49d91` rustfmt pass as a
+test-only Changed bullet, ends the README's closed-link prove sentence on
+`InvalidArgument`, and pins the new cites and the "connect timed out after"
+warn text in `crate_readme_sections.rs`.
 
 ## 0.17.0 (upstream 0.14.0)
 

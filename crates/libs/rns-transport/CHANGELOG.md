@@ -86,6 +86,11 @@ Removed) bullet of its own, marked as such.
   answering `None` under a cap stays `NotSent` with no refusal warn; and
   `Transport::send_response` goes out untouched by a cap that would refuse
   the same frame from a handler), by
+  `two_transport_loopback_requests_response_cap_probe4.rs` (the packet
+  form: the responder measures the `[request_id, body]` frame and the
+  requester the packed body, so a requester cap at the body length admits
+  what a responder cap at the frame length sends, and with both caps at the
+  body length the responder refuses first), by
   `tests/response_cap_tracker_api.rs` (the three accessors from outside
   the crate, a zero cap accepted, `TooLarge` destructured by field), by
   the destination unit test in `destination/tests.rs` (unbounded by
@@ -100,7 +105,7 @@ Removed) bullet of its own, marked as such.
   knows answers at once and no path request goes out. A zero timeout is a
   cached lookup alone and returns `None` for an unknown destination without
   sending anything. Otherwise exactly one path request is attempted, a
-  Broadcast on every outgoing interface as `request_path` sends it, and the call polls
+  `Broadcast` on every outgoing interface as `request_path` sends it, and the call polls
   every 50 ms until the announce is learned or the timeout passes, returning
   `None` after it. The entry read is the one `destination_desc` and
   `destination_identity` read, filled by an accepted announce or a restored
@@ -129,13 +134,15 @@ Removed) bullet of its own, marked as such.
   once with no request; the held-desc-with-expired-path arm answers `Some`
   at once with no request), by `tests/destination_desc_api.rs` (the known,
   the silent-but-reachable and the zero-timeout arms from outside the
-  crate; a miss that returns no sooner than the timeout and within three
-  poll intervals of it and is not remembered against the next lookup; and
-  both splits walked as a consumer would: an expired path answers at once,
-  then `await_path` relearns the next hop and the desc opens a link, and a
-  destination deregistered with a standing path answers `None` until
-  `expire_path` turns it back into the reachable case and one request
-  draws the announce), and by
+  crate; a miss that returns no sooner than the timeout and well before a
+  second budget passes and is not remembered against the next lookup; a
+  transport with no interface at all, which has nothing to broadcast on,
+  answering `None` at once on a zero timeout and missing on the timeout
+  otherwise; and both splits walked as a consumer would: an expired path
+  answers at once, then `await_path` relearns the next hop and the desc
+  opens a link, and a destination deregistered with a standing path answers
+  `None` until `expire_path` turns it back into the reachable case and one
+  request draws the announce), and by
   `crate_readme_sections.rs`, which pins the README link-opening prose for
   the call, both splits included; `request_layer_api_docs.rs` names the
   method among the items whose rustdoc must cite Python or say fork-only.
@@ -180,7 +187,10 @@ Removed) bullet of its own, marked as such.
   `## Unreleased` section beside the released ones; and
   `crate_readme_sections.rs` pins the README request-handler prose for
   `into_parts` and the response cap, including the one sentence that names
-  the requester's and the responder's caps side by side. The README patch
+  the requester's and the responder's caps side by side and the phrases
+  that the caps compose at one number, that a metadata-less Resource
+  measures as its data alone and that an unarmed tracker leaves the slot
+  as it was. The README patch
   list is unchanged: the register of what the next release carries on top
   of `0.17.0` is written at release time. The `assert_nothing_sent_for`
   helper of `two_transport_loopback_requests_response_cap.rs` panics with

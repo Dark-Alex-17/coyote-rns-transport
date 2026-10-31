@@ -50,7 +50,8 @@ impl Destination<PrivateIdentity, Input, Single> {
     /// The strategy a link accepted from now on starts with; see
     /// [`Self::set_link_proof_strategy`]. A link already accepted keeps the
     /// strategy it was given, as `Link::set_proof_strategy` is the only way
-    /// to change it afterwards.
+    /// to change it afterwards. Fork-only: Python's link reads the
+    /// destination's one `proof_strategy` live (`RNS/Link.py:961`).
     pub fn link_proof_strategy(&self) -> ProofStrategy {
         self.link_proof_strategy
     }

@@ -189,6 +189,42 @@ fn crate_readme_link_section_describes_resolve_destination() {
     }
 }
 
+/// The link proof section describes the per-link `ProofStrategy` the way
+/// it behaves: the setter and its `All` default, the destination default
+/// copied onto an accepted link, the deferred proof from the payload's
+/// packet hash, Channel frames proved under every strategy, and the Python
+/// arms the strategy mirrors. The changelog section that names the deferred
+/// call carries the same names.
+#[test]
+fn crate_readme_proof_section_describes_the_link_proof_strategy() {
+    let readme = read_repo_file("crates/libs/rns-transport/README.md");
+    let section = crate_readme_section(&readme, "Delivery proofs on a link");
+    for claim in [
+        "`Link::set_proof_strategy`",
+        "`Link::set_proof_requested_callback`",
+        "`Transport::prove_link_packet`",
+        "`LinkPayload::packet_hash`",
+        "`set_link_proof_strategy`",
+        "`RNS/Link.py:961-968`",
+        "`RNS/Link.py:1151`",
+        "`RNS/Packet.py:336-341`",
+    ] {
+        assert!(section.contains(claim), "the proof section should mention {claim}:\n{section}");
+    }
+    let changelog = read_repo_file("crates/libs/rns-transport/CHANGELOG.md");
+    let changelog_section = changelog_section_naming(&changelog, "`Transport::prove_link_packet`");
+    for claim in [
+        "`LinkPayload::packet_hash`",
+        "`Link::set_proof_strategy`",
+        "`set_link_proof_strategy`",
+        "`Link::prove_hash`",
+        "`two_transport_loopback_link_proof_strategy.rs`",
+        "`python_to_rust_link_proof_strategy.rs`",
+    ] {
+        assert!(changelog_section.contains(claim), "the changelog should mention {claim}");
+    }
+}
+
 /// The link-opening section carries exactly one `rust` fence, the
 /// `destination_desc` snippet, and no fence of any other kind. The block pin
 /// below reads only the first fence, so a second one would slip past it;

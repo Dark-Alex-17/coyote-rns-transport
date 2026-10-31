@@ -282,6 +282,24 @@ delivery signal for a request. A stock Python peer never proves a link
 packet, and Python records and culls its receipts differently (see Known
 divergences).
 
+Whether a link proves a plain Data packet it receives is its `ProofStrategy`
+(`Link::set_proof_strategy`, default `All`, so every link proves unless told
+otherwise). `App` consults a `ProofRequestedHandler` per packet
+(`Link::set_proof_requested_callback`); a link accepted by a destination
+copies `SingleInputDestination::link_proof_strategy` and the destination's
+`proof_requested_callback` at accept (`set_link_proof_strategy`, default
+`All`), while an out-link has no destination to copy from and must be set
+directly. `None` never auto-proves. Channel frames are proved under every
+strategy (`RNS/Link.py:1151`). An application that holds a packet back
+proves it later from `LinkPayload::packet_hash` through
+`Transport::prove_link_packet`, which works under any strategy; under `All`
+it is a second proof the sender ignores, its one record already consumed. A
+Python application does the same with `packet.prove()`
+(`RNS/Packet.py:336-341`), and its link proves by the destination's
+`proof_strategy`, `PROVE_ALL` or `PROVE_APP` (`RNS/Link.py:961-968`), one
+setting that this crate keeps apart from the opportunistic `proof_strategy`
+(see Known divergences).
+
 ## Outbound resource outcomes
 
 `Transport::send_resource_with_outcome`, `send_request_resource_with_outcome`
@@ -743,10 +761,14 @@ parity ledger; the `docs/status/*` matrices are not updated per fork task.
   Python records a `PacketReceipt` for every `DATA` packet outside the
   link-control and Resource contexts, request and response packets included
   (`RNS/Transport.py:1359-1377`).
-- The link always proves plain Data packets. Python proves only under
-  `PROVE_ALL` or `PROVE_APP` (`RNS/Link.py:961-968`) and its default is
-  `PROVE_NONE` (`RNS/Destination.py:161`), so a stock Python peer never
-  sends `PacketProven` here.
+- The link proves plain Data packets by default (`ProofStrategy::All` on
+  every link). Python proves only under `PROVE_ALL` or `PROVE_APP`
+  (`RNS/Link.py:961-968`) and its default is `PROVE_NONE`
+  (`RNS/Destination.py:161`), so a stock Python peer never sends
+  `PacketProven` here. Python has one `proof_strategy` per destination for
+  its opportunistic packets and its links' packets alike
+  (`RNS/Destination.py:360-367`); this crate keeps `proof_strategy` (default
+  `None`) and `link_proof_strategy` (default `All`) apart.
 - A retried Resource advertisement re-sends the identical prepared packet,
   so the receiver's duplicate filter drops it and the
   `ResourceAcceptHook` runs once per advertisement. Python builds a fresh

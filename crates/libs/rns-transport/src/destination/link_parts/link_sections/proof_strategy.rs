@@ -15,6 +15,7 @@ impl Link {
     }
 
     /// The strategy [`Self::set_proof_strategy`] set, `All` until it is called.
+    /// Fork-only: Python reads `self.destination.proof_strategy` (`RNS/Link.py:961`).
     pub fn proof_strategy(&self) -> ProofStrategy {
         self.proof_strategy
     }

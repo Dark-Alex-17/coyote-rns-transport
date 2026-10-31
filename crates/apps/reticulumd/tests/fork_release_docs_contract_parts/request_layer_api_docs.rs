@@ -99,6 +99,46 @@ fn request_layer_public_items_cite_python_or_say_fork_only() {
             "resolve_destination",
         ),
         (
+            "crates/libs/rns-transport/src/transport/links_parts/transport_sections/prove_link_packet.rs",
+            ItemKind::Method,
+            "prove_link_packet",
+        ),
+        (
+            "crates/libs/rns-transport/src/destination/link_parts/link_sections/proof_strategy.rs",
+            ItemKind::Method,
+            "set_proof_strategy",
+        ),
+        (
+            "crates/libs/rns-transport/src/destination/link_parts/link_sections/proof_strategy.rs",
+            ItemKind::Method,
+            "proof_strategy",
+        ),
+        (
+            "crates/libs/rns-transport/src/destination/link_parts/link_sections/proof_strategy.rs",
+            ItemKind::Method,
+            "set_proof_requested_callback",
+        ),
+        (
+            "crates/libs/rns-transport/src/destination/link_parts/link_sections/proof_strategy.rs",
+            ItemKind::Method,
+            "prove_hash",
+        ),
+        (
+            "crates/libs/rns-transport/src/destination_parts/destination.rs",
+            ItemKind::Method,
+            "set_link_proof_strategy",
+        ),
+        (
+            "crates/libs/rns-transport/src/destination_parts/destination.rs",
+            ItemKind::Method,
+            "link_proof_strategy",
+        ),
+        (
+            "crates/libs/rns-transport/src/destination/link/payload.rs",
+            ItemKind::Method,
+            "packet_hash",
+        ),
+        (
             "crates/libs/rns-transport/src/destination/link_parts/link_sections/response_packet.rs",
             ItemKind::Method,
             "expect_response",

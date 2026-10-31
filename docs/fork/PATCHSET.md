@@ -36,8 +36,9 @@ ledger contracts, K4 is destination resolve, K5 is reject cadence. The
 commits `355a0ddf`, `ca32feac`, `223cdd80`, `716fb2be`, `f43321f4`,
 `9eb35226`, `d3b234e6`, `d36f65df`, `813f421a` and `2aca9568`; the `ledger
 contracts` patch is fork commit `ca32feac`; the `destination resolve` patch
-is fork commits `3136f1bf`, `d36f65df`, `813f421a` and `2aca9568`; the
-`reject cadence` patch is fork commits `265d6929`, `d36f65df` and `813f421a`.
+is fork commits `3136f1bf`, `d36f65df`, `813f421a`, `2aca9568` and
+`e0ce05f7`; the `reject cadence` patch is fork commits `265d6929`,
+`d36f65df` and `813f421a`.
 
 | File | Patch |
 | --- | --- |
@@ -127,9 +128,9 @@ slot as it was, so with no earlier `track_outcome` the dispatcher logs
 nothing and resolves nothing.
 
 Fork commits `355a0ddf`, `ca32feac`, `223cdd80`, `716fb2be`, `f43321f4`,
-`9eb35226`, `d3b234e6`, `d36f65df`, `813f421a` and `2aca9568`: K2, response cap.
-The library behaviour changes are: a destination can bound the size of the responses it
-sends. `355a0ddf`
+`9eb35226`, `d3b234e6`, `d36f65df`, `813f421a` and `2aca9568`: K2, response
+cap. The library behaviour changes are: a destination can bound the size of
+the responses it sends. `355a0ddf`
 adds `set_max_response_size`, `clear_max_response_size` and
 `max_response_size` to the single input destination
 (`destination_parts/destination.rs`, the field in
@@ -217,7 +218,11 @@ equal caps admit the response
 with outcome `Resource(Complete)`, a requester cap one under rejects the
 advertisement with `Oversize` and outcome `Rejected(PeerCancelled)`, and a
 responder cap one under resolves `TooLarge { len, max }` with nothing
-sent and one warn. `d3b234e6` adds
+sent and one warn; the flipped pin fails against the previous measure, since
+with the gate reverted to data plus packed metadata the responder-cap arm of
+that test sees the response go out instead of
+`TooLarge { len: measure, max }` and panics there, so the pin discriminates
+the fix. `d3b234e6` adds
 `two_transport_loopback_requests_response_cap_probe3.rs` (included from
 `tests.rs`): a request that arrived as a Resource earns a response measured
 like any other, one byte over the cap refused with `TooLarge` and one at
@@ -254,10 +259,10 @@ Fork commit `ca32feac`: K3, ledger contracts. No library behaviour changes.
 `ca32feac` extends the full-hash ledger pin in `ledger_contract.rs` to the
 reopened `Unreleased` section beside the released ones.
 
-Fork commits `3136f1bf`, `d36f65df`, `813f421a` and `2aca9568`: K4, destination
-resolve. The library behaviour changes are: a caller can look up a destination and wait for its
-path in one call. `3136f1bf` adds `Transport::resolve_destination` in the
-new include
+Fork commits `3136f1bf`, `d36f65df`, `813f421a`, `2aca9568` and `e0ce05f7`:
+K4, destination resolve. The library behaviour changes are: a caller can look
+up a destination and wait for its path in one call. `3136f1bf` adds
+`Transport::resolve_destination` in the new include
 `links_parts/transport_sections/resolve_destination.rs` (registered in
 `links_parts/transport.rs`), which takes an `AddressHash` and a `Duration`
 timeout and returns the `Option<DestinationDesc>` that `destination_desc`
@@ -311,18 +316,27 @@ and
 (a deregistered destination with a standing path answers `None` at once on
 repeated calls with no request, and `expire_path` turns it back into the
 reachable case, one request drawing one path response); tightens the miss
-pin so a miss returns no sooner than the timeout and well before a second
-budget passes; adds needles to `crate_readme_sections.rs` that only the
-README's split sentences carry; and has the rustdoc and the README say the
-one path request is attempted, a `Broadcast` on every outgoing interface,
-since `request_path` records a request only when an interface took it.
+pin so a miss returns no sooner than the timeout and within 150 ms, three
+poll intervals, of it; adds needles to `crate_readme_sections.rs` that only
+the README's split sentences carry; and has the rustdoc and the README say
+the one path request is attempted, a `Broadcast` on every outgoing
+interface, since `request_path` records a request only when an interface
+took it.
 `2aca9568` adds to `tests/destination_desc_api.rs`
 `resolve_destination_without_an_interface_misses_on_the_timeout`: a
 transport with no interface at all answers `None` at once on a zero timeout
 and misses on the timeout otherwise, leaving no path and no desc behind;
 widens both miss bounds to the file's quiet window of 300 ms past the
 budget, so CI load does not flake them; and backticks `Broadcast` in the
-README paragraph as the rustdoc does.
+README paragraph as the rustdoc does. `e0ce05f7` adds to
+`crate_readme_sections.rs`
+`crate_readme_link_section_carries_one_rust_fence` (the link-opening
+section carries one rust fence, the `destination_desc` snippet, and no
+other) and
+`crate_readme_resolve_destination_prose_matches_the_rustdoc_and_the_changelog`
+(the README paragraph, the `Unreleased` changelog bullet and the method's
+rustdoc each say exactly one path request is attempted, a `Broadcast` on
+every outgoing interface, with the message type backticked in all three).
 
 Fork commits `265d6929`, `d36f65df` and `813f421a`: K5, reject cadence. The library
 behaviour changes are: the warn for a request advertisement refused over the

@@ -134,15 +134,15 @@ Removed) bullet of its own, marked as such.
   once with no request; the held-desc-with-expired-path arm answers `Some`
   at once with no request), by `tests/destination_desc_api.rs` (the known,
   the silent-but-reachable and the zero-timeout arms from outside the
-  crate; a miss that returns no sooner than the timeout and well before a
-  second budget passes and is not remembered against the next lookup; a
-  transport with no interface at all, which has nothing to broadcast on,
-  answering `None` at once on a zero timeout and missing on the timeout
-  otherwise; and both splits walked as a consumer would: an expired path
-  answers at once, then `await_path` relearns the next hop and the desc
-  opens a link, and a destination deregistered with a standing path answers
-  `None` until `expire_path` turns it back into the reachable case and one
-  request draws the announce), and by
+  crate; a miss that returns no sooner than the timeout and within the
+  file's 300 ms quiet window of it and is not remembered against the next
+  lookup; a transport with no interface at all, which has nothing to
+  broadcast on, answering `None` at once on a zero timeout and missing on
+  the timeout otherwise; and both splits walked as a consumer would: an
+  expired path answers at once, then `await_path` relearns the next hop and
+  the desc opens a link, and a destination deregistered with a standing
+  path answers `None` until `expire_path` turns it back into the reachable
+  case and one request draws the announce), and by
   `crate_readme_sections.rs`, which pins the README link-opening prose for
   the call, both splits included; `request_layer_api_docs.rs` names the
   method among the items whose rustdoc must cite Python or say fork-only.
@@ -221,7 +221,13 @@ Removed) bullet of its own, marked as such.
   `into_parts` tracker it sits beside; and the module doc of
   `release_0_17_0_probe3.rs` states that its enum pin needs the
   `coyote-rns-transport-v0.17.0` tag in the clone, as the full-depth
-  contracts job has, and fails rather than skips without it.
+  contracts job has, and fails rather than skips without it. The two miss
+  bounds of `tests/destination_desc_api.rs` widen to the file's `QUIET`
+  window, and `crate_readme_sections.rs` gains
+  `crate_readme_link_section_carries_one_rust_fence` (the link-opening
+  section carries one rust fence and no other) and
+  `crate_readme_resolve_destination_prose_matches_the_rustdoc_and_the_changelog`
+  (README, CHANGELOG and rustdoc agree on the attempted-request wording).
 
 ## 0.17.0 - 2026-10-27
 

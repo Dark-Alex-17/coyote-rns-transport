@@ -50,8 +50,8 @@ the `dial failures` patch is fork commits `61429992`, `874c871b`, `aa6d2fac`,
 `b0635aea`, `8fc49d91`, `dd31f874`, `59b0ee7c`, `986dca4a`, `5188138e`,
 `8f348131`, `9c0bb5c6` and `b68ef92c`; the `disconnect reasons` patch is
 fork commits `45bcadfc`, `fdfa83dd`, `f45595c5`, `b819ab22`, `bb247215`,
-`0a8f5cf8`, `cc5c3092`, `3ab8f323`, `200b8810`, `b86af8d6`, `272c3f2c`
-and `a1241d2f`.
+`0a8f5cf8`, `cc5c3092`, `3ab8f323`, `200b8810`, `b86af8d6`, `272c3f2c`,
+`a1241d2f` and `e07d20d2`.
 
 | File | Patch |
 | --- | --- |
@@ -816,9 +816,9 @@ says in `with_state_events` that `DialFailed` interleaves after
 and needles the README wording in `crate_readme_sections.rs`.
 
 Fork commits `45bcadfc`, `fdfa83dd`, `f45595c5`, `b819ab22`, `bb247215`,
-`0a8f5cf8`, `cc5c3092`, `3ab8f323`, `200b8810`, `b86af8d6`, `272c3f2c`
-and `a1241d2f`: K8, disconnect reasons. The library behaviour changes are:
-the HDLC stream runner reports how a stream ended, `TcpClient`
+`0a8f5cf8`, `cc5c3092`, `3ab8f323`, `200b8810`, `b86af8d6`, `272c3f2c`,
+`a1241d2f` and `e07d20d2`: K8, disconnect reasons. The library behaviour
+changes are: the HDLC stream runner reports how a stream ended, `TcpClient`
 and `LocalUnixClient` can send that as a typed `DisconnectReason` on a
 channel of their own beside the plain disconnect event, the shared-instance
 attach installs that channel on its client, and an attach that opts in reads
@@ -903,6 +903,11 @@ stream ended by the transport's receive queue closing fires the plain
 disconnect channel, leaves the reason channel empty and the client
 redials), cites it in the changelog and the README needle list, and puts
 the stream exit on both clients' `disconnected from` info log lines.
+`e07d20d2` makes the Reset pins (the in-crate test and its black-box
+twin) read the redial's tunnel bytes from the second accepted stream
+before the linger-zero close, so the reset can only reach the client as
+a read-side `ConnectionReset`, and tightens the surrounding test rustdoc
+and headers.
 
 ## 0.17.0 (upstream 0.14.0)
 

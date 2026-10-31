@@ -539,19 +539,24 @@ class ChannelClient:
             return 0
 
         if self.payload_kind == "link-data-receipt":
+            # A link receipt times out after max(rtt * 6, 5 ms) and Transport
+            # culls it within a second, which would mark the receipt FAILED
+            # before the Rust peer's deliberately late proof arrives, and the
+            # proof would then be ignored. Raise the link's budget before the
+            # receipt is built and stretch the receipt itself after.
+            active_link.traffic_timeout_factor = max(
+                active_link.traffic_timeout_factor, timeout / max(active_link.rtt, 1e-3)
+            )
             receipt = RNS.Packet(active_link, message_data.encode("utf-8")).send()
             if receipt is False:
                 print("python_channel_client: link packet was not sent", file=sys.stderr, flush=True)
                 return 1
-            # A link receipt times out after max(rtt * 6, 5 ms) and Transport
-            # culls it within a second, which would read a proof the Rust peer
-            # sends on purpose later as FAILED.
             receipt.set_timeout(timeout)
             status_names = {
                 RNS.PacketReceipt.SENT: "SENT",
                 RNS.PacketReceipt.DELIVERED: "DELIVERED",
                 RNS.PacketReceipt.FAILED: "FAILED",
-                RNS.PacketReceipt.CULLED: "FAILED",
+                RNS.PacketReceipt.CULLED: "CULLED",
             }
             sent_at = time.time()
             last_status = None

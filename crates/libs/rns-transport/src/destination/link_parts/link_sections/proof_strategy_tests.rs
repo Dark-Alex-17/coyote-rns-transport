@@ -9,18 +9,28 @@ mod proof_strategy_tests {
     use super::*;
 
     use std::sync::atomic::{AtomicUsize, Ordering};
+    use std::sync::Mutex as StdMutex;
     use tokio::sync::broadcast;
     use tokio::sync::broadcast::error::TryRecvError;
 
-    /// A callback that answers `verdict` and counts how often it was asked.
-    fn counting_callback(verdict: bool) -> (Box<dyn ProofRequestedHandler>, Arc<AtomicUsize>) {
+    /// What a counting callback saw: how often it was asked and the hash of
+    /// the last packet it was handed.
+    struct CallbackRecord {
+        calls: Arc<AtomicUsize>,
+        last_hash: Arc<StdMutex<Option<Hash>>>,
+    }
+
+    /// A callback that answers `verdict` and records each packet it is asked about.
+    fn counting_callback(verdict: bool) -> (Box<dyn ProofRequestedHandler>, CallbackRecord) {
         let calls = Arc::new(AtomicUsize::new(0));
-        let counter = calls.clone();
-        let callback = move |_: &Packet| {
-            counter.fetch_add(1, Ordering::SeqCst);
+        let last_hash = Arc::new(StdMutex::new(None));
+        let record = CallbackRecord { calls: calls.clone(), last_hash: last_hash.clone() };
+        let callback = move |packet: &Packet| {
+            calls.fetch_add(1, Ordering::SeqCst);
+            *last_hash.lock().expect("callback record lock") = Some(packet.hash());
             verdict
         };
-        (Box::new(callback), calls)
+        (Box::new(callback), record)
     }
 
     /// The payload of the first `Data` event on `rx`, skipping everything else.
@@ -66,49 +76,51 @@ mod proof_strategy_tests {
     #[test]
     fn app_with_a_consenting_callback_proves_on_receipt() {
         let (outbound, mut inbound, iface, _) = linked_pair();
-        let (callback, calls) = counting_callback(true);
+        let (callback, record) = counting_callback(true);
         inbound.set_proof_strategy(ProofStrategy::App);
         inbound.set_proof_requested_callback(callback);
         let data = outbound.data_packet(b"ask first").expect("data packet");
 
         assert!(matches!(inbound.handle_packet(&data, iface), LinkHandleResult::Proof(_)));
-        assert_eq!(calls.load(Ordering::SeqCst), 1);
+        assert_eq!(record.calls.load(Ordering::SeqCst), 1);
+        assert_eq!(*record.last_hash.lock().expect("callback record lock"), Some(data.hash()));
     }
 
     #[test]
     fn app_with_a_refusing_callback_is_consulted_and_does_not_prove() {
         let (outbound, mut inbound, iface, _) = linked_pair();
-        let (callback, calls) = counting_callback(false);
+        let (callback, record) = counting_callback(false);
         inbound.set_proof_strategy(ProofStrategy::App);
         inbound.set_proof_requested_callback(callback);
         let data = outbound.data_packet(b"ask first").expect("data packet");
 
         assert!(matches!(inbound.handle_packet(&data, iface), LinkHandleResult::None));
-        assert_eq!(calls.load(Ordering::SeqCst), 1);
+        assert_eq!(record.calls.load(Ordering::SeqCst), 1);
+        assert_eq!(*record.last_hash.lock().expect("callback record lock"), Some(data.hash()));
     }
 
     #[test]
     fn none_never_proves_and_never_asks_the_callback() {
         let (outbound, mut inbound, iface, mut rx) = linked_pair();
-        let (callback, calls) = counting_callback(true);
+        let (callback, record) = counting_callback(true);
         inbound.set_proof_strategy(ProofStrategy::None);
         inbound.set_proof_requested_callback(callback);
         let data = outbound.data_packet(b"silence").expect("data packet");
 
         assert!(matches!(inbound.handle_packet(&data, iface), LinkHandleResult::None));
-        assert_eq!(calls.load(Ordering::SeqCst), 0);
+        assert_eq!(record.calls.load(Ordering::SeqCst), 0);
         assert_eq!(first_data_payload(&mut rx).as_slice(), b"silence");
     }
 
     #[test]
     fn all_proves_without_asking_the_callback() {
         let (outbound, mut inbound, iface, _) = linked_pair();
-        let (callback, calls) = counting_callback(false);
+        let (callback, record) = counting_callback(false);
         inbound.set_proof_requested_callback(callback);
         let data = outbound.data_packet(b"always").expect("data packet");
 
         assert!(matches!(inbound.handle_packet(&data, iface), LinkHandleResult::Proof(_)));
-        assert_eq!(calls.load(Ordering::SeqCst), 0);
+        assert_eq!(record.calls.load(Ordering::SeqCst), 0);
     }
 
     /// A Channel frame is proved under every strategy (`RNS/Link.py:1151`).
@@ -129,17 +141,22 @@ mod proof_strategy_tests {
         }
     }
 
+    /// The proof is a `Proof`-typed link packet addressed to the link id, with
+    /// the wire default `PacketContext::None`, whose data is the proved hash
+    /// followed by this side's signature of it (`RNS/Link.py:378-389`).
     #[test]
-    fn prove_hash_builds_the_same_proof_as_prove_packet() {
+    fn prove_hash_emits_a_context_none_proof_of_hash_and_signature() {
         let (outbound, inbound, _, _) = linked_pair();
-        let data = outbound.data_packet(b"twins").expect("data packet");
+        let hash = outbound.data_packet(b"shape").expect("data packet").hash();
 
-        let by_packet = inbound.prove_packet(&data);
-        let by_hash = inbound.prove_hash(&data.hash());
+        let proof = inbound.prove_hash(&hash);
 
-        assert_eq!(by_hash.header, by_packet.header);
-        assert_eq!(by_hash.destination, by_packet.destination);
-        assert_eq!(by_hash.context, by_packet.context);
-        assert_eq!(by_hash.data.as_slice(), by_packet.data.as_slice());
+        assert_eq!(proof.header.packet_type, PacketType::Proof);
+        assert_eq!(proof.header.destination_type, DestinationType::Link);
+        assert_eq!(proof.context, PacketContext::None);
+        assert_eq!(proof.destination, *inbound.id());
+        let mut expected = hash.to_bytes().to_vec();
+        expected.extend_from_slice(&inbound.priv_identity.sign(&hash.to_bytes()).to_bytes());
+        assert_eq!(proof.data.as_slice(), expected.as_slice());
     }
 }

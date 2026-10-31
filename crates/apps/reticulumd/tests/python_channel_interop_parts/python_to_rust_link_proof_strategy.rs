@@ -15,6 +15,11 @@ use rns_transport::destination::ProofStrategy;
 /// have failed the receipt had the client not raised it.
 const DEFERRED_PROOF_DELAY: Duration = Duration::from_millis(1500);
 
+/// The least `elapsed` a DELIVERED line may report: the deferred delay less
+/// half a second of slack, since the client's clock starts at its send and
+/// the Rust side's at the payload's arrival.
+const DELIVERED_NOT_BEFORE_SECS: f64 = DEFERRED_PROOF_DELAY.as_secs_f64() - 0.5;
+
 /// One `{"receipt": ..., "elapsed": ...}` line the Python client printed.
 #[derive(Debug)]
 struct ReceiptLine {
@@ -43,7 +48,13 @@ async fn wait_for_in_link_payload(
 ) -> LinkPayload {
     tokio::time::timeout(duration, async {
         loop {
-            let event = events.recv().await.expect("in-link event");
+            let event = match events.recv().await {
+                Ok(event) => event,
+                Err(tokio::sync::broadcast::error::RecvError::Lagged(_)) => continue,
+                Err(tokio::sync::broadcast::error::RecvError::Closed) => {
+                    panic!("in-link event channel closed")
+                }
+            };
             if event.id != link_id {
                 continue;
             }
@@ -148,7 +159,7 @@ async fn run_python_to_rust_link_proof_strategy_app_defers_the_receipt_until_the
         .find(|line| line.status == "DELIVERED")
         .unwrap_or_else(|| panic!("the receipt became DELIVERED: {lines:?}"));
     assert!(
-        delivered.elapsed >= 1.0,
+        delivered.elapsed >= DELIVERED_NOT_BEFORE_SECS,
         "the receipt was delivered only after the deferred proof: {lines:?}"
     );
 }

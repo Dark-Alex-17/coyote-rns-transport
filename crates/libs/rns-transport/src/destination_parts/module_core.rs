@@ -257,6 +257,7 @@ pub struct Destination<I: HashIdentity, D: Direction, T: Type> {
     path_response_queue: VecDeque<(Vec<u8>, Instant)>,
     pub(crate) proof_strategy: ProofStrategy,
     pub(crate) proof_requested_callback: Option<Arc<dyn ProofRequestedHandler>>,
+    link_proof_strategy: ProofStrategy,
 }
 
 impl<I: HashIdentity, D: Direction, T: Type> Destination<I, D, T> {

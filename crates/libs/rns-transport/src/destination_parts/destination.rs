@@ -16,6 +16,7 @@ impl Destination<PrivateIdentity, Input, Single> {
             path_response_queue: VecDeque::new(),
             proof_strategy: ProofStrategy::default(),
             proof_requested_callback: None,
+            link_proof_strategy: ProofStrategy::All,
         }
     }
 
@@ -33,6 +34,25 @@ impl Destination<PrivateIdentity, Input, Single> {
     /// the reentrancy/blocking constraints this callback must honor.
     pub fn set_proof_requested_callback(&mut self, handler: Box<dyn ProofRequestedHandler>) {
         self.proof_requested_callback = Some(Arc::from(handler));
+    }
+
+    /// Sets the `ProofStrategy` copied onto every link this destination
+    /// accepts, together with its `proof_requested_callback`, which the
+    /// opportunistic path shares. Defaults to `All`, so a link keeps proving
+    /// every plain Data packet unless this is set, while `proof_strategy`
+    /// defaults to `None`. Python has one `proof_strategy` per destination
+    /// that governs both the opportunistic packet (`RNS/Destination.py:360-367`)
+    /// and the packets of its links (`RNS/Link.py:961-968`).
+    pub fn set_link_proof_strategy(&mut self, strategy: ProofStrategy) {
+        self.link_proof_strategy = strategy;
+    }
+
+    /// The strategy a link accepted from now on starts with; see
+    /// [`Self::set_link_proof_strategy`]. A link already accepted keeps the
+    /// strategy it was given, as `Link::set_proof_strategy` is the only way
+    /// to change it afterwards.
+    pub fn link_proof_strategy(&self) -> ProofStrategy {
+        self.link_proof_strategy
     }
 
     pub fn enable_ratchets<P: AsRef<Path>>(&mut self, path: P) -> Result<(), RnsError> {
@@ -365,6 +385,7 @@ impl Destination<Identity, Output, Single> {
             path_response_queue: VecDeque::new(),
             proof_strategy: ProofStrategy::default(),
             proof_requested_callback: None,
+            link_proof_strategy: ProofStrategy::All,
         }
     }
 }
@@ -385,6 +406,7 @@ impl<D: Direction> Destination<EmptyIdentity, D, Plain> {
             path_response_queue: VecDeque::new(),
             proof_strategy: ProofStrategy::default(),
             proof_requested_callback: None,
+            link_proof_strategy: ProofStrategy::All,
         }
     }
 }

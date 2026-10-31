@@ -173,6 +173,13 @@ pub struct Link {
     /// (`RNS/Link.py:1435`).
     owed_response_cancels: Vec<InboundResponseHashes>,
     request_dispatch: Option<tokio::sync::mpsc::Sender<DispatchItem>>,
+    /// Whether this side proves a plain Data packet it receives on the link
+    /// by itself; `All` on every new link, so an application that wants to
+    /// prove by hand sets `App` or `None` first. Python reads the owning
+    /// destination's `proof_strategy` instead (`RNS/Link.py:961-968`),
+    /// which defaults to `PROVE_NONE` (`RNS/Destination.py:161`).
+    proof_strategy: ProofStrategy,
+    proof_requested_callback: Option<Arc<dyn ProofRequestedHandler>>,
     channel_window: u8,
     channel_window_max: u8,
     channel_window_min: u8,

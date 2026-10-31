@@ -8,6 +8,7 @@ include!("transport_sections/path_table.rs");
 include!("transport_sections/close_channel.rs");
 include!("transport_sections/await_path.rs");
 include!("transport_sections/resolve_destination.rs");
+include!("transport_sections/prove_link_packet.rs");
 include!("transport_sections/link_establishment.rs");
 include!("transport_sections/link_open.rs");
 include!("transport_sections/shared_instance.rs");

@@ -1,4 +1,5 @@
 include!("link_sections/new.rs");
+include!("link_sections/proof_strategy.rs");
 include!("link_sections/establishment.rs");
 include!("link_sections/handle_proof_packet.rs");
 include!("link_sections/remove_channel_handler.rs");

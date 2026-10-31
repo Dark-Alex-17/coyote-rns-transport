@@ -1,6 +1,7 @@
 use std::{
     collections::{HashMap, VecDeque},
     panic::{catch_unwind, AssertUnwindSafe},
+    sync::Arc,
     time::{Duration, Instant},
 };
 
@@ -34,7 +35,7 @@ use crate::{
     resource::{ResourceAdvertisement, ResourceEventKind, ResourceProgress},
 };
 
-use super::DestinationDesc;
+use super::{DestinationDesc, ProofRequestedHandler, ProofStrategy};
 
 const LINK_MTU_SIZE: usize = 3;
 

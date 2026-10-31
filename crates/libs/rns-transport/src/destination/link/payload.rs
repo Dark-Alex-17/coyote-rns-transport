@@ -17,11 +17,18 @@ pub struct LinkPayload {
     len: usize,
     context: PacketContext,
     request_id: Option<[u8; ADDRESS_HASH_SIZE]>,
+    packet_hash: Option<Hash>,
 }
 
 impl LinkPayload {
     pub fn new() -> Self {
-        Self { buffer: Vec::new(), len: 0, context: PacketContext::None, request_id: None }
+        Self {
+            buffer: Vec::new(),
+            len: 0,
+            context: PacketContext::None,
+            request_id: None,
+            packet_hash: None,
+        }
     }
 
     pub fn new_from_slice(data: &[u8]) -> Self {
@@ -29,7 +36,13 @@ impl LinkPayload {
     }
 
     pub fn new_from_slice_with_context(data: &[u8], context: PacketContext) -> Self {
-        Self { buffer: data.to_vec(), len: data.len(), context, request_id: None }
+        Self {
+            buffer: data.to_vec(),
+            len: data.len(),
+            context,
+            request_id: None,
+            packet_hash: None,
+        }
     }
 
     pub fn new_from_slice_with_context_and_request_id(
@@ -42,8 +55,15 @@ impl LinkPayload {
         payload
     }
 
+    /// Records the hash of the link packet this payload was decrypted from,
+    /// read back through [`Self::packet_hash`].
+    pub fn with_packet_hash(mut self, packet_hash: Hash) -> Self {
+        self.packet_hash = Some(packet_hash);
+        self
+    }
+
     pub fn new_from_vec(data: &[u8]) -> Self {
-        Self { buffer: data.to_vec(), len: data.len(), context: PacketContext::None, request_id: None }
+        Self::new_from_slice(data)
     }
 
     pub fn len(&self) -> usize {
@@ -56,6 +76,16 @@ impl LinkPayload {
 
     pub fn request_id(&self) -> Option<[u8; ADDRESS_HASH_SIZE]> {
         self.request_id
+    }
+
+    /// The hash of the link packet that carried this payload, `None` for a
+    /// payload not built from a received packet. Pass it to
+    /// `Transport::prove_link_packet` to prove that packet to the sender; it
+    /// stands in for the `packet` Python hands the link's packet callback
+    /// (`RNS/Link.py:956`), which an application proves with `packet.prove()`
+    /// (`RNS/Packet.py:336-341`).
+    pub fn packet_hash(&self) -> Option<Hash> {
+        self.packet_hash
     }
 
     pub fn is_empty(&self) -> bool {

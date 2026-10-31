@@ -203,7 +203,7 @@ Removed) bullet of its own, marked as such.
   while a link accepted afterwards starts out `App`; an out-link under
   `App` waits for its own callback). `crate_readme_sections.rs` pins the
   README divergence register's `All` default, the accept-time copy and the
-  `RNS/Link.py:961-967` cite, and that the register no longer calls the
+  `RNS/Link.py:961-968` cite, and that the register no longer calls the
   link's proof unconditional.
 - `LinkPayload::packet_hash` is the hash of the link packet a received
   payload came from, `None` for a payload not built from a packet;
@@ -216,8 +216,8 @@ Removed) bullet of its own, marked as such.
   `PacketContext::None`), by `request_layer_api_docs.rs`, which names
   both among the items whose rustdoc must cite Python or say fork-only,
   and by `tests/link_proof_strategy_api.rs`, which compiles a downstream
-  consumer of every README item with `rustc` and pins that the
-  crate-private `LinkPayload::with_packet_hash` is not among them.
+  consumer of every new proof item the README names with `rustc` and pins
+  that the crate-private `LinkPayload::with_packet_hash` is not among them.
 - `Transport::prove_link_packet` proves a received link packet to the peer
   by link id and packet hash
   (`links_parts/transport_sections/prove_link_packet.rs`, included from

@@ -28,7 +28,7 @@ impl Link {
     /// strategy is `App`. Without one an `App` link never proves by itself,
     /// which matters for an out-link: [`Link::new`] builds it without a
     /// destination, so nothing is copied onto it, where Python's initiator
-    /// reads its OUT destination's callback (`RNS/Link.py:961-967`). A link a
+    /// reads its OUT destination's callback (`RNS/Link.py:961-968`). A link a
     /// destination accepts starts with the destination's callback.
     ///
     /// Same contract as `ProofRequestedHandler`: the callback runs

@@ -772,7 +772,7 @@ parity ledger; the `docs/status/*` matrices are not updated per fork task.
   `None`) and `link_proof_strategy` (default `All`) apart. The link strategy
   and the destination's `proof_requested_callback` are copied onto a link
   when it is accepted; Python's link reads the destination's strategy and
-  callback live per packet (`RNS/Link.py:961-967`), so a destination-level
+  callback live per packet (`RNS/Link.py:961-968`), so a destination-level
   change here reaches only links accepted afterwards.
 - A retried Resource advertisement re-sends the identical prepared packet,
   so the receiver's duplicate filter drops it and the

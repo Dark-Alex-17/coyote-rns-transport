@@ -53,7 +53,7 @@ impl Destination<PrivateIdentity, Input, Single> {
     /// strategy and the callback it was given; `Link::set_proof_strategy` and
     /// `Link::set_proof_requested_callback` change them afterwards. Fork-only:
     /// Python's link reads the destination's one `proof_strategy` and callback
-    /// live per packet (`RNS/Link.py:961-967`).
+    /// live per packet (`RNS/Link.py:961-968`).
     pub fn link_proof_strategy(&self) -> ProofStrategy {
         self.link_proof_strategy
     }

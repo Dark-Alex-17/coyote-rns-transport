@@ -218,7 +218,7 @@ fn crate_readme_proof_section_describes_the_link_proof_strategy() {
         "proves plain Data packets by default (`ProofStrategy::All`",
         "`link_proof_strategy` (default `All`)",
         "`proof_requested_callback` are copied onto a link",
-        "`RNS/Link.py:961-967`",
+        "`RNS/Link.py:961-968`",
     ] {
         assert!(
             divergences.contains(claim),

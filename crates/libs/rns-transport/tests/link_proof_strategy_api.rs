@@ -12,8 +12,8 @@
 //! destination changes strategy and callback. The in-crate
 //! `tests_parts` fixtures pin the same behaviour from inside, where `pub(crate)` items are
 //! visible too; this file is the consumer's view, and its last test drives `rustc` the way
-//! `breaking_changes_compile_fail.rs` does to pin that `LinkPayload::with_packet_hash` is not
-//! part of that view.
+//! `breaking_changes_compile_fail.rs` does to pin that every new proof item the README names
+//! resolves downstream and that `LinkPayload::with_packet_hash` is not part of that view.
 
 use std::fs;
 use std::path::{Path, PathBuf};
@@ -491,8 +491,9 @@ async fn accepted_link_keeps_the_callback_it_was_handed_at_accept() {
     timeout(WAIT, pair.listener.transport.stop()).await.expect("listener stop completes");
 }
 
-/// What a downstream crate sees of the surface at compile time: every item the README names
-/// resolves, and `LinkPayload::with_packet_hash`, which only the link may call, does not.
+/// What a downstream crate sees of the surface at compile time: every new proof item the
+/// README names resolves, and `LinkPayload::with_packet_hash`, which only the link may call,
+/// does not.
 const CONSUMER: &str = r#"
 use rns_transport::destination::link::{Link, LinkPayload};
 use rns_transport::destination::{ProofStrategy, SingleInputDestination};

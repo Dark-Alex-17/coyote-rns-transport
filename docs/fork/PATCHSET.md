@@ -47,7 +47,7 @@ commits `355a0ddf`, `ca32feac`, `223cdd80`, `716fb2be`, `f43321f4`,
 `3be3b15c`, `719067c4`, `07e98279`, `a02ba4b7`, `bcee2bff` and `7cba2066`;
 the `dial failures` patch is fork commits `61429992`, `874c871b`, `aa6d2fac`,
 `593fa930`, `7fbd176e`, `7eab8566`, `c492846d`, `9a13ade9`, `74279dfb`,
-`b0635aea` and `8fc49d91`.
+`b0635aea`, `8fc49d91`, `dd31f874` and `59b0ee7c`.
 
 | File | Patch |
 | --- | --- |
@@ -136,6 +136,7 @@ the `dial failures` patch is fork commits `61429992`, `874c871b`, `aa6d2fac`,
 | `crates/libs/rns-transport/tests/resolve_destination_deadline_api.rs` | destination resolve |
 | `crates/libs/rns-transport/tests/response_cap_tracker_api.rs` | outcome tracker, response cap |
 | `crates/libs/rns-transport/tests/shared_instance_first_connect_api.rs` | dial failures |
+| `crates/libs/rns-transport/tests/shared_instance_first_connect_interrupt_probe.rs` | dial failures |
 | `docs/fork/PATCHSET.md` | outcome tracker, response cap, ledger contracts, destination resolve, reject cadence, link proof strategy, dial failures |
 
 Fork commits `c3a317d7`, `ca32feac`, `223cdd80`, `716fb2be`, `d3b234e6` and
@@ -662,7 +663,8 @@ link-maintenance pass evicts it, after which it is unknown and reads
 `InvalidArgument`.
 
 Fork commits `61429992`, `874c871b`, `aa6d2fac`, `593fa930`, `7fbd176e`,
-`7eab8566`, `c492846d`, `9a13ade9`, `74279dfb`, `b0635aea` and `8fc49d91`:
+`7eab8566`, `c492846d`, `9a13ade9`, `74279dfb`, `b0635aea`, `8fc49d91`,
+`dd31f874` and `59b0ee7c`:
 K7, dial failures. The library behaviour changes are: a stream
 client reports each failed connect attempt with a typed reason, the
 shared-instance state stream carries it, and an attach can be told to give up
@@ -750,9 +752,24 @@ the changelog, has the four eviction-clause twins read "until the
 link-maintenance pass (at most 1 s later) evicts it", pins the proof
 section's refusal arms and the new shared-instance needles in
 `crate_readme_sections.rs`, and names `RnsError::SharedInstanceConnectTimeout`
-in `request_layer_api_docs.rs` at a walker floor of 181. `8fc49d91` is the
+in `request_layer_api_docs.rs` at a walker floor of 181; it also drops
+`with_first_connect_timeout` from that file's named cited-rustdoc list,
+since `transport/shared_instance.rs` is walked wholesale and the named
+entry checked nothing the walk did not. `8fc49d91` is the
 standalone rustfmt pass over the two shared-instance test parts, one
 `assert_eq!` joined and one `run` call wrapped per argument, no test changed.
+`dd31f874` extracts the TCP connect loop's dial-error classification into
+`classify_dial_error` (`iface/tcp_client.rs`) with a unit test per arm,
+pins the `Timeout` arm from outside the crate in
+`tests/dial_failure_events_api.rs` against the black-holed TEST-NET-1
+address, has both first-connect wait arms log the slot-guarded detach's
+`detached=` result, and rewords the `SharedInstanceConnectTimeout` Display
+(`error.rs`) to cover the consumer-gone arm. `59b0ee7c` adopts
+`tests/shared_instance_first_connect_interrupt_probe.rs` (a detach or a
+`stop` during a 10 s first-connect wait answers within 5 s with the slot
+empty), lets a stale refusal trail `Connected` by one reconnect wait in the
+dial-failure pins, widens the README-default api pin's state channel to 64
+slots, and names the warn text of the `Timeout` arm in the README.
 
 ## 0.17.0 (upstream 0.14.0)
 

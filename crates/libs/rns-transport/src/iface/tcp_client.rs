@@ -1644,9 +1644,10 @@ mod tests {
         assert_eq!(status["endpoint"].as_str(), Some(addr.to_string().as_str()));
         assert_eq!(status["stream_state"].as_str(), Some("closed"));
         assert_eq!(status["reconnect_attempts"].as_u64(), Some(1));
-        assert_eq!(
-            status["last_error"].as_str(),
-            Some(format!("tcp connect failed endpoint={addr}").as_str())
+        let last_error = status["last_error"].as_str().expect("last_error is set");
+        assert!(
+            last_error.starts_with(&format!("tcp connect failed endpoint={addr}: ")),
+            "last_error should name the endpoint and carry the connect error text: {last_error}"
         );
     }
 

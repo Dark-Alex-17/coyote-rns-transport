@@ -43,7 +43,8 @@ commits `355a0ddf`, `ca32feac`, `223cdd80`, `716fb2be`, `f43321f4`,
 `d36f65df`, `813f421a`, `6fef8927`, `ac5a81ae` and `f9751b59`; the
 `link proof strategy` patch is fork commits `8e47a675`, `1a9e25c4`,
 `92346ece`, `e0a2feae`, `2624206e`, `ecf809d6`, `ac841458`, `c38e6b22`,
-`e8cda738`, `4ed2ebec`, `95ae6d37`, `fdf40d01` and `94c27a5c`.
+`e8cda738`, `4ed2ebec`, `95ae6d37`, `fdf40d01`, `94c27a5c`, `1779c8c8`,
+`3be3b15c` and `719067c4`.
 
 | File | Patch |
 | --- | --- |
@@ -59,6 +60,7 @@ commits `355a0ddf`, `ca32feac`, `223cdd80`, `716fb2be`, `f43321f4`,
 | `crates/libs/rns-transport/src/destination_parts/destination.rs` | response cap, link proof strategy |
 | `crates/libs/rns-transport/src/destination_parts/module_core.rs` | response cap, link proof strategy |
 | `crates/libs/rns-transport/src/destination/link_parts/link_sections/data_proof_tests.rs` | link proof strategy |
+| `crates/libs/rns-transport/src/destination/link_parts/link_sections/identify_packet_tests.rs` | link proof strategy |
 | `crates/libs/rns-transport/src/destination/link_parts/link_sections/new_from_request.rs` | link proof strategy |
 | `crates/libs/rns-transport/src/destination/link_parts/link_sections/new.rs` | link proof strategy |
 | `crates/libs/rns-transport/src/destination/link_parts/link_sections/proof_strategy_tests.rs` | link proof strategy |
@@ -514,10 +516,10 @@ a refused advertisement leaves none to cancel.
 
 Fork commits `8e47a675`, `1a9e25c4`, `92346ece`, `e0a2feae`, `2624206e`,
 `ecf809d6`, `ac841458`, `c38e6b22`, `e8cda738`, `4ed2ebec`, `95ae6d37`,
-`fdf40d01` and `94c27a5c`: K6, link proof strategy. The library behaviour
-changes are: a link proves the plain Data packets it receives by a strategy of
-its own instead of always, and an application can prove a received packet
-later. `8e47a675` pins, in
+`fdf40d01`, `94c27a5c`, `1779c8c8`, `3be3b15c` and `719067c4`: K6, link proof
+strategy. The library behaviour changes are: a link proves the plain Data
+packets it receives by a strategy of its own instead of always, and an
+application can prove a received packet later. `8e47a675` pins, in
 `crate_readme_sections.rs`, that the changelog section selector stops at
 the next `## ` heading and does not read a `### ` sub-heading as a section
 boundary. `1a9e25c4` adds the `proof_strategy` and
@@ -610,7 +612,17 @@ event channel instead of reporting no events. `94c27a5c` cites
 `RNS/Link.py:961-968` in the divergence register, the changelog, the
 `link_proof_strategy` and `set_proof_requested_callback` rustdoc and the
 register pin needle, and has the changelog and the test header say the
-`rustc` consumer covers every new proof item the README names.
+`rustc` consumer covers every new proof item the README names. `1779c8c8`
+pins, in `tests/link_proof_strategy_api.rs`, that a destination's `None`
+reaches the in-link it accepts while the out-link keeps `All`, that the link
+never asks the callback and never proves on its own, and that
+`prove_link_packet` then earns exactly one `PacketProven`; it reads the
+callback counts after the quiet window and asserts the Response payload's
+`packet_hash` in `identify_packet_tests.rs`. `3be3b15c` has
+`Transport::prove_link_packet` refuse a link that is not `Active` with
+`ConnectionError`, as `Transport::request` does, and pins it on a link closed
+after it carried a proof. `719067c4` has the README say `App` proves nothing
+without a callback and names the new arm and pins in the changelog.
 
 ## 0.17.0 (upstream 0.14.0)
 

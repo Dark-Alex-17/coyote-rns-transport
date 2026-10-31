@@ -3,11 +3,12 @@
 // `with_disconnect_reasons(true)` an orderly close reads `DisconnectedWithReason`
 // carrying `PeerClosed` and a linger-zero close one carrying `Reset`, each where the
 // plain `Disconnected` would sit; without the opt-in the same closes read the plain
-// `Disconnected`; the unix client reports `PeerClosed` the same way. The consumer driven by
-// hand pins the reason's position within one cycle. Helpers come from the sibling
-// `tests_parts` files included into this module.
+// `Disconnected`; the unix client reports `PeerClosed` the same way on an orderly close.
+// The consumer driven by hand pins the reason's position within one cycle and on a drop
+// that was queued before it ran. Helpers come from the sibling `tests_parts` files
+// included into this module.
 
-use tokio::io::{AsyncReadExt as _, AsyncWriteExt as _};
+use tokio::io::{AsyncRead, AsyncReadExt as _, AsyncWrite, AsyncWriteExt as _};
 use tokio::net::TcpListener as DisconnectReasonsTcpListener;
 
 /// The reconnect wait of the clients below: short, so the redial after each close lands
@@ -49,10 +50,13 @@ async fn shared_instance_disconnect_reasons_accept(
 
 /// Closes `stream` in an orderly way: the write side is shut down and the stream read to
 /// the client's EOF before it is dropped. The client has written its tunnel packet by the
-/// time it is connected, and a TCP socket dropped with unread data in its receive buffer
-/// sends a reset rather than a FIN, which the client would read as `Reset`.
+/// time it is connected, and a socket dropped with unread data in its receive buffer
+/// reports a reset to its peer rather than a plain close (TCP sends RST; Linux sets
+/// `ECONNRESET` on a unix socket's peer), which the client would read as `Reset`.
 #[deny(clippy::await_holding_invalid_type)]
-async fn shared_instance_disconnect_reasons_close_orderly(mut stream: tokio::net::TcpStream) {
+async fn shared_instance_disconnect_reasons_close_orderly<S: AsyncRead + AsyncWrite + Unpin>(
+    mut stream: S,
+) {
     stream.shutdown().await.expect("shut the write side down");
     timeout(LOOPBACK_TIMEOUT, async {
         let mut sink = [0u8; 1024];
@@ -219,7 +223,7 @@ async fn shared_instance_disconnect_reasons_unix_peer_close_reads_peer_closed() 
         .expect("accept");
     assert_eq!(shared_instance_state_next(&mut events).await, Some(SharedInstanceEvent::Connected));
 
-    drop(stream);
+    shared_instance_disconnect_reasons_close_orderly(stream).await;
     assert_eq!(
         shared_instance_disconnect_reasons_read_drop(&mut events).await,
         SharedInstanceEvent::DisconnectedWithReason { reason: DisconnectReason::PeerClosed }

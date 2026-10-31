@@ -444,6 +444,7 @@ mod resource_wire;
 // shared_instance: endpoint, options and connection-state events for attaching as a
 // shared-instance client.
 mod shared_instance;
+pub use crate::iface::events::{DialFailure, DialFailureKind, DisconnectReason};
 pub use shared_instance::{SharedInstanceEndpoint, SharedInstanceEvent, SharedInstanceOptions};
 // wire_encryption: packet-context policy for transport-layer encryption.
 mod wire_encryption;

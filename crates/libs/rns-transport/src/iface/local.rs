@@ -10,6 +10,7 @@ use std::time::Duration;
 
 use tokio::net::{UnixListener, UnixStream};
 
+use super::events::{DialFailure, DialFailureKind};
 use super::tcp_client::{run_hdlc_stream_with_runtime_and_ifac, HdlcStreamRuntime, TcpClient};
 use super::{IfacState, Interface, InterfaceContext, InterfaceManager};
 
@@ -324,6 +325,7 @@ pub struct LocalUnixClient {
     connect_events: Option<tokio::sync::mpsc::Sender<crate::hash::AddressHash>>,
     reconnect_events: Option<tokio::sync::mpsc::Sender<crate::hash::AddressHash>>,
     disconnect_events: Option<tokio::sync::mpsc::Sender<crate::hash::AddressHash>>,
+    dial_failure_events: Option<tokio::sync::mpsc::Sender<DialFailure>>,
 }
 
 impl LocalUnixClient {
@@ -340,6 +342,7 @@ impl LocalUnixClient {
             connect_events: None,
             reconnect_events: None,
             disconnect_events: None,
+            dial_failure_events: None,
         }
     }
 
@@ -355,6 +358,7 @@ impl LocalUnixClient {
             connect_events: None,
             reconnect_events: None,
             disconnect_events: None,
+            dial_failure_events: None,
         }
     }
 
@@ -422,6 +426,23 @@ impl LocalUnixClient {
         self
     }
 
+    /// Sends a [`DialFailure`] on `events` for every connect attempt that
+    /// fails, naming the interface and why: `NotFound` when nothing has
+    /// bound the socket path, `Refused` when the path exists but nothing
+    /// accepts there, `Timeout` when the OS times the connect out, and
+    /// `Io(kind)` for any other io error. A full or closed channel drops the
+    /// event at debug. Fork-only: Python's shared-instance client logs each
+    /// failed attempt at debug and retries without telling the failures
+    /// apart (`RNS/Interfaces/LocalInterface.py:159-167`).
+    #[must_use]
+    pub fn with_dial_failure_events(
+        mut self,
+        events: tokio::sync::mpsc::Sender<DialFailure>,
+    ) -> Self {
+        self.dial_failure_events = Some(events);
+        self
+    }
+
     /// The endpoint label, or the label given with a pre-supplied stream.
     #[must_use]
     pub fn addr(&self) -> &str {
@@ -479,6 +500,7 @@ impl LocalUnixClient {
             connect_events,
             reconnect_events,
             disconnect_events,
+            dial_failure_events,
         ) = {
             let mut guard = context.inner.lock().unwrap();
             (
@@ -491,6 +513,7 @@ impl LocalUnixClient {
                 guard.connect_events.clone(),
                 guard.reconnect_events.clone(),
                 guard.disconnect_events.clone(),
+                guard.dial_failure_events.clone(),
             )
         };
 
@@ -516,6 +539,18 @@ impl LocalUnixClient {
                 Ok(stream) => stream,
                 Err(err) => {
                     log::warn!("couldn't connect local unix client <{}>: {}", addr, err);
+                    if let Some(events) = dial_failure_events.as_ref() {
+                        let failure =
+                            DialFailure::new(iface_address, DialFailureKind::from_io_error(&err));
+                        if let Err(err) = events.try_send(failure) {
+                            log::debug!(
+                                "dropped local unix dial failure event iface={} endpoint={} err={}",
+                                iface_address,
+                                addr,
+                                err
+                            );
+                        }
+                    }
                     tokio::select! {
                         _ = context.cancel.cancelled() => break,
                         _ = iface_stop.cancelled() => break,

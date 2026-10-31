@@ -32,6 +32,8 @@ pub mod rnode_spp;
 
 pub mod serial;
 
+pub mod events;
+
 pub mod tcp_client;
 
 pub mod tcp_server;

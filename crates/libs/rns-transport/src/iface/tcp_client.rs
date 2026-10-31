@@ -9,6 +9,7 @@ use tokio_util::sync::CancellationToken;
 
 use crate::buffer::OutputBuffer;
 use crate::error::RnsError;
+use crate::iface::events::{DialFailure, DialFailureKind};
 use crate::iface::{
     decode_packet_ifac, encode_packet_ifac, is_ifac_violation, record_ifac_violation, IfacState,
     IfaceSource, RxMessage,
@@ -908,6 +909,7 @@ pub struct TcpClient {
     connect_events: Option<tokio::sync::mpsc::Sender<crate::hash::AddressHash>>,
     reconnect_events: Option<tokio::sync::mpsc::Sender<crate::hash::AddressHash>>,
     disconnect_events: Option<tokio::sync::mpsc::Sender<crate::hash::AddressHash>>,
+    dial_failure_events: Option<tokio::sync::mpsc::Sender<DialFailure>>,
     connect_timeout: Duration,
     reconnect_wait: Duration,
     max_reconnect_tries: Option<u64>,
@@ -939,6 +941,7 @@ impl TcpClient {
             connect_events: None,
             reconnect_events: None,
             disconnect_events: None,
+            dial_failure_events: None,
             connect_timeout: Self::DEFAULT_CONNECT_TIMEOUT,
             reconnect_wait: Self::DEFAULT_RECONNECT_WAIT,
             max_reconnect_tries: None,
@@ -965,6 +968,7 @@ impl TcpClient {
             connect_events: None,
             reconnect_events: None,
             disconnect_events: None,
+            dial_failure_events: None,
             connect_timeout: Self::DEFAULT_CONNECT_TIMEOUT,
             reconnect_wait: Self::DEFAULT_RECONNECT_WAIT,
             max_reconnect_tries: None,
@@ -1045,6 +1049,24 @@ impl TcpClient {
         events: tokio::sync::mpsc::Sender<crate::hash::AddressHash>,
     ) -> Self {
         self.disconnect_events = Some(events);
+        self
+    }
+
+    /// Sends a [`DialFailure`] on `events` for every connect attempt that
+    /// fails, naming the interface and why: `Timeout` when the attempt
+    /// outlives [`Self::with_connect_timeout`] or the OS times it out,
+    /// `Refused` when nothing listens at the endpoint, `NotFound` when the
+    /// endpoint does not resolve or exist, and `Io(kind)` for any other io
+    /// error. A full or closed channel drops the event at debug. Fork-only:
+    /// Python's shared-instance client logs each failed attempt at debug
+    /// and retries without telling the failures apart
+    /// (`RNS/Interfaces/LocalInterface.py:159-167`).
+    #[must_use]
+    pub fn with_dial_failure_events(
+        mut self,
+        events: tokio::sync::mpsc::Sender<DialFailure>,
+    ) -> Self {
+        self.dial_failure_events = Some(events);
         self
     }
 
@@ -1210,13 +1232,14 @@ impl TcpClient {
         let ifac_violations = context.channel.ifac_violations.clone();
         let online = context.channel.online.clone();
         online.store(false, std::sync::atomic::Ordering::Release);
-        let (mut stream, connect_events, reconnect_events, disconnect_events) = {
+        let (mut stream, connect_events, reconnect_events, disconnect_events, dial_failure_events) = {
             let mut guard = context.inner.lock().unwrap();
             (
                 guard.stream.take(),
                 guard.connect_events.clone(),
                 guard.reconnect_events.clone(),
                 guard.disconnect_events.clone(),
+                guard.dial_failure_events.clone(),
             )
         };
 
@@ -1248,43 +1271,64 @@ impl TcpClient {
                             connected = tokio::time::timeout(
                                 connect_timeout,
                                 connect_tcp_stream(addr.clone(), prefer_ipv6),
-                            ) => connected
-                                .map_err(|_| RnsError::ConnectionError)
-                                .and_then(|result| {
-                                    result.map_err(|_| RnsError::ConnectionError)
-                                }),
+                            ) => match connected {
+                                Ok(Ok(stream)) => Ok(stream),
+                                Ok(Err(err)) => Err(DialError::Io(err)),
+                                Err(_) => Err(DialError::Elapsed),
+                            },
                         }
                     }
                 }
             };
 
-            if stream.is_err() {
-                online.store(false, std::sync::atomic::Ordering::Release);
-                failed_connect_attempts = failed_connect_attempts.saturating_add(1);
-                runtime_status
-                    .lock()
-                    .expect("tcp runtime status mutex poisoned")
-                    .mark_reconnecting(format!("tcp connect failed endpoint={addr}"));
-                log::warn!("couldn't connect to <{}>", addr);
-                if max_reconnect_tries.is_some_and(|max_reconnect_tries| {
-                    failed_connect_attempts > max_reconnect_tries
-                }) {
-                    log::error!(
-                        "max TCP reconnect attempts reached for <{}> after {} failed attempts",
-                        addr,
-                        failed_connect_attempts
-                    );
-                    break;
+            let stream = match stream {
+                Ok(stream) => stream,
+                Err(failure) => {
+                    online.store(false, std::sync::atomic::Ordering::Release);
+                    failed_connect_attempts = failed_connect_attempts.saturating_add(1);
+                    runtime_status
+                        .lock()
+                        .expect("tcp runtime status mutex poisoned")
+                        .mark_reconnecting(format!("tcp connect failed endpoint={addr}"));
+                    let (kind, text) = match failure {
+                        DialError::Elapsed => (
+                            DialFailureKind::Timeout,
+                            format!("connect timed out after {connect_timeout:?}"),
+                        ),
+                        DialError::Io(err) => {
+                            (DialFailureKind::from_io_error(&err), err.to_string())
+                        }
+                    };
+                    log::warn!("couldn't connect to <{}>: {}", addr, text);
+                    if let Some(events) = dial_failure_events.as_ref() {
+                        if let Err(err) = events.try_send(DialFailure::new(iface_address, kind)) {
+                            log::debug!(
+                                "dropped TCP dial failure event iface={} endpoint={} err={}",
+                                iface_address,
+                                addr,
+                                err
+                            );
+                        }
+                    }
+                    if max_reconnect_tries.is_some_and(|max_reconnect_tries| {
+                        failed_connect_attempts > max_reconnect_tries
+                    }) {
+                        log::error!(
+                            "max TCP reconnect attempts reached for <{}> after {} failed attempts",
+                            addr,
+                            failed_connect_attempts
+                        );
+                        break;
+                    }
+                    tokio::select! {
+                        _ = context.cancel.cancelled() => break,
+                        _ = iface_stop.cancelled() => break,
+                        _ = tokio::time::sleep(reconnect_wait) => {}
+                    }
+                    continue;
                 }
-                tokio::select! {
-                    _ = context.cancel.cancelled() => break,
-                    _ = iface_stop.cancelled() => break,
-                    _ = tokio::time::sleep(reconnect_wait) => {}
-                }
-                continue;
-            }
+            };
 
-            let stream = stream.unwrap();
             online.store(true, std::sync::atomic::Ordering::Release);
             runtime_status.lock().expect("tcp runtime status mutex poisoned").mark_connected();
             if let Err(err) = socket_tuning.apply_to_stream(&stream) {
@@ -1445,6 +1489,13 @@ pub(crate) fn prefer_ipv6_socket_addrs(
         addrs.sort_by_key(|addr| if addr.is_ipv6() { 0 } else { 1 });
     }
     addrs
+}
+
+/// Why one dial in the connect loop failed, kept apart so the warn can say
+/// which and the dial-failure event can be classified.
+enum DialError {
+    Elapsed,
+    Io(io::Error),
 }
 
 async fn connect_tcp_stream(addr: String, prefer_ipv6: bool) -> io::Result<TcpStream> {

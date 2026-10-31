@@ -292,7 +292,11 @@ Removed) bullet of its own, marked as such.
   socket is bound and report no failure after it; the getter reads false
   by default and true after the builder), by the same file's capturing
   logger (the TCP warn names the endpoint and carries "Connection
-  refused"), by `tests/dial_failure_channel_probe.rs` (a full capacity-one
+  refused"; a dial against the black-holed TEST-NET-1 address that outlives
+  a 200 ms connect timeout reads `Timeout` and warns "connect timed out
+  after 200ms"), by the `classify_dial_error` unit tests in
+  `iface/tcp_client.rs` (every arm of the kind and warn text), by
+  `tests/dial_failure_channel_probe.rs` (a full capacity-one
   channel and a dropped receiver each leave the client dialing and
   connecting once the socket appears, with exactly one buffered failure in
   the full case; a stale unix socket file reads `Refused`, not `NotFound`;
@@ -358,7 +362,11 @@ Removed) bullet of its own, marked as such.
   the timed-out attach leaving nothing behind so the same transport
   attaches again; a detach and a replacement attach taken during the wait
   surviving the timed-out attach's cleanup; the attach returning on the
-  connect, not on the timer), by `request_layer_api_docs.rs`, which names
+  connect, not on the timer), by
+  `tests/shared_instance_first_connect_interrupt_probe.rs` (a detach or a
+  `stop` during a 10 s wait answers `SharedInstanceConnectTimeout` within
+  5 s, the slot empty, the posture off and the stream ending without a
+  `Connected`), by `request_layer_api_docs.rs`, which names
   `RnsError::SharedInstanceConnectTimeout` among the items whose rustdoc
   must cite Python or say fork-only, and by `crate_readme_sections.rs`,
   which pins the README shared-instance prose and this section.

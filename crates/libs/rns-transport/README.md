@@ -607,7 +607,8 @@ TCP port nothing listens on, `NotFound` for a unix socket path nothing has
 bound, `Timeout` for an attempt that outlived the TCP client's connect
 timeout, or an OS `TimedOut`, and `Io(kind)` for any other io error (`Io`
 never carries those three kinds). The TCP client's "couldn't connect" warn
-now carries the io error's text as well. By default the attach returns as
+now carries the io error's text as well, or "connect timed out after
+<timeout>" for the `Timeout` arm no io error reaches. By default the attach returns as
 soon as the client is spawned and keeps dialing, as Python's
 `LocalClientInterface` does (`RNS/Interfaces/LocalInterface.py:159-167`,
 which logs each failed attempt at debug and retries).

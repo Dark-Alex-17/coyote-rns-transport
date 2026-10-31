@@ -26,7 +26,10 @@ async fn shared_instance_expect_dial_failures(
 }
 
 /// Reads until `Connected` arrives, letting the `DialFailed` queued before the bind landed
-/// through, then asserts the quiet window after it holds no `DialFailed`.
+/// through. The dial-failure and connect channels are separate, so a refusal queued before
+/// the connect may still be served within one `SHARED_INSTANCE_RECONNECT_WAIT` after
+/// `Connected`; those are let through too, and the quiet window after them must hold no
+/// `DialFailed`.
 #[deny(clippy::await_holding_invalid_type)]
 async fn shared_instance_expect_connected_then_quiet(
     events: &mut tokio::sync::mpsc::Receiver<SharedInstanceEvent>,
@@ -37,6 +40,13 @@ async fn shared_instance_expect_connected_then_quiet(
             Some(SharedInstanceEvent::DialFailed { .. }) => continue,
             other => panic!("expected DialFailed or Connected before the bind, got {other:?}"),
         }
+    }
+    let stale_until = tokio::time::Instant::now() + SHARED_INSTANCE_RECONNECT_WAIT;
+    while let Ok(event) = tokio::time::timeout_at(stale_until, events.recv()).await {
+        assert!(
+            matches!(event, Some(SharedInstanceEvent::DialFailed { .. })),
+            "only a stale DialFailed may trail Connected, got {event:?}"
+        );
     }
     match timeout(SHARED_INSTANCE_STATE_QUIET, events.recv()).await {
         Err(_) => {}

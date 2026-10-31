@@ -41,6 +41,10 @@ const POLL: Duration = Duration::from_millis(20);
 const RECONNECT_WAIT: Duration = Duration::from_millis(50);
 /// Several reconnect waits: the quiet window an absence check needs.
 const QUIET: Duration = Duration::from_millis(400);
+/// The state channel capacity for a pin that dials a closed port while a server comes up:
+/// the client redials every `RECONNECT_WAIT` (50 ms) and each refusal queues a `DialFailed`
+/// that a slow bring-up must not let push `Connected` off the channel.
+const REDIAL_CAPACITY: usize = 64;
 
 #[deny(clippy::await_holding_invalid_type)]
 async fn wait_until(what: &str, mut condition: impl FnMut() -> bool) {
@@ -97,7 +101,7 @@ async fn readme_default_attach_returns_at_once_reports_refusals_and_connects_whe
     let port = free_loopback_port().await;
     let endpoint = SocketAddr::from(([127, 0, 0, 1], port));
     let transport = client_transport("probe-dial-failures-client");
-    let (events_tx, mut events) = mpsc::channel(16);
+    let (events_tx, mut events) = mpsc::channel(REDIAL_CAPACITY);
 
     let started = Instant::now();
     let iface = transport
@@ -191,6 +195,10 @@ async fn first_connect_timeout_leaves_nothing_behind_and_the_transport_attaches_
         read.push(event);
     }
     assert_eq!(read.first(), Some(&SharedInstanceEvent::Connecting), "{read:?}");
+    assert!(
+        read.len() >= 2,
+        "a 300 ms wait over 50 ms redials on loopback reads at least one refusal: {read:?}"
+    );
     assert!(
         read[1..]
             .iter()

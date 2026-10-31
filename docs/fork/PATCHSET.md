@@ -43,7 +43,7 @@ commits `355a0ddf`, `ca32feac`, `223cdd80`, `716fb2be`, `f43321f4`,
 `d36f65df`, `813f421a`, `6fef8927`, `ac5a81ae` and `f9751b59`; the
 `link proof strategy` patch is fork commits `8e47a675`, `1a9e25c4`,
 `92346ece`, `e0a2feae`, `2624206e`, `ecf809d6`, `ac841458`, `c38e6b22`,
-`e8cda738`, `4ed2ebec` and `95ae6d37`.
+`e8cda738`, `4ed2ebec`, `95ae6d37`, `fdf40d01` and `94c27a5c`.
 
 | File | Patch |
 | --- | --- |
@@ -513,10 +513,11 @@ advertisement was accepted: an initiator cancel naming it draws the
 a refused advertisement leaves none to cancel.
 
 Fork commits `8e47a675`, `1a9e25c4`, `92346ece`, `e0a2feae`, `2624206e`,
-`ecf809d6`, `ac841458`, `c38e6b22`, `e8cda738`, `4ed2ebec` and `95ae6d37`: K6,
-link proof strategy. The library behaviour changes are: a link proves the plain
-Data packets it receives by a strategy of its own instead of always, and an
-application can prove a received packet later. `8e47a675` pins, in
+`ecf809d6`, `ac841458`, `c38e6b22`, `e8cda738`, `4ed2ebec`, `95ae6d37`,
+`fdf40d01` and `94c27a5c`: K6, link proof strategy. The library behaviour
+changes are: a link proves the plain Data packets it receives by a strategy of
+its own instead of always, and an application can prove a received packet
+later. `8e47a675` pins, in
 `crate_readme_sections.rs`, that the changelog section selector stops at
 the next `## ` heading and does not read a `### ` sub-heading as a section
 boundary. `1a9e25c4` adds the `proof_strategy` and
@@ -601,7 +602,15 @@ loop under `None`, reads the refused payload, filters the loopback pair's
 `Activated` on its own link id and denies `await_holding_invalid_type` on
 `wait_for_in_link_payload`. `95ae6d37` has the README say the peer proves by
 default, names the link strategy and the callback as what is copied at
-accept, and cites the new pins in the changelog.
+accept, and cites the new pins in the changelog. `fdf40d01` pins, in
+`tests/link_proof_strategy_api.rs`, that an in-link accepted under `App` keeps
+asking the callback it copied at accept after the destination is switched to
+`All` and handed another callback, and has the quiet drain fail on a closed
+event channel instead of reporting no events. `94c27a5c` cites
+`RNS/Link.py:961-968` in the divergence register, the changelog, the
+`link_proof_strategy` and `set_proof_requested_callback` rustdoc and the
+register pin needle, and has the changelog and the test header say the
+`rustc` consumer covers every new proof item the README names.
 
 ## 0.17.0 (upstream 0.14.0)
 

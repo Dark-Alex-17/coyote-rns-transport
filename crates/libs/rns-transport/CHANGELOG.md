@@ -92,9 +92,57 @@ Removed) bullet of its own, marked as such.
   default, set, read back and cleared), and by `crate_readme_sections.rs`,
   which pins the README request-handler prose for both this cap and
   `into_parts`.
+- `Transport::resolve_destination` is `destination_desc` and `await_path`
+  in one call, taking the `AddressHash` and a `Duration` timeout and
+  returning the same `Option<DestinationDesc>`
+  (`links_parts/transport_sections/resolve_destination.rs`, included from
+  `links_parts/transport.rs`). A destination the transport already
+  knows answers at once and no path request goes out. A zero timeout is a
+  cached lookup alone and returns `None` for an unknown destination without
+  sending anything. Otherwise exactly one path request goes out, a broadcast
+  on every outgoing interface as `request_path` sends it, and the call polls
+  every 50 ms until the announce is learned or the timeout passes, returning
+  `None` after it. The entry read is the one `destination_desc` and
+  `destination_identity` read, filled by an accepted announce or a restored
+  path table. Fork-only: a Python application writes the same by hand with
+  `RNS.Transport.request_path`, a `has_path` poll and `RNS.Identity.recall`.
+  A test-only `PathRequests::outgoing_request_count`
+  (`path_requests_parts/module_prelude.rs`) counts the path requests sent
+  for a destination, one per send. Pinned by
+  `two_transport_resolve_destination.rs` (a known destination answers with
+  no path request and no path response following; a destination registered
+  without announcing is learned through exactly one path request, answered
+  by exactly one path-response announce; an unreachable destination returns
+  `None` after the timeout with one request sent; a zero timeout sends
+  nothing for an unknown destination and still answers a known one), by
+  `tests/destination_desc_api.rs` (the known, the silent-but-reachable and
+  the zero-timeout arms from outside the crate), and by
+  `crate_readme_sections.rs`, which pins the README link-opening prose for
+  the call; `request_layer_api_docs.rs` names the method among the items
+  whose rustdoc must cite Python or say fork-only.
 
 ### Changed
 
+- A request advertisement refused for exceeding the destination's
+  `max_request_size` no longer warns on every refusal. The refusal is
+  counted per link on `LinkStats.rejected_request_advertisements` by
+  `ResourceManager::record_rejected_request_advertisement`
+  (`resource/advertisement_limits.rs`), called from
+  `transport/resource_wire.rs` where the unconditional warn was, and the
+  `[resource-diag] reject_request_advertisement` line is logged at warn on
+  the first refusal and on every 64th after it, at debug otherwise, with a
+  `rejected=<n>` running count appended; an operator tailing warn still sees
+  a peer that keeps sending oversized requests, once rather than once per
+  advertisement. The rejection itself (the receiver cancel) is unchanged.
+  `LinkStats` and `ewma` move from `resource.rs` into `resource/link_stats.rs`
+  to keep `resource.rs` under the module-size budget; the move changes no
+  behaviour. Pinned by `request_advert_reject_warn_cadence.rs` (65 refusals
+  on one link warn at the first and the 64th and debug the rest, each record
+  naming the link and the running count; a second link starts its own count
+  and is warned on its first refusal; the sibling `rejected_advertisements`
+  count stays untouched); the shared `TestLogger` of
+  `two_transport_loopback_requests_isolation.rs` keeps those records in a
+  store of their own, read back per link.
 - Request-layer tests and ledger contracts, test-only: the shared
   `TestLogger` of `two_transport_loopback_requests_isolation.rs` keeps the
   dispatcher's dropped-outcome-receiver debug lines and the refused-response

@@ -30,39 +30,51 @@ per fork task.
 
 Every file changed since the `0.17.0` release and the patch each change
 belongs to. Patch ids: K1 is outcome tracker, K2 is response cap, K3 is
-ledger contracts. The `outcome tracker` patch is fork commits `c3a317d7`,
-`ca32feac`, `223cdd80`, `716fb2be` and `d3b234e6`; the `response cap` patch
-is fork commits `355a0ddf`, `ca32feac`, `223cdd80`, `716fb2be`, `f43321f4`,
-`9eb35226` and `d3b234e6`; the `ledger contracts` patch is fork commit
-`ca32feac`.
+ledger contracts, K4 is destination resolve, K5 is reject cadence. The
+`outcome tracker` patch is fork commits `c3a317d7`, `ca32feac`, `223cdd80`,
+`716fb2be` and `d3b234e6`; the `response cap` patch is fork commits
+`355a0ddf`, `ca32feac`, `223cdd80`, `716fb2be`, `f43321f4`, `9eb35226` and
+`d3b234e6`; the `ledger contracts` patch is fork commit `ca32feac`; the
+`destination resolve` patch is fork commit `3136f1bf`; the `reject cadence`
+patch is fork commit `265d6929`.
 
 | File | Patch |
 | --- | --- |
 | `crates/apps/reticulumd/tests/fork_publish_contract_parts/ledger_contract.rs` | ledger contracts |
-| `crates/apps/reticulumd/tests/fork_release_docs_contract_parts/crate_readme_sections.rs` | outcome tracker, response cap |
+| `crates/apps/reticulumd/tests/fork_release_docs_contract_parts/crate_readme_sections.rs` | outcome tracker, response cap, destination resolve |
 | `crates/apps/reticulumd/tests/fork_release_docs_contract_parts/release_0_17_0_probe3.rs` | response cap |
-| `crates/apps/reticulumd/tests/fork_release_docs_contract_parts/request_layer_api_docs.rs` | outcome tracker, response cap |
-| `crates/libs/rns-transport/CHANGELOG.md` | outcome tracker, response cap, ledger contracts |
-| `crates/libs/rns-transport/README.md` | outcome tracker, response cap |
+| `crates/apps/reticulumd/tests/fork_release_docs_contract_parts/request_layer_api_docs.rs` | outcome tracker, response cap, destination resolve |
+| `crates/libs/rns-transport/CHANGELOG.md` | outcome tracker, response cap, ledger contracts, destination resolve, reject cadence |
+| `crates/libs/rns-transport/README.md` | outcome tracker, response cap, destination resolve |
 | `crates/libs/rns-transport/src/destination_parts/destination.rs` | response cap |
 | `crates/libs/rns-transport/src/destination_parts/module_core.rs` | response cap |
 | `crates/libs/rns-transport/src/destination/request/inbound.rs` | outcome tracker |
 | `crates/libs/rns-transport/src/destination/request/mod.rs` | outcome tracker |
 | `crates/libs/rns-transport/src/destination/request/outcome.rs` | outcome tracker, response cap |
 | `crates/libs/rns-transport/src/destination/tests.rs` | response cap |
+| `crates/libs/rns-transport/src/resource.rs` | reject cadence |
+| `crates/libs/rns-transport/src/resource/advertisement_limits.rs` | reject cadence |
+| `crates/libs/rns-transport/src/resource/link_stats.rs` | reject cadence |
 | `crates/libs/rns-transport/src/resource/sender.rs` | response cap |
+| `crates/libs/rns-transport/src/transport/links_parts/transport_sections/resolve_destination.rs` | destination resolve |
+| `crates/libs/rns-transport/src/transport/links_parts/transport.rs` | destination resolve |
+| `crates/libs/rns-transport/src/transport/path_requests_parts/module_prelude.rs` | destination resolve |
 | `crates/libs/rns-transport/src/transport/request_dispatch_parts/response_limits.rs` | response cap |
 | `crates/libs/rns-transport/src/transport/request_dispatch.rs` | response cap |
+| `crates/libs/rns-transport/src/transport/resource_wire.rs` | reject cadence |
+| `crates/libs/rns-transport/src/transport/tests_parts/request_advert_reject_warn_cadence.rs` | reject cadence |
 | `crates/libs/rns-transport/src/transport/tests_parts/two_transport_loopback_requests_into_parts.rs` | outcome tracker |
-| `crates/libs/rns-transport/src/transport/tests_parts/two_transport_loopback_requests_isolation.rs` | outcome tracker, response cap |
+| `crates/libs/rns-transport/src/transport/tests_parts/two_transport_loopback_requests_isolation.rs` | outcome tracker, response cap, reject cadence |
 | `crates/libs/rns-transport/src/transport/tests_parts/two_transport_loopback_requests_response_cap.rs` | response cap |
 | `crates/libs/rns-transport/src/transport/tests_parts/two_transport_loopback_requests_response_cap_probe.rs` | response cap |
 | `crates/libs/rns-transport/src/transport/tests_parts/two_transport_loopback_requests_response_cap_probe2.rs` | response cap |
 | `crates/libs/rns-transport/src/transport/tests_parts/two_transport_loopback_requests_response_cap_probe3.rs` | response cap |
-| `crates/libs/rns-transport/src/transport/tests.rs` | outcome tracker, response cap |
+| `crates/libs/rns-transport/src/transport/tests_parts/two_transport_resolve_destination.rs` | destination resolve |
+| `crates/libs/rns-transport/src/transport/tests.rs` | outcome tracker, response cap, destination resolve, reject cadence |
+| `crates/libs/rns-transport/tests/destination_desc_api.rs` | destination resolve |
 | `crates/libs/rns-transport/tests/request_handler_api.rs` | outcome tracker |
 | `crates/libs/rns-transport/tests/response_cap_tracker_api.rs` | outcome tracker, response cap |
-| `docs/fork/PATCHSET.md` | outcome tracker, response cap, ledger contracts |
+| `docs/fork/PATCHSET.md` | outcome tracker, response cap, ledger contracts, destination resolve, reject cadence |
 
 Fork commits `c3a317d7`, `ca32feac`, `223cdd80`, `716fb2be` and `d3b234e6`:
 K1, outcome tracker. The library behaviour changes are: a handler can take
@@ -213,6 +225,58 @@ contracts job can, and fails rather than skips on a clone without it.
 Fork commit `ca32feac`: K3, ledger contracts. No library behaviour changes.
 `ca32feac` extends the full-hash ledger pin in `ledger_contract.rs` to the
 reopened `Unreleased` section beside the released ones.
+
+Fork commit `3136f1bf`: K4, destination resolve. The library behaviour
+changes are: a caller can look up a destination and wait for its path in one
+call. `3136f1bf` adds `Transport::resolve_destination` in the new include
+`links_parts/transport_sections/resolve_destination.rs` (registered in
+`links_parts/transport.rs`), which takes an `AddressHash` and a `Duration`
+timeout and returns the `Option<DestinationDesc>` that `destination_desc`
+returns: a destination the transport already knows answers at once and no
+path request goes out; a zero timeout is a cached lookup alone and returns
+`None` for an unknown destination without sending anything; otherwise
+exactly one path request goes out, through `await_path`, and the call polls
+every 50 ms until the announce is learned or the timeout passes, then
+returns `None`. The same commit adds the test-only
+`PathRequests::outgoing_request_count` (`path_requests_parts/module_prelude.rs`),
+which counts the `outgoing_request_queue` entries for a destination, one per
+send. Pinned by `two_transport_resolve_destination.rs` (included from
+`tests.rs`): a known destination answers with no path request sent and no
+path response following; a destination registered without announcing is
+learned through exactly one path request, the one announce that arrives
+being a path response and the count rising by one; an unreachable
+destination returns `None` after the timeout with one request sent; and a
+zero timeout sends nothing for an unknown destination while still answering
+a known one. `tests/destination_desc_api.rs` exercises the known, the
+silent-but-reachable and the zero-timeout arms from outside the crate; the
+README link-opening section describes the call beside `destination_desc`,
+pinned by `crate_readme_sections.rs`; `request_layer_api_docs.rs` names the
+method among the items whose rustdoc must cite Python or say fork-only.
+
+Fork commit `265d6929`: K5, reject cadence. The library behaviour changes
+are: the warn for a request advertisement refused over the destination's
+`max_request_size` has a per-link cadence. `265d6929` adds the
+`LinkStats.rejected_request_advertisements` counter and moves `LinkStats`
+with `ewma` from `resource.rs` into the new include
+`resource/link_stats.rs`, so `resource.rs` stays under the module-size
+budget (the move changes no behaviour); adds
+`ResourceManager::record_rejected_request_advertisement`
+(`resource/advertisement_limits.rs`), which counts the refusal against the
+link and logs the same diagnostic line with a `rejected=<n>` suffix, at warn
+on the first refusal and on every 64th after it and at debug otherwise; and
+calls it from `transport/resource_wire.rs` where the unconditional warn
+was, the receiver cancel that rejects the advertisement unchanged.
+`FLAG_REQUEST` becomes `pub(crate)` so the wire-side test can build a
+request advertisement. Pinned by `request_advert_reject_warn_cadence.rs`
+(included from `tests.rs`): 65 over-limit request advertisements on one
+link produce 65 records, the first and the 64th at warn and every other at
+debug, each naming the link and the running count; a second link to the
+same transport starts its own count and is warned on its first refusal; and
+the sibling `rejected_advertisements` count stays untouched. The shared
+`TestLogger` of `two_transport_loopback_requests_isolation.rs` gains the
+store those records are read from, keyed by link;
+`resource_advert_reject_warn_cadence.rs`, which pins the over-cap
+advertisement cadence, is unchanged.
 
 ## 0.17.0 (upstream 0.14.0)
 

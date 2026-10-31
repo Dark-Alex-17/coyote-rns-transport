@@ -393,11 +393,10 @@ answers `None` at once with no request, since `await_path` takes the standing
 path as its answer, and a destination whose desc is still held but whose path
 `Transport::expire_path` or aging removed answers `Some` at once with no
 request, so a caller that then needs a next hop for `Transport::link` still
-calls `await_path` itself.
-The convenience is fork-only: a Python application writes the same by hand
-with `RNS.Transport.request_path` (`RNS/Transport.py:3279`), a
-`RNS.Transport.has_path` poll (`RNS/Transport.py:3126`) and
-`RNS.Identity.recall`.
+calls `await_path` itself. The convenience is fork-only: a Python
+application writes the same by hand with `RNS.Transport.request_path`
+(`RNS/Transport.py:3279`), a `RNS.Transport.has_path` poll
+(`RNS/Transport.py:3126`) and `RNS.Identity.recall`.
 
 Looking up a learned destination and opening a link with it, on the transport
 that learned the announce and with `destination_hash` the `AddressHash` the

@@ -198,8 +198,8 @@ async fn handle_and_respond(
 /// before anything leaves: to the packed `[request_id, body]` frame of a
 /// `Value` or `Bytes` response, ahead of the MDU check that would otherwise
 /// turn an oversize frame into a resource, and to the advertised size `d`
-/// of a `Resource` response, the uncompressed data behind the metadata
-/// block and its length prefix, like `max_request_size` reads `d` rather
+/// of a `Resource` response, the uncompressed data together with the packed
+/// metadata and its length prefix, like `max_request_size` reads `d` rather
 /// than the compressed `t` (`resource_wire.rs`). The requester's
 /// `RequestOptions::with_max_response_size` reads the same `d`, so the two
 /// caps compose at one number.

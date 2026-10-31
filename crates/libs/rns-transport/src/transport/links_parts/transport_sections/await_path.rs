@@ -1,17 +1,22 @@
 // The path wait, `include!`d into `links_parts/transport.rs` beside
-// `close_channel.rs` so that section stays below the repository's 500-line
-// limit; a file boundary, not a privacy one.
+// `resolve_destination.rs`, which keeps the wait next to the lookup it
+// serves; a file boundary, not a privacy one.
 
 impl Transport {
     /// Waits until a path to `destination` is known or `timeout` passes,
     /// returning whether one stands at the end. A path already in the table
     /// answers `true` at once and nothing is sent; otherwise exactly one path
-    /// request goes out through [`Self::request_path`], on `on_iface` or, with
-    /// `None`, on every outgoing interface. The table is then polled every
-    /// 50 ms or the time left, whichever is shorter, so a short timeout
+    /// request is attempted through [`Self::request_path`], on `on_iface` or,
+    /// with `None`, on every outgoing interface. The table is then polled
+    /// every 50 ms or the time left, whichever is shorter, so a short timeout
     /// returns at its deadline rather than one poll later. A timeout the clock
     /// cannot hold, `Duration::MAX` included, is treated as waiting
     /// indefinitely instead of panicking.
+    ///
+    /// Fork-only convenience over `RNS.Transport.request_path`
+    /// (`RNS/Transport.py:3279`) and a `has_path` poll
+    /// (`RNS/Transport.py:3126`).
+    #[deny(clippy::await_holding_invalid_type)]
     pub async fn await_path(
         &self,
         destination: &AddressHash,

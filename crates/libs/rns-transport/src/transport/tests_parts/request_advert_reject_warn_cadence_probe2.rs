@@ -2,8 +2,11 @@
 // traffic: the count is a count of refusals alone. An at-limit request advertisement the
 // destination accepts and a plain data round trip between the 63rd and the 64th refusal
 // leave no refusal record and neither reset nor advance the count, so the 64th refusal
-// still warns and the 65th is debug. Helpers come from the sibling `tests_parts` files
-// included into this module.
+// still warns and the 65th is debug. The acceptance is shown, not assumed: an initiator
+// cancel naming the at-limit advertisement draws the `InboundFailed` only a receiver the
+// destination created can publish, where the sibling cadence test pins that a refusal
+// creates none. Helpers come from the sibling `tests_parts` files included into this
+// module.
 
 /// Refusals before the accepted traffic: one short of the first stride's warn.
 const REQUEST_ADVERT_REFUSALS_BEFORE: u32 = 63;
@@ -31,6 +34,7 @@ async fn two_transport_loopback_accepted_traffic_between_refusals_does_not_move_
         .await
         .set_max_request_size(REQUEST_ADVERT_LIMIT)
         .expect("the request size limit is accepted");
+    let mut listener_resources = pair.listener.transport.resource_events();
 
     // Seeds past the sibling runs keep a mixed log attributable when they share a logger.
     let base = 5_000;
@@ -58,6 +62,31 @@ async fn two_transport_loopback_accepted_traffic_between_refusals_does_not_move_
         SendPacketOutcome::SentDirect,
         "the at-limit advertisement reaches the wire"
     );
+    let cancel = {
+        let link = pair.link.lock().await;
+        crate::resource::build_link_packet(
+            &link,
+            PacketType::Data,
+            PacketContext::ResourceInitiatorCancel,
+            accepted.hash.as_slice(),
+        )
+        .expect("cancel fits a link packet")
+    };
+    let outcome =
+        pair.connector.transport.send_link_packet_on_bound_iface(&pair.link, cancel).await;
+    assert_eq!(outcome, SendPacketOutcome::SentDirect, "the cancel reaches the wire");
+    let failed = await_resource_event(&mut listener_resources, |event| {
+        event.link_id == pair.link_id && event.hash == accepted.hash
+    })
+    .await;
+    assert!(
+        matches!(
+            &failed.kind,
+            ResourceEventKind::InboundFailed(failure) if failure.reason == "remote_cancelled"
+        ),
+        "the at-limit advertisement was accepted into a receiver the cancel tears down, got {:?}",
+        failed.kind
+    );
     exchange_data_both_ways(&mut pair).await;
 
     for seed in 0..REQUEST_ADVERT_REFUSALS_AFTER {
@@ -75,7 +104,7 @@ async fn two_transport_loopback_accepted_traffic_between_refusals_does_not_move_
     assert_eq!(
         records.len(),
         total,
-        "only refusals leave records; the at-limit advertisement and the data left none, got {}",
+        "the count is of refusals alone; the accepted advertisement and the data left none, got {}",
         records.len()
     );
     let warned: Vec<u32> = records

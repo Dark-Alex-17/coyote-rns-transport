@@ -288,8 +288,8 @@ impl ResourceReceiver {
             let (metadata, data_payload) =
                 if carries_metadata_block && payload.len() >= METADATA_LENGTH_PREFIX_LEN {
                     let mut size_bytes = [0u8; 4];
-                    size_bytes[4 - METADATA_LENGTH_PREFIX_LEN..]
-                        .copy_from_slice(&payload[..METADATA_LENGTH_PREFIX_LEN]);
+                    let padding = size_bytes.len() - METADATA_LENGTH_PREFIX_LEN;
+                    size_bytes[padding..].copy_from_slice(&payload[..METADATA_LENGTH_PREFIX_LEN]);
                     let size = u32::from_be_bytes(size_bytes) as usize;
                     if size > METADATA_MAX_SIZE {
                         return self.fail("metadata_size_exceeded");

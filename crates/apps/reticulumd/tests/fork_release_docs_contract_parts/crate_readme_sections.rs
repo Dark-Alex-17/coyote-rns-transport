@@ -207,19 +207,21 @@ fn crate_readme_link_section_carries_one_rust_fence() {
 }
 
 /// The three places that describe what an unknown destination costs
-/// `Transport::resolve_destination` say the same thing: exactly one path
-/// request is attempted, a `Broadcast` on every outgoing interface. The
-/// README, the newest changelog section and the method's rustdoc each carry
-/// both phrases, and none spells the message type bare, so the capitalised
-/// word reads as the `TxMessageType` variant it names. The changelog
-/// section is the first one in the file whatever its heading says, so the
-/// pin survives the release cut that renames `Unreleased`.
+/// `Transport::resolve_destination` and how the call waits say the same
+/// thing: exactly one path request is attempted, a `Broadcast` on every
+/// outgoing interface, the call waits until a path is learned polling every
+/// 50 ms or the time left, and a timeout the clock cannot hold waits
+/// indefinitely. The README, the changelog section that names the call and
+/// the method's rustdoc each carry every phrase, and none spells the
+/// message type bare, so the capitalised word reads as the `TxMessageType`
+/// variant it names.
 #[test]
 fn crate_readme_resolve_destination_prose_matches_the_rustdoc_and_the_changelog() {
     let readme = read_repo_file("crates/libs/rns-transport/README.md");
     let section = crate_readme_section(&readme, "Opening links and admitting resources");
     let changelog = read_repo_file("crates/libs/rns-transport/CHANGELOG.md");
-    let newest = newest_changelog_section(&changelog);
+    let changelog_section =
+        changelog_section_naming(&changelog, "`Transport::resolve_destination`");
     let rustdoc = read_repo_file(
         "crates/libs/rns-transport/src/transport/links_parts/transport_sections/resolve_destination.rs",
     );
@@ -227,16 +229,20 @@ fn crate_readme_resolve_destination_prose_matches_the_rustdoc_and_the_changelog(
 
     for (name, text) in [
         ("the README link-opening section", section),
-        ("the newest changelog section", newest),
+        ("the changelog section naming resolve_destination", changelog_section),
         ("the resolve_destination rustdoc", rustdoc.as_str()),
     ] {
         // Line wraps differ between the three, so the claims are matched with
         // whitespace removed; the bare spelling is looked for as a whole word
         // on a single line, so punctuation around it does not hide it.
         let flattened = squash(text);
-        for claim in
-            ["exactly one path request is attempted", "a `Broadcast` on every outgoing interface"]
-        {
+        for claim in [
+            "exactly one path request is attempted",
+            "a `Broadcast` on every outgoing interface",
+            "until a path is learned",
+            "polling every 50 ms or the time left, whichever is shorter",
+            "`Duration::MAX` included, waits indefinitely instead of panicking",
+        ] {
             assert!(flattened.contains(&squash(claim)), "{name} should say {claim:?}:\n{text}");
         }
         let bare = text.lines().find(|line| {
@@ -250,11 +256,12 @@ fn crate_readme_resolve_destination_prose_matches_the_rustdoc_and_the_changelog(
     }
 }
 
-/// The two rustdocs that say how the responder's cap measures a
-/// `RequestResponse::Resource`, `ResponseOutcome::TooLarge` and
-/// `Destination::set_max_response_size`, describe the advertised size in the
-/// same words as the README's request-handler section, so the three cannot
-/// drift apart one at a time.
+/// The three rustdocs that say how the responder's cap measures a
+/// `RequestResponse::Resource`, `ResponseOutcome::TooLarge`,
+/// `Destination::set_max_response_size` and the dispatcher's
+/// `send_response`, describe the advertised size in the same words as the
+/// README's request-handler section and the changelog section that names
+/// `set_max_response_size`, so none of the five can drift apart on its own.
 #[test]
 fn response_cap_rustdoc_twins_describe_the_resource_measure_alike() {
     let measure = "together with the packed metadata and its length prefix";
@@ -264,21 +271,35 @@ fn response_cap_rustdoc_twins_describe_the_resource_measure_alike() {
         section.contains(&squash(measure)),
         "the README request-handler section should say {measure:?}"
     );
+    let changelog = read_repo_file("crates/libs/rns-transport/CHANGELOG.md");
+    let changelog_section = squash(changelog_section_naming(&changelog, "`set_max_response_size`"));
+    assert!(
+        changelog_section.contains(&squash(measure)),
+        "the changelog section naming set_max_response_size should say {measure:?}"
+    );
     for file in [
         "crates/libs/rns-transport/src/destination/request/outcome.rs",
         "crates/libs/rns-transport/src/destination_parts/destination.rs",
+        "crates/libs/rns-transport/src/transport/request_dispatch.rs",
     ] {
         let rustdoc = squash(&doc_comment_text(&read_repo_file(file)));
         assert!(rustdoc.contains(&squash(measure)), "{file} rustdoc should say {measure:?}");
     }
 }
 
-/// The text of the newest changelog section, whatever its heading says:
-/// everything after the first `## ` heading up to the next one. Reading it by
-/// position rather than by the `Unreleased` label keeps the pins green across
-/// the release cut that promotes the stub to a version heading.
-fn newest_changelog_section(changelog: &str) -> &str {
-    changelog.split("\n## ").nth(1).expect("the changelog carries at least one `## ` section")
+/// The text of the first `## ` changelog section, whatever its heading
+/// says, that contains `anchor`. Each pin anchors on the API name its
+/// bullet is about: anchoring on the content rather than on the
+/// `Unreleased` label keeps the pin green across the release cut that
+/// promotes the stub to a version heading, and anchoring on the content
+/// rather than on position keeps it green when the next `## Unreleased`
+/// stub is reopened above the section that carries the bullet.
+fn changelog_section_naming<'a>(changelog: &'a str, anchor: &str) -> &'a str {
+    changelog
+        .split("\n## ")
+        .skip(1)
+        .find(|section| section.contains(anchor))
+        .unwrap_or_else(|| panic!("a changelog section names {anchor}"))
 }
 
 /// Every `///` line of a source file joined with single spaces, so a phrase

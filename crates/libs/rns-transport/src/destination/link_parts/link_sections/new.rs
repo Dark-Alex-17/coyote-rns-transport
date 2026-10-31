@@ -237,10 +237,11 @@ impl Link {
                 if let Ok(plain_text) = self.decrypt(packet.data.as_slice(), &mut buffer[..]) {
                     self.note_inbound(packet.context);
                     log::trace!("link({}): data {}B", self.id, plain_text.len());
+                    let hash = packet.hash();
                     let (request_id, response_accepted) = if packet.context
                         == PacketContext::Request
                     {
-                        let id = RequestId::from_packet_hash(&packet.hash());
+                        let id = RequestId::from_packet_hash(&hash);
                         self.dispatch_request(DispatchForm::Packet { request_id: id }, plain_text);
                         (Some(id.to_bytes()), true)
                     } else if packet.context == PacketContext::Response {
@@ -300,10 +301,10 @@ impl Link {
                             packet.context,
                             request_id,
                         )
-                        .with_packet_hash(packet.hash()),
+                        .with_packet_hash(hash),
                     )));
                     if packet.context == PacketContext::None && self.should_auto_prove(packet) {
-                        return LinkHandleResult::Proof(self.prove_packet(packet));
+                        return LinkHandleResult::Proof(self.prove_hash(&hash));
                     }
                     return LinkHandleResult::None;
                 } else {

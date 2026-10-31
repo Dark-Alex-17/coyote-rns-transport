@@ -40,9 +40,10 @@ impl Destination<PrivateIdentity, Input, Single> {
     /// accepts, together with its `proof_requested_callback`, which the
     /// opportunistic path shares. Defaults to `All`, so a link keeps proving
     /// every plain Data packet unless this is set, while `proof_strategy`
-    /// defaults to `None`. Python has one `proof_strategy` per destination
-    /// that governs both the opportunistic packet (`RNS/Destination.py:360-367`)
-    /// and the packets of its links (`RNS/Link.py:961-968`).
+    /// defaults to `None`. Fork-only: Python has one `proof_strategy` per
+    /// destination that governs both the opportunistic packet
+    /// (`RNS/Destination.py:360-367`) and the packets of its links
+    /// (`RNS/Link.py:961-968`).
     pub fn set_link_proof_strategy(&mut self, strategy: ProofStrategy) {
         self.link_proof_strategy = strategy;
     }

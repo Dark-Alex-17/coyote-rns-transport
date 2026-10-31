@@ -14,8 +14,12 @@ impl Link {
         self.proof_strategy = strategy;
     }
 
-    /// The strategy [`Self::set_proof_strategy`] set, `All` until it is called.
-    /// Fork-only: Python reads `self.destination.proof_strategy` (`RNS/Link.py:961`).
+    /// The strategy this link proves by: `All` on a link [`Link::new`] builds;
+    /// a link a destination accepts starts with that destination's
+    /// `link_proof_strategy` and callback, until [`Self::set_proof_strategy`]
+    /// or [`Self::set_proof_requested_callback`] change them. Fork-only:
+    /// Python reads `self.destination.proof_strategy` live per packet
+    /// (`RNS/Link.py:961`).
     pub fn proof_strategy(&self) -> ProofStrategy {
         self.proof_strategy
     }

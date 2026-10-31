@@ -9,7 +9,7 @@ use tokio_util::sync::CancellationToken;
 
 use crate::buffer::OutputBuffer;
 use crate::error::RnsError;
-use crate::iface::events::{DialFailure, DialFailureKind};
+use crate::iface::events::{DialFailure, DialFailureKind, DisconnectReason};
 use crate::iface::{
     decode_packet_ifac, encode_packet_ifac, is_ifac_violation, record_ifac_violation, IfacState,
     IfaceSource, RxMessage,
@@ -934,6 +934,8 @@ pub struct TcpClient {
     reconnect_events: Option<tokio::sync::mpsc::Sender<crate::hash::AddressHash>>,
     disconnect_events: Option<tokio::sync::mpsc::Sender<crate::hash::AddressHash>>,
     dial_failure_events: Option<tokio::sync::mpsc::Sender<DialFailure>>,
+    disconnect_reason_events:
+        Option<tokio::sync::mpsc::Sender<(crate::hash::AddressHash, DisconnectReason)>>,
     connect_timeout: Duration,
     reconnect_wait: Duration,
     max_reconnect_tries: Option<u64>,
@@ -966,6 +968,7 @@ impl TcpClient {
             reconnect_events: None,
             disconnect_events: None,
             dial_failure_events: None,
+            disconnect_reason_events: None,
             connect_timeout: Self::DEFAULT_CONNECT_TIMEOUT,
             reconnect_wait: Self::DEFAULT_RECONNECT_WAIT,
             max_reconnect_tries: None,
@@ -993,6 +996,7 @@ impl TcpClient {
             reconnect_events: None,
             disconnect_events: None,
             dial_failure_events: None,
+            disconnect_reason_events: None,
             connect_timeout: Self::DEFAULT_CONNECT_TIMEOUT,
             reconnect_wait: Self::DEFAULT_RECONNECT_WAIT,
             max_reconnect_tries: None,
@@ -1095,6 +1099,27 @@ impl TcpClient {
         self
     }
 
+    /// Sends `(interface address, reason)` on `events` each time an
+    /// established stream ends while the client is neither cancelled nor
+    /// stopped, the twin of [`Self::with_disconnect_events`] that also
+    /// says why: `PeerClosed` for an orderly close, `Reset` for an
+    /// `ErrorKind::ConnectionReset` on either side, `Timeout` when the read
+    /// watchdog ([`Self::with_backbone_liveness`]; none by default) found
+    /// the stream quiet or either side read `ErrorKind::TimedOut`, and
+    /// `Io(kind)` for any other io error. A stream the client ended itself
+    /// (cancel, stop) sends nothing. A full or closed channel drops the
+    /// event at debug. Fork-only: Python's shared-instance client only
+    /// notices the socket closed and reconnects
+    /// (`RNS/Interfaces/LocalInterface.py:255-261`).
+    #[must_use]
+    pub fn with_disconnect_reason_events(
+        mut self,
+        events: tokio::sync::mpsc::Sender<(crate::hash::AddressHash, DisconnectReason)>,
+    ) -> Self {
+        self.disconnect_reason_events = Some(events);
+        self
+    }
+
     #[must_use]
     pub fn with_connect_timeout(mut self, connect_timeout: Duration) -> Self {
         self.connect_timeout = connect_timeout.max(Duration::from_millis(1));
@@ -1187,6 +1212,13 @@ impl TcpClient {
         self.dial_failure_events.is_some()
     }
 
+    /// Fork-only: whether a disconnect-reason sender is installed with
+    /// [`Self::with_disconnect_reason_events`].
+    #[must_use]
+    pub fn disconnect_reason_events_enabled(&self) -> bool {
+        self.disconnect_reason_events.is_some()
+    }
+
     #[must_use]
     pub fn connect_timeout(&self) -> Duration {
         self.connect_timeout
@@ -1264,7 +1296,14 @@ impl TcpClient {
         let ifac_violations = context.channel.ifac_violations.clone();
         let online = context.channel.online.clone();
         online.store(false, std::sync::atomic::Ordering::Release);
-        let (mut stream, connect_events, reconnect_events, disconnect_events, dial_failure_events) = {
+        let (
+            mut stream,
+            connect_events,
+            reconnect_events,
+            disconnect_events,
+            dial_failure_events,
+            disconnect_reason_events,
+        ) = {
             let mut guard = context.inner.lock().unwrap();
             (
                 guard.stream.take(),
@@ -1272,6 +1311,7 @@ impl TcpClient {
                 guard.reconnect_events.clone(),
                 guard.disconnect_events.clone(),
                 guard.dial_failure_events.clone(),
+                guard.disconnect_reason_events.clone(),
             )
         };
 
@@ -1405,7 +1445,7 @@ impl TcpClient {
             }
             .with_events(event_tx);
 
-            run_hdlc_stream_with_runtime_and_ifac(
+            let exit = run_hdlc_stream_with_runtime_and_ifac(
                 "tcp_client".to_string(),
                 iface_address,
                 mtu,
@@ -1449,6 +1489,19 @@ impl TcpClient {
                         "dropped TCP disconnect event iface={} endpoint={} err={}",
                         iface_address,
                         addr,
+                        err
+                    );
+                }
+            }
+            if let (Some(events), Some(reason)) =
+                (disconnect_reason_events.as_ref(), DisconnectReason::from_stream_exit(exit))
+            {
+                if let Err(err) = events.try_send((iface_address, reason)) {
+                    log::debug!(
+                        "dropped TCP disconnect reason event iface={} endpoint={} reason={:?} err={}",
+                        iface_address,
+                        addr,
+                        reason,
                         err
                     );
                 }

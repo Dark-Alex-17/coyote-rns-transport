@@ -198,7 +198,7 @@ impl SharedInstanceOptions {
     /// [`Transport::attach_shared_instance`](crate::transport::Transport::attach_shared_instance)
     /// wait up to `timeout` for the first served connect; without one it
     /// detaches again, as it does when the attach's consumer ends first (a
-    /// stop or detach during the wait), and returns
+    /// stop, detach or `stop_interface` during the wait), and returns
     /// [`RnsError::SharedInstanceConnectTimeout`](crate::error::RnsError::SharedInstanceConnectTimeout),
     /// the state stream reading `Connecting`, zero or more
     /// [`SharedInstanceEvent::DialFailed`], and then ending. A connect that

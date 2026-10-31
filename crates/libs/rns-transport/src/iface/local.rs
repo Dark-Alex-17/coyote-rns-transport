@@ -549,12 +549,12 @@ impl LocalUnixClient {
                     if let Some(events) = dial_failure_events.as_ref() {
                         let failure =
                             DialFailure::new(iface_address, DialFailureKind::from_io_error(&err));
-                        if let Err(err) = events.try_send(failure) {
+                        if let Err(send_err) = events.try_send(failure) {
                             log::debug!(
                                 "dropped local unix dial failure event iface={} endpoint={} err={}",
                                 iface_address,
                                 addr,
-                                err
+                                send_err
                             );
                         }
                     }

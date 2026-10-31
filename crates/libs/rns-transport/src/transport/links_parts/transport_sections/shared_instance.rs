@@ -29,9 +29,9 @@ impl Transport {
     /// With [`SharedInstanceOptions::with_first_connect_timeout`] set, the
     /// attach also waits that long for the first served connect, before the
     /// tunnel is synthesized; without one, or when the attach's consumer
-    /// ends first (a stop or detach during the wait), it detaches again and
-    /// returns [`RnsError::SharedInstanceConnectTimeout`], the stream
-    /// reading `Connecting`, zero or more
+    /// ends first (a stop, detach or `stop_interface` during the wait), it
+    /// detaches again and returns [`RnsError::SharedInstanceConnectTimeout`],
+    /// the stream reading `Connecting`, zero or more
     /// [`SharedInstanceEvent::DialFailed`], and then ending (a connect
     /// landing between the timeout and the detach may still be read as
     /// `Connected` before the stream ends). That detach releases the slot
@@ -199,10 +199,10 @@ impl Transport {
             options.state_events().cloned(),
             first_connect_tx,
         );
-        if let (Some(timeout), Some(first_connect)) =
+        if let (Some(first_connect_timeout), Some(first_connect)) =
             (options.first_connect_timeout(), first_connect_rx)
         {
-            match tokio::time::timeout(timeout, first_connect).await {
+            match tokio::time::timeout(first_connect_timeout, first_connect).await {
                 Ok(Ok(())) => {}
                 Err(_elapsed) => {
                     let detached = self.detach_shared_instance_if(iface).await;
@@ -211,7 +211,7 @@ impl Transport {
                         self.name,
                         iface,
                         kind,
-                        timeout,
+                        first_connect_timeout,
                         detached
                     );
                     return Err(RnsError::SharedInstanceConnectTimeout);
@@ -219,9 +219,10 @@ impl Transport {
                 Ok(Err(_)) => {
                     let detached = self.detach_shared_instance_if(iface).await;
                     log::debug!(
-                        "tp({}): shared instance iface={} consumer ended before the first connect, detached={}",
+                        "tp({}): shared instance iface={} kind={} consumer ended before the first connect, detached={}",
                         self.name,
                         iface,
+                        kind,
                         detached
                     );
                     return Err(RnsError::SharedInstanceConnectTimeout);

@@ -71,9 +71,9 @@ pub enum SharedInstanceEvent {
     /// the attach was given [`SharedInstanceOptions::with_disconnect_reasons`];
     /// a caller that did not opt in keeps reading `Disconnected`. `reason`
     /// is `PeerClosed` for an orderly close, `Reset` for a connection reset,
-    /// `Io(kind)` for any other io error; `Timeout` never reaches this stream,
-    /// since the attach's clients run no read watchdog (only a `TcpClient`
-    /// built with `with_backbone_liveness` has one). Python's
+    /// `Timeout` for a read or write that failed with `ErrorKind::TimedOut`
+    /// (the attach's clients run no read watchdog), `Io(kind)` for any
+    /// other io error. Python's
     /// `LocalClientInterface` only notices the socket closed and reconnects
     /// (`RNS/Interfaces/LocalInterface.py:255-261`).
     DisconnectedWithReason { reason: DisconnectReason },

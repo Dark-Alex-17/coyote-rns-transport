@@ -9,6 +9,9 @@
 //! arrives, so a miss is not remembered. `resolve_destination` is exercised the same way
 //! from outside the crate: an announced destination answers at once, one registered without
 //! announcing is learned through the path request, and a zero timeout never asks the network.
+//! The two desc/path-table splits the README names are walked as a consumer would: an
+//! expired path answers `Some` at once and `await_path` relearns the next hop, a deregistered
+//! destination with a standing path answers `None` at once and `expire_path` lets it relearn.
 
 use std::error::Error;
 use std::sync::Arc;
@@ -116,6 +119,33 @@ async fn learn_announce(announces: &mut broadcast::Receiver<AnnounceEvent>, hash
 }
 
 #[deny(clippy::await_holding_invalid_type)]
+async fn path_response_announces_for(
+    announces: &mut broadcast::Receiver<AnnounceEvent>,
+    hash: &AddressHash,
+    window: Duration,
+) -> usize {
+    let deadline = Instant::now() + window;
+    let mut seen = 0;
+    loop {
+        let left = deadline.saturating_duration_since(Instant::now());
+        if left.is_zero() {
+            return seen;
+        }
+        match timeout(left, announces.recv()).await {
+            Ok(Ok(event)) => {
+                if event.destination.lock().await.desc.address_hash == *hash {
+                    assert!(event.is_path_response, "only a path response is expected here");
+                    seen += 1;
+                }
+            }
+            Ok(Err(RecvError::Lagged(_))) => continue,
+            Ok(Err(RecvError::Closed)) => panic!("announce channel closed"),
+            Err(_) => return seen,
+        }
+    }
+}
+
+#[deny(clippy::await_holding_invalid_type)]
 async fn await_activated(events: &mut broadcast::Receiver<LinkEventData>) -> LinkEventData {
     timeout(WAIT, async {
         loop {
@@ -184,6 +214,149 @@ async fn readme_snippet_resolves_the_desc_and_opens_a_link() {
     let link_id = *link.lock().await.id();
     let activated = await_activated(&mut in_events).await;
     assert_eq!(activated.id, link_id, "both ends share one link id");
+
+    timeout(WAIT, connector.stop()).await.expect("connector stop completes");
+    timeout(WAIT, listener.transport.stop()).await.expect("listener stop completes");
+}
+
+/// The README's first split, walked as a consumer: once the path table entry is gone but
+/// the desc is still held, `resolve_destination` answers `Some` at once and asks the network
+/// nothing (no path response arrives), so the caller follows the README and calls
+/// `await_path` itself, which sends the one path request, draws exactly one path response,
+/// restores `has_path`, and the desc then opens a link that activates on the announcing side.
+#[tokio::test]
+#[deny(clippy::await_holding_invalid_type)]
+async fn readme_split_expired_path_answers_at_once_and_await_path_relearns_the_next_hop() {
+    let listener = listener().await;
+    let (connector, mut announces) = connector(listener.port).await;
+    wait_until("the listener to accept", || {
+        listener.status.to_json()["accepted_connections"].as_u64() == Some(1)
+    })
+    .await;
+    let mut in_events = listener.transport.in_link_events();
+
+    let destination = listener
+        .transport
+        .add_destination(
+            PrivateIdentity::new_from_rand(OsRng),
+            DestinationName::new("example", "echo"),
+        )
+        .await;
+    let destination_hash = destination.lock().await.desc.address_hash;
+    let packet = destination.lock().await.announce(OsRng, None).expect("valid announce packet");
+    listener.transport.send_packet(packet).await;
+    learn_announce(&mut announces, &destination_hash).await;
+    assert!(connector.has_path(&destination_hash).await, "the announce filled the path table");
+
+    assert!(connector.expire_path(&destination_hash).await, "the path table entry is removed");
+    assert!(!connector.has_path(&destination_hash).await);
+    assert!(
+        connector.destination_desc(&destination_hash).await.is_some(),
+        "expiring the path leaves the learned desc standing"
+    );
+
+    let budget = Duration::from_secs(1);
+    let started = Instant::now();
+    let resolved = connector
+        .resolve_destination(&destination_hash, budget)
+        .await
+        .expect("the held desc answers although the path is gone");
+    assert_eq!(resolved.address_hash, destination_hash);
+    assert!(
+        started.elapsed() < budget,
+        "a held desc answers at once, not after the timeout, took {:?}",
+        started.elapsed()
+    );
+    assert_eq!(
+        path_response_announces_for(&mut announces, &destination_hash, QUIET).await,
+        0,
+        "a held desc sends no path request, so no path response arrives"
+    );
+    assert!(!connector.has_path(&destination_hash).await, "the lookup did not refill the path");
+
+    // The README's next step for a caller that needs a next hop.
+    assert!(
+        connector.await_path(&destination_hash, WAIT, None).await,
+        "await_path relearns the path through its own request"
+    );
+    assert!(connector.has_path(&destination_hash).await);
+    assert_eq!(
+        path_response_announces_for(&mut announces, &destination_hash, QUIET).await,
+        1,
+        "exactly one path response answers the one request await_path sent"
+    );
+
+    let link = readme_destination_desc_and_link(&connector, destination_hash)
+        .await
+        .expect("the relearned path carries the link request");
+    let link_id = *link.lock().await.id();
+    let activated = await_activated(&mut in_events).await;
+    assert_eq!(activated.id, link_id, "both ends share one link id");
+
+    timeout(WAIT, connector.stop()).await.expect("connector stop completes");
+    timeout(WAIT, listener.transport.stop()).await.expect("listener stop completes");
+}
+
+/// The README's second split, walked as a consumer: a destination deregistered while its
+/// path table entry stands answers `None` at once and asks the network nothing, and the
+/// miss is final for as long as the path stands. Expiring the stale path turns the address
+/// back into the unknown-but-reachable case: the next call sends the one path request,
+/// draws exactly one path response, and answers `Some` again.
+#[tokio::test]
+#[deny(clippy::await_holding_invalid_type)]
+async fn readme_split_deregistered_with_a_standing_path_answers_none_until_the_path_expires() {
+    let listener = listener().await;
+    let (connector, mut announces) = connector(listener.port).await;
+    wait_until("the listener to accept", || {
+        listener.status.to_json()["accepted_connections"].as_u64() == Some(1)
+    })
+    .await;
+
+    let destination = listener
+        .transport
+        .add_destination(
+            PrivateIdentity::new_from_rand(OsRng),
+            DestinationName::new("example", "echo"),
+        )
+        .await;
+    let destination_hash = destination.lock().await.desc.address_hash;
+    let packet = destination.lock().await.announce(OsRng, None).expect("valid announce packet");
+    listener.transport.send_packet(packet).await;
+    learn_announce(&mut announces, &destination_hash).await;
+
+    assert!(connector.deregister_destination(&destination_hash).await, "the desc is removed");
+    assert!(connector.destination_desc(&destination_hash).await.is_none());
+    assert!(connector.has_path(&destination_hash).await, "the path table entry still stands");
+
+    let budget = Duration::from_secs(2);
+    for attempt in 1..=2u8 {
+        let started = Instant::now();
+        let missed = connector.resolve_destination(&destination_hash, budget).await;
+        assert!(missed.is_none(), "attempt {attempt}: the entry is gone and nothing refills it");
+        assert!(
+            started.elapsed() < budget,
+            "attempt {attempt}: the standing path answers at once, took {:?}",
+            started.elapsed()
+        );
+    }
+    assert_eq!(
+        path_response_announces_for(&mut announces, &destination_hash, QUIET).await,
+        0,
+        "no path request goes out while the path stands, so no path response arrives"
+    );
+
+    assert!(connector.expire_path(&destination_hash).await, "the stale path is removed");
+    let relearned = connector
+        .resolve_destination(&destination_hash, WAIT)
+        .await
+        .expect("without the stale path the one path request draws the announce");
+    assert_eq!(relearned.address_hash, destination_hash);
+    assert!(connector.has_path(&destination_hash).await, "the path response refilled the path");
+    assert_eq!(
+        path_response_announces_for(&mut announces, &destination_hash, QUIET).await,
+        1,
+        "exactly one path response answers the one request the call sent"
+    );
 
     timeout(WAIT, connector.stop()).await.expect("connector stop completes");
     timeout(WAIT, listener.transport.stop()).await.expect("listener stop completes");
@@ -302,8 +475,8 @@ async fn resolve_destination_answers_known_and_reachable_destinations() {
 }
 
 /// From outside the crate, a miss is bounded by the caller's timeout: the unreachable arm
-/// returns `None` no sooner than the timeout and well before a second one would pass, so
-/// a caller that budgets `timeout` for the lookup is not held past it. A fresh identity
+/// returns `None` no sooner than the timeout and within three poll intervals of it, so a
+/// caller that budgets `timeout` for the lookup is not held past it. A fresh identity
 /// resolves the same way afterwards, so a miss is not remembered against the transport.
 #[tokio::test]
 #[deny(clippy::await_holding_invalid_type)]
@@ -323,8 +496,8 @@ async fn resolve_destination_miss_is_bounded_by_the_timeout_and_not_remembered()
     assert!(missed.is_none(), "nobody holds the destination");
     assert!(elapsed >= budget, "the call waits out the budget, waited {elapsed:?}");
     assert!(
-        elapsed < budget * 2,
-        "the call returns within a poll interval of the budget, waited {elapsed:?}"
+        elapsed < budget + Duration::from_millis(150),
+        "the call returns within three poll intervals of the budget, waited {elapsed:?}"
     );
 
     let quiet = listener

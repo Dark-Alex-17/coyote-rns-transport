@@ -11,7 +11,7 @@ impl Transport {
     /// A destination this transport already knows answers at once and no
     /// path request goes out. With a zero `timeout` the call is a cached
     /// lookup alone and returns `None` for an unknown destination without
-    /// sending anything. Otherwise exactly one path request is sent, a
+    /// sending anything. Otherwise exactly one path request is attempted, a
     /// `Broadcast` on every outgoing interface as [`Self::request_path`]
     /// sends it, and the call polls every 50 ms until the destination is
     /// learned or `timeout` passes, returning `None` after it. The entry

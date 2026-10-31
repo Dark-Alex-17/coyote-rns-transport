@@ -96,7 +96,7 @@ async fn two_transport_loopback_warns_on_the_first_and_every_64th_rejected_reque
         let expected = if count == 1 || count == 64 { log::Level::Warn } else { log::Level::Debug };
         assert_eq!(*level, expected, "refusal {count} is logged at {expected}: {record}");
         assert!(
-            record.contains(&format!(" rejected={count}")),
+            record.ends_with(&format!(" rejected={count}")),
             "refusal {count} carries its running count: {record}"
         );
         assert!(
@@ -166,7 +166,7 @@ async fn two_transport_loopback_warns_on_the_first_and_every_64th_rejected_reque
         second_records[0].1
     );
     assert!(
-        second_records[0].1.contains(" rejected=1"),
+        second_records[0].1.ends_with(" rejected=1"),
         "the count is per link, not per transport: {}",
         second_records[0].1
     );

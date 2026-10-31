@@ -175,7 +175,10 @@ fn crate_readme_link_section_describes_resolve_destination() {
         "`Transport::await_path`",
         "`Transport::request_path`",
         "`Transport::deregister_destination`",
+        "path table entry stands",
+        "answers `None` at once",
         "`Transport::expire_path`",
+        "answers `Some` at once",
         "`RNS/Transport.py:3279`",
         "`RNS/Transport.py:3126`",
     ] {

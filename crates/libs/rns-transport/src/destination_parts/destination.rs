@@ -95,7 +95,10 @@ impl Destination<PrivateIdentity, Input, Single> {
     /// to the next request. This is the responder's cap on what it sends;
     /// the requester's cap on what it accepts,
     /// `RequestOptions::with_max_response_size`, reads the same advertised
-    /// size, so the two compose at one number.
+    /// size for the Resource form, so the two compose at one number there.
+    /// For the packet form this cap measures the whole `[request_id, body]`
+    /// frame while the requester measures the packed body alone, so the
+    /// responder refuses first.
     ///
     /// Fork-only: Python's `handle_request` sends whatever the handler
     /// returns (`RNS/Link.py:846-852`).

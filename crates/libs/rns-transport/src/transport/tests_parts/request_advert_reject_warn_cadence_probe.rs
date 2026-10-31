@@ -20,8 +20,8 @@ async fn two_transport_loopback_warns_again_on_the_128th_rejected_request_advert
         .expect("the request size limit is accepted");
 
     for seed in 0..REQUEST_ADVERT_REJECTIONS_TWO_STRIDES {
-        // Seeds start past the sibling test's range so the hashes never collide with its
-        // advertisements should both run against one logger.
+        // Records are attributed by link id, so the offset past the sibling test's seeds
+        // only keeps a mixed log readable when both run against one logger.
         send_over_limit_request_advertisement(&pair.connector.transport, &pair.link, 1_000 + seed)
             .await;
     }
@@ -47,7 +47,7 @@ async fn two_transport_loopback_warns_again_on_the_128th_rejected_request_advert
             assert_eq!(*level, log::Level::Debug, "refusal {count} is a debug record: {record}");
         }
         assert!(
-            record.contains(&format!(" rejected={count}")),
+            record.ends_with(&format!(" rejected={count}")),
             "refusal {count} carries its running count: {record}"
         );
     }

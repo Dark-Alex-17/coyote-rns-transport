@@ -264,8 +264,6 @@ async fn a_readme_consumer_labels_each_reason_and_never_sees_the_plain_disconnec
         }
     });
 
-    // Each close lands on a stream the client already holds: a reset that arrives before
-    // its connect is served is a failed dial, not a disconnect.
     #[deny(clippy::await_holding_invalid_type)]
     async fn next_label(labels: &mut mpsc::UnboundedReceiver<&'static str>) -> &'static str {
         timeout(WAIT, labels.recv())
@@ -273,6 +271,8 @@ async fn a_readme_consumer_labels_each_reason_and_never_sees_the_plain_disconnec
             .expect("a label arrives")
             .expect("the follower is still reading")
     }
+    // Each close lands on a stream the client already holds: a reset that arrives before
+    // its connect is served is a failed dial, not a disconnect.
     assert_eq!(next_label(&mut labels).await, "connecting");
     let first = accept_within(&listener, "first connection").await;
     assert_eq!(next_label(&mut labels).await, "connected");

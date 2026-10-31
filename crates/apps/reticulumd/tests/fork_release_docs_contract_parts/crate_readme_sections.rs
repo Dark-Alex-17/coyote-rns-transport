@@ -557,6 +557,7 @@ fn crate_readme_shared_instance_section_describes_disconnect_reasons() {
         "run no read watchdog",
         "`two_transport_shared_instance_disconnect_reasons.rs`",
         "`tests/disconnect_reason_events_api.rs`",
+        "`tests/disconnect_reason_receive_queue_probe.rs`",
         "`tests/shared_instance_disconnect_reasons_api.rs`",
         "`shared_instance_reconnect_parts/disconnected_event.rs`",
     ] {

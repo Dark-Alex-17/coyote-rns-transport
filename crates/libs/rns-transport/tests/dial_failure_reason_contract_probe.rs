@@ -38,8 +38,8 @@ fn dial_failure_name(kind: DialFailureKind) -> &'static str {
     }
 }
 
-/// The same for `DisconnectReason`, which no client emits yet but a consumer may already
-/// match on.
+/// The same for `DisconnectReason`, which the TCP and unix clients emit through
+/// `with_disconnect_reason_events` and a consumer matches on.
 #[deny(unreachable_patterns)]
 fn disconnect_name(reason: DisconnectReason) -> &'static str {
     match reason {

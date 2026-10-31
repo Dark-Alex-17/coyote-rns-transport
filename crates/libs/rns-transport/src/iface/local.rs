@@ -665,7 +665,7 @@ impl LocalUnixClient {
                 .await
             };
 
-            log::info!("disconnected from local unix client <{}>", addr);
+            log::info!("disconnected from local unix client <{}> exit={:?}", addr, exit);
             if context.cancel.is_cancelled() || iface_stop.is_cancelled() {
                 break;
             }

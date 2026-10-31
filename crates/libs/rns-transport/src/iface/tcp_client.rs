@@ -1470,7 +1470,7 @@ impl TcpClient {
                 );
             }
 
-            log::info!("disconnected from <{}>", addr);
+            log::info!("disconnected from <{}> exit={:?}", addr, exit);
             online.store(false, std::sync::atomic::Ordering::Release);
 
             // A deliberate shutdown requested during those first couple of

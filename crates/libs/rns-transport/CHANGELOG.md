@@ -431,7 +431,10 @@ Removed) bullet of its own, marked as such.
   with its interface address; a client cancelled while connected sends
   nothing; the unix client reports `PeerClosed`; a full capacity-one
   channel drops the reason at debug and either client keeps
-  reconnecting).
+  reconnecting), and by `tests/disconnect_reason_receive_queue_probe.rs`
+  (a stream ended by the transport's receive queue closing fires the
+  plain disconnect channel, leaves the reason channel empty and the
+  client redials).
 - `SharedInstanceEvent::DisconnectedWithReason` and
   `SharedInstanceOptions::with_disconnect_reasons`
   (`transport/shared_instance.rs`): an attach that opted in reads

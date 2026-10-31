@@ -22,7 +22,7 @@ use std::sync::atomic::{AtomicUsize, Ordering};
 use std::sync::Arc;
 use std::time::{Duration, Instant};
 
-use rns_transport::destination::link::{Link, LinkEvent, LinkEventData, LinkPayload};
+use rns_transport::destination::link::{Link, LinkEvent, LinkEventData, LinkPayload, LinkStatus};
 use rns_transport::destination::{
     DestinationName, ProofRequestedHandler, ProofStrategy, SingleInputDestination,
 };
@@ -544,10 +544,65 @@ async fn none_on_the_destination_reaches_the_accepted_in_link_and_only_the_app_p
         .prove_link_packet(&link_id, &sent)
         .await
         .expect("the application's proof goes out on the link's interface");
+    await_event(&mut pair.out_events, link_id, "the sender's PacketProven", |event| {
+        matches!(event, LinkEvent::PacketProven { packet_hash } if *packet_hash == sent)
+            .then_some(())
+    })
+    .await;
+    assert!(
+        proven_after_quiet(&mut pair.out_events, link_id).await.is_empty(),
+        "exactly one PacketProven: the application's proof is not repeated"
+    );
+
+    timeout(WAIT, pair.connector.stop()).await.expect("connector stop completes");
+    timeout(WAIT, pair.listener.transport.stop()).await.expect("listener stop completes");
+}
+
+/// The closed-link refusal seen from the sender: the receiving application closes its in-link
+/// locally (no teardown reaches the peer, whose out-link stays `Active` with the receipt still
+/// pending) and then proves. `prove_link_packet` answers `ConnectionError` and, the part the
+/// error alone cannot show, no proof leaves on the still-bound interface: the sender never
+/// sees `PacketProven`. The sibling `None` test above is the positive control that a proof
+/// sent on this very pair does reach the sender as `PacketProven`.
+#[tokio::test]
+#[deny(clippy::await_holding_invalid_type)]
+async fn a_closed_in_link_refuses_the_proof_and_lets_none_reach_the_sender() {
+    let mut pair = proof_pair("closed-in-link", ProofStrategy::None).await;
+    let link_id = pair.link_id;
+
+    let sent = send_plain_data(&pair.connector, &pair.link, b"prove-after-close").await;
+    await_event(&mut pair.in_events, link_id, "the plain Data event", |event| {
+        matches!(event, LinkEvent::Data(payload) if payload.as_slice() == b"prove-after-close")
+            .then_some(())
+    })
+    .await;
+    assert!(
+        proven_after_quiet(&mut pair.out_events, link_id).await.is_empty(),
+        "under `None` the receipt is still pending when the application closes"
+    );
+
+    let in_link = pair
+        .listener
+        .transport
+        .find_in_link(&link_id)
+        .await
+        .expect("the listener tracks the accepted in-link");
+    in_link.lock().await.close();
+    assert_eq!(in_link.lock().await.status(), LinkStatus::Closed);
     assert_eq!(
-        proven_after_quiet(&mut pair.out_events, link_id).await,
-        vec![sent],
-        "exactly one PacketProven, naming the packet the application proved"
+        pair.link.lock().await.status(),
+        LinkStatus::Active,
+        "a local close sends no teardown: the sender's out-link still accepts a proof"
+    );
+
+    let outcome = pair.listener.transport.prove_link_packet(&link_id, &sent).await;
+    assert!(
+        matches!(outcome, Err(RnsError::ConnectionError)),
+        "a link the transport holds but that is no longer Active is ConnectionError, got {outcome:?}"
+    );
+    assert!(
+        proven_after_quiet(&mut pair.out_events, link_id).await.is_empty(),
+        "the refused proof never left: the sender sees no PacketProven"
     );
 
     timeout(WAIT, pair.connector.stop()).await.expect("connector stop completes");

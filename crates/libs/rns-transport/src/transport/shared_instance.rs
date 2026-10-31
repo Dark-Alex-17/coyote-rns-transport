@@ -169,7 +169,10 @@ impl SharedInstanceOptions {
     /// interface (a refused attach sends nothing; in the documented
     /// attach/stop race the attach returns `Ok` and `Connecting` goes out
     /// with the posture off, the stream ending at once), and the first
-    /// `Connected`. Every event is sent with `try_send`: a full channel
+    /// `Connected`. While nothing answers, [`SharedInstanceEvent::DialFailed`]
+    /// interleaves after `Connecting`, one per attempt, `reconnect_wait`
+    /// apart, until a connect is served or the attach ends.
+    /// Every event is sent with `try_send`: a full channel
     /// drops the event at debug and never blocks the consumer, so size the
     /// channel for the burst expected. Under a reconnect storm the cycles
     /// can interleave: queued disconnects are served before connects, so

@@ -352,8 +352,8 @@ Removed) bullet of its own, marked as such.
   (`transport/shared_instance.rs`) makes `Transport::attach_shared_instance`
   (`links_parts/transport_sections/shared_instance.rs`) wait that long for
   the first served connect before the tunnel is synthesized; without one it
-  detaches again, as it does when the attach's consumer ends first (a stop
-  or detach during the wait), and returns the new
+  detaches again, as it does when the attach's consumer ends first (a stop,
+  detach or `stop_interface` during the wait), and returns the new
   `RnsError::SharedInstanceConnectTimeout`
   (`error.rs`), the stream reading `Connecting`, zero or more `DialFailed`,
   then ending, with `shared_instance()` back to `None` and the posture off.

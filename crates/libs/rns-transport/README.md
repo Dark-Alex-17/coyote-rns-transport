@@ -300,11 +300,11 @@ it is a second proof the sender ignores, its one record already consumed.
 it holds but that is not `Active`, or whose proof cannot be sent, as
 `ConnectionError`; a closed link reads `ConnectionError` only
 until the link-maintenance pass (at most 1 s later) evicts it, after which
-it is unknown and reads `InvalidArgument`. A Python application does the same with `packet.prove()`
-(`RNS/Packet.py:336-341`), and its link proves by the destination's
-`proof_strategy`, `PROVE_ALL` or `PROVE_APP` (`RNS/Link.py:961-968`), one
-setting that this crate keeps apart from the opportunistic `proof_strategy`
-(see Known divergences).
+it is unknown and reads `InvalidArgument`. A Python application does the
+same with `packet.prove()` (`RNS/Packet.py:336-341`), and its link proves
+by the destination's `proof_strategy`, `PROVE_ALL` or `PROVE_APP`
+(`RNS/Link.py:961-968`), one setting that this crate keeps apart from the
+opportunistic `proof_strategy` (see Known divergences).
 
 ## Outbound resource outcomes
 
@@ -608,15 +608,14 @@ bound, `Timeout` for an attempt that outlived the TCP client's connect
 timeout, or an OS `TimedOut`, and `Io(kind)` for any other io error (`Io`
 never carries those three kinds). The TCP client's "couldn't connect" warn
 now carries the io error's text as well, or "connect timed out after
-<timeout>" for the `Timeout` arm no io error reaches. By default the attach returns as
-soon as the client is spawned and keeps dialing, as Python's
+<timeout>" for the `Timeout` arm no io error reaches. By default the attach
+returns as soon as the client is spawned and keeps dialing, as Python's
 `LocalClientInterface` does (`RNS/Interfaces/LocalInterface.py:159-167`,
 which logs each failed attempt at debug and retries).
 `SharedInstanceOptions::with_first_connect_timeout`
 opts into waiting: the attach waits that long for the first served connect
-and otherwise detaches again, as it does
-when the attach's consumer ends first (a stop or detach during the wait),
-and returns
+and otherwise detaches again, as it does when the attach's consumer ends first
+(a stop, detach or `stop_interface` during the wait), and returns
 `RnsError::SharedInstanceConnectTimeout`, with `shared_instance()` back to
 `None`, the posture off, and the stream reading `Connecting`, zero or more
 `DialFailed`, then ending; a connect that lands between the timeout and the

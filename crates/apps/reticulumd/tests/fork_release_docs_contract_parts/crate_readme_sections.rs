@@ -478,6 +478,7 @@ fn crate_readme_shared_instance_section_describes_state_events() {
         "`SharedInstanceOptions::with_first_connect_timeout`",
         "`RnsError::SharedInstanceConnectTimeout`",
         "when the attach's consumer ends first",
+        "stop, detach or `stop_interface` during the wait",
         "may still be read as `Connected` before the stream ends",
         "`with_dial_failure_events`",
         "`dial_failure_events_enabled`",

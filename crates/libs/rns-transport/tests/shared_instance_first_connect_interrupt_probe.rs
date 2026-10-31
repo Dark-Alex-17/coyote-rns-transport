@@ -1,7 +1,7 @@
 //! The `with_first_connect_timeout` rustdoc's second arm, followed from outside
 //! the crate: the attach "detaches again, as it does when the attach's
-//! consumer ends first (a stop or detach during the wait), and returns
-//! `RnsError::SharedInstanceConnectTimeout`". `tests/shared_instance_first_connect_api.rs`
+//! consumer ends first (a stop, detach or `stop_interface` during the wait),
+//! and returns `RnsError::SharedInstanceConnectTimeout`". `tests/shared_instance_first_connect_api.rs`
 //! pins the detach-and-replace shape on a 1 s timer, where the consumer-gone
 //! wake and the timer are indistinguishable; these pins give the timer 10 s
 //! and hold that an interrupted wait answers well ahead of it, that a `stop`

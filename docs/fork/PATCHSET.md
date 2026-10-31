@@ -37,7 +37,7 @@ commits `355a0ddf`, `ca32feac`, `223cdd80`, `716fb2be`, `f43321f4`,
 `9eb35226`, `d3b234e6`, `d36f65df`, `813f421a` and `2aca9568`; the `ledger
 contracts` patch is fork commit `ca32feac`; the `destination resolve` patch
 is fork commits `3136f1bf`, `d36f65df`, `813f421a`, `2aca9568` and
-`e0ce05f7`; the `reject cadence` patch is fork commits `265d6929`,
+`79308556`; the `reject cadence` patch is fork commits `265d6929`,
 `d36f65df` and `813f421a`.
 
 | File | Patch |
@@ -259,7 +259,7 @@ Fork commit `ca32feac`: K3, ledger contracts. No library behaviour changes.
 `ca32feac` extends the full-hash ledger pin in `ledger_contract.rs` to the
 reopened `Unreleased` section beside the released ones.
 
-Fork commits `3136f1bf`, `d36f65df`, `813f421a`, `2aca9568` and `e0ce05f7`:
+Fork commits `3136f1bf`, `d36f65df`, `813f421a`, `2aca9568` and `79308556`:
 K4, destination resolve. The library behaviour changes are: a caller can look
 up a destination and wait for its path in one call. `3136f1bf` adds
 `Transport::resolve_destination` in the new include
@@ -328,7 +328,7 @@ transport with no interface at all answers `None` at once on a zero timeout
 and misses on the timeout otherwise, leaving no path and no desc behind;
 widens both miss bounds to the file's quiet window of 300 ms past the
 budget, so CI load does not flake them; and backticks `Broadcast` in the
-README paragraph as the rustdoc does. `e0ce05f7` adds to
+README paragraph as the rustdoc does. `79308556` adds to
 `crate_readme_sections.rs`
 `crate_readme_link_section_carries_one_rust_fence` (the link-opening
 section carries one rust fence, the `destination_desc` snippet, and no

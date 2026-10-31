@@ -301,3 +301,4 @@ include!("tests_parts/two_transport_shared_instance_state_events_probe2.rs");
 include!("tests_parts/two_transport_shared_instance_state_events_probe3.rs");
 include!("tests_parts/two_transport_shared_instance_state_events_probe4.rs");
 include!("tests_parts/two_transport_shared_instance_dial_failures.rs");
+include!("tests_parts/two_transport_shared_instance_disconnect_reasons.rs");

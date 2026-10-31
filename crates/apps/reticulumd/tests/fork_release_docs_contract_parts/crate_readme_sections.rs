@@ -466,11 +466,31 @@ fn crate_readme_shared_instance_section_describes_state_events() {
         "`with_connect_events`",
         "`connect_events_enabled`",
         "`RNS/Interfaces/LocalInterface.py:155-181`",
+        "`SharedInstanceEvent::DialFailed { reason }`",
+        "`DialFailureKind`",
+        "`SharedInstanceOptions::with_first_connect_timeout`",
+        "`RnsError::SharedInstanceConnectTimeout`",
+        "`with_dial_failure_events`",
+        "`RNS/Interfaces/LocalInterface.py:159-167`",
     ] {
         assert!(
             section.contains(claim),
             "the shared-instance section should mention {claim}:\n{section}"
         );
+    }
+    let changelog = read_repo_file("crates/libs/rns-transport/CHANGELOG.md");
+    let changelog_section =
+        changelog_section_naming(&changelog, "`SharedInstanceEvent::DialFailed`");
+    for claim in [
+        "`DialFailureKind`",
+        "`SharedInstanceOptions::with_first_connect_timeout`",
+        "`RnsError::SharedInstanceConnectTimeout`",
+        "`TcpClient::with_dial_failure_events`",
+        "`LocalUnixClient::with_dial_failure_events`",
+        "`two_transport_shared_instance_dial_failures.rs`",
+        "`tests/dial_failure_events_api.rs`",
+    ] {
+        assert!(changelog_section.contains(claim), "the changelog should mention {claim}");
     }
 }
 

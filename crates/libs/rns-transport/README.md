@@ -600,6 +600,30 @@ events: it stays set across a `Disconnected` until detach or stop. Python's
 established stream, the first included, where `with_reconnect_events` fires
 from the second on, and a `connect_events_enabled` getter.
 
+A client attached while nothing listens also reports each failed attempt:
+`SharedInstanceEvent::DialFailed { reason }` goes out once per attempt,
+`reconnect_wait` apart, with `reason` a `DialFailureKind`, `Refused` for a
+TCP port nothing listens on, `NotFound` for a unix socket path nothing has
+bound, `Timeout` for an attempt that outlived the client's connect timeout,
+and `Io(kind)` for any other io error (`Io` never carries those three
+kinds). The TCP client's "couldn't connect" warn now carries the io error's
+text as well. By default the attach returns as soon as the client is
+spawned and keeps dialing, as Python's `LocalClientInterface` does
+(`RNS/Interfaces/LocalInterface.py:159-167`, which logs each failed attempt
+at debug and retries). `SharedInstanceOptions::with_first_connect_timeout`
+opts into waiting: the attach waits that long for the first served connect
+and otherwise detaches again and returns
+`RnsError::SharedInstanceConnectTimeout`, with `shared_instance()` back to
+`None`, the posture off, and the stream reading `Connecting`, zero or more
+`DialFailed`, then ending; a connect that lands between the timeout and the
+detach may still be read as `Connected` before the stream ends. Underneath,
+`TcpClient` and `LocalUnixClient` gained `with_dial_failure_events`, which
+takes a `tokio::sync::mpsc::Sender<DialFailure>` and sends one `DialFailure`
+per failed attempt, `DialFailure::iface()` naming the interface and
+`DialFailure::kind()` the `DialFailureKind`; `DialFailure`, `DialFailureKind`
+and `DisconnectReason` live in `iface::events` and are re-exported from
+`transport`.
+
 A `Tcp` endpoint whose address is not loopback is refused with
 `RnsError::SharedInstanceEndpointNotLoopback` before any lock is taken, with
 one warning, since Python's `LocalClientInterface` connects to `127.0.0.1`

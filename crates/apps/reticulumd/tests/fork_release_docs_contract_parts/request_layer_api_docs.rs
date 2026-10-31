@@ -153,6 +153,21 @@ fn request_layer_public_items_cite_python_or_say_fork_only() {
             ItemKind::Method,
             "track_prepared_with_outcome",
         ),
+        (
+            "crates/libs/rns-transport/src/transport/shared_instance.rs",
+            ItemKind::Method,
+            "with_first_connect_timeout",
+        ),
+        (
+            "crates/libs/rns-transport/src/iface/tcp_client.rs",
+            ItemKind::Method,
+            "with_dial_failure_events",
+        ),
+        (
+            "crates/libs/rns-transport/src/iface/local.rs",
+            ItemKind::Method,
+            "with_dial_failure_events",
+        ),
     ];
 
     let mut checked = 0usize;
@@ -255,6 +270,7 @@ fn request_layer_public_items_cite_python_or_say_fork_only() {
 #[test]
 fn fork_new_public_structs_keep_their_fields_private() {
     let expected = [
+        "DialFailure",
         "InboundRequest",
         "OutboundOutcome",
         "PathHash",
@@ -373,6 +389,8 @@ fn enums_the_docs_call_non_exhaustive_carry_the_attribute() {
         ("AnnounceEvent", "crates/libs/rns-transport/src/transport/mod.rs"),
         ("SharedInstanceEndpoint", "crates/libs/rns-transport/src/transport/shared_instance.rs"),
         ("SharedInstanceEvent", "crates/libs/rns-transport/src/transport/shared_instance.rs"),
+        ("DialFailureKind", "crates/libs/rns-transport/src/iface/events.rs"),
+        ("DisconnectReason", "crates/libs/rns-transport/src/iface/events.rs"),
     ];
     for (item, file) in sites {
         let source = read_repo_file(file);

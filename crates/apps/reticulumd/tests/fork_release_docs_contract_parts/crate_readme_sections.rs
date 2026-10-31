@@ -343,6 +343,37 @@ fn changelog_section_naming_panics_when_no_section_names_the_anchor() {
     changelog_section_naming(changelog, "`Transport::resolve_destination`");
 }
 
+/// The crate changelog groups each release's bullets under `### Added`,
+/// `### Changed` and `### Fixed` sub-headings, so a section runs from its
+/// `## ` heading to the next `## ` heading and a `### ` line inside it is
+/// body, not a boundary. A pin that anchors on a bullet under `### Changed`
+/// therefore reads the whole release, `### Added` included, and a twin
+/// sentence may sit under either sub-heading.
+#[test]
+fn changelog_section_naming_keeps_level_three_sub_headings_inside_one_section() {
+    let changelog = "# Changelog\n\
+        \n## Unreleased\n\
+        \n### Added\n\n- Added `set_max_response_size`, measured at the advertised size.\n\
+        \n### Changed\n\n- `Transport::resolve_destination` polls every 50 ms.\n\
+        \n## 0.17.0 - 2026-10-27\n\
+        \n### Added\n\n- Older `Transport::resolve_destination` restatement.\n";
+    let section = changelog_section_naming(changelog, "`Transport::resolve_destination`");
+    assert!(
+        section.starts_with("Unreleased\n"),
+        "a `### ` sub-heading does not end the section that carries the anchor, got:\n{section}"
+    );
+    assert!(
+        section.contains("### Added") && section.contains("### Changed"),
+        "both sub-headings of the release are returned as one section, got:\n{section}"
+    );
+    assert!(
+        section.contains("`set_max_response_size`") && !section.contains("Older"),
+        "the sibling sub-heading's bullet is in reach while the older release is not, got:\n{section}"
+    );
+    let under_added = changelog_section_naming(changelog, "`set_max_response_size`");
+    assert_eq!(under_added, section, "anchoring under either sub-heading reads the same release");
+}
+
 /// Every `///` line of a source file joined with single spaces, so a phrase
 /// can be looked for across line wraps.
 fn doc_comment_text(source: &str) -> String {

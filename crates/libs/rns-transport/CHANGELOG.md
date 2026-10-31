@@ -307,7 +307,7 @@ Removed) bullet of its own, marked as such.
 - `SharedInstanceOptions::with_first_connect_timeout`
   (`transport/shared_instance.rs`) makes `Transport::attach_shared_instance`
   (`links_parts/transport_sections/shared_instance.rs`) wait that long for
-  the first served connect after the tunnel is synthesized; without one it
+  the first served connect before the tunnel is synthesized; without one it
   detaches again and returns the new `RnsError::SharedInstanceConnectTimeout`
   (`error.rs`), the stream reading `Connecting`, zero or more `DialFailed`,
   then ending, with `shared_instance()` back to `None` and the posture off.

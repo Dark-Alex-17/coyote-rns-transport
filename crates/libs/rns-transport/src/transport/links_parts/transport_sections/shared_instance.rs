@@ -27,7 +27,7 @@ impl Transport {
     /// the events of every connection cycle after it; the stream ends when
     /// the task does and no other sender clone is alive.
     /// With [`SharedInstanceOptions::with_first_connect_timeout`] set, the
-    /// attach also waits that long for the first served connect, after the
+    /// attach also waits that long for the first served connect, before the
     /// tunnel is synthesized; without one it detaches again and returns
     /// [`RnsError::SharedInstanceConnectTimeout`], the stream reading
     /// `Connecting`, zero or more [`SharedInstanceEvent::DialFailed`], and
@@ -196,13 +196,6 @@ impl Transport {
             options.state_events().cloned(),
             first_connect_tx,
         );
-        if !self.synthesize_tunnel_on_interface(iface).await {
-            log::debug!(
-                "tp({}): shared instance iface={} removed by a detach, stop or stop_interface that raced the attach, tunnel not synthesized",
-                self.name,
-                iface
-            );
-        }
         if let (Some(timeout), Some(first_connect)) =
             (options.first_connect_timeout(), first_connect_rx)
         {
@@ -219,6 +212,13 @@ impl Transport {
                 self.detach_shared_instance().await;
                 return Err(RnsError::SharedInstanceConnectTimeout);
             }
+        }
+        if !self.synthesize_tunnel_on_interface(iface).await {
+            log::debug!(
+                "tp({}): shared instance iface={} removed by a detach, stop or stop_interface that raced the attach, tunnel not synthesized",
+                self.name,
+                iface
+            );
         }
         log::debug!(
             "tp({}): attached shared instance iface={} kind={} reconnect_wait={:?}",

@@ -49,7 +49,7 @@ the `dial failures` patch is fork commits `61429992`, `874c871b`, `aa6d2fac`,
 `593fa930`, `7fbd176e`, `7eab8566`, `c492846d`, `9a13ade9`, `74279dfb`,
 `b0635aea`, `8fc49d91`, `dd31f874`, `59b0ee7c`, `986dca4a`, `5188138e`,
 `8f348131`, `9c0bb5c6`, `b68ef92c`, `45bcadfc`, `fdfa83dd`, `f45595c5`,
-`b819ab22` and `bb247215`.
+`b819ab22`, `bb247215` and `0a8f5cf8`.
 
 | File | Patch |
 | --- | --- |
@@ -672,7 +672,7 @@ link-maintenance pass evicts it, after which it is unknown and reads
 Fork commits `61429992`, `874c871b`, `aa6d2fac`, `593fa930`, `7fbd176e`,
 `7eab8566`, `c492846d`, `9a13ade9`, `74279dfb`, `b0635aea`, `8fc49d91`,
 `dd31f874`, `59b0ee7c`, `986dca4a`, `5188138e`, `8f348131`, `9c0bb5c6`,
-`b68ef92c`, `45bcadfc`, `fdfa83dd`, `f45595c5`, `b819ab22` and `bb247215`:
+`b68ef92c`, `45bcadfc`, `fdfa83dd`, `f45595c5`, `b819ab22`, `bb247215` and `0a8f5cf8`:
 K7, dial failures. The library behaviour changes are: a stream
 client reports each failed connect attempt with a typed reason, the
 shared-instance state stream carries it, and an attach can be told to give up
@@ -843,7 +843,9 @@ field. `bb247215` adds
 `DisconnectedWithReason { Reset }`, each before `Connecting`, that the same
 closes read the plain `Disconnected` without the opt-in, that the unix
 client reads `PeerClosed` the same way, and that the hand-driven consumer
-puts the reason where `Disconnected` sits in the cycle.
+puts the reason where `Disconnected` sits in the cycle. `0a8f5cf8` corrects
+the `DisconnectedWithReason` rustdoc: `Timeout` is read for a read or write
+that failed with `ErrorKind::TimedOut`, watchdog or not.
 
 ## 0.17.0 (upstream 0.14.0)
 

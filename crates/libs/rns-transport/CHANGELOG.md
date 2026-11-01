@@ -698,6 +698,48 @@ Removed) bullet of its own, marked as such.
   `include!`'d shared-instance parts that failed `rustfmt --check`; one
   `assert_eq!` joins onto a single line and one `consumer.run` call wraps
   per argument, the token stream otherwise identical and no test changed.
+- `delivery::await_link_activation` (`delivery.rs`) treats a timeout the
+  clock cannot hold, `Duration::MAX` included, as waiting indefinitely
+  instead of panicking, as `Transport::await_path` already did. Pinned by
+  `tests/link_activation_deadline_api.rs`
+  (`max_timeout_waits_and_short_timeout_times_out`: a pending link on a
+  broadcasting transport with no interface outlives a one-second outer
+  bound under `Duration::MAX`, and a 100 ms timeout answers `TimedOut` at
+  its deadline).
+- No library behaviour change: `HdlcStreamExit` lives in `iface/events.rs`
+  beside the reason it maps to, its join rule is `HdlcStreamExit::join`
+  (pinned by three unit tests there),
+  `InterfaceChannel::event_publisher_unless_detached`
+  (`iface_parts/txmessagetype.rs`) replaces the detached-publisher block
+  both clients carried, the TCP client publishes `Connecting` after its
+  status mark as it does `Connected` and `DialFailed`, and
+  `METADATA_LENGTH_PREFIX_LEN` names the metadata length prefix at every
+  site in `resource/manager_start.rs` and `resource/manager_segments.rs`;
+  the `ProofRequestedHandler` rustdoc (`destination_parts/module_core.rs`)
+  says the callback must not panic, since it runs without a panic guard,
+  unlike `RNS/Link.py:966-968`.
+- Test helpers, test-only: `free_loopback_port`, `client_transport` and the
+  `rustc` compile-fail harness each live once under `tests/support/`
+  (`tests/support/free_loopback_port.rs`,
+  `tests/support/client_transport.rs`, `tests/support/compile_fail.rs`),
+  included by the test binaries that use them in place of the eleven,
+  eight and three copies they carried; `Queued`, `DriveSpec` and
+  `shared_instance_state_drive_consumer_with` move into
+  `two_transport_shared_instance_state_events_spec.rs` and `Queued` gains
+  `DisconnectWith(DisconnectReason)`, pinned in
+  `two_transport_shared_instance_disconnect_reasons.rs` (a queued `Reset`
+  reads `DisconnectedWithReason { Reset }`); `drain_quiet` in
+  `tests/interface_events_give_up_probe.rs` asserts the stream stayed open
+  like its twin in `tests/interface_events_probe.rs`; the
+  `outgoing_request_count` helper of the three
+  `two_transport_resolve_destination*.rs` files is `sent_path_request_count`,
+  no longer shadowing the `PathRequests` method it wraps; and the
+  `tests/response_cap_tracker_api.rs` header says a zero cap refuses every
+  packet-form response while a Resource response with no data and no
+  metadata measures zero and goes out. `tests/link_proof_strategy_api.rs`'s
+  scratch directory gains the thread-name component the other two
+  compile-fail tests already had, and `resource/tests_split_metadata.rs`
+  names `METADATA_LENGTH_PREFIX_LEN` instead of "3-byte".
 
 ## 0.17.0 - 2026-10-27
 

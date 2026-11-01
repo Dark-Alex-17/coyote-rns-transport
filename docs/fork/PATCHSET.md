@@ -29,46 +29,47 @@ per fork task.
 ## Unreleased (upstream 0.14.0)
 
 Every file changed since the `0.17.0` release and the patch each change
-belongs to. Patch ids: K1 is outcome tracker, K2 is response cap, K3 is
-ledger contracts, K4 is destination resolve, K5 is reject cadence, K6 is
-link proof strategy, K7 is dial failures, K8 is disconnect reasons, K9 is
-interface events. The `outcome tracker` patch is fork commits `c3a317d7`,
-`ca32feac`, `223cdd80`, `716fb2be`, `d3b234e6` and `d36f65df`; the
+belongs to. Patch ids: K1 is outcome tracker, K2 is response cap, K3 is ledger
+contracts, K4 is destination resolve, K5 is reject cadence, K6 is link proof
+strategy, K7 is dial failures, K8 is disconnect reasons, K9 is interface
+events, K10 is batch hygiene. The `outcome tracker` patch is fork commits
+`c3a317d7`, `ca32feac`, `223cdd80`, `716fb2be`, `d3b234e6` and `d36f65df`; the
 `response cap` patch is fork commits `355a0ddf`, `ca32feac`, `223cdd80`,
 `716fb2be`, `f43321f4`, `9eb35226`, `d3b234e6`, `d36f65df`, `813f421a`,
 `2aca9568`, `6fef8927`, `ac5a81ae` and `f9751b59`; the `ledger contracts`
 patch is fork commit `ca32feac`; the `destination resolve` patch is fork
 commits `3136f1bf`, `d36f65df`, `813f421a`, `2aca9568`, `79308556`,
-`6fef8927`, `ac5a81ae`, `f9751b59` and `402598e3`; the `reject cadence`
-patch is fork commits `265d6929`, `d36f65df`, `813f421a`, `6fef8927`,
-`ac5a81ae` and `f9751b59`; the
-`link proof strategy` patch is fork commits `8e47a675`, `1a9e25c4`,
-`92346ece`, `e0a2feae`, `2624206e`, `ecf809d6`, `ac841458`, `c38e6b22`,
-`e8cda738`, `4ed2ebec`, `95ae6d37`, `fdf40d01`, `94c27a5c`, `1779c8c8`,
-`3be3b15c`, `719067c4`, `07e98279`, `a02ba4b7`, `bcee2bff` and `7cba2066`;
-the `dial failures` patch is fork commits `61429992`, `874c871b`, `aa6d2fac`,
-`593fa930`, `7fbd176e`, `7eab8566`, `c492846d`, `9a13ade9`, `74279dfb`,
-`b0635aea`, `8fc49d91`, `dd31f874`, `59b0ee7c`, `986dca4a`, `5188138e`,
-`8f348131`, `9c0bb5c6` and `b68ef92c`; the `disconnect reasons` patch is
-fork commits `45bcadfc`, `fdfa83dd`, `f45595c5`, `b819ab22`, `bb247215`,
-`0a8f5cf8`, `cc5c3092`, `3ab8f323`, `200b8810`, `b86af8d6`, `272c3f2c`,
-`a1241d2f`, `e07d20d2`, `0d5f60da`, `9c2d173c` and `14893a3f`; the
-`interface events` patch is fork commits `8378165f`, `806facd1`,
-`441dd699`, `17706293`, `024555a6`, `5f523d82`, `16fbb720`, `0f040752`,
-`8f128436`, `f80c4323` and `57fdf117`.
+`6fef8927`, `ac5a81ae`, `f9751b59` and `402598e3`; the `reject cadence` patch
+is fork commits `265d6929`, `d36f65df`, `813f421a`, `6fef8927`, `ac5a81ae` and
+`f9751b59`; the `link proof strategy` patch is fork commits `8e47a675`,
+`1a9e25c4`, `92346ece`, `e0a2feae`, `2624206e`, `ecf809d6`, `ac841458`,
+`c38e6b22`, `e8cda738`, `4ed2ebec`, `95ae6d37`, `fdf40d01`, `94c27a5c`,
+`1779c8c8`, `3be3b15c`, `719067c4`, `07e98279`, `a02ba4b7`, `bcee2bff` and
+`7cba2066`; the `dial failures` patch is fork commits `61429992`, `874c871b`,
+`aa6d2fac`, `593fa930`, `7fbd176e`, `7eab8566`, `c492846d`, `9a13ade9`,
+`74279dfb`, `b0635aea`, `8fc49d91`, `dd31f874`, `59b0ee7c`, `986dca4a`,
+`5188138e`, `8f348131`, `9c0bb5c6` and `b68ef92c`; the `disconnect reasons`
+patch is fork commits `45bcadfc`, `fdfa83dd`, `f45595c5`, `b819ab22`,
+`bb247215`, `0a8f5cf8`, `cc5c3092`, `3ab8f323`, `200b8810`, `b86af8d6`,
+`272c3f2c`, `a1241d2f`, `e07d20d2`, `0d5f60da`, `9c2d173c` and `14893a3f`; the
+`interface events` patch is fork commits `8378165f`, `806facd1`, `441dd699`,
+`17706293`, `024555a6`, `5f523d82`, `16fbb720`, `0f040752`, `8f128436`,
+`f80c4323` and `57fdf117`; the `batch hygiene` patch is fork commits
+`27dad245`, `2935b5db`, `62554a8c`, `d55a4f0e` and `1bc1e388`.
 
 | File | Patch |
 | --- | --- |
 | `crates/apps/reticulumd/tests/fork_publish_contract_parts/ledger_contract.rs` | ledger contracts |
 | `crates/apps/reticulumd/tests/fork_release_docs_contract.rs` | dial failures |
-| `crates/apps/reticulumd/tests/fork_release_docs_contract_parts/crate_readme_sections.rs` | outcome tracker, response cap, destination resolve, link proof strategy, dial failures, disconnect reasons, interface events |
+| `crates/apps/reticulumd/tests/fork_release_docs_contract_parts/crate_readme_sections.rs` | outcome tracker, response cap, destination resolve, link proof strategy, dial failures, disconnect reasons, interface events, batch hygiene |
 | `crates/apps/reticulumd/tests/fork_release_docs_contract_parts/release_0_17_0_probe3.rs` | response cap |
 | `crates/apps/reticulumd/tests/fork_release_docs_contract_parts/request_layer_api_docs.rs` | outcome tracker, response cap, destination resolve, link proof strategy, dial failures, disconnect reasons, interface events |
 | `crates/apps/reticulumd/tests/python_channel_interop.rs` | link proof strategy |
 | `crates/apps/reticulumd/tests/python_channel_interop_parts/python_to_rust_link_proof_strategy.rs` | link proof strategy |
 | `crates/apps/reticulumd/tests/support/python_channel_endpoint.py` | link proof strategy |
-| `crates/libs/rns-transport/CHANGELOG.md` | outcome tracker, response cap, ledger contracts, destination resolve, reject cadence, link proof strategy, dial failures, disconnect reasons, interface events |
+| `crates/libs/rns-transport/CHANGELOG.md` | outcome tracker, response cap, ledger contracts, destination resolve, reject cadence, link proof strategy, dial failures, disconnect reasons, interface events, batch hygiene |
 | `crates/libs/rns-transport/README.md` | outcome tracker, response cap, destination resolve, link proof strategy, dial failures, disconnect reasons, interface events |
+| `crates/libs/rns-transport/src/delivery.rs` | batch hygiene |
 | `crates/libs/rns-transport/src/destination/link/payload.rs` | link proof strategy |
 | `crates/libs/rns-transport/src/destination/link_parts/link.rs` | link proof strategy |
 | `crates/libs/rns-transport/src/destination/link_parts/link_sections/data_proof_tests.rs` | link proof strategy |
@@ -85,22 +86,25 @@ fork commits `45bcadfc`, `fdfa83dd`, `f45595c5`, `b819ab22`, `bb247215`,
 | `crates/libs/rns-transport/src/destination/request/outcome.rs` | outcome tracker, response cap |
 | `crates/libs/rns-transport/src/destination/tests.rs` | response cap |
 | `crates/libs/rns-transport/src/destination_parts/destination.rs` | response cap, link proof strategy |
-| `crates/libs/rns-transport/src/destination_parts/module_core.rs` | response cap, link proof strategy |
+| `crates/libs/rns-transport/src/destination_parts/module_core.rs` | response cap, link proof strategy, batch hygiene |
 | `crates/libs/rns-transport/src/error.rs` | dial failures |
 | `crates/libs/rns-transport/src/iface.rs` | dial failures, interface events |
-| `crates/libs/rns-transport/src/iface/events.rs` | dial failures, disconnect reasons, interface events |
-| `crates/libs/rns-transport/src/iface/local.rs` | dial failures, disconnect reasons, interface events |
-| `crates/libs/rns-transport/src/iface/tcp_client.rs` | dial failures, disconnect reasons, interface events |
+| `crates/libs/rns-transport/src/iface/events.rs` | dial failures, disconnect reasons, interface events, batch hygiene |
+| `crates/libs/rns-transport/src/iface/local.rs` | dial failures, disconnect reasons, interface events, batch hygiene |
+| `crates/libs/rns-transport/src/iface/tcp_client.rs` | dial failures, disconnect reasons, interface events, batch hygiene |
 | `crates/libs/rns-transport/src/iface/tcp_client_memory_tests.rs` | disconnect reasons |
 | `crates/libs/rns-transport/src/iface_parts/interfacemanager.rs` | interface events |
 | `crates/libs/rns-transport/src/iface_parts/interfacemanager_events.rs` | interface events |
-| `crates/libs/rns-transport/src/iface_parts/txmessagetype.rs` | interface events |
+| `crates/libs/rns-transport/src/iface_parts/txmessagetype.rs` | interface events, batch hygiene |
 | `crates/libs/rns-transport/src/resource.rs` | reject cadence |
 | `crates/libs/rns-transport/src/resource/advertisement_limits.rs` | reject cadence |
 | `crates/libs/rns-transport/src/resource/link_stats.rs` | reject cadence |
+| `crates/libs/rns-transport/src/resource/manager_segments.rs` | batch hygiene |
+| `crates/libs/rns-transport/src/resource/manager_start.rs` | batch hygiene |
 | `crates/libs/rns-transport/src/resource/receiver.rs` | response cap |
 | `crates/libs/rns-transport/src/resource/sender.rs` | response cap |
 | `crates/libs/rns-transport/src/resource/tests_advert_limits.rs` | reject cadence |
+| `crates/libs/rns-transport/src/resource/tests_split_metadata.rs` | batch hygiene |
 | `crates/libs/rns-transport/src/transport/core.rs` | interface events |
 | `crates/libs/rns-transport/src/transport/core_parts/interface_events.rs` | interface events |
 | `crates/libs/rns-transport/src/transport/links_parts/transport.rs` | destination resolve, link proof strategy |
@@ -120,7 +124,7 @@ fork commits `45bcadfc`, `fdfa83dd`, `f45595c5`, `b819ab22`, `bb247215`,
 | `crates/libs/rns-transport/src/transport/request_dispatch_parts/response_limits.rs` | response cap |
 | `crates/libs/rns-transport/src/transport/resource_wire.rs` | reject cadence |
 | `crates/libs/rns-transport/src/transport/shared_instance.rs` | dial failures, disconnect reasons |
-| `crates/libs/rns-transport/src/transport/tests.rs` | outcome tracker, response cap, destination resolve, reject cadence, link proof strategy, dial failures, disconnect reasons |
+| `crates/libs/rns-transport/src/transport/tests.rs` | outcome tracker, response cap, destination resolve, reject cadence, link proof strategy, dial failures, disconnect reasons, batch hygiene |
 | `crates/libs/rns-transport/src/transport/tests_parts/request_advert_reject_warn_cadence.rs` | reject cadence |
 | `crates/libs/rns-transport/src/transport/tests_parts/request_advert_reject_warn_cadence_probe.rs` | reject cadence |
 | `crates/libs/rns-transport/src/transport/tests_parts/request_advert_reject_warn_cadence_probe2.rs` | reject cadence |
@@ -133,37 +137,46 @@ fork commits `45bcadfc`, `fdfa83dd`, `f45595c5`, `b819ab22`, `bb247215`,
 | `crates/libs/rns-transport/src/transport/tests_parts/two_transport_loopback_requests_response_cap_probe2.rs` | response cap |
 | `crates/libs/rns-transport/src/transport/tests_parts/two_transport_loopback_requests_response_cap_probe3.rs` | response cap |
 | `crates/libs/rns-transport/src/transport/tests_parts/two_transport_loopback_requests_response_cap_probe4.rs` | response cap |
-| `crates/libs/rns-transport/src/transport/tests_parts/two_transport_resolve_destination.rs` | destination resolve |
-| `crates/libs/rns-transport/src/transport/tests_parts/two_transport_resolve_destination_probe.rs` | destination resolve |
-| `crates/libs/rns-transport/src/transport/tests_parts/two_transport_resolve_destination_probe2.rs` | destination resolve |
+| `crates/libs/rns-transport/src/transport/tests_parts/two_transport_resolve_destination.rs` | destination resolve, batch hygiene |
+| `crates/libs/rns-transport/src/transport/tests_parts/two_transport_resolve_destination_probe.rs` | destination resolve, batch hygiene |
+| `crates/libs/rns-transport/src/transport/tests_parts/two_transport_resolve_destination_probe2.rs` | destination resolve, batch hygiene |
 | `crates/libs/rns-transport/src/transport/tests_parts/two_transport_shared_instance_dial_failures.rs` | dial failures, disconnect reasons |
-| `crates/libs/rns-transport/src/transport/tests_parts/two_transport_shared_instance_disconnect_reasons.rs` | disconnect reasons |
+| `crates/libs/rns-transport/src/transport/tests_parts/two_transport_shared_instance_disconnect_reasons.rs` | disconnect reasons, batch hygiene |
 | `crates/libs/rns-transport/src/transport/tests_parts/two_transport_shared_instance_probe16.rs` | dial failures, disconnect reasons |
 | `crates/libs/rns-transport/src/transport/tests_parts/two_transport_shared_instance_reconnect.rs` | dial failures, disconnect reasons |
-| `crates/libs/rns-transport/src/transport/tests_parts/two_transport_shared_instance_state_events.rs` | dial failures, disconnect reasons |
+| `crates/libs/rns-transport/src/transport/tests_parts/two_transport_shared_instance_state_events.rs` | dial failures, disconnect reasons, batch hygiene |
 | `crates/libs/rns-transport/src/transport/tests_parts/two_transport_shared_instance_state_events_probe.rs` | dial failures |
 | `crates/libs/rns-transport/src/transport/tests_parts/two_transport_shared_instance_state_events_probe2.rs` | dial failures, disconnect reasons |
 | `crates/libs/rns-transport/src/transport/tests_parts/two_transport_shared_instance_state_events_probe3.rs` | dial failures, disconnect reasons |
 | `crates/libs/rns-transport/src/transport/tests_parts/two_transport_shared_instance_state_events_probe4.rs` | dial failures, disconnect reasons |
-| `crates/libs/rns-transport/tests/destination_desc_api.rs` | destination resolve |
-| `crates/libs/rns-transport/tests/dial_failure_channel_probe.rs` | dial failures |
-| `crates/libs/rns-transport/tests/dial_failure_events_api.rs` | dial failures |
-| `crates/libs/rns-transport/tests/dial_failure_reason_contract_probe.rs` | dial failures, disconnect reasons |
+| `crates/libs/rns-transport/src/transport/tests_parts/two_transport_shared_instance_state_events_spec.rs` | batch hygiene |
+| `crates/libs/rns-transport/tests/breaking_changes_compile_fail.rs` | batch hygiene |
+| `crates/libs/rns-transport/tests/destination_desc_api.rs` | destination resolve, batch hygiene |
+| `crates/libs/rns-transport/tests/dial_failure_channel_probe.rs` | dial failures, batch hygiene |
+| `crates/libs/rns-transport/tests/dial_failure_events_api.rs` | dial failures, batch hygiene |
+| `crates/libs/rns-transport/tests/dial_failure_reason_contract_probe.rs` | dial failures, disconnect reasons, batch hygiene |
 | `crates/libs/rns-transport/tests/disconnect_reason_events_api.rs` | disconnect reasons |
 | `crates/libs/rns-transport/tests/disconnect_reason_log_line_probe.rs` | disconnect reasons |
 | `crates/libs/rns-transport/tests/disconnect_reason_receive_queue_probe.rs` | disconnect reasons |
-| `crates/libs/rns-transport/tests/interface_events_api.rs` | interface events |
-| `crates/libs/rns-transport/tests/interface_events_give_up_probe.rs` | interface events |
-| `crates/libs/rns-transport/tests/interface_events_probe.rs` | interface events |
-| `crates/libs/rns-transport/tests/link_proof_strategy_api.rs` | link proof strategy, dial failures |
+| `crates/libs/rns-transport/tests/interface_events_api.rs` | interface events, batch hygiene |
+| `crates/libs/rns-transport/tests/interface_events_give_up_probe.rs` | interface events, batch hygiene |
+| `crates/libs/rns-transport/tests/interface_events_last_disconnected_probe.rs` | batch hygiene |
+| `crates/libs/rns-transport/tests/interface_events_probe.rs` | interface events, batch hygiene |
+| `crates/libs/rns-transport/tests/link_activation_deadline_api.rs` | batch hygiene |
+| `crates/libs/rns-transport/tests/link_proof_strategy_api.rs` | link proof strategy, dial failures, batch hygiene |
 | `crates/libs/rns-transport/tests/request_handler_api.rs` | outcome tracker |
+| `crates/libs/rns-transport/tests/request_receipt_readme.rs` | batch hygiene |
 | `crates/libs/rns-transport/tests/resolve_destination_deadline_api.rs` | destination resolve |
-| `crates/libs/rns-transport/tests/response_cap_tracker_api.rs` | outcome tracker, response cap |
-| `crates/libs/rns-transport/tests/shared_instance_disconnect_reasons_api.rs` | disconnect reasons |
-| `crates/libs/rns-transport/tests/shared_instance_first_connect_api.rs` | dial failures |
-| `crates/libs/rns-transport/tests/shared_instance_first_connect_interrupt_probe.rs` | dial failures, disconnect reasons |
-| `crates/libs/rns-transport/tests/shared_instance_first_connect_stop_interface_probe.rs` | dial failures |
-| `docs/fork/PATCHSET.md` | outcome tracker, response cap, ledger contracts, destination resolve, reject cadence, link proof strategy, dial failures, disconnect reasons, interface events |
+| `crates/libs/rns-transport/tests/response_cap_tracker_api.rs` | outcome tracker, response cap, batch hygiene |
+| `crates/libs/rns-transport/tests/shared_instance_api.rs` | batch hygiene |
+| `crates/libs/rns-transport/tests/shared_instance_disconnect_reasons_api.rs` | disconnect reasons, batch hygiene |
+| `crates/libs/rns-transport/tests/shared_instance_first_connect_api.rs` | dial failures, batch hygiene |
+| `crates/libs/rns-transport/tests/shared_instance_first_connect_interrupt_probe.rs` | dial failures, disconnect reasons, batch hygiene |
+| `crates/libs/rns-transport/tests/shared_instance_first_connect_stop_interface_probe.rs` | dial failures, batch hygiene |
+| `crates/libs/rns-transport/tests/support/client_transport.rs` | batch hygiene |
+| `crates/libs/rns-transport/tests/support/compile_fail.rs` | batch hygiene |
+| `crates/libs/rns-transport/tests/support/free_loopback_port.rs` | batch hygiene |
+| `docs/fork/PATCHSET.md` | outcome tracker, response cap, ledger contracts, destination resolve, reject cadence, link proof strategy, dial failures, disconnect reasons, interface events, batch hygiene |
 
 Fork commits `c3a317d7`, `ca32feac`, `223cdd80`, `716fb2be`, `d3b234e6` and
 `d36f65df`: K1, outcome tracker. The library behaviour changes are: a
@@ -996,11 +1009,75 @@ items it counts, and names `InterfaceEventPublisher` in this narrative.
 `f80c4323` adds `tests/interface_events_give_up_probe.rs` (a client that
 gives up after `max_reconnect_tries` and a client stopped inside its redial
 wait each publish nothing after the `DialFailed` they had already
-published), and has the probe's quiet-window drain assert the stream stayed
-open. `57fdf117` adds the `Disconnected { reason }` of a stream that ended
-just before the stop or give-up to the last-event sentence at its three
-sites, says a later `set_interface_events` reaches only channels minted
-from then on, and pins the `exit=Cancelled` log-line clause to the TCP client.
+published), and has `tests/interface_events_probe.rs`'s quiet-window drain
+assert the stream stayed open. `57fdf117` adds the `Disconnected { reason }`
+of a stream that ended just before the stop or give-up to the last-event
+sentence at its three sites, says a later `set_interface_events` reaches
+only channels minted from then on, and pins the `exit=Cancelled` log-line
+clause to the TCP client.
+
+Fork commits `27dad245`, `2935b5db`, `62554a8c`, `d55a4f0e` and `1bc1e388`:
+K10, batch hygiene. The library behaviour change is:
+`delivery::await_link_activation` with a timeout the clock cannot hold,
+`Duration::MAX` included, waits instead of panicking. `27dad245` has
+`await_link_activation` (`src/delivery.rs`) compute its deadline with
+`checked_add`, falling back to the thirty-year far future
+`Transport::await_path` already uses, pinned by
+`tests/link_activation_deadline_api.rs`
+(`max_timeout_waits_and_short_timeout_times_out`: a pending link on a
+broadcasting transport with no interface outlives a one-second outer bound
+under `Duration::MAX`, and a 100 ms timeout answers `TimedOut` at its
+deadline). `2935b5db` moves `HdlcStreamExit` from `iface/tcp_client.rs` to
+`iface/events.rs` beside `DisconnectReason::from_stream_exit`, removing the
+two-way import between the files, and makes its join rule the pure
+`HdlcStreamExit::join` (the read side's exit unless it only followed the
+write side's stop) with three unit pins in `iface/events.rs`
+(`the_read_side_exit_wins_when_both_sides_failed`,
+`a_read_side_that_only_followed_the_write_side_yields_the_write_exit`,
+`two_cancelled_sides_join_as_cancelled`); adds
+`InterfaceChannel::event_publisher_unless_detached`
+(`iface_parts/txmessagetype.rs`) in place of the identical five-line
+detached-publisher block in `TcpClient::spawn` and `LocalUnixClient::spawn`;
+has the TCP client publish `Connecting` after `mark_connecting()`, as its
+`DialFailed` and `Connected` publishes follow their status marks; and names
+the literal `3` at the four metadata-size sites in
+`resource/manager_start.rs` and `resource/manager_segments.rs`
+`METADATA_LENGTH_PREFIX_LEN`. No behaviour change. `62554a8c` adds
+`tests/interface_events_last_disconnected_probe.rs`
+(`a_client_stopped_after_its_stream_ended_leaves_disconnected_as_its_last_event`,
+`a_client_with_no_retries_left_leaves_disconnected_as_its_last_event`),
+makes `drain_quiet` in `tests/interface_events_give_up_probe.rs` assert the
+stream stayed open like its twin in `tests/interface_events_probe.rs`, moves
+`Queued`, `DriveSpec` and `shared_instance_state_drive_consumer_with` from
+`tests_parts/two_transport_shared_instance_state_events.rs` into
+`tests_parts/two_transport_shared_instance_state_events_spec.rs`
+(`include!`d from `transport/tests.rs`), adds
+`Queued::DisconnectWith(DisconnectReason)` and pins it in
+`two_transport_shared_instance_disconnect_reasons.rs`
+(`shared_instance_disconnect_reasons_consumer_sends_the_reason_the_drop_carried`:
+a queued `Reset` reads `DisconnectedWithReason { Reset }`), renames the test
+helper `outgoing_request_count` to `sent_path_request_count` in the three
+`two_transport_resolve_destination*.rs` files so it no longer shadows the
+`PathRequests` method it wraps, rewords the `tests/response_cap_tracker_api.rs`
+header (a zero cap refuses every packet-form response; a Resource response
+with no data and no metadata measures zero and goes out), and registers the
+new probe in `crate_readme_sections.rs`. `d55a4f0e` has the
+`ProofRequestedHandler` rustdoc (`destination_parts/module_core.rs`) state
+that the callback must not panic because it runs without a panic guard,
+unlike `RNS/Link.py:966-968`; names `METADATA_LENGTH_PREFIX_LEN` in
+`resource/tests_split_metadata.rs` instead of "3-byte"; and has the
+CHANGELOG cite `HdlcStreamExit` at its new file and name the adopted probe.
+`1bc1e388` shares three integration-test helpers that each test binary had
+carried its own copy of, one helper per file under `tests/support/`, pulled
+in with a `#[path]` include by the binaries that use it:
+`tests/support/free_loopback_port.rs` replaces the eleven copies of
+`free_loopback_port`, `tests/support/client_transport.rs` the eight copies
+of `client_transport`, and `tests/support/compile_fail.rs` the three copies
+of the `rustc` harness (`Scratch`, `deps_dir`, `candidate_rlibs`, `rustc`) in
+`tests/breaking_changes_compile_fail.rs`, `tests/link_proof_strategy_api.rs`
+and `tests/dial_failure_reason_contract_probe.rs`, with `Scratch::new`
+taking the per-file scratch label and `link_proof_strategy_api`'s scratch
+directory gaining the thread-name component the other two already had.
 
 ## 0.17.0 (upstream 0.14.0)
 

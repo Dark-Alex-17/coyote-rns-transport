@@ -975,8 +975,84 @@ full `refs/tags/coyote-rns-transport-v<version>` ref, and
 
 `docs/fork/PATCHSET.md` is the single per-release ledger of every file changed
 since the previous release, with the commit that changed it and the upstream
-site; earlier sections carry the earlier patches. What `0.17.0` carries on top
-of `0.16.0`:
+site; earlier sections carry the earlier patches. What `0.18.0` carries on top
+of `0.17.0`:
+
+- The owned request split: `InboundRequest::into_parts` hands a handler the
+  request data by value together with a `ResponseOutcomeTracker` over the
+  same outcome slot `track_outcome` fills; `ResponseOutcomeTracker::outcome`
+  arms it under the same rule, inside the handler, and a tracker dropped
+  unarmed leaves the slot as it was.
+- The responder cap: `SingleInputDestination::set_max_response_size`,
+  `clear_max_response_size` and `max_response_size` bound what the dispatcher
+  sends for the destination's handlers, a packet response measured as its
+  `[request_id, body]` frame and a Resource response at its advertised size,
+  the size the requester's `with_max_response_size` reads too. A response
+  over the cap is not sent, the dispatcher warns once, and a tracked outcome
+  resolves `ResponseOutcome::TooLarge { len, max }`.
+- The dial failures: `TcpClient::with_dial_failure_events` and
+  `LocalUnixClient::with_dial_failure_events` report one `DialFailure` per
+  failed attempt, its `DialFailureKind` one of `Timeout`, `Refused`,
+  `NotFound` or `Io(kind)`; the attach's state stream reads them as
+  `SharedInstanceEvent::DialFailed { reason }` after each `Connecting`, and
+  `SharedInstanceOptions::with_first_connect_timeout` makes
+  `attach_shared_instance` wait that long for the first connect, detaching
+  again with `RnsError::SharedInstanceConnectTimeout` when none lands.
+- The disconnect reasons: `TcpClient::with_disconnect_reason_events` and
+  `LocalUnixClient::with_disconnect_reason_events` report a `DisconnectReason`
+  (`PeerClosed`, `Reset`, `Timeout` or `Io(kind)`) with the interface address
+  each time an established stream ends for a reason the client did not
+  cause, and an attach that opts in with
+  `SharedInstanceOptions::with_disconnect_reasons` reads
+  `DisconnectedWithReason { reason }` in place of `Disconnected`; without the
+  opt-in the stream is unchanged.
+- The interface event stream: `Transport::interface_events` returns a
+  `broadcast::Receiver<InterfaceEvent>` carrying every stream client's
+  `Connecting`, `Connected`, `Disconnected { reason }` and
+  `DialFailed { reason }` (`InterfaceEventKind`, `#[non_exhaustive]`), each
+  tagged with its interface through `iface()`; there is no replay, a receiver
+  that falls behind reads `Lagged`, and a client built from a pre-supplied
+  stream publishes nothing.
+- The destination resolve: `Transport::resolve_destination` is
+  `destination_desc` and `await_path` in one call, taking a timeout; a known
+  destination answers at once, a zero timeout is a cached lookup alone, and
+  otherwise one path request goes out and the call waits until a path is
+  learned or the timeout passes, returning `None` after it.
+- The link proof strategy: a `Link` proves the plain Data packets it receives
+  by its own `ProofStrategy` (`All` as before, `App` through the
+  `ProofRequestedHandler`, `None` never), set with `Link::set_proof_strategy`
+  or copied at accept from the destination's `set_link_proof_strategy`;
+  `LinkPayload::packet_hash` names the packet a payload came from,
+  `Link::prove_hash` proves it from the hash alone and
+  `Transport::prove_link_packet` does the same by link id and hash, the
+  deferred path an application takes after reading the payload. Python's
+  `PacketReceipt` stays `SENT` until that proof arrives;
+  `python_to_rust_link_proof_strategy.rs` shows it.
+- The one break: `SharedInstanceEvent` now carries data on two variants, so
+  `as isize` casts of its unit variants no longer compile; the migration is
+  under `### Breaking` in `CHANGELOG.md`. The enum stays `Copy` and
+  `#[non_exhaustive]`, so a match that already has its wildcard arm needs no
+  change.
+- The deadline fixes: `Transport::await_path` (and `resolve_destination`
+  through it) and `delivery::await_link_activation` treat a timeout the
+  clock cannot hold, `Duration::MAX` included, as waiting indefinitely
+  instead of panicking on the deadline add;
+  `tests/link_activation_deadline_api.rs` and
+  `tests/link_activation_max_timeout_probe.rs` pin the pending and the
+  activating link.
+- The refusal cadence: a request advertisement refused for exceeding
+  `max_request_size` is counted per link on
+  `LinkStats.rejected_request_advertisements` and warned on the first refusal
+  and every 64th after it, at debug otherwise, in place of a warn per
+  refusal; the log target of that line moves to `rns_transport::resource`.
+- Test-only hygiene: `free_loopback_port`, `client_transport` and the `rustc`
+  compile-fail harness each live once under `tests/support/`, included by
+  the test binaries that use them, and the hand-driven shared-instance
+  consumer's `DriveSpec` moved into a file of its own beside the state-event
+  tests; `tests/dial_failure_reason_contract_probe.rs` compiles a downstream
+  consumer with `rustc` to pin the break above.
+
+What `0.17.0` carries on top of `0.16.0`:
 
 - The destination lookup: `Transport::destination_desc` returns
   `Option<DestinationDesc>` for an announced destination, `Some` exactly when

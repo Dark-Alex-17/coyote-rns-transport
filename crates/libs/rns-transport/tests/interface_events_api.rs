@@ -8,9 +8,9 @@
 //! attempt. The shared-instance state stream and the per-client senders keep working
 //! beside the broadcast, a receiver dropped at once costs the client nothing, a receiver
 //! that falls behind reads `Lagged` and never slows the publisher, publishing with no
-//! subscriber or no stream is a silent no-op, a peer a `TcpServer` accepts publishes
-//! `Connected` tagged with its child interface but never a dial, and the unix client
-//! publishes the same four kinds as TCP.
+//! subscriber or no stream is a silent no-op, a client built from a pre-supplied stream
+//! (the shape a `TcpServer` runs for each accepted peer) publishes nothing, and the unix
+//! client publishes the same four kinds as TCP.
 
 use std::net::SocketAddr;
 use std::time::{Duration, Instant};
@@ -434,14 +434,13 @@ async fn publishing_with_no_subscriber_or_no_stream_is_a_silent_no_op() {
     same(module_type, transport_type);
 }
 
-/// A peer a library `TcpServer` accepts runs the stream client over the accepted socket,
-/// so the listening transport reads `Connected` tagged with the child interface the
-/// server reports, never a `Connecting` or `DialFailed`, and `Disconnected { PeerClosed }`
-/// under the same tag once the connector stops; the connecting transport reads
-/// `Connecting` then `Connected` under its own client's address.
+/// The stream covers dialing clients only: the connecting transport reads `Connecting`
+/// then `Connected` under its own client's address, while the listening transport, whose
+/// `TcpServer` runs each accepted peer as a client over a pre-supplied stream, reads
+/// nothing for the accept and nothing for the peer's orderly exit once the connector stops.
 #[tokio::test]
 #[deny(clippy::await_holding_invalid_type)]
-async fn a_tcp_server_side_transport_tags_its_accepted_peer_and_never_dials() {
+async fn a_tcp_server_side_transport_publishes_nothing_for_its_accepted_peers() {
     let listener = client_transport("interface-events-server-side");
     let mut server_events = listener.interface_events();
     let port = free_loopback_port().await;
@@ -472,30 +471,48 @@ async fn a_tcp_server_side_transport_tags_its_accepted_peer_and_never_dials() {
         assert_eq!(event.iface(), client_iface, "tagged with the spawned client");
         assert_eq!(event.kind(), expected);
     }
+    tokio::time::sleep(QUIET).await;
+    assert_eq!(server_events.try_recv(), Err(TryRecvError::Empty), "the accept publishes nothing");
 
-    let child_iface = server_status.to_json()["latest_client_iface"]
-        .as_str()
-        .expect("the server names the accepted child interface")
-        .to_string();
-    let accepted = next_event("the accepted peer's event", &mut server_events).await;
-    assert_eq!(accepted.iface().to_string(), child_iface, "tagged with the child interface");
-    assert_eq!(accepted.kind(), InterfaceEventKind::Connected, "an accepted peer dials nothing");
+    timeout(WAIT, connector.stop()).await.expect("connector stop completes");
     tokio::time::sleep(QUIET).await;
     assert_eq!(
         server_events.try_recv(),
         Err(TryRecvError::Empty),
-        "nothing else while the peer is held"
-    );
-
-    timeout(WAIT, connector.stop()).await.expect("connector stop completes");
-    let ended = next_event("the accepted peer's end", &mut server_events).await;
-    assert_eq!(ended.iface().to_string(), child_iface);
-    assert_eq!(
-        ended.kind(),
-        InterfaceEventKind::Disconnected { reason: DisconnectReason::PeerClosed },
-        "the connector's stop closes its socket in an orderly way"
+        "the accepted peer's exit publishes nothing"
     );
     timeout(WAIT, listener.stop()).await.expect("listener stop completes");
+}
+
+/// A `TcpClient` built over an accepted raw socket is the shape a `TcpServer` spawns for
+/// each peer; spawned through a transport it runs to the peer's close and publishes
+/// nothing on the way, neither for the stream it was handed nor for its end.
+#[tokio::test]
+#[deny(clippy::await_holding_invalid_type)]
+async fn a_client_built_from_a_stream_publishes_nothing() {
+    let listener = TcpListener::bind("127.0.0.1:0").await.expect("bind");
+    let addr = listener.local_addr().expect("listener address");
+    let peer = TcpStream::connect(addr).await.expect("the peer connects");
+    let accepted = accept_within(&listener, "the accept").await;
+
+    let transport = client_transport("interface-events-from-stream");
+    let mut events = transport.interface_events();
+    let client = TcpClient::new_from_stream(addr.to_string(), accepted);
+    let status = client.runtime_status_handle();
+    transport.iface_manager().lock().await.spawn(client, TcpClient::spawn);
+    wait_until("the client to take up its stream", || {
+        status.to_json()["stream_state"].as_str() == Some("connected")
+    })
+    .await;
+
+    close_orderly(peer).await;
+    wait_until("the client to finish with its stream", || {
+        status.to_json()["stream_state"].as_str() == Some("closed")
+    })
+    .await;
+    tokio::time::sleep(QUIET).await;
+    assert_eq!(events.try_recv(), Err(TryRecvError::Empty));
+    timeout(WAIT, transport.stop()).await.expect("transport stop completes");
 }
 
 /// The unix client publishes the same four kinds: `Connecting` then

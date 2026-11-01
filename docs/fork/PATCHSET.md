@@ -152,6 +152,7 @@ fork commits `45bcadfc`, `fdfa83dd`, `f45595c5`, `b819ab22`, `bb247215`,
 | `crates/libs/rns-transport/tests/disconnect_reason_log_line_probe.rs` | disconnect reasons |
 | `crates/libs/rns-transport/tests/disconnect_reason_receive_queue_probe.rs` | disconnect reasons |
 | `crates/libs/rns-transport/tests/interface_events_api.rs` | interface events |
+| `crates/libs/rns-transport/tests/interface_events_probe.rs` | interface events |
 | `crates/libs/rns-transport/tests/link_proof_strategy_api.rs` | link proof strategy, dial failures |
 | `crates/libs/rns-transport/tests/request_handler_api.rs` | outcome tracker |
 | `crates/libs/rns-transport/tests/resolve_destination_deadline_api.rs` | destination resolve |

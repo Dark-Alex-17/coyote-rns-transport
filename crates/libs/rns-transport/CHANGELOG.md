@@ -543,8 +543,20 @@ Removed) bullet of its own, marked as such.
   `InterfaceChannel` and `InterfaceContext<TcpClient>` are `UnwindSafe`
   and `RefUnwindSafe`; `the_unix_client_publishes_the_same_four_kinds`:
   `Connecting`, `DialFailed { NotFound }`, `Connected` and
-  `Disconnected { PeerClosed }` over a unix socket), by the `InterfaceEvent`
-  and publisher unit tests in `iface/events.rs`, and
+  `Disconnected { PeerClosed }` over a unix socket;
+  `a_unix_client_built_from_a_stream_publishes_nothing`: a
+  `LocalUnixClient::new_from_stream` over one half of a socket pair
+  publishes nothing through the peer's close), by
+  `tests/interface_events_probe.rs`
+  (`two_receivers_from_one_transport_each_read_the_whole_sequence`: two
+  receivers each read the same four events under the same address;
+  `a_stop_publishes_no_disconnected_on_the_broadcast`: a
+  `stop_interface` and a `Transport::stop` of a connected client publish
+  no `Disconnected`; `a_receiver_subscribed_late_reads_nothing_it_missed`:
+  a receiver subscribed after the connect reads the close first;
+  `the_transport_stream_holds_the_1024_events_the_readme_names`: 1024
+  unread events fit and the 1025th reads `Lagged(1)`), by the
+  `InterfaceEvent` and publisher unit tests in `iface/events.rs`, and
   `request_layer_api_docs.rs` lists `interface_events`,
   `set_interface_events` and `publish_event` among the items whose rustdoc
   must cite Python or say fork-only, registers `InterfaceEventKind` as

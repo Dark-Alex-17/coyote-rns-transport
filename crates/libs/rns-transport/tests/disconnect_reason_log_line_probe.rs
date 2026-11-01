@@ -79,8 +79,8 @@ fn info_lines_starting_with(prefix: &str) -> Vec<String> {
 }
 
 /// Polls for `count` info lines starting with `prefix` within `WITHIN`: the
-/// line is written after the reason event is sent, so a reader that saw the
-/// event may be a moment ahead of the record store.
+/// record is pushed before the reason is sent, so the poll is only a margin
+/// for the arms that read no event first (the `Cancelled` lines).
 async fn await_info_lines(prefix: &str, count: usize) -> Vec<String> {
     timeout(WITHIN, async {
         loop {

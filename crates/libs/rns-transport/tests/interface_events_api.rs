@@ -10,7 +10,8 @@
 //! that falls behind reads `Lagged` and never slows the publisher, publishing with no
 //! subscriber or no stream is a silent no-op, a client built from a pre-supplied stream
 //! (the shape a `TcpServer` runs for each accepted peer) publishes nothing, and the unix
-//! client publishes the same four kinds as TCP.
+//! client publishes the same four kinds as TCP and, built from a pre-supplied stream,
+//! nothing either.
 
 use std::net::SocketAddr;
 use std::time::{Duration, Instant};
@@ -377,9 +378,8 @@ async fn a_dropped_receiver_costs_the_client_nothing() {
 /// With no sockets at all: a capacity-one broadcast behind a bare manager reads
 /// `Lagged(1)` for the event the receiver missed, then the latest event tagged with the
 /// channel's address, then nothing; the publisher never waited on either send.
-#[tokio::test]
-#[deny(clippy::await_holding_invalid_type)]
-async fn a_receiver_that_falls_behind_reads_lagged_and_the_publisher_never_blocks() {
+#[test]
+fn a_receiver_that_falls_behind_reads_lagged_and_the_publisher_never_blocks() {
     let mut manager = InterfaceManager::new(8);
     let (tx, mut rx) = broadcast::channel::<InterfaceEvent>(1);
     manager.set_interface_events(tx);
@@ -399,9 +399,8 @@ async fn a_receiver_that_falls_behind_reads_lagged_and_the_publisher_never_block
 /// a channel built with `InterfaceChannel::new`, which has no stream at all, both take
 /// the call without a panic. `InterfaceEvent` is `Copy`, and the type the transport
 /// re-exports is the type the `iface::events` module defines.
-#[tokio::test]
-#[deny(clippy::await_holding_invalid_type)]
-async fn publishing_with_no_subscriber_or_no_stream_is_a_silent_no_op() {
+#[test]
+fn publishing_with_no_subscriber_or_no_stream_is_a_silent_no_op() {
     let mut manager = InterfaceManager::new(8);
     let (tx, rx) = broadcast::channel::<InterfaceEvent>(4);
     manager.set_interface_events(tx);
@@ -521,6 +520,31 @@ async fn a_client_built_from_a_stream_publishes_nothing() {
     .await;
     tokio::time::sleep(QUIET).await;
     assert_eq!(events.try_recv(), Err(TryRecvError::Empty));
+    timeout(WAIT, transport.stop()).await.expect("transport stop completes");
+}
+
+/// The unix twin of the test above: a `LocalUnixClient` over one half of a socket pair,
+/// spawned through a transport, runs to the peer's close and publishes nothing on the
+/// way. The unix client exposes no status handle, so the peer's drain reaching EOF is
+/// what shows the client finished with its stream.
+#[cfg(unix)]
+#[tokio::test]
+#[deny(clippy::await_holding_invalid_type)]
+async fn a_unix_client_built_from_a_stream_publishes_nothing() {
+    let (client_half, peer) = tokio::net::UnixStream::pair().expect("socket pair");
+
+    let transport = client_transport("interface-events-unix-from-stream");
+    let mut events = transport.interface_events();
+    let client = LocalUnixClient::new_from_stream("unix-pair", client_half);
+    transport.iface_manager().lock().await.spawn(client, LocalUnixClient::spawn);
+
+    close_orderly(peer).await;
+    tokio::time::sleep(QUIET).await;
+    assert_eq!(
+        events.try_recv(),
+        Err(TryRecvError::Empty),
+        "neither the stream it was handed nor its end publishes"
+    );
     timeout(WAIT, transport.stop()).await.expect("transport stop completes");
 }
 

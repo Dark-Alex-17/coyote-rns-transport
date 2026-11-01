@@ -197,8 +197,15 @@ impl InterfaceEventPublisher {
 mod tests {
     use std::io::{Error, ErrorKind};
 
-    use super::{DialFailureKind, DisconnectReason};
+    use super::{
+        DialFailureKind, DisconnectReason, InterfaceEvent, InterfaceEventKind,
+        InterfaceEventPublisher,
+    };
+    use crate::hash::AddressHash;
     use crate::iface::tcp_client::HdlcStreamExit;
+    use rand_core::OsRng;
+    use tokio::sync::broadcast;
+    use tokio::sync::broadcast::error::TryRecvError;
 
     #[test]
     fn the_three_named_kinds_read_as_their_own_variants() {
@@ -293,5 +300,31 @@ mod tests {
     #[test]
     fn a_locally_ended_stream_has_no_reason() {
         assert_eq!(DisconnectReason::from_stream_exit(HdlcStreamExit::Cancelled), None);
+    }
+
+    #[test]
+    fn interface_event_getters_return_the_tagged_fields() {
+        let iface = AddressHash::new_from_rand(OsRng);
+        let kind = InterfaceEventKind::Disconnected { reason: DisconnectReason::PeerClosed };
+        let event = InterfaceEvent::new(iface, kind);
+        assert_eq!(event.iface(), iface);
+        assert_eq!(event.kind(), kind);
+    }
+
+    #[test]
+    fn a_publisher_without_a_stream_publishes_nothing() {
+        let publisher = InterfaceEventPublisher::new(AddressHash::new_from_rand(OsRng), None);
+        publisher.publish(InterfaceEventKind::Connecting);
+        publisher.publish(InterfaceEventKind::DialFailed { reason: DialFailureKind::Refused });
+    }
+
+    #[test]
+    fn a_publisher_sends_to_a_subscriber() {
+        let iface = AddressHash::new_from_rand(OsRng);
+        let (tx, mut rx) = broadcast::channel(4);
+        let publisher = InterfaceEventPublisher::new(iface, Some(tx));
+        publisher.publish(InterfaceEventKind::Connected);
+        assert_eq!(rx.try_recv(), Ok(InterfaceEvent::new(iface, InterfaceEventKind::Connected)));
+        assert_eq!(rx.try_recv(), Err(TryRecvError::Empty));
     }
 }

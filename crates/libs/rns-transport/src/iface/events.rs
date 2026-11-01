@@ -134,18 +134,17 @@ impl InterfaceEvent {
     }
 }
 
-/// Fork-only: what changed on a stream client interface. Published by
-/// `TcpClient` and `LocalUnixClient` only. A peer a `TcpServer` or shared
-/// instance accepts runs the same client over the accepted stream, so it
-/// publishes `Connected` and `Disconnected` tagged with the child interface
-/// address but never `Connecting` or `DialFailed`; every other interface
-/// kind publishes nothing yet.
+/// Fork-only: what changed on a stream client interface. Published by a
+/// dialing `TcpClient` or `LocalUnixClient` only. A client built from a
+/// pre-supplied stream (`TcpClient::new_from_stream`,
+/// `LocalUnixClient::new_from_stream`; how `TcpServer` and
+/// `LocalUnixServer` run each accepted peer) publishes nothing for that
+/// stream, and every other interface kind publishes nothing yet.
 #[non_exhaustive]
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum InterfaceEventKind {
     /// Fork-only: a dial attempt is starting, once per attempt, redials
-    /// included; a client built from a pre-supplied stream dials nothing
-    /// and publishes no `Connecting` for that stream.
+    /// included.
     Connecting,
     /// Fork-only: a stream to the endpoint was established, the first included.
     Connected,
@@ -162,7 +161,8 @@ pub enum InterfaceEventKind {
 /// Handle a client clones out of its `InterfaceChannel` before `split()`:
 /// the interface address plus the transport's broadcast sender, or `None`
 /// for a channel minted by `InterfaceChannel::new` (tests, bare managers),
-/// where publishing is a no-op.
+/// or for a client built from a pre-supplied stream, where publishing is a
+/// no-op.
 #[derive(Clone)]
 pub(crate) struct InterfaceEventPublisher {
     iface: AddressHash,
@@ -175,6 +175,10 @@ impl InterfaceEventPublisher {
         events: Option<tokio::sync::broadcast::Sender<InterfaceEvent>>,
     ) -> Self {
         Self { iface, events }
+    }
+
+    pub(crate) fn detached(iface: AddressHash) -> Self {
+        Self::new(iface, None)
     }
 
     /// Publishes `kind` tagged with the interface. `broadcast::Sender::send`
@@ -316,6 +320,13 @@ mod tests {
         let publisher = InterfaceEventPublisher::new(AddressHash::new_from_rand(OsRng), None);
         publisher.publish(InterfaceEventKind::Connecting);
         publisher.publish(InterfaceEventKind::DialFailed { reason: DialFailureKind::Refused });
+    }
+
+    #[test]
+    fn a_detached_publisher_publishes_nothing() {
+        let detached = InterfaceEventPublisher::detached(AddressHash::new_from_rand(OsRng));
+        detached.publish(InterfaceEventKind::Connected);
+        detached.publish(InterfaceEventKind::Disconnected { reason: DisconnectReason::PeerClosed });
     }
 
     #[test]

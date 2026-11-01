@@ -9,7 +9,9 @@ use tokio_util::sync::CancellationToken;
 
 use crate::buffer::OutputBuffer;
 use crate::error::RnsError;
-use crate::iface::events::{DialFailure, DialFailureKind, DisconnectReason, InterfaceEventKind};
+use crate::iface::events::{
+    DialFailure, DialFailureKind, DisconnectReason, InterfaceEventKind, InterfaceEventPublisher,
+};
 use crate::iface::{
     decode_packet_ifac, encode_packet_ifac, is_ifac_violation, record_ifac_violation, IfacState,
     IfaceSource, RxMessage,
@@ -1298,7 +1300,6 @@ impl TcpClient {
         let ifac_violations = context.channel.ifac_violations.clone();
         let online = context.channel.online.clone();
         online.store(false, std::sync::atomic::Ordering::Release);
-        let iface_events = context.channel.event_publisher();
         let (
             mut stream,
             connect_events,
@@ -1316,6 +1317,11 @@ impl TcpClient {
                 guard.dial_failure_events.clone(),
                 guard.disconnect_reason_events.clone(),
             )
+        };
+        let iface_events = if stream.is_some() {
+            InterfaceEventPublisher::detached(iface_address)
+        } else {
+            context.channel.event_publisher()
         };
 
         let (rx_channel, mut tx_channel) = context.channel.split();

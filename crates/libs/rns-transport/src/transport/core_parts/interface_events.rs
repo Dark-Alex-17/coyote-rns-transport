@@ -4,13 +4,13 @@ impl Transport {
     /// interface address: `Connecting` per dial attempt, `Connected` per
     /// established stream, `Disconnected { reason }` when an established
     /// stream ends for a reason the client reports, `DialFailed { reason }`
-    /// per failed attempt. Published by `TcpClient` and `LocalUnixClient`
-    /// spawned through this transport's interface manager, the client an
-    /// `attach_shared_instance` spawns included. A peer a `TcpServer` or
-    /// shared instance accepts runs the same client over the accepted
-    /// stream, so it publishes `Connected` and `Disconnected` tagged with
-    /// the child interface address but never `Connecting` or `DialFailed`;
-    /// every other interface kind publishes nothing yet. The
+    /// per failed attempt. Published by a dialing `TcpClient` or
+    /// `LocalUnixClient` spawned through this transport's interface
+    /// manager, the client an `attach_shared_instance` spawns included. A
+    /// client built from a pre-supplied stream (`TcpClient::new_from_stream`,
+    /// `LocalUnixClient::new_from_stream`; how `TcpServer` and
+    /// `LocalUnixServer` run each accepted peer) publishes nothing for that
+    /// stream, and every other interface kind publishes nothing yet. The
     /// per-client `with_*_events` senders and the shared-instance state
     /// stream keep working beside it. The stream has no replay: subscribe
     /// before spawning the client whose events you want. Capacity is the

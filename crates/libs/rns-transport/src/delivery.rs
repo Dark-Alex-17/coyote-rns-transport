@@ -113,6 +113,9 @@ pub async fn send_on_link_observed(
     }
 }
 
+/// Waits until `link` is active, or until `wait_timeout` passes with a
+/// `TimedOut` error. A timeout the clock cannot hold, `Duration::MAX`
+/// included, waits indefinitely instead of panicking.
 pub async fn await_link_activation(
     transport: &Transport,
     link: &Arc<tokio::sync::Mutex<Link>>,
@@ -124,7 +127,12 @@ pub async fn await_link_activation(
     }
 
     let mut events = transport.out_link_events();
-    let deadline = tokio::time::Instant::now() + wait_timeout;
+    let now = tokio::time::Instant::now();
+    // Thirty years, as tokio's own far future: a century overflows the
+    // clock on some platforms.
+    let deadline = now
+        .checked_add(wait_timeout)
+        .unwrap_or_else(|| now + Duration::from_secs(30 * 365 * 24 * 60 * 60));
     loop {
         if link.lock().await.status() == LinkStatus::Active {
             return Ok(());

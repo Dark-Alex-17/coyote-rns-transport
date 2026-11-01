@@ -435,7 +435,10 @@ Removed) bullet of its own, marked as such.
   reconnecting), and by `tests/disconnect_reason_receive_queue_probe.rs`
   (a stream ended by the transport's receive queue closing fires the
   plain disconnect channel, leaves the reason channel empty and the
-  client redials).
+  client redials), and by `tests/disconnect_reason_log_line_probe.rs`
+  (both clients' "disconnected from" info line names the stream exit as
+  `exit=<HdlcStreamExit>`, the receive-queue-closed arm included as
+  `exit=Cancelled`).
 - `SharedInstanceEvent::DisconnectedWithReason` and
   `SharedInstanceOptions::with_disconnect_reasons`
   (`transport/shared_instance.rs`): an attach that opted in reads

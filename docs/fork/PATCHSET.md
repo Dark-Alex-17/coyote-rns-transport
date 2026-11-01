@@ -140,6 +140,7 @@ fork commits `45bcadfc`, `fdfa83dd`, `f45595c5`, `b819ab22`, `bb247215`,
 | `crates/libs/rns-transport/tests/dial_failure_events_api.rs` | dial failures |
 | `crates/libs/rns-transport/tests/dial_failure_reason_contract_probe.rs` | dial failures, disconnect reasons |
 | `crates/libs/rns-transport/tests/disconnect_reason_events_api.rs` | disconnect reasons |
+| `crates/libs/rns-transport/tests/disconnect_reason_log_line_probe.rs` | disconnect reasons |
 | `crates/libs/rns-transport/tests/disconnect_reason_receive_queue_probe.rs` | disconnect reasons |
 | `crates/libs/rns-transport/tests/link_proof_strategy_api.rs` | link proof strategy, dial failures |
 | `crates/libs/rns-transport/tests/request_handler_api.rs` | outcome tracker |

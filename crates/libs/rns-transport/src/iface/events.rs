@@ -142,7 +142,9 @@ impl InterfaceEvent {
 /// stream, and every other interface kind publishes nothing yet. A client
 /// that stops, or gives up after `max_reconnect_tries`, publishes no
 /// further event: its last event is the `Connected` of the stream it was
-/// on, or the `Connecting` or `DialFailed` of the attempt it abandoned.
+/// on, or the `Connecting` or `DialFailed` of the attempt it abandoned, or
+/// the `Disconnected { reason }` of a stream that ended just before it
+/// stopped or gave up.
 #[non_exhaustive]
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum InterfaceEventKind {

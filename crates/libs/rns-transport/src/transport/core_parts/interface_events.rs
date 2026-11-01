@@ -15,13 +15,14 @@ impl Transport {
     /// client that stops, or gives up after `max_reconnect_tries`, publishes
     /// no further event: its last event is the `Connected` of the stream it
     /// was on, or the `Connecting` or `DialFailed` of the attempt it
-    /// abandoned. The per-client `with_*_events` senders and the
-    /// shared-instance state stream keep working beside it. The stream has
-    /// no replay: subscribe before spawning the client whose events you
-    /// want. Capacity is the transport's event capacity (1024); a receiver
-    /// that falls behind reads `RecvError::Lagged(n)` for the n events it
-    /// missed and never slows a client, and a dropped receiver costs the
-    /// clients nothing. Python has no such stream
+    /// abandoned, or the `Disconnected { reason }` of a stream that ended
+    /// just before it stopped or gave up. The per-client `with_*_events`
+    /// senders and the shared-instance state stream keep working beside it.
+    /// The stream has no replay: subscribe before spawning the client whose
+    /// events you want. Capacity is the transport's event capacity (1024); a
+    /// receiver that falls behind reads `RecvError::Lagged(n)` for the n
+    /// events it missed and never slows a client, and a dropped receiver
+    /// costs the clients nothing. Python has no such stream
     /// (`RNS/Interfaces/LocalInterface.py:159-167`, `:255-266`).
     pub fn interface_events(&self) -> broadcast::Receiver<InterfaceEvent> {
         self.interface_events_tx.subscribe()

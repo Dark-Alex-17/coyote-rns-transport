@@ -679,14 +679,15 @@ address; a client built from a pre-supplied stream
 interface kind publish nothing yet. A client that stops, or gives up after
 `max_reconnect_tries`, publishes no further event: its last event is the
 `Connected` of the stream it was on, or the `Connecting` or `DialFailed` of
-the attempt it abandoned. The per-client `with_*_events` senders
-and `with_state_events` keep working beside it. The stream has no replay, so
-subscribe before spawning the client whose events you want; its capacity is
-1024, a receiver that falls behind reads `RecvError::Lagged` and never slows
-a client, and a dropped receiver costs the clients nothing. `InterfaceEvent`
-and `InterfaceEventKind` live in `iface::events` and are re-exported from
-`transport`; `InterfaceManager::set_interface_events` installs the sender
-(the transport does it in `Transport::new`) and
+the attempt it abandoned, or the `Disconnected { reason }` of a stream that
+ended just before it stopped or gave up. The per-client `with_*_events`
+senders and `with_state_events` keep working beside it. The stream has
+no replay, so subscribe before spawning the client whose events you want;
+its capacity is 1024, a receiver that falls behind reads `RecvError::Lagged`
+and never slows a client, and a dropped receiver costs the clients nothing.
+`InterfaceEvent` and `InterfaceEventKind` live in `iface::events` and are
+re-exported from `transport`; `InterfaceManager::set_interface_events`
+installs the sender (the transport does it in `Transport::new`) and
 `InterfaceChannel::publish_event` is the path an interface implementation
 holding a channel publishes through. Python has no such stream
 (`RNS/Interfaces/LocalInterface.py:159-167`, `:255-266`).

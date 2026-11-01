@@ -480,6 +480,71 @@ Removed) bullet of its own, marked as such.
   clients is listed in `request_layer_api_docs.rs` among the items whose
   rustdoc must cite Python or say fork-only, and `crate_readme_sections.rs`
   pins the README paragraph and this bullet.
+- `Transport::interface_events` (`transport/core_parts/interface_events.rs`)
+  returns a `tokio::sync::broadcast::Receiver<InterfaceEvent>`: one stream
+  of every stream client interface's connection state on the transport,
+  each event tagged with its interface. `InterfaceEvent` (`iface/events.rs`,
+  private fields, `Copy`) exposes `iface()` and `kind()`;
+  `InterfaceEventKind` is `#[non_exhaustive]` with `Connecting` once per
+  dial attempt (redials included), `Connected` per established stream,
+  `Disconnected { reason: DisconnectReason }` when an established stream
+  ends for a reason the client reports (a cancel, stop or the receive
+  queue closing publishes nothing) and
+  `DialFailed { reason: DialFailureKind }` per failed attempt, the reasons
+  the per-client `with_disconnect_reason_events` and
+  `with_dial_failure_events` channels carry.
+  `InterfaceManager::set_interface_events`
+  (`iface_parts/interfacemanager_events.rs`) installs the sender every
+  channel the manager mints from then on publishes through; `Transport::new`
+  calls it once before the manager is shared.
+  `InterfaceChannel::publish_event` (`iface_parts/txmessagetype.rs`)
+  publishes a kind tagged with the channel's address, and a channel from
+  `InterfaceChannel::new` publishes nothing. `TcpClient::spawn`
+  (`iface/tcp_client.rs`) and
+  `LocalUnixClient::spawn` (`iface/local.rs`) clone the publisher out of the
+  channel before `split()`, so the client an `attach_shared_instance`
+  spawns and every plain dialing client publish; a client built from a
+  pre-supplied stream (`TcpClient::new_from_stream`,
+  `LocalUnixClient::new_from_stream`, how `TcpServer` and `LocalUnixServer`
+  run each accepted peer) takes a detached publisher and publishes nothing,
+  as does every other interface kind. The stream has no replay (subscribe
+  before spawning the client), a receiver that falls behind reads
+  `RecvError::Lagged` and never slows a client, and a dropped receiver
+  costs the clients nothing; the per-client `with_*_events` senders and the
+  shared-instance state stream are unchanged beside it. Python's clients
+  log their state changes and expose no stream
+  (`RNS/Interfaces/LocalInterface.py:159-167`, `:255-266`). Pinned by
+  `tests/interface_events_api.rs`
+  (`one_stream_carries_a_plain_tcp_client_and_the_shared_instance_tagged_by_iface`:
+  one transport reads both interfaces through `Connecting`, `Connected`,
+  `Disconnected { PeerClosed }`, the redial's `Connecting` and
+  `DialFailed { Refused }`, each under its own address;
+  `the_shared_instance_state_stream_and_per_client_senders_are_unchanged`:
+  the attach's state stream and a plain client's `with_connect_events` and
+  `with_disconnect_reason_events` still fire beside the broadcast;
+  `a_dropped_receiver_costs_the_client_nothing`: a receiver dropped at
+  once leaves the client connecting and redialing;
+  `a_receiver_that_falls_behind_reads_lagged_and_the_publisher_never_blocks`:
+  a capacity-one receiver behind a bare manager reads `Lagged(1)` then the
+  latest event;
+  `publishing_with_no_subscriber_or_no_stream_is_a_silent_no_op`:
+  a manager without receivers and a channel from `InterfaceChannel::new`
+  publish without panicking, `InterfaceEvent` is `Copy` and the `transport`
+  re-export is the `iface::events` type;
+  `a_tcp_server_side_transport_publishes_nothing_for_its_accepted_peers`:
+  the listening transport's stream stays empty through the accept and the
+  peer's exit while the connector reads `Connecting` then `Connected`;
+  `a_client_built_from_a_stream_publishes_nothing`: a
+  `TcpClient::new_from_stream` over an accepted socket publishes nothing
+  through the peer's close; `the_unix_client_publishes_the_same_four_kinds`:
+  `Connecting`, `DialFailed { NotFound }`, `Connected` and
+  `Disconnected { PeerClosed }` over a unix socket), by the `InterfaceEvent`
+  and publisher unit tests in `iface/events.rs`, and
+  `request_layer_api_docs.rs` lists `interface_events`,
+  `set_interface_events` and `publish_event` among the items whose rustdoc
+  must cite Python or say fork-only, registers `InterfaceEventKind` as
+  `#[non_exhaustive]` and `InterfaceEvent` among the private-field structs,
+  and `crate_readme_sections.rs` pins the README paragraph and this bullet.
 
 ### Changed
 

@@ -567,6 +567,60 @@ fn crate_readme_shared_instance_section_describes_disconnect_reasons() {
     }
 }
 
+/// The shared-instance section describes the interface event stream the
+/// way the clients publish on it: the receiver, the two getters, the four
+/// kinds, the clients built from a pre-supplied stream that publish nothing,
+/// the no-replay and `Lagged` rules, and the manager and channel hooks
+/// underneath; the divergence register names the stream as fork-only, and
+/// the changelog bullet names the same items, the source files and the
+/// black-box test file.
+#[test]
+fn crate_readme_shared_instance_section_describes_interface_events() {
+    let readme = read_repo_file("crates/libs/rns-transport/README.md");
+    let section = crate_readme_section(&readme, "Attaching to a shared instance");
+    for claim in [
+        "`Transport::interface_events()`",
+        "`InterfaceEvent::iface()`",
+        "`InterfaceEvent::kind()`",
+        "`InterfaceEventKind`",
+        "`Connecting`",
+        "`DialFailed { reason }`",
+        "`Disconnected { reason }`",
+        "`TcpClient::new_from_stream`",
+        "`LocalUnixClient::new_from_stream`",
+        "publish nothing yet",
+        "no replay",
+        "`RecvError::Lagged`",
+        "`InterfaceManager::set_interface_events`",
+        "`InterfaceChannel::publish_event`",
+    ] {
+        assert!(
+            section.contains(claim),
+            "the shared-instance section should mention {claim}:\n{section}"
+        );
+    }
+    let divergences = crate_readme_section(&readme, "Known divergences from Python RNS");
+    assert!(
+        divergences.contains("`Transport::interface_events()`"),
+        "the divergence register should name the interface event stream:\n{divergences}"
+    );
+    let changelog = read_repo_file("crates/libs/rns-transport/CHANGELOG.md");
+    let changelog_section = changelog_section_naming(&changelog, "`Transport::interface_events`");
+    for claim in [
+        "`InterfaceEvent`",
+        "`InterfaceEventKind`",
+        "`InterfaceManager::set_interface_events`",
+        "`InterfaceChannel::publish_event`",
+        "`tests/interface_events_api.rs`",
+        "`iface_parts/interfacemanager_events.rs`",
+        "`transport/core_parts/interface_events.rs`",
+        "`TcpClient::new_from_stream`",
+        "`LocalUnixClient::new_from_stream`",
+    ] {
+        assert!(changelog_section.contains(claim), "the changelog should mention {claim}");
+    }
+}
+
 /// The request-handler section describes `track_outcome` the way the
 /// dispatcher behaves: the receiver it returns, when to call it, each
 /// outcome and what it proves, the proof section a packet outcome

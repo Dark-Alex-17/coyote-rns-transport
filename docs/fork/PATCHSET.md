@@ -31,7 +31,8 @@ per fork task.
 Every file changed since the `0.17.0` release and the patch each change
 belongs to. Patch ids: K1 is outcome tracker, K2 is response cap, K3 is
 ledger contracts, K4 is destination resolve, K5 is reject cadence, K6 is
-link proof strategy, K7 is dial failures, K8 is disconnect reasons. The
+link proof strategy, K7 is dial failures, K8 is disconnect reasons, K9 is
+interface events. The
 `outcome tracker` patch is fork commits `c3a317d7`, `ca32feac`, `223cdd80`,
 `716fb2be`, `d3b234e6` and `d36f65df`; the `response cap` patch is fork
 commits `355a0ddf`, `ca32feac`, `223cdd80`, `716fb2be`, `f43321f4`,
@@ -51,20 +52,22 @@ the `dial failures` patch is fork commits `61429992`, `874c871b`, `aa6d2fac`,
 `8f348131`, `9c0bb5c6` and `b68ef92c`; the `disconnect reasons` patch is
 fork commits `45bcadfc`, `fdfa83dd`, `f45595c5`, `b819ab22`, `bb247215`,
 `0a8f5cf8`, `cc5c3092`, `3ab8f323`, `200b8810`, `b86af8d6`, `272c3f2c`,
-`a1241d2f`, `e07d20d2`, `0d5f60da`, `9c2d173c` and `14893a3f`.
+`a1241d2f`, `e07d20d2`, `0d5f60da`, `9c2d173c` and `14893a3f`; the
+`interface events` patch is fork commits `8378165f`, `806facd1`, `441dd699`
+and `17706293`.
 
 | File | Patch |
 | --- | --- |
 | `crates/apps/reticulumd/tests/fork_publish_contract_parts/ledger_contract.rs` | ledger contracts |
 | `crates/apps/reticulumd/tests/fork_release_docs_contract.rs` | dial failures |
-| `crates/apps/reticulumd/tests/fork_release_docs_contract_parts/crate_readme_sections.rs` | outcome tracker, response cap, destination resolve, link proof strategy, dial failures, disconnect reasons |
+| `crates/apps/reticulumd/tests/fork_release_docs_contract_parts/crate_readme_sections.rs` | outcome tracker, response cap, destination resolve, link proof strategy, dial failures, disconnect reasons, interface events |
 | `crates/apps/reticulumd/tests/fork_release_docs_contract_parts/release_0_17_0_probe3.rs` | response cap |
-| `crates/apps/reticulumd/tests/fork_release_docs_contract_parts/request_layer_api_docs.rs` | outcome tracker, response cap, destination resolve, link proof strategy, dial failures, disconnect reasons |
+| `crates/apps/reticulumd/tests/fork_release_docs_contract_parts/request_layer_api_docs.rs` | outcome tracker, response cap, destination resolve, link proof strategy, dial failures, disconnect reasons, interface events |
 | `crates/apps/reticulumd/tests/python_channel_interop.rs` | link proof strategy |
 | `crates/apps/reticulumd/tests/python_channel_interop_parts/python_to_rust_link_proof_strategy.rs` | link proof strategy |
 | `crates/apps/reticulumd/tests/support/python_channel_endpoint.py` | link proof strategy |
-| `crates/libs/rns-transport/CHANGELOG.md` | outcome tracker, response cap, ledger contracts, destination resolve, reject cadence, link proof strategy, dial failures, disconnect reasons |
-| `crates/libs/rns-transport/README.md` | outcome tracker, response cap, destination resolve, link proof strategy, dial failures, disconnect reasons |
+| `crates/libs/rns-transport/CHANGELOG.md` | outcome tracker, response cap, ledger contracts, destination resolve, reject cadence, link proof strategy, dial failures, disconnect reasons, interface events |
+| `crates/libs/rns-transport/README.md` | outcome tracker, response cap, destination resolve, link proof strategy, dial failures, disconnect reasons, interface events |
 | `crates/libs/rns-transport/src/destination/link/payload.rs` | link proof strategy |
 | `crates/libs/rns-transport/src/destination/link_parts/link.rs` | link proof strategy |
 | `crates/libs/rns-transport/src/destination/link_parts/link_sections/data_proof_tests.rs` | link proof strategy |
@@ -83,17 +86,22 @@ fork commits `45bcadfc`, `fdfa83dd`, `f45595c5`, `b819ab22`, `bb247215`,
 | `crates/libs/rns-transport/src/destination_parts/destination.rs` | response cap, link proof strategy |
 | `crates/libs/rns-transport/src/destination_parts/module_core.rs` | response cap, link proof strategy |
 | `crates/libs/rns-transport/src/error.rs` | dial failures |
-| `crates/libs/rns-transport/src/iface.rs` | dial failures |
-| `crates/libs/rns-transport/src/iface/events.rs` | dial failures, disconnect reasons |
-| `crates/libs/rns-transport/src/iface/local.rs` | dial failures, disconnect reasons |
-| `crates/libs/rns-transport/src/iface/tcp_client.rs` | dial failures, disconnect reasons |
+| `crates/libs/rns-transport/src/iface.rs` | dial failures, interface events |
+| `crates/libs/rns-transport/src/iface/events.rs` | dial failures, disconnect reasons, interface events |
+| `crates/libs/rns-transport/src/iface/local.rs` | dial failures, disconnect reasons, interface events |
+| `crates/libs/rns-transport/src/iface/tcp_client.rs` | dial failures, disconnect reasons, interface events |
 | `crates/libs/rns-transport/src/iface/tcp_client_memory_tests.rs` | disconnect reasons |
+| `crates/libs/rns-transport/src/iface_parts/interfacemanager.rs` | interface events |
+| `crates/libs/rns-transport/src/iface_parts/interfacemanager_events.rs` | interface events |
+| `crates/libs/rns-transport/src/iface_parts/txmessagetype.rs` | interface events |
 | `crates/libs/rns-transport/src/resource.rs` | reject cadence |
 | `crates/libs/rns-transport/src/resource/advertisement_limits.rs` | reject cadence |
 | `crates/libs/rns-transport/src/resource/link_stats.rs` | reject cadence |
 | `crates/libs/rns-transport/src/resource/receiver.rs` | response cap |
 | `crates/libs/rns-transport/src/resource/sender.rs` | response cap |
 | `crates/libs/rns-transport/src/resource/tests_advert_limits.rs` | reject cadence |
+| `crates/libs/rns-transport/src/transport/core.rs` | interface events |
+| `crates/libs/rns-transport/src/transport/core_parts/interface_events.rs` | interface events |
 | `crates/libs/rns-transport/src/transport/links_parts/transport.rs` | destination resolve, link proof strategy |
 | `crates/libs/rns-transport/src/transport/links_parts/transport_sections/await_path.rs` | destination resolve |
 | `crates/libs/rns-transport/src/transport/links_parts/transport_sections/close_channel.rs` | destination resolve |
@@ -103,7 +111,8 @@ fork commits `45bcadfc`, `fdfa83dd`, `f45595c5`, `b819ab22`, `bb247215`,
 | `crates/libs/rns-transport/src/transport/links_parts/transport_sections/shared_instance_reconnect.rs` | dial failures, disconnect reasons |
 | `crates/libs/rns-transport/src/transport/links_parts/transport_sections/shared_instance_reconnect_parts/disconnected_event.rs` | disconnect reasons |
 | `crates/libs/rns-transport/src/transport/links_parts/transport_sections/shared_instance_reconnect_parts/drain_queued.rs` | dial failures, disconnect reasons |
-| `crates/libs/rns-transport/src/transport/mod.rs` | dial failures |
+| `crates/libs/rns-transport/src/transport/mod.rs` | dial failures, interface events |
+| `crates/libs/rns-transport/src/transport/mod_parts/transport.rs` | interface events |
 | `crates/libs/rns-transport/src/transport/path.rs` | link proof strategy |
 | `crates/libs/rns-transport/src/transport/path_requests_parts/module_prelude.rs` | destination resolve |
 | `crates/libs/rns-transport/src/transport/request_dispatch.rs` | response cap |
@@ -142,6 +151,7 @@ fork commits `45bcadfc`, `fdfa83dd`, `f45595c5`, `b819ab22`, `bb247215`,
 | `crates/libs/rns-transport/tests/disconnect_reason_events_api.rs` | disconnect reasons |
 | `crates/libs/rns-transport/tests/disconnect_reason_log_line_probe.rs` | disconnect reasons |
 | `crates/libs/rns-transport/tests/disconnect_reason_receive_queue_probe.rs` | disconnect reasons |
+| `crates/libs/rns-transport/tests/interface_events_api.rs` | interface events |
 | `crates/libs/rns-transport/tests/link_proof_strategy_api.rs` | link proof strategy, dial failures |
 | `crates/libs/rns-transport/tests/request_handler_api.rs` | outcome tracker |
 | `crates/libs/rns-transport/tests/resolve_destination_deadline_api.rs` | destination resolve |
@@ -150,7 +160,7 @@ fork commits `45bcadfc`, `fdfa83dd`, `f45595c5`, `b819ab22`, `bb247215`,
 | `crates/libs/rns-transport/tests/shared_instance_first_connect_api.rs` | dial failures |
 | `crates/libs/rns-transport/tests/shared_instance_first_connect_interrupt_probe.rs` | dial failures, disconnect reasons |
 | `crates/libs/rns-transport/tests/shared_instance_first_connect_stop_interface_probe.rs` | dial failures |
-| `docs/fork/PATCHSET.md` | outcome tracker, response cap, ledger contracts, destination resolve, reject cadence, link proof strategy, dial failures, disconnect reasons |
+| `docs/fork/PATCHSET.md` | outcome tracker, response cap, ledger contracts, destination resolve, reject cadence, link proof strategy, dial failures, disconnect reasons, interface events |
 
 Fork commits `c3a317d7`, `ca32feac`, `223cdd80`, `716fb2be`, `d3b234e6` and
 `d36f65df`: K1, outcome tracker. The library behaviour changes are: a
@@ -923,6 +933,43 @@ channel. `14893a3f` tightens the reason rustdoc twins (the write-first
 reset clause on `DisconnectReason::Reset` and `DisconnectedWithReason`, the
 receive-queue arm in the `DisconnectReason` header) and replaces the
 runner's `unwrap` on the rx task with an `expect`.
+
+Fork commits `8378165f`, `806facd1`, `441dd699` and `17706293`: K9,
+interface events. The library behaviour change is: a transport carries one
+broadcast stream of its stream clients' connection state, each event tagged
+with the interface it belongs to, and only dialing clients publish on it.
+`8378165f` adds `InterfaceEvent`, `InterfaceEventKind` and the
+crate-private `InterfaceEventPublisher` (`iface/events.rs`, the two public
+types re-exported from `transport`), threads the broadcast sender from
+`InterfaceManager::set_interface_events`
+(`iface_parts/interfacemanager_events.rs`) into every channel the manager
+mints with `InterfaceChannel::publish_event` as the public path
+(`iface_parts/txmessagetype.rs`), adds `Transport::interface_events`
+(`transport/core_parts/interface_events.rs`, the sender created and
+installed in `Transport::new`), has `TcpClient::spawn` and
+`LocalUnixClient::spawn` clone the publisher out of the channel before
+`split()` and publish `Connecting`, `Connected`, `Disconnected { reason }`
+and `DialFailed { reason }` beside their per-client senders, and registers
+the three methods and the two types in `request_layer_api_docs.rs`.
+`806facd1` adds `tests/interface_events_api.rs`, which holds from outside
+the crate that one stream carries a shared instance and a plain `TcpClient`
+tagged by interface through `Connecting`, `Connected`,
+`Disconnected { PeerClosed }`, the redial and `DialFailed { Refused }`, that
+the shared-instance state stream and the per-client senders are unchanged
+beside it, that a dropped receiver costs the client nothing, that a
+capacity-one receiver reads `Lagged(1)`, that publishing with no subscriber
+or no stream is a no-op and that the unix client publishes the same four
+kinds, plus unit tests on the event getters and the publisher in
+`iface/events.rs`. `441dd699` detaches the publisher of a client built from
+a pre-supplied stream (`TcpClient::new_from_stream`,
+`LocalUnixClient::new_from_stream`), so a `TcpServer`'s or
+`LocalUnixServer`'s accepted peers publish nothing, says so once each in
+the `InterfaceEventKind`, `Connecting` and `Transport::interface_events`
+rustdoc, and pins the detached publisher in the unit tests. `17706293`
+pins that from outside the crate: a listening transport's stream stays
+empty through a `TcpServer`'s accept and through the accepted peer's exit,
+and a `TcpClient::new_from_stream` spawned through a transport publishes
+nothing through the peer's close.
 
 ## 0.17.0 (upstream 0.14.0)
 

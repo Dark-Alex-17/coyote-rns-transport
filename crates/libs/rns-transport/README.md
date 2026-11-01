@@ -659,6 +659,35 @@ reason channel on its client. Python's `LocalClientInterface` only notices
 the socket closed and reconnects (`RNS/Interfaces/LocalInterface.py:255-266`)
 and reports no reason.
 
+`Transport::interface_events()` returns a
+`tokio::sync::broadcast::Receiver<InterfaceEvent>` carrying every stream
+client's connection state on the transport, each event tagged with its
+interface: `InterfaceEvent::iface()` names the interface and
+`InterfaceEvent::kind()` the `#[non_exhaustive]` `InterfaceEventKind`,
+`Connecting` once per dial attempt (redials included), `Connected` per
+established stream, `Disconnected { reason }` when an established stream
+ends for a reason the client reports (the same `DisconnectReason` as
+`with_disconnect_reason_events`; a cancel, stop or the receive queue closing
+publishes nothing) and `DialFailed { reason }` per failed attempt (the same
+`DialFailureKind` as `with_dial_failure_events`). Every `TcpClient` and
+`LocalUnixClient` that dials through the transport's interface manager
+publishes, the client `attach_shared_instance` spawns included, so one
+receiver sees the shared instance and every plain client, each under its own
+address; a client built from a pre-supplied stream
+(`TcpClient::new_from_stream`, `LocalUnixClient::new_from_stream`, how
+`TcpServer` and `LocalUnixServer` run each accepted peer) and every other
+interface kind publish nothing yet. The per-client `with_*_events` senders
+and `with_state_events` keep working beside it. The stream has no replay, so
+subscribe before spawning the client whose events you want; its capacity is
+1024, a receiver that falls behind reads `RecvError::Lagged` and never slows
+a client, and a dropped receiver costs the clients nothing. `InterfaceEvent`
+and `InterfaceEventKind` live in `iface::events` and are re-exported from
+`transport`; `InterfaceManager::set_interface_events` installs the sender
+(the transport does it in `Transport::new`) and
+`InterfaceChannel::publish_event` is the path an interface implementation
+holding a channel publishes through. Python has no such stream
+(`RNS/Interfaces/LocalInterface.py:159-167`, `:255-266`).
+
 A `Tcp` endpoint whose address is not loopback is refused with
 `RnsError::SharedInstanceEndpointNotLoopback` before any lock is taken, with
 one warning, since Python's `LocalClientInterface` connects to `127.0.0.1`
@@ -918,6 +947,10 @@ Not divergences:
   bound (`RNS/Link.py:1004-1005`).
 - The resource-form request clock anchored at `Delivered` and never
   expiring while `Receiving` is parity (`RNS/Link.py:1373`, `:1389`).
+- `Transport::interface_events()` is a fork-only stream of client interface
+  state tagged by interface; Python's clients log their state changes and
+  expose no event stream (`RNS/Interfaces/LocalInterface.py:159-167`,
+  `:255-266`). API shape, not behaviour.
 
 ## Versioning and releases
 

@@ -55,7 +55,8 @@ patch is fork commits `45bcadfc`, `fdfa83dd`, `f45595c5`, `b819ab22`,
 `interface events` patch is fork commits `8378165f`, `806facd1`, `441dd699`,
 `17706293`, `024555a6`, `5f523d82`, `16fbb720`, `0f040752`, `8f128436`,
 `f80c4323` and `57fdf117`; the `batch hygiene` patch is fork commits
-`27dad245`, `2935b5db`, `62554a8c`, `d55a4f0e` and `1bc1e388`.
+`27dad245`, `2935b5db`, `62554a8c`, `d55a4f0e`, `1bc1e388` and
+`7752a883`.
 
 | File | Patch |
 | --- | --- |
@@ -1016,8 +1017,8 @@ sentence at its three sites, says a later `set_interface_events` reaches
 only channels minted from then on, and pins the `exit=Cancelled` log-line
 clause to the TCP client.
 
-Fork commits `27dad245`, `2935b5db`, `62554a8c`, `d55a4f0e` and `1bc1e388`:
-K10, batch hygiene. The library behaviour change is:
+Fork commits `27dad245`, `2935b5db`, `62554a8c`, `d55a4f0e`, `1bc1e388` and
+`7752a883`: K10, batch hygiene. The library behaviour change is:
 `delivery::await_link_activation` with a timeout the clock cannot hold,
 `Duration::MAX` included, waits instead of panicking. `27dad245` has
 `await_link_activation` (`src/delivery.rs`) compute its deadline with
@@ -1078,6 +1079,9 @@ of the `rustc` harness (`Scratch`, `deps_dir`, `candidate_rlibs`, `rustc`) in
 and `tests/dial_failure_reason_contract_probe.rs`, with `Scratch::new`
 taking the per-file scratch label and `link_proof_strategy_api`'s scratch
 directory gaining the thread-name component the other two already had.
+`7752a883` has the module header of `tests/response_cap_tracker_api.rs` say
+that a zero cap puts every packet-form response over it, agreeing with the
+test doc comment `62554a8c` reworded in the same file.
 
 ## 0.17.0 (upstream 0.14.0)
 

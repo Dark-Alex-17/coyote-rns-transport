@@ -1,8 +1,9 @@
 /// A sender flags *every* segment of a split resource as metadata-bearing — it
 /// threads the metadata size into each one so the receiver can account for
 /// those bytes in `total_data_size` — but only segment 1 carries the actual
-/// 3-byte-length-prefixed block. Stripping a block from later segments reads
-/// three bytes of file data as a length and deletes that many bytes.
+/// block headed by its `METADATA_LENGTH_PREFIX_LEN`-byte length. Stripping a
+/// block from later segments reads the segment's first prefix-sized run of
+/// file data as a length and deletes that many bytes.
 ///
 /// Nothing else catches it: the resource hash is computed over the payload
 /// *before* the metadata split, so every fragment and every segment verifies

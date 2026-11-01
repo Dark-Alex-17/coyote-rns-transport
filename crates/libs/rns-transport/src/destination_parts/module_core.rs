@@ -50,7 +50,11 @@ pub enum ProofStrategy {
 /// Runs synchronously, inline, under the transport handler's lock plus
 /// either the destination lock or the link lock: it must not block and must
 /// not lock the destination, the link or the transport; `tokio::sync::Mutex`
-/// is not reentrant.
+/// is not reentrant. It must not panic either: it is consulted without a
+/// panic guard, so a panic unwinds into the transport's inbound worker (the
+/// destination consult in `transport::wire::handle_data`) or into the link's
+/// packet handler (`Link::should_auto_prove`), unlike `RNS/Link.py:966-968`,
+/// which catches and logs the application's exception.
 pub trait ProofRequestedHandler: Send + Sync {
     fn proof_requested(&self, packet: &Packet) -> bool;
 }

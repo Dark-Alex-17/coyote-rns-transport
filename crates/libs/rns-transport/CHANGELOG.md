@@ -401,10 +401,10 @@ Removed) bullet of its own, marked as such.
   getter. The plain `with_disconnect_events` keeps its `Sender<AddressHash>`
   and keeps firing beside the new channel. Underneath, the stream runner
   `run_hdlc_stream_with_runtime_and_ifac` (`iface/tcp_client.rs`) now
-  returns a crate-private `HdlcStreamExit` (the read side's exit, unless
-  the read side only followed the write side's stop, in which case the
-  write side's), which `DisconnectReason::from_stream_exit`
-  (`iface/events.rs`) reads as `PeerClosed` for a zero-length read, `Reset`
+  returns a crate-private `HdlcStreamExit` (`iface/events.rs`; the read
+  side's exit, unless the read side only followed the write side's stop,
+  in which case the write side's), which `DisconnectReason::from_stream_exit`
+  (same file) reads as `PeerClosed` for a zero-length read, `Reset`
   for `ConnectionReset` on either side (a write that fails before the read
   side sees the reset reads `Io(BrokenPipe)` instead), `Timeout` for the
   read watchdog or `TimedOut` on either side, `Io(kind)` for any other io
@@ -560,7 +560,14 @@ Removed) bullet of its own, marked as such.
   (`a_client_that_gives_up_publishes_no_further_event`: a client with
   `max_reconnect_tries` of one publishes two refused attempts and then
   nothing; `a_client_stopped_while_waiting_to_redial_publishes_no_further_event`:
-  a `stop_interface` inside the redial wait publishes nothing), by the
+  a `stop_interface` inside the redial wait publishes nothing), by
+  `tests/interface_events_last_disconnected_probe.rs`
+  (`a_client_stopped_after_its_stream_ended_leaves_disconnected_as_its_last_event`:
+  a `stop_interface` inside the redial wait that followed the peer's close
+  publishes nothing after the `Disconnected`;
+  `a_client_with_no_retries_left_leaves_disconnected_as_its_last_event`:
+  a client with no retries left whose peer closes its stream publishes
+  `Disconnected` and then nothing), by the
   `InterfaceEvent` and publisher unit tests in `iface/events.rs`, and
   `request_layer_api_docs.rs` lists `interface_events`,
   `set_interface_events` and `publish_event` among the items whose rustdoc

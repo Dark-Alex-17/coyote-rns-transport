@@ -32,16 +32,16 @@ Every file changed since the `0.17.0` release and the patch each change
 belongs to. Patch ids: K1 is outcome tracker, K2 is response cap, K3 is
 ledger contracts, K4 is destination resolve, K5 is reject cadence, K6 is
 link proof strategy, K7 is dial failures, K8 is disconnect reasons, K9 is
-interface events. The
-`outcome tracker` patch is fork commits `c3a317d7`, `ca32feac`, `223cdd80`,
-`716fb2be`, `d3b234e6` and `d36f65df`; the `response cap` patch is fork
-commits `355a0ddf`, `ca32feac`, `223cdd80`, `716fb2be`, `f43321f4`,
-`9eb35226`, `d3b234e6`, `d36f65df`, `813f421a`, `2aca9568`, `6fef8927`,
-`ac5a81ae` and `f9751b59`; the `ledger contracts` patch is fork commit
-`ca32feac`; the `destination resolve` patch is fork commits `3136f1bf`,
-`d36f65df`, `813f421a`, `2aca9568`, `79308556`, `6fef8927`, `ac5a81ae`,
-`f9751b59` and `402598e3`; the `reject cadence` patch is fork commits `265d6929`,
-`d36f65df`, `813f421a`, `6fef8927`, `ac5a81ae` and `f9751b59`; the
+interface events. The `outcome tracker` patch is fork commits `c3a317d7`,
+`ca32feac`, `223cdd80`, `716fb2be`, `d3b234e6` and `d36f65df`; the
+`response cap` patch is fork commits `355a0ddf`, `ca32feac`, `223cdd80`,
+`716fb2be`, `f43321f4`, `9eb35226`, `d3b234e6`, `d36f65df`, `813f421a`,
+`2aca9568`, `6fef8927`, `ac5a81ae` and `f9751b59`; the `ledger contracts`
+patch is fork commit `ca32feac`; the `destination resolve` patch is fork
+commits `3136f1bf`, `d36f65df`, `813f421a`, `2aca9568`, `79308556`,
+`6fef8927`, `ac5a81ae`, `f9751b59` and `402598e3`; the `reject cadence`
+patch is fork commits `265d6929`, `d36f65df`, `813f421a`, `6fef8927`,
+`ac5a81ae` and `f9751b59`; the
 `link proof strategy` patch is fork commits `8e47a675`, `1a9e25c4`,
 `92346ece`, `e0a2feae`, `2624206e`, `ecf809d6`, `ac841458`, `c38e6b22`,
 `e8cda738`, `4ed2ebec`, `95ae6d37`, `fdf40d01`, `94c27a5c`, `1779c8c8`,
@@ -53,8 +53,8 @@ the `dial failures` patch is fork commits `61429992`, `874c871b`, `aa6d2fac`,
 fork commits `45bcadfc`, `fdfa83dd`, `f45595c5`, `b819ab22`, `bb247215`,
 `0a8f5cf8`, `cc5c3092`, `3ab8f323`, `200b8810`, `b86af8d6`, `272c3f2c`,
 `a1241d2f`, `e07d20d2`, `0d5f60da`, `9c2d173c` and `14893a3f`; the
-`interface events` patch is fork commits `8378165f`, `806facd1`, `441dd699`,
-`17706293`, `024555a6` and `5f523d82`.
+`interface events` patch is fork commits `8378165f`, `806facd1`,
+`441dd699`, `17706293`, `024555a6` and `5f523d82`.
 
 | File | Patch |
 | --- | --- |
@@ -966,18 +966,19 @@ kinds, plus unit tests on the event getters and the publisher in
 a pre-supplied stream (`TcpClient::new_from_stream`,
 `LocalUnixClient::new_from_stream`), so a `TcpServer`'s or
 `LocalUnixServer`'s accepted peers publish nothing, says so once each in
-the `InterfaceEventKind`, `Connecting` and `Transport::interface_events`
-rustdoc, and pins the detached publisher in the unit tests. `17706293`
-pins that from outside the crate: a listening transport's stream stays
-empty through a `TcpServer`'s accept and through the accepted peer's exit,
-and a `TcpClient::new_from_stream` spawned through a transport publishes
-nothing through the peer's close. `024555a6` documents the stream in the
-README's shared-instance section and divergence register, the changelog
-and this ledger, and adds the `crate_readme_sections.rs` pin that holds the
-README paragraph and the changelog bullet to the same claims. `5f523d82`
-wraps the sender `InterfaceChannel` carries in `std::panic::AssertUnwindSafe`
-so the channel and `InterfaceContext` keep the `UnwindSafe` and
-`RefUnwindSafe` they had before the field, and pins that at compile time in
+the `InterfaceEventKind`, `InterfaceEventPublisher` and
+`Transport::interface_events` rustdoc, and pins the detached publisher in
+the unit tests. `17706293` pins that from outside the crate: a listening
+transport's stream stays empty through a `TcpServer`'s accept and through
+the accepted peer's exit, and a `TcpClient::new_from_stream` spawned
+through a transport publishes nothing through the peer's close. `024555a6`
+documents the stream in the README's shared-instance section and
+divergence register, the changelog and this ledger, and adds the
+`crate_readme_sections.rs` pin that holds the README paragraph and the
+changelog bullet to the same claims. `5f523d82` wraps the sender
+`InterfaceChannel` carries in `std::panic::AssertUnwindSafe` so the channel
+and `InterfaceContext` keep the `UnwindSafe` and `RefUnwindSafe` they had
+before the field, and pins that at compile time in
 `tests/interface_events_api.rs`.
 
 ## 0.17.0 (upstream 0.14.0)

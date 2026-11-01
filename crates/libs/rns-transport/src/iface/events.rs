@@ -139,7 +139,10 @@ impl InterfaceEvent {
 /// pre-supplied stream (`TcpClient::new_from_stream`,
 /// `LocalUnixClient::new_from_stream`; how `TcpServer` and
 /// `LocalUnixServer` run each accepted peer) publishes nothing for that
-/// stream, and every other interface kind publishes nothing yet.
+/// stream, and every other interface kind publishes nothing yet. A client
+/// that stops, or gives up after `max_reconnect_tries`, publishes no
+/// further event: its last event is the `Connected` of the stream it was
+/// on, or the `Connecting` or `DialFailed` of the attempt it abandoned.
 #[non_exhaustive]
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum InterfaceEventKind {

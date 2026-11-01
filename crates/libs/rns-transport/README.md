@@ -676,7 +676,10 @@ receiver sees the shared instance and every plain client, each under its own
 address; a client built from a pre-supplied stream
 (`TcpClient::new_from_stream`, `LocalUnixClient::new_from_stream`, how
 `TcpServer` and `LocalUnixServer` run each accepted peer) and every other
-interface kind publish nothing yet. The per-client `with_*_events` senders
+interface kind publish nothing yet. A client that stops, or gives up after
+`max_reconnect_tries`, publishes no further event: its last event is the
+`Connected` of the stream it was on, or the `Connecting` or `DialFailed` of
+the attempt it abandoned. The per-client `with_*_events` senders
 and `with_state_events` keep working beside it. The stream has no replay, so
 subscribe before spawning the client whose events you want; its capacity is
 1024, a receiver that falls behind reads `RecvError::Lagged` and never slows

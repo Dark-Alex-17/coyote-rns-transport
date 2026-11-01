@@ -267,7 +267,7 @@ fn request_layer_public_items_cite_python_or_say_fork_only() {
     }
 
     assert!(
-        checked >= 181,
+        checked >= 196,
         "the request layer should expose the receipt, frame, handler and outcome surface; found only {checked} public items"
     );
     assert!(

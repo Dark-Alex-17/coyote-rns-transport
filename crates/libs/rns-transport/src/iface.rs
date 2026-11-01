@@ -62,6 +62,8 @@ include!("iface_parts/interfacemanager_spawning.rs");
 
 include!("iface_parts/interfacemanager_management.rs");
 
+include!("iface_parts/interfacemanager_events.rs");
+
 include!("iface_parts/interfacemanager_traffic.rs");
 
 include!("iface_parts/interfacemanager_send.rs");

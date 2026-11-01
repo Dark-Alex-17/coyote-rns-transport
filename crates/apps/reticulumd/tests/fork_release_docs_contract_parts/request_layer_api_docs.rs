@@ -178,6 +178,21 @@ fn request_layer_public_items_cite_python_or_say_fork_only() {
             ItemKind::Method,
             "with_disconnect_reason_events",
         ),
+        (
+            "crates/libs/rns-transport/src/transport/core_parts/interface_events.rs",
+            ItemKind::Method,
+            "interface_events",
+        ),
+        (
+            "crates/libs/rns-transport/src/iface_parts/interfacemanager_events.rs",
+            ItemKind::Method,
+            "set_interface_events",
+        ),
+        (
+            "crates/libs/rns-transport/src/iface_parts/txmessagetype.rs",
+            ItemKind::Method,
+            "publish_event",
+        ),
     ];
 
     let mut checked = 0usize;
@@ -282,6 +297,7 @@ fn fork_new_public_structs_keep_their_fields_private() {
     let expected = [
         "DialFailure",
         "InboundRequest",
+        "InterfaceEvent",
         "OutboundOutcome",
         "PathHash",
         "RequestFrame",
@@ -401,6 +417,7 @@ fn enums_the_docs_call_non_exhaustive_carry_the_attribute() {
         ("SharedInstanceEvent", "crates/libs/rns-transport/src/transport/shared_instance.rs"),
         ("DialFailureKind", "crates/libs/rns-transport/src/iface/events.rs"),
         ("DisconnectReason", "crates/libs/rns-transport/src/iface/events.rs"),
+        ("InterfaceEventKind", "crates/libs/rns-transport/src/iface/events.rs"),
     ];
     for (item, file) in sites {
         let source = read_repo_file(file);

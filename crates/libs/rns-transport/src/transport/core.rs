@@ -16,10 +16,13 @@ impl Transport {
             tokio::sync::broadcast::channel(TRANSPORT_EVENT_CHANNEL_CAPACITY);
         let (resource_events_tx, _) =
             tokio::sync::broadcast::channel(TRANSPORT_EVENT_CHANNEL_CAPACITY);
+        let (interface_events_tx, _) =
+            tokio::sync::broadcast::channel(TRANSPORT_EVENT_CHANNEL_CAPACITY);
         let (request_dispatch_tx, request_dispatch_rx) =
             tokio::sync::mpsc::channel(REQUEST_DISPATCH_CAPACITY);
 
-        let iface_manager = InterfaceManager::new(128);
+        let mut iface_manager = InterfaceManager::new(128);
+        iface_manager.set_interface_events(interface_events_tx.clone());
 
         let rx_receiver = iface_manager.receiver();
 
@@ -163,6 +166,7 @@ impl Transport {
             received_data_tx,
             iface_messages_tx,
             resource_events_tx,
+            interface_events_tx,
             handler,
             cancel,
             manage_task: std::sync::Mutex::new(Some(manage_task)),
@@ -449,3 +453,4 @@ impl Transport {
 }
 
 include!("core_parts/stop_interface.rs");
+include!("core_parts/interface_events.rs");

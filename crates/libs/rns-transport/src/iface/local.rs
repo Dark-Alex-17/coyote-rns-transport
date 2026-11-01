@@ -10,7 +10,7 @@ use std::time::Duration;
 
 use tokio::net::{UnixListener, UnixStream};
 
-use super::events::{DialFailure, DialFailureKind, DisconnectReason};
+use super::events::{DialFailure, DialFailureKind, DisconnectReason, InterfaceEventKind};
 use super::tcp_client::{run_hdlc_stream_with_runtime_and_ifac, HdlcStreamRuntime, TcpClient};
 use super::{IfacState, Interface, InterfaceContext, InterfaceManager};
 
@@ -531,6 +531,7 @@ impl LocalUnixClient {
         let iface_address = context.channel.address;
         let ifac_state: IfacState = context.channel.ifac_state.clone();
         let ifac_violations = context.channel.ifac_violations.clone();
+        let iface_events = context.channel.event_publisher();
         let (
             addr,
             mtu,
@@ -574,6 +575,7 @@ impl LocalUnixClient {
                     let Some(endpoint) = connect_endpoint.as_ref() else {
                         break;
                     };
+                    iface_events.publish(InterfaceEventKind::Connecting);
                     UnixStream::connect(endpoint.tokio_path()).await
                 }
             };
@@ -582,9 +584,10 @@ impl LocalUnixClient {
                 Ok(stream) => stream,
                 Err(err) => {
                     log::warn!("couldn't connect local unix client <{}>: {}", addr, err);
+                    let kind = DialFailureKind::from_io_error(&err);
+                    iface_events.publish(InterfaceEventKind::DialFailed { reason: kind });
                     if let Some(events) = dial_failure_events.as_ref() {
-                        let failure =
-                            DialFailure::new(iface_address, DialFailureKind::from_io_error(&err));
+                        let failure = DialFailure::new(iface_address, kind);
                         if let Err(send_err) = events.try_send(failure) {
                             log::debug!(
                                 "dropped local unix dial failure event iface={} endpoint={} err={}",
@@ -606,6 +609,7 @@ impl LocalUnixClient {
             let (read_stream, write_stream) = stream.into_split();
 
             log::info!("connected to local unix client <{}>", addr);
+            iface_events.publish(InterfaceEventKind::Connected);
             if let Some(events) = connect_events.as_ref() {
                 if let Err(err) = events.try_send(iface_address) {
                     log::debug!(
@@ -679,17 +683,18 @@ impl LocalUnixClient {
                     );
                 }
             }
-            if let (Some(events), Some(reason)) =
-                (disconnect_reason_events.as_ref(), DisconnectReason::from_stream_exit(exit))
-            {
-                if let Err(err) = events.try_send((iface_address, reason)) {
-                    log::debug!(
-                        "dropped local unix disconnect reason event iface={} endpoint={} reason={:?} err={}",
-                        iface_address,
-                        addr,
-                        reason,
-                        err
-                    );
+            if let Some(reason) = DisconnectReason::from_stream_exit(exit) {
+                iface_events.publish(InterfaceEventKind::Disconnected { reason });
+                if let Some(events) = disconnect_reason_events.as_ref() {
+                    if let Err(err) = events.try_send((iface_address, reason)) {
+                        log::debug!(
+                            "dropped local unix disconnect reason event iface={} endpoint={} reason={:?} err={}",
+                            iface_address,
+                            addr,
+                            reason,
+                            err
+                        );
+                    }
                 }
             }
             // A client built from a stream has nothing to redial and must finish at once.

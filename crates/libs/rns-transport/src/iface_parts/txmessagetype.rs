@@ -215,6 +215,7 @@ pub struct InterfaceChannel {
     pub ifac_violations: Arc<AtomicU64>,
     pub ifac_default_size_bytes: usize,
     online: Arc<AtomicBool>,
+    interface_events: Option<tokio::sync::broadcast::Sender<events::InterfaceEvent>>,
 }
 
 impl InterfaceChannel {
@@ -239,6 +240,7 @@ impl InterfaceChannel {
             stop,
             IfacRuntime::disabled(crate::iface::DEFAULT_IFAC_SIZE_BYTES),
             Arc::new(AtomicBool::new(true)),
+            None,
         )
     }
 
@@ -249,6 +251,7 @@ impl InterfaceChannel {
         stop: CancellationToken,
         ifac: IfacRuntime,
         online: Arc<AtomicBool>,
+        interface_events: Option<tokio::sync::broadcast::Sender<events::InterfaceEvent>>,
     ) -> Self {
         Self {
             address,
@@ -259,6 +262,7 @@ impl InterfaceChannel {
             ifac_violations: ifac.violations,
             ifac_default_size_bytes: ifac.default_size_bytes,
             online,
+            interface_events,
         }
     }
 
@@ -269,6 +273,17 @@ impl InterfaceChannel {
     /// Updates whether this channel currently has an operational carrier.
     pub fn set_online(&self, online: bool) {
         self.online.store(online, Ordering::Release);
+    }
+
+    /// Fork-only: publishes `kind` tagged with this channel's address on the
+    /// transport's interface event stream; a channel built with [`Self::new`]
+    /// has no stream and publishes nothing.
+    pub fn publish_event(&self, kind: events::InterfaceEventKind) {
+        self.event_publisher().publish(kind);
+    }
+
+    pub(crate) fn event_publisher(&self) -> events::InterfaceEventPublisher {
+        events::InterfaceEventPublisher::new(self.address, self.interface_events.clone())
     }
 
     pub fn split(self) -> (InterfaceRxSender, InterfaceTxReceiver) {
@@ -335,4 +350,5 @@ pub struct InterfaceManager {
     rx_send: InterfaceRxSender,
     ifaces: Vec<LocalInterface>,
     worker_tasks: std::collections::HashMap<AddressHash, tokio::task::JoinHandle<()>>,
+    interface_events: Option<tokio::sync::broadcast::Sender<events::InterfaceEvent>>,
 }

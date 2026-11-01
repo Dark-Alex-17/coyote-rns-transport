@@ -1,5 +1,6 @@
 //! Fork-only: typed reasons for a stream client's failed dial, and the
-//! reasons for an ended stream. Python's clients log such
+//! reasons for an ended stream, plus the transport-wide event each client
+//! publishes when its connection state changes. Python's clients log such
 //! failures as text and retry (`RNS/Interfaces/LocalInterface.py:159-167`);
 //! these types let a consumer tell a refused dial from a missing socket.
 
@@ -102,6 +103,93 @@ impl DialFailure {
     #[must_use]
     pub fn kind(&self) -> DialFailureKind {
         self.kind
+    }
+}
+
+/// Fork-only: one change in a stream client's connection state, read from
+/// `Transport::interface_events`; `iface` is the interface the change
+/// belongs to. Python has no such stream: its clients log state changes
+/// (`RNS/Interfaces/LocalInterface.py:159-167`, `:255-266`).
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct InterfaceEvent {
+    iface: AddressHash,
+    kind: InterfaceEventKind,
+}
+
+impl InterfaceEvent {
+    pub(crate) fn new(iface: AddressHash, kind: InterfaceEventKind) -> Self {
+        Self { iface, kind }
+    }
+
+    /// Fork-only: the interface whose state changed.
+    #[must_use]
+    pub fn iface(&self) -> AddressHash {
+        self.iface
+    }
+
+    /// Fork-only: what changed.
+    #[must_use]
+    pub fn kind(&self) -> InterfaceEventKind {
+        self.kind
+    }
+}
+
+/// Fork-only: what changed on a stream client interface. Published by
+/// `TcpClient` and `LocalUnixClient` only. A peer a `TcpServer` or shared
+/// instance accepts runs the same client over the accepted stream, so it
+/// publishes `Connected` and `Disconnected` tagged with the child interface
+/// address but never `Connecting` or `DialFailed`; every other interface
+/// kind publishes nothing yet.
+#[non_exhaustive]
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum InterfaceEventKind {
+    /// Fork-only: a dial attempt is starting, once per attempt, redials
+    /// included; a client built from a pre-supplied stream dials nothing
+    /// and publishes no `Connecting` for that stream.
+    Connecting,
+    /// Fork-only: a stream to the endpoint was established, the first included.
+    Connected,
+    /// Fork-only: an established stream ended with `reason`, the same reason
+    /// the client's `with_disconnect_reason_events` channel carries; a stream
+    /// the client ended itself (cancel, stop, the transport's receive queue
+    /// closing) publishes nothing.
+    Disconnected { reason: DisconnectReason },
+    /// Fork-only: one dial attempt failed with `reason`, the same kind the
+    /// client's `with_dial_failure_events` channel carries.
+    DialFailed { reason: DialFailureKind },
+}
+
+/// Handle a client clones out of its `InterfaceChannel` before `split()`:
+/// the interface address plus the transport's broadcast sender, or `None`
+/// for a channel minted by `InterfaceChannel::new` (tests, bare managers),
+/// where publishing is a no-op.
+#[derive(Clone)]
+pub(crate) struct InterfaceEventPublisher {
+    iface: AddressHash,
+    events: Option<tokio::sync::broadcast::Sender<InterfaceEvent>>,
+}
+
+impl InterfaceEventPublisher {
+    pub(crate) fn new(
+        iface: AddressHash,
+        events: Option<tokio::sync::broadcast::Sender<InterfaceEvent>>,
+    ) -> Self {
+        Self { iface, events }
+    }
+
+    /// Publishes `kind` tagged with the interface. `broadcast::Sender::send`
+    /// is synchronous and never blocks; it fails only when no receiver is
+    /// subscribed, the normal case for a transport whose owner never called
+    /// `interface_events()`, so that error only earns a trace line.
+    pub(crate) fn publish(&self, kind: InterfaceEventKind) {
+        let Some(events) = &self.events else { return };
+        if events.send(InterfaceEvent::new(self.iface, kind)).is_err() {
+            log::trace!(
+                "interface event has no active subscribers iface={} kind={:?}",
+                self.iface,
+                kind
+            );
+        }
     }
 }
 

@@ -9,7 +9,7 @@ use tokio_util::sync::CancellationToken;
 
 use crate::buffer::OutputBuffer;
 use crate::error::RnsError;
-use crate::iface::events::{DialFailure, DialFailureKind, DisconnectReason};
+use crate::iface::events::{DialFailure, DialFailureKind, DisconnectReason, InterfaceEventKind};
 use crate::iface::{
     decode_packet_ifac, encode_packet_ifac, is_ifac_violation, record_ifac_violation, IfacState,
     IfaceSource, RxMessage,
@@ -1298,6 +1298,7 @@ impl TcpClient {
         let ifac_violations = context.channel.ifac_violations.clone();
         let online = context.channel.online.clone();
         online.store(false, std::sync::atomic::Ordering::Release);
+        let iface_events = context.channel.event_publisher();
         let (
             mut stream,
             connect_events,
@@ -1334,6 +1335,7 @@ impl TcpClient {
                         Ok(stream)
                     }
                     None => {
+                        iface_events.publish(InterfaceEventKind::Connecting);
                         runtime_status
                             .lock()
                             .expect("tcp runtime status mutex poisoned")
@@ -1366,6 +1368,7 @@ impl TcpClient {
                         .expect("tcp runtime status mutex poisoned")
                         .mark_reconnecting(format!("tcp connect failed endpoint={addr}: {text}"));
                     log::warn!("couldn't connect to <{}>: {}", addr, text);
+                    iface_events.publish(InterfaceEventKind::DialFailed { reason: kind });
                     if let Some(events) = dial_failure_events.as_ref() {
                         if let Err(err) = events.try_send(DialFailure::new(iface_address, kind)) {
                             log::debug!(
@@ -1407,6 +1410,7 @@ impl TcpClient {
             let connected_at = Instant::now();
 
             log::info!("connected to <{}>", addr);
+            iface_events.publish(InterfaceEventKind::Connected);
             if let Some(events) = connect_events.as_ref() {
                 if let Err(err) = events.try_send(iface_address) {
                     log::debug!(
@@ -1495,17 +1499,18 @@ impl TcpClient {
                     );
                 }
             }
-            if let (Some(events), Some(reason)) =
-                (disconnect_reason_events.as_ref(), DisconnectReason::from_stream_exit(exit))
-            {
-                if let Err(err) = events.try_send((iface_address, reason)) {
-                    log::debug!(
-                        "dropped TCP disconnect reason event iface={} endpoint={} reason={:?} err={}",
-                        iface_address,
-                        addr,
-                        reason,
-                        err
-                    );
+            if let Some(reason) = DisconnectReason::from_stream_exit(exit) {
+                iface_events.publish(InterfaceEventKind::Disconnected { reason });
+                if let Some(events) = disconnect_reason_events.as_ref() {
+                    if let Err(err) = events.try_send((iface_address, reason)) {
+                        log::debug!(
+                            "dropped TCP disconnect reason event iface={} endpoint={} reason={:?} err={}",
+                            iface_address,
+                            addr,
+                            reason,
+                            err
+                        );
+                    }
                 }
             }
 

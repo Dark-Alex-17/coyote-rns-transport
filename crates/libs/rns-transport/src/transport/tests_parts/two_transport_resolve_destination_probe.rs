@@ -34,7 +34,7 @@ async fn resolve_destination_with_a_max_timeout_waits_instead_of_panicking() {
     .await;
     assert!(outcome.is_err(), "an unbounded wait on an unreachable destination never returns");
     assert_eq!(
-        outgoing_request_count(&connector.transport, &unknown).await,
+        sent_path_request_count(&connector.transport, &unknown).await,
         1,
         "the unbounded wait still spends exactly one path request"
     );
@@ -56,7 +56,7 @@ async fn await_path_with_a_max_timeout_waits_instead_of_panicking() {
     .await;
     assert!(outcome.is_err(), "an unbounded wait for a path nobody holds never returns");
     assert_eq!(
-        outgoing_request_count(&connector.transport, &unknown).await,
+        sent_path_request_count(&connector.transport, &unknown).await,
         1,
         "the unbounded wait still spends exactly one path request"
     );
@@ -83,7 +83,7 @@ async fn resolve_destination_with_a_timeout_shorter_than_a_poll_returns_at_the_d
         "a short timeout does not hold the caller, waited {elapsed:?}"
     );
     assert_eq!(
-        outgoing_request_count(&connector.transport, &unknown).await,
+        sent_path_request_count(&connector.transport, &unknown).await,
         1,
         "the short wait spends exactly one path request"
     );
@@ -104,7 +104,7 @@ async fn resolve_destination_retried_after_a_miss_sends_one_more_request_per_cal
         let resolved = connector.transport.resolve_destination(&unknown, wait).await;
         assert!(resolved.is_none(), "attempt {attempt}: nobody holds the destination");
         assert_eq!(
-            outgoing_request_count(&connector.transport, &unknown).await,
+            sent_path_request_count(&connector.transport, &unknown).await,
             attempt,
             "attempt {attempt} sends exactly one more path request"
         );
@@ -133,7 +133,7 @@ async fn resolve_destination_repeated_on_a_learned_destination_sends_no_second_r
         .resolve_destination(&address_hash, Duration::from_secs(5))
         .await
         .expect("the path request drew the announce");
-    assert_eq!(outgoing_request_count(&connector.transport, &address_hash).await, 1);
+    assert_eq!(sent_path_request_count(&connector.transport, &address_hash).await, 1);
     let announce = await_announce_for(&mut connector.announces, &address_hash).await;
     assert!(announce.is_path_response);
 
@@ -151,7 +151,7 @@ async fn resolve_destination_repeated_on_a_learned_destination_sends_no_second_r
     );
     assert_eq!(second.address_hash, address_hash);
     assert_eq!(
-        outgoing_request_count(&connector.transport, &address_hash).await,
+        sent_path_request_count(&connector.transport, &address_hash).await,
         1,
         "a learned destination costs no second path request"
     );
@@ -184,7 +184,7 @@ async fn resolve_destination_on_a_deregistered_destination_with_a_path_answers_n
         "deregistering leaves the path table entry standing"
     );
     let requests_before =
-        outgoing_request_count(&connector.transport, &announced.address_hash).await;
+        sent_path_request_count(&connector.transport, &announced.address_hash).await;
 
     let started = Instant::now();
     let resolved = timeout(
@@ -201,7 +201,7 @@ async fn resolve_destination_on_a_deregistered_destination_with_a_path_answers_n
         started.elapsed()
     );
     assert_eq!(
-        outgoing_request_count(&connector.transport, &announced.address_hash).await,
+        sent_path_request_count(&connector.transport, &announced.address_hash).await,
         requests_before,
         "no path request goes out while the path stands"
     );
@@ -236,7 +236,7 @@ async fn resolve_destination_on_a_held_desc_with_an_expired_path_answers_some_at
         "expiring the path leaves the learned desc standing"
     );
     let requests_before =
-        outgoing_request_count(&connector.transport, &announced.address_hash).await;
+        sent_path_request_count(&connector.transport, &announced.address_hash).await;
 
     let started = Instant::now();
     let resolved = timeout(
@@ -254,7 +254,7 @@ async fn resolve_destination_on_a_held_desc_with_an_expired_path_answers_some_at
         started.elapsed()
     );
     assert_eq!(
-        outgoing_request_count(&connector.transport, &announced.address_hash).await,
+        sent_path_request_count(&connector.transport, &announced.address_hash).await,
         requests_before,
         "no path request goes out for a held desc"
     );

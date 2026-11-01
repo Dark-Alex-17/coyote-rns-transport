@@ -9,7 +9,7 @@ const RESOLVE_QUIET: Duration = Duration::from_millis(300);
 
 /// Path requests the transport has sent for `destination`, one per send.
 #[deny(clippy::await_holding_invalid_type)]
-async fn outgoing_request_count(transport: &Transport, destination: &AddressHash) -> usize {
+async fn sent_path_request_count(transport: &Transport, destination: &AddressHash) -> usize {
     transport.handler.lock().await.path_requests.outgoing_request_count(destination)
 }
 
@@ -46,7 +46,7 @@ async fn resolve_destination_answers_a_known_destination_without_a_path_request(
         register_in_destination(&listener.transport, "loopback", "resolve-known").await;
     learn_announce(&mut connector.announces, &announced.address_hash).await;
     let requests_before =
-        outgoing_request_count(&connector.transport, &announced.address_hash).await;
+        sent_path_request_count(&connector.transport, &announced.address_hash).await;
 
     let desc = timeout(
         Duration::from_secs(1),
@@ -58,7 +58,7 @@ async fn resolve_destination_answers_a_known_destination_without_a_path_request(
 
     assert_eq!(desc.address_hash, announced.address_hash);
     assert_eq!(
-        outgoing_request_count(&connector.transport, &announced.address_hash).await,
+        sent_path_request_count(&connector.transport, &announced.address_hash).await,
         requests_before,
         "a known destination sends no path request"
     );
@@ -85,14 +85,14 @@ async fn resolve_destination_learns_a_reachable_destination_through_one_path_req
         .add_destination(identity, DestinationName::new("loopback", "resolve-reachable"))
         .await;
     let address_hash = destination.lock().await.desc.address_hash;
-    assert_eq!(outgoing_request_count(&connector.transport, &address_hash).await, 0);
+    assert_eq!(sent_path_request_count(&connector.transport, &address_hash).await, 0);
 
     let desc = connector
         .transport
         .resolve_destination(&address_hash, Duration::from_secs(5))
         .await
         .expect("the path request drew the announce");
-    let requests_after = outgoing_request_count(&connector.transport, &address_hash).await;
+    let requests_after = sent_path_request_count(&connector.transport, &address_hash).await;
 
     assert_eq!(desc.address_hash, address_hash);
     assert_eq!(requests_after, 1, "exactly one path request goes out");
@@ -117,7 +117,7 @@ async fn resolve_destination_times_out_on_an_unreachable_destination_after_one_r
 
     assert!(resolved.is_none(), "nobody holds the destination");
     assert!(elapsed >= wait, "the call waits out the timeout, waited {elapsed:?}");
-    assert_eq!(outgoing_request_count(&connector.transport, &unknown).await, 1);
+    assert_eq!(sent_path_request_count(&connector.transport, &unknown).await, 1);
 }
 
 #[tokio::test]
@@ -137,7 +137,7 @@ async fn resolve_destination_with_zero_timeout_is_a_cached_lookup_alone() {
 
     assert!(resolved.is_none(), "an unknown destination is not looked up on the network");
     assert_eq!(
-        outgoing_request_count(&connector.transport, &unknown).await,
+        sent_path_request_count(&connector.transport, &unknown).await,
         0,
         "a zero timeout sends no path request"
     );
@@ -162,5 +162,5 @@ async fn resolve_destination_with_zero_timeout_still_answers_a_known_destination
         .expect("a known destination answers from the cache");
 
     assert_eq!(desc.address_hash, announced.address_hash);
-    assert_eq!(outgoing_request_count(&connector.transport, &announced.address_hash).await, 0);
+    assert_eq!(sent_path_request_count(&connector.transport, &announced.address_hash).await, 0);
 }

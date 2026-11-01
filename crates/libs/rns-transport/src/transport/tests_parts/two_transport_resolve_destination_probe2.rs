@@ -35,7 +35,7 @@ async fn resolve_destination_too_short_timeout_spends_one_request_and_the_late_a
     listener.await_accepted_connections(1).await;
 
     let address_hash = register_unannounced(&listener, "resolve-too-short").await;
-    assert_eq!(outgoing_request_count(&connector.transport, &address_hash).await, 0);
+    assert_eq!(sent_path_request_count(&connector.transport, &address_hash).await, 0);
 
     let started = Instant::now();
     let first = timeout(
@@ -47,7 +47,7 @@ async fn resolve_destination_too_short_timeout_spends_one_request_and_the_late_a
     let elapsed = started.elapsed();
     assert!(elapsed >= RESOLVE_TOO_SHORT, "the call waits out its timeout, waited {elapsed:?}");
     assert_eq!(
-        outgoing_request_count(&connector.transport, &address_hash).await,
+        sent_path_request_count(&connector.transport, &address_hash).await,
         1,
         "a non-zero timeout spends exactly one path request, hit or miss"
     );
@@ -67,7 +67,7 @@ async fn resolve_destination_too_short_timeout_spends_one_request_and_the_late_a
     .expect("the late answer filled the cache the zero-timeout retry reads");
     assert_eq!(cached.address_hash, address_hash);
     assert_eq!(
-        outgoing_request_count(&connector.transport, &address_hash).await,
+        sent_path_request_count(&connector.transport, &address_hash).await,
         1,
         "the zero-timeout retry sends nothing"
     );
@@ -99,7 +99,7 @@ async fn resolve_destination_concurrent_callers_each_spend_one_request_and_both_
     assert_eq!(left.address_hash, address_hash);
     assert_eq!(right.address_hash, address_hash);
     assert_eq!(
-        outgoing_request_count(&connector.transport, &address_hash).await,
+        sent_path_request_count(&connector.transport, &address_hash).await,
         2,
         "each caller spends exactly one path request; nothing is coalesced"
     );

@@ -40,9 +40,10 @@ fn a_fresh_destination_has_no_response_cap_and_round_trips_one() {
     assert_eq!(destination.max_response_size(), None, "clearing twice is harmless");
 }
 
-/// The request-cap twin accepts zero, so the response cap does too: a frame is never
-/// empty, so zero means every response is refused, which is a legitimate way to mute a
-/// destination's answers without deregistering its handlers.
+/// The request-cap twin accepts zero, so the response cap does too: a packet or envelope
+/// frame is never empty, so zero refuses every packet-form response, which is a legitimate
+/// way to mute a destination's answers without deregistering its handlers; a Resource
+/// response with no data and no metadata measures zero and still goes out at the cap.
 #[test]
 fn a_zero_response_cap_is_accepted_like_the_request_cap() {
     let mut destination = destination();

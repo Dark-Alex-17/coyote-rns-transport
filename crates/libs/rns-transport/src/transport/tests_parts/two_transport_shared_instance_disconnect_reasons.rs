@@ -213,6 +213,34 @@ async fn shared_instance_disconnect_reasons_consumer_orders_a_whole_cycle_with_t
     );
 }
 
+/// The reason the consumer sends is the one the disconnect carried, not a fixed
+/// `PeerClosed`: a queued `Reset` reads `DisconnectedWithReason { Reset }` and the rest of
+/// the cycle follows as for any drop.
+#[tokio::test]
+#[deny(clippy::await_holding_invalid_type)]
+async fn shared_instance_disconnect_reasons_consumer_sends_the_reason_the_drop_carried() {
+    let read = shared_instance_state_drive_consumer_with(
+        "shared-instance-disconnect-reasons-consumer-reset",
+        DriveSpec {
+            queued: &[Queued::DisconnectWith(DisconnectReason::Reset), Queued::Connect],
+            close_before_run: &[Queued::Reconnect],
+            cancel_before_run: false,
+            first_connect_abandoned: false,
+            disconnect_reasons: true,
+            exits: "the consumer exits once the reconnect channel is drained and closed",
+        },
+    )
+    .await;
+    assert_eq!(
+        read,
+        [
+            SharedInstanceEvent::DisconnectedWithReason { reason: DisconnectReason::Reset },
+            SharedInstanceEvent::Connecting,
+            SharedInstanceEvent::Connected
+        ]
+    );
+}
+
 /// A drop queued before the consumer runs, with every sender gone, is served as
 /// `DisconnectedWithReason { PeerClosed }` then `Connecting` under the opt-in: the biased
 /// select's live disconnect arm yields the buffered drop before the closed channel reads

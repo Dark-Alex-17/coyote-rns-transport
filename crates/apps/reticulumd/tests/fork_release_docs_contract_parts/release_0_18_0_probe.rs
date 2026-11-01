@@ -2,9 +2,11 @@
 // check. Those pin the heading date by shape, the `### Breaking` bullet by
 // its `Migration:` clause and the version by its sites; these pins hold the
 // heading to the day the release was cut, the one break to the lint name
-// and the cast it rejects, the semver verdict the version bullet records,
-// the `### Fixed` subsection the release opens, and the README patch-list
-// order with the 0.18.0 block on top.
+// and the cast it rejects, the seven items `### Added` names, the semver
+// verdict the version bullet records, the `### Fixed` subsection the
+// release opens with the positive control its `await_link_activation`
+// bullet cites, and the README patch-list order with the 0.18.0 block on
+// top.
 
 /// The 0.18.0 heading carries the day the release was cut.
 #[test]
@@ -43,9 +45,52 @@ fn release_0_18_0_breaking_lists_the_one_enum_cast_break() {
     }
 }
 
+/// The identifiers the seven 0.18.0 items are known by, one group per item;
+/// every needle of a group must appear in some `### Added` bullet.
+const RELEASE_0_18_0_ADDED_ITEMS: [(&str, &[&str]); 7] = [
+    ("owned request split", &["`InboundRequest::into_parts`", "`ResponseOutcomeTracker`"]),
+    ("responder cap", &["`set_max_response_size`", "TooLarge"]),
+    (
+        "dial failures and first-connect timeout",
+        &[
+            "`with_dial_failure_events`",
+            "`SharedInstanceEvent::DialFailed`",
+            "with_first_connect_timeout",
+        ],
+    ),
+    (
+        "disconnect reasons",
+        &["`with_disconnect_reason_events`", "`SharedInstanceEvent::DisconnectedWithReason`"],
+    ),
+    ("interface events", &["`Transport::interface_events`"]),
+    ("destination resolve", &["`Transport::resolve_destination`"]),
+    ("link proof strategy", &["`ProofStrategy`", "`Transport::prove_link_packet`"]),
+];
+
+/// `### Added` of 0.18.0 names every one of the seven items by the
+/// identifiers a consumer will grep for; a bullet lost in a rebase or a
+/// renamed identifier would read as a release that dropped an item.
+#[test]
+fn release_0_18_0_added_names_each_of_the_seven_items() {
+    let changelog = read_repo_file("crates/libs/rns-transport/CHANGELOG.md");
+    let section = changelog_release_section(&changelog, "0.18.0");
+    let added: Vec<String> =
+        subsection_bullets(&section, "Added").iter().map(|bullet| joined_prose(bullet)).collect();
+    assert!(!added.is_empty(), "the 0.18.0 `### Added` subsection should carry bullets");
+    for (item, needles) in RELEASE_0_18_0_ADDED_ITEMS {
+        for needle in needles {
+            assert!(
+                added.iter().any(|bullet| bullet.contains(needle)),
+                "the 0.18.0 `### Added` subsection should name the {item} by {needle:?}"
+            );
+        }
+    }
+}
+
 /// The 0.18.0 version bullet, the first under `### Changed`, records the
 /// semver verdict: the baseline tag, the single finding and its lint name,
-/// the one the release check tolerates by name.
+/// the one the release check tolerates by name, and that nothing else was
+/// found, so a reader learns the break list is complete.
 #[test]
 fn release_0_18_0_version_bullet_records_the_semver_verdict() {
     let changelog = read_repo_file("crates/libs/rns-transport/CHANGELOG.md");
@@ -62,6 +107,7 @@ fn release_0_18_0_version_bullet_records_the_semver_verdict() {
         "`cargo semver-checks` against `v0.17.0`",
         "exactly one finding",
         "`enum_discriminants_undefined_non_unit_variant`",
+        "and 0 others",
     ] {
         assert!(bullet.contains(needle), "the 0.18.0 version bullet should say {needle:?}");
     }
@@ -81,6 +127,27 @@ fn release_0_18_0_fixed_names_both_deadline_fixes() {
             "a 0.18.0 `### Fixed` bullet should name {function}, got {fixed:?}"
         );
     }
+}
+
+/// The `### Fixed` bullet for `await_link_activation` cites the adopted
+/// positive control, and that file is on disk where the cite points.
+#[test]
+fn release_0_18_0_fixed_cites_the_adopted_positive_control() {
+    let changelog = read_repo_file("crates/libs/rns-transport/CHANGELOG.md");
+    let section = changelog_release_section(&changelog, "0.18.0");
+    let bullet = subsection_bullets(&section, "Fixed")
+        .iter()
+        .map(|bullet| joined_prose(bullet))
+        .find(|bullet| bullet.contains("`delivery::await_link_activation`"))
+        .expect("a 0.18.0 `### Fixed` bullet should name `delivery::await_link_activation`");
+    let cite = "`tests/link_activation_max_timeout_probe.rs`";
+    assert!(
+        bullet.contains(cite),
+        "the await_link_activation fix should cite {cite}, got {bullet:?}"
+    );
+    let on_disk =
+        repo_root().join("crates/libs/rns-transport/tests/link_activation_max_timeout_probe.rs");
+    assert!(on_disk.is_file(), "the cited positive control should exist at {}", on_disk.display());
 }
 
 /// The README patch list runs 0.18.0, then 0.17.0, then 0.16.0: the new

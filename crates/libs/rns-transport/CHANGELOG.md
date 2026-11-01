@@ -603,7 +603,8 @@ Removed) bullet of its own, marked as such.
   `fork_release_docs_contract.rs`; its
   `fork_release_docs_contract_parts/release_0_18_0_probe.rs` pins the heading
   date, the `### Breaking` bullet and its `Migration:` clause, the semver
-  sentence above, the `### Fixed` subsection and the README patch-list order.
+  sentence above, the seven `### Added` items, the `### Fixed` subsection
+  with its adopted probe cite and the README patch-list order.
 - A request advertisement refused for exceeding the destination's
   `max_request_size` no longer warns on every refusal. The refusal is
   counted per link on `LinkStats.rejected_request_advertisements` by

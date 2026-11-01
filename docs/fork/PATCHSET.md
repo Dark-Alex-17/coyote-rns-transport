@@ -60,7 +60,7 @@ patch is fork commits `45bcadfc`, `fdfa83dd`, `f45595c5`, `b819ab22`,
 carries no other id and is fork commits `92346ece`, `2624206e`, `ac841458`
 and `4ed2ebec`, also `link proof strategy` commits; the `release 0.18.0`
 patch carries no other id and is fork commits `b5358d0f`, `78fb99eb`,
-`bfe21650`, `81cb1d40` and `69bbcd91`.
+`bfe21650`, `81cb1d40`, `69bbcd91` and `151b345f`.
 
 | File | Patch |
 | --- | --- |
@@ -1111,9 +1111,9 @@ the `link-data-receipt` client arm of
 `crates/apps/reticulumd/tests/support/python_channel_endpoint.py`), the
 release section's Python-in-the-loop proof rows.
 
-Fork commits `b5358d0f`, `78fb99eb`, `bfe21650`, `81cb1d40` and `69bbcd91`:
-release 0.18.0. The first retargets the promotion-sensitive pins to the
-literal 0.18.0 label, since a released section is frozen:
+Fork commits `b5358d0f`, `78fb99eb`, `bfe21650`, `81cb1d40`, `69bbcd91` and
+`151b345f`: release 0.18.0. The first retargets the promotion-sensitive pins
+to the literal 0.18.0 label, since a released section is frozen:
 `crates/apps/reticulumd/tests/fork_publish_contract_parts/ledger_contract.rs`
 expects the full-hash contract to cover `0.18.0`, `0.17.0`, `0.16.0` and
 `0.15.1` with no `Unreleased` label and the bullet-cite contract the same
@@ -1162,8 +1162,14 @@ unchanged. The fifth adopts
 (`max_timeout_resolves_when_the_link_activates`: a link that activates over
 loopback TCP returns `Ok(())` under `Duration::MAX`, and a second unbounded
 wait on the active link returns at once), the positive control of
-`tests/link_activation_deadline_api.rs`. The ledger commit that cites the
-five commits above touches only this file.
+`tests/link_activation_deadline_api.rs`. The sixth extends
+`release_0_18_0_probe.rs` with three pins over the release notes a reader
+relies on: every one of the seven `### Added` items is named by the
+identifiers a consumer greps for, the version bullet says the semver run
+found the one tolerated lint and 0 others, and the `### Fixed` bullet for
+`delivery::await_link_activation` cites the adopted positive control at a
+path that exists. The ledger commits that cite the six commits above touch
+only this file and the crate `CHANGELOG.md`.
 
 ## 0.17.0 (upstream 0.14.0)
 

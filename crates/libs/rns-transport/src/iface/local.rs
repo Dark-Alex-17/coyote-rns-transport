@@ -10,9 +10,7 @@ use std::time::Duration;
 
 use tokio::net::{UnixListener, UnixStream};
 
-use super::events::{
-    DialFailure, DialFailureKind, DisconnectReason, InterfaceEventKind, InterfaceEventPublisher,
-};
+use super::events::{DialFailure, DialFailureKind, DisconnectReason, InterfaceEventKind};
 use super::tcp_client::{run_hdlc_stream_with_runtime_and_ifac, HdlcStreamRuntime, TcpClient};
 use super::{IfacState, Interface, InterfaceContext, InterfaceManager};
 
@@ -561,11 +559,7 @@ impl LocalUnixClient {
                 guard.disconnect_reason_events.clone(),
             )
         };
-        let iface_events = if stream.is_some() {
-            InterfaceEventPublisher::detached(iface_address)
-        } else {
-            context.channel.event_publisher()
-        };
+        let iface_events = context.channel.event_publisher_unless_detached(stream.is_some());
 
         let (rx_channel, mut tx_channel) = context.channel.split();
 

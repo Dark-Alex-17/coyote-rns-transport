@@ -4,7 +4,6 @@
 //! failures as text and retry (`RNS/Interfaces/LocalInterface.py:159-167`);
 //! these types let a consumer tell a refused dial from a missing socket.
 
-use super::tcp_client::HdlcStreamExit;
 use crate::hash::AddressHash;
 
 /// Fork-only: why one dial attempt by a stream client failed.
@@ -58,6 +57,35 @@ pub enum DisconnectReason {
     /// Fork-only: any other io error, by its kind. Never carries
     /// `ConnectionReset` or `TimedOut`; those read as the variants above.
     Io(std::io::ErrorKind),
+}
+
+/// Why one HDLC stream ended, as `run_hdlc_stream_with_runtime_and_ifac`
+/// reports it to the client that owns the connection.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(crate) enum HdlcStreamExit {
+    /// The peer closed the stream in an orderly way (a zero-length read).
+    PeerClosed,
+    /// The read watchdog found the stream quiet past its read timeout.
+    ReadTimeout,
+    /// The read side failed with this io error kind.
+    ReadError(std::io::ErrorKind),
+    /// The write side (a frame, a keepalive or a flush) failed with this kind.
+    WriteError(std::io::ErrorKind),
+    /// The stream was ended locally: a cancel, a stop, or the transport's
+    /// receive queue closing. Nothing about the peer is known.
+    Cancelled,
+}
+
+impl HdlcStreamExit {
+    /// The exit the runner reports when the read task ended with `rx_exit`
+    /// and the write loop with `tx_exit`: the read side's, unless it only
+    /// followed the write side's stop, then the write side's.
+    pub(crate) fn join(rx_exit: Self, tx_exit: Self) -> Self {
+        match rx_exit {
+            Self::Cancelled => tx_exit,
+            exit => exit,
+        }
+    }
 }
 
 impl DisconnectReason {
@@ -217,11 +245,10 @@ mod tests {
     use std::io::{Error, ErrorKind};
 
     use super::{
-        DialFailureKind, DisconnectReason, InterfaceEvent, InterfaceEventKind,
+        DialFailureKind, DisconnectReason, HdlcStreamExit, InterfaceEvent, InterfaceEventKind,
         InterfaceEventPublisher,
     };
     use crate::hash::AddressHash;
-    use crate::iface::tcp_client::HdlcStreamExit;
     use rand_core::OsRng;
     use tokio::sync::broadcast;
     use tokio::sync::broadcast::error::TryRecvError;
@@ -319,6 +346,36 @@ mod tests {
     #[test]
     fn a_locally_ended_stream_has_no_reason() {
         assert_eq!(DisconnectReason::from_stream_exit(HdlcStreamExit::Cancelled), None);
+    }
+
+    #[test]
+    fn the_read_side_exit_wins_when_both_sides_failed() {
+        assert_eq!(
+            HdlcStreamExit::join(
+                HdlcStreamExit::PeerClosed,
+                HdlcStreamExit::WriteError(ErrorKind::BrokenPipe)
+            ),
+            HdlcStreamExit::PeerClosed
+        );
+    }
+
+    #[test]
+    fn a_read_side_that_only_followed_the_write_side_yields_the_write_exit() {
+        assert_eq!(
+            HdlcStreamExit::join(
+                HdlcStreamExit::Cancelled,
+                HdlcStreamExit::WriteError(ErrorKind::BrokenPipe)
+            ),
+            HdlcStreamExit::WriteError(ErrorKind::BrokenPipe)
+        );
+    }
+
+    #[test]
+    fn two_cancelled_sides_join_as_cancelled() {
+        assert_eq!(
+            HdlcStreamExit::join(HdlcStreamExit::Cancelled, HdlcStreamExit::Cancelled),
+            HdlcStreamExit::Cancelled
+        );
     }
 
     #[test]

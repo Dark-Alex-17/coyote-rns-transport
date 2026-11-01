@@ -273,7 +273,7 @@ impl ResourceManager {
         let metadata_size = assembly
             .metadata
             .as_ref()
-            .map(|metadata| metadata.len().saturating_add(3))
+            .map(|metadata| metadata.len().saturating_add(METADATA_LENGTH_PREFIX_LEN))
             .unwrap_or(0);
         if assembly
             .data
@@ -298,7 +298,11 @@ impl ResourceManager {
                 return;
             };
             let assembled_size = assembly.data.len().saturating_add(
-                assembly.metadata.as_ref().map(|metadata| metadata.len() + 3).unwrap_or(0),
+                assembly
+                    .metadata
+                    .as_ref()
+                    .map(|metadata| metadata.len() + METADATA_LENGTH_PREFIX_LEN)
+                    .unwrap_or(0),
             ) as u64;
             if assembled_size != assembly.total_data_size {
                 self.fail_inbound_segments(

@@ -298,6 +298,19 @@ impl InterfaceChannel {
         events::InterfaceEventPublisher::new(self.address, events)
     }
 
+    /// The detached publisher for a client built from a pre-supplied
+    /// stream, the channel's publisher otherwise.
+    pub(crate) fn event_publisher_unless_detached(
+        &self,
+        detached: bool,
+    ) -> events::InterfaceEventPublisher {
+        if detached {
+            events::InterfaceEventPublisher::detached(self.address)
+        } else {
+            self.event_publisher()
+        }
+    }
+
     pub fn split(self) -> (InterfaceRxSender, InterfaceTxReceiver) {
         (self.rx_channel, self.tx_channel)
     }

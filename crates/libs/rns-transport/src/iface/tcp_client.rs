@@ -10,7 +10,7 @@ use tokio_util::sync::CancellationToken;
 use crate::buffer::OutputBuffer;
 use crate::error::RnsError;
 use crate::iface::events::{
-    DialFailure, DialFailureKind, DisconnectReason, InterfaceEventKind, InterfaceEventPublisher,
+    DialFailure, DialFailureKind, DisconnectReason, HdlcStreamExit, InterfaceEventKind,
 };
 use crate::iface::{
     decode_packet_ifac, encode_packet_ifac, is_ifac_violation, record_ifac_violation, IfacState,
@@ -146,23 +146,6 @@ pub(crate) enum HdlcStreamEvent {
     ReadTimeout,
     Closed,
     Error { message: String },
-}
-
-/// Why one HDLC stream ended, as `run_hdlc_stream_with_runtime_and_ifac`
-/// reports it to the client that owns the connection.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub(crate) enum HdlcStreamExit {
-    /// The peer closed the stream in an orderly way (a zero-length read).
-    PeerClosed,
-    /// The read watchdog found the stream quiet past its read timeout.
-    ReadTimeout,
-    /// The read side failed with this io error kind.
-    ReadError(io::ErrorKind),
-    /// The write side (a frame, a keepalive or a flush) failed with this kind.
-    WriteError(io::ErrorKind),
-    /// The stream was ended locally: a cancel, a stop, or the transport's
-    /// receive queue closing. Nothing about the peer is known.
-    Cancelled,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -908,10 +891,7 @@ where
 
     let tx_exit = tx_loop.await;
     let rx_exit = rx_task.await.expect("hdlc rx task panicked");
-    match rx_exit {
-        HdlcStreamExit::Cancelled => tx_exit,
-        exit => exit,
-    }
+    HdlcStreamExit::join(rx_exit, tx_exit)
 }
 
 fn send_hdlc_stream_event(
@@ -1318,11 +1298,7 @@ impl TcpClient {
                 guard.disconnect_reason_events.clone(),
             )
         };
-        let iface_events = if stream.is_some() {
-            InterfaceEventPublisher::detached(iface_address)
-        } else {
-            context.channel.event_publisher()
-        };
+        let iface_events = context.channel.event_publisher_unless_detached(stream.is_some());
 
         let (rx_channel, mut tx_channel) = context.channel.split();
 
@@ -1341,11 +1317,11 @@ impl TcpClient {
                         Ok(stream)
                     }
                     None => {
-                        iface_events.publish(InterfaceEventKind::Connecting);
                         runtime_status
                             .lock()
                             .expect("tcp runtime status mutex poisoned")
                             .mark_connecting();
+                        iface_events.publish(InterfaceEventKind::Connecting);
                         tokio::select! {
                             biased;
                             _ = context.cancel.cancelled() => break,

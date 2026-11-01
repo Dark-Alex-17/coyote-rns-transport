@@ -499,7 +499,10 @@ Removed) bullet of its own, marked as such.
   calls it once before the manager is shared.
   `InterfaceChannel::publish_event` (`iface_parts/txmessagetype.rs`)
   publishes a kind tagged with the channel's address, and a channel from
-  `InterfaceChannel::new` publishes nothing. `TcpClient::spawn`
+  `InterfaceChannel::new` publishes nothing. The sender rides on
+  `InterfaceChannel` behind `std::panic::AssertUnwindSafe`, so the channel
+  and `InterfaceContext` keep the `UnwindSafe` and `RefUnwindSafe` they
+  had before the field existed. `TcpClient::spawn`
   (`iface/tcp_client.rs`) and
   `LocalUnixClient::spawn` (`iface/local.rs`) clone the publisher out of the
   channel before `split()`, so the client an `attach_shared_instance`
@@ -536,7 +539,9 @@ Removed) bullet of its own, marked as such.
   peer's exit while the connector reads `Connecting` then `Connected`;
   `a_client_built_from_a_stream_publishes_nothing`: a
   `TcpClient::new_from_stream` over an accepted socket publishes nothing
-  through the peer's close; `the_unix_client_publishes_the_same_four_kinds`:
+  through the peer's close; `the_channel_and_context_stay_unwind_safe`:
+  `InterfaceChannel` and `InterfaceContext<TcpClient>` are `UnwindSafe`
+  and `RefUnwindSafe`; `the_unix_client_publishes_the_same_four_kinds`:
   `Connecting`, `DialFailed { NotFound }`, `Connected` and
   `Disconnected { PeerClosed }` over a unix socket), by the `InterfaceEvent`
   and publisher unit tests in `iface/events.rs`, and

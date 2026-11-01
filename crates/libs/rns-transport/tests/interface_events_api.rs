@@ -21,7 +21,7 @@ use rns_transport::identity::PrivateIdentity;
 use rns_transport::iface::local::{LocalUnixClient, LocalUnixEndpoint};
 use rns_transport::iface::tcp_client::TcpClient;
 use rns_transport::iface::tcp_server::TcpServer;
-use rns_transport::iface::{InterfaceChannel, InterfaceManager};
+use rns_transport::iface::{InterfaceChannel, InterfaceContext, InterfaceManager};
 use rns_transport::rand_core::OsRng;
 use rns_transport::transport::{
     DialFailureKind, DisconnectReason, InterfaceEvent, InterfaceEventKind, SharedInstanceEndpoint,
@@ -432,6 +432,15 @@ async fn publishing_with_no_subscriber_or_no_stream_is_a_silent_no_op() {
     let module_type: &rns_transport::iface::events::InterfaceEvent = &event;
     let transport_type: &rns_transport::transport::InterfaceEvent = &event;
     same(module_type, transport_type);
+}
+
+/// Carrying the event sender did not cost `InterfaceChannel` or `InterfaceContext` the
+/// `UnwindSafe` and `RefUnwindSafe` they had before it.
+#[test]
+fn the_channel_and_context_stay_unwind_safe() {
+    fn assert_unwind_safe<T: std::panic::UnwindSafe + std::panic::RefUnwindSafe>() {}
+    assert_unwind_safe::<InterfaceChannel>();
+    assert_unwind_safe::<InterfaceContext<TcpClient>>();
 }
 
 /// The stream covers dialing clients only: the connecting transport reads `Connecting`

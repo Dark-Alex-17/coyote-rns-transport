@@ -54,8 +54,8 @@ fork commits `45bcadfc`, `fdfa83dd`, `f45595c5`, `b819ab22`, `bb247215`,
 `0a8f5cf8`, `cc5c3092`, `3ab8f323`, `200b8810`, `b86af8d6`, `272c3f2c`,
 `a1241d2f`, `e07d20d2`, `0d5f60da`, `9c2d173c` and `14893a3f`; the
 `interface events` patch is fork commits `8378165f`, `806facd1`,
-`441dd699`, `17706293`, `024555a6`, `5f523d82`, `16fbb720`, `0f040752` and
-`8f128436`.
+`441dd699`, `17706293`, `024555a6`, `5f523d82`, `16fbb720`, `0f040752`,
+`8f128436`, `f80c4323` and `57fdf117`.
 
 | File | Patch |
 | --- | --- |
@@ -938,10 +938,10 @@ receive-queue arm in the `DisconnectReason` header) and replaces the
 runner's `unwrap` on the rx task with an `expect`.
 
 Fork commits `8378165f`, `806facd1`, `441dd699`, `17706293`, `024555a6`,
-`5f523d82`, `16fbb720`, `0f040752` and `8f128436`: K9, interface events. The
-library behaviour change is: a transport carries one broadcast stream of its
-stream clients' connection state, each event tagged with the interface it
-belongs to, and only dialing clients publish on it.
+`5f523d82`, `16fbb720`, `0f040752`, `8f128436`, `f80c4323` and `57fdf117`:
+K9, interface events. The library behaviour change is: a transport carries
+one broadcast stream of its stream clients' connection state, each event
+tagged with the interface it belongs to, and only dialing clients publish on it.
 `8378165f` adds `InterfaceEvent`, `InterfaceEventKind` and the
 crate-private `InterfaceEventPublisher` (`iface/events.rs`, the two public
 types re-exported from `transport`), threads the broadcast sender from
@@ -993,6 +993,14 @@ channel's own sender instead of cloning it into a publisher first.
 and README sites that a client that stops or gives up publishes no further
 event, raises the `request_layer_api_docs.rs` walker floor to the 196
 items it counts, and names `InterfaceEventPublisher` in this narrative.
+`f80c4323` adds `tests/interface_events_give_up_probe.rs` (a client that
+gives up after `max_reconnect_tries` and a client stopped inside its redial
+wait each publish nothing after the `DialFailed` they had already
+published), and has the probe's quiet-window drain assert the stream stayed
+open. `57fdf117` adds the `Disconnected { reason }` of a stream that ended
+just before the stop or give-up to the last-event sentence at its three
+sites, says a later `set_interface_events` reaches only channels minted
+from then on, and pins the `exit=Cancelled` log-line clause to the TCP client.
 
 ## 0.17.0 (upstream 0.14.0)
 

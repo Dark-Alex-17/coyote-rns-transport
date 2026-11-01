@@ -13,11 +13,8 @@
 use std::net::SocketAddr;
 use std::time::Duration;
 
-use rns_transport::identity::PrivateIdentity;
-use rns_transport::rand_core::OsRng;
 use rns_transport::transport::{
-    DisconnectReason, SharedInstanceEndpoint, SharedInstanceEvent, SharedInstanceOptions,
-    Transport, TransportConfig,
+    DisconnectReason, SharedInstanceEndpoint, SharedInstanceEvent, SharedInstanceOptions, Transport,
 };
 use tokio::io::{AsyncReadExt as _, AsyncWriteExt as _};
 use tokio::net::{TcpListener, TcpStream};
@@ -25,15 +22,15 @@ use tokio::sync::mpsc;
 use tokio::sync::mpsc::error::TryRecvError;
 use tokio::time::timeout;
 
+#[path = "support/client_transport.rs"]
+mod client_transport;
+use client_transport::client_transport;
+
 const WAIT: Duration = Duration::from_secs(5);
 const RECONNECT_WAIT: Duration = Duration::from_millis(50);
 /// How long a held, quiet socket is watched for a spurious event. The attach's clients
 /// run no read watchdog, so no length of silence should produce an event.
 const QUIET: Duration = Duration::from_millis(400);
-
-fn client_transport(name: &str) -> Transport {
-    Transport::new(TransportConfig::new(name, &PrivateIdentity::new_from_rand(OsRng), false))
-}
 
 #[deny(clippy::await_holding_invalid_type)]
 async fn next_event(

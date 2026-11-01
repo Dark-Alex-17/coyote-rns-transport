@@ -17,7 +17,6 @@ use std::net::SocketAddr;
 use std::time::{Duration, Instant};
 
 use rns_transport::hash::AddressHash;
-use rns_transport::identity::PrivateIdentity;
 #[cfg(unix)]
 use rns_transport::iface::local::{LocalUnixClient, LocalUnixEndpoint};
 use rns_transport::iface::tcp_client::TcpClient;
@@ -26,7 +25,7 @@ use rns_transport::iface::{InterfaceChannel, InterfaceContext, InterfaceManager}
 use rns_transport::rand_core::OsRng;
 use rns_transport::transport::{
     DialFailureKind, DisconnectReason, InterfaceEvent, InterfaceEventKind, SharedInstanceEndpoint,
-    SharedInstanceEvent, SharedInstanceOptions, Transport, TransportConfig,
+    SharedInstanceEvent, SharedInstanceOptions, Transport,
 };
 use tokio::io::{AsyncRead, AsyncReadExt as _, AsyncWrite, AsyncWriteExt as _};
 use tokio::net::{TcpListener, TcpStream};
@@ -36,15 +35,18 @@ use tokio::sync::mpsc;
 use tokio::time::timeout;
 use tokio_util::sync::CancellationToken;
 
+#[path = "support/client_transport.rs"]
+mod client_transport;
+#[path = "support/free_loopback_port.rs"]
+mod free_loopback_port;
+use client_transport::client_transport;
+use free_loopback_port::free_loopback_port;
+
 const WAIT: Duration = Duration::from_secs(5);
 const POLL: Duration = Duration::from_millis(20);
 const RECONNECT_WAIT: Duration = Duration::from_millis(50);
 /// How long a stream is watched to show that nothing arrived on it.
 const QUIET: Duration = Duration::from_millis(300);
-
-fn client_transport(name: &str) -> Transport {
-    Transport::new(TransportConfig::new(name, &PrivateIdentity::new_from_rand(OsRng), false))
-}
 
 #[deny(clippy::await_holding_invalid_type)]
 async fn wait_until(what: &str, mut condition: impl FnMut() -> bool) {
@@ -53,14 +55,6 @@ async fn wait_until(what: &str, mut condition: impl FnMut() -> bool) {
         assert!(Instant::now() < deadline, "timed out waiting for {what}");
         tokio::time::sleep(POLL).await;
     }
-}
-
-#[deny(clippy::await_holding_invalid_type)]
-async fn free_loopback_port() -> u16 {
-    let probe = TcpListener::bind("127.0.0.1:0").await.expect("bind probe");
-    let port = probe.local_addr().expect("probe address").port();
-    drop(probe);
-    port
 }
 
 /// The next event on the broadcast. A `Lagged` is skipped, the stream closing is a

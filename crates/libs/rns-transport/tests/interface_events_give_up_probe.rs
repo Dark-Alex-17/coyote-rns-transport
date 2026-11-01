@@ -9,18 +9,20 @@
 use std::time::Duration;
 
 use rns_transport::hash::AddressHash;
-use rns_transport::identity::PrivateIdentity;
 use rns_transport::iface::events::DialFailure;
 use rns_transport::iface::tcp_client::TcpClient;
-use rns_transport::rand_core::OsRng;
-use rns_transport::transport::{
-    DialFailureKind, InterfaceEvent, InterfaceEventKind, Transport, TransportConfig,
-};
-use tokio::net::TcpListener;
+use rns_transport::transport::{DialFailureKind, InterfaceEvent, InterfaceEventKind};
 use tokio::sync::broadcast;
 use tokio::sync::broadcast::error::RecvError;
 use tokio::sync::mpsc;
 use tokio::time::timeout;
+
+#[path = "support/client_transport.rs"]
+mod client_transport;
+#[path = "support/free_loopback_port.rs"]
+mod free_loopback_port;
+use client_transport::client_transport;
+use free_loopback_port::free_loopback_port;
 
 const WAIT: Duration = Duration::from_secs(5);
 const RECONNECT_WAIT: Duration = Duration::from_millis(50);
@@ -28,18 +30,6 @@ const RECONNECT_WAIT: Duration = Duration::from_millis(50);
 const LONG_RECONNECT_WAIT: Duration = Duration::from_secs(10);
 /// How long a stream is watched to show that nothing arrived on it.
 const QUIET: Duration = Duration::from_millis(300);
-
-fn client_transport(name: &str) -> Transport {
-    Transport::new(TransportConfig::new(name, &PrivateIdentity::new_from_rand(OsRng), false))
-}
-
-#[deny(clippy::await_holding_invalid_type)]
-async fn free_loopback_port() -> u16 {
-    let probe = TcpListener::bind("127.0.0.1:0").await.expect("bind probe");
-    let port = probe.local_addr().expect("probe address").port();
-    drop(probe);
-    port
-}
 
 #[deny(clippy::await_holding_invalid_type)]
 async fn next_event(

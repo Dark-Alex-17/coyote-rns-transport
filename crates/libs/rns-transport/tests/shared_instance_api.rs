@@ -27,6 +27,10 @@ use tokio::sync::broadcast::error::RecvError;
 use tokio::sync::{broadcast, mpsc, Mutex};
 use tokio::time::timeout;
 
+#[path = "support/free_loopback_port.rs"]
+mod free_loopback_port;
+use free_loopback_port::free_loopback_port;
+
 const WAIT: Duration = Duration::from_secs(15);
 const POLL: Duration = Duration::from_millis(20);
 
@@ -43,14 +47,6 @@ async fn wait_until(what: &str, mut condition: impl FnMut() -> bool) {
         assert!(Instant::now() < deadline, "timed out waiting for {what}");
         tokio::time::sleep(POLL).await;
     }
-}
-
-#[deny(clippy::await_holding_invalid_type)]
-async fn free_loopback_port() -> u16 {
-    let probe = tokio::net::TcpListener::bind("127.0.0.1:0").await.expect("bind probe");
-    let port = probe.local_addr().expect("probe address").port();
-    drop(probe);
-    port
 }
 
 #[deny(clippy::await_holding_invalid_type)]

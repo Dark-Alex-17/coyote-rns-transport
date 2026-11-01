@@ -20,11 +20,13 @@
 //!   with the timeout satisfied and reads `Connecting`, `Connected`.
 
 use std::fmt::Debug;
-use std::fs;
 use std::path::{Path, PathBuf};
-use std::process::{Command, Output};
 
 use rns_transport::transport::{DialFailureKind, DisconnectReason};
+
+#[path = "support/compile_fail.rs"]
+mod compile_fail;
+use compile_fail::{candidate_rlibs, deps_dir, rustc, Scratch};
 
 /// The shape every downstream `match` on `DialFailureKind` has to take: a wildcard arm.
 #[deny(unreachable_patterns)]
@@ -148,75 +150,6 @@ const REJECTED: &[(&str, &str, &str)] = &[
     ),
 ];
 
-/// Scratch directory removed when the test ends, panic included.
-struct Scratch(PathBuf);
-
-impl Scratch {
-    fn new() -> Self {
-        let dir = std::env::temp_dir().join(format!(
-            "rns-transport-dial-failure-reason-compile-fail-{}-{}",
-            std::process::id(),
-            std::thread::current().name().unwrap_or("main")
-        ));
-        fs::create_dir_all(&dir).expect("scratch directory should be creatable");
-        Scratch(dir)
-    }
-}
-
-impl Drop for Scratch {
-    fn drop(&mut self) {
-        let _ = fs::remove_dir_all(&self.0);
-    }
-}
-
-/// The `deps` directory this test binary was linked from.
-fn deps_dir() -> PathBuf {
-    let exe = std::env::current_exe().expect("test binary should know its own path");
-    exe.parent().map(Path::to_path_buf).expect("test binary should live in target/<profile>/deps")
-}
-
-/// Every `librns_transport-*.rlib` in the deps directory, newest first.
-fn candidate_rlibs(deps: &Path) -> Vec<PathBuf> {
-    let mut found: Vec<(std::time::SystemTime, PathBuf)> = fs::read_dir(deps)
-        .expect("deps directory should be readable")
-        .filter_map(Result::ok)
-        .map(|entry| entry.path())
-        .filter(|path| {
-            path.file_name().and_then(|name| name.to_str()).is_some_and(|name| {
-                name.starts_with("librns_transport-") && name.ends_with(".rlib")
-            })
-        })
-        .filter_map(|path| {
-            let modified = fs::metadata(&path).and_then(|meta| meta.modified()).ok()?;
-            Some((modified, path))
-        })
-        .collect();
-    found.sort_by_key(|entry| std::cmp::Reverse(entry.0));
-    found.into_iter().map(|(_, path)| path).collect()
-}
-
-fn rustc(scratch: &Path, deps: &Path, rlib: &Path, name: &str, source: &str) -> Output {
-    let file = scratch.join(format!("{name}.rs"));
-    fs::write(&file, source).expect("snippet source should be writable");
-    let compiler = std::env::var_os("RUSTC").unwrap_or_else(|| "rustc".into());
-    Command::new(compiler)
-        .arg("--edition")
-        .arg("2021")
-        .arg("--crate-type")
-        .arg("lib")
-        .arg("--crate-name")
-        .arg(name)
-        .arg("-L")
-        .arg(format!("dependency={}", deps.display()))
-        .arg("--extern")
-        .arg(format!("rns_transport={}", rlib.display()))
-        .arg("--out-dir")
-        .arg(scratch)
-        .arg(&file)
-        .output()
-        .expect("rustc should be runnable from a cargo test")
-}
-
 /// The rlib the migrated consumer compiles against, with the deps directory.
 fn working_rlib(scratch: &Path) -> (PathBuf, PathBuf) {
     let deps = deps_dir();
@@ -240,7 +173,7 @@ fn working_rlib(scratch: &Path) -> (PathBuf, PathBuf) {
 
 #[test]
 fn the_cast_the_changelog_retires_and_the_private_shapes_do_not_compile() {
-    let scratch = Scratch::new();
+    let scratch = Scratch::new("dial-failure-reason-compile-fail");
     let (deps, rlib) = working_rlib(&scratch.0);
     let mut unexpected = Vec::new();
     for (name, source, promised) in REJECTED {

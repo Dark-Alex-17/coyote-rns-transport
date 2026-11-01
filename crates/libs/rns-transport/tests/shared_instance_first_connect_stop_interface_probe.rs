@@ -13,13 +13,18 @@ use std::net::SocketAddr;
 use std::time::{Duration, Instant};
 
 use rns_transport::error::RnsError;
-use rns_transport::identity::PrivateIdentity;
-use rns_transport::rand_core::OsRng;
 use rns_transport::transport::{
-    SharedInstanceEndpoint, SharedInstanceEvent, SharedInstanceOptions, Transport, TransportConfig,
+    SharedInstanceEndpoint, SharedInstanceEvent, SharedInstanceOptions,
 };
 use tokio::sync::mpsc;
 use tokio::time::timeout;
+
+#[path = "support/client_transport.rs"]
+mod client_transport;
+#[path = "support/free_loopback_port.rs"]
+mod free_loopback_port;
+use client_transport::client_transport;
+use free_loopback_port::free_loopback_port;
 
 const WAIT: Duration = Duration::from_secs(15);
 const RECONNECT_WAIT: Duration = Duration::from_millis(50);
@@ -28,18 +33,6 @@ const RECONNECT_WAIT: Duration = Duration::from_millis(50);
 const LONG_TIMER: Duration = Duration::from_secs(10);
 /// The most the interrupted attach may take to answer, far inside `LONG_TIMER`.
 const PROMPT: Duration = Duration::from_secs(5);
-
-#[deny(clippy::await_holding_invalid_type)]
-async fn free_loopback_port() -> u16 {
-    let probe = tokio::net::TcpListener::bind("127.0.0.1:0").await.expect("bind probe");
-    let port = probe.local_addr().expect("probe address").port();
-    drop(probe);
-    port
-}
-
-fn client_transport(name: &str) -> Transport {
-    Transport::new(TransportConfig::new(name, &PrivateIdentity::new_from_rand(OsRng), false))
-}
 
 #[deny(clippy::await_holding_invalid_type)]
 async fn next_event(

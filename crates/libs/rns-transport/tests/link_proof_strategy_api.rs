@@ -16,9 +16,6 @@
 //! `breaking_changes_compile_fail.rs` does to pin that every new proof item the README names
 //! resolves downstream and that `LinkPayload::with_packet_hash` is not part of that view.
 
-use std::fs;
-use std::path::{Path, PathBuf};
-use std::process::Command;
 use std::sync::atomic::{AtomicUsize, Ordering};
 use std::sync::Arc;
 use std::time::{Duration, Instant};
@@ -39,6 +36,13 @@ use tokio::sync::broadcast::error::{RecvError, TryRecvError};
 use tokio::sync::{broadcast, Mutex};
 use tokio::time::timeout;
 
+#[path = "support/compile_fail.rs"]
+mod compile_fail;
+#[path = "support/free_loopback_port.rs"]
+mod free_loopback_port;
+use compile_fail::{candidate_rlibs, deps_dir, rustc, Scratch};
+use free_loopback_port::free_loopback_port;
+
 const WAIT: Duration = Duration::from_secs(15);
 const POLL: Duration = Duration::from_millis(20);
 /// How long a link event channel is watched to show that no proof arrived.
@@ -57,14 +61,6 @@ async fn wait_until(what: &str, mut condition: impl FnMut() -> bool) {
         assert!(Instant::now() < deadline, "timed out waiting for {what}");
         tokio::time::sleep(POLL).await;
     }
-}
-
-#[deny(clippy::await_holding_invalid_type)]
-async fn free_loopback_port() -> u16 {
-    let probe = tokio::net::TcpListener::bind("127.0.0.1:0").await.expect("bind probe");
-    let port = probe.local_addr().expect("probe address").port();
-    drop(probe);
-    port
 }
 
 #[deny(clippy::await_holding_invalid_type)]
@@ -654,73 +650,9 @@ const REJECTED: &str = "use rns_transport::destination::link::LinkPayload;\n\
      pub fn forge(hash: Hash) -> LinkPayload { LinkPayload::new().with_packet_hash(hash) }\n";
 const REJECTED_DIAGNOSTIC: &str = "method `with_packet_hash` is private";
 
-struct Scratch(PathBuf);
-
-impl Scratch {
-    fn new() -> Self {
-        let dir = std::env::temp_dir()
-            .join(format!("rns-transport-link-proof-strategy-api-{}", std::process::id()));
-        fs::create_dir_all(&dir).expect("scratch directory should be creatable");
-        Scratch(dir)
-    }
-}
-
-impl Drop for Scratch {
-    fn drop(&mut self) {
-        let _ = fs::remove_dir_all(&self.0);
-    }
-}
-
-fn deps_dir() -> PathBuf {
-    let exe = std::env::current_exe().expect("test binary should know its own path");
-    exe.parent().map(Path::to_path_buf).expect("test binary should live in target/<profile>/deps")
-}
-
-fn candidate_rlibs(deps: &Path) -> Vec<PathBuf> {
-    let mut found: Vec<(std::time::SystemTime, PathBuf)> = fs::read_dir(deps)
-        .expect("deps directory should be readable")
-        .filter_map(Result::ok)
-        .map(|entry| entry.path())
-        .filter(|path| {
-            path.file_name().and_then(|name| name.to_str()).is_some_and(|name| {
-                name.starts_with("librns_transport-") && name.ends_with(".rlib")
-            })
-        })
-        .filter_map(|path| {
-            let modified = fs::metadata(&path).and_then(|meta| meta.modified()).ok()?;
-            Some((modified, path))
-        })
-        .collect();
-    found.sort_by_key(|entry| std::cmp::Reverse(entry.0));
-    found.into_iter().map(|(_, path)| path).collect()
-}
-
-fn rustc(
-    scratch: &Path,
-    deps: &Path,
-    rlib: &Path,
-    name: &str,
-    source: &str,
-) -> std::process::Output {
-    let file = scratch.join(format!("{name}.rs"));
-    fs::write(&file, source).expect("snippet source should be writable");
-    let compiler = std::env::var_os("RUSTC").unwrap_or_else(|| "rustc".into());
-    Command::new(compiler)
-        .args(["--edition", "2021", "--crate-type", "lib", "--crate-name", name])
-        .arg("-L")
-        .arg(format!("dependency={}", deps.display()))
-        .arg("--extern")
-        .arg(format!("rns_transport={}", rlib.display()))
-        .arg("--out-dir")
-        .arg(scratch)
-        .arg(&file)
-        .output()
-        .expect("rustc should be runnable from a cargo test")
-}
-
 #[test]
 fn readme_items_resolve_downstream_and_with_packet_hash_does_not() {
-    let scratch = Scratch::new();
+    let scratch = Scratch::new("link-proof-strategy-api");
     let deps = deps_dir();
     let candidates = candidate_rlibs(&deps);
     assert!(!candidates.is_empty(), "no librns_transport-*.rlib next to {}", deps.display());

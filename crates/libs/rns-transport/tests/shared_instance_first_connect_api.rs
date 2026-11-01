@@ -36,6 +36,13 @@ use rns_transport::transport::{
 use tokio::sync::mpsc;
 use tokio::time::timeout;
 
+#[path = "support/client_transport.rs"]
+mod client_transport;
+#[path = "support/free_loopback_port.rs"]
+mod free_loopback_port;
+use client_transport::client_transport;
+use free_loopback_port::free_loopback_port;
+
 const WAIT: Duration = Duration::from_secs(15);
 const POLL: Duration = Duration::from_millis(20);
 const RECONNECT_WAIT: Duration = Duration::from_millis(50);
@@ -53,18 +60,6 @@ async fn wait_until(what: &str, mut condition: impl FnMut() -> bool) {
         assert!(Instant::now() < deadline, "timed out waiting for {what}");
         tokio::time::sleep(POLL).await;
     }
-}
-
-#[deny(clippy::await_holding_invalid_type)]
-async fn free_loopback_port() -> u16 {
-    let probe = tokio::net::TcpListener::bind("127.0.0.1:0").await.expect("bind probe");
-    let port = probe.local_addr().expect("probe address").port();
-    drop(probe);
-    port
-}
-
-fn client_transport(name: &str) -> Transport {
-    Transport::new(TransportConfig::new(name, &PrivateIdentity::new_from_rand(OsRng), false))
 }
 
 /// A transport-enabled node listening with a `TcpServer` on `port`.

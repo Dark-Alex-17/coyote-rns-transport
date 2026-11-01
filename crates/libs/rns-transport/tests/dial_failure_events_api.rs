@@ -47,6 +47,10 @@ use tokio::net::UnixListener;
 use tokio::sync::mpsc;
 use tokio::time::timeout;
 
+#[path = "support/free_loopback_port.rs"]
+mod free_loopback_port;
+use free_loopback_port::free_loopback_port;
+
 const RECONNECT_WAIT: Duration = Duration::from_millis(50);
 
 struct CaptureLogger {
@@ -138,14 +142,6 @@ async fn assert_silent<T>(what: &str, rx: &mut mpsc::Receiver<T>) {
         timeout(Duration::from_millis(300), rx.recv()).await.is_err(),
         "{what} should not have fired"
     );
-}
-
-#[deny(clippy::await_holding_invalid_type)]
-async fn free_loopback_port() -> u16 {
-    let probe = TcpListener::bind("127.0.0.1:0").await.expect("bind probe");
-    let port = probe.local_addr().expect("probe address").port();
-    drop(probe);
-    port
 }
 
 /// Two failures in a row with the expected kind on `iface`: the client

@@ -10,12 +10,8 @@ use std::net::SocketAddr;
 use std::time::Duration;
 
 use rns_transport::hash::AddressHash;
-use rns_transport::identity::PrivateIdentity;
 use rns_transport::iface::tcp_client::TcpClient;
-use rns_transport::rand_core::OsRng;
-use rns_transport::transport::{
-    DisconnectReason, InterfaceEvent, InterfaceEventKind, Transport, TransportConfig,
-};
+use rns_transport::transport::{DisconnectReason, InterfaceEvent, InterfaceEventKind, Transport};
 use tokio::io::{AsyncReadExt as _, AsyncWriteExt as _};
 use tokio::net::{TcpListener, TcpStream};
 use tokio::sync::broadcast;
@@ -23,16 +19,16 @@ use tokio::sync::broadcast::error::{RecvError, TryRecvError};
 use tokio::sync::mpsc;
 use tokio::time::timeout;
 
+#[path = "support/client_transport.rs"]
+mod client_transport;
+use client_transport::client_transport;
+
 const WAIT: Duration = Duration::from_secs(5);
 const RECONNECT_WAIT: Duration = Duration::from_millis(50);
 /// How long a stream is watched to show that nothing arrived on it.
 const QUIET: Duration = Duration::from_millis(300);
 /// The capacity the README gives the transport's event streams.
 const TRANSPORT_EVENT_CAPACITY: usize = 1024;
-
-fn client_transport(name: &str) -> Transport {
-    Transport::new(TransportConfig::new(name, &PrivateIdentity::new_from_rand(OsRng), false))
-}
 
 #[deny(clippy::await_holding_invalid_type)]
 async fn next_event(

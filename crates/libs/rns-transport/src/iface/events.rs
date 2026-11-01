@@ -38,16 +38,18 @@ impl DialFailureKind {
 /// Fork-only: why an established stream ended, as `TcpClient` and
 /// `LocalUnixClient` report it on the channel given to their
 /// `with_disconnect_reason_events`. A stream the client ended itself (a
-/// cancel or a stop) is reported on no channel. `Timeout` reaches a consumer
-/// of a `TcpClient` built with a read watchdog (`with_backbone_liveness`), or
-/// of either client when a read or write fails with `ErrorKind::TimedOut`;
-/// the unix client runs no read watchdog.
+/// cancel or a stop, or the transport's receive queue closing, which only
+/// the plain channel reports) is reported on no channel. `Timeout` reaches a
+/// consumer of a `TcpClient` built with a read watchdog
+/// (`with_backbone_liveness`), or of either client when a read or write
+/// fails with `ErrorKind::TimedOut`; the unix client runs no read watchdog.
 #[non_exhaustive]
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum DisconnectReason {
     /// Fork-only: the peer closed the stream in an orderly way.
     PeerClosed,
-    /// Fork-only: the connection was reset (`ErrorKind::ConnectionReset`).
+    /// Fork-only: the connection was reset (`ErrorKind::ConnectionReset`); a
+    /// reset observed first on the write side reads as `Io(BrokenPipe)`.
     Reset,
     /// Fork-only: the stream went quiet past the client's read timeout, or
     /// a read or write failed with `ErrorKind::TimedOut`.

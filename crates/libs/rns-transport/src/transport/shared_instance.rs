@@ -71,10 +71,11 @@ pub enum SharedInstanceEvent {
     /// reported, sent in its place, at the same position in the cycle, when
     /// the attach was given [`SharedInstanceOptions::with_disconnect_reasons`];
     /// a caller that did not opt in keeps reading `Disconnected`. `reason`
-    /// is `PeerClosed` for an orderly close, `Reset` for a connection reset,
+    /// is `PeerClosed` for an orderly close, `Reset` for a connection reset
+    /// (a reset observed first on the write side reads as `Io(BrokenPipe)`),
     /// `Timeout` for a read or write that failed with `ErrorKind::TimedOut`
-    /// (the attach's clients run no read watchdog), `Io(kind)` for any
-    /// other io error. Python's
+    /// (the attach's clients run no read watchdog), `Io(kind)` for any other
+    /// io error. Python's
     /// `LocalClientInterface` only notices the socket closed and reconnects
     /// (`RNS/Interfaces/LocalInterface.py:255-266`).
     DisconnectedWithReason { reason: DisconnectReason },

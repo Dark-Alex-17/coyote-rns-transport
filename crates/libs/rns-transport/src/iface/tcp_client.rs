@@ -905,7 +905,7 @@ where
     };
 
     let tx_exit = tx_loop.await;
-    let rx_exit = rx_task.await.unwrap();
+    let rx_exit = rx_task.await.expect("hdlc rx task panicked");
     match rx_exit {
         HdlcStreamExit::Cancelled => tx_exit,
         exit => exit,

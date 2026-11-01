@@ -51,7 +51,7 @@ the `dial failures` patch is fork commits `61429992`, `874c871b`, `aa6d2fac`,
 `8f348131`, `9c0bb5c6` and `b68ef92c`; the `disconnect reasons` patch is
 fork commits `45bcadfc`, `fdfa83dd`, `f45595c5`, `b819ab22`, `bb247215`,
 `0a8f5cf8`, `cc5c3092`, `3ab8f323`, `200b8810`, `b86af8d6`, `272c3f2c`,
-`a1241d2f`, `e07d20d2` and `0d5f60da`.
+`a1241d2f`, `e07d20d2`, `0d5f60da` and `9c2d173c`.
 
 | File | Patch |
 | --- | --- |
@@ -818,22 +818,22 @@ and needles the README wording in `crate_readme_sections.rs`.
 
 Fork commits `45bcadfc`, `fdfa83dd`, `f45595c5`, `b819ab22`, `bb247215`,
 `0a8f5cf8`, `cc5c3092`, `3ab8f323`, `200b8810`, `b86af8d6`, `272c3f2c`,
-`a1241d2f`, `e07d20d2` and `0d5f60da`: K8, disconnect reasons. The library
-behaviour changes are: the HDLC stream runner reports how a stream ended,
-`TcpClient` and `LocalUnixClient` can send that as a typed `DisconnectReason`
-on a channel of their own beside the plain disconnect event, the
-shared-instance attach installs that channel on its client, and an attach
-that opts in reads `DisconnectedWithReason { reason }` where its state
-stream read `Disconnected`; without the opt-in the stream is unchanged. A
-stop, detach or `stop_interface` still reports nothing, and the attach's
-clients run no read watchdog, so `Timeout` reaches the stream only for a
-read or write that failed with `TimedOut`, never for a quiet socket. The
-`DisconnectReason` enum itself arrived with K7 (`61429992`). `45bcadfc`
-has `run_hdlc_stream_with_runtime_and_ifac` return an `HdlcStreamExit`
-(`PeerClosed`, `ReadTimeout`, `ReadError`, `WriteError` or `Cancelled`),
-the rx side's exit unless that side only followed the tx side's stop, and
-pins `PeerClosed`, `Cancelled` and `ReadTimeout` in the `tcp_client` unit
-tests beside the earlier `ReadError` pin. `fdfa83dd` adds
+`a1241d2f`, `e07d20d2`, `0d5f60da` and `9c2d173c`: K8, disconnect reasons.
+The library behaviour changes are: the HDLC stream runner reports how a
+stream ended, `TcpClient` and `LocalUnixClient` can send that as a typed
+`DisconnectReason` on a channel of their own beside the plain disconnect
+event, the shared-instance attach installs that channel on its client, and
+an attach that opts in reads `DisconnectedWithReason { reason }` where its
+state stream read `Disconnected`; without the opt-in the stream is
+unchanged. A stop, detach or `stop_interface` still reports nothing, and
+the attach's clients run no read watchdog, so `Timeout` reaches the stream
+only for a read or write that failed with `TimedOut`, never for a quiet
+socket. The `DisconnectReason` enum itself arrived with K7 (`61429992`).
+`45bcadfc` has `run_hdlc_stream_with_runtime_and_ifac` return an
+`HdlcStreamExit` (`PeerClosed`, `ReadTimeout`, `ReadError`, `WriteError` or
+`Cancelled`), the rx side's exit unless that side only followed the tx
+side's stop, and pins `PeerClosed`, `Cancelled` and `ReadTimeout` in the
+`tcp_client` unit tests beside the earlier `ReadError` pin. `fdfa83dd` adds
 `DisconnectReason::from_stream_exit`, which reads an exit as `PeerClosed`,
 `Reset`, `Timeout` or `Io(kind)` and a locally ended stream as nothing, and
 gives `TcpClient` and `LocalUnixClient` a `with_disconnect_reason_events`
@@ -913,7 +913,12 @@ bullet that a write failing before the read side sees the reset reads
 `Io(BrokenPipe)` rather than `Reset`, adds the receive queue's close to
 the README's list of silent stream ends, needles the paragraph-form
 variant name, and moves the unreleased `LocalInterface.py` drop-path
-cites to `:255-266`.
+cites to `:255-266`. `9c2d173c` adds
+`tests/disconnect_reason_log_line_probe.rs`, which holds that both
+clients' `disconnected from` info line carries the stream exit
+(`exit=PeerClosed`, `exit=ReadError(ConnectionReset)`, and `exit=Cancelled`
+for a stream the transport's receive queue closed), read beside the reason
+channel.
 
 ## 0.17.0 (upstream 0.14.0)
 

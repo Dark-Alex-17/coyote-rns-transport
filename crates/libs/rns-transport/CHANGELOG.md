@@ -395,11 +395,11 @@ Removed) bullet of its own, marked as such.
   `LocalUnixClient::with_disconnect_reason_events` (`iface/local.rs`) take a
   `tokio::sync::mpsc::Sender<(AddressHash, DisconnectReason)>` and send one
   pair each time an established stream ends while the client is neither
-  cancelled nor stopped; a full or closed channel drops the event at debug,
-  as the other client events do. Both clients gained a
-  `disconnect_reason_events_enabled()` getter. The plain
-  `with_disconnect_events` keeps its `Sender<AddressHash>` and keeps firing
-  beside the new channel. Underneath, the stream runner
+  cancelled nor stopped nor ended by the transport's receive queue closing;
+  a full or closed channel drops the event at debug, as the other client
+  events do. Both clients gained a `disconnect_reason_events_enabled()`
+  getter. The plain `with_disconnect_events` keeps its `Sender<AddressHash>`
+  and keeps firing beside the new channel. Underneath, the stream runner
   `run_hdlc_stream_with_runtime_and_ifac` (`iface/tcp_client.rs`) now
   returns a crate-private `HdlcStreamExit` (the read side's exit, unless
   the read side only followed the write side's stop, in which case the

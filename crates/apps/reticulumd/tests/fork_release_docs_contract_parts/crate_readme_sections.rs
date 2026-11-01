@@ -111,6 +111,7 @@ fn crate_readme_shared_instance_section_cites_the_parity_lines() {
         "`RNS/Interfaces/LocalInterface.py:178-181`",
         "`RNS/Link.py:657-668`",
         "`RNS/Interfaces/LocalInterface.py:159-160`",
+        // scopes the drop-flush trigger (README:536); :255-266 is the drop path
         "`RNS/Interfaces/LocalInterface.py:255-261`",
         "`RNS/Interfaces/LocalInterface.py:109`",
         "`RNS/Transport.py:1938`",

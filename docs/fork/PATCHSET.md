@@ -26,7 +26,7 @@ parity rows this file plus the crate README `## Known divergences from
 Python RNS` are the parity ledger; `docs/status/*` matrices are not updated
 per fork task.
 
-## Unreleased (upstream 0.14.0)
+## 0.18.0 (upstream 0.14.0)
 
 Every file changed since the `0.17.0` release and the patch each change
 belongs to. Patch ids: K1 is outcome tracker, K2 is response cap, K3 is ledger
@@ -56,20 +56,34 @@ patch is fork commits `45bcadfc`, `fdfa83dd`, `f45595c5`, `b819ab22`,
 `17706293`, `024555a6`, `5f523d82`, `16fbb720`, `0f040752`, `8f128436`,
 `f80c4323` and `57fdf117`; the `batch hygiene` patch is fork commits
 `27dad245`, `2935b5db`, `62554a8c`, `d55a4f0e`, `1bc1e388` and
-`7752a883`.
+`7752a883`; the `Python-in-the-loop link proof strategy interop` patch
+carries no other id and is fork commits `92346ece`, `2624206e`, `ac841458`
+and `4ed2ebec`, also `link proof strategy` commits; the `release 0.18.0`
+patch carries no other id and is fork commits `b5358d0f`, `78fb99eb`,
+`bfe21650`, `81cb1d40` and `69bbcd91`.
 
 | File | Patch |
 | --- | --- |
-| `crates/apps/reticulumd/tests/fork_publish_contract_parts/ledger_contract.rs` | ledger contracts |
-| `crates/apps/reticulumd/tests/fork_release_docs_contract.rs` | dial failures |
+| `Cargo.lock` | release 0.18.0 |
+| `Cargo.toml` | release 0.18.0 |
+| `crates/apps/reticulumd/Cargo.toml` | release 0.18.0 |
+| `crates/apps/reticulumd/tests/fork_publish_contract.rs` | release 0.18.0 |
+| `crates/apps/reticulumd/tests/fork_publish_contract_parts/ledger_contract.rs` | ledger contracts, release 0.18.0 |
+| `crates/apps/reticulumd/tests/fork_release_docs_contract.rs` | dial failures, release 0.18.0 |
 | `crates/apps/reticulumd/tests/fork_release_docs_contract_parts/crate_readme_sections.rs` | outcome tracker, response cap, destination resolve, link proof strategy, dial failures, disconnect reasons, interface events, batch hygiene |
+| `crates/apps/reticulumd/tests/fork_release_docs_contract_parts/readme_patch_list.rs` | release 0.18.0 |
+| `crates/apps/reticulumd/tests/fork_release_docs_contract_parts/release_0_17_0_probe2.rs` | release 0.18.0 |
 | `crates/apps/reticulumd/tests/fork_release_docs_contract_parts/release_0_17_0_probe3.rs` | response cap |
+| `crates/apps/reticulumd/tests/fork_release_docs_contract_parts/release_0_18_0_probe.rs` | release 0.18.0 |
 | `crates/apps/reticulumd/tests/fork_release_docs_contract_parts/request_layer_api_docs.rs` | outcome tracker, response cap, destination resolve, link proof strategy, dial failures, disconnect reasons, interface events |
-| `crates/apps/reticulumd/tests/python_channel_interop.rs` | link proof strategy |
-| `crates/apps/reticulumd/tests/python_channel_interop_parts/python_to_rust_link_proof_strategy.rs` | link proof strategy |
-| `crates/apps/reticulumd/tests/support/python_channel_endpoint.py` | link proof strategy |
-| `crates/libs/rns-transport/CHANGELOG.md` | outcome tracker, response cap, ledger contracts, destination resolve, reject cadence, link proof strategy, dial failures, disconnect reasons, interface events, batch hygiene |
-| `crates/libs/rns-transport/README.md` | outcome tracker, response cap, destination resolve, link proof strategy, dial failures, disconnect reasons, interface events |
+| `crates/apps/reticulumd/tests/python_channel_interop.rs` | link proof strategy, Python-in-the-loop link proof strategy interop |
+| `crates/apps/reticulumd/tests/python_channel_interop_parts/python_to_rust_link_proof_strategy.rs` | link proof strategy, Python-in-the-loop link proof strategy interop |
+| `crates/apps/reticulumd/tests/support/python_channel_endpoint.py` | link proof strategy, Python-in-the-loop link proof strategy interop |
+| `crates/apps/rns-tools/Cargo.toml` | release 0.18.0 |
+| `crates/libs/rns-transport/CHANGELOG.md` | outcome tracker, response cap, ledger contracts, destination resolve, reject cadence, link proof strategy, dial failures, disconnect reasons, interface events, batch hygiene, release 0.18.0 |
+| `crates/libs/rns-transport/Cargo.toml` | release 0.18.0 |
+| `crates/libs/rns-transport/README.md` | outcome tracker, response cap, destination resolve, link proof strategy, dial failures, disconnect reasons, interface events, release 0.18.0 |
+| `crates/libs/rns-transport/fuzz/Cargo.lock` | release 0.18.0 |
 | `crates/libs/rns-transport/src/delivery.rs` | batch hygiene |
 | `crates/libs/rns-transport/src/destination/link/payload.rs` | link proof strategy |
 | `crates/libs/rns-transport/src/destination/link_parts/link.rs` | link proof strategy |
@@ -164,6 +178,7 @@ patch is fork commits `45bcadfc`, `fdfa83dd`, `f45595c5`, `b819ab22`,
 | `crates/libs/rns-transport/tests/interface_events_last_disconnected_probe.rs` | batch hygiene |
 | `crates/libs/rns-transport/tests/interface_events_probe.rs` | interface events, batch hygiene |
 | `crates/libs/rns-transport/tests/link_activation_deadline_api.rs` | batch hygiene |
+| `crates/libs/rns-transport/tests/link_activation_max_timeout_probe.rs` | release 0.18.0 |
 | `crates/libs/rns-transport/tests/link_proof_strategy_api.rs` | link proof strategy, dial failures, batch hygiene |
 | `crates/libs/rns-transport/tests/request_handler_api.rs` | outcome tracker |
 | `crates/libs/rns-transport/tests/request_receipt_readme.rs` | batch hygiene |
@@ -177,7 +192,8 @@ patch is fork commits `45bcadfc`, `fdfa83dd`, `f45595c5`, `b819ab22`,
 | `crates/libs/rns-transport/tests/support/client_transport.rs` | batch hygiene |
 | `crates/libs/rns-transport/tests/support/compile_fail.rs` | batch hygiene |
 | `crates/libs/rns-transport/tests/support/free_loopback_port.rs` | batch hygiene |
-| `docs/fork/PATCHSET.md` | outcome tracker, response cap, ledger contracts, destination resolve, reject cadence, link proof strategy, dial failures, disconnect reasons, interface events, batch hygiene |
+| `docs/fork/PATCHSET.md` | outcome tracker, response cap, ledger contracts, destination resolve, reject cadence, link proof strategy, dial failures, disconnect reasons, interface events, batch hygiene, release 0.18.0 |
+| `docs/getting-started.md` | release 0.18.0 |
 
 Fork commits `c3a317d7`, `ca32feac`, `223cdd80`, `716fb2be`, `d3b234e6` and
 `d36f65df`: K1, outcome tracker. The library behaviour changes are: a
@@ -1082,6 +1098,72 @@ directory gaining the thread-name component the other two already had.
 `7752a883` has the module header of `tests/response_cap_tracker_api.rs` say
 that a zero cap puts every packet-form response over it, agreeing with the
 test doc comment `62554a8c` reworded in the same file.
+
+Fork commits `92346ece`, `2624206e`, `ac841458` and `4ed2ebec`:
+Python-in-the-loop link proof strategy interop. Four link-proof-strategy
+commits above: a Python RNS initiator sends one plain link packet to a Rust
+destination held at `ProofStrategy::App` with no callback and watches its
+`PacketReceipt` stay `SENT` until the Rust application proves the packet
+through `Transport::prove_link_packet`, after which it reads `DELIVERED`
+(`crates/apps/reticulumd/tests/python_channel_interop_parts/python_to_rust_link_proof_strategy.rs`
+included from `crates/apps/reticulumd/tests/python_channel_interop.rs`, with
+the `link-data-receipt` client arm of
+`crates/apps/reticulumd/tests/support/python_channel_endpoint.py`), the
+release section's Python-in-the-loop proof rows.
+
+Fork commits `b5358d0f`, `78fb99eb`, `bfe21650`, `81cb1d40` and `69bbcd91`:
+release 0.18.0. The first retargets the promotion-sensitive pins to the
+literal 0.18.0 label, since a released section is frozen:
+`crates/apps/reticulumd/tests/fork_publish_contract_parts/ledger_contract.rs`
+expects the full-hash contract to cover `0.18.0`, `0.17.0`, `0.16.0` and
+`0.15.1` with no `Unreleased` label and the bullet-cite contract the same
+four, and the two version pins in
+`crates/apps/reticulumd/tests/fork_publish_contract.rs` read `0.18.0`. The
+same commit has the include-set pin of
+`crates/apps/reticulumd/tests/fork_release_docs_contract_parts/release_0_17_0_probe2.rs`
+read the release-docs-contract bullet of the newest release section that
+carries one, through `newest_release_docs_contract_bullet`, in place of the
+literal 0.17.0 section, with a fixture
+(`newest_release_docs_contract_bullet_skips_releases_without_one`) for the
+newest-first selection; gives
+`crates/apps/reticulumd/tests/fork_release_docs_contract_parts/readme_patch_list.rs`
+a 0.18.0 twin
+(`readme_patch_list_opens_with_the_0_18_0_block_and_keeps_the_0_17_0_paragraph`)
+asserting that the 0.18.0 block opens the list, the 0.18.0, 0.17.0, 0.16.0
+order and the 0.18.0 items, while the 0.17.0 test
+(`readme_patch_list_keeps_the_0_17_0_block_above_the_0_16_0_paragraph`)
+keeps its order and its needles through a shared const; and adds
+`crates/apps/reticulumd/tests/fork_release_docs_contract_parts/release_0_18_0_probe.rs`,
+included from `crates/apps/reticulumd/tests/fork_release_docs_contract.rs`,
+which pins the heading date, the one `### Breaking` bullet with its lint
+name, cast and `Migration:` clause, the semver sentence of the version
+bullet, the `### Fixed` subsection and the README patch-list order. The
+second bumps the crate version to 0.18.0 at every manifest and
+consumer-snippet site (`Cargo.toml`, `crates/libs/rns-transport/Cargo.toml`,
+`crates/apps/reticulumd/Cargo.toml`, `crates/apps/rns-tools/Cargo.toml`,
+the snippet in `crates/libs/rns-transport/README.md` and
+`docs/getting-started.md`) and in `Cargo.lock` and
+`crates/libs/rns-transport/fuzz/Cargo.lock`; the root `VERSION` file stays.
+The third promotes `## Unreleased` to `## 0.18.0 - 2026-11-01` in the crate
+`CHANGELOG.md` with a `### Breaking` subsection first, listing the one
+break (the data-carrying `SharedInstanceEvent` variants end the integer
+cast of its unit variants) with its migration, a version bullet at the head
+of `### Changed` (the announce field, the minor-bump reasoning, the `cargo
+semver-checks` result against `v0.17.0` with its one tolerated lint, and
+the contract tests that pin the release), a test-only bullet for the
+release docs contract parts, and a new `### Fixed` holding the
+`Transport::await_path` deadline fix beside the
+`delivery::await_link_activation` bullet moved out of `### Changed`. The
+fourth adds the 0.18.0 paragraph to the `## Patch list` of
+`crates/libs/rns-transport/README.md`, folding it into the intro sentence
+and leaving the 0.17.0 block as a standalone paragraph with its bullets
+unchanged. The fifth adopts
+`crates/libs/rns-transport/tests/link_activation_max_timeout_probe.rs`
+(`max_timeout_resolves_when_the_link_activates`: a link that activates over
+loopback TCP returns `Ok(())` under `Duration::MAX`, and a second unbounded
+wait on the active link returns at once), the positive control of
+`tests/link_activation_deadline_api.rs`. The ledger commit that cites the
+five commits above touches only this file.
 
 ## 0.17.0 (upstream 0.14.0)
 

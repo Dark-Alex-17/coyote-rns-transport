@@ -54,7 +54,8 @@ fork commits `45bcadfc`, `fdfa83dd`, `f45595c5`, `b819ab22`, `bb247215`,
 `0a8f5cf8`, `cc5c3092`, `3ab8f323`, `200b8810`, `b86af8d6`, `272c3f2c`,
 `a1241d2f`, `e07d20d2`, `0d5f60da`, `9c2d173c` and `14893a3f`; the
 `interface events` patch is fork commits `8378165f`, `806facd1`,
-`441dd699`, `17706293`, `024555a6` and `5f523d82`.
+`441dd699`, `17706293`, `024555a6`, `5f523d82`, `16fbb720`, `0f040752` and
+`8f128436`.
 
 | File | Patch |
 | --- | --- |
@@ -935,11 +936,11 @@ reset clause on `DisconnectReason::Reset` and `DisconnectedWithReason`, the
 receive-queue arm in the `DisconnectReason` header) and replaces the
 runner's `unwrap` on the rx task with an `expect`.
 
-Fork commits `8378165f`, `806facd1`, `441dd699`, `17706293`, `024555a6` and
-`5f523d82`: K9, interface events. The library behaviour change is: a transport
-carries one broadcast stream of its stream clients' connection state, each
-event tagged with the interface it belongs to, and only dialing clients
-publish on it.
+Fork commits `8378165f`, `806facd1`, `441dd699`, `17706293`, `024555a6`,
+`5f523d82`, `16fbb720`, `0f040752` and `8f128436`: K9, interface events. The
+library behaviour change is: a transport carries one broadcast stream of its
+stream clients' connection state, each event tagged with the interface it
+belongs to, and only dialing clients publish on it.
 `8378165f` adds `InterfaceEvent`, `InterfaceEventKind` and the
 crate-private `InterfaceEventPublisher` (`iface/events.rs`, the two public
 types re-exported from `transport`), threads the broadcast sender from
@@ -979,7 +980,18 @@ changelog bullet to the same claims. `5f523d82` wraps the sender
 `InterfaceChannel` carries in `std::panic::AssertUnwindSafe` so the channel
 and `InterfaceContext` keep the `UnwindSafe` and `RefUnwindSafe` they had
 before the field, and pins that at compile time in
-`tests/interface_events_api.rs`.
+`tests/interface_events_api.rs`. `16fbb720` adds
+`tests/interface_events_probe.rs` (two receivers each read the whole
+sequence, a `stop_interface` or `Transport::stop` publishes no
+`Disconnected`, a late subscriber reads nothing it missed, the stream holds
+1024 unread events), pins a `LocalUnixClient::new_from_stream` publishing
+nothing beside its TCP twin, and runs the two socket-free pins without a
+runtime. `0f040752` has `InterfaceChannel::publish_event` send through the
+channel's own sender instead of cloning it into a publisher first.
+`8f128436` says at the `InterfaceEventKind`, `Transport::interface_events`
+and README sites that a client that stops or gives up publishes no further
+event, raises the `request_layer_api_docs.rs` walker floor to the 196
+items it counts, and names `InterfaceEventPublisher` in this narrative.
 
 ## 0.17.0 (upstream 0.14.0)
 

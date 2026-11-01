@@ -54,7 +54,7 @@ fork commits `45bcadfc`, `fdfa83dd`, `f45595c5`, `b819ab22`, `bb247215`,
 `0a8f5cf8`, `cc5c3092`, `3ab8f323`, `200b8810`, `b86af8d6`, `272c3f2c`,
 `a1241d2f`, `e07d20d2`, `0d5f60da`, `9c2d173c` and `14893a3f`; the
 `interface events` patch is fork commits `8378165f`, `806facd1`, `441dd699`,
-`17706293` and `024555a6`.
+`17706293`, `024555a6` and `5f523d82`.
 
 | File | Patch |
 | --- | --- |
@@ -934,10 +934,11 @@ reset clause on `DisconnectReason::Reset` and `DisconnectedWithReason`, the
 receive-queue arm in the `DisconnectReason` header) and replaces the
 runner's `unwrap` on the rx task with an `expect`.
 
-Fork commits `8378165f`, `806facd1`, `441dd699`, `17706293` and `024555a6`:
-K9, interface events. The library behaviour change is: a transport carries one
-broadcast stream of its stream clients' connection state, each event tagged
-with the interface it belongs to, and only dialing clients publish on it.
+Fork commits `8378165f`, `806facd1`, `441dd699`, `17706293`, `024555a6` and
+`5f523d82`: K9, interface events. The library behaviour change is: a transport
+carries one broadcast stream of its stream clients' connection state, each
+event tagged with the interface it belongs to, and only dialing clients
+publish on it.
 `8378165f` adds `InterfaceEvent`, `InterfaceEventKind` and the
 crate-private `InterfaceEventPublisher` (`iface/events.rs`, the two public
 types re-exported from `transport`), threads the broadcast sender from
@@ -972,7 +973,11 @@ and a `TcpClient::new_from_stream` spawned through a transport publishes
 nothing through the peer's close. `024555a6` documents the stream in the
 README's shared-instance section and divergence register, the changelog
 and this ledger, and adds the `crate_readme_sections.rs` pin that holds the
-README paragraph and the changelog bullet to the same claims.
+README paragraph and the changelog bullet to the same claims. `5f523d82`
+wraps the sender `InterfaceChannel` carries in `std::panic::AssertUnwindSafe`
+so the channel and `InterfaceContext` keep the `UnwindSafe` and
+`RefUnwindSafe` they had before the field, and pins that at compile time in
+`tests/interface_events_api.rs`.
 
 ## 0.17.0 (upstream 0.14.0)
 

@@ -285,7 +285,9 @@ impl InterfaceChannel {
     /// transport's interface event stream; a channel built with [`Self::new`]
     /// has no stream and publishes nothing.
     pub fn publish_event(&self, kind: events::InterfaceEventKind) {
-        self.event_publisher().publish(kind);
+        if let Some(events) = self.interface_events.as_ref() {
+            events::InterfaceEventPublisher::send(events, self.address, kind);
+        }
     }
 
     pub(crate) fn event_publisher(&self) -> events::InterfaceEventPublisher {

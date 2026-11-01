@@ -181,16 +181,26 @@ impl InterfaceEventPublisher {
         Self::new(iface, None)
     }
 
-    /// Publishes `kind` tagged with the interface. `broadcast::Sender::send`
+    /// Publishes `kind` tagged with the interface; a detached publisher
+    /// publishes nothing.
+    pub(crate) fn publish(&self, kind: InterfaceEventKind) {
+        let Some(events) = &self.events else { return };
+        Self::send(events, self.iface, kind);
+    }
+
+    /// Publishes `kind` tagged with `iface` on `events`. `broadcast::Sender::send`
     /// is synchronous and never blocks; it fails only when no receiver is
     /// subscribed, the normal case for a transport whose owner never called
     /// `interface_events()`, so that error only earns a trace line.
-    pub(crate) fn publish(&self, kind: InterfaceEventKind) {
-        let Some(events) = &self.events else { return };
-        if events.send(InterfaceEvent::new(self.iface, kind)).is_err() {
+    pub(crate) fn send(
+        events: &tokio::sync::broadcast::Sender<InterfaceEvent>,
+        iface: AddressHash,
+        kind: InterfaceEventKind,
+    ) {
+        if events.send(InterfaceEvent::new(iface, kind)).is_err() {
             log::trace!(
                 "interface event has no active subscribers iface={} kind={:?}",
-                self.iface,
+                iface,
                 kind
             );
         }

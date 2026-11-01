@@ -555,7 +555,12 @@ Removed) bullet of its own, marked as such.
   no `Disconnected`; `a_receiver_subscribed_late_reads_nothing_it_missed`:
   a receiver subscribed after the connect reads the close first;
   `the_transport_stream_holds_the_1024_events_the_readme_names`: 1024
-  unread events fit and the 1025th reads `Lagged(1)`), by the
+  unread events fit and the 1025th reads `Lagged(1)`), by
+  `tests/interface_events_give_up_probe.rs`
+  (`a_client_that_gives_up_publishes_no_further_event`: a client with
+  `max_reconnect_tries` of one publishes two refused attempts and then
+  nothing; `a_client_stopped_while_waiting_to_redial_publishes_no_further_event`:
+  a `stop_interface` inside the redial wait publishes nothing), by the
   `InterfaceEvent` and publisher unit tests in `iface/events.rs`, and
   `request_layer_api_docs.rs` lists `interface_events`,
   `set_interface_events` and `publish_event` among the items whose rustdoc

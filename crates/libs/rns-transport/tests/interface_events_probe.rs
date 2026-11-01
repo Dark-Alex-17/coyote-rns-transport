@@ -71,24 +71,27 @@ async fn read_until_connected(
     }
 }
 
-/// Everything tagged with `iface` that arrives within `QUIET`; a closed stream ends the
-/// watch, since a stopped transport may drop its sender.
+/// Everything tagged with `iface` that arrives within `QUIET`.
 #[deny(clippy::await_holding_invalid_type)]
 async fn drain_quiet(
     events: &mut broadcast::Receiver<InterfaceEvent>,
     iface: AddressHash,
 ) -> Vec<InterfaceEventKind> {
     let mut seen = Vec::new();
-    let _ = timeout(QUIET, async {
-        loop {
-            match events.recv().await {
-                Ok(event) if event.iface() == iface => seen.push(event.kind()),
-                Ok(_) | Err(RecvError::Lagged(_)) => continue,
-                Err(RecvError::Closed) => return,
+    assert!(
+        timeout(QUIET, async {
+            loop {
+                match events.recv().await {
+                    Ok(event) if event.iface() == iface => seen.push(event.kind()),
+                    Ok(_) | Err(RecvError::Lagged(_)) => continue,
+                    Err(RecvError::Closed) => return,
+                }
             }
-        }
-    })
-    .await;
+        })
+        .await
+        .is_err(),
+        "the stream stayed open for the whole quiet window"
+    );
     seen
 }
 

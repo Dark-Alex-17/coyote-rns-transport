@@ -615,6 +615,7 @@ fn crate_readme_shared_instance_section_describes_interface_events() {
         "`InterfaceChannel::publish_event`",
         "`tests/interface_events_api.rs`",
         "`tests/interface_events_probe.rs`",
+        "`tests/interface_events_give_up_probe.rs`",
         "`iface_parts/interfacemanager_events.rs`",
         "`transport/core_parts/interface_events.rs`",
         "`TcpClient::new_from_stream`",

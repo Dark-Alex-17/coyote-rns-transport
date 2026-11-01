@@ -8,7 +8,21 @@ no library behaviour (a test-only change such as a fixture hardening or a
 test hygiene pass, release tooling, CI) is a Changed (or, for a deleted file,
 Removed) bullet of its own, marked as such.
 
-## Unreleased
+## 0.18.0 - 2026-11-01
+
+### Breaking
+
+- `SharedInstanceEvent` (`transport/shared_instance.rs`) now has data-carrying
+  variants, `DialFailed { reason: DialFailureKind }` and
+  `DisconnectedWithReason { reason: DisconnectReason }`, so an integer cast of
+  its unit variants (`SharedInstanceEvent::Connected as isize`) no longer
+  compiles; `cargo semver-checks` reports it as
+  `enum_discriminants_undefined_non_unit_variant`. The enum stays `Copy` and
+  `#[non_exhaustive]`. Migration: match on the variants (a wildcard arm is
+  already required by `#[non_exhaustive]`). Pinned by
+  `tests/dial_failure_reason_contract_probe.rs`, whose rustc harness rejects
+  the cast, and by `tests/dial_failure_events_api.rs` (the enum is still
+  `Copy`).
 
 ### Added
 
@@ -577,6 +591,19 @@ Removed) bullet of its own, marked as such.
 
 ### Changed
 
+- The crate version is `0.18.0`; the discovery announce carries it in the
+  `TRANSPORT_VERS` field (`discovery/announce.rs`). The bump is a minor one
+  under the README policy because the release breaks the public API in the
+  one way `### Breaking` lists and adds public API beside it. `cargo
+  semver-checks` against `v0.17.0` reports exactly one finding,
+  `enum_discriminants_undefined_non_unit_variant`, the break listed above,
+  and 0 others; the release check tolerates that one lint by name. The
+  release contracts are pinned by
+  `crates/apps/reticulumd/tests/fork_publish_contract.rs` and
+  `fork_release_docs_contract.rs`; its
+  `fork_release_docs_contract_parts/release_0_18_0_probe.rs` pins the heading
+  date, the `### Breaking` bullet and its `Migration:` clause, the semver
+  sentence above, the `### Fixed` subsection and the README patch-list order.
 - A request advertisement refused for exceeding the destination's
   `max_request_size` no longer warns on every refusal. The refusal is
   counted per link on `LinkStats.rejected_request_advertisements` by
@@ -698,14 +725,6 @@ Removed) bullet of its own, marked as such.
   `include!`'d shared-instance parts that failed `rustfmt --check`; one
   `assert_eq!` joins onto a single line and one `consumer.run` call wraps
   per argument, the token stream otherwise identical and no test changed.
-- `delivery::await_link_activation` (`delivery.rs`) treats a timeout the
-  clock cannot hold, `Duration::MAX` included, as waiting indefinitely
-  instead of panicking, as `Transport::await_path` already did. Pinned by
-  `tests/link_activation_deadline_api.rs`
-  (`max_timeout_waits_and_short_timeout_times_out`: a pending link on a
-  broadcasting transport with no interface outlives a one-second outer
-  bound under `Duration::MAX`, and a 100 ms timeout answers `TimedOut` at
-  its deadline).
 - No library behaviour change: `HdlcStreamExit` lives in `iface/events.rs`
   beside the reason it maps to, its join rule is `HdlcStreamExit::join`
   (pinned by three unit tests there),
@@ -740,6 +759,41 @@ Removed) bullet of its own, marked as such.
   scratch directory gains the thread-name component the other two
   compile-fail tests already had, and `resource/tests_split_metadata.rs`
   names `METADATA_LENGTH_PREFIX_LEN` instead of "3-byte".
+- Release docs contract, test-only: `fork_release_docs_contract.rs` includes
+  its tests from `fork_release_docs_contract_parts/`
+  (`crate_readme_sections.rs`, `readme_patch_list.rs`,
+  `release_0_17_0_probe.rs`, `release_0_17_0_probe2.rs`,
+  `release_0_17_0_probe3.rs`, `release_0_17_0_probe4.rs`,
+  `release_0_18_0_probe.rs`, `release_notes_breaking.rs` and
+  `request_layer_api_docs.rs`); the include-set pin reads the newest
+  release section that carries this bullet instead of the literal 0.17.0
+  section, with a fixture for the newest-first selection; the patch-list
+  pin opens on the 0.18.0 block and keeps the 0.17.0 block as a demoted
+  twin with its needles shared through a const, as the 0.16.0 block is;
+  and the label pins in `fork_publish_contract_parts/ledger_contract.rs`
+  read `0.18.0` first, with no `Unreleased` label, since a release tree
+  carries no stub.
+
+### Fixed
+
+- `Transport::await_path` (`links_parts/transport_sections/await_path.rs`),
+  and `Transport::resolve_destination` through it, treat a timeout the clock
+  cannot hold, `Duration::MAX` included, as waiting indefinitely instead of
+  panicking on the deadline add. Pinned by
+  `two_transport_resolve_destination_probe.rs` and
+  `tests/resolve_destination_deadline_api.rs` (`Duration::MAX` on both calls
+  outlives an outer one-second bound).
+- `delivery::await_link_activation` (`delivery.rs`) treats a timeout the
+  clock cannot hold, `Duration::MAX` included, as waiting indefinitely
+  instead of panicking, as `Transport::await_path` already did. Pinned by
+  `tests/link_activation_deadline_api.rs`
+  (`max_timeout_waits_and_short_timeout_times_out`: a pending link on a
+  broadcasting transport with no interface outlives a one-second outer
+  bound under `Duration::MAX`, and a 100 ms timeout answers `TimedOut` at
+  its deadline) and by `tests/link_activation_max_timeout_probe.rs`
+  (`max_timeout_resolves_when_the_link_activates`: a link that activates
+  over loopback TCP returns `Ok(())` under `Duration::MAX`, and a second
+  unbounded wait on the active link returns at once).
 
 ## 0.17.0 - 2026-10-27
 

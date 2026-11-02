@@ -362,7 +362,11 @@ impl TcpRuntimeStatusHandle {
     /// Fork-only: streams this client has established since it was
     /// spawned, the same count the transport reads through
     /// `Transport::interface_connect_count` for this interface; 0 until
-    /// the client is spawned and connects.
+    /// the client is spawned and connects. The count and the mutex-backed
+    /// status fields are read independently, and `mark_connected` runs
+    /// before the increment, so a `to_json()` taken while a connect is in
+    /// flight can show `stream_state` `connected` with the count one
+    /// behind.
     #[must_use]
     pub fn connected_streams(&self) -> u64 {
         self.connected_streams.load(std::sync::atomic::Ordering::Acquire)
@@ -1446,6 +1450,8 @@ impl TcpClient {
             // The channel's counter feeds the manager and the client's feeds
             // the status handle; both must move together, right before the
             // Connected event, so a reader of either sees the event's stream.
+            // The channel's moves first: a reader that saw the count through
+            // the handle finds the manager's copy already moved.
             channel_connected_streams.fetch_add(1, std::sync::atomic::Ordering::Release);
             connected_streams.fetch_add(1, std::sync::atomic::Ordering::Release);
             iface_events.publish(InterfaceEventKind::Connected);

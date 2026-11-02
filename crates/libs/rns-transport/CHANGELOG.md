@@ -16,9 +16,11 @@ Removed) bullet of its own, marked as such.
   (`transport/core_parts/interface_events.rs`) reads how many streams the
   stream client on an interface has established since it was spawned, every
   reconnect included: `Some(0)` for a client that has not connected yet,
-  `None` for an address the transport's interface manager did not mint (an
-  unknown address, or a channel built with `InterfaceChannel::new`, which
-  tests and serial drivers do). The count lives on `InterfaceChannel`
+  `None` once no record in the transport's interface manager carries the
+  address (never minted, built with `InterfaceChannel::new` as tests and
+  serial drivers do, or already stopped and pruned, so the read goes
+  `Some(n)` to `None` after `stop_interface`, `detach_shared_instance` or
+  `stop`). The count lives on `InterfaceChannel`
   (`iface_parts/txmessagetype.rs`), is shared with the manager's record
   (a virtual interface shares its host's count), and is read through
   `InterfaceManager::connected_streams(&address)`
@@ -28,13 +30,15 @@ Removed) bullet of its own, marked as such.
   subscriber of `interface_events()` that read a `Connected` reads at least
   that count, and a subscriber that compares two reads taken either side of
   a `RecvError::Lagged` learns whether a reconnect happened in between even
-  though the events were dropped. The shared instance's interface is
+  though the events were dropped. A client built from a pre-supplied stream
+  counts that stream too, though it publishes no `Connected` for it. The
+  shared instance's interface is
   `Transport::shared_instance()`. For a `TcpClient` the same count is also
   read through `TcpRuntimeStatusHandle::connected_streams()` and the new
   `"connected_streams"` key that `TcpClient::runtime_status_json()` and
   `TcpRuntimeStatusHandle::to_json()` merge into the status JSON;
-  `TcpRuntimeStatus` itself (the struct, `new`, the `mark_*` methods and its
-  `to_json`) is unchanged, so a consumer that constructs it still compiles.
+  `TcpRuntimeStatus` itself (its pub fields, `new` and `to_json`) is
+  unchanged, so a consumer that constructs it still compiles.
   `rnstatus-rs` shows the key as `connects=N` in its TCP summary. Python
   has no equivalent: its reconnect loop keeps only a per-burst local
   `attempts` and no count of established streams
@@ -49,7 +53,13 @@ Removed) bullet of its own, marked as such.
   `Some(2)` across a server-side drop; the unix client over a loopback
   `UnixListener` goes `Some(0)`, `Some(1)`, `Some(2)`; a manager reads
   `Some(0)` for a channel it minted and `None` for one built with
-  `InterfaceChannel::new`), by the `iface/tcp_client.rs` unit tests (a
+  `InterfaceChannel::new`), by `tests/interface_connect_count_probe.rs`
+  (a `TcpServer`'s accepted peer counts its pre-supplied stream on its own
+  record while the listening interface stays at `Some(0)`; a virtual
+  interface reads its host's count `Some(0)`, `Some(1)`, `Some(2)`; two
+  sibling clients keep separate counts; a stopped interface reads `None`
+  while a status handle that outlives it keeps the last count), by the
+  `iface/tcp_client.rs` unit tests (a
   client that never connected reads 0, a client built from a pre-supplied
   stream reads 1, a reconnect storm of N short streams reads N) and by
   the rns-tools `rnstatus_cli` test (`connects=5` in the TCP summary line

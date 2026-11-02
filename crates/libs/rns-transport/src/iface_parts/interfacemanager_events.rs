@@ -14,8 +14,9 @@ impl InterfaceManager {
 
     /// Fork-only: the number of streams the client on `address` has
     /// established since it was spawned; a virtual interface shares its
-    /// host's count. `None` for an address this manager did not mint,
-    /// including a channel built with `InterfaceChannel::new`.
+    /// host's count. `None` once no record here carries the address: never
+    /// minted, built with `InterfaceChannel::new`, or already stopped and
+    /// pruned.
     pub fn connected_streams(&self, address: &AddressHash) -> Option<u64> {
         self.ifaces
             .iter()

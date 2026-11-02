@@ -13,12 +13,12 @@ use serde_json::json;
 
 #[test]
 fn rnstatus_help_exposes_rpc_options() {
-    // clap styles the help text when CLICOLOR_FORCE or FORCE_COLOR is set in
-    // the caller's shell; the substring pins below need the plain rendering.
+    // clap styles the help text when CLICOLOR_FORCE is set in the caller's
+    // shell; NO_COLOR takes precedence over it and the substring pins below
+    // need the plain rendering.
     let output = Command::new(rnstatus_bin())
         .arg("--help")
         .env_remove("CLICOLOR_FORCE")
-        .env_remove("FORCE_COLOR")
         .env("NO_COLOR", "1")
         .output()
         .expect("run rnstatus-rs");

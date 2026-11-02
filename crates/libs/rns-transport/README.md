@@ -707,11 +707,14 @@ publishes the matching `Connected` on `interface_events()`, so a receiver
 that read a `Connected` reads at least that count, and a receiver that
 compares two reads taken either side of a `RecvError::Lagged` learns whether
 a reconnect happened in between even though the events themselves were
-dropped. The shared instance's interface is `Transport::shared_instance()`.
-`None` means the transport's interface manager did not mint the address: an
-unknown address, or a channel built with `InterfaceChannel::new` (tests,
-serial drivers), whose count no manager record sees; a virtual interface
-reads its host's count. Below the transport,
+dropped. A client built from a pre-supplied stream counts that stream too,
+though it publishes no `Connected` for it. The shared instance's interface
+is `Transport::shared_instance()`. `None` once no record in the transport's
+interface manager carries the address: never minted, built with
+`InterfaceChannel::new` (tests, serial drivers), or already stopped and
+pruned, so the read goes `Some(n)` to `None` after `stop_interface`,
+`detach_shared_instance` or `stop`; a virtual interface reads its host's
+count. Below the transport,
 `InterfaceManager::connected_streams(&address)` is the same read. For a
 `TcpClient` the same count is also read through
 `TcpRuntimeStatusHandle::connected_streams()` and the `"connected_streams"`

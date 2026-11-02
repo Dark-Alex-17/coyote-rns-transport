@@ -32,7 +32,8 @@ Every file changed since the `0.18.0` release and the patch each change
 belongs to. Patch ids: L1 is smoke ports, M1 is dial log, M2 is connect
 counter. The `smoke ports` patch is fork commits `3eeff0e7` and `91113899`.
 The `dial log` patch is fork commits `b42bb758`, `2f5f4456` and `e18dc0d9`.
-The `connect counter` patch is fork commits `f5364b3d` and `19e78108`.
+The `connect counter` patch is fork commits `f5364b3d`, `19e78108`,
+`bf3433a3` and `55bc9720`.
 
 | File | Patch |
 | --- | --- |
@@ -59,6 +60,7 @@ The `connect counter` patch is fork commits `f5364b3d` and `19e78108`.
 | `crates/libs/rns-transport/tests/dial_log_status_probe.rs` | dial log |
 | `crates/libs/rns-transport/tests/dial_log_text_probe.rs` | dial log |
 | `crates/libs/rns-transport/tests/interface_connect_count_api.rs` | connect counter |
+| `crates/libs/rns-transport/tests/interface_connect_count_probe.rs` | connect counter |
 | `docs/fork/PATCHSET.md` | smoke ports, dial log, connect counter |
 | `tools/scripts/python-lxmd-rust-lxmd-smoke.sh` | smoke ports |
 
@@ -177,7 +179,8 @@ endpoint yields, and ` (attempt N)`, for the TCP client against a closed
 loopback port and the unix client against a missing path, and pins the TCP
 `last_error` to that same text with no attempt suffix.
 
-Fork commits `f5364b3d`, `19e78108`: M2, connect counter.
+Fork commits `f5364b3d`, `19e78108`, `bf3433a3`, `55bc9720`: M2, connect
+counter.
 Nothing counted how many streams a stream client had established, so a
 watcher that fell behind on `interface_events()` and read
 `RecvError::Lagged` could not tell whether a reconnect had happened in the
@@ -193,9 +196,10 @@ already uses for the IFAC trio); the manager's record
 Reads: `InterfaceManager::connected_streams(&address) -> Option<u64>`
 (`src/iface_parts/interfacemanager_events.rs`) and
 `Transport::interface_connect_count(&iface) -> Option<u64>`
-(`src/transport/core_parts/interface_events.rs`), `None` for an address the
-manager did not mint, a channel built with `InterfaceChannel::new`
-included. `TcpRuntimeStatus` is an all-pub constructible struct, so it is
+(`src/transport/core_parts/interface_events.rs`), `None` once no manager
+record carries the address: never minted, built with
+`InterfaceChannel::new`, or already stopped and pruned.
+`TcpRuntimeStatus` is an all-pub constructible struct, so it is
 untouched; the TCP read hangs off `TcpClient` and `TcpRuntimeStatusHandle`
 instead, which carry a clone of the client's own counter that `spawn` bumps
 beside the channel's: `TcpRuntimeStatusHandle::connected_streams()` and a
@@ -218,8 +222,28 @@ the key (0 for a client that never connected, 1 for one built from a
 pre-supplied stream, N for a storm of N short streams), extends one
 `rnstatus_cli.rs` fixture with `connected_streams` and pins `connects=5`,
 and adopts `tests/dial_log_text_probe.rs` under the dial log patch. The
+same commit hardens `rnstatus_help_exposes_rpc_options` in
+`rnstatus_cli.rs`: it scrubs `CLICOLOR_FORCE` and sets `NO_COLOR=1` so
+clap renders plain help, because a shell that exports `CLICOLOR_FORCE=1`
+styles the text and the pre-existing substring pins fail under it. The
 crate CHANGELOG gains an `### Added` bullet and the README a paragraph
-after `interface_events()` and a Known divergences entry.
+after `interface_events()` and a Known divergences entry. `bf3433a3`
+adopts `tests/interface_connect_count_probe.rs`: a `TcpServer`'s accepted
+peer counts its pre-supplied stream on its own record while the listening
+interface stays at `Some(0)`; a virtual interface reads its host's count
+`Some(0)`, `Some(1)`, `Some(2)`; two sibling clients keep separate counts;
+a stopped interface reads `None` while a status handle that outlives it
+keeps the last count. `55bc9720` sharpens the prose: the rustdoc twins,
+the README paragraph and the CHANGELOG bullet state the `None` cases as
+above and that a pre-supplied-stream client counts its stream though it
+publishes no `Connected`; `TcpRuntimeStatusHandle::connected_streams`
+notes that the count and the mutex-backed fields are read independently,
+so a `to_json()` taken mid-connect can show `connected` with the count
+one behind; the comment at the two `fetch_add`s states the channel's
+counter moves first; the `rnstatus_cli.rs` help test names
+`CLICOLOR_FORCE` and `NO_COLOR` precedence and drops the inert
+`FORCE_COLOR` removal; the in-crate `rnstatus.rs` fixture pins
+`connects=5` like its integration twin.
 
 ## 0.18.0 (upstream 0.14.0)
 

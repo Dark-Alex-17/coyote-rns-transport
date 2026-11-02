@@ -31,7 +31,7 @@ per fork task.
 Every file changed since the `0.18.0` release and the patch each change
 belongs to. Patch ids: L1 is smoke ports, M1 is dial log. The `smoke ports`
 patch is fork commits `3eeff0e7` and `91113899`. The `dial log` patch is
-fork commits `b42bb758` and `2f5f4456`.
+fork commits `b42bb758`, `2f5f4456` and `e18dc0d9`.
 
 | File | Patch |
 | --- | --- |
@@ -40,6 +40,7 @@ fork commits `b42bb758` and `2f5f4456`.
 | `crates/apps/reticulumd/tests/fork_publish_contract_parts/lxmd_smoke_free_ports_probe.rs` | smoke ports |
 | `crates/apps/reticulumd/tests/fork_publish_contract_parts/lxmd_smoke_free_ports_probe2.rs` | smoke ports |
 | `crates/apps/reticulumd/tests/fork_publish_contract_parts/lxmd_smoke_free_ports_probe3.rs` | smoke ports |
+| `crates/apps/reticulumd/tests/fork_release_docs_contract_parts/crate_readme_sections.rs` | dial log |
 | `crates/libs/rns-transport/CHANGELOG.md` | dial log |
 | `crates/libs/rns-transport/README.md` | dial log |
 | `crates/libs/rns-transport/src/iface.rs` | dial log |
@@ -48,6 +49,7 @@ fork commits `b42bb758` and `2f5f4456`.
 | `crates/libs/rns-transport/src/iface/tcp_client.rs` | dial log |
 | `crates/libs/rns-transport/tests/dial_failure_events_api.rs` | dial log |
 | `crates/libs/rns-transport/tests/dial_log_cadence_probe.rs` | dial log |
+| `crates/libs/rns-transport/tests/dial_log_status_probe.rs` | dial log |
 | `docs/fork/PATCHSET.md` | smoke ports, dial log |
 | `tools/scripts/python-lxmd-rust-lxmd-smoke.sh` | smoke ports |
 
@@ -86,12 +88,13 @@ literal `free_loopback_ports 5)` once to requiring exactly one line that
 names the helper outside its definition, so a second call asking for another
 count fails the pin.
 
-Fork commits `b42bb758`, `2f5f4456`: M1, dial log.
+Fork commits `b42bb758`, `2f5f4456`, `e18dc0d9`: M1, dial log.
 The TCP and local unix clients used to warn on every failed connect
 attempt, one line per `reconnect_wait` for as long as the peer stayed down.
-The new `pub(crate) mod dial_log` (`crates/libs/rns-transport/src/iface/dial_log.rs`,
-declared in `src/iface.rs`) holds a `DialAttempts` counter and
-`DIAL_WARN_STRIDE` (30). `TcpClient::spawn` (`src/iface/tcp_client.rs`) and
+The new `pub(crate) mod dial_log`
+(`crates/libs/rns-transport/src/iface/dial_log.rs`, declared in
+`src/iface.rs`) holds a `DialAttempts` counter and `DIAL_WARN_STRIDE`
+(30). `TcpClient::spawn` (`src/iface/tcp_client.rs`) and
 `LocalUnixClient::spawn` (`src/iface/local.rs`) record each failed attempt
 on it and log the failed-connect line at the level it picks: warn on the
 first failed attempt since the last established stream, whenever the
@@ -139,6 +142,26 @@ and the CHANGELOG bullet (the once-a-minute figure holds for a peer that
 refuses at once; a dial that only times out adds the connect timeout to
 every cycle) and names both connect-line forms in the README's
 shared-instance paragraph.
+`e18dc0d9` pins the stride outside the unit tests and tightens two
+fixtures. `tests/dial_failure_events_api.rs` gains
+`tcp_client_warns_again_on_the_thirtieth_failed_attempt`, which drives 30
+refused TCP dials and asserts attempt 30 warns again with attempts 2 to 29
+at debug; the unix warns-once twin checks the unchanged prefix as the TCP
+twin does; and the kind-change fixture binds and drops its listener on a
+staging path and renames it into place, so a dial can no longer succeed
+into the listener's own bind-to-close window and clear the count.
+`crate_readme_sections.rs` of the reticulumd `fork_release_docs_contract`
+gains `dial_warn_stride_docs_name_the_source_literal`, which reads the
+`DIAL_WARN_STRIDE` literal from `dial_log.rs` and requires the README
+register row, the README shared-instance paragraph and the CHANGELOG bullet
+to name that stride, and the bullet and the rustdoc to name the 150 s
+cadence of the clients' 5 s default, which the same commit adds to the
+bullet beside the 2 s figure. `tests/dial_log_status_probe.rs` (adopted)
+reads the TCP runtime status after debug-level attempts, so
+`reconnect_attempts` and `last_error` are pinned to move on every attempt,
+and drives the `Timeout` arm against TEST-NET-1 through the same cadence
+and count. The cadence probe's check of the line after each warn is
+unconditional.
 
 ## 0.18.0 (upstream 0.14.0)
 

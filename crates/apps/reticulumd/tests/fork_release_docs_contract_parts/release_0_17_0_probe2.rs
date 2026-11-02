@@ -4,7 +4,8 @@
 // the release headings a consumer reads newest-first with ISO dates (a
 // non-digit `## ` heading such as an `## Unreleased` stub is skipped), and
 // the split of this contract into parts (every part file included exactly
-// once and named by the CHANGELOG bullet that announces the split).
+// once and named by the newest CHANGELOG bullet that describes the parts
+// directory).
 
 /// The rule says a bullet-less `### Breaking` MUST open with the additive
 /// sentence: prose placed before it is not an opening, however the sentence
@@ -181,12 +182,70 @@ fn changelog_release_headings_read_newest_first_with_iso_dates() {
     );
 }
 
+/// The prefix of the `### Changed` bullet a release writes when it touches
+/// the parts directory of this contract.
+const RELEASE_DOCS_CONTRACT_BULLET: &str = "- Release docs contract, test-only";
+
+/// The release-docs-contract bullet of the newest release section that has
+/// one, as `(version, bullet)` with the bullet whitespace-joined. Release
+/// sections are read in file order, newest first as
+/// `changelog_release_headings_read_newest_first_with_iso_dates` pins; a
+/// release that did not touch the parts directory writes no such bullet and
+/// is skipped, so the pin follows the newest description of the directory.
+fn newest_release_docs_contract_bullet(changelog: &str) -> (String, String) {
+    let headings = release_headings(changelog)
+        .unwrap_or_else(|reason| panic!("the CHANGELOG release headings should parse: {reason}"));
+    headings
+        .iter()
+        .find_map(|heading| {
+            let (major, minor, patch) = heading.version;
+            let version = format!("{major}.{minor}.{patch}");
+            let section = changelog_release_section(changelog, &version);
+            let bullets: Vec<String> = subsections(&section)
+                .into_iter()
+                .find(|(name, _)| *name == "Changed")
+                .map(|(_, body)| top_level_bullets(body))
+                .unwrap_or_default()
+                .into_iter()
+                .filter(|bullet| bullet.starts_with(RELEASE_DOCS_CONTRACT_BULLET))
+                .collect();
+            match bullets.as_slice() {
+                [] => None,
+                [bullet] => Some((version, joined_prose(bullet))),
+                _ => panic!("the {version} section should carry one release-docs-contract bullet"),
+            }
+        })
+        .expect("some release section should carry a release-docs-contract bullet")
+}
+
+/// The newest release without a release-docs-contract bullet is skipped in
+/// favour of the first older one that has it; a stub above them is not a
+/// release and is skipped too.
+#[test]
+fn newest_release_docs_contract_bullet_skips_releases_without_one() {
+    let only_older = "# Changelog\n\n## Unreleased\n\n### Changed\n\n\
+        - Release docs contract, test-only: a stub is not a release.\n\n\
+        ## 1.2.3 - 2026-01-02\n\n### Changed\n\n- Other.\n\n\
+        ## 1.2.2 - 2026-01-01\n\n### Changed\n\n\
+        - Release docs contract, test-only: `a.rs` and\n  `b.rs`.\n";
+    assert_eq!(
+        newest_release_docs_contract_bullet(only_older),
+        ("1.2.2".to_string(), "- Release docs contract, test-only: `a.rs` and `b.rs`.".to_string())
+    );
+
+    let newest_has_one = "# Changelog\n\n## 1.2.3 - 2026-01-02\n\n### Changed\n\n\
+        - Release docs contract, test-only: `c.rs`.\n\n\
+        ## 1.2.2 - 2026-01-01\n\n### Changed\n\n\
+        - Release docs contract, test-only: `a.rs`.\n";
+    assert_eq!(newest_release_docs_contract_bullet(newest_has_one).0, "1.2.3");
+}
+
 /// The docs contract keeps its helpers in the root and its tests in
 /// `fork_release_docs_contract_parts/`: every `.rs` file in that directory is
 /// `include!`d exactly once by the root (a part left out of the include list
 /// would drop its tests without a failure), nothing else is included from
-/// there, and the CHANGELOG bullet announcing the split names every part the
-/// release shipped.
+/// there, and the newest CHANGELOG release-docs-contract bullet names every
+/// part on disk, so a release that adds a part also describes the directory.
 #[test]
 fn every_release_docs_contract_part_is_included_once_and_named_by_the_changelog() {
     let root = read_repo_file("crates/apps/reticulumd/tests/fork_release_docs_contract.rs");
@@ -218,15 +277,11 @@ fn every_release_docs_contract_part_is_included_once_and_named_by_the_changelog(
     );
 
     let changelog = read_repo_file("crates/libs/rns-transport/CHANGELOG.md");
-    let section = changelog_release_section(&changelog, "0.17.0");
-    let bullet = joined_prose(&single_bullet_starting_with(
-        &subsection_bullets(&section, "Changed"),
-        "- Release docs contract, test-only",
-    ));
+    let (version, bullet) = newest_release_docs_contract_bullet(&changelog);
     for part in &on_disk {
         assert!(
             bullet.contains(&format!("`{part}`")),
-            "the release-docs-contract bullet should name the part `{part}`"
+            "the {version} release-docs-contract bullet should name the part `{part}`"
         );
     }
 }

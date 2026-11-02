@@ -3,6 +3,7 @@ use std::time::Duration;
 
 use tokio::sync::mpsc;
 
+use crate::iface::events::{DialFailureKind, DisconnectReason};
 #[cfg(unix)]
 use crate::iface::local::LocalUnixEndpoint;
 use crate::iface::InterfaceMode;
@@ -44,15 +45,40 @@ pub enum SharedInstanceEvent {
     /// included; the tunnel is synthesized on it next.
     Connected,
     /// Fork-only: an established stream ended while attached
-    /// (`RNS/Interfaces/LocalInterface.py:255-261` is the Python drop path);
+    /// (`RNS/Interfaces/LocalInterface.py:255-266` is the Python drop path);
     /// the flush, which runs only while the transport is still attached,
-    /// has run; [`Self::Connecting`] follows at once. A detach or
+    /// has run; [`Self::Connecting`] follows at once. An attach that opted
+    /// in with [`SharedInstanceOptions::with_disconnect_reasons`] reads
+    /// [`Self::DisconnectedWithReason`] in its place. A detach or
     /// [`Transport::stop`](crate::transport::Transport::stop) ends the
     /// stream without one: the sender is dropped instead, though a drop
     /// that was already queued when the detach landed is still served
-    /// and read as `Disconnected`, `Connecting` before the stream ends (a
-    /// connect already queued is read as `Connected`).
+    /// and read as `Disconnected`, `Connecting` (or `DisconnectedWithReason`
+    /// for an attach that opted in) before the stream ends (a connect
+    /// already queued is read as `Connected`).
     Disconnected,
+    /// Fork-only: one dial attempt by the client failed and `reason` says
+    /// why; the attach keeps dialing until the socket exists, so a client
+    /// attached while nothing listens sends one of these per attempt,
+    /// `reconnect_wait` apart, after its `Connecting`. Python's reconnect
+    /// loop logs the failure at debug (`RNS/Interfaces/LocalInterface.py:159-167`).
+    /// The enum carries data from this variant on, so a numeric cast of its
+    /// unit variants (`as isize`) no longer compiles; match on the variants,
+    /// as `#[non_exhaustive]` already asks. cargo-semver-checks reports the
+    /// change as `enum_discriminants_undefined_non_unit_variant`.
+    DialFailed { reason: DialFailureKind },
+    /// Fork-only, opt-in: [`Self::Disconnected`] with the reason the client
+    /// reported, sent in its place, at the same position in the cycle, when
+    /// the attach was given [`SharedInstanceOptions::with_disconnect_reasons`];
+    /// a caller that did not opt in keeps reading `Disconnected`. `reason`
+    /// is `PeerClosed` for an orderly close, `Reset` for a connection reset
+    /// (a reset observed first on the write side reads as `Io(BrokenPipe)`),
+    /// `Timeout` for a read or write that failed with `ErrorKind::TimedOut`
+    /// (the attach's clients run no read watchdog), `Io(kind)` for any other
+    /// io error. Python's
+    /// `LocalClientInterface` only notices the socket closed and reconnects
+    /// (`RNS/Interfaces/LocalInterface.py:255-266`).
+    DisconnectedWithReason { reason: DisconnectReason },
 }
 
 /// Options for
@@ -73,6 +99,8 @@ pub struct SharedInstanceOptions {
     forced_bitrate_bps: Option<u64>,
     interface_mode: InterfaceMode,
     state_events: Option<mpsc::Sender<SharedInstanceEvent>>,
+    first_connect_timeout: Option<Duration>,
+    disconnect_reasons: bool,
 }
 
 impl Default for SharedInstanceOptions {
@@ -84,6 +112,8 @@ impl Default for SharedInstanceOptions {
             forced_bitrate_bps: None,
             interface_mode: InterfaceMode::Full,
             state_events: None,
+            first_connect_timeout: None,
+            disconnect_reasons: false,
         }
     }
 }
@@ -150,13 +180,18 @@ impl SharedInstanceOptions {
     }
 
     /// Fork-only: delivers the client's [`SharedInstanceEvent`]s on `events`.
-    /// Each cycle is `Disconnected`, `Connecting`, `Connected` in that order,
+    /// Each cycle is `Disconnected`, `Connecting`, `Connected` in that order
+    /// (`DisconnectedWithReason { reason }` in place of `Disconnected` for an
+    /// attach that opted in with [`Self::with_disconnect_reasons`]),
     /// after the attach's own `Connecting`, sent with the connected posture
     /// already set when `Connecting` arrives while the slot still holds the
     /// interface (a refused attach sends nothing; in the documented
     /// attach/stop race the attach returns `Ok` and `Connecting` goes out
     /// with the posture off, the stream ending at once), and the first
-    /// `Connected`. Every event is sent with `try_send`: a full channel
+    /// `Connected`. While nothing answers, [`SharedInstanceEvent::DialFailed`]
+    /// interleaves after `Connecting`, one per attempt, `reconnect_wait`
+    /// apart, until a connect is served or the attach ends.
+    /// Every event is sent with `try_send`: a full channel
     /// drops the event at debug and never blocks the consumer, so size the
     /// channel for the burst expected. Under a reconnect storm the cycles
     /// can interleave: queued disconnects are served before connects, so
@@ -169,8 +204,9 @@ impl SharedInstanceOptions {
     /// retained `SharedInstanceOptions` clone included, is alive. A detach
     /// or a stop sends no `Disconnected`, but a drop that was already
     /// queued when the detach landed is still served and read as
-    /// `Disconnected`, `Connecting` before the stream ends (a connect
-    /// already queued is read as `Connected`). The posture flag
+    /// `Disconnected`, `Connecting` (or `DisconnectedWithReason` for an
+    /// attach that opted in) before the stream ends (a connect already
+    /// queued is read as `Connected`). The posture flag
     /// [`Transport::connected_to_shared_instance`](crate::transport::Transport::connected_to_shared_instance)
     /// is unchanged by these events: it stays set across a `Disconnected`
     /// until detach or stop. Python's `LocalClientInterface` exposes no
@@ -178,6 +214,35 @@ impl SharedInstanceOptions {
     #[must_use]
     pub fn with_state_events(mut self, events: mpsc::Sender<SharedInstanceEvent>) -> Self {
         self.state_events = Some(events);
+        self
+    }
+
+    /// Fork-only, opt-in: makes
+    /// [`Transport::attach_shared_instance`](crate::transport::Transport::attach_shared_instance)
+    /// wait up to `timeout` for the first served connect; without one it
+    /// detaches again, as it does when the attach's consumer ends first (a
+    /// stop, detach or `stop_interface` during the wait), and returns
+    /// [`RnsError::SharedInstanceConnectTimeout`](crate::error::RnsError::SharedInstanceConnectTimeout),
+    /// the state stream reading `Connecting`, zero or more
+    /// [`SharedInstanceEvent::DialFailed`], and then ending. A connect that
+    /// lands between the timeout and the detach may still be read as
+    /// `Connected` before the stream ends. By default the attach returns
+    /// as soon as the client is spawned, as Python's `LocalClientInterface`
+    /// keeps dialing in the background
+    /// (`RNS/Interfaces/LocalInterface.py:159-167`).
+    #[must_use]
+    pub fn with_first_connect_timeout(mut self, timeout: Duration) -> Self {
+        self.first_connect_timeout = Some(timeout);
+        self
+    }
+
+    /// Fork-only, opt-in: have the state stream of [`Self::with_state_events`]
+    /// carry [`SharedInstanceEvent::DisconnectedWithReason`] in place of
+    /// `Disconnected`; the rest of the stream is unchanged. Off by default,
+    /// so a caller that matches on `Disconnected` keeps reading it.
+    #[must_use]
+    pub fn with_disconnect_reasons(mut self, enabled: bool) -> Self {
+        self.disconnect_reasons = enabled;
         self
     }
 
@@ -211,5 +276,16 @@ impl SharedInstanceOptions {
     /// Fork-only: the state-event sender set with [`Self::with_state_events`], if any.
     pub(crate) fn state_events(&self) -> Option<&mpsc::Sender<SharedInstanceEvent>> {
         self.state_events.as_ref()
+    }
+
+    /// Fork-only: the first-connect timeout set with [`Self::with_first_connect_timeout`], if any.
+    pub(crate) fn first_connect_timeout(&self) -> Option<Duration> {
+        self.first_connect_timeout
+    }
+
+    /// Fork-only: whether the state stream carries `DisconnectedWithReason`
+    /// in place of `Disconnected`, set with [`Self::with_disconnect_reasons`].
+    pub(crate) fn disconnect_reasons(&self) -> bool {
+        self.disconnect_reasons
     }
 }

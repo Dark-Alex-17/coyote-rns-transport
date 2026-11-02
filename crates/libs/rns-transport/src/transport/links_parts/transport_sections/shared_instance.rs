@@ -26,6 +26,16 @@ impl Transport {
     /// sends [`SharedInstanceEvent::Connecting`] once and that task sends
     /// the events of every connection cycle after it; the stream ends when
     /// the task does and no other sender clone is alive.
+    /// With [`SharedInstanceOptions::with_first_connect_timeout`] set, the
+    /// attach also waits that long for the first served connect, before the
+    /// tunnel is synthesized; without one, or when the attach's consumer
+    /// ends first (a stop, detach or `stop_interface` during the wait), it
+    /// detaches again and returns [`RnsError::SharedInstanceConnectTimeout`],
+    /// the stream reading `Connecting`, zero or more
+    /// [`SharedInstanceEvent::DialFailed`], and then ending (a connect
+    /// landing between the timeout and the detach may still be read as
+    /// `Connected` before the stream ends). That detach releases the slot
+    /// only while it still holds this attach's interface.
     /// Python also forces transport, remote management and probes off when it
     /// attaches (`RNS/Reticulum.py:438-440`); this method leaves
     /// `transport_enabled` as configured, since the crate supports a
@@ -88,6 +98,7 @@ impl Transport {
         let (reconnect_tx, reconnect_rx) = tokio::sync::mpsc::channel(8);
         let (disconnect_tx, disconnect_rx) = tokio::sync::mpsc::channel(8);
         let (connect_tx, connect_rx) = tokio::sync::mpsc::channel(8);
+        let (dial_failure_tx, dial_failure_rx) = tokio::sync::mpsc::channel(8);
         // Lock order: the std slot is innermost, under the iface_manager here
         // and under the handler below as in detach and stop; the two tokio
         // locks are never nested. The second section re-reads the slot since
@@ -105,7 +116,8 @@ impl Transport {
                         .with_reconnect_wait(options.reconnect_wait())
                         .with_connect_events(connect_tx)
                         .with_reconnect_events(reconnect_tx)
-                        .with_disconnect_events(disconnect_tx);
+                        .with_disconnect_reason_events(disconnect_tx)
+                        .with_dial_failure_events(dial_failure_tx);
                     if let Some(mtu) = options.mtu() {
                         client = client.with_mtu(mtu);
                     }
@@ -125,7 +137,8 @@ impl Transport {
                         .with_reconnect_wait(options.reconnect_wait())
                         .with_connect_events(connect_tx)
                         .with_reconnect_events(reconnect_tx)
-                        .with_disconnect_events(disconnect_tx);
+                        .with_disconnect_reason_events(disconnect_tx)
+                        .with_dial_failure_events(dial_failure_tx);
                     if let Some(mtu) = options.mtu() {
                         client = client.with_mtu(mtu);
                     }
@@ -172,14 +185,51 @@ impl Transport {
             options.state_events(),
             SharedInstanceEvent::Connecting,
         );
+        let (first_connect_tx, first_connect_rx) =
+            options.first_connect_timeout().map(|_| tokio::sync::oneshot::channel()).unzip();
         self.spawn_shared_instance_reconnect_consumer(
             iface,
             options.reconnect_wait(),
-            reconnect_rx,
-            connect_rx,
-            disconnect_rx,
+            options.disconnect_reasons(),
+            SharedInstanceClientEvents {
+                reconnects: reconnect_rx,
+                connects: connect_rx,
+                disconnects: disconnect_rx,
+                dial_failures: dial_failure_rx,
+            },
             options.state_events().cloned(),
+            first_connect_tx,
         );
+        if let (Some(first_connect_timeout), Some(first_connect)) =
+            (options.first_connect_timeout(), first_connect_rx)
+        {
+            match tokio::time::timeout(first_connect_timeout, first_connect).await {
+                Ok(Ok(())) => {}
+                Err(_elapsed) => {
+                    let detached = self.detach_shared_instance_if(iface).await;
+                    log::warn!(
+                        "tp({}): shared instance iface={} kind={} did not connect within {:?}, detached={}",
+                        self.name,
+                        iface,
+                        kind,
+                        first_connect_timeout,
+                        detached
+                    );
+                    return Err(RnsError::SharedInstanceConnectTimeout);
+                }
+                Ok(Err(_)) => {
+                    let detached = self.detach_shared_instance_if(iface).await;
+                    log::debug!(
+                        "tp({}): shared instance iface={} kind={} consumer ended before the first connect, detached={}",
+                        self.name,
+                        iface,
+                        kind,
+                        detached
+                    );
+                    return Err(RnsError::SharedInstanceConnectTimeout);
+                }
+            }
+        }
         if !self.synthesize_tunnel_on_interface(iface).await {
             log::debug!(
                 "tp({}): shared instance iface={} removed by a detach, stop or stop_interface that raced the attach, tunnel not synthesized",
@@ -215,6 +265,38 @@ impl Transport {
         let Some(iface) = iface else {
             return false;
         };
+        self.release_shared_instance(iface).await;
+        true
+    }
+
+    /// Detaches like [`Self::detach_shared_instance`] but only while the
+    /// slot still holds `iface`, so an attach that gave up waiting for its
+    /// first connect cannot tear down a later attach that replaced it in
+    /// the meantime. Returns `false` when the slot held something else.
+    #[deny(clippy::await_holding_invalid_type)]
+    async fn detach_shared_instance_if(&self, iface: AddressHash) -> bool {
+        let taken = {
+            let mut handler = self.handler.lock().await;
+            let mut slot =
+                self.shared_instance.lock().unwrap_or_else(|poisoned| poisoned.into_inner());
+            let taken = *slot == Some(iface);
+            if taken {
+                *slot = None;
+                handler.config.set_connected_to_shared_instance(false);
+            }
+            taken
+        };
+        if !taken {
+            return false;
+        }
+        self.release_shared_instance(iface).await;
+        true
+    }
+
+    /// The tail both detach forms share once the slot has been taken:
+    /// unflags the interface and stops it.
+    #[deny(clippy::await_holding_invalid_type)]
+    async fn release_shared_instance(&self, iface: AddressHash) {
         let unflagged = { self.iface_manager.lock().await.set_shared_instance(iface, false) };
         let stopped = self.stop_interface(iface).await;
         if !(unflagged && stopped) {
@@ -227,7 +309,6 @@ impl Transport {
             );
         }
         log::debug!("tp({}): detached shared instance iface={}", self.name, iface);
-        true
     }
 
     /// [`Self::stop`] took the slot with `iface` still in it; logged from

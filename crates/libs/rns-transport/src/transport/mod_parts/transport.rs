@@ -5,6 +5,7 @@ pub struct Transport {
     received_data_tx: broadcast::Sender<ReceivedData>,
     iface_messages_tx: broadcast::Sender<RxMessage>,
     resource_events_tx: broadcast::Sender<ResourceEvent>,
+    interface_events_tx: broadcast::Sender<InterfaceEvent>,
     handler: Arc<Mutex<TransportHandler>>,
     iface_manager: Arc<Mutex<InterfaceManager>>,
     cancel: CancellationToken,

@@ -1,4 +1,4 @@
-use tokio::sync::mpsc;
+use tokio::sync::{mpsc, oneshot};
 use tokio::task::JoinSet;
 
 /// Python's shared-instance client re-announces `RECONNECT_WAIT + 2` seconds
@@ -7,17 +7,20 @@ use tokio::task::JoinSet;
 const SHARED_INSTANCE_REAPPEARED_ANNOUNCE_GRACE: Duration = Duration::from_secs(2);
 
 impl Transport {
-    /// Spawns the task that reacts to the attached client's reconnect,
-    /// connect and disconnect events and forwards the attach's state
-    /// events on `state_events`; see [`SharedInstanceReconnectConsumer::run`].
+    /// Spawns the task that reacts to the attached client's events and
+    /// forwards the attach's state events on `state_events`;
+    /// `first_connect` fires once, on the first connect served;
+    /// `disconnect_reasons` is the attach's
+    /// [`SharedInstanceOptions::with_disconnect_reasons`]; see
+    /// [`SharedInstanceReconnectConsumer::run`].
     fn spawn_shared_instance_reconnect_consumer(
         &self,
         iface: AddressHash,
         reconnect_wait: Duration,
-        reconnects: mpsc::Receiver<AddressHash>,
-        connects: mpsc::Receiver<AddressHash>,
-        disconnects: mpsc::Receiver<AddressHash>,
+        disconnect_reasons: bool,
+        events: SharedInstanceClientEvents,
         state_events: Option<mpsc::Sender<SharedInstanceEvent>>,
+        first_connect: Option<oneshot::Sender<()>>,
     ) {
         let consumer = SharedInstanceReconnectConsumer {
             handler: self.handler.clone(),
@@ -27,13 +30,31 @@ impl Transport {
             tasks: self.shared_instance_tasks.clone(),
             iface,
             reconnect_wait,
+            disconnect_reasons,
         };
+        let SharedInstanceClientEvents { reconnects, connects, disconnects, dial_failures } =
+            events;
         spawn_shared_instance_task(
             &self.shared_instance_tasks,
             &self.name,
-            consumer.run(reconnects, connects, disconnects, state_events),
+            consumer.run(
+                reconnects,
+                connects,
+                disconnects,
+                dial_failures,
+                state_events,
+                first_connect,
+            ),
         );
     }
+}
+
+/// The receiving ends of the four event channels the attach hands its client.
+struct SharedInstanceClientEvents {
+    reconnects: mpsc::Receiver<AddressHash>,
+    connects: mpsc::Receiver<AddressHash>,
+    disconnects: mpsc::Receiver<(AddressHash, DisconnectReason)>,
+    dial_failures: mpsc::Receiver<DialFailure>,
 }
 
 /// Spawns `future` into the transport's shared-instance task set, the set
@@ -111,13 +132,16 @@ pub(super) struct SharedInstanceReconnectConsumer {
     pub(super) tasks: Arc<std::sync::Mutex<JoinSet<()>>>,
     pub(super) iface: AddressHash,
     pub(super) reconnect_wait: Duration,
+    /// Whether `serve_disconnected` sends `DisconnectedWithReason` in place
+    /// of `Disconnected`.
+    pub(super) disconnect_reasons: bool,
 }
 
 impl SharedInstanceReconnectConsumer {
     /// Serves the client's events until the transport is cancelled or the
-    /// client worker exits. All three senders belong to that one worker and drop
+    /// client worker exits. All four senders belong to that one worker and drop
     /// with it, after a detach, `stop_interface` or `stop`, so the first
-    /// closed channel ends the task, once the disconnects and connects still
+    /// closed channel ends the task, once the disconnects, connects and dial failures still
     /// queued have been served in that order, each as the live arm serves
     /// it. Queued reconnects are not served then: the worker is gone, so the
     /// tunnel re-synthesis has no stream to ride, and the re-announce is
@@ -128,7 +152,8 @@ impl SharedInstanceReconnectConsumer {
     /// are `mpsc::channel(8)` and the worker emits each cycle's disconnect
     /// before its connect and reconnect from one task, each with
     /// `try_send`; this loop is biased so every queued disconnect is served
-    /// before any connect, and every connect before any reconnect. So a disconnect
+    /// before any connect, every connect before any reconnect, and every
+    /// reconnect before any dial failure. So a disconnect
     /// can never be dropped while its reconnect lands: at each disconnect
     /// send the disconnect queue is no longer than the reconnect queue, so
     /// the reconnect channel fills first and the realistic loss under a
@@ -141,24 +166,33 @@ impl SharedInstanceReconnectConsumer {
     /// `Connected` goes with its reconnect, and the next cycle's connect
     /// heals the stream the same way. A per-cycle sequence number that
     /// would let the consumer detect a lost reconnect outright would
-    /// change the public `Sender<AddressHash>` payload and is deferred.
+    /// change the public payloads (the plain `with_disconnect_events` and
+    /// `with_connect_events` senders stay `Sender<AddressHash>`) and is
+    /// deferred.
     ///
     /// `state_events` is the attach's stream: a served disconnect sends
-    /// `Disconnected` then `Connecting` after the drop is served; the flush
-    /// itself runs only while the transport is still attached. A served
-    /// connect sends `Connected`; each event goes with `try_send`. The
+    /// `Disconnected`, or `DisconnectedWithReason` with the reason the
+    /// client reported when `disconnect_reasons` is set, then `Connecting`
+    /// after the drop is served; the flush itself runs only while the
+    /// transport is still attached. A served connect sends `Connected` and,
+    /// the first time, fires `first_connect`; a served dial failure sends
+    /// `DialFailed` with its kind. Each event goes with `try_send`. The
     /// sender is a parameter rather than a field so it drops when this task
     /// returns: the re-announce task clones `self` and outlives a detach by
     /// `reconnect_wait` plus the grace, and must not hold the stream open.
     /// The attach sends the first `Connecting` itself, before this task is
-    /// spawned.
+    /// spawned. A dial failure sits behind the reconnect in the bias since
+    /// the worker emits one only when it has nothing else to say about that
+    /// attempt.
     #[deny(clippy::await_holding_invalid_type)]
     pub(super) async fn run(
         self,
         mut reconnects: mpsc::Receiver<AddressHash>,
         mut connects: mpsc::Receiver<AddressHash>,
-        mut disconnects: mpsc::Receiver<AddressHash>,
+        mut disconnects: mpsc::Receiver<(AddressHash, DisconnectReason)>,
+        mut dial_failures: mpsc::Receiver<DialFailure>,
         state_events: Option<mpsc::Sender<SharedInstanceEvent>>,
+        mut first_connect: Option<oneshot::Sender<()>>,
     ) {
         loop {
             // Biased so a disconnect is never overtaken by the reconnect
@@ -168,16 +202,16 @@ impl SharedInstanceReconnectConsumer {
                 biased;
                 _ = self.cancel.cancelled() => return,
                 disconnected = disconnects.recv() => {
-                    if disconnected.is_none() {
+                    let Some((_, reason)) = disconnected else {
                         break;
-                    }
-                    self.serve_disconnected(state_events.as_ref()).await;
+                    };
+                    self.serve_disconnected(state_events.as_ref(), reason).await;
                 }
                 connected = connects.recv() => {
                     if connected.is_none() {
                         break;
                     }
-                    self.send_state_event(state_events.as_ref(), SharedInstanceEvent::Connected);
+                    self.serve_connected(state_events.as_ref(), &mut first_connect);
                 }
                 reconnected = reconnects.recv() => {
                     if reconnected.is_none() {
@@ -185,47 +219,58 @@ impl SharedInstanceReconnectConsumer {
                     }
                     self.on_reconnected().await;
                 }
+                failed = dial_failures.recv() => {
+                    let Some(failed) = failed else {
+                        break;
+                    };
+                    self.serve_dial_failed(state_events.as_ref(), failed);
+                }
             }
         }
-        self.drain_queued(&mut disconnects, &mut connects, state_events.as_ref()).await;
+        self.drain_queued(
+            &mut disconnects,
+            &mut connects,
+            &mut dial_failures,
+            state_events.as_ref(),
+            &mut first_connect,
+        )
+        .await;
     }
 
-    /// Serves what the exited worker left queued, every disconnect then
-    /// every connect, the order the live arms keep; see [`Self::run`] for
-    /// why the reconnects are left, and logs the counts at debug when it
-    /// served anything.
-    #[deny(clippy::await_holding_invalid_type)]
-    async fn drain_queued(
+    fn serve_connected(
         &self,
-        disconnects: &mut mpsc::Receiver<AddressHash>,
-        connects: &mut mpsc::Receiver<AddressHash>,
         state_events: Option<&mpsc::Sender<SharedInstanceEvent>>,
+        first_connect: &mut Option<oneshot::Sender<()>>,
     ) {
-        let mut disconnects_served = 0usize;
-        while disconnects.try_recv().is_ok() {
-            self.serve_disconnected(state_events).await;
-            disconnects_served += 1;
-        }
-        let mut connects_served = 0usize;
-        while connects.try_recv().is_ok() {
-            self.send_state_event(state_events, SharedInstanceEvent::Connected);
-            connects_served += 1;
-        }
-        if disconnects_served + connects_served > 0 {
-            log::debug!(
-                "tp({}): shared instance iface={} drained {} disconnect(s), {} connect(s) after the worker exited",
-                self.name,
-                self.iface,
-                disconnects_served,
-                connects_served
-            );
+        self.send_state_event(state_events, SharedInstanceEvent::Connected);
+        if let Some(notify) = first_connect.take() {
+            if notify.send(()).is_err() {
+                log::debug!(
+                    "tp({}): shared instance iface={} connected after the attach stopped waiting",
+                    self.name,
+                    self.iface
+                );
+            }
         }
     }
 
+    fn serve_dial_failed(
+        &self,
+        state_events: Option<&mpsc::Sender<SharedInstanceEvent>>,
+        failed: DialFailure,
+    ) {
+        let event = SharedInstanceEvent::DialFailed { reason: failed.kind() };
+        self.send_state_event(state_events, event);
+    }
+
     #[deny(clippy::await_holding_invalid_type)]
-    async fn serve_disconnected(&self, state_events: Option<&mpsc::Sender<SharedInstanceEvent>>) {
+    async fn serve_disconnected(
+        &self,
+        state_events: Option<&mpsc::Sender<SharedInstanceEvent>>,
+        reason: DisconnectReason,
+    ) {
         self.on_disconnected().await;
-        self.send_state_event(state_events, SharedInstanceEvent::Disconnected);
+        self.send_state_event(state_events, self.disconnected_event(reason));
         self.send_state_event(state_events, SharedInstanceEvent::Connecting);
     }
 
@@ -309,7 +354,7 @@ impl SharedInstanceReconnectConsumer {
 
     /// `shared_connection_disappeared` (`RNS/Transport.py:3690-3702`), run
     /// only while attached as Python's `receive` does
-    /// (`RNS/Interfaces/LocalInterface.py:255-261`): every active and
+    /// (`RNS/Interfaces/LocalInterface.py:255-266`): every active and
     /// pending link is torn down as `Link.teardown` does
     /// (`RNS/Transport.py:3692`, `:3695`, `RNS/Link.py:657-668`): a
     /// LINKCLOSE packet goes to the peer of each link past `Pending` on the
@@ -428,3 +473,6 @@ impl SharedInstanceReconnectConsumer {
 fn drain_links(links: &mut HashMap<AddressHash, Arc<Mutex<Link>>>) -> Vec<Arc<Mutex<Link>>> {
     links.drain().map(|(_, link)| link).collect()
 }
+
+include!("shared_instance_reconnect_parts/drain_queued.rs");
+include!("shared_instance_reconnect_parts/disconnected_event.rs");

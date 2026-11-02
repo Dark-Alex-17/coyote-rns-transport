@@ -69,6 +69,9 @@ include!("tests_parts/packet_hashlist_flush.rs");
 include!("tests_parts/packet_hashlist_flush_probe.rs");
 include!("tests_parts/packet_hashlist_flush_probe2.rs");
 include!("tests_parts/resource_advert_reject_warn_cadence.rs");
+include!("tests_parts/request_advert_reject_warn_cadence.rs");
+include!("tests_parts/request_advert_reject_warn_cadence_probe.rs");
+include!("tests_parts/request_advert_reject_warn_cadence_probe2.rs");
 include!("tests_parts/accepted_child_ifac_rotation.rs");
 
 include!("tests_parts/reticulum_runtime_management.rs");
@@ -119,6 +122,12 @@ include!("tests_parts/two_transport_loopback_requests_outcome.rs");
 include!("tests_parts/two_transport_loopback_requests_outcome_probe.rs");
 include!("tests_parts/two_transport_loopback_requests_outcome_probe2.rs");
 include!("tests_parts/two_transport_loopback_requests_outcome_probe3.rs");
+include!("tests_parts/two_transport_loopback_requests_into_parts.rs");
+include!("tests_parts/two_transport_loopback_requests_response_cap.rs");
+include!("tests_parts/two_transport_loopback_requests_response_cap_probe.rs");
+include!("tests_parts/two_transport_loopback_requests_response_cap_probe2.rs");
+include!("tests_parts/two_transport_loopback_requests_response_cap_probe3.rs");
+include!("tests_parts/two_transport_loopback_requests_response_cap_probe4.rs");
 
 include!("tests_parts/two_transport_loopback_requests_routing.rs");
 
@@ -204,11 +213,18 @@ include!("tests_parts/two_transport_loopback_link_packet_proven_probe2.rs");
 
 include!("tests_parts/two_transport_loopback_link_packet_proven_probe3.rs");
 
+include!("tests_parts/two_transport_loopback_link_proof_strategy.rs");
+
+include!("tests_parts/two_transport_loopback_link_proof_strategy_probe.rs");
+
 include!("tests_parts/two_transport_loopback_resources_outcome.rs");
 
 include!("tests_parts/link_no_path_fast_fail.rs");
 
 include!("tests_parts/two_transport_loopback_announce_path_response.rs");
+include!("tests_parts/two_transport_resolve_destination.rs");
+include!("tests_parts/two_transport_resolve_destination_probe.rs");
+include!("tests_parts/two_transport_resolve_destination_probe2.rs");
 
 include!("tests_parts/two_transport_destination_desc.rs");
 include!("tests_parts/two_transport_destination_desc_probe.rs");
@@ -280,7 +296,10 @@ include!("tests_parts/two_transport_shared_instance_probe17.rs");
 include!("tests_parts/two_transport_shared_instance_probe17_unix.rs");
 
 include!("tests_parts/two_transport_shared_instance_state_events.rs");
+include!("tests_parts/two_transport_shared_instance_state_events_spec.rs");
 include!("tests_parts/two_transport_shared_instance_state_events_probe.rs");
 include!("tests_parts/two_transport_shared_instance_state_events_probe2.rs");
 include!("tests_parts/two_transport_shared_instance_state_events_probe3.rs");
 include!("tests_parts/two_transport_shared_instance_state_events_probe4.rs");
+include!("tests_parts/two_transport_shared_instance_dial_failures.rs");
+include!("tests_parts/two_transport_shared_instance_disconnect_reasons.rs");

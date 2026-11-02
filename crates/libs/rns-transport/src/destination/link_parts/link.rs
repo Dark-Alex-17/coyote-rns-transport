@@ -1,4 +1,5 @@
 include!("link_sections/new.rs");
+include!("link_sections/proof_strategy.rs");
 include!("link_sections/establishment.rs");
 include!("link_sections/handle_proof_packet.rs");
 include!("link_sections/remove_channel_handler.rs");
@@ -16,3 +17,4 @@ include!("link_sections/pending_requests_resolve_tests.rs");
 include!("link_sections/response_packet_tests.rs");
 include!("link_sections/response_record_tests.rs");
 include!("link_sections/data_proof_tests.rs");
+include!("link_sections/proof_strategy_tests.rs");

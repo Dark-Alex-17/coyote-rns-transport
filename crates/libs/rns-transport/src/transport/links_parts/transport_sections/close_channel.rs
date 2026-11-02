@@ -192,26 +192,6 @@ impl Transport {
         self.handler.lock().await.path_table.get(address).is_some()
     }
 
-    pub async fn await_path(
-        &self,
-        destination: &AddressHash,
-        timeout: Duration,
-        on_iface: Option<AddressHash>,
-    ) -> bool {
-        if self.has_path(destination).await {
-            return true;
-        }
-        self.request_path(destination, on_iface, None).await;
-        let deadline = tokio::time::Instant::now() + timeout;
-        while tokio::time::Instant::now() < deadline {
-            tokio::time::sleep(Duration::from_millis(50)).await;
-            if self.has_path(destination).await {
-                return true;
-            }
-        }
-        self.has_path(destination).await
-    }
-
     pub async fn hops_to(&self, destination: &AddressHash) -> u8 {
         self.handler.lock().await.path_table.hops_to(destination)
     }

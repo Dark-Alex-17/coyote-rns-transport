@@ -9,12 +9,14 @@ impl Destination<PrivateIdentity, Input, Single> {
             identity,
             desc: DestinationDesc { identity: pub_identity, name, address_hash },
             max_request_size: None,
+            max_response_size: None,
             request_handlers: HashMap::new(),
             ratchet_state: RatchetState::default(),
             path_responses: BTreeMap::new(),
             path_response_queue: VecDeque::new(),
             proof_strategy: ProofStrategy::default(),
             proof_requested_callback: None,
+            link_proof_strategy: ProofStrategy::All,
         }
     }
 
@@ -32,6 +34,28 @@ impl Destination<PrivateIdentity, Input, Single> {
     /// the reentrancy/blocking constraints this callback must honor.
     pub fn set_proof_requested_callback(&mut self, handler: Box<dyn ProofRequestedHandler>) {
         self.proof_requested_callback = Some(Arc::from(handler));
+    }
+
+    /// Sets the `ProofStrategy` copied onto every link this destination
+    /// accepts, together with its `proof_requested_callback`, which the
+    /// opportunistic path shares. Defaults to `All`, so a link keeps proving
+    /// every plain Data packet unless this is set, while `proof_strategy`
+    /// defaults to `None`. Fork-only: Python has one `proof_strategy` per
+    /// destination that governs both the opportunistic packet
+    /// (`RNS/Destination.py:360-367`) and the packets of its links
+    /// (`RNS/Link.py:961-968`).
+    pub fn set_link_proof_strategy(&mut self, strategy: ProofStrategy) {
+        self.link_proof_strategy = strategy;
+    }
+
+    /// The strategy a link accepted from now on starts with; see
+    /// [`Self::set_link_proof_strategy`]. A link already accepted keeps the
+    /// strategy and the callback it was given; `Link::set_proof_strategy` and
+    /// `Link::set_proof_requested_callback` change them afterwards. Fork-only:
+    /// Python's link reads the destination's one `proof_strategy` and callback
+    /// live per packet (`RNS/Link.py:961-968`).
+    pub fn link_proof_strategy(&self) -> ProofStrategy {
+        self.link_proof_strategy
     }
 
     pub fn enable_ratchets<P: AsRef<Path>>(&mut self, path: P) -> Result<(), RnsError> {
@@ -76,6 +100,44 @@ impl Destination<PrivateIdentity, Input, Single> {
     /// Return the configured packed request-size limit, if any.
     pub fn max_request_size(&self) -> Option<usize> {
         self.max_request_size
+    }
+
+    /// Set the maximum response size this destination will send. The cap
+    /// covers the responses the dispatcher sends for this destination's
+    /// registered handlers; `Transport::send_response` and
+    /// `Transport::send_response_resource` are addressed to a link, not a
+    /// destination, and are not measured. The dispatcher measures a `Value`
+    /// or `Bytes` response as its packed `[request_id, body]` frame, before
+    /// the MDU check that would otherwise send it as a resource, and a
+    /// `RequestResponse::Resource` as the size its advertisement carries:
+    /// the uncompressed data together with the packed metadata and its
+    /// length prefix (a metadata-less resource measures as its data alone),
+    /// and refuses a response over the cap with `ResponseOutcome::TooLarge`
+    /// instead of sending it. The cap in force is the one read when the
+    /// request was dispatched; a cap changed while a handler runs applies
+    /// to the next request. This is the responder's cap on what it sends;
+    /// the requester's cap on what it accepts,
+    /// `RequestOptions::with_max_response_size`, reads the same advertised
+    /// size for the Resource form, so the two compose at one number there.
+    /// For the packet form this cap measures the whole `[request_id, body]`
+    /// frame while the requester measures the packed body alone, so the
+    /// responder refuses first.
+    ///
+    /// Fork-only: Python's `handle_request` sends whatever the handler
+    /// returns (`RNS/Link.py:846-852`).
+    pub fn set_max_response_size(&mut self, max_response_size: usize) -> Result<(), RnsError> {
+        self.max_response_size = Some(max_response_size);
+        Ok(())
+    }
+
+    /// Remove the outbound response-size limit. Fork-only.
+    pub fn clear_max_response_size(&mut self) {
+        self.max_response_size = None;
+    }
+
+    /// Return the configured response-size limit, if any. Fork-only.
+    pub fn max_response_size(&self) -> Option<usize> {
+        self.max_response_size
     }
 
     /// Registers `handler` for `path`, replacing any earlier registration
@@ -319,12 +381,14 @@ impl Destination<Identity, Output, Single> {
             identity,
             desc: DestinationDesc { identity, name, address_hash },
             max_request_size: None,
+            max_response_size: None,
             request_handlers: HashMap::new(),
             ratchet_state: RatchetState::default(),
             path_responses: BTreeMap::new(),
             path_response_queue: VecDeque::new(),
             proof_strategy: ProofStrategy::default(),
             proof_requested_callback: None,
+            link_proof_strategy: ProofStrategy::All,
         }
     }
 }
@@ -338,12 +402,14 @@ impl<D: Direction> Destination<EmptyIdentity, D, Plain> {
             identity,
             desc: DestinationDesc { identity: Default::default(), name, address_hash },
             max_request_size: None,
+            max_response_size: None,
             request_handlers: HashMap::new(),
             ratchet_state: RatchetState::default(),
             path_responses: BTreeMap::new(),
             path_response_queue: VecDeque::new(),
             proof_strategy: ProofStrategy::default(),
             proof_requested_callback: None,
+            link_proof_strategy: ProofStrategy::All,
         }
     }
 }

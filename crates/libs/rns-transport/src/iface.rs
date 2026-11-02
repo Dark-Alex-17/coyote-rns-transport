@@ -4,6 +4,8 @@ pub mod auto_runtime;
 
 pub mod driver;
 
+pub mod events;
+
 pub mod hdlc;
 
 pub mod i2p;
@@ -59,6 +61,8 @@ include!("iface_parts/interfacemanager_inheritance.rs");
 include!("iface_parts/interfacemanager_spawning.rs");
 
 include!("iface_parts/interfacemanager_management.rs");
+
+include!("iface_parts/interfacemanager_events.rs");
 
 include!("iface_parts/interfacemanager_traffic.rs");
 

@@ -26,6 +26,1151 @@ parity rows this file plus the crate README `## Known divergences from
 Python RNS` are the parity ledger; `docs/status/*` matrices are not updated
 per fork task.
 
+## 0.18.0 (upstream 0.14.0)
+
+Every file changed since the `0.17.0` release and the patch each change
+belongs to. Patch ids: K1 is outcome tracker, K2 is response cap, K3 is ledger
+contracts, K4 is destination resolve, K5 is reject cadence, K6 is link proof
+strategy, K7 is dial failures, K8 is disconnect reasons, K9 is interface
+events, K10 is batch hygiene. The `outcome tracker` patch is fork commits
+`c3a317d7`, `ca32feac`, `223cdd80`, `716fb2be`, `d3b234e6` and `d36f65df`; the
+`response cap` patch is fork commits `355a0ddf`, `ca32feac`, `223cdd80`,
+`716fb2be`, `f43321f4`, `9eb35226`, `d3b234e6`, `d36f65df`, `813f421a`,
+`2aca9568`, `6fef8927`, `ac5a81ae` and `f9751b59`; the `ledger contracts`
+patch is fork commit `ca32feac`; the `destination resolve` patch is fork
+commits `3136f1bf`, `d36f65df`, `813f421a`, `2aca9568`, `79308556`,
+`6fef8927`, `ac5a81ae`, `f9751b59` and `402598e3`; the `reject cadence` patch
+is fork commits `265d6929`, `d36f65df`, `813f421a`, `6fef8927`, `ac5a81ae` and
+`f9751b59`; the `link proof strategy` patch is fork commits `8e47a675`,
+`1a9e25c4`, `92346ece`, `e0a2feae`, `2624206e`, `ecf809d6`, `ac841458`,
+`c38e6b22`, `e8cda738`, `4ed2ebec`, `95ae6d37`, `fdf40d01`, `94c27a5c`,
+`1779c8c8`, `3be3b15c`, `719067c4`, `07e98279`, `a02ba4b7`, `bcee2bff` and
+`7cba2066`; the `dial failures` patch is fork commits `61429992`, `874c871b`,
+`aa6d2fac`, `593fa930`, `7fbd176e`, `7eab8566`, `c492846d`, `9a13ade9`,
+`74279dfb`, `b0635aea`, `8fc49d91`, `dd31f874`, `59b0ee7c`, `986dca4a`,
+`5188138e`, `8f348131`, `9c0bb5c6` and `b68ef92c`; the `disconnect reasons`
+patch is fork commits `45bcadfc`, `fdfa83dd`, `f45595c5`, `b819ab22`,
+`bb247215`, `0a8f5cf8`, `cc5c3092`, `3ab8f323`, `200b8810`, `b86af8d6`,
+`272c3f2c`, `a1241d2f`, `e07d20d2`, `0d5f60da`, `9c2d173c` and `14893a3f`; the
+`interface events` patch is fork commits `8378165f`, `806facd1`, `441dd699`,
+`17706293`, `024555a6`, `5f523d82`, `16fbb720`, `0f040752`, `8f128436`,
+`f80c4323` and `57fdf117`; the `batch hygiene` patch is fork commits
+`27dad245`, `2935b5db`, `62554a8c`, `d55a4f0e`, `1bc1e388` and
+`7752a883`; the `Python-in-the-loop link proof strategy interop` patch
+carries no other id and is fork commits `92346ece`, `2624206e`, `ac841458`
+and `4ed2ebec`, also `link proof strategy` commits; the `release 0.18.0`
+patch carries no other id and is fork commits `b5358d0f`, `78fb99eb`,
+`bfe21650`, `81cb1d40`, `69bbcd91` and `151b345f`.
+
+| File | Patch |
+| --- | --- |
+| `Cargo.lock` | release 0.18.0 |
+| `Cargo.toml` | release 0.18.0 |
+| `crates/apps/reticulumd/Cargo.toml` | release 0.18.0 |
+| `crates/apps/reticulumd/tests/fork_publish_contract.rs` | release 0.18.0 |
+| `crates/apps/reticulumd/tests/fork_publish_contract_parts/ledger_contract.rs` | ledger contracts, release 0.18.0 |
+| `crates/apps/reticulumd/tests/fork_release_docs_contract.rs` | dial failures, release 0.18.0 |
+| `crates/apps/reticulumd/tests/fork_release_docs_contract_parts/crate_readme_sections.rs` | outcome tracker, response cap, destination resolve, link proof strategy, dial failures, disconnect reasons, interface events, batch hygiene |
+| `crates/apps/reticulumd/tests/fork_release_docs_contract_parts/readme_patch_list.rs` | release 0.18.0 |
+| `crates/apps/reticulumd/tests/fork_release_docs_contract_parts/release_0_17_0_probe2.rs` | release 0.18.0 |
+| `crates/apps/reticulumd/tests/fork_release_docs_contract_parts/release_0_17_0_probe3.rs` | response cap |
+| `crates/apps/reticulumd/tests/fork_release_docs_contract_parts/release_0_18_0_probe.rs` | release 0.18.0 |
+| `crates/apps/reticulumd/tests/fork_release_docs_contract_parts/request_layer_api_docs.rs` | outcome tracker, response cap, destination resolve, link proof strategy, dial failures, disconnect reasons, interface events |
+| `crates/apps/reticulumd/tests/python_channel_interop.rs` | link proof strategy, Python-in-the-loop link proof strategy interop |
+| `crates/apps/reticulumd/tests/python_channel_interop_parts/python_to_rust_link_proof_strategy.rs` | link proof strategy, Python-in-the-loop link proof strategy interop |
+| `crates/apps/reticulumd/tests/support/python_channel_endpoint.py` | link proof strategy, Python-in-the-loop link proof strategy interop |
+| `crates/apps/rns-tools/Cargo.toml` | release 0.18.0 |
+| `crates/libs/rns-transport/CHANGELOG.md` | outcome tracker, response cap, ledger contracts, destination resolve, reject cadence, link proof strategy, dial failures, disconnect reasons, interface events, batch hygiene, release 0.18.0 |
+| `crates/libs/rns-transport/Cargo.toml` | release 0.18.0 |
+| `crates/libs/rns-transport/README.md` | outcome tracker, response cap, destination resolve, link proof strategy, dial failures, disconnect reasons, interface events, release 0.18.0 |
+| `crates/libs/rns-transport/fuzz/Cargo.lock` | release 0.18.0 |
+| `crates/libs/rns-transport/src/delivery.rs` | batch hygiene |
+| `crates/libs/rns-transport/src/destination/link/payload.rs` | link proof strategy |
+| `crates/libs/rns-transport/src/destination/link_parts/link.rs` | link proof strategy |
+| `crates/libs/rns-transport/src/destination/link_parts/link_sections/data_proof_tests.rs` | link proof strategy |
+| `crates/libs/rns-transport/src/destination/link_parts/link_sections/identify_packet_tests.rs` | link proof strategy |
+| `crates/libs/rns-transport/src/destination/link_parts/link_sections/new.rs` | link proof strategy |
+| `crates/libs/rns-transport/src/destination/link_parts/link_sections/new_from_request.rs` | link proof strategy |
+| `crates/libs/rns-transport/src/destination/link_parts/link_sections/proof_strategy.rs` | link proof strategy |
+| `crates/libs/rns-transport/src/destination/link_parts/link_sections/proof_strategy_tests.rs` | link proof strategy |
+| `crates/libs/rns-transport/src/destination/link_parts/link_sections/request_dispatch_tests.rs` | link proof strategy |
+| `crates/libs/rns-transport/src/destination/link_parts/linkhandleresult.rs` | link proof strategy |
+| `crates/libs/rns-transport/src/destination/link_parts/module_prelude.rs` | link proof strategy |
+| `crates/libs/rns-transport/src/destination/request/inbound.rs` | outcome tracker |
+| `crates/libs/rns-transport/src/destination/request/mod.rs` | outcome tracker |
+| `crates/libs/rns-transport/src/destination/request/outcome.rs` | outcome tracker, response cap |
+| `crates/libs/rns-transport/src/destination/tests.rs` | response cap |
+| `crates/libs/rns-transport/src/destination_parts/destination.rs` | response cap, link proof strategy |
+| `crates/libs/rns-transport/src/destination_parts/module_core.rs` | response cap, link proof strategy, batch hygiene |
+| `crates/libs/rns-transport/src/error.rs` | dial failures |
+| `crates/libs/rns-transport/src/iface.rs` | dial failures, interface events |
+| `crates/libs/rns-transport/src/iface/events.rs` | dial failures, disconnect reasons, interface events, batch hygiene |
+| `crates/libs/rns-transport/src/iface/local.rs` | dial failures, disconnect reasons, interface events, batch hygiene |
+| `crates/libs/rns-transport/src/iface/tcp_client.rs` | dial failures, disconnect reasons, interface events, batch hygiene |
+| `crates/libs/rns-transport/src/iface/tcp_client_memory_tests.rs` | disconnect reasons |
+| `crates/libs/rns-transport/src/iface_parts/interfacemanager.rs` | interface events |
+| `crates/libs/rns-transport/src/iface_parts/interfacemanager_events.rs` | interface events |
+| `crates/libs/rns-transport/src/iface_parts/txmessagetype.rs` | interface events, batch hygiene |
+| `crates/libs/rns-transport/src/resource.rs` | reject cadence |
+| `crates/libs/rns-transport/src/resource/advertisement_limits.rs` | reject cadence |
+| `crates/libs/rns-transport/src/resource/link_stats.rs` | reject cadence |
+| `crates/libs/rns-transport/src/resource/manager_segments.rs` | batch hygiene |
+| `crates/libs/rns-transport/src/resource/manager_start.rs` | batch hygiene |
+| `crates/libs/rns-transport/src/resource/receiver.rs` | response cap |
+| `crates/libs/rns-transport/src/resource/sender.rs` | response cap |
+| `crates/libs/rns-transport/src/resource/tests_advert_limits.rs` | reject cadence |
+| `crates/libs/rns-transport/src/resource/tests_split_metadata.rs` | batch hygiene |
+| `crates/libs/rns-transport/src/transport/core.rs` | interface events |
+| `crates/libs/rns-transport/src/transport/core_parts/interface_events.rs` | interface events |
+| `crates/libs/rns-transport/src/transport/links_parts/transport.rs` | destination resolve, link proof strategy |
+| `crates/libs/rns-transport/src/transport/links_parts/transport_sections/await_path.rs` | destination resolve |
+| `crates/libs/rns-transport/src/transport/links_parts/transport_sections/close_channel.rs` | destination resolve |
+| `crates/libs/rns-transport/src/transport/links_parts/transport_sections/prove_link_packet.rs` | link proof strategy, dial failures |
+| `crates/libs/rns-transport/src/transport/links_parts/transport_sections/resolve_destination.rs` | destination resolve |
+| `crates/libs/rns-transport/src/transport/links_parts/transport_sections/shared_instance.rs` | dial failures, disconnect reasons |
+| `crates/libs/rns-transport/src/transport/links_parts/transport_sections/shared_instance_reconnect.rs` | dial failures, disconnect reasons |
+| `crates/libs/rns-transport/src/transport/links_parts/transport_sections/shared_instance_reconnect_parts/disconnected_event.rs` | disconnect reasons |
+| `crates/libs/rns-transport/src/transport/links_parts/transport_sections/shared_instance_reconnect_parts/drain_queued.rs` | dial failures, disconnect reasons |
+| `crates/libs/rns-transport/src/transport/mod.rs` | dial failures, interface events |
+| `crates/libs/rns-transport/src/transport/mod_parts/transport.rs` | interface events |
+| `crates/libs/rns-transport/src/transport/path.rs` | link proof strategy |
+| `crates/libs/rns-transport/src/transport/path_requests_parts/module_prelude.rs` | destination resolve |
+| `crates/libs/rns-transport/src/transport/request_dispatch.rs` | response cap |
+| `crates/libs/rns-transport/src/transport/request_dispatch_parts/response_limits.rs` | response cap |
+| `crates/libs/rns-transport/src/transport/resource_wire.rs` | reject cadence |
+| `crates/libs/rns-transport/src/transport/shared_instance.rs` | dial failures, disconnect reasons |
+| `crates/libs/rns-transport/src/transport/tests.rs` | outcome tracker, response cap, destination resolve, reject cadence, link proof strategy, dial failures, disconnect reasons, batch hygiene |
+| `crates/libs/rns-transport/src/transport/tests_parts/request_advert_reject_warn_cadence.rs` | reject cadence |
+| `crates/libs/rns-transport/src/transport/tests_parts/request_advert_reject_warn_cadence_probe.rs` | reject cadence |
+| `crates/libs/rns-transport/src/transport/tests_parts/request_advert_reject_warn_cadence_probe2.rs` | reject cadence |
+| `crates/libs/rns-transport/src/transport/tests_parts/two_transport_loopback_link_proof_strategy.rs` | link proof strategy, dial failures |
+| `crates/libs/rns-transport/src/transport/tests_parts/two_transport_loopback_link_proof_strategy_probe.rs` | link proof strategy |
+| `crates/libs/rns-transport/src/transport/tests_parts/two_transport_loopback_requests_into_parts.rs` | outcome tracker |
+| `crates/libs/rns-transport/src/transport/tests_parts/two_transport_loopback_requests_isolation.rs` | outcome tracker, response cap, reject cadence |
+| `crates/libs/rns-transport/src/transport/tests_parts/two_transport_loopback_requests_response_cap.rs` | response cap |
+| `crates/libs/rns-transport/src/transport/tests_parts/two_transport_loopback_requests_response_cap_probe.rs` | response cap |
+| `crates/libs/rns-transport/src/transport/tests_parts/two_transport_loopback_requests_response_cap_probe2.rs` | response cap |
+| `crates/libs/rns-transport/src/transport/tests_parts/two_transport_loopback_requests_response_cap_probe3.rs` | response cap |
+| `crates/libs/rns-transport/src/transport/tests_parts/two_transport_loopback_requests_response_cap_probe4.rs` | response cap |
+| `crates/libs/rns-transport/src/transport/tests_parts/two_transport_resolve_destination.rs` | destination resolve, batch hygiene |
+| `crates/libs/rns-transport/src/transport/tests_parts/two_transport_resolve_destination_probe.rs` | destination resolve, batch hygiene |
+| `crates/libs/rns-transport/src/transport/tests_parts/two_transport_resolve_destination_probe2.rs` | destination resolve, batch hygiene |
+| `crates/libs/rns-transport/src/transport/tests_parts/two_transport_shared_instance_dial_failures.rs` | dial failures, disconnect reasons |
+| `crates/libs/rns-transport/src/transport/tests_parts/two_transport_shared_instance_disconnect_reasons.rs` | disconnect reasons, batch hygiene |
+| `crates/libs/rns-transport/src/transport/tests_parts/two_transport_shared_instance_probe16.rs` | dial failures, disconnect reasons |
+| `crates/libs/rns-transport/src/transport/tests_parts/two_transport_shared_instance_reconnect.rs` | dial failures, disconnect reasons |
+| `crates/libs/rns-transport/src/transport/tests_parts/two_transport_shared_instance_state_events.rs` | dial failures, disconnect reasons, batch hygiene |
+| `crates/libs/rns-transport/src/transport/tests_parts/two_transport_shared_instance_state_events_probe.rs` | dial failures |
+| `crates/libs/rns-transport/src/transport/tests_parts/two_transport_shared_instance_state_events_probe2.rs` | dial failures, disconnect reasons |
+| `crates/libs/rns-transport/src/transport/tests_parts/two_transport_shared_instance_state_events_probe3.rs` | dial failures, disconnect reasons |
+| `crates/libs/rns-transport/src/transport/tests_parts/two_transport_shared_instance_state_events_probe4.rs` | dial failures, disconnect reasons |
+| `crates/libs/rns-transport/src/transport/tests_parts/two_transport_shared_instance_state_events_spec.rs` | batch hygiene |
+| `crates/libs/rns-transport/tests/breaking_changes_compile_fail.rs` | batch hygiene |
+| `crates/libs/rns-transport/tests/destination_desc_api.rs` | destination resolve, batch hygiene |
+| `crates/libs/rns-transport/tests/dial_failure_channel_probe.rs` | dial failures, batch hygiene |
+| `crates/libs/rns-transport/tests/dial_failure_events_api.rs` | dial failures, batch hygiene |
+| `crates/libs/rns-transport/tests/dial_failure_reason_contract_probe.rs` | dial failures, disconnect reasons, batch hygiene |
+| `crates/libs/rns-transport/tests/disconnect_reason_events_api.rs` | disconnect reasons |
+| `crates/libs/rns-transport/tests/disconnect_reason_log_line_probe.rs` | disconnect reasons |
+| `crates/libs/rns-transport/tests/disconnect_reason_receive_queue_probe.rs` | disconnect reasons |
+| `crates/libs/rns-transport/tests/interface_events_api.rs` | interface events, batch hygiene |
+| `crates/libs/rns-transport/tests/interface_events_give_up_probe.rs` | interface events, batch hygiene |
+| `crates/libs/rns-transport/tests/interface_events_last_disconnected_probe.rs` | batch hygiene |
+| `crates/libs/rns-transport/tests/interface_events_probe.rs` | interface events, batch hygiene |
+| `crates/libs/rns-transport/tests/link_activation_deadline_api.rs` | batch hygiene |
+| `crates/libs/rns-transport/tests/link_activation_max_timeout_probe.rs` | release 0.18.0 |
+| `crates/libs/rns-transport/tests/link_proof_strategy_api.rs` | link proof strategy, dial failures, batch hygiene |
+| `crates/libs/rns-transport/tests/request_handler_api.rs` | outcome tracker |
+| `crates/libs/rns-transport/tests/request_receipt_readme.rs` | batch hygiene |
+| `crates/libs/rns-transport/tests/resolve_destination_deadline_api.rs` | destination resolve |
+| `crates/libs/rns-transport/tests/response_cap_tracker_api.rs` | outcome tracker, response cap, batch hygiene |
+| `crates/libs/rns-transport/tests/shared_instance_api.rs` | batch hygiene |
+| `crates/libs/rns-transport/tests/shared_instance_disconnect_reasons_api.rs` | disconnect reasons, batch hygiene |
+| `crates/libs/rns-transport/tests/shared_instance_first_connect_api.rs` | dial failures, batch hygiene |
+| `crates/libs/rns-transport/tests/shared_instance_first_connect_interrupt_probe.rs` | dial failures, disconnect reasons, batch hygiene |
+| `crates/libs/rns-transport/tests/shared_instance_first_connect_stop_interface_probe.rs` | dial failures, batch hygiene |
+| `crates/libs/rns-transport/tests/support/client_transport.rs` | batch hygiene |
+| `crates/libs/rns-transport/tests/support/compile_fail.rs` | batch hygiene |
+| `crates/libs/rns-transport/tests/support/free_loopback_port.rs` | batch hygiene |
+| `docs/fork/PATCHSET.md` | outcome tracker, response cap, ledger contracts, destination resolve, reject cadence, link proof strategy, dial failures, disconnect reasons, interface events, batch hygiene, release 0.18.0 |
+| `docs/getting-started.md` | release 0.18.0 |
+
+Fork commits `c3a317d7`, `ca32feac`, `223cdd80`, `716fb2be`, `d3b234e6` and
+`d36f65df`: K1, outcome tracker. The library behaviour changes are: a
+handler can take the request data by value and still decide afterwards
+whether to watch the response. `c3a317d7` adds `InboundRequest::into_parts`
+(`destination/request/inbound.rs`), which returns the data together with a
+`ResponseOutcomeTracker` over the request's outcome slot, and the tracker
+itself (`destination/request/outcome.rs`, re-exported beside `InboundRequest`
+in `destination/request/mod.rs`); `ResponseOutcomeTracker::outcome` arms the
+slot under the same timing rule as `track_outcome`, inside the handler
+before it returns, and a tracker dropped unarmed leaves the slot as it was,
+so with no earlier `track_outcome` the dispatcher resolves and logs nothing
+for it. Pinned by `two_transport_loopback_requests_into_parts.rs` (included
+from `tests.rs`):
+a packet response and a `Resource` response tracked through the tracker, an
+unarmed tracker dropped with no dispatcher line, and an armed slot whose
+receiver is dropped logging once as the positive control; the shared
+`TestLogger` of `two_transport_loopback_requests_isolation.rs` gains the
+store those pins read the dispatcher's dropped-receiver debug lines from;
+`tests/request_handler_api.rs` registers a closure that splits the request
+with `into_parts` and arms the tracker; `request_layer_api_docs.rs` lists
+the tracker among the private-field structs. `ca32feac` describes
+`into_parts` and the tracker in the README request-handler section, after
+the `track_outcome` paragraph, and pins that prose in
+`crate_readme_sections.rs`. `223cdd80` pins the `into_parts` tuple type in
+`tests/request_handler_api.rs`, so a rename or un-export of the tracker
+fails that file, adds `tests/response_cap_tracker_api.rs`, which pins from
+outside the crate that the tracker is `Send + Sync`, implements `Debug`
+and is not `Clone`, and names both fillers of the outcome slot in
+the `inbound.rs` constructor doc and the receiver doc of `outcome.rs`,
+where `ResponseOutcomeTracker::outcome` now says it replaces a sender
+`track_outcome` installed earlier and that receiver resolves `NotSent`.
+`716fb2be` corrects the header of `tests/response_cap_tracker_api.rs`,
+which compares `TooLarge` with `PartialEq`; the outcome enum is not `Copy`.
+`d3b234e6` has that header say the tracker implements `Debug` rather than
+how it prints (the opaque form is pinned in
+`two_transport_loopback_request_into_parts_tracker_armed_after_the_handler_returned_resolves_not_sent`
+of `two_transport_loopback_requests_response_cap_probe.rs`), has the unarmed
+tracker rustdoc in `inbound.rs` and `outcome.rs` say the slot is left as it
+was, and arms the dropped-receiver positive control of
+`two_transport_loopback_requests_into_parts.rs` through the `into_parts`
+tracker instead of `track_outcome`. `d36f65df` has the README
+request-handler section say the same of an unarmed tracker: it leaves the
+slot as it was, so with no earlier `track_outcome` the dispatcher logs
+nothing and resolves nothing.
+
+Fork commits `355a0ddf`, `ca32feac`, `223cdd80`, `716fb2be`, `f43321f4`,
+`9eb35226`, `d3b234e6`, `d36f65df`, `813f421a`, `2aca9568`, `6fef8927`,
+`ac5a81ae` and `f9751b59`: K2, response cap. The library behaviour changes
+are: a destination can bound the size of the responses it sends.
+`355a0ddf` adds `set_max_response_size`, `clear_max_response_size` and
+`max_response_size` to the single input destination
+(`destination_parts/destination.rs`, the field in
+`destination_parts/module_core.rs`) and enforces the cap in the request
+dispatcher (`transport/request_dispatch.rs`, the limits value and its
+refusal in `transport/request_dispatch_parts/response_limits.rs`): the cap
+is read under the same destination guard as `max_request_size`; a `Value`
+or `Bytes` response is measured as its packed `[request_id, body]` frame
+before the MDU check that would turn an oversize frame into a Resource; a
+`RequestResponse::Resource` is measured as its data plus the packed
+metadata, uncompressed, like `max_request_size`, which reads the advertised
+size `d` rather than the compressed `t`; at the cap the response goes out;
+over it nothing is sent, one warn names the request id, the link, the
+measured length and the cap, and a tracked
+outcome resolves the new `ResponseOutcome::TooLarge { len, max }` variant
+(`destination/request/outcome.rs`, additive under `#[non_exhaustive]`).
+Pinned by `two_transport_loopback_requests_response_cap.rs` (included from
+`tests.rs`): a packet response at the cap and over it, a `Resource`
+response at the cap and over it, and an oversize `Bytes` body refused
+before the Resource transfer it would otherwise start, each refusal with
+nothing on the wire and exactly one warn, read from the refused-response
+store the shared `TestLogger` of
+`two_transport_loopback_requests_isolation.rs` gains; the destination unit
+test in `destination/tests.rs` covers the accessors. `355a0ddf` also
+re-bases `release_0_17_0_probe3.rs` so it compares the README's 0.17.0
+register of `ResponseOutcome` variants against the enum at the
+`coyote-rns-transport-v0.17.0` tag, so the additive variant leaves the
+frozen register green while every name it lists must still be declared.
+`ca32feac` describes the cap in the README request-handler section, beside
+the `max_request_size` paragraph, lists `TooLarge` with the other outcomes,
+and pins that prose in `crate_readme_sections.rs`. `223cdd80` adds
+`two_transport_loopback_requests_response_cap_probe.rs` (included from
+`tests.rs`): clearing the cap lifts the gate for the next request, a
+`Resource` of zeros that bz2 would shrink under the cap is still refused
+because the measure is uncompressed, a metadata-less `Resource` at the cap
+measures exactly its data and goes out, an untracked refusal costs one warn
+and answers nothing, an `into_parts` tracker resolves `TooLarge`, and a
+tracker armed after the handler returned resolves `NotSent` at once; the
+cap accessors and `TooLarge` are pinned from outside the crate in
+`tests/response_cap_tracker_api.rs`. The same commit makes the
+`assert_nothing_sent_for` helper of
+`two_transport_loopback_requests_response_cap.rs` panic on a lagged
+resource event receiver, states the measure above in the
+`set_max_response_size` and `TooLarge` docs and the README, with the
+disclosure that the Resource measure then left out the metadata length
+prefix (removed by `9eb35226` below), qualifies the README's requester-cap
+mentions, notes at the dispatcher's debug and warn lines that the shared
+`TestLogger` matches their text by substring, and notes in
+`release_0_17_0_probe3.rs` that `enum_variants` yields one entry per body
+line, so a brace variant such as `TooLarge` appears as its lines.
+`716fb2be` widens the note at the warn in `response_limits.rs` to name
+`assert_one_refusal_warn` of `two_transport_loopback_requests_response_cap.rs`
+as a second substring matcher of that text. `f43321f4` adds
+`two_transport_loopback_requests_response_cap_probe2.rs` (included from
+`tests.rs`): a cap tightened while the handler runs lets that response out
+and refuses the next request, an `into_parts` tracker armed after an
+earlier `track_outcome` retires that first receiver with `NotSent`, and a
+both-ends pin over the requester's and the responder's caps on a
+metadata-bearing response; routes the probe file's refusal warn check
+through `assert_one_refusal_warn`, so the warn text has exactly the two
+matchers the note names; makes `assert_nothing_sent_for` panic on a closed
+resource event channel as it does on a lagged one; pins the three cap
+accessors by name in `request_layer_api_docs.rs` and raises its walker
+floor to the current count; and states in the `set_max_response_size`
+rustdoc and the README that the cap covers the responses the dispatcher
+sends for the destination's registered handlers, while
+`Transport::send_response` and `Transport::send_response_resource` are
+addressed to a link and are not measured, with the README also noting that
+a packet response is measured as the whole frame here and as the packed
+body by the requester. `9eb35226` makes the Resource measure equal the
+advertised size `d`: `resource/sender.rs` names the metadata length prefix
+it writes ahead of the metadata block as `METADATA_LENGTH_PREFIX_LEN`, and
+the gate in `transport/request_dispatch.rs` counts it, so a
+metadata-bearing Resource response measures at the number the requester's
+`RequestOptions::with_max_response_size` reads and the two caps compose at
+one number (a metadata-less Resource still measures as its data alone); the
+`send_response` rustdoc, the `set_max_response_size` rustdoc and the README
+say so in place of the prefix disclosure; `resource_response_len` of
+`two_transport_loopback_requests_response_cap.rs` counts the prefix so the
+at-cap and over-cap pins keep measuring what the dispatcher measures; and
+the both-ends pin of
+`two_transport_loopback_requests_response_cap_probe2.rs` becomes
+`two_transport_loopback_request_equal_requester_and_responder_caps_compose`:
+equal caps admit the response
+with outcome `Resource(Complete)`, a requester cap one under rejects the
+advertisement with `Oversize` and outcome `Rejected(PeerCancelled)`, and a
+responder cap one under resolves `TooLarge { len, max }` with nothing
+sent and one warn; the flipped pin fails against the previous measure, since
+with the gate reverted to data plus packed metadata the responder-cap arm of
+that test sees the response go out instead of
+`TooLarge { len: measure, max }` and panics there, so the pin discriminates
+the fix. `d3b234e6` adds
+`two_transport_loopback_requests_response_cap_probe3.rs` (included from
+`tests.rs`): a request that arrived as a Resource earns a response measured
+like any other, one byte over the cap refused with `TooLarge` and one at
+the cap sent as a packet; `into_parts` on such a request yields the
+assembled bytes; a cap of zero refuses even a `Nil` body; a handler that
+answers `None` under a cap stays `NotSent` with no refusal warn; and
+`Transport::send_response` on the listener goes out untouched by a
+destination cap of zero that would refuse the same frame from a handler.
+The same commit has the metadata-less pin of
+`two_transport_loopback_requests_response_cap_probe.rs` install the test
+logger before it reads the refused-response store, and states in the module
+doc of `release_0_17_0_probe3.rs` that its enum pin reads the
+`coyote-rns-transport-v0.17.0` tag with `git show`, as the full-depth
+contracts job can, and fails rather than skips on a clone without it.
+`d36f65df` adds to the README cap paragraph that a metadata-less Resource
+measures as its data alone, and raises the walker floor of
+`request_layer_api_docs.rs` to the current count of 155 public items.
+`813f421a` qualifies the compose sentence of the `set_max_response_size`
+rustdoc to the Resource form and adds that for the packet form the cap
+measures the whole `[request_id, body]` frame while the requester measures
+the packed body alone, so the responder refuses first, as the README says.
+`2aca9568` adds `two_transport_loopback_requests_response_cap_probe4.rs`
+(included from `tests.rs`), which pins that packet-form split on the wire:
+with the responder's cap at the frame length a requester cap at the packed
+body length admits the response and one byte under it rejects the packet
+with `Oversize` while the responder refused nothing, and with both caps at
+the body length the responder measures the frame and refuses first with
+`TooLarge`, nothing sent and one warn. The same commit adds needles to
+`crate_readme_sections.rs` for the README cap and slot sentences: the caps
+compose at one number, a metadata-less Resource measures as its data alone,
+and an unarmed tracker leaves the slot as it was. `6fef8927` has the
+`ResponseOutcome::TooLarge` rustdoc (`destination/request/outcome.rs`)
+describe the Resource measure as the `set_max_response_size` rustdoc and
+the README do, the uncompressed data together with the packed metadata and
+its length prefix, with a metadata-less resource measuring as its data
+alone; adds that phrase as a needle to `crate_readme_sections.rs` and the
+test `response_cap_rustdoc_twins_describe_the_resource_measure_alike`, which
+reads the two rustdocs and the README section and fails if any of the three
+drops it; has `resource/receiver.rs` parse the metadata length prefix
+through `METADATA_LENGTH_PREFIX_LEN` (a zero-padded big-endian read of that
+many bytes and bounds checks through the constant, behaviour unchanged, the
+existing split-metadata tests pinning it) and the `send_response_resource`
+rustdoc of `transport/request_dispatch.rs` cite the constant in place of
+the literal width. `ac5a81ae` changes `resource_response_len` of
+`two_transport_loopback_requests_response_cap.rs` to take
+`Option<&rmpv::Value>` and apply the dispatcher's `map_or(0, ..)`, so the
+metadata-less pin of
+`two_transport_loopback_requests_response_cap_probe.rs` measures through it
+and the metadata-bearing callers there and in
+`two_transport_loopback_requests_response_cap_probe2.rs` pass `Some`; and
+has the `RESOURCE_LOG_TARGET` comment of
+`two_transport_loopback_requests_isolation.rs` name both `include!`d
+sources of the lines it captures, `resource/outcome.rs` and
+`resource/advertisement_limits.rs`, and say the request dispatcher's
+dropped-receiver line logs under its own target. `f9751b59` has the
+`send_response` rustdoc of `transport/request_dispatch.rs` describe the
+Resource measure in the twins' words, the uncompressed data together with
+the packed metadata and its length prefix, and has
+`response_cap_rustdoc_twins_describe_the_resource_measure_alike` of
+`crate_readme_sections.rs` read that rustdoc and the first changelog section
+that names `set_max_response_size` beside the two it already held to the
+phrase; `resource/receiver.rs` pads the length prefix from the array's own
+length as `resource/sender.rs` slices it, behaviour unchanged.
+
+Fork commit `ca32feac`: K3, ledger contracts. No library behaviour changes.
+`ca32feac` extends the full-hash ledger pin in `ledger_contract.rs` to the
+reopened `Unreleased` section beside the released ones.
+
+Fork commits `3136f1bf`, `d36f65df`, `813f421a`, `2aca9568`, `79308556`,
+`6fef8927`, `ac5a81ae`, `f9751b59` and `402598e3`: K4, destination resolve. The library
+behaviour changes are: a caller can look up a destination and wait for its
+path in one call, and `await_path` holds any timeout and returns at its
+deadline.
+`3136f1bf` adds
+`Transport::resolve_destination` in the new include
+`links_parts/transport_sections/resolve_destination.rs` (registered in
+`links_parts/transport.rs`), which takes an `AddressHash` and a `Duration`
+timeout and returns the `Option<DestinationDesc>` that `destination_desc`
+returns: a destination the transport already knows answers at once and no
+path request goes out; a zero timeout is a cached lookup alone and returns
+`None` for an unknown destination without sending anything; otherwise
+exactly one path request is attempted through `await_path`, a `Broadcast`
+on every outgoing interface as `request_path` sends it, and the call polls
+every 50 ms until the announce is learned or the timeout passes, then
+returns `None`. The learned entry and the path table can part ways, and the
+call follows the entry: a destination `deregister_destination` removed while
+its path table entry stands answers `None` at once with no request, since
+`await_path` takes the standing path as its answer; a destination whose entry
+is still held but whose path `expire_path` or aging removed answers `Some` at
+once with no request, so a caller that then needs a next hop for `link`
+still calls `await_path` itself. The same commit adds the test-only
+`PathRequests::outgoing_request_count` (`path_requests_parts/module_prelude.rs`),
+which counts the `outgoing_request_queue` entries for a destination, one per
+send. Pinned by `two_transport_resolve_destination.rs` (included from
+`tests.rs`): a known destination answers with no path request sent and no
+path response following; a destination registered without announcing is
+learned through exactly one path request, the one announce that arrives
+being a path response and the count rising by one; an unreachable
+destination returns `None` after the timeout with one request sent; and a
+zero timeout sends nothing for an unknown destination while still answering
+a known one. `tests/destination_desc_api.rs` exercises the known, the
+silent-but-reachable and the zero-timeout arms from outside the crate; the
+README link-opening section describes the call beside `destination_desc`,
+pinned by `crate_readme_sections.rs`; `request_layer_api_docs.rs` names the
+method among the items whose rustdoc must cite Python or say fork-only.
+`d36f65df` adds `two_transport_resolve_destination_probe.rs` (included from
+`tests.rs`): a caller that retries after a miss sends exactly one more path
+request per call; a second call on a learned destination answers from the
+table and sends nothing; the deregistered-with-standing-path arm answers
+`None` at once with no request; and the held-desc-with-expired-path arm
+answers `Some` at once with no request. The same commit adds to
+`tests/destination_desc_api.rs` a black-box pin that a miss is bounded by
+the caller's timeout and is not remembered against the
+next lookup, states both splits in the `resolve_destination` rustdoc and
+the README link-opening paragraph, adds a README needle for each to
+`crate_readme_sections.rs`, and has the `outgoing_request_count` rustdoc
+say the entries it counts are the ones not yet pruned by the job that
+applies the throttle window. `813f421a` adds to
+`tests/destination_desc_api.rs` both splits walked as a consumer would:
+`readme_split_expired_path_answers_at_once_and_await_path_relearns_the_next_hop`
+(an expired path answers `Some` at once with no path response following,
+then `await_path` sends the one request that draws exactly one path
+response and the desc opens a link that activates on the announcing side)
+and
+`readme_split_deregistered_with_a_standing_path_answers_none_until_the_path_expires`
+(a deregistered destination with a standing path answers `None` at once on
+repeated calls with no request, and `expire_path` turns it back into the
+reachable case, one request drawing one path response); tightens the miss
+pin so a miss returns no sooner than the timeout and within 150 ms, three
+poll intervals, of it; adds needles to `crate_readme_sections.rs` that only
+the README's split sentences carry; and has the rustdoc and the README say
+the one path request is attempted, a `Broadcast` on every outgoing
+interface, since `request_path` records a request only when an interface
+took it.
+`2aca9568` adds to `tests/destination_desc_api.rs`
+`resolve_destination_without_an_interface_misses_on_the_timeout`: a
+transport with no interface at all answers `None` at once on a zero timeout
+and misses on the timeout otherwise, leaving no path and no desc behind;
+widens both miss bounds to the file's quiet window of 300 ms past the
+budget, so CI load does not flake them; and backticks `Broadcast` in the
+README paragraph as the rustdoc does. `79308556` adds to
+`crate_readme_sections.rs`
+`crate_readme_link_section_carries_one_rust_fence` (the link-opening
+section carries one rust fence, the `destination_desc` snippet, and no
+other) and
+`crate_readme_resolve_destination_prose_matches_the_rustdoc_and_the_changelog`
+(the README paragraph, the `Unreleased` changelog bullet and the method's
+rustdoc each say exactly one path request is attempted, a `Broadcast` on
+every outgoing interface, with the message type backticked in all three).
+`6fef8927` fixes two edges of `Transport::await_path`, which
+`resolve_destination` delegates its wait to: the deadline was a plain
+`Instant` add that panics on `Duration::MAX`, and every poll slept a full
+50 ms, so a timeout shorter than one poll returned a poll late. The method
+moves from `links_parts/transport_sections/close_channel.rs` into the new
+include `links_parts/transport_sections/await_path.rs` (registered in
+`links_parts/transport.rs`), computes its deadline with a checked add that
+saturates to a far future, so a timeout the clock cannot hold waits
+indefinitely, and sleeps the shorter of 50 ms and the time left; the
+`has_path` short-circuit, the single `request_path` and the final
+`has_path` read are as they were. Its rustdoc says so, and the
+`resolve_destination` rustdoc and the README link-opening paragraph say
+the call waits until a path is learned, polling every 50 ms or the time
+left, whichever is shorter, and that `Duration::MAX` waits instead of
+panicking. Pinned in `two_transport_resolve_destination_probe.rs`:
+`resolve_destination` and `await_path` with `Duration::MAX` on an
+unreachable destination outlive an outer one-second bound instead of
+panicking, each having sent one request (both fail against the plain add),
+and a 10 ms miss returns no sooner than 10 ms, inside 200 ms, after one
+request. The same commit has
+`crate_readme_resolve_destination_prose_matches_the_rustdoc_and_the_changelog`
+of `crate_readme_sections.rs` read the newest changelog section by
+position, the text after the first `## ` heading, rather than by the
+`Unreleased` label, so the pin survives the release cut that promotes the
+stub. `ac5a81ae` adds `two_transport_resolve_destination_probe2.rs`
+(included from `tests.rs`): a 1 ms timeout on a destination registered
+without announcing spends exactly one path request whether it hits or
+misses, the path response lands afterwards, and a zero-timeout retry
+answers `Some` from the cache with no second request; and two callers
+resolving the same unknown destination at once each spend one request,
+both resolve, and both read the one entry the table holds. The same commit
+widens the two miss upper bounds of `tests/destination_desc_api.rs` from
+the 300 ms quiet window to two seconds past the budget, the lower bound
+unchanged, so CI load cannot flake them. `f9751b59` adds
+`tests/resolve_destination_deadline_api.rs`, the pin that tells the cut
+poll from a full one: on a transport with no interface, so every miss is
+decided by the deadline alone, the fastest of three runs of a 10 ms
+`resolve_destination` and of a 10 ms `await_path` lands under 40 ms, a
+120 ms `resolve_destination` lands under 140 ms (two polls and a remainder,
+the last sleep cut rather than rounded up), every run waits out its timeout,
+and `Duration::MAX` on both calls outlives an outer one-second bound with
+nothing to broadcast on. The same commit adds the wait phrases to
+`crate_readme_resolve_destination_prose_matches_the_rustdoc_and_the_changelog`
+(until a path is learned; polling every 50 ms or the time left, whichever
+is shorter; `Duration::MAX` included, waits indefinitely instead of
+panicking), has that test read the first `## ` section that names
+`Transport::resolve_destination` rather than the first section by position,
+through a `changelog_section_naming` helper that takes the anchor phrase so
+the response-cap twin test anchors on `set_max_response_size` instead, each
+pin skipping a reopened `## Unreleased` stub that does not name its call,
+and has the `await_path` rustdoc say one request is attempted rather than
+goes out, since `request_path` can find no interface, and cite
+`RNS/Transport.py:3279` and `:3126`. `402598e3` pins that helper on two
+fixtures in `crate_readme_sections.rs`: a reopened empty `## Unreleased` stub
+above a promoted section is skipped and the newest section naming the anchor
+wins, with the preamble never a candidate, and a changelog naming the anchor
+nowhere panics naming it.
+
+Fork commits `265d6929`, `d36f65df`, `813f421a`, `6fef8927`, `ac5a81ae` and
+`f9751b59`: K5, reject cadence. The library behaviour changes are: the warn
+for a request advertisement refused over the destination's
+`max_request_size` has a per-link cadence. `265d6929` adds the
+`LinkStats.rejected_request_advertisements` counter and moves `LinkStats`
+with `ewma` from `resource.rs` into the new include
+`resource/link_stats.rs`, so `resource.rs` stays under the module-size
+budget (the move normalised two doc-comment glyphs, an arrow to "to" and an
+em dash to a comma, and changed no code); adds
+`ResourceManager::record_rejected_request_advertisement`
+(`resource/advertisement_limits.rs`), which counts the refusal against the
+link and logs the same diagnostic line with a `rejected=<n>` suffix, at warn
+on the first refusal and on every 64th after it and at debug otherwise; and
+calls it from `transport/resource_wire.rs` where the unconditional warn
+was, the receiver cancel that rejects the advertisement unchanged. The
+cadenced line is emitted from the `include!`d `advertisement_limits.rs`, so
+its log target moves from `rns_transport::transport::resource_wire` to
+`rns_transport::resource`.
+`FLAG_REQUEST` becomes `pub(crate)` so the wire-side test can build a
+request advertisement. Pinned by `request_advert_reject_warn_cadence.rs`
+(included from `tests.rs`): 65 over-limit request advertisements on one
+link produce 65 records, the first and the 64th at warn and every other at
+debug, each naming the link and the running count; a second link to the
+same transport starts its own count and is warned on its first refusal; and
+the sibling `rejected_advertisements` count stays untouched. The shared
+`TestLogger` of `two_transport_loopback_requests_isolation.rs` gains the
+store those records are read from, keyed by link;
+`resource_advert_reject_warn_cadence.rs`, which pins the over-cap
+advertisement cadence, is unchanged. `d36f65df` adds
+`request_advert_reject_warn_cadence_probe.rs` (included from `tests.rs`):
+129 refusals on one link cross the second stride, warning at the first,
+the 64th and the 128th and debug otherwise, and adds to
+`resource/tests_advert_limits.rs` a counter-level pin that two calls to
+`record_rejected_request_advertisement` leave
+`rejected_request_advertisements` at 2 and `rejected_advertisements` at 0,
+with the mirror assertion in the over-cap sibling. `813f421a` has both
+cadence pins match the `rejected=<n>` field as the record's tail with
+`ends_with` rather than by substring, and has the probe's seed-offset
+comment say the offset only keeps a mixed log readable, since records are
+attributed by link id. `6fef8927` names the stride once:
+`REJECT_WARN_STRIDE` in `resource/advertisement_limits.rs`, read by both
+`record_rejected_advertisement` and
+`record_rejected_request_advertisement`, the tests keeping their literal
+64 and 128. `ac5a81ae` adds `request_advert_reject_warn_cadence_probe2.rs`
+(included from `tests.rs`): an at-limit request advertisement the
+destination accepts and a plain data round trip between the 63rd and the
+64th refusal leave no refusal record and neither reset nor advance the
+count, so the 64th refusal still warns and the 65th is debug, with the
+over-cap count untouched. `f9751b59` has that probe show the at-limit
+advertisement was accepted: an initiator cancel naming it draws the
+`InboundFailed` only a receiver the destination created can publish, where
+a refused advertisement leaves none to cancel.
+
+Fork commits `8e47a675`, `1a9e25c4`, `92346ece`, `e0a2feae`, `2624206e`,
+`ecf809d6`, `ac841458`, `c38e6b22`, `e8cda738`, `4ed2ebec`, `95ae6d37`,
+`fdf40d01`, `94c27a5c`, `1779c8c8`, `3be3b15c`, `719067c4`, `07e98279`,
+`a02ba4b7`, `bcee2bff` and `7cba2066`: K6,
+link proof strategy. The library behaviour changes are: a link proves the plain
+Data packets it receives by a strategy of its own instead of always, and an
+application can prove a received packet later. `8e47a675` pins, in
+`crate_readme_sections.rs`, that the changelog section selector stops at
+the next `## ` heading and does not read a `### ` sub-heading as a section
+boundary. `1a9e25c4` adds the `proof_strategy` and
+`proof_requested_callback` fields to `Link` (`link_parts/linkhandleresult.rs`),
+set to `ProofStrategy::All` and `None` by both constructors
+(`link_sections/new.rs`, `link_sections/new_from_request.rs`), imports
+`ProofStrategy`, `ProofRequestedHandler` and `Arc` into the link module
+(`link_parts/module_prelude.rs`), and adds the include
+`link_sections/proof_strategy.rs` (registered in `link_parts/link.rs`) with
+`Link::set_proof_strategy`, `Link::proof_strategy`,
+`Link::set_proof_requested_callback`, the crate-private `set_proof_policy`
+and `should_auto_prove`, and `Link::prove_hash`, which takes over the body
+of `Link::prove_packet`; the plain-Data arm of `handle_data_packet` in
+`new.rs` proves only when `should_auto_prove` says so, after the
+`LinkEvent::Data` is posted, the Channel arm unchanged. `LinkPayload`
+(`destination/link/payload.rs`) gains `packet_hash`, `with_packet_hash` and
+a `packet_hash` field every existing constructor leaves `None`, and `new.rs`
+sets it from the received packet. `Destination`
+(`destination_parts/module_core.rs`)
+gains `link_proof_strategy`, `All` in all three constructors, with
+`set_link_proof_strategy` and `link_proof_strategy` on the single IN
+destination (`destination_parts/destination.rs`), and
+`handle_link_request_as_destination` (`transport/path.rs`) copies it and the
+destination's `proof_requested_callback` onto the accepted link.
+`Transport::prove_link_packet` is added in the new include
+`links_parts/transport_sections/prove_link_packet.rs` (registered in
+`links_parts/transport.rs`): it finds the link by id, builds the proof with
+`prove_hash` under the link lock and sends it on the link's bound
+interface, `InvalidArgument` for an unknown link and `ConnectionError` when
+nothing is sent. `92346ece` adds `link_sections/proof_strategy_tests.rs`
+(registered in `link_parts/link.rs`; `data_proof_tests.rs` opens
+`packet_proven_events` to it): the default on both constructors, each
+strategy with and without a callback and the callback counted, `None` not
+consulting the callback, Channel frames proved under `App` and `None`, the
+posted payload naming the packet and `prove_hash` matching `prove_packet`;
+adds `two_transport_loopback_link_proof_strategy.rs` (registered in
+`transport/tests.rs`): the destination default copied onto the accepted
+link, no `PacketProven` under `App` until `prove_link_packet` and exactly
+one after it, the consenting and the refusing callback, an out-link set to
+`None` by hand proved from the connector, and the unknown-link refusal;
+and adds the Python-in-the-loop `python_to_rust_link_proof_strategy.rs`
+(registered in `python_channel_interop.rs`) with the `link-data-receipt`
+client arm of `support/python_channel_endpoint.py`, which raises the
+receipt timeout and prints each receipt status change, so a Python
+initiator's `PacketReceipt` is seen to stay `SENT` until the Rust
+application proves the packet. `e0a2feae` describes the strategy, the
+destination default and the deferred proof in the crate README's link proof
+section and divergence register, pins those names and the changelog's in
+`crate_readme_sections.rs`, lists the new public items in
+`request_layer_api_docs.rs`, and gives the two getters their rustdoc cites.
+`2624206e` adds `link-data-receipt` to the client's accepted payload kinds in
+`python_channel_endpoint.py`, which argparse had refused before the arm ran.
+`ecf809d6` narrows `LinkPayload::with_packet_hash` to `pub(crate)`
+(`destination/link/payload.rs`), its one caller being `new.rs`, and refreshes
+the rustdoc of `ProofStrategy` and `ProofRequestedHandler`
+(`destination_parts/module_core.rs`), `link_proof_strategy`
+(`destination_parts/destination.rs`) and `prove_link_packet`
+(`transport_sections/prove_link_packet.rs`), whose `ConnectionError` covers
+every unsent proof. `ac841458` replaces the `prove_hash` twin test in
+`proof_strategy_tests.rs` with a pin of the proof's wire shape and has its
+counting callback record the packet hash; adds
+`two_transport_loopback_link_proof_strategy_probe.rs` (registered in
+`transport/tests.rs`): the destination default copied at accept only, an
+out-link under `App` waiting for its own callback, and `prove_link_packet`
+under `All` as a quiet second proof; and in `python_channel_endpoint.py`
+raises the link's `traffic_timeout_factor` before the send and reports
+`CULLED` by name, while `python_to_rust_link_proof_strategy.rs` derives
+its threshold from the deferred delay and tolerates a lagged event stream.
+`c38e6b22` adds the accept-time snapshot to the README divergence register
+and reworks the changelog bullets to match. `e8cda738` has the
+`proof_strategy()` rustdoc and the `Link` field doc say that a link a
+destination accepts starts with that destination's strategy and callback,
+marks `set_link_proof_strategy` fork-only like its getter, and has `new.rs`
+hash the inbound packet once. `4ed2ebec` adds
+`tests/link_proof_strategy_api.rs`, which drives the README proof surface as
+a downstream crate and compiles a consumer with `rustc` to pin that
+`with_packet_hash` stays private; has `crate_readme_sections.rs` read the
+divergence register for the `All` default, the accept-time copy, the Python
+cite and the absence of "always proves"; pins `packet_hash` under `All` and
+in the Request context (`request_dispatch_tests.rs`), closes the deferred
+loop under `None`, reads the refused payload, filters the loopback pair's
+`Activated` on its own link id and denies `await_holding_invalid_type` on
+`wait_for_in_link_payload`. `95ae6d37` has the README say the peer proves by
+default, names the link strategy and the callback as what is copied at
+accept, and cites the new pins in the changelog. `fdf40d01` pins, in
+`tests/link_proof_strategy_api.rs`, that an in-link accepted under `App` keeps
+asking the callback it copied at accept after the destination is switched to
+`All` and handed another callback, and has the quiet drain fail on a closed
+event channel instead of reporting no events. `94c27a5c` cites
+`RNS/Link.py:961-968` in the divergence register, the changelog, the
+`link_proof_strategy` and `set_proof_requested_callback` rustdoc and the
+register pin needle, and has the changelog and the test header say the
+`rustc` consumer covers every new proof item the README names. `1779c8c8`
+pins, in `tests/link_proof_strategy_api.rs`, that a destination's `None`
+reaches the in-link it accepts while the out-link keeps `All`, that the link
+never asks the callback and never proves on its own, and that
+`prove_link_packet` then earns exactly one `PacketProven`; it reads the
+callback counts after the quiet window and asserts the Response payload's
+`packet_hash` in `identify_packet_tests.rs`. `3be3b15c` has
+`Transport::prove_link_packet` refuse a link that is not `Active` with
+`ConnectionError`, as `Transport::request` does, and pins it on a link closed
+after it carried a proof. `719067c4` has the README say `App` proves nothing
+without a callback and names the new arm and pins in the changelog. `07e98279`
+formats the closed-link pin as `rustfmt` lays it out. `a02ba4b7` has that pin's
+doc comment credit the refusal to the status guard in `prove_link_packet`, since
+the interface stays bound after close. `bcee2bff` pins, in
+`tests/link_proof_strategy_api.rs`, that an in-link the application closed
+locally refuses the proof as `ConnectionError` and lets none reach the sender,
+whose out-link is still `Active`, and takes the `None` in-link pin's positive
+`PacketProven` through `await_event`. `7cba2066` has the `prove_link_packet`
+rustdoc, the loopback closed-link pin, the changelog and the README proof
+section say a closed link reads `ConnectionError` only until the 1 s
+link-maintenance pass evicts it, after which it is unknown and reads
+`InvalidArgument`.
+
+Fork commits `61429992`, `874c871b`, `aa6d2fac`, `593fa930`, `7fbd176e`,
+`7eab8566`, `c492846d`, `9a13ade9`, `74279dfb`, `b0635aea`, `8fc49d91`,
+`dd31f874`, `59b0ee7c`, `986dca4a`, `5188138e`, `8f348131`, `9c0bb5c6` and
+`b68ef92c`: K7, dial failures. The library behaviour changes are: a stream
+client reports each failed connect attempt with a typed reason, the
+shared-instance state stream carries it, and an attach can be told to give up
+when the first connect does not come, giving up also when its consumer ends
+first and releasing the slot only while it still holds its own interface.
+`61429992` adds `iface::events`
+(`iface/events.rs`, registered in `iface.rs`, re-exported from
+`transport/mod.rs`) with `DialFailureKind`
+(`Timeout`, `Refused`, `NotFound`, `Io(ErrorKind)`, the last never carrying
+the three named kinds), `DialFailure` (the interface address and the kind of
+one failed attempt, private fields) and `DisconnectReason`, reserved for the
+clients' disconnect reporting and emitted by none yet; adds
+`TcpClient::with_dial_failure_events` (`iface/tcp_client.rs`) and
+`LocalUnixClient::with_dial_failure_events` (`iface/local.rs`), which send
+one `DialFailure` per failed attempt with the connect events' debug-on-full
+discipline; and has the TCP connect loop keep the failure apart from the
+stream result, so the "couldn't connect" warn carries the io error's text,
+or the elapsed connect timeout, where it dropped both before. `874c871b`
+adds `SharedInstanceEvent::DialFailed { reason }`
+(`transport/shared_instance.rs`), sent once per failed attempt by the
+client the attach spawned; has the reconnect consumer
+(`links_parts/transport_sections/shared_instance_reconnect.rs`) take the
+client's dial-failure receiver as a fourth channel, served last in the
+biased select and in the post-exit drain, which moves to
+`shared_instance_reconnect_parts/drain_queued.rs`; adds
+`SharedInstanceOptions::with_first_connect_timeout`, under which
+`attach_shared_instance` (`links_parts/transport_sections/shared_instance.rs`)
+waits for the first served connect and,
+without one, detaches and returns the new
+`RnsError::SharedInstanceConnectTimeout` (`error.rs`); and has the
+hand-driven consumer callers and the state-event pins in `tests_parts` take
+the new channel, read cycle events past any `DialFailed`, and count the
+full-channel drops without them. `aa6d2fac` adds
+`tests/dial_failure_events_api.rs` (both clients report two failures with
+the expected kind and the interface address, the TCP warn carries
+"Connection refused", and the connect fires once the socket is bound with
+no failure after it; `DialFailure` is `Copy + Send + Sync` and
+`SharedInstanceEvent` stays `Copy`) and
+`two_transport_shared_instance_dial_failures.rs`, included from `tests.rs`
+(`Connecting` then `DialFailed` per attempt over TCP and unix, `Connected`
+once the socket exists, the first-connect timeout against a closed port and
+its positive control, the hand-driven consumer serving dial failures last).
+`593fa930` describes all of it in the README shared-instance section and the
+changelog, adds `iface/events.rs` to the docs contract's fork-new walk set,
+`DialFailure` to its private-field structs, both enums to its
+`#[non_exhaustive]` list and the three builders to its cited-rustdoc list,
+and pins the new README needles with a changelog twin.
+`7fbd176e` moves the first-connect wait in `attach_shared_instance` to run
+before the tunnel is synthesized rather than after it, so a timed-out attach
+synthesizes no tunnel on the interface it detaches, and rewords the attach
+rustdoc and the changelog bullet to match. `7eab8566` records in the
+changelog bullet and the variant rustdoc that `SharedInstanceEvent` carries
+data from `DialFailed` on, which cargo-semver-checks reports as
+`enum_discriminants_undefined_non_unit_variant`, the one finding the
+release's semver gate names. `c492846d` has the attach that gives up waiting
+release the slot through the new slot-guarded `detach_shared_instance_if`
+(`links_parts/transport_sections/shared_instance.rs`), which takes the slot
+only while it still holds the attach's own interface and shares its
+unflag-and-stop tail with `detach_shared_instance`, splits the consumer-gone
+arm (a stop or detach during the wait, logged at debug) from the elapsed
+timer while both return `SharedInstanceConnectTimeout`, adds
+`dial_failure_events_enabled` to `TcpClient` (`iface/tcp_client.rs`) and
+`LocalUnixClient` (`iface/local.rs`), has the TCP dial-failure rustdoc claim
+`NotFound` only when the OS reports it, appends the connect error text to
+the `mark_reconnecting` reason, moves `pub mod events;` in `iface.rs` to its
+alphabetical place, and rewords the attach, option and error rustdocs with
+the consumer-gone clause and one late-connect caveat. `9a13ade9` reads the
+reconnect-budget unit test's `last_error` on its endpoint prefix, since the
+text that follows is the OS's. `74279dfb` adopts
+`tests/dial_failure_channel_probe.rs` (a full or dropped dial-failure channel
+leaves the client dialing, a stale socket file reads `Refused`, the reason
+types are one set under both paths) and
+`tests/shared_instance_first_connect_api.rs` (the README's default attach,
+the timed-out attach leaving nothing behind, a detach and replacement attach
+surviving the timed-out attach's cleanup, the attach returning on the
+connect), restores the strict `shared_instance_state_next` and moves the
+`DialFailed`-skipping read into `shared_instance_state_next_cycle_event`
+with a 64-slot state channel for the pins that redial a closed port, gives
+the hand-driven consumer's `DriveSpec` a first-connect notifier and pins
+the live dial-failure arm and the abandoned notifier, pins
+`dial_failure_events_enabled` on both clients, and makes the `None` proof
+test compare the proven hash. `b0635aea` describes the slot-guarded detach,
+the consumer-gone clause, the getter and the error text in the README and
+the changelog, has the four eviction-clause twins read "until the
+link-maintenance pass (at most 1 s later) evicts it", pins the proof
+section's refusal arms and the new shared-instance needles in
+`crate_readme_sections.rs`, and names `RnsError::SharedInstanceConnectTimeout`
+in `request_layer_api_docs.rs` at a walker floor of 181; it also drops
+`with_first_connect_timeout` from that file's named cited-rustdoc list,
+since `transport/shared_instance.rs` is walked wholesale and the named
+entry checked nothing the walk did not. `8fc49d91` is the
+standalone rustfmt pass over the two shared-instance test parts, one
+`assert_eq!` joined and one `run` call wrapped per argument, no test changed.
+`dd31f874` extracts the TCP connect loop's dial-error classification into
+`classify_dial_error` (`iface/tcp_client.rs`) with a unit test per arm,
+pins the `Timeout` arm from outside the crate in
+`tests/dial_failure_events_api.rs` against the black-holed TEST-NET-1
+address, has both first-connect wait arms log the slot-guarded detach's
+`detached=` result, and rewords the `SharedInstanceConnectTimeout` Display
+(`error.rs`) to cover the consumer-gone arm. `59b0ee7c` adopts
+`tests/shared_instance_first_connect_interrupt_probe.rs` (a detach or a
+`stop` during a 10 s first-connect wait answers within 5 s with the slot
+empty), lets a stale refusal trail `Connected` by one reconnect wait in the
+dial-failure pins, widens the README-default api pin's state channel to 64
+slots, and names the warn text of the `Timeout` arm in the README.
+`986dca4a` adopts `tests/dial_failure_reason_contract_probe.rs` (both
+reason enums `#[non_exhaustive]`, `Eq` and `Debug` from outside the crate; a
+rustc harness over the linked rlib that compiles the migrated consumer and
+rejects the `isize` cast, a `DialFailure` literal and exhaustive matches;
+the first-connect timeout over an unbound unix path) and folds the unix
+`Io(PermissionDenied)` pin, a bound socket inside a mode-000 directory with
+the OS error's text in the warn, into `tests/dial_failure_events_api.rs`,
+has the two redialing dial-failure pins pass
+`SHARED_INSTANCE_STATE_REDIAL_CAPACITY` where they wrote the literal, turns
+the strict stream-end reads that follow a leniently read redial-era
+`Connected` into `shared_instance_state_next_cycle_event` reads, and names
+that second use in the helper's doc. `5188138e` renames the shadowing
+`try_send` error in `iface/local.rs` to `send_err` and the attach's local
+timeout binding to `first_connect_timeout`, adds `kind=` to the
+consumer-gone debug line, and has the three consumer-gone rustdoc twins name
+`stop_interface` beside stop and detach. `8f348131` cites the adopted probes
+and the unix `Io(PermissionDenied)` pin in the changelog's `iface::events`,
+`with_dial_failure_events` and `with_first_connect_timeout` bullets, says
+the drain serves dial failures behind disconnects and connects while
+reconnects are served live only, records the `8fc49d91` rustfmt pass as a
+test-only Changed bullet, ends the README's closed-link prove sentence on
+`InvalidArgument`, and pins the new cites and the "connect timed out after"
+warn text in `crate_readme_sections.rs`. `9c0bb5c6` adopts
+`tests/shared_instance_first_connect_stop_interface_probe.rs`, which holds
+that a `stop_interface` taken during a 10 s first-connect wait answers
+`SharedInstanceConnectTimeout` well ahead of the timer with the slot empty
+and the posture off, cites it from the `with_first_connect_timeout` bullet
+and needles the cite in `crate_readme_sections.rs`. `b68ef92c` names
+`stop_interface` in the README, CHANGELOG and interrupt-probe wording twins,
+says in `with_state_events` that `DialFailed` interleaves after
+`Connecting` while nothing answers, re-wraps two README lines to 80 columns
+and needles the README wording in `crate_readme_sections.rs`.
+
+Fork commits `45bcadfc`, `fdfa83dd`, `f45595c5`, `b819ab22`, `bb247215`,
+`0a8f5cf8`, `cc5c3092`, `3ab8f323`, `200b8810`, `b86af8d6`, `272c3f2c`,
+`a1241d2f`, `e07d20d2`, `0d5f60da`, `9c2d173c` and `14893a3f`: K8,
+disconnect reasons. The library behaviour changes are: the HDLC stream
+runner reports how a stream ended, `TcpClient` and `LocalUnixClient` can
+send that as a typed `DisconnectReason` on a channel of their own beside
+the plain disconnect event, the shared-instance attach installs that
+channel on its client, and an attach that opts in reads
+`DisconnectedWithReason { reason }` where its state stream read
+`Disconnected`; without the opt-in the stream is unchanged. A stop, detach
+or `stop_interface` still reports nothing, and the attach's clients run no
+read watchdog, so `Timeout` reaches the stream only for a read or write
+that failed with `TimedOut`, never for a quiet socket. The
+`DisconnectReason` enum itself arrived with K7 (`61429992`). `45bcadfc`
+has `run_hdlc_stream_with_runtime_and_ifac` return an `HdlcStreamExit`
+(`PeerClosed`, `ReadTimeout`, `ReadError`, `WriteError` or `Cancelled`),
+the rx side's exit unless that side only followed the tx side's stop, and
+pins `PeerClosed`, `Cancelled` and `ReadTimeout` in the `tcp_client` unit
+tests beside the earlier `ReadError` pin. `fdfa83dd` adds
+`DisconnectReason::from_stream_exit`, which reads an exit as `PeerClosed`,
+`Reset`, `Timeout` or `Io(kind)` and a locally ended stream as nothing, and
+gives `TcpClient` and `LocalUnixClient` a `with_disconnect_reason_events`
+builder and `disconnect_reason_events_enabled` getter that send
+`(interface address, reason)` beside the plain disconnect event. `f45595c5`
+adds `tests/disconnect_reason_events_api.rs`, which holds that a TCP peer's
+orderly close reads `PeerClosed` and its linger-zero close `Reset`, that a
+cancel while connected sends nothing, that the unix client reports
+`PeerClosed`, and that a full channel drops the reason while the client
+keeps reconnecting. `b819ab22` adds `SharedInstanceEvent::DisconnectedWithReason`
+and `SharedInstanceOptions::with_disconnect_reasons`
+(`transport/shared_instance.rs`): the attach
+(`links_parts/transport_sections/shared_instance.rs`) installs
+`with_disconnect_reason_events` on both clients in place of the plain
+disconnect channel, the consumer's `run`, `serve_disconnected` and
+`drain_queued` carry the reason, and the new
+`shared_instance_reconnect_parts/disconnected_event.rs` picks
+`DisconnectedWithReason` or the plain `Disconnected` by the attach's opt-in;
+the hand-driven consumer fixtures in `two_transport_shared_instance_reconnect.rs`,
+`two_transport_shared_instance_probe16.rs`,
+`two_transport_shared_instance_state_events.rs` and the `DriveSpec` literals of
+its probes and `two_transport_shared_instance_dial_failures.rs` gain the
+field. `bb247215` adds
+`two_transport_shared_instance_disconnect_reasons.rs`, included from
+`tests.rs`, which holds over a raw listener that an orderly close reads
+`DisconnectedWithReason { PeerClosed }` and a linger-zero close
+`DisconnectedWithReason { Reset }`, each before `Connecting`, that the same
+closes read the plain `Disconnected` without the opt-in, that the unix
+client reads `PeerClosed` the same way, and that the hand-driven consumer
+puts the reason where `Disconnected` sits in the cycle. `0a8f5cf8` corrects
+the `DisconnectedWithReason` rustdoc: `Timeout` is read for a read or write
+that failed with `ErrorKind::TimedOut`, watchdog or not. `cc5c3092` lists
+the two `with_disconnect_reason_events` twins in `request_layer_api_docs.rs`,
+adds the README paragraph on `with_disconnect_reasons` and the two
+changelog bullets (the clients' reason channel and stream exit, the
+shared-instance variant and option), and needles both in
+`crate_readme_sections.rs`. `3ab8f323` has the unix pin in
+`two_transport_shared_instance_disconnect_reasons.rs` shut its accepted
+socket down and drain it before the drop: Linux marks the peer of a unix
+socket closed with an unread receive queue `ECONNRESET`, which read as
+`Reset` where macOS read EOF. `200b8810` pins `WriteError` in the
+`tcp_client` unit tests (a failing writer, borrowed from
+`tcp_client_memory_tests.rs`, exits as `WriteError(BrokenPipe)` over the
+rx side's `Cancelled`) and `Timeout` at client level (a `TcpClient` built
+with a read watchdog reports a held-silent peer as `Timeout`; the attach's
+clients configure none, so no black-box test can), has the hand-driven
+consumer serve a drop queued before it ran as
+`DisconnectedWithReason { PeerClosed }`, renames the cancel test in
+`tests/disconnect_reason_events_api.rs` for what it drives and gives it a
+unix twin of the full-channel pin, and adopts
+`tests/shared_instance_disconnect_reasons_api.rs`, which holds from outside
+the crate that the opt-in reads `PeerClosed` and `Reset` over a raw
+listener, that a socket held quiet sends nothing, that the default attach
+and one switched back off read the plain `Disconnected`, and that a
+README-shaped consumer labels every reason. `b86af8d6` tightens the
+rustdoc (both `with_disconnect_reason_events` builders name the receive
+queue's close among the silent exits and a write's kind after the peer
+went away, `Timeout` names the `TimedOut` io error, the `Disconnected` and
+`with_state_events` tails name `DisconnectedWithReason` for a queued drop
+under the opt-in), names the new pins and the adopted file in the
+changelog, and drops the byte-identical claim for the opt-out stream in
+favour of "unchanged for every disconnect the client reports".
+`272c3f2c` moves the comment on why each close lands on a held stream
+onto the accept-and-close sequence it describes in
+`tests/shared_instance_disconnect_reasons_api.rs`.
+`a1241d2f` adopts `tests/disconnect_reason_receive_queue_probe.rs` (a
+stream ended by the transport's receive queue closing fires the plain
+disconnect channel, leaves the reason channel empty and the client
+redials), cites it in the changelog and the README needle list, and puts
+the stream exit on both clients' `disconnected from` info log lines.
+`e07d20d2` makes the Reset pins (the in-crate test and its black-box
+twin) read the redial's tunnel bytes from the second accepted stream
+before the linger-zero close, so the reset can only reach the client as
+a read-side `ConnectionReset`, and tightens the surrounding test rustdoc
+and headers. `0d5f60da` says in the README paragraph and the changelog
+bullet that a write failing before the read side sees the reset reads
+`Io(BrokenPipe)` rather than `Reset`, adds the receive queue's close to
+the README's list of silent stream ends, needles the paragraph-form
+variant name, and moves the unreleased `LocalInterface.py` drop-path
+cites to `:255-266`. `9c2d173c` adds
+`tests/disconnect_reason_log_line_probe.rs`, which holds that both
+clients' `disconnected from` info line carries the stream exit
+(`exit=PeerClosed`, `exit=ReadError(ConnectionReset)`, and `exit=Cancelled`
+for a stream the transport's receive queue closed), read beside the reason
+channel. `14893a3f` tightens the reason rustdoc twins (the write-first
+reset clause on `DisconnectReason::Reset` and `DisconnectedWithReason`, the
+receive-queue arm in the `DisconnectReason` header) and replaces the
+runner's `unwrap` on the rx task with an `expect`.
+
+Fork commits `8378165f`, `806facd1`, `441dd699`, `17706293`, `024555a6`,
+`5f523d82`, `16fbb720`, `0f040752`, `8f128436`, `f80c4323` and `57fdf117`:
+K9, interface events. The library behaviour change is: a transport carries
+one broadcast stream of its stream clients' connection state, each event
+tagged with the interface it belongs to, and only dialing clients publish on it.
+`8378165f` adds `InterfaceEvent`, `InterfaceEventKind` and the
+crate-private `InterfaceEventPublisher` (`iface/events.rs`, the two public
+types re-exported from `transport`), threads the broadcast sender from
+`InterfaceManager::set_interface_events`
+(`iface_parts/interfacemanager_events.rs`) into every channel the manager
+mints with `InterfaceChannel::publish_event` as the public path
+(`iface_parts/txmessagetype.rs`), adds `Transport::interface_events`
+(`transport/core_parts/interface_events.rs`, the sender created and
+installed in `Transport::new`), has `TcpClient::spawn` and
+`LocalUnixClient::spawn` clone the publisher out of the channel before
+`split()` and publish `Connecting`, `Connected`, `Disconnected { reason }`
+and `DialFailed { reason }` beside their per-client senders, and registers
+the three methods and the two types in `request_layer_api_docs.rs`.
+`806facd1` adds `tests/interface_events_api.rs`, which holds from outside
+the crate that one stream carries a shared instance and a plain `TcpClient`
+tagged by interface through `Connecting`, `Connected`,
+`Disconnected { PeerClosed }`, the redial and `DialFailed { Refused }`, that
+the shared-instance state stream and the per-client senders are unchanged
+beside it, that a dropped receiver costs the client nothing, that a
+capacity-one receiver reads `Lagged(1)`, that publishing with no subscriber
+or no stream is a no-op and that the unix client publishes the same four
+kinds, plus unit tests on the event getters and the publisher in
+`iface/events.rs`. `441dd699` detaches the publisher of a client built from
+a pre-supplied stream (`TcpClient::new_from_stream`,
+`LocalUnixClient::new_from_stream`), so a `TcpServer`'s or
+`LocalUnixServer`'s accepted peers publish nothing, says so once each in
+the `InterfaceEventKind`, `InterfaceEventPublisher` and
+`Transport::interface_events` rustdoc, and pins the detached publisher in
+the unit tests. `17706293` pins that from outside the crate: a listening
+transport's stream stays empty through a `TcpServer`'s accept and through
+the accepted peer's exit, and a `TcpClient::new_from_stream` spawned
+through a transport publishes nothing through the peer's close. `024555a6`
+documents the stream in the README's shared-instance section and
+divergence register, the changelog and this ledger, and adds the
+`crate_readme_sections.rs` pin that holds the README paragraph and the
+changelog bullet to the same claims. `5f523d82` wraps the sender
+`InterfaceChannel` carries in `std::panic::AssertUnwindSafe` so the channel
+and `InterfaceContext` keep the `UnwindSafe` and `RefUnwindSafe` they had
+before the field, and pins that at compile time in
+`tests/interface_events_api.rs`. `16fbb720` adds
+`tests/interface_events_probe.rs` (two receivers each read the whole
+sequence, a `stop_interface` or `Transport::stop` publishes no
+`Disconnected`, a late subscriber reads nothing it missed, the stream holds
+1024 unread events), pins a `LocalUnixClient::new_from_stream` publishing
+nothing beside its TCP twin, and runs the two socket-free pins without a
+runtime. `0f040752` has `InterfaceChannel::publish_event` send through the
+channel's own sender instead of cloning it into a publisher first.
+`8f128436` says at the `InterfaceEventKind`, `Transport::interface_events`
+and README sites that a client that stops or gives up publishes no further
+event, raises the `request_layer_api_docs.rs` walker floor to the 196
+items it counts, and names `InterfaceEventPublisher` in this narrative.
+`f80c4323` adds `tests/interface_events_give_up_probe.rs` (a client that
+gives up after `max_reconnect_tries` and a client stopped inside its redial
+wait each publish nothing after the `DialFailed` they had already
+published), and has `tests/interface_events_probe.rs`'s quiet-window drain
+assert the stream stayed open. `57fdf117` adds the `Disconnected { reason }`
+of a stream that ended just before the stop or give-up to the last-event
+sentence at its three sites, says a later `set_interface_events` reaches
+only channels minted from then on, and pins the `exit=Cancelled` log-line
+clause to the TCP client.
+
+Fork commits `27dad245`, `2935b5db`, `62554a8c`, `d55a4f0e`, `1bc1e388` and
+`7752a883`: K10, batch hygiene. The library behaviour change is:
+`delivery::await_link_activation` with a timeout the clock cannot hold,
+`Duration::MAX` included, waits instead of panicking. `27dad245` has
+`await_link_activation` (`src/delivery.rs`) compute its deadline with
+`checked_add`, falling back to the thirty-year far future
+`Transport::await_path` already uses, pinned by
+`tests/link_activation_deadline_api.rs`
+(`max_timeout_waits_and_short_timeout_times_out`: a pending link on a
+broadcasting transport with no interface outlives a one-second outer bound
+under `Duration::MAX`, and a 100 ms timeout answers `TimedOut` at its
+deadline). `2935b5db` moves `HdlcStreamExit` from `iface/tcp_client.rs` to
+`iface/events.rs` beside `DisconnectReason::from_stream_exit`, removing the
+two-way import between the files, and makes its join rule the pure
+`HdlcStreamExit::join` (the read side's exit unless it only followed the
+write side's stop) with three unit pins in `iface/events.rs`
+(`the_read_side_exit_wins_when_both_sides_failed`,
+`a_read_side_that_only_followed_the_write_side_yields_the_write_exit`,
+`two_cancelled_sides_join_as_cancelled`); adds
+`InterfaceChannel::event_publisher_unless_detached`
+(`iface_parts/txmessagetype.rs`) in place of the identical five-line
+detached-publisher block in `TcpClient::spawn` and `LocalUnixClient::spawn`;
+has the TCP client publish `Connecting` after `mark_connecting()`, as its
+`DialFailed` and `Connected` publishes follow their status marks; and names
+the literal `3` at the four metadata-size sites in
+`resource/manager_start.rs` and `resource/manager_segments.rs`
+`METADATA_LENGTH_PREFIX_LEN`. No behaviour change. `62554a8c` adds
+`tests/interface_events_last_disconnected_probe.rs`
+(`a_client_stopped_after_its_stream_ended_leaves_disconnected_as_its_last_event`,
+`a_client_with_no_retries_left_leaves_disconnected_as_its_last_event`),
+makes `drain_quiet` in `tests/interface_events_give_up_probe.rs` assert the
+stream stayed open like its twin in `tests/interface_events_probe.rs`, moves
+`Queued`, `DriveSpec` and `shared_instance_state_drive_consumer_with` from
+`tests_parts/two_transport_shared_instance_state_events.rs` into
+`tests_parts/two_transport_shared_instance_state_events_spec.rs`
+(`include!`d from `transport/tests.rs`), adds
+`Queued::DisconnectWith(DisconnectReason)` and pins it in
+`two_transport_shared_instance_disconnect_reasons.rs`
+(`shared_instance_disconnect_reasons_consumer_sends_the_reason_the_drop_carried`:
+a queued `Reset` reads `DisconnectedWithReason { Reset }`), renames the test
+helper `outgoing_request_count` to `sent_path_request_count` in the three
+`two_transport_resolve_destination*.rs` files so it no longer shadows the
+`PathRequests` method it wraps, rewords the `tests/response_cap_tracker_api.rs`
+header (a zero cap refuses every packet-form response; a Resource response
+with no data and no metadata measures zero and goes out), and registers the
+new probe in `crate_readme_sections.rs`. `d55a4f0e` has the
+`ProofRequestedHandler` rustdoc (`destination_parts/module_core.rs`) state
+that the callback must not panic because it runs without a panic guard,
+unlike `RNS/Link.py:966-968`; names `METADATA_LENGTH_PREFIX_LEN` in
+`resource/tests_split_metadata.rs` instead of "3-byte"; and has the
+CHANGELOG cite `HdlcStreamExit` at its new file and name the adopted probe.
+`1bc1e388` shares three integration-test helpers that each test binary had
+carried its own copy of, one helper per file under `tests/support/`, pulled
+in with a `#[path]` include by the binaries that use it:
+`tests/support/free_loopback_port.rs` replaces the eleven copies of
+`free_loopback_port`, `tests/support/client_transport.rs` the eight copies
+of `client_transport`, and `tests/support/compile_fail.rs` the three copies
+of the `rustc` harness (`Scratch`, `deps_dir`, `candidate_rlibs`, `rustc`) in
+`tests/breaking_changes_compile_fail.rs`, `tests/link_proof_strategy_api.rs`
+and `tests/dial_failure_reason_contract_probe.rs`, with `Scratch::new`
+taking the per-file scratch label and `link_proof_strategy_api`'s scratch
+directory gaining the thread-name component the other two already had.
+`7752a883` has the module header of `tests/response_cap_tracker_api.rs` say
+that a zero cap puts every packet-form response over it, agreeing with the
+test doc comment `62554a8c` reworded in the same file.
+
+Fork commits `92346ece`, `2624206e`, `ac841458` and `4ed2ebec`:
+Python-in-the-loop link proof strategy interop. Four link-proof-strategy
+commits above: a Python RNS initiator sends one plain link packet to a Rust
+destination held at `ProofStrategy::App` with no callback and watches its
+`PacketReceipt` stay `SENT` until the Rust application proves the packet
+through `Transport::prove_link_packet`, after which it reads `DELIVERED`
+(`crates/apps/reticulumd/tests/python_channel_interop_parts/python_to_rust_link_proof_strategy.rs`
+included from `crates/apps/reticulumd/tests/python_channel_interop.rs`, with
+the `link-data-receipt` client arm of
+`crates/apps/reticulumd/tests/support/python_channel_endpoint.py`), the
+release section's Python-in-the-loop proof rows.
+
+Fork commits `b5358d0f`, `78fb99eb`, `bfe21650`, `81cb1d40`, `69bbcd91` and
+`151b345f`: release 0.18.0. The first retargets the promotion-sensitive pins
+to the literal 0.18.0 label, since a released section is frozen:
+`crates/apps/reticulumd/tests/fork_publish_contract_parts/ledger_contract.rs`
+expects the full-hash contract to cover `0.18.0`, `0.17.0`, `0.16.0` and
+`0.15.1` with no `Unreleased` label and the bullet-cite contract the same
+four, and the two version pins in
+`crates/apps/reticulumd/tests/fork_publish_contract.rs` read `0.18.0`. The
+same commit has the include-set pin of
+`crates/apps/reticulumd/tests/fork_release_docs_contract_parts/release_0_17_0_probe2.rs`
+read the release-docs-contract bullet of the newest release section that
+carries one, through `newest_release_docs_contract_bullet`, in place of the
+literal 0.17.0 section, with a fixture
+(`newest_release_docs_contract_bullet_skips_releases_without_one`) for the
+newest-first selection; gives
+`crates/apps/reticulumd/tests/fork_release_docs_contract_parts/readme_patch_list.rs`
+a 0.18.0 twin
+(`readme_patch_list_opens_with_the_0_18_0_block_and_keeps_the_0_17_0_paragraph`)
+asserting that the 0.18.0 block opens the list, the 0.18.0, 0.17.0, 0.16.0
+order and the 0.18.0 items, while the 0.17.0 test
+(`readme_patch_list_keeps_the_0_17_0_block_above_the_0_16_0_paragraph`)
+keeps its order and its needles through a shared const; and adds
+`crates/apps/reticulumd/tests/fork_release_docs_contract_parts/release_0_18_0_probe.rs`,
+included from `crates/apps/reticulumd/tests/fork_release_docs_contract.rs`,
+which pins the heading date, the one `### Breaking` bullet with its lint
+name, cast and `Migration:` clause, the semver sentence of the version
+bullet, the `### Fixed` subsection and the README patch-list order. The
+second bumps the crate version to 0.18.0 at every manifest and
+consumer-snippet site (`Cargo.toml`, `crates/libs/rns-transport/Cargo.toml`,
+`crates/apps/reticulumd/Cargo.toml`, `crates/apps/rns-tools/Cargo.toml`,
+the snippet in `crates/libs/rns-transport/README.md` and
+`docs/getting-started.md`) and in `Cargo.lock` and
+`crates/libs/rns-transport/fuzz/Cargo.lock`; the root `VERSION` file stays.
+The third promotes `## Unreleased` to `## 0.18.0 - 2026-11-01` in the crate
+`CHANGELOG.md` with a `### Breaking` subsection first, listing the one
+break (the data-carrying `SharedInstanceEvent` variants end the integer
+cast of its unit variants) with its migration, a version bullet at the head
+of `### Changed` (the announce field, the minor-bump reasoning, the `cargo
+semver-checks` result against `v0.17.0` with its one tolerated lint, and
+the contract tests that pin the release), a test-only bullet for the
+release docs contract parts, and a new `### Fixed` holding the
+`Transport::await_path` deadline fix beside the
+`delivery::await_link_activation` bullet moved out of `### Changed`. The
+fourth adds the 0.18.0 paragraph to the `## Patch list` of
+`crates/libs/rns-transport/README.md`, folding it into the intro sentence
+and leaving the 0.17.0 block as a standalone paragraph with its bullets
+unchanged. The fifth adopts
+`crates/libs/rns-transport/tests/link_activation_max_timeout_probe.rs`
+(`max_timeout_resolves_when_the_link_activates`: a link that activates over
+loopback TCP returns `Ok(())` under `Duration::MAX`, and a second unbounded
+wait on the active link returns at once), the positive control of
+`tests/link_activation_deadline_api.rs`. The sixth extends
+`release_0_18_0_probe.rs` with three pins over the release notes a reader
+relies on: every one of the seven `### Added` items is named by the
+identifiers a consumer greps for, the version bullet says the semver run
+found the one tolerated lint and 0 others, and the `### Fixed` bullet for
+`delivery::await_link_activation` cites the adopted positive control at a
+path that exists. The ledger commits that cite the six commits above touch
+only this file and the crate `CHANGELOG.md`.
+
 ## 0.17.0 (upstream 0.14.0)
 
 Every file changed since the `0.16.0` release and the patch each change

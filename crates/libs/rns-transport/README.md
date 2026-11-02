@@ -28,7 +28,7 @@ when the rebase breaks the fork's public API, the next patch digit otherwise.
 
 ```toml
 [dependencies]
-coyote-rns-transport = "0.17.0"
+coyote-rns-transport = "0.18.0"
 ```
 
 ```rust
@@ -85,6 +85,32 @@ oversize one is rejected there, which the requester sees as
 receipt. Once an accepted request Resource is assembled the same handler
 runs, with the request id recomputed from the assembled bytes.
 
+`set_max_response_size`, `clear_max_response_size` and `max_response_size`
+on the destination bound the size of a response it sends; with no limit set
+every size goes out. The cap covers the responses the dispatcher sends for
+the destination's registered handlers; `Transport::send_response` and
+`Transport::send_response_resource` are addressed to a link, not a
+destination, and are not measured. The dispatcher measures a `Value` or
+`Bytes` response as its packed `[request_id, body]` frame, before the MDU
+check that would turn an oversize frame into a Resource, and a
+`RequestResponse::Resource` as the size its advertisement carries, the
+uncompressed `data` together with the packed metadata and its length prefix
+(a metadata-less Resource measures as its data alone), like
+`max_request_size`, which reads the advertised size rather than the
+compressed one. A packet response is measured here as its whole
+`[request_id, body]` frame while the requester measures the packed body
+alone, so for the packet form the responder refuses first; for the Resource
+form both caps read the advertised size and compose at one number. A
+response at the cap goes out; one over it is not sent at all: the
+dispatcher logs one warn naming the request id, the link, the measured
+length and the cap, and a handler that tracked its outcome resolves
+`ResponseOutcome::TooLarge { len, max }`. A handler that did not track is
+told nothing, and the requester sees an unanswered request. The
+requester's cap on what it will accept is
+`RequestOptions::with_max_response_size`; `set_max_response_size` is the
+responder's cap on what it will send. Python has no responder cap:
+`handle_request` sends whatever the handler returns (`RNS/Link.py:846-852`).
+
 Between a link and the transport's request dispatch worker sits a bounded
 queue of 1024 requests; a full queue drops the request with a debug log
 rather than blocking the link. This is a resource limit, not a protocol
@@ -117,13 +143,25 @@ handler has returned, so it is awaited outside the handler. The
 the `OutboundResult` of every response that leaves as a Resource, the
 `Resource` form and an oversize `Value` or `Bytes` alike; `Packet` says the
 `RESPONSE` packet reached at least one interface, and no more, since a packet
-response is never proved (see Delivery proofs on a link); `NotSent` covers a
-handler that returned `None`, a link that could no longer exchange data, a
-send that failed before dispatch, a handler that panicked after tracking,
-and a response task that `Transport::stop` or `cancel` aborted before the
-outcome was known: every path that drops the sender. Calling `track_outcome` a
+response is never proved (see Delivery proofs on a link); `TooLarge` says
+the destination's `max_response_size` refused the response and nothing left,
+its `len` the measured size and `max` the cap; `NotSent` covers a handler
+that returned `None`, a link that could no longer exchange data, a send that
+failed before dispatch, a handler that panicked after tracking, and a
+response task that `Transport::stop` or `cancel` aborted before the outcome
+was known: every path that drops the sender. Calling `track_outcome` a
 second time resolves the earlier receiver as `NotSent`. Python has no
 counterpart: `handle_request` sends and keeps nothing (`RNS/Link.py:846-852`).
+
+A handler that wants the request body owned before it decides whether to
+watch the response calls `into_parts` instead, which consumes the request
+and returns the data and a `ResponseOutcomeTracker`; the tracker's `outcome`
+hands out the `ResponseOutcomeReceiver` under the same rule as
+`track_outcome`, armed inside the handler before it returns. A tracker
+dropped without being armed leaves the slot as it was: with no earlier
+`track_outcome`, the dispatcher logs nothing and resolves nothing, so a
+handler that chose not to watch leaves no "outcome receiver dropped" line
+behind.
 
 `LinkEvent::Data` with `PacketContext::Request` keeps posting for every
 inbound request packet, its `LinkPayload` carrying the request id, and
@@ -226,7 +264,8 @@ sent (see Known divergences).
 
 ## Delivery proofs on a link
 
-A plain Data packet sent on a link is proved by the peer (`RNS/Link.py:950-962`),
+A plain Data packet sent on a link is proved by the peer by default
+(`ProofStrategy::All`, below; `RNS/Link.py:950-962`),
 and the proof posts `LinkEvent::PacketProven { packet_hash }` on the link's
 event stream, on whichever side sent the packet, once per packet: the hash is
 recorded when the packet is sent and the first valid proof naming it consumes
@@ -243,6 +282,29 @@ filtered by the record. The request layer's own `RequestReceipt` is the
 delivery signal for a request. A stock Python peer never proves a link
 packet, and Python records and culls its receipts differently (see Known
 divergences).
+
+Whether a link proves a plain Data packet it receives is its `ProofStrategy`
+(`Link::set_proof_strategy`, default `All`, so every link proves unless told
+otherwise). `App` consults a `ProofRequestedHandler` per packet
+(`Link::set_proof_requested_callback`) and proves nothing when none is
+registered; a link accepted by a destination copies
+`SingleInputDestination::link_proof_strategy` and the destination's
+`proof_requested_callback` at accept (`set_link_proof_strategy`, default
+`All`), while an out-link has no destination to copy from and must be set
+directly. `None` never auto-proves. Channel frames are proved under every
+strategy (`RNS/Link.py:1151`). An application that holds a packet back
+proves it later from `LinkPayload::packet_hash` through
+`Transport::prove_link_packet`, which works under any strategy; under `All`
+it is a second proof the sender ignores, its one record already consumed.
+`prove_link_packet` refuses an unknown link as `InvalidArgument` and a link
+it holds but that is not `Active`, or whose proof cannot be sent, as
+`ConnectionError`; a closed link reads `ConnectionError` only
+until the link-maintenance pass (at most 1 s later) evicts it, after which
+it is unknown and reads `InvalidArgument`. A Python application does the
+same with `packet.prove()` (`RNS/Packet.py:336-341`), and its link proves
+by the destination's `proof_strategy`, `PROVE_ALL` or `PROVE_APP`
+(`RNS/Link.py:961-968`), one setting that this crate keeps apart from the
+opportunistic `proof_strategy` (see Known divergences).
 
 ## Outbound resource outcomes
 
@@ -338,6 +400,28 @@ touches only the path table, and is removed only by
 `Transport::link` takes, though the link still needs a path
 as described above.
 
+`Transport::resolve_destination` is `destination_desc` and
+`Transport::await_path` in one call, taking the address and a `Duration`
+timeout and returning the same `Option<DestinationDesc>`. A destination the
+transport already knows answers at once and no path request goes out. A
+zero timeout is a cached lookup alone and returns `None` for an unknown
+destination without sending anything. Otherwise exactly one path request is
+attempted, a `Broadcast` on every outgoing interface as
+`Transport::request_path` sends it, and the call waits until a path is
+learned, polling every 50 ms or the time left, whichever is shorter, or the
+timeout passes, returning `None` after it. A timeout the clock cannot hold,
+`Duration::MAX` included, waits indefinitely instead of panicking. The desc
+and the path table can part ways: a destination
+`Transport::deregister_destination` removed while its path table entry stands
+answers `None` at once with no request, since `await_path` takes the standing
+path as its answer, and a destination whose desc is still held but whose path
+`Transport::expire_path` or aging removed answers `Some` at once with no
+request, so a caller that then needs a next hop for `Transport::link` still
+calls `await_path` itself. The convenience is fork-only: a Python
+application writes the same by hand with `RNS.Transport.request_path`
+(`RNS/Transport.py:3279`), a `RNS.Transport.has_path` poll
+(`RNS/Transport.py:3126`) and `RNS.Identity.recall`.
+
 Looking up a learned destination and opening a link with it, on the transport
 that learned the announce and with `destination_hash` the `AddressHash` the
 announce carried:
@@ -376,10 +460,10 @@ Send + Sync>`, consulted from then on for every inbound plain resource
 advertisement, one that is neither a request nor a response, with the link
 it arrived on and the peer's identity when it has identified itself on that
 link. This is the `ACCEPT_APP` callback of `RNS/Link.py:1066-1074`; request
-and response advertisements stay under `max_request_size` and
-`max_response_size` (`RNS/Link.py:1036-1064`) and never reach the hook.
-`false` refuses the transfer with a receiver cancel, exactly as the size
-caps do, so the sender reads `Rejected(PeerCancelled)` on its outcome and
+and response advertisements stay under `max_request_size` and the
+requester's `max_response_size` (`RNS/Link.py:1036-1064`) and never reach
+the hook. `false` refuses the transfer with a receiver cancel, exactly as the
+size caps do, so the sender reads `Rejected(PeerCancelled)` on its outcome and
 `ResourceEventKind::OutboundRejected` on its events, nothing is assembled,
 and the link survives. A split resource consults the hook once per segment
 advertisement, so a refusal is consulted once and later segments are never
@@ -485,18 +569,20 @@ budget, so none runs on a stopped transport.
 `tokio::sync::mpsc::Sender<SharedInstanceEvent>` and delivers the client's
 connection state on it.
 `SharedInstanceEvent` is `#[non_exhaustive]`, so match it with a wildcard
-arm; its variants are `Connecting`, `Connected` and `Disconnected`. The
-attach itself sends the first `Connecting` once the interface is spawned and
-the slot taken, the connected posture already set when `Connecting` arrives
-while the slot still holds the interface (a refused attach sends nothing; in
-the documented attach/stop race the attach returns `Ok` and `Connecting`
-goes out with the posture off, the stream ending at once); the consumer task
-sends `Connected` on every established stream, the first included, and after
-every dropped connection `Disconnected`, once the flush above, which runs
-only while the transport is still attached, has run, then `Connecting` at
-once, so one cycle reads `Disconnected`, `Connecting`, `Connected`. Under a
-reconnect storm the cycles can interleave: queued disconnects are served
-before connects, so two `Disconnected` can precede their `Connected`s; the
+arm; its variants are `Connecting`, `Connected`, `Disconnected`,
+`DialFailed { reason }` and `DisconnectedWithReason { reason }` (the last
+two are described below). The attach itself sends the first `Connecting`
+once the interface is spawned and the slot taken, the connected posture
+already set when `Connecting` arrives while the slot still holds the
+interface (a refused attach sends nothing; in the documented attach/stop
+race the attach returns `Ok` and `Connecting` goes out with the posture
+off, the stream ending at once); the consumer task sends `Connected` on
+every established stream, the first included, and after every dropped
+connection `Disconnected`, once the flush above, which runs only while the
+transport is still attached, has run, then `Connecting` at once, so one
+cycle reads `Disconnected`, `Connecting`, `Connected`. Under a reconnect
+storm the cycles can interleave: queued disconnects are served before
+connects, so two `Disconnected` can precede their `Connected`s; the
 per-cycle order holds, the cycles may nest. A client attached while nothing
 listens stays in `Connecting` until the socket exists. Every event goes out
 with `try_send`: a full channel drops the event at debug and never blocks
@@ -505,16 +591,106 @@ of the sender is dropped on `detach_shared_instance`, `Transport::stop` or
 when the client worker exits; the stream ends once no other clone, a
 retained `SharedInstanceOptions` clone included, is alive. A detach or a
 stop sends no `Disconnected`, but a drop that was already queued when the
-detach landed is still served and read as `Disconnected`, `Connecting`
-before the stream ends (a connect already queued is read as `Connected`).
+detach landed is still served and read as `Disconnected` (or
+`DisconnectedWithReason` under `with_disconnect_reasons`), `Connecting` before
+the stream ends (a connect already queued is read as `Connected`).
 `connected_to_shared_instance()` is the posture flag and is unchanged by the
 events: it stays set across a `Disconnected` until detach or stop. Python's
 `LocalClientInterface` exposes no such stream; its reconnect loop is
 `RNS/Interfaces/LocalInterface.py:155-181` and its drop path
-`RNS/Interfaces/LocalInterface.py:255-261`. Underneath, `TcpClient` and
+`RNS/Interfaces/LocalInterface.py:255-266`. Underneath, `TcpClient` and
 `LocalUnixClient` gained `with_connect_events`, which fires on every
 established stream, the first included, where `with_reconnect_events` fires
 from the second on, and a `connect_events_enabled` getter.
+
+A client attached while nothing listens also reports each failed attempt:
+`SharedInstanceEvent::DialFailed { reason }` goes out once per attempt,
+`reconnect_wait` apart, with `reason` a `DialFailureKind`, `Refused` for a
+TCP port nothing listens on, `NotFound` for a unix socket path nothing has
+bound, `Timeout` for an attempt that outlived the TCP client's connect
+timeout, or an OS `TimedOut`, and `Io(kind)` for any other io error (`Io`
+never carries those three kinds). The TCP client's "couldn't connect" warn
+now carries the io error's text as well, or "connect timed out after
+<timeout>" for the `Timeout` arm no io error reaches. By default the attach
+returns as soon as the client is spawned and keeps dialing, as Python's
+`LocalClientInterface` does (`RNS/Interfaces/LocalInterface.py:159-167`,
+which logs each failed attempt at debug and retries).
+`SharedInstanceOptions::with_first_connect_timeout`
+opts into waiting: the attach waits that long for the first served connect
+and otherwise detaches again, as it does when the attach's consumer ends first
+(a stop, detach or `stop_interface` during the wait), and returns
+`RnsError::SharedInstanceConnectTimeout`, with `shared_instance()` back to
+`None`, the posture off, and the stream reading `Connecting`, zero or more
+`DialFailed`, then ending; a connect that lands between the timeout and the
+detach may still be read as `Connected` before the stream ends. That detach
+releases the slot only while it still holds the timed-out attach's own
+interface, so a detach and a second attach taken during the wait are left
+in place. Underneath, `TcpClient` and `LocalUnixClient` gained
+`with_dial_failure_events`, which takes a
+`tokio::sync::mpsc::Sender<DialFailure>` and sends one `DialFailure` per
+failed attempt, `DialFailure::iface()` naming the interface and
+`DialFailure::kind()` the `DialFailureKind`, and a
+`dial_failure_events_enabled` getter; `DialFailure`, `DialFailureKind` and
+`DisconnectReason` live in `iface::events` and are re-exported from
+`transport`.
+
+`SharedInstanceOptions::with_disconnect_reasons(true)` opts into reading why
+each established connection ended: the stream then carries
+`SharedInstanceEvent::DisconnectedWithReason { reason }`, at the same
+position in the cycle, in place of `Disconnected`, the rest of the stream
+unchanged; off by default, so a caller that matches on `Disconnected` keeps
+reading it. `reason` is a `DisconnectReason`: `PeerClosed` for an orderly close
+(the shared instance closed the socket), `Reset` for a connection reset (a
+write that fails before the read side sees the reset reads `Io(BrokenPipe)`
+instead), `Timeout` for a read or write that failed with `ErrorKind::TimedOut`
+(the attach's clients run no read watchdog, so a quiet socket is not
+reported; only a `TcpClient` built with `with_backbone_liveness` has one),
+and `Io(kind)` for any other io error (`Io` never carries `ConnectionReset`
+or `TimedOut`). A stop, detach or `stop_interface` still sends nothing.
+Underneath, `TcpClient` and `LocalUnixClient` gained
+`with_disconnect_reason_events`, which takes a
+`tokio::sync::mpsc::Sender<(AddressHash, DisconnectReason)>` and sends one
+pair each time an established stream ends while the client is neither
+cancelled nor stopped nor ended by the transport's receive queue closing,
+beside the existing `with_disconnect_events` (which keeps its
+`Sender<AddressHash>` and keeps firing), and a
+`disconnect_reason_events_enabled` getter; the attach now installs the
+reason channel on its client. Python's `LocalClientInterface` only notices
+the socket closed and reconnects (`RNS/Interfaces/LocalInterface.py:255-266`)
+and reports no reason.
+
+`Transport::interface_events()` returns a
+`tokio::sync::broadcast::Receiver<InterfaceEvent>` carrying every stream
+client's connection state on the transport, each event tagged with its
+interface: `InterfaceEvent::iface()` names the interface and
+`InterfaceEvent::kind()` the `#[non_exhaustive]` `InterfaceEventKind`,
+`Connecting` once per dial attempt (redials included), `Connected` per
+established stream, `Disconnected { reason }` when an established stream
+ends for a reason the client reports (the same `DisconnectReason` as
+`with_disconnect_reason_events`; a cancel, stop or the receive queue closing
+publishes nothing) and `DialFailed { reason }` per failed attempt (the same
+`DialFailureKind` as `with_dial_failure_events`). Every `TcpClient` and
+`LocalUnixClient` that dials through the transport's interface manager
+publishes, the client `attach_shared_instance` spawns included, so one
+receiver sees the shared instance and every plain client, each under its own
+address; a client built from a pre-supplied stream
+(`TcpClient::new_from_stream`, `LocalUnixClient::new_from_stream`, how
+`TcpServer` and `LocalUnixServer` run each accepted peer) and every other
+interface kind publish nothing yet. A client that stops, or gives up after
+`max_reconnect_tries`, publishes no further event: its last event is the
+`Connected` of the stream it was on, or the `Connecting` or `DialFailed` of
+the attempt it abandoned, or the `Disconnected { reason }` of a stream that
+ended just before it stopped or gave up. The per-client `with_*_events`
+senders and `with_state_events` keep working beside it. The stream has
+no replay, so subscribe before spawning the client whose events you want;
+its capacity is 1024, a receiver that falls behind reads `RecvError::Lagged`
+and never slows a client, and a dropped receiver costs the clients nothing.
+`InterfaceEvent` and `InterfaceEventKind` live in `iface::events` and are
+re-exported from `transport`; `InterfaceManager::set_interface_events`
+installs the sender (the transport does it in `Transport::new`) and
+`InterfaceChannel::publish_event` is the path an interface implementation
+holding a channel publishes through. Python has no such stream
+(`RNS/Interfaces/LocalInterface.py:159-167`, `:255-266`).
 
 A `Tcp` endpoint whose address is not loopback is refused with
 `RnsError::SharedInstanceEndpointNotLoopback` before any lock is taken, with
@@ -618,8 +794,8 @@ parity ledger; the `docs/status/*` matrices are not updated per fork task.
   fails a receipt that reached `DELIVERED` (`RNS/Link.py:1398`
   `request_timed_out`, `:1408` `response_rejected`), so a never-answered
   packet-form request stays pending forever there.
-- A packet-form response over `max_response_size` fails the receipt with
-  `RequestError::Oversize`. Python rejects the response
+- A packet-form response over the requester's `max_response_size` fails the
+  receipt with `RequestError::Oversize`. Python rejects the response
   (`RNS/Link.py:874-876`) but the `DELIVERED` guard in `:1408` leaves that
   receipt pending.
 - A response Resource that fails in transfer (a part failure, receiver retry
@@ -663,9 +839,9 @@ parity ledger; the `docs/status/*` matrices are not updated per fork task.
 - A legacy-length request id, one that is not 16 bytes, is not size-gated
   on the packet Response path. Python keys responses on the 16-byte receipt
   id alone (`RNS/Link.py:857-884`).
-- An assembled response Resource is measured against `max_response_size`
-  once more on completion and withheld if over. Python trusts the advertised
-  size (`RNS/Link.py:1049`).
+- An assembled response Resource is measured against the requester's
+  `max_response_size` once more on completion and withheld if over. Python
+  trusts the advertised size (`RNS/Link.py:1049`).
 - `Transport::request` on a link that is not `Active`, `Stale` included, is
   refused with `RnsError::ConnectionError`. Python drops a packet only on a
   `CLOSED` link (`RNS/Packet.py:294-297`).
@@ -683,10 +859,18 @@ parity ledger; the `docs/status/*` matrices are not updated per fork task.
   Python records a `PacketReceipt` for every `DATA` packet outside the
   link-control and Resource contexts, request and response packets included
   (`RNS/Transport.py:1359-1377`).
-- The link always proves plain Data packets. Python proves only under
-  `PROVE_ALL` or `PROVE_APP` (`RNS/Link.py:961-968`) and its default is
-  `PROVE_NONE` (`RNS/Destination.py:161`), so a stock Python peer never
-  sends `PacketProven` here.
+- The link proves plain Data packets by default (`ProofStrategy::All` on
+  every link). Python proves only under `PROVE_ALL` or `PROVE_APP`
+  (`RNS/Link.py:961-968`) and its default is `PROVE_NONE`
+  (`RNS/Destination.py:161`), so a stock Python peer never sends
+  `PacketProven` here. Python has one `proof_strategy` per destination for
+  its opportunistic packets and its links' packets alike
+  (`RNS/Destination.py:360-367`); this crate keeps `proof_strategy` (default
+  `None`) and `link_proof_strategy` (default `All`) apart. The link strategy
+  and the destination's `proof_requested_callback` are copied onto a link
+  when it is accepted; Python's link reads the destination's strategy and
+  callback live per packet (`RNS/Link.py:961-968`), so a destination-level
+  change here reaches only links accepted afterwards.
 - A retried Resource advertisement re-sends the identical prepared packet,
   so the receiver's duplicate filter drops it and the
   `ResourceAcceptHook` runs once per advertisement. Python builds a fresh
@@ -767,6 +951,10 @@ Not divergences:
   bound (`RNS/Link.py:1004-1005`).
 - The resource-form request clock anchored at `Delivered` and never
   expiring while `Receiving` is parity (`RNS/Link.py:1373`, `:1389`).
+- `Transport::interface_events()` is a fork-only stream of client interface
+  state tagged by interface; Python's clients log their state changes and
+  expose no event stream (`RNS/Interfaces/LocalInterface.py:159-167`,
+  `:255-266`). API shape, not behaviour.
 
 ## Versioning and releases
 
@@ -787,8 +975,84 @@ full `refs/tags/coyote-rns-transport-v<version>` ref, and
 
 `docs/fork/PATCHSET.md` is the single per-release ledger of every file changed
 since the previous release, with the commit that changed it and the upstream
-site; earlier sections carry the earlier patches. What `0.17.0` carries on top
-of `0.16.0`:
+site; earlier sections carry the earlier patches. What `0.18.0` carries on top
+of `0.17.0`:
+
+- The owned request split: `InboundRequest::into_parts` hands a handler the
+  request data by value together with a `ResponseOutcomeTracker` over the
+  same outcome slot `track_outcome` fills; `ResponseOutcomeTracker::outcome`
+  arms it under the same rule, inside the handler, and a tracker dropped
+  unarmed leaves the slot as it was.
+- The responder cap: `SingleInputDestination::set_max_response_size`,
+  `clear_max_response_size` and `max_response_size` bound what the dispatcher
+  sends for the destination's handlers, a packet response measured as its
+  `[request_id, body]` frame and a Resource response at its advertised size,
+  the size the requester's `with_max_response_size` reads too. A response
+  over the cap is not sent, the dispatcher warns once, and a tracked outcome
+  resolves `ResponseOutcome::TooLarge { len, max }`.
+- The dial failures: `TcpClient::with_dial_failure_events` and
+  `LocalUnixClient::with_dial_failure_events` report one `DialFailure` per
+  failed attempt, its `DialFailureKind` one of `Timeout`, `Refused`,
+  `NotFound` or `Io(kind)`; the attach's state stream reads them as
+  `SharedInstanceEvent::DialFailed { reason }` after each `Connecting`, and
+  `SharedInstanceOptions::with_first_connect_timeout` makes
+  `attach_shared_instance` wait that long for the first connect, detaching
+  again with `RnsError::SharedInstanceConnectTimeout` when none lands.
+- The disconnect reasons: `TcpClient::with_disconnect_reason_events` and
+  `LocalUnixClient::with_disconnect_reason_events` report a `DisconnectReason`
+  (`PeerClosed`, `Reset`, `Timeout` or `Io(kind)`) with the interface address
+  each time an established stream ends for a reason the client did not
+  cause, and an attach that opts in with
+  `SharedInstanceOptions::with_disconnect_reasons` reads
+  `DisconnectedWithReason { reason }` in place of `Disconnected`; without the
+  opt-in the stream is unchanged.
+- The interface event stream: `Transport::interface_events` returns a
+  `broadcast::Receiver<InterfaceEvent>` carrying every stream client's
+  `Connecting`, `Connected`, `Disconnected { reason }` and
+  `DialFailed { reason }` (`InterfaceEventKind`, `#[non_exhaustive]`), each
+  tagged with its interface through `iface()`; there is no replay, a receiver
+  that falls behind reads `Lagged`, and a client built from a pre-supplied
+  stream publishes nothing.
+- The destination resolve: `Transport::resolve_destination` is
+  `destination_desc` and `await_path` in one call, taking a timeout; a known
+  destination answers at once, a zero timeout is a cached lookup alone, and
+  otherwise one path request goes out and the call waits until a path is
+  learned or the timeout passes, returning `None` after it.
+- The link proof strategy: a `Link` proves the plain Data packets it receives
+  by its own `ProofStrategy` (`All` as before, `App` through the
+  `ProofRequestedHandler`, `None` never), set with `Link::set_proof_strategy`
+  or copied at accept from the destination's `set_link_proof_strategy`;
+  `LinkPayload::packet_hash` names the packet a payload came from,
+  `Link::prove_hash` proves it from the hash alone and
+  `Transport::prove_link_packet` does the same by link id and hash, the
+  deferred path an application takes after reading the payload. Python's
+  `PacketReceipt` stays `SENT` until that proof arrives;
+  `python_to_rust_link_proof_strategy.rs` shows it.
+- The one break: `SharedInstanceEvent` now carries data on two variants, so
+  `as isize` casts of its unit variants no longer compile; the migration is
+  under `### Breaking` in `CHANGELOG.md`. The enum stays `Copy` and
+  `#[non_exhaustive]`, so a match that already has its wildcard arm needs no
+  change.
+- The deadline fixes: `Transport::await_path` (and `resolve_destination`
+  through it) and `delivery::await_link_activation` treat a timeout the
+  clock cannot hold, `Duration::MAX` included, as waiting indefinitely
+  instead of panicking on the deadline add;
+  `tests/link_activation_deadline_api.rs` and
+  `tests/link_activation_max_timeout_probe.rs` pin the pending and the
+  activating link.
+- The refusal cadence: a request advertisement refused for exceeding
+  `max_request_size` is counted per link on
+  `LinkStats.rejected_request_advertisements` and warned on the first refusal
+  and every 64th after it, at debug otherwise, in place of a warn per
+  refusal; the log target of that line moves to `rns_transport::resource`.
+- Test-only hygiene: `free_loopback_port`, `client_transport` and the `rustc`
+  compile-fail harness each live once under `tests/support/`, included by
+  the test binaries that use them, and the hand-driven shared-instance
+  consumer's `DriveSpec` moved into a file of its own beside the state-event
+  tests; `tests/dial_failure_reason_contract_probe.rs` compiles a downstream
+  consumer with `rustc` to pin the break above.
+
+What `0.17.0` carries on top of `0.16.0`:
 
 - The destination lookup: `Transport::destination_desc` returns
   `Option<DestinationDesc>` for an announced destination, `Some` exactly when

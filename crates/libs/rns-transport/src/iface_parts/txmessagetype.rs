@@ -215,6 +215,13 @@ pub struct InterfaceChannel {
     pub ifac_violations: Arc<AtomicU64>,
     pub ifac_default_size_bytes: usize,
     online: Arc<AtomicBool>,
+    /// A broadcast sender is not `UnwindSafe`, but its state survives a
+    /// panic (tokio guards its own locks), so asserting it keeps this
+    /// channel and `InterfaceContext` `UnwindSafe` and `RefUnwindSafe` as
+    /// they were before the field existed.
+    interface_events: Option<
+        std::panic::AssertUnwindSafe<tokio::sync::broadcast::Sender<events::InterfaceEvent>>,
+    >,
 }
 
 impl InterfaceChannel {
@@ -239,6 +246,7 @@ impl InterfaceChannel {
             stop,
             IfacRuntime::disabled(crate::iface::DEFAULT_IFAC_SIZE_BYTES),
             Arc::new(AtomicBool::new(true)),
+            None,
         )
     }
 
@@ -249,6 +257,7 @@ impl InterfaceChannel {
         stop: CancellationToken,
         ifac: IfacRuntime,
         online: Arc<AtomicBool>,
+        interface_events: Option<tokio::sync::broadcast::Sender<events::InterfaceEvent>>,
     ) -> Self {
         Self {
             address,
@@ -259,6 +268,7 @@ impl InterfaceChannel {
             ifac_violations: ifac.violations,
             ifac_default_size_bytes: ifac.default_size_bytes,
             online,
+            interface_events: interface_events.map(std::panic::AssertUnwindSafe),
         }
     }
 
@@ -269,6 +279,36 @@ impl InterfaceChannel {
     /// Updates whether this channel currently has an operational carrier.
     pub fn set_online(&self, online: bool) {
         self.online.store(online, Ordering::Release);
+    }
+
+    /// Fork-only: publishes `kind` tagged with this channel's address on the
+    /// transport's interface event stream; a channel built with [`Self::new`]
+    /// has no stream and publishes nothing.
+    pub fn publish_event(&self, kind: events::InterfaceEventKind) {
+        if let Some(events) = self.interface_events.as_ref() {
+            events::InterfaceEventPublisher::send(events, self.address, kind);
+        }
+    }
+
+    pub(crate) fn event_publisher(&self) -> events::InterfaceEventPublisher {
+        let events = self
+            .interface_events
+            .as_ref()
+            .map(|events| tokio::sync::broadcast::Sender::clone(events));
+        events::InterfaceEventPublisher::new(self.address, events)
+    }
+
+    /// The detached publisher for a client built from a pre-supplied
+    /// stream, the channel's publisher otherwise.
+    pub(crate) fn event_publisher_unless_detached(
+        &self,
+        detached: bool,
+    ) -> events::InterfaceEventPublisher {
+        if detached {
+            events::InterfaceEventPublisher::detached(self.address)
+        } else {
+            self.event_publisher()
+        }
     }
 
     pub fn split(self) -> (InterfaceRxSender, InterfaceTxReceiver) {
@@ -335,4 +375,5 @@ pub struct InterfaceManager {
     rx_send: InterfaceRxSender,
     ifaces: Vec<LocalInterface>,
     worker_tasks: std::collections::HashMap<AddressHash, tokio::task::JoinHandle<()>>,
+    interface_events: Option<tokio::sync::broadcast::Sender<events::InterfaceEvent>>,
 }

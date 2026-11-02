@@ -9,6 +9,7 @@ impl InterfaceManager {
             rx_send,
             ifaces: Vec::new(),
             worker_tasks: std::collections::HashMap::new(),
+            interface_events: None,
         }
     }
 
@@ -113,6 +114,7 @@ impl InterfaceManager {
                 default_size_bytes: ifac_default_size_bytes,
             },
             online,
+            self.interface_events.clone(),
         )
     }
 

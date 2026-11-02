@@ -66,6 +66,24 @@ fn resource_manager_counts_rejected_advertisements_per_link() {
     }
     assert!(manager.incoming.is_empty());
     assert_eq!(manager.link_stats[link.id()].rejected_advertisements, 2);
+    assert_eq!(manager.link_stats[link.id()].rejected_request_advertisements, 0);
+}
+
+/// A request advertisement refused for exceeding `max_request_size` is
+/// counted on its own, per link, and leaves the over-cap resource count
+/// alone: the two cadences never borrow each other's running count.
+#[test]
+fn resource_manager_counts_rejected_request_advertisements_per_link() {
+    let (mut manager, link) = manager_with_test_link();
+    for seed in [9u8, 10u8] {
+        let mut oversized = advertisement_with(32, 32, 1);
+        oversized.hash = Hash::new_from_slice(&[seed; 32]);
+        oversized.original_hash = oversized.hash;
+        manager.record_rejected_request_advertisement(&oversized, link.id(), 16);
+    }
+    let stats = &manager.link_stats[link.id()];
+    assert_eq!(stats.rejected_request_advertisements, 2);
+    assert_eq!(stats.rejected_advertisements, 0);
 }
 
 /// The decode cap is exactly three times `MAX_EFFICIENT_SIZE`, as in

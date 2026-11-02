@@ -27,6 +27,11 @@ fn request_layer_public_items_cite_python_or_say_fork_only() {
             "NoPath",
         ),
         (
+            "crates/libs/rns-transport/src/error.rs",
+            ItemKind::Variant { enum_name: "RnsError" },
+            "SharedInstanceConnectTimeout",
+        ),
+        (
             "crates/libs/rns-transport/src/transport/mod.rs",
             ItemKind::Field { owner: "AnnounceEvent" },
             "is_path_response",
@@ -59,6 +64,21 @@ fn request_layer_public_items_cite_python_or_say_fork_only() {
             "deregister_request_handler",
         ),
         (
+            "crates/libs/rns-transport/src/destination_parts/destination.rs",
+            ItemKind::Method,
+            "set_max_response_size",
+        ),
+        (
+            "crates/libs/rns-transport/src/destination_parts/destination.rs",
+            ItemKind::Method,
+            "clear_max_response_size",
+        ),
+        (
+            "crates/libs/rns-transport/src/destination_parts/destination.rs",
+            ItemKind::Method,
+            "max_response_size",
+        ),
+        (
             "crates/libs/rns-transport/src/transport/links_parts/transport_sections/request.rs",
             ItemKind::Method,
             "request",
@@ -79,6 +99,51 @@ fn request_layer_public_items_cite_python_or_say_fork_only() {
             "send_response_resource_with_outcome",
         ),
         (
+            "crates/libs/rns-transport/src/transport/links_parts/transport_sections/resolve_destination.rs",
+            ItemKind::Method,
+            "resolve_destination",
+        ),
+        (
+            "crates/libs/rns-transport/src/transport/links_parts/transport_sections/prove_link_packet.rs",
+            ItemKind::Method,
+            "prove_link_packet",
+        ),
+        (
+            "crates/libs/rns-transport/src/destination/link_parts/link_sections/proof_strategy.rs",
+            ItemKind::Method,
+            "set_proof_strategy",
+        ),
+        (
+            "crates/libs/rns-transport/src/destination/link_parts/link_sections/proof_strategy.rs",
+            ItemKind::Method,
+            "proof_strategy",
+        ),
+        (
+            "crates/libs/rns-transport/src/destination/link_parts/link_sections/proof_strategy.rs",
+            ItemKind::Method,
+            "set_proof_requested_callback",
+        ),
+        (
+            "crates/libs/rns-transport/src/destination/link_parts/link_sections/proof_strategy.rs",
+            ItemKind::Method,
+            "prove_hash",
+        ),
+        (
+            "crates/libs/rns-transport/src/destination_parts/destination.rs",
+            ItemKind::Method,
+            "set_link_proof_strategy",
+        ),
+        (
+            "crates/libs/rns-transport/src/destination_parts/destination.rs",
+            ItemKind::Method,
+            "link_proof_strategy",
+        ),
+        (
+            "crates/libs/rns-transport/src/destination/link/payload.rs",
+            ItemKind::Method,
+            "packet_hash",
+        ),
+        (
             "crates/libs/rns-transport/src/destination/link_parts/link_sections/response_packet.rs",
             ItemKind::Method,
             "expect_response",
@@ -92,6 +157,41 @@ fn request_layer_public_items_cite_python_or_say_fork_only() {
             "crates/libs/rns-transport/src/resource/outcome.rs",
             ItemKind::Method,
             "track_prepared_with_outcome",
+        ),
+        (
+            "crates/libs/rns-transport/src/iface/tcp_client.rs",
+            ItemKind::Method,
+            "with_dial_failure_events",
+        ),
+        (
+            "crates/libs/rns-transport/src/iface/local.rs",
+            ItemKind::Method,
+            "with_dial_failure_events",
+        ),
+        (
+            "crates/libs/rns-transport/src/iface/tcp_client.rs",
+            ItemKind::Method,
+            "with_disconnect_reason_events",
+        ),
+        (
+            "crates/libs/rns-transport/src/iface/local.rs",
+            ItemKind::Method,
+            "with_disconnect_reason_events",
+        ),
+        (
+            "crates/libs/rns-transport/src/transport/core_parts/interface_events.rs",
+            ItemKind::Method,
+            "interface_events",
+        ),
+        (
+            "crates/libs/rns-transport/src/iface_parts/interfacemanager_events.rs",
+            ItemKind::Method,
+            "set_interface_events",
+        ),
+        (
+            "crates/libs/rns-transport/src/iface_parts/txmessagetype.rs",
+            ItemKind::Method,
+            "publish_event",
         ),
     ];
 
@@ -167,7 +267,7 @@ fn request_layer_public_items_cite_python_or_say_fork_only() {
     }
 
     assert!(
-        checked >= 147,
+        checked >= 196,
         "the request layer should expose the receipt, frame, handler and outcome surface; found only {checked} public items"
     );
     assert!(
@@ -195,7 +295,9 @@ fn request_layer_public_items_cite_python_or_say_fork_only() {
 #[test]
 fn fork_new_public_structs_keep_their_fields_private() {
     let expected = [
+        "DialFailure",
         "InboundRequest",
+        "InterfaceEvent",
         "OutboundOutcome",
         "PathHash",
         "RequestFrame",
@@ -205,6 +307,7 @@ fn fork_new_public_structs_keep_their_fields_private() {
         "RequestResponseData",
         "ResponseFrame",
         "ResponseOutcomeReceiver",
+        "ResponseOutcomeTracker",
         "SharedInstanceOptions",
     ];
     let mut found = Vec::new();
@@ -312,6 +415,9 @@ fn enums_the_docs_call_non_exhaustive_carry_the_attribute() {
         ("AnnounceEvent", "crates/libs/rns-transport/src/transport/mod.rs"),
         ("SharedInstanceEndpoint", "crates/libs/rns-transport/src/transport/shared_instance.rs"),
         ("SharedInstanceEvent", "crates/libs/rns-transport/src/transport/shared_instance.rs"),
+        ("DialFailureKind", "crates/libs/rns-transport/src/iface/events.rs"),
+        ("DisconnectReason", "crates/libs/rns-transport/src/iface/events.rs"),
+        ("InterfaceEventKind", "crates/libs/rns-transport/src/iface/events.rs"),
     ];
     for (item, file) in sites {
         let source = read_repo_file(file);

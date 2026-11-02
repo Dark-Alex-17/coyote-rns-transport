@@ -1,0 +1,373 @@
+//! The README's dial-failure surface used from outside the crate:
+//! `TcpClient::with_dial_failure_events` and
+//! `LocalUnixClient::with_dial_failure_events` report every failed connect
+//! attempt as a `DialFailure` naming the interface and a `DialFailureKind`,
+//! `Refused` for a TCP port nothing listens on and `NotFound` for a unix
+//! socket path nothing has bound, one per attempt until the socket appears,
+//! after which the connect event fires and the dial-failure channel goes
+//! quiet. The TCP pin also reads, through a capturing `log::Log` installed
+//! once for the binary, that each failed attempt warns with the endpoint
+//! and the io error's own text, "Connection refused" for a closed port, so
+//! a reader of the log can tell a refusal from a timeout; the records are
+//! attributed by the endpoint they name. A dial against the black-holed
+//! TEST-NET-1 address that outlives `with_connect_timeout` reports `Timeout`
+//! and warns "connect timed out after" the configured timeout, the arm no
+//! io error reaches. The README's `Io(kind)` arm is read through the
+//! unix client: a bound socket inside a directory stripped of search
+//! permission fails each dial with the OS's `Permission denied`, reported as
+//! `Io(PermissionDenied)` and never one of the three named kinds, with the
+//! unix client's warn carrying the io error's own text; restoring the
+//! permission lets the next attempt connect and the channel goes quiet. The
+//! TCP twin of that arm has no black-box fixture; its classification is
+//! pinned in-crate by `classify_dial_error`.
+//! Both clients answer `dial_failure_events_enabled()`
+//! false until the builder sets the channel. The last pin holds at compile
+//! time that `DialFailure` is
+//! `Copy + Send + Sync` and that `SharedInstanceEvent` stayed `Copy` with its
+//! new `DialFailed` variant.
+
+#[cfg(unix)]
+use std::fs;
+#[cfg(unix)]
+use std::os::unix::fs::PermissionsExt;
+#[cfg(unix)]
+use std::path::{Path, PathBuf};
+use std::sync::{Mutex, Once};
+use std::time::Duration;
+
+use rns_transport::hash::AddressHash;
+#[cfg(unix)]
+use rns_transport::iface::local::{LocalUnixClient, LocalUnixEndpoint};
+use rns_transport::iface::tcp_client::TcpClient;
+use rns_transport::iface::InterfaceManager;
+use rns_transport::transport::{DialFailure, DialFailureKind, SharedInstanceEvent};
+use tokio::net::TcpListener;
+#[cfg(unix)]
+use tokio::net::UnixListener;
+use tokio::sync::mpsc;
+use tokio::time::timeout;
+
+#[path = "support/free_loopback_port.rs"]
+mod free_loopback_port;
+use free_loopback_port::free_loopback_port;
+
+const RECONNECT_WAIT: Duration = Duration::from_millis(50);
+
+struct CaptureLogger {
+    records: Mutex<Vec<(log::Level, String)>>,
+}
+
+static CAPTURED: CaptureLogger = CaptureLogger { records: Mutex::new(Vec::new()) };
+
+impl log::Log for CaptureLogger {
+    fn enabled(&self, metadata: &log::Metadata) -> bool {
+        metadata.target().starts_with("rns_transport::iface")
+    }
+
+    fn log(&self, record: &log::Record) {
+        if !self.enabled(record.metadata()) {
+            return;
+        }
+        self.records
+            .lock()
+            .expect("captured record store")
+            .push((record.level(), record.args().to_string()));
+    }
+
+    fn flush(&self) {}
+}
+
+fn install_capture_logger() {
+    static INSTALL: Once = Once::new();
+    INSTALL.call_once(|| {
+        log::set_logger(&CAPTURED).expect("no other logger in this test binary");
+        log::set_max_level(log::LevelFilter::Trace);
+    });
+}
+
+/// Every captured warn whose message contains `needle`.
+fn warns_containing(needle: &str) -> Vec<String> {
+    CAPTURED
+        .records
+        .lock()
+        .expect("captured record store")
+        .iter()
+        .filter(|(level, message)| *level == log::Level::Warn && message.contains(needle))
+        .map(|(_, message)| message.clone())
+        .collect()
+}
+
+/// Every captured warn carrying the TCP client's failed-dial line for `endpoint`.
+fn failed_dial_warns(endpoint: &str) -> Vec<String> {
+    warns_containing(&format!("couldn't connect to <{endpoint}>: "))
+}
+
+/// Every captured warn carrying the unix client's failed-dial line.
+#[cfg(unix)]
+fn failed_unix_dial_warns() -> Vec<String> {
+    warns_containing("couldn't connect local unix client <")
+}
+
+/// Puts the directory's search permission back when dropped, so a failing
+/// assertion still lets the tempdir clean itself up.
+#[cfg(unix)]
+struct RestorePermissions(PathBuf);
+
+#[cfg(unix)]
+impl Drop for RestorePermissions {
+    fn drop(&mut self) {
+        let _ = fs::set_permissions(&self.0, fs::Permissions::from_mode(0o700));
+    }
+}
+
+#[cfg(unix)]
+fn set_mode(path: &Path, mode: u32) {
+    fs::set_permissions(path, fs::Permissions::from_mode(mode)).expect("chmod the socket dir");
+}
+
+#[deny(clippy::await_holding_invalid_type)]
+async fn recv_within<T>(what: &str, rx: &mut mpsc::Receiver<T>) -> T {
+    timeout(Duration::from_secs(2), rx.recv())
+        .await
+        .unwrap_or_else(|_| panic!("{what} timed out"))
+        .unwrap_or_else(|| panic!("{what} channel closed"))
+}
+
+/// Once the connect has fired, the dial-failure channel must stay quiet; a
+/// grace window of several reconnect waits is the only witness an absence
+/// test can have.
+#[deny(clippy::await_holding_invalid_type)]
+async fn assert_silent<T>(what: &str, rx: &mut mpsc::Receiver<T>) {
+    assert!(
+        timeout(Duration::from_millis(300), rx.recv()).await.is_err(),
+        "{what} should not have fired"
+    );
+}
+
+/// Two failures in a row with the expected kind on `iface`: the client
+/// keeps dialing, one event per attempt.
+#[deny(clippy::await_holding_invalid_type)]
+async fn assert_two_failures(
+    rx: &mut mpsc::Receiver<DialFailure>,
+    iface: AddressHash,
+    kind: DialFailureKind,
+) {
+    for attempt in 1..=2 {
+        let failure = recv_within(&format!("dial failure {attempt}"), rx).await;
+        assert_eq!(failure.iface(), iface, "the failure names the interface");
+        assert_eq!(failure.kind(), kind, "attempt {attempt}");
+    }
+}
+
+#[tokio::test]
+#[deny(clippy::await_holding_invalid_type)]
+async fn tcp_client_reports_refused_dials_until_a_listener_binds_the_port() {
+    install_capture_logger();
+    let port = free_loopback_port().await;
+    let addr = format!("127.0.0.1:{port}");
+    let (failure_tx, mut failure_rx) = mpsc::channel(8);
+    let (connect_tx, mut connect_rx) = mpsc::channel(4);
+    let client = TcpClient::new(addr.clone())
+        .with_reconnect_wait(RECONNECT_WAIT)
+        .with_connect_events(connect_tx);
+    assert!(!client.dial_failure_events_enabled(), "no dial-failure channel by default");
+    let client = client.with_dial_failure_events(failure_tx);
+    assert!(client.dial_failure_events_enabled(), "the builder sets the channel");
+
+    let mut manager = InterfaceManager::new(8);
+    let context = manager.new_context(client);
+    let iface = context.channel.address;
+    let cancel = context.cancel.clone();
+    let task = tokio::spawn(TcpClient::spawn(context));
+
+    assert_two_failures(&mut failure_rx, iface, DialFailureKind::Refused).await;
+    assert!(connect_rx.try_recv().is_err(), "nothing connected while the port was closed");
+    let warns = failed_dial_warns(&addr);
+    assert!(warns.len() >= 2, "one warn per failed attempt naming the endpoint: {warns:?}");
+    for message in &warns {
+        assert!(
+            message.contains("Connection refused"),
+            "the warn carries the io error's text: {message}"
+        );
+    }
+
+    let listener = TcpListener::bind(&addr).await.expect("bind the port the client dials");
+    let stream = timeout(Duration::from_secs(2), listener.accept())
+        .await
+        .expect("TCP connection timed out")
+        .expect("TCP connection failed")
+        .0;
+    assert_eq!(recv_within("connect event", &mut connect_rx).await, iface);
+    // Failures queued before the bind landed are allowed; none may follow the connect.
+    while failure_rx.try_recv().is_ok() {}
+    assert_silent("a dial failure after the connect", &mut failure_rx).await;
+
+    cancel.cancel();
+    drop(stream);
+    timeout(Duration::from_secs(2), task)
+        .await
+        .expect("TCP client task timed out")
+        .expect("TCP client task panicked");
+}
+
+/// 192.0.2.1 (TEST-NET-1) is never routed, so the SYN gets no answer and
+/// only the connect timeout ends the dial.
+#[tokio::test]
+#[deny(clippy::await_holding_invalid_type)]
+async fn tcp_client_reports_a_black_holed_dial_as_a_timeout_naming_the_connect_timeout() {
+    install_capture_logger();
+    let addr = "192.0.2.1:1";
+    let connect_timeout = Duration::from_millis(200);
+    let (failure_tx, mut failure_rx) = mpsc::channel(8);
+    let client = TcpClient::new(addr)
+        .with_connect_timeout(connect_timeout)
+        .with_reconnect_wait(RECONNECT_WAIT)
+        .with_dial_failure_events(failure_tx);
+
+    let mut manager = InterfaceManager::new(8);
+    let context = manager.new_context(client);
+    let iface = context.channel.address;
+    let cancel = context.cancel.clone();
+    let task = tokio::spawn(TcpClient::spawn(context));
+
+    let failure = recv_within("timed-out dial failure", &mut failure_rx).await;
+    assert_eq!(failure.iface(), iface, "the failure names the interface");
+    assert_eq!(failure.kind(), DialFailureKind::Timeout);
+    let warns = failed_dial_warns(addr);
+    let expected = format!("connect timed out after {connect_timeout:?}");
+    assert!(
+        warns.iter().any(|message| message.contains(&expected)),
+        "the warn names the connect timeout: {warns:?}"
+    );
+
+    cancel.cancel();
+    timeout(Duration::from_secs(2), task)
+        .await
+        .expect("TCP client task timed out")
+        .expect("TCP client task panicked");
+}
+
+#[cfg(unix)]
+#[tokio::test]
+#[deny(clippy::await_holding_invalid_type)]
+async fn local_unix_client_reports_not_found_dials_until_the_socket_is_bound() {
+    let dir = tempfile::tempdir().expect("socket dir");
+    let socket = dir.path().join("never-bound.sock");
+    let (failure_tx, mut failure_rx) = mpsc::channel(8);
+    let (connect_tx, mut connect_rx) = mpsc::channel(4);
+    let client = LocalUnixClient::new_connect(LocalUnixEndpoint::filesystem(&socket))
+        .with_reconnect_wait(RECONNECT_WAIT)
+        .with_connect_events(connect_tx);
+    assert!(!client.dial_failure_events_enabled(), "no dial-failure channel by default");
+    let client = client.with_dial_failure_events(failure_tx);
+    assert!(client.dial_failure_events_enabled(), "the builder sets the channel");
+
+    let mut manager = InterfaceManager::new(8);
+    let context = manager.new_context(client);
+    let iface = context.channel.address;
+    let cancel = context.cancel.clone();
+    let task = tokio::spawn(LocalUnixClient::spawn(context));
+
+    assert_two_failures(&mut failure_rx, iface, DialFailureKind::NotFound).await;
+    assert!(connect_rx.try_recv().is_err(), "nothing connected while the path was unbound");
+
+    let listener = UnixListener::bind(&socket).expect("bind the socket the client dials");
+    let stream = timeout(Duration::from_secs(2), listener.accept())
+        .await
+        .expect("unix connection timed out")
+        .expect("unix connection failed")
+        .0;
+    assert_eq!(recv_within("connect event", &mut connect_rx).await, iface);
+    while failure_rx.try_recv().is_ok() {}
+    assert_silent("a dial failure after the connect", &mut failure_rx).await;
+
+    cancel.cancel();
+    drop(stream);
+    timeout(Duration::from_secs(2), task)
+        .await
+        .expect("unix client task timed out")
+        .expect("unix client task panicked");
+}
+
+#[cfg(unix)]
+#[tokio::test]
+#[deny(clippy::await_holding_invalid_type)]
+async fn local_unix_client_reports_an_unreachable_socket_as_io_permission_denied_quoting_the_error()
+{
+    install_capture_logger();
+    let dir = tempfile::tempdir().expect("socket dir");
+    let locked = dir.path().join("locked");
+    fs::create_dir(&locked).expect("create the locked dir");
+    let socket = locked.join("shared.sock");
+    let listener = UnixListener::bind(&socket).expect("bind the socket the client dials");
+    set_mode(&locked, 0o000);
+    let _restore = RestorePermissions(locked.clone());
+    // The OS's own text for the refusal the client is about to meet, taken
+    // from the same locked directory so the oracle follows the platform.
+    let os_error = match fs::read_dir(&locked) {
+        Err(err) => err,
+        Ok(_) => {
+            eprintln!("skipping: this user can search a mode-000 directory (root?)");
+            return;
+        }
+    };
+    assert_eq!(os_error.kind(), std::io::ErrorKind::PermissionDenied, "fixture: {os_error}");
+
+    let (failure_tx, mut failure_rx) = mpsc::channel(8);
+    let (connect_tx, mut connect_rx) = mpsc::channel(4);
+    let client = LocalUnixClient::new_connect(LocalUnixEndpoint::filesystem(&socket))
+        .with_reconnect_wait(RECONNECT_WAIT)
+        .with_connect_events(connect_tx)
+        .with_dial_failure_events(failure_tx);
+
+    let mut manager = InterfaceManager::new(8);
+    let context = manager.new_context(client);
+    let iface = context.channel.address;
+    let cancel = context.cancel.clone();
+    let task = tokio::spawn(LocalUnixClient::spawn(context));
+
+    assert_two_failures(
+        &mut failure_rx,
+        iface,
+        DialFailureKind::Io(std::io::ErrorKind::PermissionDenied),
+    )
+    .await;
+    assert!(connect_rx.try_recv().is_err(), "nothing connected while the dir was locked");
+
+    let expected = os_error.to_string();
+    let warns = failed_unix_dial_warns();
+    assert!(
+        warns.iter().any(|message| message.contains(&expected)),
+        "the unix client's warn carries the io error's text {expected:?}: {warns:?}"
+    );
+
+    set_mode(&locked, 0o700);
+    let stream = timeout(Duration::from_secs(2), listener.accept())
+        .await
+        .expect("unix connection timed out once the dir was readable again")
+        .expect("unix connection failed")
+        .0;
+    assert_eq!(recv_within("connect event", &mut connect_rx).await, iface);
+    while failure_rx.try_recv().is_ok() {}
+    assert_silent("a dial failure after the connect", &mut failure_rx).await;
+
+    cancel.cancel();
+    drop(stream);
+    timeout(Duration::from_secs(2), task)
+        .await
+        .expect("unix client task timed out")
+        .expect("unix client task panicked");
+}
+
+#[test]
+fn dial_failure_is_copy_send_sync_and_the_state_event_stays_copy() {
+    fn is_copy<T: Copy>() {}
+    fn is_send_sync<T: Send + Sync>() {}
+    is_copy::<DialFailure>();
+    is_send_sync::<DialFailure>();
+    is_copy::<DialFailureKind>();
+    is_copy::<SharedInstanceEvent>();
+    let event = SharedInstanceEvent::DialFailed { reason: DialFailureKind::Refused };
+    let copied = event;
+    assert_eq!(event, copied);
+}

@@ -3,7 +3,7 @@ use crate::destination::request::{
     empty_outcome_slot, DispatchForm, InboundRequest, OutcomeSlot, RequestAllow, RequestFrame,
     RequestHandler, RequestId, RequestResponse, ResponseFrame, ResponseOutcome,
 };
-use crate::resource::OutboundOutcome;
+use crate::resource::{OutboundOutcome, METADATA_LENGTH_PREFIX_LEN};
 use std::sync::PoisonError;
 use tokio::sync::mpsc;
 use tokio::task::JoinSet;
@@ -80,9 +80,9 @@ async fn dispatch_one(
         return;
     };
     let path_hash = frame.path_hash();
-    let (limit, registered) = {
+    let (limit, max_response_size, registered) = {
         let guard = destination.lock().await;
-        (guard.max_request_size(), guard.request_handler(&path_hash))
+        (guard.max_request_size(), guard.max_response_size(), guard.request_handler(&path_hash))
     };
     if let Some(limit) = limit.filter(|limit| item.plain_text.len() > *limit) {
         log::debug!(
@@ -128,7 +128,7 @@ async fn dispatch_one(
     tasks.spawn(handle_and_respond(
         handler.clone(),
         registered.handler.clone(),
-        registered.auto_compress,
+        ResponseLimits { auto_compress: registered.auto_compress, max_response_size },
         item.link_id,
         request_id,
         request,
@@ -150,17 +150,19 @@ fn is_allowed(allow: &RequestAllow, remote_identity: Option<&Identity>) -> bool 
 
 /// How far a response got on its way out. `Resource` carries the transfer's
 /// pending verdict, which is awaited only when a handler asked for it.
+/// `TooLarge` is the destination's `max_response_size` refusing the response.
 enum ResponseDispatch {
     Packet,
     Resource(OutboundOutcome),
     NotSent,
+    TooLarge { len: usize, max: usize },
 }
 
 #[deny(clippy::await_holding_invalid_type)]
 async fn handle_and_respond(
     handler: Arc<Mutex<TransportHandler>>,
     request_handler: Arc<dyn RequestHandler>,
-    auto_compress: bool,
+    limits: ResponseLimits,
     link_id: AddressHash,
     request_id: RequestId,
     request: InboundRequest,
@@ -169,9 +171,7 @@ async fn handle_and_respond(
     let response = request_handler.handle(request).await;
     let tracked = slot.lock().unwrap_or_else(PoisonError::into_inner).take();
     let dispatched = match response {
-        Some(response) => {
-            send_response(&handler, link_id, request_id, response, auto_compress).await
-        }
+        Some(response) => send_response(&handler, link_id, request_id, response, limits).await,
         None => ResponseDispatch::NotSent,
     };
     let Some(tracked) = tracked else {
@@ -181,8 +181,11 @@ async fn handle_and_respond(
         ResponseDispatch::Packet => ResponseOutcome::Packet,
         ResponseDispatch::NotSent => ResponseOutcome::NotSent,
         ResponseDispatch::Resource(outcome) => ResponseOutcome::Resource(outcome.await),
+        ResponseDispatch::TooLarge { len, max } => ResponseOutcome::TooLarge { len, max },
     };
     if tracked.send(verdict).is_err() {
+        // The test logger in tests_parts/two_transport_loopback_requests_isolation.rs
+        // matches this text by substring; reword both together.
         log::debug!(
             "tp: response {} on link {} outcome receiver dropped before the verdict",
             request_id,
@@ -191,13 +194,22 @@ async fn handle_and_respond(
     }
 }
 
+/// Builds the response and applies the destination's `max_response_size`
+/// before anything leaves: to the packed `[request_id, body]` frame of a
+/// `Value` or `Bytes` response, ahead of the MDU check that would otherwise
+/// turn an oversize frame into a resource, and to the advertised size `d`
+/// of a `Resource` response, the uncompressed data together with the packed
+/// metadata and its length prefix, like `max_request_size` reads `d` rather
+/// than the compressed `t` (`resource_wire.rs`). The requester's
+/// `RequestOptions::with_max_response_size` reads the same `d`, so the two
+/// caps compose at one number.
 #[deny(clippy::await_holding_invalid_type)]
 async fn send_response(
     handler: &Arc<Mutex<TransportHandler>>,
     link_id: AddressHash,
     request_id: RequestId,
     response: RequestResponse,
-    auto_compress: bool,
+    limits: ResponseLimits,
 ) -> ResponseDispatch {
     let body = match response {
         RequestResponse::Value(value) => value,
@@ -214,19 +226,27 @@ async fn send_response(
                     return ResponseDispatch::NotSent;
                 }
             };
+            let len = data.len()
+                + metadata.as_ref().map_or(0, |packed| METADATA_LENGTH_PREFIX_LEN + packed.len());
+            if let Some(refused) = limits.refusal(link_id, request_id, len) {
+                return refused;
+            }
             return send_response_as_resource(
                 handler,
                 link_id,
                 request_id,
                 data,
                 metadata,
-                auto_compress,
+                limits.auto_compress,
             )
             .await;
         }
     };
     let encoded = ResponseFrame::new(request_id, body).encode();
-    send_packet_response(handler, link_id, request_id, encoded, auto_compress).await
+    if let Some(refused) = limits.refusal(link_id, request_id, encoded.len()) {
+        return refused;
+    }
+    send_packet_response(handler, link_id, request_id, encoded, limits.auto_compress).await
 }
 
 fn pack_value(value: rmpv::Value) -> Result<Vec<u8>, rmpv::encode::Error> {
@@ -391,8 +411,8 @@ pub(super) async fn resource_mtu_for_iface(
 /// Sends `data` as a response resource on `link_id` (`RNS/Link.py:846,852`):
 /// `request_id` becomes the advertisement's `q` and `is_response` its `p`
 /// flag (`RNS/Resource.py:1305-1318`). `metadata`, when present, sets the
-/// `x` flag and travels at the head of the resource data behind a 3-byte
-/// length (`RNS/Resource.py:261-269,338`).
+/// `x` flag and travels at the head of the resource data behind a length of
+/// [`METADATA_LENGTH_PREFIX_LEN`] bytes (`RNS/Resource.py:261-269,338`).
 ///
 /// `auto_compress` is the registration's flag; some handlers, such as
 /// NomadNet media, return raw binary and turn it off.
@@ -472,3 +492,5 @@ pub(super) async fn send_response_resource(
         Err(RnsError::ConnectionError)
     }
 }
+
+include!("request_dispatch_parts/response_limits.rs");

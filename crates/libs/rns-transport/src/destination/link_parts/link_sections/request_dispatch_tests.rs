@@ -43,7 +43,9 @@ mod request_dispatch_tests {
         assert_eq!(item.link_id, *inbound.id());
         assert_eq!(item.destination_hash, inbound.destination().address_hash);
         assert!(item.remote_identity.is_none(), "nobody identified on this link");
-        assert_eq!(request_event(&mut rx).as_slice(), request);
+        let posted = request_event(&mut rx);
+        assert_eq!(posted.as_slice(), request);
+        assert_eq!(posted.packet_hash(), Some(packet.hash()));
 
         inbound.status = LinkStatus::Handshake;
         let packet = outbound.request_packet(request).expect("a request packet can be built");

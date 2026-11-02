@@ -20,7 +20,8 @@ fn read_repo_file(relative: &str) -> String {
 
 /// The source files the fork added over the upstream baseline: every public
 /// item in them is fork-new.
-const FORK_NEW_FILES: [&str; 12] = [
+const FORK_NEW_FILES: [&str; 13] = [
+    "crates/libs/rns-transport/src/iface/events.rs",
     "crates/libs/rns-transport/src/destination/request/allow.rs",
     "crates/libs/rns-transport/src/destination/request/frame.rs",
     "crates/libs/rns-transport/src/destination/request/handler.rs",
@@ -239,3 +240,5 @@ include!("fork_release_docs_contract_parts/release_0_17_0_probe2.rs");
 include!("fork_release_docs_contract_parts/release_0_17_0_probe3.rs");
 
 include!("fork_release_docs_contract_parts/release_0_17_0_probe4.rs");
+
+include!("fork_release_docs_contract_parts/release_0_18_0_probe.rs");

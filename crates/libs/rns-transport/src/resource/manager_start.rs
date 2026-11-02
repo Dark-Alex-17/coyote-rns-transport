@@ -211,7 +211,7 @@ impl ResourceManager {
     ) -> Result<PreparedSend, RnsError> {
         let metadata_size = metadata
             .as_ref()
-            .map(|value| value.len().saturating_add(3))
+            .map(|value| value.len().saturating_add(METADATA_LENGTH_PREFIX_LEN))
             .unwrap_or(0);
         let total_size = (metadata_size as u64)
             .checked_add(data_size)
@@ -293,7 +293,7 @@ impl ResourceManager {
     ) -> Result<PreparedSend, RnsError> {
         let metadata_size = metadata
             .as_ref()
-            .map(|value| value.len().saturating_add(3))
+            .map(|value| value.len().saturating_add(METADATA_LENGTH_PREFIX_LEN))
             .unwrap_or(0);
         let total_size = metadata_size.checked_add(data.len()).ok_or(RnsError::InvalidArgument)?;
         if total_size <= MAX_EFFICIENT_SIZE {

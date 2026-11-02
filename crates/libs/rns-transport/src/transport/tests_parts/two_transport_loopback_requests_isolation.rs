@@ -11,10 +11,12 @@ const SLOW_HANDLER_SLEEP: Duration = Duration::from_secs(30);
 
 /// Keeps the link's drop records, from the links target every record at `Warn` or above
 /// plus the debug lines of the shared-instance client, and from the resource target the
-/// dropped-outcome-receiver lines and the rejected-advertisement warnings, from the link
-/// target the closed-link packet warnings, from the request-dispatch target the responses
-/// dropped for a closed link, from the jobs target the resource-retry diagnostics, and from
-/// the packet disk cache the warnings about hashlist orphans the sweep could not remove.
+/// dropped-outcome-receiver lines, the rejected-advertisement warnings and the refused
+/// request-advertisement records, from the link target the closed-link packet warnings,
+/// from the request-dispatch target the responses dropped for a closed link, the response
+/// verdicts whose receiver was gone and the responses refused over the destination's
+/// response limit, from the jobs target the resource-retry diagnostics, and from the
+/// packet disk cache the warnings about hashlist orphans the sweep could not remove.
 /// Tests share one process and
 /// `log::set_logger` installs once, so there must be exactly one logger in the binary and
 /// this is it; a record is attributed to a test by the link id, resource hash or
@@ -25,8 +27,11 @@ struct TestLogger {
     shared_instance: StdMutex<Vec<(log::Level, String)>>,
     outcome_receiver_dropped: StdMutex<Vec<String>>,
     rejected_advertisement_warns: StdMutex<Vec<(log::Level, String)>>,
+    rejected_request_advertisement_records: StdMutex<Vec<(log::Level, String)>>,
     closed_link_packet_warnings: StdMutex<Vec<String>>,
     closed_link_responses: StdMutex<Vec<String>>,
+    dispatch_outcome_receiver_dropped: StdMutex<Vec<String>>,
+    refused_responses: StdMutex<Vec<(log::Level, String)>>,
     resource_diag: StdMutex<Vec<String>>,
     hashlist_orphan_warnings: StdMutex<Vec<String>>,
 }
@@ -36,8 +41,11 @@ static TEST_LOG: TestLogger = TestLogger {
     shared_instance: StdMutex::new(Vec::new()),
     outcome_receiver_dropped: StdMutex::new(Vec::new()),
     rejected_advertisement_warns: StdMutex::new(Vec::new()),
+    rejected_request_advertisement_records: StdMutex::new(Vec::new()),
     closed_link_packet_warnings: StdMutex::new(Vec::new()),
     closed_link_responses: StdMutex::new(Vec::new()),
+    dispatch_outcome_receiver_dropped: StdMutex::new(Vec::new()),
+    refused_responses: StdMutex::new(Vec::new()),
     resource_diag: StdMutex::new(Vec::new()),
     hashlist_orphan_warnings: StdMutex::new(Vec::new()),
 };
@@ -46,8 +54,10 @@ static TEST_LOG: TestLogger = TestLogger {
 /// section file is `include!`d, via `links_parts/transport.rs`, into the links module.
 const SHARED_INSTANCE_LOG_TARGET: &str = "rns_transport::transport::links";
 
-/// The target `conclude_outbound` logs under: `resource/outcome.rs` is `include!`d into
-/// the resource module.
+/// The target `conclude_outbound` (`resource/outcome.rs`) and both reject cadences
+/// (`resource/advertisement_limits.rs`) log under: each file is `include!`d into the
+/// resource module. The request dispatcher's own dropped-receiver line is not here; it
+/// logs under `REQUEST_DISPATCH_LOG_TARGET`.
 const RESOURCE_LOG_TARGET: &str = "rns_transport::resource";
 
 /// The target the responder side of the request layer logs under.
@@ -92,6 +102,11 @@ impl log::Log for TestLogger {
                     .lock()
                     .expect("rejected-advertisement record store")
                     .push((record.level(), message));
+            } else if message.contains("reject_request_advertisement") {
+                self.rejected_request_advertisement_records
+                    .lock()
+                    .expect("rejected-request-advertisement record store")
+                    .push((record.level(), message));
             }
         } else if record.target() == REQUEST_DISPATCH_LOG_TARGET {
             if message.contains("closed before transmit") || message.contains("is gone") {
@@ -99,6 +114,16 @@ impl log::Log for TestLogger {
                     .lock()
                     .expect("closed-link response record store")
                     .push(message);
+            } else if message.contains("outcome receiver dropped before the verdict") {
+                self.dispatch_outcome_receiver_dropped
+                    .lock()
+                    .expect("dispatch dropped-outcome-receiver record store")
+                    .push(message);
+            } else if message.contains("exceeds the destination response limit") {
+                self.refused_responses
+                    .lock()
+                    .expect("refused-response record store")
+                    .push((record.level(), message));
             }
         } else if record.target() == JOBS_LOG_TARGET {
             if message.contains("[resource-diag]") {
@@ -179,6 +204,20 @@ fn rejected_advertisement_records_for(link_id: AddressHash) -> Vec<(log::Level, 
         .collect()
 }
 
+/// The refused request-advertisement records the resource manager emitted for `link_id`
+/// so far, oldest first, with the level each was logged at.
+fn rejected_request_advertisement_records_for(link_id: AddressHash) -> Vec<(log::Level, String)> {
+    let needle = link_id.to_string();
+    TEST_LOG
+        .rejected_request_advertisement_records
+        .lock()
+        .expect("rejected-request-advertisement record store")
+        .iter()
+        .filter(|(_, record)| record.contains(&needle))
+        .cloned()
+        .collect()
+}
+
 /// How many `can't create data packet for closed link` warnings the link target has
 /// emitted so far; the message names no link, so a test reads the count before and after
 /// the call it probes.
@@ -196,6 +235,34 @@ fn closed_link_response_records_for(link_id: AddressHash) -> Vec<String> {
         .expect("closed-link response record store")
         .iter()
         .filter(|record| record.contains(&needle))
+        .cloned()
+        .collect()
+}
+
+/// The response verdicts the request dispatcher could not deliver for `link_id` because
+/// the tracked receiver was already gone, oldest first.
+fn dispatch_outcome_receiver_dropped_records_for(link_id: AddressHash) -> Vec<String> {
+    let needle = link_id.to_string();
+    TEST_LOG
+        .dispatch_outcome_receiver_dropped
+        .lock()
+        .expect("dispatch dropped-outcome-receiver record store")
+        .iter()
+        .filter(|record| record.contains(&needle))
+        .cloned()
+        .collect()
+}
+
+/// The responses the request dispatcher refused on `link_id` for exceeding the
+/// destination's `max_response_size`, oldest first, with the level each was logged at.
+fn refused_response_records_for(link_id: AddressHash) -> Vec<(log::Level, String)> {
+    let needle = link_id.to_string();
+    TEST_LOG
+        .refused_responses
+        .lock()
+        .expect("refused-response record store")
+        .iter()
+        .filter(|(_, record)| record.contains(&needle))
         .cloned()
         .collect()
 }

@@ -10,6 +10,7 @@ use std::time::Duration;
 
 use tokio::net::{UnixListener, UnixStream};
 
+use super::events::{DialFailure, DialFailureKind, DisconnectReason, InterfaceEventKind};
 use super::tcp_client::{run_hdlc_stream_with_runtime_and_ifac, HdlcStreamRuntime, TcpClient};
 use super::{IfacState, Interface, InterfaceContext, InterfaceManager};
 
@@ -324,6 +325,9 @@ pub struct LocalUnixClient {
     connect_events: Option<tokio::sync::mpsc::Sender<crate::hash::AddressHash>>,
     reconnect_events: Option<tokio::sync::mpsc::Sender<crate::hash::AddressHash>>,
     disconnect_events: Option<tokio::sync::mpsc::Sender<crate::hash::AddressHash>>,
+    dial_failure_events: Option<tokio::sync::mpsc::Sender<DialFailure>>,
+    disconnect_reason_events:
+        Option<tokio::sync::mpsc::Sender<(crate::hash::AddressHash, DisconnectReason)>>,
 }
 
 impl LocalUnixClient {
@@ -340,6 +344,8 @@ impl LocalUnixClient {
             connect_events: None,
             reconnect_events: None,
             disconnect_events: None,
+            dial_failure_events: None,
+            disconnect_reason_events: None,
         }
     }
 
@@ -355,6 +361,8 @@ impl LocalUnixClient {
             connect_events: None,
             reconnect_events: None,
             disconnect_events: None,
+            dial_failure_events: None,
+            disconnect_reason_events: None,
         }
     }
 
@@ -412,13 +420,53 @@ impl LocalUnixClient {
     /// reconnect to. A full channel drops the event at debug. Python's
     /// shared-instance client treats a socket closed while connected and
     /// not detached as the shared connection disappearing and
-    /// then reconnects (`RNS/Interfaces/LocalInterface.py:255-261`).
+    /// then reconnects (`RNS/Interfaces/LocalInterface.py:255-266`).
     #[must_use]
     pub fn with_disconnect_events(
         mut self,
         events: tokio::sync::mpsc::Sender<crate::hash::AddressHash>,
     ) -> Self {
         self.disconnect_events = Some(events);
+        self
+    }
+
+    /// Sends a [`DialFailure`] on `events` for every connect attempt that
+    /// fails, naming the interface and why: `NotFound` when nothing has
+    /// bound the socket path, `Refused` when the path exists but nothing
+    /// accepts there, `Timeout` when the OS times the connect out, and
+    /// `Io(kind)` for any other io error. A full or closed channel drops the
+    /// event at debug. Fork-only: Python's shared-instance client logs each
+    /// failed attempt at debug and retries without telling the failures
+    /// apart (`RNS/Interfaces/LocalInterface.py:159-167`).
+    #[must_use]
+    pub fn with_dial_failure_events(
+        mut self,
+        events: tokio::sync::mpsc::Sender<DialFailure>,
+    ) -> Self {
+        self.dial_failure_events = Some(events);
+        self
+    }
+
+    /// Sends `(interface address, reason)` on `events` each time an
+    /// established stream ends while the client is neither cancelled nor
+    /// stopped, the twin of [`Self::with_disconnect_events`] that also
+    /// says why: `PeerClosed` for an orderly close, `Reset` for an
+    /// `ErrorKind::ConnectionReset` on either side, `Timeout` for an
+    /// `ErrorKind::TimedOut` on either side, since the unix client runs no
+    /// read watchdog, and `Io(kind)` for any other io error. A write that
+    /// fails after the peer went away reports the write's kind (often
+    /// `BrokenPipe`) when it is observed before the read side's reset. A
+    /// stream the client ended itself (cancel, stop, the transport's
+    /// receive queue closed) sends nothing. A full or closed channel drops
+    /// the event at debug. Fork-only: Python's shared-instance client only
+    /// notices the socket closed and reconnects
+    /// (`RNS/Interfaces/LocalInterface.py:255-266`).
+    #[must_use]
+    pub fn with_disconnect_reason_events(
+        mut self,
+        events: tokio::sync::mpsc::Sender<(crate::hash::AddressHash, DisconnectReason)>,
+    ) -> Self {
+        self.disconnect_reason_events = Some(events);
         self
     }
 
@@ -464,6 +512,20 @@ impl LocalUnixClient {
         self.disconnect_events.is_some()
     }
 
+    /// Fork-only: whether a dial-failure sender is installed with
+    /// [`Self::with_dial_failure_events`].
+    #[must_use]
+    pub fn dial_failure_events_enabled(&self) -> bool {
+        self.dial_failure_events.is_some()
+    }
+
+    /// Fork-only: whether a disconnect-reason sender is installed with
+    /// [`Self::with_disconnect_reason_events`].
+    #[must_use]
+    pub fn disconnect_reason_events_enabled(&self) -> bool {
+        self.disconnect_reason_events.is_some()
+    }
+
     pub async fn spawn(context: InterfaceContext<Self>) {
         let iface_stop = context.channel.stop.clone();
         let iface_address = context.channel.address;
@@ -479,6 +541,8 @@ impl LocalUnixClient {
             connect_events,
             reconnect_events,
             disconnect_events,
+            dial_failure_events,
+            disconnect_reason_events,
         ) = {
             let mut guard = context.inner.lock().unwrap();
             (
@@ -491,8 +555,11 @@ impl LocalUnixClient {
                 guard.connect_events.clone(),
                 guard.reconnect_events.clone(),
                 guard.disconnect_events.clone(),
+                guard.dial_failure_events.clone(),
+                guard.disconnect_reason_events.clone(),
             )
         };
+        let iface_events = context.channel.event_publisher_unless_detached(stream.is_some());
 
         let (rx_channel, mut tx_channel) = context.channel.split();
 
@@ -508,6 +575,7 @@ impl LocalUnixClient {
                     let Some(endpoint) = connect_endpoint.as_ref() else {
                         break;
                     };
+                    iface_events.publish(InterfaceEventKind::Connecting);
                     UnixStream::connect(endpoint.tokio_path()).await
                 }
             };
@@ -516,6 +584,19 @@ impl LocalUnixClient {
                 Ok(stream) => stream,
                 Err(err) => {
                     log::warn!("couldn't connect local unix client <{}>: {}", addr, err);
+                    let kind = DialFailureKind::from_io_error(&err);
+                    iface_events.publish(InterfaceEventKind::DialFailed { reason: kind });
+                    if let Some(events) = dial_failure_events.as_ref() {
+                        let failure = DialFailure::new(iface_address, kind);
+                        if let Err(send_err) = events.try_send(failure) {
+                            log::debug!(
+                                "dropped local unix dial failure event iface={} endpoint={} err={}",
+                                iface_address,
+                                addr,
+                                send_err
+                            );
+                        }
+                    }
                     tokio::select! {
                         _ = context.cancel.cancelled() => break,
                         _ = iface_stop.cancelled() => break,
@@ -528,6 +609,7 @@ impl LocalUnixClient {
             let (read_stream, write_stream) = stream.into_split();
 
             log::info!("connected to local unix client <{}>", addr);
+            iface_events.publish(InterfaceEventKind::Connected);
             if let Some(events) = connect_events.as_ref() {
                 if let Err(err) = events.try_send(iface_address) {
                     log::debug!(
@@ -553,7 +635,7 @@ impl LocalUnixClient {
                 has_connected = true;
             }
 
-            if let Some(bitrate_bps) = forced_bitrate_bps {
+            let exit = if let Some(bitrate_bps) = forced_bitrate_bps {
                 run_hdlc_stream_with_runtime_and_ifac(
                     "local_unix".to_string(),
                     iface_address,
@@ -568,7 +650,7 @@ impl LocalUnixClient {
                     write_stream,
                     HdlcStreamRuntime::new().with_forced_bitrate(bitrate_bps),
                 )
-                .await;
+                .await
             } else {
                 run_hdlc_stream_with_runtime_and_ifac(
                     "local_unix".to_string(),
@@ -584,10 +666,10 @@ impl LocalUnixClient {
                     write_stream,
                     HdlcStreamRuntime::default(),
                 )
-                .await;
-            }
+                .await
+            };
 
-            log::info!("disconnected from local unix client <{}>", addr);
+            log::info!("disconnected from local unix client <{}> exit={:?}", addr, exit);
             if context.cancel.is_cancelled() || iface_stop.is_cancelled() {
                 break;
             }
@@ -599,6 +681,20 @@ impl LocalUnixClient {
                         addr,
                         err
                     );
+                }
+            }
+            if let Some(reason) = DisconnectReason::from_stream_exit(exit) {
+                iface_events.publish(InterfaceEventKind::Disconnected { reason });
+                if let Some(events) = disconnect_reason_events.as_ref() {
+                    if let Err(err) = events.try_send((iface_address, reason)) {
+                        log::debug!(
+                            "dropped local unix disconnect reason event iface={} endpoint={} reason={:?} err={}",
+                            iface_address,
+                            addr,
+                            reason,
+                            err
+                        );
+                    }
                 }
             }
             // A client built from a stream has nothing to redial and must finish at once.

@@ -66,6 +66,8 @@ impl Link {
             pending_requests: HashMap::new(),
             owed_response_cancels: Vec::new(),
             request_dispatch: None,
+            proof_strategy: ProofStrategy::All,
+            proof_requested_callback: None,
             channel_window: CHANNEL_WINDOW_INIT,
             channel_window_max: CHANNEL_WINDOW_MAX_SLOW,
             channel_window_min: CHANNEL_WINDOW_MIN,

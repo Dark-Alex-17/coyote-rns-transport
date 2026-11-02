@@ -57,7 +57,9 @@ impl AsyncRead for PendingReader {
     }
 }
 
-struct BrokenWriter;
+/// Fails every write with `BrokenPipe`, the error a socket reports once its
+/// peer has gone away; shared with the sibling `tests` module.
+pub(super) struct BrokenWriter;
 
 impl AsyncWrite for BrokenWriter {
     fn poll_write(

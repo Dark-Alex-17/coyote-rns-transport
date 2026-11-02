@@ -42,6 +42,8 @@ impl Link {
             pending_requests: HashMap::new(),
             owed_response_cancels: Vec::new(),
             request_dispatch: None,
+            proof_strategy: ProofStrategy::All,
+            proof_requested_callback: None,
             channel_window: CHANNEL_WINDOW_INIT,
             channel_window_max: CHANNEL_WINDOW_MAX_SLOW,
             channel_window_min: CHANNEL_WINDOW_MIN,
@@ -177,28 +179,7 @@ impl Link {
     }
 
     pub fn prove_packet(&self, packet: &Packet) -> Packet {
-        let hash = packet.hash().to_bytes();
-        let signature = self.priv_identity.sign(&hash).to_bytes();
-        let mut packet_data = PacketDataBuffer::new();
-
-        packet_data.safe_write(&hash);
-        packet_data.safe_write(&signature);
-
-        Packet {
-            header: Header {
-                packet_type: PacketType::Proof,
-                destination_type: DestinationType::Link,
-                ..Default::default()
-            },
-            ifac: None,
-            destination: self.id,
-            transport: None,
-            // Python Reticulum emits ordinary per-packet Link proofs with
-            // CONTEXT_NONE. LINKPROOF is accepted on receive for compatibility
-            // with older LXMF-rs peers, but must not be our wire default.
-            context: PacketContext::None,
-            data: packet_data,
-        }
+        self.prove_hash(&packet.hash())
     }
 
     fn handle_data_packet(&mut self, packet: &Packet) -> LinkHandleResult {
@@ -256,10 +237,11 @@ impl Link {
                 if let Ok(plain_text) = self.decrypt(packet.data.as_slice(), &mut buffer[..]) {
                     self.note_inbound(packet.context);
                     log::trace!("link({}): data {}B", self.id, plain_text.len());
+                    let hash = packet.hash();
                     let (request_id, response_accepted) = if packet.context
                         == PacketContext::Request
                     {
-                        let id = RequestId::from_packet_hash(&packet.hash());
+                        let id = RequestId::from_packet_hash(&hash);
                         self.dispatch_request(DispatchForm::Packet { request_id: id }, plain_text);
                         (Some(id.to_bytes()), true)
                     } else if packet.context == PacketContext::Response {
@@ -318,10 +300,11 @@ impl Link {
                             plain_text,
                             packet.context,
                             request_id,
-                        ),
+                        )
+                        .with_packet_hash(hash),
                     )));
-                    if packet.context == PacketContext::None {
-                        return LinkHandleResult::Proof(self.prove_packet(packet));
+                    if packet.context == PacketContext::None && self.should_auto_prove(packet) {
+                        return LinkHandleResult::Proof(self.prove_hash(&hash));
                     }
                     return LinkHandleResult::None;
                 } else {

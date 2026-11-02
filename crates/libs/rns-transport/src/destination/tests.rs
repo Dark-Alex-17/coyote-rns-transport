@@ -99,6 +99,19 @@ fn destination_request_size_limit_defaults_unbounded_and_can_be_cleared() {
 }
 
 #[test]
+fn destination_response_size_limit_defaults_unbounded_and_can_be_cleared() {
+    let identity = PrivateIdentity::new_from_rand(OsRng);
+    let mut destination =
+        SingleInputDestination::new(identity, DestinationName::new("test", "response-limit"));
+
+    assert_eq!(destination.max_response_size(), None);
+    destination.set_max_response_size(256).expect("valid response limit");
+    assert_eq!(destination.max_response_size(), Some(256));
+    destination.clear_max_response_size();
+    assert_eq!(destination.max_response_size(), None);
+}
+
+#[test]
 fn request_handler_registry_refuses_empty_path_overwrites_and_deregisters() {
     use super::request::{InboundRequest, PathHash, RequestAllow, RequestHandler, RequestResponse};
     use std::sync::Arc;

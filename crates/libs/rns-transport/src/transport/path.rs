@@ -359,6 +359,10 @@ pub(super) async fn handle_link_request_as_destination<'a>(
                 if let Ok(mut link) = link {
                     link.set_ingress_iface(iface);
                     link.set_request_dispatch(handler.request_dispatch_tx.clone());
+                    link.set_proof_policy(
+                        destination.link_proof_strategy(),
+                        destination.proof_requested_callback.clone(),
+                    );
                     log::trace!(
                         "[tp] link_proof_tx dst={} link_id={}",
                         packet.destination,

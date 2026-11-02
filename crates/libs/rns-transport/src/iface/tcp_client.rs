@@ -9,6 +9,9 @@ use tokio_util::sync::CancellationToken;
 
 use crate::buffer::OutputBuffer;
 use crate::error::RnsError;
+use crate::iface::events::{
+    DialFailure, DialFailureKind, DisconnectReason, HdlcStreamExit, InterfaceEventKind,
+};
 use crate::iface::{
     decode_packet_ifac, encode_packet_ifac, is_ifac_violation, record_ifac_violation, IfacState,
     IfaceSource, RxMessage,
@@ -522,7 +525,8 @@ pub(crate) async fn run_hdlc_stream_with_runtime<R, W>(
     read_stream: R,
     write_stream: W,
     runtime: HdlcStreamRuntime,
-) where
+) -> HdlcStreamExit
+where
     R: AsyncRead + Unpin + Send + 'static,
     W: AsyncWrite + Unpin + Send + 'static,
 {
@@ -540,13 +544,14 @@ pub(crate) async fn run_hdlc_stream_with_runtime<R, W>(
         write_stream,
         runtime,
     )
-    .await;
+    .await
 }
 
 /// Drives one HDLC-framed connection. The rx side runs as its own task; the
 /// tx side runs here so the caller keeps ownership of `tx_channel` and the
 /// packets queued on it survive into the next connection. Returns once both
-/// sides have exited.
+/// sides have exited, with the rx side's exit unless that side only followed
+/// the tx side's stop.
 #[allow(clippy::too_many_arguments)]
 pub(crate) async fn run_hdlc_stream_with_runtime_and_ifac<R, W>(
     label: String,
@@ -561,7 +566,8 @@ pub(crate) async fn run_hdlc_stream_with_runtime_and_ifac<R, W>(
     read_stream: R,
     write_stream: W,
     runtime: HdlcStreamRuntime,
-) where
+) -> HdlcStreamExit
+where
     R: AsyncRead + Unpin + Send + 'static,
     W: AsyncWrite + Unpin + Send + 'static,
 {
@@ -589,14 +595,14 @@ pub(crate) async fn run_hdlc_stream_with_runtime_and_ifac<R, W>(
             loop {
                 tokio::select! {
                     _ = cancel.cancelled() => {
-                            break;
+                            break HdlcStreamExit::Cancelled;
                     }
                     _ = iface_stop_rx.cancelled() => {
                             stop.cancel();
-                            break;
+                            break HdlcStreamExit::Cancelled;
                     }
                     _ = stop.cancelled() => {
-                            break;
+                            break HdlcStreamExit::Cancelled;
                     }
                     result = stream.read(buffers.tcp.as_mut_slice()) => {
                             match result {
@@ -604,7 +610,7 @@ pub(crate) async fn run_hdlc_stream_with_runtime_and_ifac<R, W>(
                                     log::warn!("connection closed");
                                     send_hdlc_stream_event(&events, HdlcStreamEvent::Closed);
                                     stop.cancel();
-                                    break;
+                                    break HdlcStreamExit::PeerClosed;
                                 }
                                 Ok(n) => {
                                     *last_read_at
@@ -664,7 +670,7 @@ pub(crate) async fn run_hdlc_stream_with_runtime_and_ifac<R, W>(
                                                         label
                                                     );
                                                     stop.cancel();
-                                                    return;
+                                                    return HdlcStreamExit::Cancelled;
                                                 }
                                                 }
                                                 Err(error) => {
@@ -723,7 +729,7 @@ pub(crate) async fn run_hdlc_stream_with_runtime_and_ifac<R, W>(
                                     // tcp_client's caller never gets reached for
                                     // exactly the reset case it was added for.
                                     stop.cancel();
-                                    break;
+                                    break HdlcStreamExit::ReadError(e.kind());
                                 }
                             }
                         },
@@ -745,19 +751,19 @@ pub(crate) async fn run_hdlc_stream_with_runtime_and_ifac<R, W>(
             watchdog_tick.set_missed_tick_behavior(tokio::time::MissedTickBehavior::Delay);
             loop {
                 if stop.is_cancelled() {
-                    break;
+                    break HdlcStreamExit::Cancelled;
                 }
 
                 tokio::select! {
                     _ = cancel.cancelled() => {
-                            break;
+                            break HdlcStreamExit::Cancelled;
                     }
                     _ = iface_stop_tx.cancelled() => {
                             stop.cancel();
-                            break;
+                            break HdlcStreamExit::Cancelled;
                     }
                     _ = stop.cancelled() => {
-                            break;
+                            break HdlcStreamExit::Cancelled;
                     }
                     _ = watchdog_tick.tick(), if watchdog.is_some() => {
                         let watchdog = watchdog.as_ref().expect("guarded by select condition");
@@ -776,7 +782,7 @@ pub(crate) async fn run_hdlc_stream_with_runtime_and_ifac<R, W>(
                             );
                             send_hdlc_stream_event(&events, HdlcStreamEvent::ReadTimeout);
                             stop.cancel();
-                            break;
+                            break HdlcStreamExit::ReadTimeout;
                         }
 
                         if read_idle > watchdog.stale_after {
@@ -799,7 +805,7 @@ pub(crate) async fn run_hdlc_stream_with_runtime_and_ifac<R, W>(
                                             HdlcStreamEvent::Error { message: err.to_string() },
                                         );
                                         stop.cancel();
-                                        break;
+                                        break HdlcStreamExit::WriteError(err.kind());
                                     }
                                     last_write_at = Instant::now();
                                     send_hdlc_stream_event(&events, HdlcStreamEvent::Keepalive);
@@ -811,7 +817,7 @@ pub(crate) async fn run_hdlc_stream_with_runtime_and_ifac<R, W>(
                                         HdlcStreamEvent::Error { message: err.to_string() },
                                     );
                                     stop.cancel();
-                                    break;
+                                    break HdlcStreamExit::WriteError(err.kind());
                                 }
                             }
                         }
@@ -827,12 +833,12 @@ pub(crate) async fn run_hdlc_stream_with_runtime_and_ifac<R, W>(
                             if let Some(bitrate_bps) = forced_bitrate_bps {
                                 if let Some(delay) = forced_bitrate_delay(raw_len, bitrate_bps) {
                                     tokio::select! {
-                                        _ = cancel.cancelled() => break,
+                                        _ = cancel.cancelled() => break HdlcStreamExit::Cancelled,
                                         _ = iface_stop_tx.cancelled() => {
                                             stop.cancel();
-                                            break;
+                                            break HdlcStreamExit::Cancelled;
                                         }
-                                        _ = stop.cancelled() => break,
+                                        _ = stop.cancelled() => break HdlcStreamExit::Cancelled,
                                         _ = tokio::time::sleep(delay) => {}
                                     }
                                 }
@@ -844,7 +850,7 @@ pub(crate) async fn run_hdlc_stream_with_runtime_and_ifac<R, W>(
                                         HdlcStreamEvent::Error { message: err.to_string() },
                                     );
                                     stop.cancel();
-                                    break;
+                                    break HdlcStreamExit::WriteError(err.kind());
                                 }
                                 if let Err(err) = stream.flush().await {
                                     log::warn!("[tp-diag] flush failed iface={} err={}", iface_address, err);
@@ -853,7 +859,7 @@ pub(crate) async fn run_hdlc_stream_with_runtime_and_ifac<R, W>(
                                         HdlcStreamEvent::Error { message: err.to_string() },
                                     );
                                     stop.cancel();
-                                    break;
+                                    break HdlcStreamExit::WriteError(err.kind());
                                 }
                                 last_write_at = Instant::now();
                                 send_hdlc_stream_event(
@@ -883,8 +889,9 @@ pub(crate) async fn run_hdlc_stream_with_runtime_and_ifac<R, W>(
         }
     };
 
-    tx_loop.await;
-    rx_task.await.unwrap();
+    let tx_exit = tx_loop.await;
+    let rx_exit = rx_task.await.expect("hdlc rx task panicked");
+    HdlcStreamExit::join(rx_exit, tx_exit)
 }
 
 fn send_hdlc_stream_event(
@@ -908,6 +915,9 @@ pub struct TcpClient {
     connect_events: Option<tokio::sync::mpsc::Sender<crate::hash::AddressHash>>,
     reconnect_events: Option<tokio::sync::mpsc::Sender<crate::hash::AddressHash>>,
     disconnect_events: Option<tokio::sync::mpsc::Sender<crate::hash::AddressHash>>,
+    dial_failure_events: Option<tokio::sync::mpsc::Sender<DialFailure>>,
+    disconnect_reason_events:
+        Option<tokio::sync::mpsc::Sender<(crate::hash::AddressHash, DisconnectReason)>>,
     connect_timeout: Duration,
     reconnect_wait: Duration,
     max_reconnect_tries: Option<u64>,
@@ -939,6 +949,8 @@ impl TcpClient {
             connect_events: None,
             reconnect_events: None,
             disconnect_events: None,
+            dial_failure_events: None,
+            disconnect_reason_events: None,
             connect_timeout: Self::DEFAULT_CONNECT_TIMEOUT,
             reconnect_wait: Self::DEFAULT_RECONNECT_WAIT,
             max_reconnect_tries: None,
@@ -965,6 +977,8 @@ impl TcpClient {
             connect_events: None,
             reconnect_events: None,
             disconnect_events: None,
+            dial_failure_events: None,
+            disconnect_reason_events: None,
             connect_timeout: Self::DEFAULT_CONNECT_TIMEOUT,
             reconnect_wait: Self::DEFAULT_RECONNECT_WAIT,
             max_reconnect_tries: None,
@@ -1038,13 +1052,55 @@ impl TcpClient {
     /// reconnect to. A full channel drops the event at debug. Python's
     /// shared-instance client treats a socket closed while connected and
     /// not detached as the shared connection disappearing and
-    /// then reconnects (`RNS/Interfaces/LocalInterface.py:255-261`).
+    /// then reconnects (`RNS/Interfaces/LocalInterface.py:255-266`).
     #[must_use]
     pub fn with_disconnect_events(
         mut self,
         events: tokio::sync::mpsc::Sender<crate::hash::AddressHash>,
     ) -> Self {
         self.disconnect_events = Some(events);
+        self
+    }
+
+    /// Sends a [`DialFailure`] on `events` for every connect attempt that
+    /// fails, naming the interface and why: `Timeout` when the attempt
+    /// outlives [`Self::with_connect_timeout`] or the OS times it out,
+    /// `Refused` when nothing listens at the endpoint, `NotFound` when the
+    /// OS reports `ErrorKind::NotFound`, and `Io(kind)` for any other io
+    /// error (a name that does not resolve arrives as `Io(kind)`). A full
+    /// or closed channel drops the event at debug. Fork-only:
+    /// Python's shared-instance client logs each failed attempt at debug
+    /// and retries without telling the failures apart
+    /// (`RNS/Interfaces/LocalInterface.py:159-167`).
+    #[must_use]
+    pub fn with_dial_failure_events(
+        mut self,
+        events: tokio::sync::mpsc::Sender<DialFailure>,
+    ) -> Self {
+        self.dial_failure_events = Some(events);
+        self
+    }
+
+    /// Sends `(interface address, reason)` on `events` each time an
+    /// established stream ends while the client is neither cancelled nor
+    /// stopped, the twin of [`Self::with_disconnect_events`] that also
+    /// says why: `PeerClosed` for an orderly close, `Reset` for an
+    /// `ErrorKind::ConnectionReset` on either side, `Timeout` when the read
+    /// watchdog ([`Self::with_backbone_liveness`]; none by default) found
+    /// the stream quiet or either side read `ErrorKind::TimedOut`, and
+    /// `Io(kind)` for any other io error. A write that fails after the peer
+    /// went away reports the write's kind (often `BrokenPipe`) when it is
+    /// observed before the read side's reset. A stream the client ended
+    /// itself (cancel, stop, the transport's receive queue closed) sends
+    /// nothing. A full or closed channel drops the event at debug.
+    /// Fork-only: Python's shared-instance client only notices the socket
+    /// closed and reconnects (`RNS/Interfaces/LocalInterface.py:255-266`).
+    #[must_use]
+    pub fn with_disconnect_reason_events(
+        mut self,
+        events: tokio::sync::mpsc::Sender<(crate::hash::AddressHash, DisconnectReason)>,
+    ) -> Self {
+        self.disconnect_reason_events = Some(events);
         self
     }
 
@@ -1133,6 +1189,20 @@ impl TcpClient {
         self.disconnect_events.is_some()
     }
 
+    /// Fork-only: whether a dial-failure sender is installed with
+    /// [`Self::with_dial_failure_events`].
+    #[must_use]
+    pub fn dial_failure_events_enabled(&self) -> bool {
+        self.dial_failure_events.is_some()
+    }
+
+    /// Fork-only: whether a disconnect-reason sender is installed with
+    /// [`Self::with_disconnect_reason_events`].
+    #[must_use]
+    pub fn disconnect_reason_events_enabled(&self) -> bool {
+        self.disconnect_reason_events.is_some()
+    }
+
     #[must_use]
     pub fn connect_timeout(&self) -> Duration {
         self.connect_timeout
@@ -1210,15 +1280,25 @@ impl TcpClient {
         let ifac_violations = context.channel.ifac_violations.clone();
         let online = context.channel.online.clone();
         online.store(false, std::sync::atomic::Ordering::Release);
-        let (mut stream, connect_events, reconnect_events, disconnect_events) = {
+        let (
+            mut stream,
+            connect_events,
+            reconnect_events,
+            disconnect_events,
+            dial_failure_events,
+            disconnect_reason_events,
+        ) = {
             let mut guard = context.inner.lock().unwrap();
             (
                 guard.stream.take(),
                 guard.connect_events.clone(),
                 guard.reconnect_events.clone(),
                 guard.disconnect_events.clone(),
+                guard.dial_failure_events.clone(),
+                guard.disconnect_reason_events.clone(),
             )
         };
+        let iface_events = context.channel.event_publisher_unless_detached(stream.is_some());
 
         let (rx_channel, mut tx_channel) = context.channel.split();
 
@@ -1241,6 +1321,7 @@ impl TcpClient {
                             .lock()
                             .expect("tcp runtime status mutex poisoned")
                             .mark_connecting();
+                        iface_events.publish(InterfaceEventKind::Connecting);
                         tokio::select! {
                             biased;
                             _ = context.cancel.cancelled() => break,
@@ -1248,43 +1329,57 @@ impl TcpClient {
                             connected = tokio::time::timeout(
                                 connect_timeout,
                                 connect_tcp_stream(addr.clone(), prefer_ipv6),
-                            ) => connected
-                                .map_err(|_| RnsError::ConnectionError)
-                                .and_then(|result| {
-                                    result.map_err(|_| RnsError::ConnectionError)
-                                }),
+                            ) => match connected {
+                                Ok(Ok(stream)) => Ok(stream),
+                                Ok(Err(err)) => Err(DialError::Io(err)),
+                                Err(_) => Err(DialError::Elapsed),
+                            },
                         }
                     }
                 }
             };
 
-            if stream.is_err() {
-                online.store(false, std::sync::atomic::Ordering::Release);
-                failed_connect_attempts = failed_connect_attempts.saturating_add(1);
-                runtime_status
-                    .lock()
-                    .expect("tcp runtime status mutex poisoned")
-                    .mark_reconnecting(format!("tcp connect failed endpoint={addr}"));
-                log::warn!("couldn't connect to <{}>", addr);
-                if max_reconnect_tries.is_some_and(|max_reconnect_tries| {
-                    failed_connect_attempts > max_reconnect_tries
-                }) {
-                    log::error!(
-                        "max TCP reconnect attempts reached for <{}> after {} failed attempts",
-                        addr,
-                        failed_connect_attempts
-                    );
-                    break;
+            let stream = match stream {
+                Ok(stream) => stream,
+                Err(failure) => {
+                    online.store(false, std::sync::atomic::Ordering::Release);
+                    failed_connect_attempts = failed_connect_attempts.saturating_add(1);
+                    let (kind, text) = classify_dial_error(failure, connect_timeout);
+                    runtime_status
+                        .lock()
+                        .expect("tcp runtime status mutex poisoned")
+                        .mark_reconnecting(format!("tcp connect failed endpoint={addr}: {text}"));
+                    log::warn!("couldn't connect to <{}>: {}", addr, text);
+                    iface_events.publish(InterfaceEventKind::DialFailed { reason: kind });
+                    if let Some(events) = dial_failure_events.as_ref() {
+                        if let Err(err) = events.try_send(DialFailure::new(iface_address, kind)) {
+                            log::debug!(
+                                "dropped TCP dial failure event iface={} endpoint={} err={}",
+                                iface_address,
+                                addr,
+                                err
+                            );
+                        }
+                    }
+                    if max_reconnect_tries.is_some_and(|max_reconnect_tries| {
+                        failed_connect_attempts > max_reconnect_tries
+                    }) {
+                        log::error!(
+                            "max TCP reconnect attempts reached for <{}> after {} failed attempts",
+                            addr,
+                            failed_connect_attempts
+                        );
+                        break;
+                    }
+                    tokio::select! {
+                        _ = context.cancel.cancelled() => break,
+                        _ = iface_stop.cancelled() => break,
+                        _ = tokio::time::sleep(reconnect_wait) => {}
+                    }
+                    continue;
                 }
-                tokio::select! {
-                    _ = context.cancel.cancelled() => break,
-                    _ = iface_stop.cancelled() => break,
-                    _ = tokio::time::sleep(reconnect_wait) => {}
-                }
-                continue;
-            }
+            };
 
-            let stream = stream.unwrap();
             online.store(true, std::sync::atomic::Ordering::Release);
             runtime_status.lock().expect("tcp runtime status mutex poisoned").mark_connected();
             if let Err(err) = socket_tuning.apply_to_stream(&stream) {
@@ -1297,6 +1392,7 @@ impl TcpClient {
             let connected_at = Instant::now();
 
             log::info!("connected to <{}>", addr);
+            iface_events.publish(InterfaceEventKind::Connected);
             if let Some(events) = connect_events.as_ref() {
                 if let Err(err) = events.try_send(iface_address) {
                     log::debug!(
@@ -1337,7 +1433,7 @@ impl TcpClient {
             }
             .with_events(event_tx);
 
-            run_hdlc_stream_with_runtime_and_ifac(
+            let exit = run_hdlc_stream_with_runtime_and_ifac(
                 "tcp_client".to_string(),
                 iface_address,
                 mtu,
@@ -1360,7 +1456,7 @@ impl TcpClient {
                 );
             }
 
-            log::info!("disconnected from <{}>", addr);
+            log::info!("disconnected from <{}> exit={:?}", addr, exit);
             online.store(false, std::sync::atomic::Ordering::Release);
 
             // A deliberate shutdown requested during those first couple of
@@ -1383,6 +1479,20 @@ impl TcpClient {
                         addr,
                         err
                     );
+                }
+            }
+            if let Some(reason) = DisconnectReason::from_stream_exit(exit) {
+                iface_events.publish(InterfaceEventKind::Disconnected { reason });
+                if let Some(events) = disconnect_reason_events.as_ref() {
+                    if let Err(err) = events.try_send((iface_address, reason)) {
+                        log::debug!(
+                            "dropped TCP disconnect reason event iface={} endpoint={} reason={:?} err={}",
+                            iface_address,
+                            addr,
+                            reason,
+                            err
+                        );
+                    }
                 }
             }
 
@@ -1447,6 +1557,25 @@ pub(crate) fn prefer_ipv6_socket_addrs(
     addrs
 }
 
+/// Why one dial in the connect loop failed, kept apart so the warn can say
+/// which and the dial-failure event can be classified.
+enum DialError {
+    Elapsed,
+    Io(io::Error),
+}
+
+/// The event kind and warn text for one failed dial. The timeout arm names
+/// the configured connect timeout because `tokio::time::timeout` yields no
+/// io error to quote.
+fn classify_dial_error(err: DialError, connect_timeout: Duration) -> (DialFailureKind, String) {
+    match err {
+        DialError::Elapsed => {
+            (DialFailureKind::Timeout, format!("connect timed out after {connect_timeout:?}"))
+        }
+        DialError::Io(err) => (DialFailureKind::from_io_error(&err), err.to_string()),
+    }
+}
+
 async fn connect_tcp_stream(addr: String, prefer_ipv6: bool) -> io::Result<TcpStream> {
     if !prefer_ipv6 {
         return TcpStream::connect(addr).await;
@@ -1490,13 +1619,14 @@ mod tests {
     use std::time::{Duration, Instant};
 
     use super::{
-        forced_bitrate_delay, max_hdlc_frame_buffer_len, prefer_ipv6_socket_addrs,
-        run_hdlc_stream_with_runtime, tcp_wire_buffer_capacity, trim_malformed_hdlc_backlog,
-        HdlcStreamEvent, HdlcStreamRuntime, HdlcStreamWatchdog, TcpClient, TcpSocketTuning,
-        HDLC_STREAM_EVENT_CHANNEL_CAPACITY,
+        classify_dial_error, forced_bitrate_delay, max_hdlc_frame_buffer_len,
+        prefer_ipv6_socket_addrs, run_hdlc_stream_with_runtime, tcp_wire_buffer_capacity,
+        trim_malformed_hdlc_backlog, DialError, HdlcStreamEvent, HdlcStreamExit, HdlcStreamRuntime,
+        HdlcStreamWatchdog, TcpClient, TcpSocketTuning, HDLC_STREAM_EVENT_CHANNEL_CAPACITY,
     };
     use crate::buffer::OutputBuffer;
     use crate::hash::AddressHash;
+    use crate::iface::events::{DialFailureKind, DisconnectReason};
     use crate::iface::hdlc::Hdlc;
     use crate::iface::{InterfaceManager, TxMessage, TxMessageType};
     use crate::packet::{Packet, PacketDataBuffer};
@@ -1561,6 +1691,39 @@ mod tests {
         assert_eq!(prefer_ipv6_socket_addrs([v4, v6], true), vec![v6, v4]);
     }
 
+    #[test]
+    fn tcp_client_classifies_an_elapsed_dial_as_a_timeout_naming_the_connect_timeout() {
+        let (kind, text) = classify_dial_error(DialError::Elapsed, Duration::from_millis(200));
+
+        assert_eq!(kind, DialFailureKind::Timeout);
+        assert_eq!(text, "connect timed out after 200ms");
+    }
+
+    #[test]
+    fn tcp_client_classifies_io_dial_errors_by_their_kind() {
+        let connect_timeout = Duration::from_secs(5);
+        for (io_kind, expected) in [
+            (std::io::ErrorKind::TimedOut, DialFailureKind::Timeout),
+            (std::io::ErrorKind::ConnectionRefused, DialFailureKind::Refused),
+            (std::io::ErrorKind::NotFound, DialFailureKind::NotFound),
+        ] {
+            let err = std::io::Error::from(io_kind);
+            let expected_text = err.to_string();
+            let (kind, text) = classify_dial_error(DialError::Io(err), connect_timeout);
+            assert_eq!(kind, expected, "{io_kind:?}");
+            assert_eq!(text, expected_text, "{io_kind:?}");
+        }
+    }
+
+    #[test]
+    fn tcp_client_classifies_other_io_dial_errors_as_io_quoting_the_error() {
+        let err = std::io::Error::new(std::io::ErrorKind::PermissionDenied, "no raw sockets");
+        let (kind, text) = classify_dial_error(DialError::Io(err), Duration::from_secs(5));
+
+        assert_eq!(kind, DialFailureKind::Io(std::io::ErrorKind::PermissionDenied));
+        assert_eq!(text, "no raw sockets");
+    }
+
     #[tokio::test]
     async fn tcp_client_stops_after_reconnect_budget_is_exhausted() {
         let listener = TcpListener::bind("127.0.0.1:0").await.expect("bind listener");
@@ -1585,9 +1748,10 @@ mod tests {
         assert_eq!(status["endpoint"].as_str(), Some(addr.to_string().as_str()));
         assert_eq!(status["stream_state"].as_str(), Some("closed"));
         assert_eq!(status["reconnect_attempts"].as_u64(), Some(1));
-        assert_eq!(
-            status["last_error"].as_str(),
-            Some(format!("tcp connect failed endpoint={addr}").as_str())
+        let last_error = status["last_error"].as_str().expect("last_error is set");
+        assert!(
+            last_error.starts_with(&format!("tcp connect failed endpoint={addr}: ")),
+            "last_error should name the endpoint and carry the connect error text: {last_error}"
         );
     }
 
@@ -2260,6 +2424,49 @@ mod tests {
         assert_eq!(status["keepalives_sent"].as_u64(), Some(1));
     }
 
+    /// Only a client built with a read watchdog can report `Timeout`, so the
+    /// value is pinned here, where the crate-private builder is in reach: a
+    /// peer that is accepted and then held silent past `read_timeout` ends
+    /// the stream as `ReadTimeout`, which the reason channel reads as
+    /// `Timeout`.
+    #[tokio::test]
+    #[deny(clippy::await_holding_invalid_type)]
+    async fn tcp_client_reports_a_silent_stream_past_the_read_watchdog_as_timeout() {
+        let listener = TcpListener::bind("127.0.0.1:0").await.expect("bind listener");
+        let addr = listener.local_addr().expect("listener addr");
+        let (reason_tx, mut reason_rx) = tokio::sync::mpsc::channel(4);
+        let client = TcpClient::new(addr.to_string())
+            .with_hdlc_watchdog(HdlcStreamWatchdog {
+                keepalive_after: Duration::from_secs(3600),
+                stale_after: Duration::from_secs(3600),
+                read_timeout: Duration::from_millis(200),
+            })
+            .with_disconnect_reason_events(reason_tx);
+        let mut manager = InterfaceManager::new(8);
+        let context = manager.new_context(client);
+        let iface_address = context.channel.address;
+        let cancel = context.cancel.clone();
+        let task = tokio::spawn(TcpClient::spawn(context));
+
+        let (silent_peer, _) = tokio::time::timeout(Duration::from_secs(2), listener.accept())
+            .await
+            .expect("accept deadline")
+            .expect("accept stream");
+        assert_eq!(
+            tokio::time::timeout(Duration::from_secs(5), reason_rx.recv())
+                .await
+                .expect("the read watchdog did not report the silent stream in time"),
+            Some((iface_address, DisconnectReason::Timeout))
+        );
+
+        cancel.cancel();
+        drop(silent_peer);
+        tokio::time::timeout(Duration::from_secs(2), task)
+            .await
+            .expect("client task timed out")
+            .expect("client task");
+    }
+
     #[tokio::test]
     async fn tcp_client_without_watchdog_does_not_emit_idle_keepalive() {
         let listener = TcpListener::bind("127.0.0.1:0").await.expect("bind listener");
@@ -2514,10 +2721,11 @@ mod tests {
             HdlcStreamRuntime::new().with_events(event_tx),
         ));
 
-        tokio::time::timeout(Duration::from_secs(2), handle)
+        let exit = tokio::time::timeout(Duration::from_secs(2), handle)
             .await
             .expect("run_hdlc_stream_with_runtime hung: tx loop never saw stop cancelled")
             .expect("hdlc stream task panicked");
+        assert_eq!(exit, HdlcStreamExit::ReadError(std::io::ErrorKind::ConnectionReset));
 
         let mut saw_error_event = false;
         while let Ok(event) = event_rx.try_recv() {
@@ -2526,6 +2734,138 @@ mod tests {
             }
         }
         assert!(saw_error_event, "expected an Error event from the simulated reset");
+    }
+
+    /// One stream runner on its own task, with the cancel token it watches
+    /// and the far ends of its transport channels, which stay open as long
+    /// as the harness lives.
+    struct StreamRunner {
+        handle: tokio::task::JoinHandle<HdlcStreamExit>,
+        cancel: CancellationToken,
+        _rx_messages: crate::iface::InterfaceRxReceiver,
+        tx_sender: crate::iface::InterfaceTxSender,
+    }
+
+    fn spawn_stream_runner<R, W>(
+        read_stream: R,
+        write_stream: W,
+        runtime: HdlcStreamRuntime,
+    ) -> StreamRunner
+    where
+        R: tokio::io::AsyncRead + Unpin + Send + 'static,
+        W: tokio::io::AsyncWrite + Unpin + Send + 'static,
+    {
+        let cancel = CancellationToken::new();
+        let (rx_channel, rx_messages) = tokio::sync::mpsc::channel(1);
+        let (tx_sender, tx_receiver) = tokio::sync::mpsc::channel(1);
+        let handle = tokio::spawn(run_hdlc_stream_with_runtime(
+            "test".to_string(),
+            AddressHash::new([0x48; 16]),
+            256,
+            cancel.clone(),
+            CancellationToken::new(),
+            rx_channel,
+            tx_receiver,
+            read_stream,
+            write_stream,
+            runtime,
+        ));
+        StreamRunner { handle, cancel, _rx_messages: rx_messages, tx_sender }
+    }
+
+    #[deny(clippy::await_holding_invalid_type)]
+    async fn stream_exit_within(
+        handle: tokio::task::JoinHandle<HdlcStreamExit>,
+        within: Duration,
+    ) -> HdlcStreamExit {
+        tokio::time::timeout(within, handle)
+            .await
+            .expect("run_hdlc_stream_with_runtime did not return in time")
+            .expect("hdlc stream task panicked")
+    }
+
+    #[tokio::test]
+    #[deny(clippy::await_holding_invalid_type)]
+    async fn a_peer_that_closes_the_stream_exits_as_peer_closed() {
+        let listener = TcpListener::bind("127.0.0.1:0").await.expect("bind");
+        let addr = listener.local_addr().expect("local addr");
+        let (client, peer) = tokio::join!(TcpStream::connect(addr), listener.accept());
+        let (read_stream, write_stream) = client.expect("connect").into_split();
+        let runner = spawn_stream_runner(read_stream, write_stream, HdlcStreamRuntime::new());
+
+        drop(peer.expect("accept").0);
+
+        assert_eq!(
+            stream_exit_within(runner.handle, Duration::from_secs(2)).await,
+            HdlcStreamExit::PeerClosed
+        );
+    }
+
+    #[tokio::test]
+    #[deny(clippy::await_holding_invalid_type)]
+    async fn a_cancel_on_an_open_stream_exits_as_cancelled() {
+        let (local, far) = tokio::io::duplex(1024);
+        let (read_stream, write_stream) = tokio::io::split(local);
+        let runner = spawn_stream_runner(read_stream, write_stream, HdlcStreamRuntime::new());
+
+        tokio::task::yield_now().await;
+        runner.cancel.cancel();
+
+        assert_eq!(
+            stream_exit_within(runner.handle, Duration::from_secs(2)).await,
+            HdlcStreamExit::Cancelled
+        );
+        drop(far);
+    }
+
+    #[tokio::test]
+    #[deny(clippy::await_holding_invalid_type)]
+    async fn a_silent_stream_past_the_read_timeout_exits_as_read_timeout() {
+        let (local, far) = tokio::io::duplex(1024);
+        let (read_stream, write_stream) = tokio::io::split(local);
+        let runner = spawn_stream_runner(
+            read_stream,
+            write_stream,
+            HdlcStreamRuntime::new().with_watchdog(HdlcStreamWatchdog {
+                keepalive_after: Duration::from_secs(3600),
+                stale_after: Duration::from_secs(3600),
+                read_timeout: Duration::from_millis(200),
+            }),
+        );
+
+        let started = Instant::now();
+        assert_eq!(
+            stream_exit_within(runner.handle, Duration::from_secs(3)).await,
+            HdlcStreamExit::ReadTimeout
+        );
+        assert!(
+            started.elapsed() >= Duration::from_millis(200),
+            "the watchdog fired before the read timeout elapsed"
+        );
+        drop(far);
+    }
+
+    /// A write that fails ends the tx loop with the write's kind and cancels
+    /// the rx loop, whose `Cancelled` exit then defers to the tx side's: the
+    /// runner reports `WriteError(BrokenPipe)`, not `Cancelled`.
+    #[tokio::test]
+    #[deny(clippy::await_holding_invalid_type)]
+    async fn a_write_that_fails_exits_as_write_error() {
+        let (local, far) = tokio::io::duplex(1024);
+        let runner =
+            spawn_stream_runner(local, super::memory_tests::BrokenWriter, HdlcStreamRuntime::new());
+
+        runner
+            .tx_sender
+            .send(TxMessage { tx_type: TxMessageType::Broadcast(None), packet: Packet::default() })
+            .await
+            .expect("queue the packet");
+
+        assert_eq!(
+            stream_exit_within(runner.handle, Duration::from_secs(2)).await,
+            HdlcStreamExit::WriteError(std::io::ErrorKind::BrokenPipe)
+        );
+        drop(far);
     }
 }
 

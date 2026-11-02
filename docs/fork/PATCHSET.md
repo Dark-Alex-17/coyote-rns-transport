@@ -31,7 +31,7 @@ per fork task.
 Every file changed since the `0.18.0` release and the patch each change
 belongs to. Patch ids: L1 is smoke ports, M1 is dial log. The `smoke ports`
 patch is fork commits `3eeff0e7` and `91113899`. The `dial log` patch is
-fork commit `b42bb758`.
+fork commits `b42bb758` and `2f5f4456`.
 
 | File | Patch |
 | --- | --- |
@@ -47,7 +47,8 @@ fork commit `b42bb758`.
 | `crates/libs/rns-transport/src/iface/local.rs` | dial log |
 | `crates/libs/rns-transport/src/iface/tcp_client.rs` | dial log |
 | `crates/libs/rns-transport/tests/dial_failure_events_api.rs` | dial log |
-| `docs/fork/PATCHSET.md` | smoke ports |
+| `crates/libs/rns-transport/tests/dial_log_cadence_probe.rs` | dial log |
+| `docs/fork/PATCHSET.md` | smoke ports, dial log |
 | `tools/scripts/python-lxmd-rust-lxmd-smoke.sh` | smoke ports |
 
 Fork commits `3eeff0e7`, `91113899`: L1, smoke ports. No library behaviour
@@ -85,7 +86,7 @@ literal `free_loopback_ports 5)` once to requiring exactly one line that
 names the helper outside its definition, so a second call asking for another
 count fails the pin.
 
-Fork commit `b42bb758`: M1, dial log.
+Fork commits `b42bb758`, `2f5f4456`: M1, dial log.
 The TCP and local unix clients used to warn on every failed connect
 attempt, one line per `reconnect_wait` for as long as the peer stayed down.
 The new `pub(crate) mod dial_log` (`crates/libs/rns-transport/src/iface/dial_log.rs`,
@@ -116,9 +117,28 @@ re-arms) and by `tests/dial_failure_events_api.rs`:
 `local_unix_client_warns_once_then_debugs_until_a_connect_names_the_failed_attempts`,
 `local_unix_client_warns_again_when_the_failure_kind_changes`, and the
 retargeted `tcp_client_reports_refused_dials_until_a_listener_binds_the_port`
-(two refused attempts log one warn and one debug). The crate CHANGELOG
-gains a `## Unreleased` / `### Changed` bullet and the README its
+(two refused attempts log one warn and at least one debug). The crate
+CHANGELOG gains a `## Unreleased` / `### Changed` bullet and the README its
 shared-instance paragraph and Known divergences entry.
+`2f5f4456` adds two unit pins to `dial_log.rs` that the first commit
+left without a failing case: a `DialAttempts` built with a kind already
+recorded and a zero count still warns on its first failure (so the
+first-attempt arm is pinned apart from the kind-change arm), and
+`connected()` forgets the last kind along with the count. It adds
+`crates/libs/rns-transport/tests/dial_log_cadence_probe.rs`, four black-box
+tests driving a peer that accepts once, drops the stream at once and goes
+away again: for both clients the second run of failures warns again at
+attempt 1 with the next line at debug numbered 2, and each connect line's
+count equals exactly the failures that preceded it (the unix twin unlinks
+the socket file so the renewed failures keep the `NotFound` kind and the
+second warn cannot be the kind-change arm); and when a listener is already
+up the connect line is byte-for-byte `connected to <endpoint>` or
+`connected to local unix client <endpoint>` with no failed line at all. The
+same commit qualifies the cadence wording in the `DIAL_WARN_STRIDE` rustdoc
+and the CHANGELOG bullet (the once-a-minute figure holds for a peer that
+refuses at once; a dial that only times out adds the connect timeout to
+every cycle) and names both connect-line forms in the README's
+shared-instance paragraph.
 
 ## 0.18.0 (upstream 0.14.0)
 

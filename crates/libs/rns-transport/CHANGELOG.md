@@ -17,13 +17,12 @@ Removed) bullet of its own, marked as such.
   stream client on an interface has established since it was spawned, every
   reconnect included: `Some(0)` for a client that has not connected yet,
   `None` once no record in the transport's interface manager carries the
-  address (never minted, built with `InterfaceChannel::new` as tests and
-  serial drivers do, or already stopped and pruned, so the read goes
-  `Some(n)` to `None` after `stop_interface`, `detach_shared_instance` or
-  `stop`). The count lives on `InterfaceChannel`
-  (`iface_parts/txmessagetype.rs`), is shared with the manager's record
-  (a virtual interface shares its host's count), and is read through
-  `InterfaceManager::connected_streams(&address)`
+  address (never minted, built with `InterfaceChannel::new`, as tests do,
+  or already stopped and pruned, so the read goes `Some(n)` to `None` after
+  `stop_interface`, `detach_shared_instance` or `stop`). The count lives on
+  `InterfaceChannel` (`iface_parts/txmessagetype.rs`), is shared with the
+  manager's record (a virtual interface shares its host's count), and is
+  read through `InterfaceManager::connected_streams(&address)`
   (`iface_parts/interfacemanager_events.rs`). `TcpClient`
   (`iface/tcp_client.rs`) and `LocalUnixClient` (`iface/local.rs`) increment
   it immediately before they publish `InterfaceEventKind::Connected`, so a
@@ -31,16 +30,18 @@ Removed) bullet of its own, marked as such.
   that count, and a subscriber that compares two reads taken either side of
   a `RecvError::Lagged` learns whether a reconnect happened in between even
   though the events were dropped. A client built from a pre-supplied stream
-  counts that stream too, though it publishes no `Connected` for it. The
-  shared instance's interface is
-  `Transport::shared_instance()`. For a `TcpClient` the same count is also
-  read through `TcpRuntimeStatusHandle::connected_streams()` and the new
-  `"connected_streams"` key that `TcpClient::runtime_status_json()` and
-  `TcpRuntimeStatusHandle::to_json()` merge into the status JSON;
-  `TcpRuntimeStatus` itself (its pub fields, `new` and `to_json`) is
-  unchanged, so a consumer that constructs it still compiles.
-  `rnstatus-rs` shows the key as `connects=N` in its TCP summary. Python
-  has no equivalent: its reconnect loop keeps only a per-burst local
+  counts that stream too, though it publishes no `Connected` for it. Any
+  other interface the manager spawned (listeners, datagram and serial
+  carriers, the I2P interface) reads `Some(0)` for as long as it lives; only
+  `TcpClient` and `LocalUnixClient` move the count. The shared instance's
+  interface is `Transport::shared_instance()`. For a `TcpClient` the same
+  count is also read through `TcpRuntimeStatusHandle::connected_streams()`
+  and the new `"connected_streams"` key, always present, that
+  `TcpClient::runtime_status_json()` and `TcpRuntimeStatusHandle::to_json()`
+  merge into the status JSON; `TcpRuntimeStatus` itself (its pub fields,
+  `new` and `to_json`) is unchanged, so a consumer that constructs it still
+  compiles. `rnstatus-rs` shows the key as `connects=N` in its TCP summary.
+  Python has no equivalent: its reconnect loop keeps only a per-burst local
   `attempts` and no count of established streams
   (`RNS/Interfaces/TCPInterface.py:270-298`, `:274-277`). Pinned by
   `tests/interface_connect_count_api.rs` (a plain `TcpClient` through a
@@ -58,12 +59,20 @@ Removed) bullet of its own, marked as such.
   record while the listening interface stays at `Some(0)`; a virtual
   interface reads its host's count `Some(0)`, `Some(1)`, `Some(2)`; two
   sibling clients keep separate counts; a stopped interface reads `None`
-  while a status handle that outlives it keeps the last count), by the
-  `iface/tcp_client.rs` unit tests (a
-  client that never connected reads 0, a client built from a pre-supplied
-  stream reads 1, a reconnect storm of N short streams reads N) and by
-  the rns-tools `rnstatus_cli` test (`connects=5` in the TCP summary line
-  that `src/bin/shared/rnstatus.rs` renders).
+  while a status handle that outlives it keeps the last count; a
+  `LocalUnixServer`'s accepted peer counts its pre-supplied stream on its
+  own record with no event published while the listener stays at
+  `Some(0)`), by `tests/interface_connect_count_lag_probe.rs` (a
+  subscriber that idles through 400 accept-and-drop cycles overflows the
+  1024-slot broadcast and reads `RecvError::Lagged`; the difference between
+  the count it took before idling and the count it takes afterwards is the
+  number of reconnects the dropped events would have shown it, and the
+  stream still delivers a `Connected` from the retained tail), by the
+  `iface/tcp_client.rs` unit tests (a client that never connected reads 0,
+  a client built from a pre-supplied stream reads 1, a reconnect storm of N
+  short streams reads N) and by the rns-tools `rnstatus_cli` test
+  (`connects=5` in the TCP summary line that `src/bin/shared/rnstatus.rs`
+  renders).
 
 ### Changed
 

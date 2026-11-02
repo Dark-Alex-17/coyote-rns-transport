@@ -148,6 +148,7 @@ fn rnstatus_fetches_daemon_status_and_renders_interface_runtime_state() {
                                         "endpoint": "127.0.0.1:4242",
                                         "stream_state": "reconnecting",
                                         "reconnect_attempts": 3,
+                                        "connected_streams": 5,
                                         "bytes_rx": 12,
                                         "bytes_tx": 34,
                                         "keepalives_sent": 2,
@@ -316,6 +317,10 @@ fn rnstatus_fetches_daemon_status_and_renders_interface_runtime_state() {
     let value: serde_json::Value = serde_json::from_str(&stdout).expect("json output");
     assert_eq!(value["identity_hash"], "0123456789abcdef0123456789abcdef");
     assert_eq!(value["interfaces"][0]["settings"]["_runtime"]["startup_status"], "failed");
+    assert_eq!(
+        value["interfaces"][3]["settings"]["_runtime"]["tcp"]["stream_status"]["connected_streams"],
+        5
+    );
     assert_eq!(
         value["interfaces"][4]["settings"]["_runtime"]["tcp"]["listener_status"]["listener_state"],
         "listening"

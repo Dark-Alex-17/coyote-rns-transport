@@ -193,6 +193,21 @@ fn request_layer_public_items_cite_python_or_say_fork_only() {
             ItemKind::Method,
             "publish_event",
         ),
+        (
+            "crates/libs/rns-transport/src/transport/core_parts/interface_events.rs",
+            ItemKind::Method,
+            "interface_connect_count",
+        ),
+        (
+            "crates/libs/rns-transport/src/iface_parts/interfacemanager_events.rs",
+            ItemKind::Method,
+            "connected_streams",
+        ),
+        (
+            "crates/libs/rns-transport/src/iface/tcp_client.rs",
+            ItemKind::Method,
+            "connected_streams",
+        ),
     ];
 
     let mut checked = 0usize;
@@ -267,7 +282,7 @@ fn request_layer_public_items_cite_python_or_say_fork_only() {
     }
 
     assert!(
-        checked >= 196,
+        checked >= 199,
         "the request layer should expose the receipt, frame, handler and outcome surface; found only {checked} public items"
     );
     assert!(

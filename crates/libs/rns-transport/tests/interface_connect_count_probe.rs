@@ -2,7 +2,8 @@
 //! shared instance and the unix client that `interface_connect_count_api.rs` covers:
 //! a `TcpServer` runs each accepted peer as a client over a pre-supplied stream, and
 //! that peer's own record counts the stream it was handed while the listening
-//! interface's record stays at zero; a virtual interface registered on a host reads the
+//! interface's record stays at zero, and a `LocalUnixServer`'s accepted peer does the
+//! same with no event published; a virtual interface registered on a host reads the
 //! host's count; two clients spawned through one transport keep separate counts; the
 //! count survives a disconnect and a refused redial unchanged; and an interface that
 //! `stop_interface` removed reads `None` while a status handle that outlives it keeps
@@ -12,6 +13,8 @@ use std::net::SocketAddr;
 use std::time::{Duration, Instant};
 
 use rns_transport::hash::AddressHash;
+#[cfg(unix)]
+use rns_transport::iface::local::{LocalUnixEndpoint, LocalUnixServer};
 use rns_transport::iface::tcp_client::{TcpClient, TcpRuntimeStatusHandle};
 use rns_transport::iface::tcp_server::TcpServer;
 use rns_transport::iface::IfaceRole;
@@ -20,6 +23,8 @@ use tokio::io::{AsyncRead, AsyncReadExt as _, AsyncWrite, AsyncWriteExt as _};
 use tokio::net::{TcpListener, TcpStream};
 use tokio::sync::broadcast;
 use tokio::sync::broadcast::error::RecvError;
+#[cfg(unix)]
+use tokio::sync::broadcast::error::TryRecvError;
 use tokio::time::timeout;
 
 #[path = "support/client_transport.rs"]
@@ -32,6 +37,8 @@ use free_loopback_port::free_loopback_port;
 const WAIT: Duration = Duration::from_secs(5);
 const POLL: Duration = Duration::from_millis(20);
 const RECONNECT_WAIT: Duration = Duration::from_millis(50);
+#[cfg(unix)]
+const QUIET: Duration = Duration::from_millis(300);
 
 #[deny(clippy::await_holding_invalid_type)]
 async fn wait_until(what: &str, mut condition: impl FnMut() -> bool) {
@@ -175,6 +182,60 @@ async fn a_tcp_server_counts_each_accepted_peer_on_its_own_record() {
     close_orderly(first).await;
     close_orderly(second).await;
     timeout(WAIT, listener.stop()).await.expect("listener stop completes");
+}
+
+/// The unix twin of the test above. A `LocalUnixServer` has no status handle, so the
+/// accepted peer is found as the one local-client child the manager lists once the
+/// listener is flagged as the shared instance. The peer's record counts the stream it
+/// was handed, the listener's record stays at `Some(0)`, and a subscriber that predates
+/// the spawn reads nothing: the pre-supplied stream publishes no `Connected`.
+#[cfg(unix)]
+#[tokio::test]
+#[deny(clippy::await_holding_invalid_type)]
+async fn a_unix_server_counts_each_accepted_peer_on_its_own_record() {
+    let dir = tempfile::tempdir().expect("socket dir");
+    let socket = dir.path().join("connect-count.sock");
+    let transport = client_transport("connect-count-unix-server");
+    let mut events = transport.interface_events();
+    let server = LocalUnixServer::new_endpoint(
+        LocalUnixEndpoint::filesystem(&socket),
+        transport.iface_manager(),
+    );
+    let server_iface = transport.iface_manager().lock().await.spawn(server, LocalUnixServer::spawn);
+    assert!(
+        transport.iface_manager().lock().await.set_shared_instance(server_iface, true),
+        "the listener is flagged as the shared instance"
+    );
+    wait_until("the socket to appear", || socket.exists()).await;
+    assert_eq!(transport.interface_connect_count(&server_iface).await, Some(0));
+
+    let stream = tokio::net::UnixStream::connect(&socket).await.expect("the peer connects");
+    let deadline = Instant::now() + WAIT;
+    let peer = loop {
+        let children = transport.iface_manager().lock().await.local_client_interfaces();
+        if let [peer] = children[..] {
+            break peer;
+        }
+        assert!(Instant::now() < deadline, "timed out waiting for the accepted peer: {children:?}");
+        tokio::time::sleep(POLL).await;
+    };
+    assert_ne!(peer, server_iface);
+    wait_for_count("the peer's stream", &transport, peer, 1).await;
+    assert_eq!(
+        transport.interface_connect_count(&server_iface).await,
+        Some(0),
+        "the listening interface itself establishes no stream"
+    );
+
+    tokio::time::sleep(QUIET).await;
+    assert_eq!(
+        events.try_recv(),
+        Err(TryRecvError::Empty),
+        "neither the listener nor the accepted peer publishes"
+    );
+
+    close_orderly(stream).await;
+    timeout(WAIT, transport.stop()).await.expect("transport stop completes");
 }
 
 /// A virtual interface registered on a client's interface shares the host's count: it

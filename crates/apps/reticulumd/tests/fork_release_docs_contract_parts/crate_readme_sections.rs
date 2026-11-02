@@ -671,6 +671,98 @@ fn crate_readme_shared_instance_section_describes_interface_events() {
     }
 }
 
+/// The shared-instance section describes the connect count the way the
+/// clients keep it: the transport getter and its `Option`, the `Lagged`
+/// reconciliation it exists for, the shared instance's own interface, the
+/// manager read and the TCP status handle and JSON key underneath, the
+/// `Some(0)` an interface that is not a stream client reads for life and
+/// the `None` a pruned record reads; the divergence register names the
+/// count as fork-only, and the changelog bullet names the same items, the
+/// always-present JSON key, the source files and the black-box test files.
+#[test]
+fn crate_readme_shared_instance_section_describes_interface_connect_count() {
+    let readme = read_repo_file("crates/libs/rns-transport/README.md");
+    let section = crate_readme_section(&readme, "Attaching to a shared instance");
+    for claim in [
+        "`Transport::interface_connect_count(&iface)`",
+        "either side of a `RecvError::Lagged`",
+        "`Transport::shared_instance()`",
+        "`InterfaceManager::connected_streams(&address)`",
+        "`TcpRuntimeStatusHandle::connected_streams()`",
+        "`\"connected_streams\"`",
+        "`Some(0)` for as long as it lives",
+        "`Some(0)`",
+        "`None`",
+    ] {
+        assert!(
+            section.contains(claim),
+            "the shared-instance section should mention {claim}:\n{section}"
+        );
+    }
+    let divergences = crate_readme_section(&readme, "Known divergences from Python RNS");
+    assert!(
+        divergences.contains("`Transport::interface_connect_count()`"),
+        "the divergence register should name the connect count:\n{divergences}"
+    );
+    let changelog = read_repo_file("crates/libs/rns-transport/CHANGELOG.md");
+    let changelog_section =
+        changelog_section_naming(&changelog, "`Transport::interface_connect_count(&iface)`");
+    for claim in [
+        "`RecvError::Lagged`",
+        "`Transport::shared_instance()`",
+        "`InterfaceManager::connected_streams",
+        "`TcpRuntimeStatusHandle::connected_streams",
+        "`\"connected_streams\"`",
+        "always present",
+        "`Some(0)` for as long as it lives",
+        "`tests/interface_connect_count_api.rs`",
+        "`tests/interface_connect_count_probe.rs`",
+        "`tests/interface_connect_count_lag_probe.rs`",
+        "`iface_parts/interfacemanager_events.rs`",
+        "`transport/core_parts/interface_events.rs`",
+    ] {
+        assert!(changelog_section.contains(claim), "the changelog should mention {claim}");
+    }
+}
+
+/// The two rustdocs that say which clients move the connect count,
+/// `Transport::interface_connect_count` and
+/// `InterfaceManager::connected_streams`, name the rule in the same words
+/// as the README's shared-instance section and the changelog bullet that
+/// names the getter, so none of the four can drift apart on its own; the
+/// TCP status handle's rustdoc dates its 0 from the first stream rather
+/// than from a dial, since a pre-supplied stream counts without one.
+#[test]
+fn connect_count_rustdoc_twins_describe_the_stream_client_rule_alike() {
+    let rule = "only `TcpClient` and `LocalUnixClient` move the count";
+    let readme = read_repo_file("crates/libs/rns-transport/README.md");
+    let section = squash(crate_readme_section(&readme, "Attaching to a shared instance"));
+    assert!(
+        section.contains(&squash(rule)),
+        "the README shared-instance section should say {rule:?}"
+    );
+    let changelog = read_repo_file("crates/libs/rns-transport/CHANGELOG.md");
+    let changelog_section = squash(changelog_section_naming(
+        &changelog,
+        "`Transport::interface_connect_count(&iface)`",
+    ));
+    assert!(
+        changelog_section.contains(&squash(rule)),
+        "the changelog section naming interface_connect_count should say {rule:?}"
+    );
+    for file in [
+        "crates/libs/rns-transport/src/transport/core_parts/interface_events.rs",
+        "crates/libs/rns-transport/src/iface_parts/interfacemanager_events.rs",
+    ] {
+        let rustdoc = squash(&doc_comment_text(&read_repo_file(file)));
+        assert!(rustdoc.contains(&squash(rule)), "{file} rustdoc should say {rule:?}");
+    }
+    let handle = "its first stream is up";
+    let tcp_client = "crates/libs/rns-transport/src/iface/tcp_client.rs";
+    let rustdoc = squash(&doc_comment_text(&read_repo_file(tcp_client)));
+    assert!(rustdoc.contains(&squash(handle)), "{tcp_client} rustdoc should say {handle:?}");
+}
+
 /// The request-handler section describes `track_outcome` the way the
 /// dispatcher behaves: the receiver it returns, when to call it, each
 /// outcome and what it proves, the proof section a packet outcome

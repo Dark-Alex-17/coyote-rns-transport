@@ -14,9 +14,11 @@ impl InterfaceManager {
 
     /// Fork-only: the number of streams the client on `address` has
     /// established since it was spawned; a virtual interface shares its
-    /// host's count. `None` once no record here carries the address: never
-    /// minted, built with `InterfaceChannel::new`, or already stopped and
-    /// pruned.
+    /// host's count. Any other interface spawned here (listeners, datagram
+    /// and serial carriers, the I2P interface) reads `Some(0)` for as long
+    /// as it lives; only `TcpClient` and `LocalUnixClient` move the count.
+    /// `None` once no record here carries the address: never minted, built
+    /// with `InterfaceChannel::new`, or already stopped and pruned.
     pub fn connected_streams(&self, address: &AddressHash) -> Option<u64> {
         self.ifaces
             .iter()

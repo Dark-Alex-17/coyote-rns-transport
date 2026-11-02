@@ -175,15 +175,17 @@ fn lxmd_smoke_prologue_keeps_exported_ports_and_picks_the_rest() {
 /// The two Python control ports are OS-assigned in their own right: pinning
 /// the shared-instance port no longer makes them `+1` and `+11` of it. This is
 /// the arm that fails against the pid-derived script, whose control ports
-/// were offsets of `PY_SHARED_INSTANCE_PORT`.
+/// were offsets of `PY_SHARED_INSTANCE_PORT`. The pinned port sits below every
+/// OS ephemeral range (Linux hands out 32768-60999) so a control port the OS
+/// picks can never land on one of the offsets by chance.
 #[cfg(unix)]
 #[test]
 fn lxmd_smoke_prologue_picks_control_ports_independently_of_the_shared_instance_port() {
-    let ports = lxmd_smoke_prologue_ports("shared-pinned", &[("PY_SHARED_INSTANCE_PORT", "40000")]);
-    assert_eq!(ports.shared_instance_port, "40000", "the exported shared-instance port is kept");
-    assert_ne!(ports.instance_control_port, "40001", "PY_INSTANCE_CONTROL_PORT is not shared-instance + 1");
-    assert_ne!(ports.endpoint_control_port, "40011", "PY_ENDPOINT_CONTROL_PORT is not shared-instance + 11");
-    assert_ne!(ports.endpoint_control_port, "40010", "PY_ENDPOINT_CONTROL_PORT is not shared-instance + 10");
+    let ports = lxmd_smoke_prologue_ports("shared-pinned", &[("PY_SHARED_INSTANCE_PORT", "7000")]);
+    assert_eq!(ports.shared_instance_port, "7000", "the exported shared-instance port is kept");
+    assert_ne!(ports.instance_control_port, "7001", "PY_INSTANCE_CONTROL_PORT is not shared-instance + 1");
+    assert_ne!(ports.endpoint_control_port, "7011", "PY_ENDPOINT_CONTROL_PORT is not shared-instance + 11");
+    assert_ne!(ports.endpoint_control_port, "7010", "PY_ENDPOINT_CONTROL_PORT is not shared-instance + 10");
     ports.assert_pairwise_distinct();
 }
 

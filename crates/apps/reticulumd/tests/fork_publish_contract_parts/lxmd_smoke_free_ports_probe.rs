@@ -73,10 +73,19 @@ fn lxmd_smoke_script_asks_the_os_for_its_loopback_ports() {
     );
 
     let helper_call = format!("free_loopback_ports {})", LXMD_SMOKE_PORT_VARIABLES.len());
+    let helper_mentions: Vec<&str> = script
+        .lines()
+        .filter(|line| line.contains("free_loopback_ports") && !line.starts_with(LXMD_SMOKE_HELPER_DEFINITION))
+        .collect();
     assert_eq!(
-        script.matches(&helper_call).count(),
+        helper_mentions.len(),
         1,
-        "the script calls the helper once per run, asking for one port per default"
+        "the script names the helper once outside its definition, so it is called once per run, got {helper_mentions:?}"
+    );
+    assert!(
+        helper_mentions[0].contains(&helper_call),
+        "the one call asks for one port per default, got {:?}",
+        helper_mentions[0]
     );
     let read_line = script
         .lines()

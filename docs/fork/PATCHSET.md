@@ -33,7 +33,7 @@ belongs to. Patch ids: L1 is smoke ports, M1 is dial log, M2 is connect
 counter. The `smoke ports` patch is fork commits `3eeff0e7` and `91113899`.
 The `dial log` patch is fork commits `b42bb758`, `2f5f4456` and `e18dc0d9`.
 The `connect counter` patch is fork commits `f5364b3d`, `19e78108`,
-`bf3433a3`, `55bc9720` and `0519d338`.
+`bf3433a3`, `55bc9720`, `0519d338` and `3ca7f727`.
 
 | File | Patch |
 | --- | --- |
@@ -42,7 +42,8 @@ The `connect counter` patch is fork commits `f5364b3d`, `19e78108`,
 | `crates/apps/reticulumd/tests/fork_publish_contract_parts/lxmd_smoke_free_ports_probe.rs` | smoke ports |
 | `crates/apps/reticulumd/tests/fork_publish_contract_parts/lxmd_smoke_free_ports_probe2.rs` | smoke ports |
 | `crates/apps/reticulumd/tests/fork_publish_contract_parts/lxmd_smoke_free_ports_probe3.rs` | smoke ports |
-| `crates/apps/reticulumd/tests/fork_release_docs_contract_parts/crate_readme_sections.rs` | dial log |
+| `crates/apps/reticulumd/tests/fork_release_docs_contract_parts/crate_readme_sections.rs` | dial log, connect counter |
+| `crates/apps/reticulumd/tests/fork_release_docs_contract_parts/request_layer_api_docs.rs` | connect counter |
 | `crates/apps/rns-tools/src/bin/shared/rnstatus.rs` | connect counter |
 | `crates/apps/rns-tools/tests/rnstatus_cli.rs` | connect counter |
 | `crates/libs/rns-transport/CHANGELOG.md` | dial log, connect counter |
@@ -58,8 +59,9 @@ The `connect counter` patch is fork commits `f5364b3d`, `19e78108`,
 | `crates/libs/rns-transport/tests/dial_failure_events_api.rs` | dial log |
 | `crates/libs/rns-transport/tests/dial_log_cadence_probe.rs` | dial log |
 | `crates/libs/rns-transport/tests/dial_log_status_probe.rs` | dial log |
-| `crates/libs/rns-transport/tests/dial_log_text_probe.rs` | dial log |
+| `crates/libs/rns-transport/tests/dial_log_text_probe.rs` | dial log, connect counter |
 | `crates/libs/rns-transport/tests/interface_connect_count_api.rs` | connect counter |
+| `crates/libs/rns-transport/tests/interface_connect_count_lag_probe.rs` | connect counter |
 | `crates/libs/rns-transport/tests/interface_connect_count_probe.rs` | connect counter |
 | `docs/fork/PATCHSET.md` | smoke ports, dial log, connect counter |
 | `tools/scripts/python-lxmd-rust-lxmd-smoke.sh` | smoke ports |
@@ -179,8 +181,8 @@ endpoint yields, and ` (attempt N)`, for the TCP client against a closed
 loopback port and the unix client against a missing path, and pins the TCP
 `last_error` to that same text with no attempt suffix.
 
-Fork commits `f5364b3d`, `19e78108`, `bf3433a3`, `55bc9720`, `0519d338`: M2,
-connect counter.
+Fork commits `f5364b3d`, `19e78108`, `bf3433a3`, `55bc9720`, `0519d338`,
+`3ca7f727`: M2, connect counter.
 Nothing counted how many streams a stream client had established, so a
 watcher that fell behind on `interface_events()` and read
 `RecvError::Lagged` could not tell whether a reconnect had happened in the
@@ -221,7 +223,7 @@ the redial, the status handle agreeing at each step; the pre-spawn
 the key (0 for a client that never connected, 1 for one built from a
 pre-supplied stream, N for a storm of N short streams), extends one
 `rnstatus_cli.rs` fixture with `connected_streams` and pins `connects=5`,
-and adopts `tests/dial_log_text_probe.rs` under the dial log patch. The
+and adopts `tests/dial_log_text_probe.rs`, which pins the dial log patch. The
 same commit hardens `rnstatus_help_exposes_rpc_options` in
 `rnstatus_cli.rs`: it scrubs `CLICOLOR_FORCE` and sets `NO_COLOR=1` so
 clap renders plain help, because a shell that exports `CLICOLOR_FORCE=1`
@@ -247,7 +249,22 @@ counter moves first; the `rnstatus_cli.rs` help test names
 merge helper in `src/iface/tcp_client.rs` fail loudly: `to_json` always
 builds an object, so a non-object result is an impossible state and now
 panics with `unreachable!` instead of silently leaving the
-`"connected_streams"` key out.
+`"connected_streams"` key out. `3ca7f727` adopts
+`tests/interface_connect_count_lag_probe.rs` (an idle subscriber overflows
+the 1024-slot broadcast across 400 accept-and-drop cycles, reads
+`RecvError::Lagged`, and two count reads taken either side of the gap show
+the reconnects the dropped events would have, while the stream still
+delivers a `Connected` from the retained tail), adds the unix server twin to
+`tests/interface_connect_count_probe.rs` (a `LocalUnixServer`'s accepted
+peer counts its pre-supplied stream on its own record with no event
+published, the listener stays `Some(0)`), rows the three new public
+methods in the request-layer rustdoc contract and pins the README
+paragraph, register row and CHANGELOG bullet in `crate_readme_sections.rs`,
+where a twins test also holds the two rustdocs, the README and the bullet
+to the same "only `TcpClient` and `LocalUnixClient` move the count"
+wording, states that every other manager-spawned interface, the I2P
+interface included, reads `Some(0)` and that the JSON key is always
+present, and extends the `rnstatus_cli.rs` passthrough fixture and assert.
 
 ## 0.18.0 (upstream 0.14.0)
 

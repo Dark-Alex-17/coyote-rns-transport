@@ -13,7 +13,15 @@ use serde_json::json;
 
 #[test]
 fn rnstatus_help_exposes_rpc_options() {
-    let output = Command::new(rnstatus_bin()).arg("--help").output().expect("run rnstatus-rs");
+    // clap styles the help text when CLICOLOR_FORCE or FORCE_COLOR is set in
+    // the caller's shell; the substring pins below need the plain rendering.
+    let output = Command::new(rnstatus_bin())
+        .arg("--help")
+        .env_remove("CLICOLOR_FORCE")
+        .env_remove("FORCE_COLOR")
+        .env("NO_COLOR", "1")
+        .output()
+        .expect("run rnstatus-rs");
     assert!(output.status.success(), "stderr: {}", String::from_utf8_lossy(&output.stderr));
     let stdout = String::from_utf8(output.stdout).expect("utf8 stdout");
     assert!(stdout.contains("--rpc <ADDR>"), "stdout: {stdout}");
@@ -433,6 +441,7 @@ fn rnstatus_fetches_daemon_status_and_renders_interface_runtime_state() {
                                         "endpoint": "127.0.0.1:4242",
                                         "stream_state": "reconnecting",
                                         "reconnect_attempts": 3,
+                                        "connected_streams": 5,
                                         "bytes_rx": 12,
                                         "bytes_tx": 34,
                                         "keepalives_sent": 2,
@@ -814,7 +823,7 @@ fn rnstatus_fetches_daemon_status_and_renders_interface_runtime_state() {
     assert!(stdout.contains("tx=7"), "stdout: {stdout}");
     assert!(stdout.contains("backbone-main"), "stdout: {stdout}");
     assert!(
-        stdout.contains("tcp stream=reconnecting endpoint=127.0.0.1:4242 reconnects=3"),
+        stdout.contains("tcp stream=reconnecting endpoint=127.0.0.1:4242 reconnects=3 connects=5"),
         "stdout: {stdout}"
     );
     assert!(stdout.contains("keepalives=2"), "stdout: {stdout}");

@@ -161,10 +161,9 @@ fn assert_rearmed_cadence(
     for &warn in &warns {
         let (_, message) = &failed_lines[warn];
         assert_eq!(attempt_number(message), 1, "each warn opens a run at attempt 1: {message}");
-        if let Some((level, next)) = failed_lines.get(warn + 1) {
-            assert_eq!(*level, log::Level::Debug, "the attempt after a warn debugs: {next}");
-            assert_eq!(attempt_number(next), 2, "the attempt after a warn is 2: {next}");
-        }
+        let (level, next) = failed_lines.get(warn + 1).expect("a run has a line after its warn");
+        assert_eq!(*level, log::Level::Debug, "the attempt after a warn debugs: {next}");
+        assert_eq!(attempt_number(next), 2, "the attempt after a warn is 2: {next}");
     }
     let first_run = &failed_lines[..warns[1]];
     assert_eq!(

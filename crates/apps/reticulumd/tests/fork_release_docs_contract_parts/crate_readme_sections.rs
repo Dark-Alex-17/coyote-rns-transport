@@ -348,6 +348,51 @@ fn response_cap_rustdoc_twins_describe_the_resource_measure_alike() {
     }
 }
 
+/// The "every 30th attempt" the README's divergence register, its
+/// shared-instance section and the changelog bullet naming
+/// `DIAL_WARN_STRIDE` all state is read from the source literal in
+/// `src/iface/dial_log.rs`, so a retuned stride cannot leave the docs
+/// naming the old one; the changelog and the rustdoc also both name the
+/// 150 s cadence the clients' 5 s default produces.
+#[test]
+fn dial_warn_stride_docs_name_the_source_literal() {
+    let source = read_repo_file("crates/libs/rns-transport/src/iface/dial_log.rs");
+    let declaration = "const DIAL_WARN_STRIDE: u64 =";
+    let stride: u64 = source
+        .lines()
+        .find_map(|line| line.split_once(declaration))
+        .and_then(|(_, tail)| tail.trim().strip_suffix(';'))
+        .unwrap_or_else(|| panic!("dial_log.rs should declare `{declaration} <n>;`"))
+        .trim()
+        .parse()
+        .unwrap_or_else(|err| panic!("DIAL_WARN_STRIDE should be an integer literal: {err}"));
+    let claim = format!("every {stride}th attempt");
+    let readme = read_repo_file("crates/libs/rns-transport/README.md");
+    for heading in ["Known divergences from Python RNS", "Attaching to a shared instance"] {
+        let section = squash(crate_readme_section(&readme, heading));
+        assert!(
+            section.contains(&squash(&claim)),
+            "the README `## {heading}` section should say {claim:?}"
+        );
+    }
+    let changelog = read_repo_file("crates/libs/rns-transport/CHANGELOG.md");
+    let changelog_section = squash(changelog_section_naming(&changelog, "`DIAL_WARN_STRIDE`"));
+    assert!(
+        changelog_section.contains(&squash(&claim)),
+        "the changelog section naming DIAL_WARN_STRIDE should say {claim:?}"
+    );
+    let default_cadence = "every 150 s";
+    assert!(
+        changelog_section.contains(&squash(default_cadence)),
+        "the changelog section naming DIAL_WARN_STRIDE should say {default_cadence:?}"
+    );
+    let rustdoc = squash(&doc_comment_text(&source));
+    assert!(
+        rustdoc.contains(&squash(default_cadence)),
+        "the dial_log.rs rustdoc should say {default_cadence:?}"
+    );
+}
+
 /// The text of the first `## ` changelog section, whatever its heading
 /// says, that contains `anchor`. Each pin anchors on the API name its
 /// bullet is about: anchoring on the content rather than on the

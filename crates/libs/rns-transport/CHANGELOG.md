@@ -24,7 +24,8 @@ Removed) bullet of its own, marked as such.
   `reconnect_attempts`, which a short-lived stream also bumps, and a
   flapping peer re-arms the cadence at every connect. At a 2 s
   `reconnect_wait` a peer that refuses at once warns at 0 s and then every
-  60 s; a dial that only times out adds the connect timeout to every cycle.
+  60 s; at the clients' 5 s default, every 150 s. A dial that only times
+  out adds the connect timeout to every cycle.
   The prefixes are unchanged: `couldn't connect to <endpoint>: <text>` for
   the TCP client and, for the unix client,
   `couldn't connect local unix client <endpoint>: <error>`. The connect info
@@ -45,15 +46,24 @@ Removed) bullet of its own, marked as such.
   (four refused TCP attempts log one warn numbered 1 and at least three
   debug lines, attempts 2 to 4 among them, under the unchanged prefix, then
   the connect line names at least four failed attempts and the channel goes
-  quiet; the unix twin of that run against a path bound later; a unix dial
-  that reads `NotFound` and then `Refused` once a stale socket file appears
-  warns exactly twice, the second warn being the first refused line, with
-  every line between at debug), and by `tests/dial_log_cadence_probe.rs` (a
-  peer that accepts once, drops the stream at once and goes away re-arms
-  the cadence for both clients: the second run warns again at attempt 1
-  and each connect line names exactly the failures that preceded it; and
-  the connect line is byte-for-byte `connected to <endpoint>` or
-  `connected to local unix client <endpoint>` when the first dial connects).
+  quiet; a TCP client left dialing a closed port warns again on attempt 30
+  with attempts 2 to 29 at debug; the unix twin of the warns-once run
+  against a path bound later, checking the unchanged prefix too; a unix
+  dial that reads `NotFound` and then `Refused` once a stale socket file
+  appears warns exactly twice, the second warn being the first refused
+  line, with every line between at debug), by
+  `tests/dial_log_cadence_probe.rs` (a peer that accepts once, drops the
+  stream at once and goes away re-arms the cadence for both clients: the
+  second run warns again at attempt 1 and each connect line names exactly
+  the failures that preceded it; and the connect line is byte-for-byte
+  `connected to <endpoint>` or `connected to local unix client <endpoint>`
+  when the first dial connects), by `tests/dial_log_status_probe.rs` (the
+  TCP runtime status counts the debug-level attempts and keeps
+  `last_error`; timed-out dials against TEST-NET-1 follow the same cadence
+  and count), and by `crate_readme_sections.rs` of the reticulumd
+  `fork_release_docs_contract`, which reads `DIAL_WARN_STRIDE` from
+  `src/iface/dial_log.rs` and requires the README register row, the README
+  shared-instance paragraph and this bullet to name `every 30th attempt`.
 
 ## 0.18.0 - 2026-11-01
 

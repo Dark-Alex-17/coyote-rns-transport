@@ -13,22 +13,21 @@
 //! established stream, a change of failure kind and every 30th attempt
 //! warn; the attempts between log at debug, each line ending in its
 //! `(attempt N)`, and the connect line names how many failed attempts it
-//! took. A dial against the black-holed
-//! TEST-NET-1 address that outlives `with_connect_timeout` reports `Timeout`
-//! and warns "connect timed out after" the configured timeout, the arm no
-//! io error reaches. The README's `Io(kind)` arm is read through the
-//! unix client: a bound socket inside a directory stripped of search
-//! permission fails each dial with the OS's `Permission denied`, reported as
-//! `Io(PermissionDenied)` and never one of the three named kinds, with the
-//! unix client's warn carrying the io error's own text; restoring the
-//! permission lets the next attempt connect and the channel goes quiet. The
-//! TCP twin of that arm has no black-box fixture; its classification is
-//! pinned in-crate by `classify_dial_error`.
-//! Both clients answer `dial_failure_events_enabled()`
+//! took. A TCP client left dialing a closed port warns again on attempt 30
+//! with attempts 2 to 29 at debug. A dial against the black-holed TEST-NET-1
+//! address that outlives `with_connect_timeout` reports `Timeout` and warns
+//! "connect timed out after" the configured timeout, the arm no io error
+//! reaches. The README's `Io(kind)` arm is read through the unix client: a
+//! bound socket inside a directory stripped of search permission fails each
+//! dial with the OS's `Permission denied`, reported as `Io(PermissionDenied)`
+//! and never one of the three named kinds, with the unix client's warn
+//! carrying the io error's own text; restoring the permission lets the next
+//! attempt connect and the channel goes quiet. The TCP twin of that arm has
+//! no black-box fixture; its classification is pinned in-crate by
+//! `classify_dial_error`. Both clients answer `dial_failure_events_enabled()`
 //! false until the builder sets the channel. The last pin holds at compile
-//! time that `DialFailure` is
-//! `Copy + Send + Sync` and that `SharedInstanceEvent` stayed `Copy` with its
-//! new `DialFailed` variant.
+//! time that `DialFailure` is `Copy + Send + Sync` and that
+//! `SharedInstanceEvent` stayed `Copy` with its new `DialFailed` variant.
 
 #[cfg(unix)]
 use std::fs;
@@ -340,6 +339,69 @@ async fn tcp_client_warns_once_then_debugs_until_a_connect_names_the_failed_atte
         .expect("TCP client task panicked");
 }
 
+/// The black-box pin of the documented "every 30th attempt" arm, the one
+/// the unit tests in `dial_log.rs` pin in-crate: a TCP client left dialing
+/// a closed port warns on attempt 1, debugs through attempt 29, warns again
+/// on attempt 30 and debugs after it.
+#[tokio::test]
+#[deny(clippy::await_holding_invalid_type)]
+async fn tcp_client_warns_again_on_the_thirtieth_failed_attempt() {
+    /// Mirrors `DIAL_WARN_STRIDE` in `src/iface/dial_log.rs`, which an
+    /// integration test cannot name; the reticulumd docs contract pins the
+    /// documented figure to that source literal.
+    const STRIDE: u64 = 30;
+    install_capture_logger();
+    let port = free_loopback_port().await;
+    let addr = format!("127.0.0.1:{port}");
+    let (failure_tx, mut failure_rx) = mpsc::channel(8);
+    let client = TcpClient::new(addr.clone())
+        .with_reconnect_wait(RECONNECT_WAIT)
+        .with_dial_failure_events(failure_tx);
+
+    let mut manager = InterfaceManager::new(8);
+    let context = manager.new_context(client);
+    let iface = context.channel.address;
+    let cancel = context.cancel.clone();
+    let task = tokio::spawn(TcpClient::spawn(context));
+
+    assert_failures(&mut failure_rx, iface, DialFailureKind::Refused, STRIDE as usize).await;
+    let lines = failed_dial_lines(&addr);
+    for (_, message) in &lines {
+        assert!(message.contains(" (attempt "), "every line is numbered: {message}");
+    }
+    let level_of = |attempt: u64| -> Option<log::Level> {
+        lines
+            .iter()
+            .find(|(_, message)| attempt_number(message) == attempt)
+            .map(|(level, _)| *level)
+    };
+    assert_eq!(level_of(1), Some(log::Level::Warn), "attempt 1 warns: {lines:?}");
+    assert_eq!(level_of(STRIDE), Some(log::Level::Warn), "attempt {STRIDE} warns again: {lines:?}");
+    for attempt in 2..STRIDE {
+        assert_eq!(
+            level_of(attempt),
+            Some(log::Level::Debug),
+            "attempt {attempt} debugs before the stride: {lines:?}"
+        );
+    }
+    for (level, message) in &lines {
+        let attempt = attempt_number(message);
+        if attempt > STRIDE && attempt < 2 * STRIDE {
+            assert_eq!(
+                *level,
+                log::Level::Debug,
+                "attempt {attempt} debugs after the stride: {message}"
+            );
+        }
+    }
+
+    cancel.cancel();
+    timeout(Duration::from_secs(2), task)
+        .await
+        .expect("TCP client task timed out")
+        .expect("TCP client task panicked");
+}
+
 /// 192.0.2.1 (TEST-NET-1) is never routed, so the SYN gets no answer and
 /// only the connect timeout ends the dial.
 #[tokio::test]
@@ -442,7 +504,12 @@ async fn local_unix_client_warns_once_then_debugs_until_a_connect_names_the_fail
     let task = tokio::spawn(LocalUnixClient::spawn(context));
 
     assert_failures(&mut failure_rx, iface, DialFailureKind::NotFound, 4).await;
-    assert_first_warn_then_debugs(&failed_unix_dial_lines(&label), 3);
+    let lines = failed_unix_dial_lines(&label);
+    let prefix = format!("couldn't connect local unix client <{label}>: ");
+    for (_, message) in &lines {
+        assert!(message.starts_with(&prefix), "the prefix is unchanged: {message}");
+    }
+    assert_first_warn_then_debugs(&lines, 3);
 
     let listener = UnixListener::bind(&socket).expect("bind the socket the client dials");
     let stream = timeout(Duration::from_secs(2), listener.accept())
@@ -490,9 +557,14 @@ async fn local_unix_client_warns_again_when_the_failure_kind_changes() {
     let task = tokio::spawn(LocalUnixClient::spawn(context));
 
     assert_failures(&mut failure_rx, iface, DialFailureKind::NotFound, 2).await;
-    // Bind once and drop the listener; tokio's UnixListener does not unlink
-    // the file on drop, so the stale path remains.
-    drop(UnixListener::bind(&socket).expect("bind then abandon the socket"));
+    // Bind and drop a listener on a sibling path, then rename it into place:
+    // tokio's UnixListener does not unlink the file on drop, so the stale
+    // path remains, and the atomic rename keeps the client out of the
+    // listener's own bind-to-close window, where a dial would succeed into
+    // the backlog and clear the attempt count.
+    let staging = dir.path().join("staging.sock");
+    drop(UnixListener::bind(&staging).expect("bind then abandon the staging socket"));
+    fs::rename(&staging, &socket).expect("move the stale socket file into place");
     assert!(socket.exists(), "the stale socket file is the fixture");
     // The OS's own text for the refusal the client is about to meet.
     let refused_text = std::os::unix::net::UnixStream::connect(&socket)

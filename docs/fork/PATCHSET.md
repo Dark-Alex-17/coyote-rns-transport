@@ -29,9 +29,10 @@ per fork task.
 ## Unreleased (upstream 0.14.0)
 
 Every file changed since the `0.18.0` release and the patch each change
-belongs to. Patch ids: L1 is smoke ports, M1 is dial log. The `smoke ports`
-patch is fork commits `3eeff0e7` and `91113899`. The `dial log` patch is
-fork commits `b42bb758`, `2f5f4456` and `e18dc0d9`.
+belongs to. Patch ids: L1 is smoke ports, M1 is dial log, M2 is connect
+counter. The `smoke ports` patch is fork commits `3eeff0e7` and `91113899`.
+The `dial log` patch is fork commits `b42bb758`, `2f5f4456` and `e18dc0d9`.
+The `connect counter` patch is fork commits `f5364b3d` and `19e78108`.
 
 | File | Patch |
 | --- | --- |
@@ -41,16 +42,24 @@ fork commits `b42bb758`, `2f5f4456` and `e18dc0d9`.
 | `crates/apps/reticulumd/tests/fork_publish_contract_parts/lxmd_smoke_free_ports_probe2.rs` | smoke ports |
 | `crates/apps/reticulumd/tests/fork_publish_contract_parts/lxmd_smoke_free_ports_probe3.rs` | smoke ports |
 | `crates/apps/reticulumd/tests/fork_release_docs_contract_parts/crate_readme_sections.rs` | dial log |
-| `crates/libs/rns-transport/CHANGELOG.md` | dial log |
-| `crates/libs/rns-transport/README.md` | dial log |
+| `crates/apps/rns-tools/src/bin/shared/rnstatus.rs` | connect counter |
+| `crates/apps/rns-tools/tests/rnstatus_cli.rs` | connect counter |
+| `crates/libs/rns-transport/CHANGELOG.md` | dial log, connect counter |
+| `crates/libs/rns-transport/README.md` | dial log, connect counter |
 | `crates/libs/rns-transport/src/iface.rs` | dial log |
 | `crates/libs/rns-transport/src/iface/dial_log.rs` | dial log |
-| `crates/libs/rns-transport/src/iface/local.rs` | dial log |
-| `crates/libs/rns-transport/src/iface/tcp_client.rs` | dial log |
+| `crates/libs/rns-transport/src/iface/local.rs` | dial log, connect counter |
+| `crates/libs/rns-transport/src/iface/tcp_client.rs` | dial log, connect counter |
+| `crates/libs/rns-transport/src/iface_parts/interfacemanager.rs` | connect counter |
+| `crates/libs/rns-transport/src/iface_parts/interfacemanager_events.rs` | connect counter |
+| `crates/libs/rns-transport/src/iface_parts/txmessagetype.rs` | connect counter |
+| `crates/libs/rns-transport/src/transport/core_parts/interface_events.rs` | connect counter |
 | `crates/libs/rns-transport/tests/dial_failure_events_api.rs` | dial log |
 | `crates/libs/rns-transport/tests/dial_log_cadence_probe.rs` | dial log |
 | `crates/libs/rns-transport/tests/dial_log_status_probe.rs` | dial log |
-| `docs/fork/PATCHSET.md` | smoke ports, dial log |
+| `crates/libs/rns-transport/tests/dial_log_text_probe.rs` | dial log |
+| `crates/libs/rns-transport/tests/interface_connect_count_api.rs` | connect counter |
+| `docs/fork/PATCHSET.md` | smoke ports, dial log, connect counter |
 | `tools/scripts/python-lxmd-rust-lxmd-smoke.sh` | smoke ports |
 
 Fork commits `3eeff0e7`, `91113899`: L1, smoke ports. No library behaviour
@@ -161,7 +170,56 @@ reads the TCP runtime status after debug-level attempts, so
 `reconnect_attempts` and `last_error` are pinned to move on every attempt,
 and drives the `Timeout` arm against TEST-NET-1 through the same cadence
 and count. The cadence probe's check of the line after each warn is
-unconditional.
+unconditional. `tests/dial_log_text_probe.rs` (adopted with the connect
+counter commits) compares each failed line in full against the unchanged
+prefix, the bare OS error text a plain `std` connect against the same
+endpoint yields, and ` (attempt N)`, for the TCP client against a closed
+loopback port and the unix client against a missing path, and pins the TCP
+`last_error` to that same text with no attempt suffix.
+
+Fork commits `f5364b3d`, `19e78108`: M2, connect counter.
+Nothing counted how many streams a stream client had established, so a
+watcher that fell behind on `interface_events()` and read
+`RecvError::Lagged` could not tell whether a reconnect had happened in the
+gap. `InterfaceChannel` (`src/iface_parts/txmessagetype.rs`) gains a
+private `connected_streams: Arc<AtomicU64>` minted beside `online` (the
+two travel together as a private `CarrierState`, the shape `IfacRuntime`
+already uses for the IFAC trio); the manager's record
+(`src/iface_parts/interfacemanager.rs`) clones it the way it clones
+`online`, and `register_virtual_iface` shares the host's. `TcpClient::spawn`
+(`src/iface/tcp_client.rs`) and `LocalUnixClient::spawn`
+(`src/iface/local.rs`) `fetch_add` it immediately before they publish
+`InterfaceEventKind::Connected`, pre-supplied-stream clients included.
+Reads: `InterfaceManager::connected_streams(&address) -> Option<u64>`
+(`src/iface_parts/interfacemanager_events.rs`) and
+`Transport::interface_connect_count(&iface) -> Option<u64>`
+(`src/transport/core_parts/interface_events.rs`), `None` for an address the
+manager did not mint, a channel built with `InterfaceChannel::new`
+included. `TcpRuntimeStatus` is an all-pub constructible struct, so it is
+untouched; the TCP read hangs off `TcpClient` and `TcpRuntimeStatusHandle`
+instead, which carry a clone of the client's own counter that `spawn` bumps
+beside the channel's: `TcpRuntimeStatusHandle::connected_streams()` and a
+`"connected_streams"` key that one private helper merges into the JSON of
+both `TcpClient::runtime_status_json` and `TcpRuntimeStatusHandle::to_json`.
+`rnstatus-rs` (`crates/apps/rns-tools/src/bin/shared/rnstatus.rs`) appends
+`connects=N` to its TCP summary when the key is present. Python keeps only
+a per-burst local `attempts` in its reconnect loop
+(`RNS/Interfaces/TCPInterface.py:270-298`); the divergence is listed in the
+crate README. `19e78108` adds `tests/interface_connect_count_api.rs` (a
+plain `TcpClient` reads `Some(0)` before its listener accepts and `None`
+for an unminted address, `Some(1)` by the time a subscriber that predates
+the spawn reads the first `Connected`, `Some(2)` after an orderly drop and
+the redial, the status handle agreeing at each step; the pre-spawn
+`runtime_status_json()` equals the handle's JSON; the shared instance goes
+`Some(1)` to `Some(2)` across a server-side drop; the unix client goes 0,
+1, 2; a manager reads `None` for a channel built with
+`InterfaceChannel::new`), extends the `tcp_client.rs` status JSON pins with
+the key (0 for a client that never connected, 1 for one built from a
+pre-supplied stream, N for a storm of N short streams), extends one
+`rnstatus_cli.rs` fixture with `connected_streams` and pins `connects=5`,
+and adopts `tests/dial_log_text_probe.rs` under the dial log patch. The
+crate CHANGELOG gains an `### Added` bullet and the README a paragraph
+after `interface_events()` and a Known divergences entry.
 
 ## 0.18.0 (upstream 0.14.0)
 

@@ -10,6 +10,51 @@ Removed) bullet of its own, marked as such.
 
 ## Unreleased
 
+### Added
+
+- `Transport::interface_connect_count(&iface)`
+  (`transport/core_parts/interface_events.rs`) reads how many streams the
+  stream client on an interface has established since it was spawned, every
+  reconnect included: `Some(0)` for a client that has not connected yet,
+  `None` for an address the transport's interface manager did not mint (an
+  unknown address, or a channel built with `InterfaceChannel::new`, which
+  tests and serial drivers do). The count lives on `InterfaceChannel`
+  (`iface_parts/txmessagetype.rs`), is shared with the manager's record
+  (a virtual interface shares its host's count), and is read through
+  `InterfaceManager::connected_streams(&address)`
+  (`iface_parts/interfacemanager_events.rs`). `TcpClient`
+  (`iface/tcp_client.rs`) and `LocalUnixClient` (`iface/local.rs`) increment
+  it immediately before they publish `InterfaceEventKind::Connected`, so a
+  subscriber of `interface_events()` that read a `Connected` reads at least
+  that count, and a subscriber that compares two reads taken either side of
+  a `RecvError::Lagged` learns whether a reconnect happened in between even
+  though the events were dropped. The shared instance's interface is
+  `Transport::shared_instance()`. For a `TcpClient` the same count is also
+  read through `TcpRuntimeStatusHandle::connected_streams()` and the new
+  `"connected_streams"` key that `TcpClient::runtime_status_json()` and
+  `TcpRuntimeStatusHandle::to_json()` merge into the status JSON;
+  `TcpRuntimeStatus` itself (the struct, `new`, the `mark_*` methods and its
+  `to_json`) is unchanged, so a consumer that constructs it still compiles.
+  `rnstatus-rs` shows the key as `connects=N` in its TCP summary. Python
+  has no equivalent: its reconnect loop keeps only a per-burst local
+  `attempts` and no count of established streams
+  (`RNS/Interfaces/TCPInterface.py:270-298`, `:274-277`). Pinned by
+  `tests/interface_connect_count_api.rs` (a plain `TcpClient` through a
+  transport reads `Some(0)` before its listener accepts and `None` for an
+  address never minted, `Some(1)` by the time a subscriber that predates
+  the spawn reads the first `Connected`, `Some(2)` after an orderly server
+  drop and the redial, with the status handle's getter and JSON agreeing
+  at each step; the pre-spawn `runtime_status_json()` reads 0 and equals
+  the handle's JSON; the shared instance's interface goes `Some(1)` to
+  `Some(2)` across a server-side drop; the unix client over a loopback
+  `UnixListener` goes `Some(0)`, `Some(1)`, `Some(2)`; a manager reads
+  `Some(0)` for a channel it minted and `None` for one built with
+  `InterfaceChannel::new`), by the `iface/tcp_client.rs` unit tests (a
+  client that never connected reads 0, a client built from a pre-supplied
+  stream reads 1, a reconnect storm of N short streams reads N) and by
+  the rns-tools `rnstatus_cli` test (`connects=5` in the TCP summary line
+  that `src/bin/shared/rnstatus.rs` renders).
+
 ### Changed
 
 - The failed-connect line of `TcpClient` (`iface/tcp_client.rs`) and
@@ -60,7 +105,12 @@ Removed) bullet of its own, marked as such.
   when the first dial connects), by `tests/dial_log_status_probe.rs` (the
   TCP runtime status counts the debug-level attempts and keeps
   `last_error`; timed-out dials against TEST-NET-1 follow the same cadence
-  and count), and by `crate_readme_sections.rs` of the reticulumd
+  and count), by `tests/dial_log_text_probe.rs` (each failed line is
+  byte-for-byte the unchanged prefix, the bare OS error text a plain `std`
+  connect against the same endpoint yields, and ` (attempt N)`, and the TCP
+  `last_error` carries that same text with no attempt suffix, for the TCP
+  client against a closed loopback port and the unix client against a
+  missing path), and by `crate_readme_sections.rs` of the reticulumd
   `fork_release_docs_contract`, which reads `DIAL_WARN_STRIDE` from
   `src/iface/dial_log.rs` and requires the README register row, the README
   shared-instance paragraph and this bullet to name `every 30th attempt`.

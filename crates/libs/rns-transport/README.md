@@ -609,14 +609,16 @@ A client attached while nothing listens also reports each failed attempt:
 TCP port nothing listens on, `NotFound` for a unix socket path nothing has
 bound, `Timeout` for an attempt that outlived the TCP client's connect
 timeout, or an OS `TimedOut`, and `Io(kind)` for any other io error (`Io`
-never carries those three kinds). The TCP client's "couldn't connect" warn
-now carries the io error's text as well, or "connect timed out after
-<timeout>" for the `Timeout` arm no io error reaches. Both clients warn on
-the first failed attempt since the last established stream, on a change of
-failure kind and on every 30th attempt, and log the attempts between at
-debug, each line ending in ` (attempt N)`; the connect info line names how
-many failed attempts it took when there were any, as
-`connected to <endpoint> after N failed attempt(s)`. By default the attach
+never carries those three kinds). The TCP client's "couldn't connect"
+failed-connect line now carries the io error's text as well, or
+"connect timed out after <timeout>" for the `Timeout` arm no io error
+reaches. Both clients warn on the first failed attempt since the last
+established stream, on a change of failure kind and on every 30th attempt,
+and log the attempts between at debug, each line ending in ` (attempt N)`;
+the connect info line names how many failed attempts it took when there
+were any, as `connected to <endpoint>` or
+`connected to local unix client <endpoint>` followed by
+` after N failed attempt(s)`. By default the attach
 returns as soon as the client is spawned and keeps dialing, as Python's
 `LocalClientInterface` does (`RNS/Interfaces/LocalInterface.py:159-167`,
 which logs each failed attempt at debug and retries).

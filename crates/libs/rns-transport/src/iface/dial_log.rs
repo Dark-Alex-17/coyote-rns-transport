@@ -13,8 +13,10 @@ use super::events::DialFailureKind;
 
 /// A failed dial warns on the first attempt, whenever the failure kind
 /// changes, and on every multiple of this count; the attempts between log
-/// at debug. At a 2 s `reconnect_wait` a peer that is down warns at once
-/// and then once a minute; at the clients' 5 s default, every 150 s.
+/// at debug. At a 2 s `reconnect_wait` a peer that refuses at once warns
+/// at once and then once a minute; at the clients' 5 s default, every
+/// 150 s. A dial that only times out adds the connect timeout to every
+/// cycle.
 pub(crate) const DIAL_WARN_STRIDE: u64 = 30;
 
 /// The failed `connect()` attempts since the last established stream, and
@@ -88,6 +90,13 @@ mod tests {
     }
 
     #[test]
+    fn the_first_failure_warns_even_when_the_kind_was_already_seen() {
+        let mut attempts = DialAttempts { failed: 0, last_kind: Some(DialFailureKind::Refused) };
+        assert_eq!(attempts.record_failure(DialFailureKind::Refused), Warn);
+        assert_eq!(attempts.failed(), 1);
+    }
+
+    #[test]
     fn a_change_of_kind_warns_at_once_and_the_new_kind_then_debugs() {
         let mut attempts = DialAttempts::new();
         let seen = levels(
@@ -128,6 +137,7 @@ mod tests {
         );
         assert_eq!(attempts.connected(), 3);
         assert_eq!(attempts.failed(), 0);
+        assert!(attempts.last_kind.is_none(), "the kind is forgotten with the count");
         assert_eq!(attempts.record_failure(DialFailureKind::Refused), Warn, "re-armed");
         assert_eq!(attempts.failed(), 1);
     }

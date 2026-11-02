@@ -33,7 +33,7 @@ belongs to. Patch ids: L1 is smoke ports, M1 is dial log, M2 is connect
 counter. The `smoke ports` patch is fork commits `3eeff0e7` and `91113899`.
 The `dial log` patch is fork commits `b42bb758`, `2f5f4456` and `e18dc0d9`.
 The `connect counter` patch is fork commits `f5364b3d`, `19e78108`,
-`bf3433a3` and `55bc9720`.
+`bf3433a3`, `55bc9720` and `0519d338`.
 
 | File | Patch |
 | --- | --- |
@@ -179,8 +179,8 @@ endpoint yields, and ` (attempt N)`, for the TCP client against a closed
 loopback port and the unix client against a missing path, and pins the TCP
 `last_error` to that same text with no attempt suffix.
 
-Fork commits `f5364b3d`, `19e78108`, `bf3433a3`, `55bc9720`: M2, connect
-counter.
+Fork commits `f5364b3d`, `19e78108`, `bf3433a3`, `55bc9720`, `0519d338`: M2,
+connect counter.
 Nothing counted how many streams a stream client had established, so a
 watcher that fell behind on `interface_events()` and read
 `RecvError::Lagged` could not tell whether a reconnect had happened in the
@@ -243,7 +243,11 @@ one behind; the comment at the two `fetch_add`s states the channel's
 counter moves first; the `rnstatus_cli.rs` help test names
 `CLICOLOR_FORCE` and `NO_COLOR` precedence and drops the inert
 `FORCE_COLOR` removal; the in-crate `rnstatus.rs` fixture pins
-`connects=5` like its integration twin.
+`connects=5` like its integration twin. `0519d338` makes the private JSON
+merge helper in `src/iface/tcp_client.rs` fail loudly: `to_json` always
+builds an object, so a non-object result is an impossible state and now
+panics with `unreachable!` instead of silently leaving the
+`"connected_streams"` key out.
 
 ## 0.18.0 (upstream 0.14.0)
 

@@ -375,19 +375,22 @@ impl TcpRuntimeStatusHandle {
 
 /// `TcpRuntimeStatus` is constructible by consumers, so the counter lives
 /// beside it and is merged into its JSON here instead of as a new field.
+/// `to_json` always builds an object; anything else is a programming
+/// error and panics rather than silently dropping the key.
 fn runtime_status_json_with_connected_streams(
     status: &std::sync::Mutex<TcpRuntimeStatus>,
     connected_streams: &std::sync::atomic::AtomicU64,
 ) -> serde_json::Value {
     let mut json = status.lock().expect("tcp runtime status mutex poisoned").to_json();
-    if let serde_json::Value::Object(root) = &mut json {
-        root.insert(
-            "connected_streams".to_string(),
-            serde_json::Value::Number(
-                connected_streams.load(std::sync::atomic::Ordering::Acquire).into(),
-            ),
-        );
-    }
+    let serde_json::Value::Object(root) = &mut json else {
+        unreachable!("TcpRuntimeStatus::to_json builds a JSON object");
+    };
+    root.insert(
+        "connected_streams".to_string(),
+        serde_json::Value::Number(
+            connected_streams.load(std::sync::atomic::Ordering::Acquire).into(),
+        ),
+    );
     json
 }
 

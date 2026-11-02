@@ -27,4 +27,24 @@ impl Transport {
     pub fn interface_events(&self) -> broadcast::Receiver<InterfaceEvent> {
         self.interface_events_tx.subscribe()
     }
+
+    /// Fork-only: how many streams the stream client on `iface` has
+    /// established since the interface was spawned, every reconnect
+    /// included. The count is incremented before the client publishes the
+    /// matching `Connected` on `interface_events()`, so a reader that saw
+    /// that event reads at least that count, and a reader that compares
+    /// two reads taken either side of a `RecvError::Lagged` learns whether
+    /// a reconnect happened in between even though the events themselves
+    /// were dropped. The shared instance's interface is
+    /// `Transport::shared_instance()`. `None` for an address this
+    /// transport's interface manager did not mint: an unknown address, or
+    /// a channel built with `InterfaceChannel::new` (tests, serial
+    /// drivers), whose count no manager record sees. Python has no
+    /// equivalent: its reconnect loop keeps only a per-burst local
+    /// `attempts` and no count of established streams
+    /// (`RNS/Interfaces/TCPInterface.py:270-298`, `:274-277`).
+    #[deny(clippy::await_holding_invalid_type)]
+    pub async fn interface_connect_count(&self, iface: &AddressHash) -> Option<u64> {
+        self.iface_manager.lock().await.connected_streams(iface)
+    }
 }

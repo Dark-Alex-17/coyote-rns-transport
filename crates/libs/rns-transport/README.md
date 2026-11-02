@@ -699,6 +699,28 @@ installs the sender (the transport does it in `Transport::new`) and
 holding a channel publishes through. Python has no such stream
 (`RNS/Interfaces/LocalInterface.py:159-167`, `:255-266`).
 
+`Transport::interface_connect_count(&iface)` returns `Option<u64>`: how many
+streams the stream client on `iface` has established since the interface
+was spawned, every reconnect included, `Some(0)` for a client that has not
+connected yet. The client increments the count immediately before it
+publishes the matching `Connected` on `interface_events()`, so a receiver
+that read a `Connected` reads at least that count, and a receiver that
+compares two reads taken either side of a `RecvError::Lagged` learns whether
+a reconnect happened in between even though the events themselves were
+dropped. The shared instance's interface is `Transport::shared_instance()`.
+`None` means the transport's interface manager did not mint the address: an
+unknown address, or a channel built with `InterfaceChannel::new` (tests,
+serial drivers), whose count no manager record sees; a virtual interface
+reads its host's count. Below the transport,
+`InterfaceManager::connected_streams(&address)` is the same read. For a
+`TcpClient` the same count is also read through
+`TcpRuntimeStatusHandle::connected_streams()` and the `"connected_streams"`
+key of `TcpClient::runtime_status_json()` and
+`TcpRuntimeStatusHandle::to_json()`; `TcpRuntimeStatus` itself is unchanged.
+Python has no equivalent: its reconnect loop keeps only a per-burst local
+`attempts` and no count of established streams
+(`RNS/Interfaces/TCPInterface.py:270-298`, `:274-277`).
+
 A `Tcp` endpoint whose address is not loopback is refused with
 `RnsError::SharedInstanceEndpointNotLoopback` before any lock is taken, with
 one warning, since Python's `LocalClientInterface` connects to `127.0.0.1`
@@ -968,6 +990,11 @@ Not divergences:
   state tagged by interface; Python's clients log their state changes and
   expose no event stream (`RNS/Interfaces/LocalInterface.py:159-167`,
   `:255-266`). API shape, not behaviour.
+- `Transport::interface_connect_count()` is a fork-only per-interface count of
+  established streams; Python's reconnect loop keeps only a per-burst local
+  `attempts` and no count of established streams
+  (`RNS/Interfaces/TCPInterface.py:270-298`, `:274-277`). API shape, not
+  behaviour.
 
 ## Versioning and releases
 

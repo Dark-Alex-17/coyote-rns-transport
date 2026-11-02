@@ -11,4 +11,15 @@ impl InterfaceManager {
     ) {
         self.interface_events = Some(events);
     }
+
+    /// Fork-only: the number of streams the client on `address` has
+    /// established since it was spawned; a virtual interface shares its
+    /// host's count. `None` for an address this manager did not mint,
+    /// including a channel built with `InterfaceChannel::new`.
+    pub fn connected_streams(&self, address: &AddressHash) -> Option<u64> {
+        self.ifaces
+            .iter()
+            .find(|i| i.address == *address)
+            .map(|i| i.connected_streams.load(Ordering::Acquire))
+    }
 }

@@ -783,6 +783,7 @@ fn tcp_runtime_summary(status: &Value) -> Option<String> {
         value_str(status, "endpoint"),
         value_u64(status, "reconnect_attempts")
     );
+    append_optional_u64(&mut summary, "connects", status.get("connected_streams"));
     append_optional_u64(&mut summary, "rx", status.get("bytes_rx"));
     append_optional_u64(&mut summary, "tx", status.get("bytes_tx"));
     append_optional_u64(&mut summary, "keepalives", status.get("keepalives_sent"));

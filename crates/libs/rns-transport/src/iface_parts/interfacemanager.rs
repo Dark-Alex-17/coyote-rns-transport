@@ -71,7 +71,7 @@ impl InterfaceManager {
         log::debug!("create channel {} role={:?} mode={:?}", address, role, mode);
 
         let stop = CancellationToken::new();
-        let online = Arc::new(AtomicBool::new(true));
+        let carrier = CarrierState::fresh();
         let ifac_state = Arc::new(std::sync::RwLock::new(None));
         let ifac_violations = Arc::new(AtomicU64::new(0));
 
@@ -83,7 +83,8 @@ impl InterfaceManager {
             tcp_client_path_table_metadata: None,
             tx_send,
             stop: stop.clone(),
-            online: online.clone(),
+            online: carrier.online.clone(),
+            connected_streams: carrier.connected_streams.clone(),
             mtu,
             role,
             mode,
@@ -113,7 +114,7 @@ impl InterfaceManager {
                 violations: ifac_violations,
                 default_size_bytes: ifac_default_size_bytes,
             },
-            online,
+            carrier,
             self.interface_events.clone(),
         )
     }
@@ -299,6 +300,7 @@ impl InterfaceManager {
         let host_iface = self.ifaces.iter().find(|i| i.address == host)?;
         let host_tx = host_iface.tx_send.clone();
         let host_online = host_iface.online.clone();
+        let host_connected_streams = host_iface.connected_streams.clone();
         let host_ifac_state = host_iface.ifac_state.clone();
         let host_ifac_violations = host_iface.ifac_violations.clone();
         let ifac_default_size_bytes = host_iface.ifac_default_size_bytes;
@@ -335,6 +337,7 @@ impl InterfaceManager {
             tx_send: host_tx,
             stop,
             online: host_online,
+            connected_streams: host_connected_streams,
             mtu,
             role,
             mode,

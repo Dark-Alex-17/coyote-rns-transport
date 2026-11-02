@@ -532,6 +532,7 @@ impl LocalUnixClient {
         let iface_address = context.channel.address;
         let ifac_state: IfacState = context.channel.ifac_state.clone();
         let ifac_violations = context.channel.ifac_violations.clone();
+        let connected_streams = context.channel.connected_streams.clone();
         let (
             addr,
             mtu,
@@ -627,6 +628,7 @@ impl LocalUnixClient {
             } else {
                 log::info!("connected to local unix client <{}>", addr);
             }
+            connected_streams.fetch_add(1, std::sync::atomic::Ordering::Release);
             iface_events.publish(InterfaceEventKind::Connected);
             if let Some(events) = connect_events.as_ref() {
                 if let Err(err) = events.try_send(iface_address) {

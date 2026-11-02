@@ -350,13 +350,41 @@ impl TcpRuntimeStatus {
 #[derive(Clone)]
 pub struct TcpRuntimeStatusHandle {
     inner: Arc<std::sync::Mutex<TcpRuntimeStatus>>,
+    connected_streams: Arc<std::sync::atomic::AtomicU64>,
 }
 
 impl TcpRuntimeStatusHandle {
     #[must_use]
     pub fn to_json(&self) -> serde_json::Value {
-        self.inner.lock().expect("tcp runtime status mutex poisoned").to_json()
+        runtime_status_json_with_connected_streams(&self.inner, &self.connected_streams)
     }
+
+    /// Fork-only: streams this client has established since it was
+    /// spawned, the same count the transport reads through
+    /// `Transport::interface_connect_count` for this interface; 0 until
+    /// the client is spawned and connects.
+    #[must_use]
+    pub fn connected_streams(&self) -> u64 {
+        self.connected_streams.load(std::sync::atomic::Ordering::Acquire)
+    }
+}
+
+/// `TcpRuntimeStatus` is constructible by consumers, so the counter lives
+/// beside it and is merged into its JSON here instead of as a new field.
+fn runtime_status_json_with_connected_streams(
+    status: &std::sync::Mutex<TcpRuntimeStatus>,
+    connected_streams: &std::sync::atomic::AtomicU64,
+) -> serde_json::Value {
+    let mut json = status.lock().expect("tcp runtime status mutex poisoned").to_json();
+    if let serde_json::Value::Object(root) = &mut json {
+        root.insert(
+            "connected_streams".to_string(),
+            serde_json::Value::Number(
+                connected_streams.load(std::sync::atomic::Ordering::Acquire).into(),
+            ),
+        );
+    }
+    json
 }
 
 async fn track_tcp_stream_events(
@@ -924,6 +952,7 @@ pub struct TcpClient {
     max_reconnect_tries: Option<u64>,
     prefer_ipv6: bool,
     runtime_status: Arc<std::sync::Mutex<TcpRuntimeStatus>>,
+    connected_streams: Arc<std::sync::atomic::AtomicU64>,
     fast_flap_tracker: Option<FastFlapTracker>,
     fast_flap_policy: FastFlapPolicy,
     peer_ip: Option<String>,
@@ -941,6 +970,7 @@ impl TcpClient {
                 addr.clone(),
                 Self::DEFAULT_MTU,
             ))),
+            connected_streams: Arc::new(std::sync::atomic::AtomicU64::new(0)),
             addr,
             stream: None,
             mtu: Self::DEFAULT_MTU,
@@ -969,6 +999,7 @@ impl TcpClient {
                 addr.clone(),
                 Self::DEFAULT_MTU,
             ))),
+            connected_streams: Arc::new(std::sync::atomic::AtomicU64::new(0)),
             addr,
             stream: Some(stream),
             mtu: Self::DEFAULT_MTU,
@@ -1226,12 +1257,15 @@ impl TcpClient {
 
     #[must_use]
     pub fn runtime_status_json(&self) -> serde_json::Value {
-        self.runtime_status.lock().expect("tcp runtime status mutex poisoned").to_json()
+        runtime_status_json_with_connected_streams(&self.runtime_status, &self.connected_streams)
     }
 
     #[must_use]
     pub fn runtime_status_handle(&self) -> TcpRuntimeStatusHandle {
-        TcpRuntimeStatusHandle { inner: self.runtime_status.clone() }
+        TcpRuntimeStatusHandle {
+            inner: self.runtime_status.clone(),
+            connected_streams: self.connected_streams.clone(),
+        }
     }
 
     #[must_use]
@@ -1257,6 +1291,7 @@ impl TcpClient {
             fast_flap_policy,
             peer_ip,
             runtime_status,
+            connected_streams,
         ) = {
             let guard = context.inner.lock().unwrap();
             (
@@ -1273,6 +1308,7 @@ impl TcpClient {
                 guard.fast_flap_policy,
                 guard.peer_ip.clone(),
                 guard.runtime_status.clone(),
+                guard.connected_streams.clone(),
             )
         };
         tracing::Span::current().record("addr", addr.as_str());
@@ -1280,6 +1316,7 @@ impl TcpClient {
         let ifac_state = context.channel.ifac_state.clone();
         let ifac_violations = context.channel.ifac_violations.clone();
         let online = context.channel.online.clone();
+        let channel_connected_streams = context.channel.connected_streams.clone();
         online.store(false, std::sync::atomic::Ordering::Release);
         let (
             mut stream,
@@ -1406,6 +1443,11 @@ impl TcpClient {
             } else {
                 log::info!("connected to <{}>", addr);
             }
+            // The channel's counter feeds the manager and the client's feeds
+            // the status handle; both must move together, right before the
+            // Connected event, so a reader of either sees the event's stream.
+            channel_connected_streams.fetch_add(1, std::sync::atomic::Ordering::Release);
+            connected_streams.fetch_add(1, std::sync::atomic::Ordering::Release);
             iface_events.publish(InterfaceEventKind::Connected);
             if let Some(events) = connect_events.as_ref() {
                 if let Err(err) = events.try_send(iface_address) {
@@ -1762,6 +1804,7 @@ mod tests {
         assert_eq!(status["endpoint"].as_str(), Some(addr.to_string().as_str()));
         assert_eq!(status["stream_state"].as_str(), Some("closed"));
         assert_eq!(status["reconnect_attempts"].as_u64(), Some(1));
+        assert_eq!(status["connected_streams"].as_u64(), Some(0));
         let last_error = status["last_error"].as_str().expect("last_error is set");
         assert!(
             last_error.starts_with(&format!("tcp connect failed endpoint={addr}: ")),
@@ -1812,6 +1855,7 @@ mod tests {
         // incremented the same counter an outright connect() failure
         // would have.
         assert_eq!(status["reconnect_attempts"].as_u64(), Some(2));
+        assert_eq!(status["connected_streams"].as_u64(), Some(2));
     }
 
     // Companion to the test above: proves the backoff *sleep* itself
@@ -1848,7 +1892,9 @@ mod tests {
             .expect("tcp client should stop after reconnect budget")
             .expect("tcp client task should not panic");
         assert!(iface_stop.is_cancelled());
-        assert_eq!(runtime_status.to_json()["reconnect_attempts"].as_u64(), Some(3));
+        let status = runtime_status.to_json();
+        assert_eq!(status["reconnect_attempts"].as_u64(), Some(3));
+        assert_eq!(status["connected_streams"].as_u64(), Some(3));
         assert!(
             started_at.elapsed() >= Duration::from_secs(5),
             "expected at least one 5s backoff sleep once the storm was established, only took {:?}",
@@ -1889,7 +1935,9 @@ mod tests {
             .expect("tcp client task should not panic");
         let elapsed = started_at.elapsed();
         assert!(iface_stop.is_cancelled());
-        assert_eq!(runtime_status.to_json()["reconnect_attempts"].as_u64(), Some(3));
+        let status = runtime_status.to_json();
+        assert_eq!(status["reconnect_attempts"].as_u64(), Some(3));
+        assert_eq!(status["connected_streams"].as_u64(), Some(3));
         assert!(
             elapsed >= Duration::from_millis(50),
             "expected the 50 ms backoff sleep to happen, only took {elapsed:?}"
@@ -1934,7 +1982,10 @@ mod tests {
         // Well inside MIN_STABLE_CONNECTION, and long enough for the
         // connection to have actually been established.
         tokio::time::sleep(Duration::from_millis(100)).await;
-        assert_eq!(runtime_status.to_json()["stream_state"].as_str(), Some("connected"));
+        let status = runtime_status.to_json();
+        assert_eq!(status["stream_state"].as_str(), Some("connected"));
+        assert_eq!(status["connected_streams"].as_u64(), Some(1));
+        assert_eq!(runtime_status.connected_streams(), 1);
 
         iface_stop.cancel();
         tokio::time::timeout(Duration::from_secs(1), task)
@@ -1945,6 +1996,7 @@ mod tests {
         let status = runtime_status.to_json();
         assert_eq!(status["stream_state"].as_str(), Some("closed"));
         assert_eq!(status["reconnect_attempts"].as_u64(), Some(0));
+        assert_eq!(status["connected_streams"].as_u64(), Some(1));
     }
 
     #[test]
@@ -1954,6 +2006,7 @@ mod tests {
         assert!(client.hdlc_liveness_enabled());
         assert_eq!(client.hdlc_watchdog(), Some(super::backbone_hdlc_watchdog()));
         assert_eq!(client.runtime_status_json()["liveness_enabled"].as_bool(), Some(true));
+        assert_eq!(client.runtime_status_json()["connected_streams"].as_u64(), Some(0));
     }
 
     #[tokio::test]
@@ -2436,6 +2489,7 @@ mod tests {
         assert_eq!(status["stream_state"].as_str(), Some("closed"));
         assert_eq!(status["liveness_enabled"].as_bool(), Some(true));
         assert_eq!(status["keepalives_sent"].as_u64(), Some(1));
+        assert_eq!(status["connected_streams"].as_u64(), Some(1));
     }
 
     /// Only a client built with a read watchdog can report `Timeout`, so the

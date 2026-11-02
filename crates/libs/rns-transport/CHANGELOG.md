@@ -8,6 +8,46 @@ no library behaviour (a test-only change such as a fixture hardening or a
 test hygiene pass, release tooling, CI) is a Changed (or, for a deleted file,
 Removed) bullet of its own, marked as such.
 
+## Unreleased
+
+### Changed
+
+- The failed-connect line of `TcpClient` (`iface/tcp_client.rs`) and
+  `LocalUnixClient` (`iface/local.rs`) now follows a cadence instead of
+  warning on every attempt: it warns on the first failed attempt since the
+  last established stream, whenever the failure kind changes, and on every
+  30th attempt (`DIAL_WARN_STRIDE` in `src/iface/dial_log.rs`), and logs
+  the attempts between at debug. Every line ends in ` (attempt N)`, where
+  N counts the consecutive failed `connect()` attempts since the last
+  established stream; the count is cleared when the stream is established,
+  before `MIN_STABLE_CONNECTION` proves it, so it is not the TCP client's
+  `reconnect_attempts`, which a short-lived stream also bumps, and a
+  flapping peer re-arms the cadence at every connect. At a 2 s
+  `reconnect_wait` a peer that is down warns at 0 s and then every 60 s.
+  The prefixes are unchanged: `couldn't connect to <endpoint>: <text>` for
+  the TCP client and, for the unix client,
+  `couldn't connect local unix client <endpoint>: <error>`. The connect info
+  line, `connected to <endpoint>` or `connected to local unix client <endpoint>`,
+  gains the suffix ` after N failed attempt(s)` when N > 0 and is otherwise unchanged.
+  `DialFailed` interface events, the `with_dial_failure_events` channels and
+  the TCP client's `mark_reconnecting` / `last_error` still fire or record
+  on every attempt; only the log line's level moves. Python logs every
+  failed attempt at debug (`RNS/Interfaces/TCPInterface.py:288`,
+  `RNS/Interfaces/LocalInterface.py:159-167`), so the fork is louder on the
+  first and every 30th attempt and quieter between; listed under Known
+  divergences in the README. Pinned by the `src/iface/dial_log.rs` unit
+  tests (the first failure warns and the same kind then debugs through
+  attempt 29; a change of kind warns at once; attempts 30 and 60 warn with
+  every attempt between at debug; `connected()` returns the cleared count
+  and re-arms the first warn) and by `tests/dial_failure_events_api.rs`
+  (four refused TCP attempts log one warn numbered 1 and three debug lines
+  numbered 2 to 4 under the unchanged prefix, then the connect line names
+  at least four failed attempts and the channel goes quiet; the unix twin
+  of that run against a path bound later; a unix dial that reads
+  `NotFound` and then `Refused` once a stale socket file appears warns
+  exactly twice, the second warn being the first refused line, with every
+  line between at debug).
+
 ## 0.18.0 - 2026-11-01
 
 ### Breaking

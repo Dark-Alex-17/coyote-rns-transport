@@ -611,7 +611,12 @@ bound, `Timeout` for an attempt that outlived the TCP client's connect
 timeout, or an OS `TimedOut`, and `Io(kind)` for any other io error (`Io`
 never carries those three kinds). The TCP client's "couldn't connect" warn
 now carries the io error's text as well, or "connect timed out after
-<timeout>" for the `Timeout` arm no io error reaches. By default the attach
+<timeout>" for the `Timeout` arm no io error reaches. Both clients warn on
+the first failed attempt since the last established stream, on a change of
+failure kind and on every 30th attempt, and log the attempts between at
+debug, each line ending in ` (attempt N)`; the connect info line names how
+many failed attempts it took when there were any, as
+`connected to <endpoint> after N failed attempt(s)`. By default the attach
 returns as soon as the client is spawned and keeps dialing, as Python's
 `LocalClientInterface` does (`RNS/Interfaces/LocalInterface.py:159-167`,
 which logs each failed attempt at debug and retries).
@@ -936,6 +941,12 @@ parity ledger; the `docs/status/*` matrices are not updated per fork task.
   `discovery_port` is 65535, so the pair stays adjacent and distinct; Python
   computes `discovery_port + 1` (`RNS/Interfaces/AutoInterface.py:173`) and
   its unicast bind fails there.
+- A stream client's failed connect logs at warn on the first attempt since
+  the last established stream, on a change of failure kind and on every
+  30th attempt, and at debug between, each line ending in ` (attempt N)`.
+  Python logs every failed attempt at debug
+  (`RNS/Interfaces/TCPInterface.py:288`,
+  `RNS/Interfaces/LocalInterface.py:159-167`).
 
 Not divergences:
 

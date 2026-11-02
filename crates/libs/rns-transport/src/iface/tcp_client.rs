@@ -22,6 +22,7 @@ use crate::serde::Serialize;
 
 use alloc::string::String;
 
+use super::dial_log::DialAttempts;
 use super::hdlc::Hdlc;
 use super::tcp_server::{FastFlapPolicy, FastFlapTracker};
 use super::{Interface, InterfaceContext, InterfaceRxSender, InterfaceTxReceiver};
@@ -1305,6 +1306,7 @@ impl TcpClient {
         let mut running = true;
         let mut has_connected = false;
         let mut failed_connect_attempts = 0_u64;
+        let mut dial_attempts = DialAttempts::new();
         loop {
             if !running || context.cancel.is_cancelled() || iface_stop.is_cancelled() {
                 break;
@@ -1349,7 +1351,14 @@ impl TcpClient {
                         .lock()
                         .expect("tcp runtime status mutex poisoned")
                         .mark_reconnecting(format!("tcp connect failed endpoint={addr}: {text}"));
-                    log::warn!("couldn't connect to <{}>: {}", addr, text);
+                    let level = dial_attempts.record_failure(kind);
+                    log::log!(
+                        level,
+                        "couldn't connect to <{}>: {} (attempt {})",
+                        addr,
+                        text,
+                        dial_attempts.failed()
+                    );
                     iface_events.publish(InterfaceEventKind::DialFailed { reason: kind });
                     if let Some(events) = dial_failure_events.as_ref() {
                         if let Err(err) = events.try_send(DialFailure::new(iface_address, kind)) {
@@ -1391,7 +1400,12 @@ impl TcpClient {
             // stable — see `MIN_STABLE_CONNECTION`'s doc comment.
             let connected_at = Instant::now();
 
-            log::info!("connected to <{}>", addr);
+            let failed_dials = dial_attempts.connected();
+            if failed_dials > 0 {
+                log::info!("connected to <{}> after {} failed attempt(s)", addr, failed_dials);
+            } else {
+                log::info!("connected to <{}>", addr);
+            }
             iface_events.publish(InterfaceEventKind::Connected);
             if let Some(events) = connect_events.as_ref() {
                 if let Err(err) = events.try_send(iface_address) {

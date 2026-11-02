@@ -4,6 +4,8 @@ pub mod auto_runtime;
 
 pub mod driver;
 
+pub(crate) mod dial_log;
+
 pub mod events;
 
 pub mod hdlc;

@@ -29,8 +29,9 @@ per fork task.
 ## Unreleased (upstream 0.14.0)
 
 Every file changed since the `0.18.0` release and the patch each change
-belongs to. Patch ids: L1 is smoke ports. The `smoke ports` patch is fork
-commits `3eeff0e7` and `91113899`.
+belongs to. Patch ids: L1 is smoke ports, M1 is dial log. The `smoke ports`
+patch is fork commits `3eeff0e7` and `91113899`. The `dial log` patch is
+fork commit `b42bb758`.
 
 | File | Patch |
 | --- | --- |
@@ -39,6 +40,13 @@ commits `3eeff0e7` and `91113899`.
 | `crates/apps/reticulumd/tests/fork_publish_contract_parts/lxmd_smoke_free_ports_probe.rs` | smoke ports |
 | `crates/apps/reticulumd/tests/fork_publish_contract_parts/lxmd_smoke_free_ports_probe2.rs` | smoke ports |
 | `crates/apps/reticulumd/tests/fork_publish_contract_parts/lxmd_smoke_free_ports_probe3.rs` | smoke ports |
+| `crates/libs/rns-transport/CHANGELOG.md` | dial log |
+| `crates/libs/rns-transport/README.md` | dial log |
+| `crates/libs/rns-transport/src/iface.rs` | dial log |
+| `crates/libs/rns-transport/src/iface/dial_log.rs` | dial log |
+| `crates/libs/rns-transport/src/iface/local.rs` | dial log |
+| `crates/libs/rns-transport/src/iface/tcp_client.rs` | dial log |
+| `crates/libs/rns-transport/tests/dial_failure_events_api.rs` | dial log |
 | `docs/fork/PATCHSET.md` | smoke ports |
 | `tools/scripts/python-lxmd-rust-lxmd-smoke.sh` | smoke ports |
 
@@ -76,6 +84,41 @@ range where an OS-picked control port could land on an offset by chance, to
 literal `free_loopback_ports 5)` once to requiring exactly one line that
 names the helper outside its definition, so a second call asking for another
 count fails the pin.
+
+Fork commit `b42bb758`: M1, dial log.
+The TCP and local unix clients used to warn on every failed connect
+attempt, one line per `reconnect_wait` for as long as the peer stayed down.
+The new `pub(crate) mod dial_log` (`crates/libs/rns-transport/src/iface/dial_log.rs`,
+declared in `src/iface.rs`) holds a `DialAttempts` counter and
+`DIAL_WARN_STRIDE` (30). `TcpClient::spawn` (`src/iface/tcp_client.rs`) and
+`LocalUnixClient::spawn` (`src/iface/local.rs`) record each failed attempt
+on it and log the failed-connect line at the level it picks: warn on the
+first failed attempt since the last established stream, whenever the
+failure kind changes, and on every 30th attempt; debug between. Each line
+keeps its prefix (`couldn't connect to <endpoint>: <text>`,
+`couldn't connect local unix client <endpoint>: <error>`) and ends in
+` (attempt N)`. N counts the consecutive failed `connect()` attempts since
+the last established stream and is cleared at the success arm, before the
+TCP client's `MIN_STABLE_CONNECTION` proves the stream, so it is not
+`TcpRuntimeStatus::reconnect_attempts`, which the short-stream path bumps
+without a failed connect; a flapping peer re-arms the cadence at every
+connect. The connect info line gains ` after N failed attempt(s)` when
+N > 0. `DialFailed` events, the dial-failure channels, `mark_reconnecting`
+and `last_error` are untouched and still fire or record on every attempt.
+Python logs every failed attempt at debug
+(`RNS/Interfaces/TCPInterface.py:288`,
+`RNS/Interfaces/LocalInterface.py:159-167`); the divergence is listed in
+the crate README. Pinned by the `dial_log.rs` unit tests (first failure
+warns, same kind debugs through attempt 29, a change of kind warns at once,
+attempts 30 and 60 warn, `connected()` returns the cleared count and
+re-arms) and by `tests/dial_failure_events_api.rs`:
+`tcp_client_warns_once_then_debugs_until_a_connect_names_the_failed_attempts`,
+`local_unix_client_warns_once_then_debugs_until_a_connect_names_the_failed_attempts`,
+`local_unix_client_warns_again_when_the_failure_kind_changes`, and the
+retargeted `tcp_client_reports_refused_dials_until_a_listener_binds_the_port`
+(two refused attempts log one warn and one debug). The crate CHANGELOG
+gains a `## Unreleased` / `### Changed` bullet and the README its
+shared-instance paragraph and Known divergences entry.
 
 ## 0.18.0 (upstream 0.14.0)
 

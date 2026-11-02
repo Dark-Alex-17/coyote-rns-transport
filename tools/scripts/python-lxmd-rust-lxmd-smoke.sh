@@ -45,14 +45,37 @@ if [[ "${COMPAT_CASE}" == "rns_path_request_rust_to_python" || "${COMPAT_CASE}" 
   PY_ANNOUNCE_INTERVAL_LINE=""
 fi
 
-RUST_RPC_ADDR="${RUST_RPC_ADDR:-127.0.0.1:$((42430 + ($$ % 1000)))}"
-RUST_TRANSPORT_ADDR="${RUST_TRANSPORT_ADDR:-127.0.0.1:$((37430 + ($$ % 1000)))}"
+# Port defaults are OS-assigned so concurrent runs on one host no longer share
+# a pid-derived range; a caller that exports a port keeps it. One helper call
+# binds every socket before reporting any, so the ports it hands back are
+# pairwise distinct.
+free_loopback_ports() {
+  local count="$1"
+  "${PYTHON_BIN}" - <<'PY' "${count}"
+import socket
+import sys
+
+count = int(sys.argv[1])
+sockets = [socket.socket(socket.AF_INET, socket.SOCK_STREAM) for _ in range(count)]
+try:
+    for sock in sockets:
+        sock.bind(("127.0.0.1", 0))
+    print(" ".join(str(sock.getsockname()[1]) for sock in sockets))
+finally:
+    for sock in sockets:
+        sock.close()
+PY
+}
+
+read -r FREE_PORT_1 FREE_PORT_2 FREE_PORT_3 FREE_PORT_4 FREE_PORT_5 < <(free_loopback_ports 5)
+RUST_RPC_ADDR="${RUST_RPC_ADDR:-127.0.0.1:${FREE_PORT_1}}"
+RUST_TRANSPORT_ADDR="${RUST_TRANSPORT_ADDR:-127.0.0.1:${FREE_PORT_2}}"
 RUST_TRANSPORT_HOST="${RUST_TRANSPORT_ADDR%:*}"
 RUST_TRANSPORT_PORT="${RUST_TRANSPORT_ADDR##*:}"
 
-PY_SHARED_INSTANCE_PORT="${PY_SHARED_INSTANCE_PORT:-$((39428 + ($$ % 200)))}"
-PY_INSTANCE_CONTROL_PORT="${PY_INSTANCE_CONTROL_PORT:-$((PY_SHARED_INSTANCE_PORT + 1))}"
-PY_ENDPOINT_CONTROL_PORT="${PY_ENDPOINT_CONTROL_PORT:-$((PY_INSTANCE_CONTROL_PORT + 10))}"
+PY_SHARED_INSTANCE_PORT="${PY_SHARED_INSTANCE_PORT:-${FREE_PORT_3}}"
+PY_INSTANCE_CONTROL_PORT="${PY_INSTANCE_CONTROL_PORT:-${FREE_PORT_4}}"
+PY_ENDPOINT_CONTROL_PORT="${PY_ENDPOINT_CONTROL_PORT:-${FREE_PORT_5}}"
 PY_ENDPOINT_HELPER="${PY_ENDPOINT_HELPER:-${REPO_ROOT}/crates/apps/lxmf-cli/tests/support/python_lxmf_endpoint.py}"
 
 PYTHON_PATHSEP="$("${PYTHON_BIN}" - <<'PY'

@@ -26,6 +26,57 @@ parity rows this file plus the crate README `## Known divergences from
 Python RNS` are the parity ledger; `docs/status/*` matrices are not updated
 per fork task.
 
+## Unreleased (upstream 0.14.0)
+
+Every file changed since the `0.18.0` release and the patch each change
+belongs to. Patch ids: L1 is smoke ports. The `smoke ports` patch is fork
+commits `3eeff0e7` and `91113899`.
+
+| File | Patch |
+| --- | --- |
+| `crates/apps/reticulumd/tests/fork_publish_contract.rs` | smoke ports |
+| `crates/apps/reticulumd/tests/fork_publish_contract_parts/ledger_contract.rs` | smoke ports |
+| `crates/apps/reticulumd/tests/fork_publish_contract_parts/lxmd_smoke_free_ports_probe.rs` | smoke ports |
+| `crates/apps/reticulumd/tests/fork_publish_contract_parts/lxmd_smoke_free_ports_probe2.rs` | smoke ports |
+| `crates/apps/reticulumd/tests/fork_publish_contract_parts/lxmd_smoke_free_ports_probe3.rs` | smoke ports |
+| `docs/fork/PATCHSET.md` | smoke ports |
+| `tools/scripts/python-lxmd-rust-lxmd-smoke.sh` | smoke ports |
+
+Fork commits `3eeff0e7`, `91113899`: L1, smoke ports. No library behaviour
+changes.
+`tools/scripts/python-lxmd-rust-lxmd-smoke.sh` used to derive its five
+listener ports from the shell pid (`42430 + $$ % 1000` and friends), so on a
+busy CI runner the Rust lxmd RPC port could already be taken and `reticulumd`
+panicked at its RPC listener bind. `3eeff0e7` replaces the five defaults with
+one `free_loopback_ports` helper: a single Python invocation binds every
+socket on `127.0.0.1:0` before reporting any port, so the defaults are
+pairwise distinct; each default is used only when the caller has not
+exported the variable, so tests and HIL runs that pin ports keep them; and
+the two Python control ports are OS-assigned in their own right instead of
+offsets of the shared-instance port. Pinned by
+`lxmd_smoke_free_ports_probe.rs` (included from `fork_publish_contract.rs`):
+no pid arithmetic in the script, the helper's bind loop finishes before its
+one print, the helper is defined once and named on exactly one other line,
+the call that asks for five ports, five distinct ports, and no default reads
+another port variable.
+`lxmd_smoke_free_ports_probe2.rs` (included from the same root) runs the
+script's prologue under bash and checks the five defaults are free,
+pairwise-distinct loopback ports, that exported ports survive verbatim, that
+the control ports no longer follow the shared-instance port, and that a
+missing Python stops the run. `lxmd_smoke_free_ports_probe3.rs` (included
+from the same root) starts the real `reticulumd` on the RPC address the
+prologue derives and checks it comes up listening there, and starts it on a
+loopback port another process holds and checks it still exits non-zero
+naming the RPC listener bind. The same commit extends the full-hash ledger
+pin in `ledger_contract.rs` to this reopened `Unreleased` section beside the
+released ones. `91113899` moves `lxmd_smoke_free_ports_probe2.rs`'s pinned
+shared-instance port from `40000`, inside Linux's `32768`-`60999` ephemeral
+range where an OS-picked control port could land on an offset by chance, to
+`7000`, and tightens `lxmd_smoke_free_ports_probe.rs` from counting the
+literal `free_loopback_ports 5)` once to requiring exactly one line that
+names the helper outside its definition, so a second call asking for another
+count fails the pin.
+
 ## 0.18.0 (upstream 0.14.0)
 
 Every file changed since the `0.17.0` release and the patch each change

@@ -357,7 +357,9 @@ fn response_cap_rustdoc_twins_describe_the_resource_measure_alike() {
 /// the stride times the clients' `DEFAULT_RECONNECT_WAIT`, read from
 /// `src/iface/tcp_client.rs` after checking `src/iface/local.rs` declares
 /// the same seconds; both also name that default beside it, so a retuned
-/// default cannot leave either stale.
+/// default cannot leave either stale. The bullet also names the
+/// Python-in-the-loop part that reads the cadence against a killed Python
+/// rnsd.
 #[test]
 fn dial_warn_stride_docs_name_the_source_literal() {
     let source = read_repo_file("crates/libs/rns-transport/src/iface/dial_log.rs");
@@ -390,6 +392,10 @@ fn dial_warn_stride_docs_name_the_source_literal() {
     assert!(
         changelog_section.contains(&squash(&claim)),
         "the changelog section naming DIAL_WARN_STRIDE should say {claim:?}"
+    );
+    assert!(
+        changelog_section.contains("`python_shared_instance_connect_count.rs`"),
+        "the changelog section naming DIAL_WARN_STRIDE should name the Python-in-the-loop part"
     );
     let reconnect_wait = "DEFAULT_RECONNECT_WAIT";
     let tcp_wait =
@@ -721,8 +727,9 @@ fn crate_readme_shared_instance_section_describes_interface_events() {
 /// the `None` an address no record carries reads; the divergence register
 /// names the count as fork-only, and the changelog section that carries
 /// the bullet names the same items, the always-present JSON key, the
-/// source files, the black-box test files and the two docs-contract files
-/// that pin it.
+/// source files, the black-box test files, the two docs-contract files and
+/// the Python-in-the-loop part that pin it, with the Python lines the part
+/// attaches by; the README names that part too.
 #[test]
 fn crate_readme_shared_instance_section_describes_interface_connect_count() {
     let readme = read_repo_file("crates/libs/rns-transport/README.md");
@@ -736,6 +743,7 @@ fn crate_readme_shared_instance_section_describes_interface_connect_count() {
         "`\"connected_streams\"`",
         "`Some(0)` for as long as it lives",
         "`None` once no record",
+        "`crates/apps/reticulumd/tests/python_channel_interop_parts/python_shared_instance_connect_count.rs`",
     ] {
         assert!(
             section.contains(&squash(claim)),
@@ -768,6 +776,9 @@ fn crate_readme_shared_instance_section_describes_interface_connect_count() {
         "`transport/core_parts/interface_events.rs`",
         "`request_layer_api_docs.rs`",
         "`crate_readme_sections.rs`",
+        "`python_shared_instance_connect_count.rs`",
+        "`RNS/Reticulum.py:420-441`",
+        "`RNS/Interfaces/LocalInterface.py:49`",
     ] {
         assert!(changelog_section.contains(&squash(claim)), "the changelog should mention {claim}");
     }

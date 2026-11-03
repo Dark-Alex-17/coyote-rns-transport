@@ -3,6 +3,8 @@ use rns_transport::transport::SharedInstanceEvent;
 // The dial log is the only evidence of the warn-once-then-debug cadence, so
 // this binary installs its own `log::Log`; nothing else in it sets one, and
 // `log::set_logger` accepts a single logger per process, hence the `Once`.
+// The logger stays installed for the rest of the process, so the run below
+// empties the store before it attaches.
 struct CaptureLogger {
     records: StdMutex<Vec<(log::Level, String)>>,
 }
@@ -31,8 +33,12 @@ fn install_capture_logger() {
     static INSTALL: std::sync::Once = std::sync::Once::new();
     INSTALL.call_once(|| {
         log::set_logger(&CAPTURED).expect("no other logger in this test binary");
-        log::set_max_level(log::LevelFilter::Trace);
+        log::set_max_level(log::LevelFilter::Debug);
     });
+}
+
+fn clear_captured() {
+    CAPTURED.records.lock().expect("captured record store").clear();
 }
 
 fn captured_lines_containing(needle: &str) -> Vec<(log::Level, String)> {
@@ -73,6 +79,7 @@ async fn run_python_rnsd_shared_instance_tcp_connect_count_across_restart() {
     let reconnected_needle = format!("connected to <{addr}> after ");
 
     install_capture_logger();
+    clear_captured();
     let mut rnsd = paths.spawn_rnsd(&dir);
     let rnsd_log = ProcessLogTail::follow("rnsd", &mut rnsd);
     let rnsd_guard = ChildGuard { child: Some(rnsd) };

@@ -46,10 +46,13 @@ impl Transport {
     /// tests do, or already stopped and pruned, so the read goes `Some(n)`
     /// to `None` after `stop_interface`, `detach_shared_instance` or
     /// `stop`. A client that gave up after `max_reconnect_tries` keeps its
-    /// last `Some(n)` until the manager prunes its record. Python has no
-    /// equivalent: its reconnect loop keeps only a per-burst local
-    /// `attempts` and no count of established streams
-    /// (`RNS/Interfaces/TCPInterface.py:270-298`, `:274-277`).
+    /// last `Some(n)` until the manager prunes its record, which needs no
+    /// call: giving up cancels the interface's stop token, and the
+    /// manager's next cleanup pass (every send, and the announce job's
+    /// one-second tick) drops cancelled records, so the read goes `None`
+    /// within about a second. Python has no equivalent: its reconnect loop
+    /// keeps only a per-burst local `attempts` and no count of established
+    /// streams (`RNS/Interfaces/TCPInterface.py:270-298`, `:274-277`).
     #[deny(clippy::await_holding_invalid_type)]
     pub async fn interface_connect_count(&self, iface: &AddressHash) -> Option<u64> {
         self.iface_manager.lock().await.connected_streams(iface)

@@ -718,9 +718,12 @@ interface manager carries the address: never minted, built with
 read goes `Some(n)` to `None` after `stop_interface`,
 `detach_shared_instance` or `stop`; a virtual interface reads its host's
 count. A client that gave up after `max_reconnect_tries` keeps its last
-`Some(n)` until the manager prunes its record. Below the transport,
-`InterfaceManager::connected_streams(&address)` is the same read. For a
-`TcpClient` the same count is also read through
+`Some(n)` until the manager prunes its record, which needs no call: giving
+up cancels the interface's stop token, and the manager's next cleanup pass
+(every send, and the announce job's one-second tick) drops cancelled
+records, so the read goes `None` within about a second. Below the
+transport, `InterfaceManager::connected_streams(&address)` is the same
+read. For a `TcpClient` the same count is also read through
 `TcpRuntimeStatusHandle::connected_streams()` and the `"connected_streams"`
 key, always present, of `TcpClient::runtime_status_json()` and
 `TcpRuntimeStatusHandle::to_json()`; `TcpRuntimeStatus` itself is unchanged.

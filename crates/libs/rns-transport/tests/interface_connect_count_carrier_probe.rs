@@ -1,12 +1,12 @@
 //! Usage probe for the `Transport::interface_connect_count` promise about the interfaces
-//! that are not stream clients: "any other interface the manager spawned (listeners,
-//! datagram, serial and KISS carriers, the I2P interface) reads `Some(0)` for as long as
-//! it lives; only `TcpClient` and `LocalUnixClient` move the count". The listener half is
-//! pinned by `interface_connect_count_probe.rs`; this file pins the datagram carrier: a
-//! `UdpInterface` spawned through the transport reads `Some(0)` as soon as the manager
-//! returns its address, still `Some(0)` once it has bound and handled a datagram, keeps
-//! `Some(0)` while a sibling `TcpClient` on the same transport moves to `Some(1)`, and
-//! reads `None` once `stop_interface` removed it.
+//! that are not stream clients: "only `TcpClient` and `LocalUnixClient` move the count";
+//! every other interface the manager spawned reads `Some(0)` for as long as it lives. The
+//! listener case is pinned by `interface_connect_count_probe.rs`; this file pins a
+//! datagram carrier, which establishes no stream at all: a `UdpInterface` spawned through
+//! the transport reads `Some(0)` as soon as the manager returns its address, still
+//! `Some(0)` once it has bound and handled a datagram, keeps `Some(0)` while a sibling
+//! `TcpClient` on the same transport moves to `Some(1)`, and reads `None` once
+//! `stop_interface` removed it.
 
 use std::net::SocketAddr;
 use std::time::Duration;

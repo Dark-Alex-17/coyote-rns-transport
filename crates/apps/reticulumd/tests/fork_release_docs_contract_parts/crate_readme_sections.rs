@@ -353,10 +353,11 @@ fn response_cap_rustdoc_twins_describe_the_resource_measure_alike() {
 /// `DIAL_WARN_STRIDE` all state is read from the source literal in
 /// `src/iface/dial_log.rs`, so a retuned stride cannot leave the docs
 /// naming the old one; the register row names the two clients the cadence
-/// applies to. The "every 150 s" the changelog and the rustdoc both name
-/// is the stride times the clients' `DEFAULT_RECONNECT_WAIT`, read from
+/// applies to. The default cadence the changelog and the rustdoc name is
+/// the stride times the clients' `DEFAULT_RECONNECT_WAIT`, read from
 /// `src/iface/tcp_client.rs` after checking `src/iface/local.rs` declares
-/// the same seconds, so a retuned default cannot leave it either.
+/// the same seconds; both also name that default beside it, so a retuned
+/// default cannot leave either stale.
 #[test]
 fn dial_warn_stride_docs_name_the_source_literal() {
     let source = read_repo_file("crates/libs/rns-transport/src/iface/dial_log.rs");
@@ -397,14 +398,23 @@ fn dial_warn_stride_docs_name_the_source_literal() {
         "TcpClient and LocalUnixClient should share the DEFAULT_RECONNECT_WAIT the docs quote"
     );
     let default_cadence = format!("every {} s", stride * tcp_wait);
+    let default_wait = format!("{tcp_wait} s default");
     assert!(
         changelog_section.contains(&squash(&default_cadence)),
         "the changelog section naming DIAL_WARN_STRIDE should say {default_cadence:?}"
+    );
+    assert!(
+        changelog_section.contains(&squash(&default_wait)),
+        "the changelog section naming DIAL_WARN_STRIDE should say {default_wait:?}"
     );
     let rustdoc = squash(&doc_comment_text(&source));
     assert!(
         rustdoc.contains(&squash(&default_cadence)),
         "the dial_log.rs rustdoc should say {default_cadence:?}"
+    );
+    assert!(
+        rustdoc.contains(&squash(&default_wait)),
+        "the dial_log.rs rustdoc should say {default_wait:?}"
     );
 }
 

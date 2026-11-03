@@ -1032,8 +1032,40 @@ full `refs/tags/coyote-rns-transport-v<version>` ref, and
 
 `docs/fork/PATCHSET.md` is the single per-release ledger of every file changed
 since the previous release, with the commit that changed it and the upstream
-site; earlier sections carry the earlier patches. What `0.18.0` carries on top
-of `0.17.0`:
+site; earlier sections carry the earlier patches. What `0.18.1` carries on top
+of `0.18.0`:
+
+- The dial-warn cadence: the failed-connect line of `TcpClient` and
+  `LocalUnixClient` warns on the first failed attempt since the last
+  established stream, whenever the failure kind changes and on every 30th
+  attempt (`DIAL_WARN_STRIDE` in `src/iface/dial_log.rs`), with the attempts
+  between at debug; every line ends in ` (attempt N)`, and the connect info
+  line gains ` after N failed attempt(s)` when N > 0.
+- The connect counter: `Transport::interface_connect_count` reads how many
+  streams the stream client on an interface has established since it was
+  spawned, `Some(0)` before the first connect and `None` once the record is
+  pruned; `InterfaceManager::connected_streams` reads the same count by
+  address, `TcpRuntimeStatusHandle::connected_streams()` and the
+  always-present `connected_streams` key of the TCP status JSON carry it for
+  a `TcpClient`, and `rnstatus-rs` shows it as `connects=N`. Two reads taken
+  either side of a `RecvError::Lagged` tell a subscriber whether a reconnect
+  happened while the events were dropped.
+- The give-up line: `max TCP reconnect attempts reached for <endpoint> after
+  N failed attempt(s)` uses the same `attempt(s)` form as the connect info
+  line; the prefix and the level are unchanged.
+- The Python-in-the-loop proof: `python_shared_instance_connect_count.rs` of
+  the reticulumd `python_channel_interop` binary attaches to a live Python
+  rnsd as the shared instance and reads `Some(1)` after `Connected`, exactly
+  one warn while rnsd is down, and `Some(2)` once rnsd is respawned on the
+  same port.
+- Test-only hygiene: the helpers the dial-log and connect-count test binaries
+  each carried a copy of live once under `tests/support/`; the rns-tools
+  `--help` pins clear `CLICOLOR_FORCE` and set `NO_COLOR`; the lxmd smoke
+  script `tools/scripts/python-lxmd-rust-lxmd-smoke.sh` picks free loopback
+  ports by binding `127.0.0.1:0` instead of deriving them from the shell
+  pid.
+
+What `0.18.0` carries on top of `0.17.0`:
 
 - The owned request split: `InboundRequest::into_parts` hands a handler the
   request data by value together with a `ResponseOutcomeTracker` over the

@@ -35,7 +35,7 @@ counter, M3 is batch hygiene. The `smoke ports` patch is fork commits
 `2f5f4456` and `e18dc0d9`. The `connect counter` patch is fork commits
 `f5364b3d`, `19e78108`, `bf3433a3`, `55bc9720`, `0519d338` and `3ca7f727`.
 The `batch hygiene` patch is fork commits `224da262`, `ede00f4c`,
-`81947745` and `d607fd51`.
+`81947745`, `d607fd51` and `4cfe7649`.
 
 | File | Patch |
 | --- | --- |
@@ -62,12 +62,14 @@ The `batch hygiene` patch is fork commits `224da262`, `ede00f4c`,
 | `crates/libs/rns-transport/src/iface_parts/txmessagetype.rs` | connect counter |
 | `crates/libs/rns-transport/src/transport/core_parts/interface_events.rs` | connect counter, batch hygiene |
 | `crates/libs/rns-transport/tests/dial_failure_events_api.rs` | dial log, batch hygiene |
+| `crates/libs/rns-transport/tests/dial_give_up_prune_probe.rs` | batch hygiene |
 | `crates/libs/rns-transport/tests/dial_give_up_text_probe.rs` | batch hygiene |
 | `crates/libs/rns-transport/tests/dial_log_cadence_probe.rs` | dial log, batch hygiene |
 | `crates/libs/rns-transport/tests/dial_log_status_probe.rs` | dial log, batch hygiene |
 | `crates/libs/rns-transport/tests/dial_log_text_probe.rs` | connect counter, batch hygiene |
 | `crates/libs/rns-transport/tests/interface_connect_count_api.rs` | connect counter, batch hygiene |
-| `crates/libs/rns-transport/tests/interface_connect_count_carrier_probe.rs` | connect counter, batch hygiene |
+| `crates/libs/rns-transport/tests/interface_connect_count_carrier_probe.rs` | batch hygiene |
+| `crates/libs/rns-transport/tests/interface_connect_count_kiss_carrier_probe.rs` | batch hygiene |
 | `crates/libs/rns-transport/tests/interface_connect_count_lag_probe.rs` | connect counter, batch hygiene |
 | `crates/libs/rns-transport/tests/interface_connect_count_probe.rs` | connect counter, batch hygiene |
 | `crates/libs/rns-transport/tests/support/accept_within.rs` | batch hygiene |
@@ -282,8 +284,8 @@ wording, states that every other manager-spawned interface, the I2P
 interface included, reads `Some(0)` and that the JSON key is always
 present, and extends the `rnstatus_cli.rs` passthrough fixture and assert.
 
-Fork commits `224da262`, `ede00f4c`, `81947745`, `d607fd51`: M3, batch
-hygiene. No library behaviour changes; one log line's wording moves.
+Fork commits `224da262`, `ede00f4c`, `81947745`, `d607fd51`, `4cfe7649`:
+M3, batch hygiene. No library behaviour changes; one log line's wording moves.
 `224da262` hoists the pure helpers the dial-log and connect-count test
 binaries each carried a copy of into one-helper files under
 `crates/libs/rns-transport/tests/support/`, included by the binaries that
@@ -310,10 +312,10 @@ and `rnsd_cli.rs` help tests clear `CLICOLOR_FORCE` and set `NO_COLOR` like
 cadence needle from `DEFAULT_RECONNECT_WAIT` in `src/iface/tcp_client.rs`,
 checking `src/iface/local.rs` agrees, in place of the literal, drop the bare
 `Some(0)` README needle the "for as long as it lives" one subsumes and
-replace the bare `None` needle with `None once no record`. `ede00f4c` lists
-the KISS carriers among the
-interfaces that read `Some(0)` for life at the four wording twins (README,
-the CHANGELOG bullet, the two rustdocs), names `TcpClient` and
+replace the bare `None` needle with the "`None` once no record" one.
+`ede00f4c` lists the KISS carriers among the interfaces that read `Some(0)`
+for life at the four wording twins (README, the CHANGELOG bullet, the two
+rustdocs), names `TcpClient` and
 `LocalUnixClient` in the README dial cadence row in place of "a stream
 client", adds the `max_reconnect_tries` give-up clause to the
 `interface_connect_count` rustdoc, has the TCP client's give-up error line
@@ -339,7 +341,18 @@ probe reads the count right after the give-up line as `Some(n)` or already
 short-stream give-up site (a budget of 0 spent by a stream dropped at once,
 `after 1 failed attempt(s)`); `crate_readme_sections.rs` derives the
 "5 s default" needle beside the cadence; and the carrier probe's header
-quotes only the pinned rule clause.
+quotes only the pinned rule clause. `4cfe7649` adopts
+`tests/dial_give_up_prune_probe.rs` (the give-up record is an error-level
+record whose N is the budget plus one; one `Transport::send_packet` after
+the give-up line is enough for the next count read to be `None`) and
+`tests/interface_connect_count_kiss_carrier_probe.rs` (a
+`KissTcpClientInterface`, which dials and establishes streams without being
+a `TcpClient`, reads `Some(0)` across a first stream and a redial, beside a
+sibling `TcpClient` at `Some(1)`, and `None` once `stop_interface` removed
+it); has the docs contract squash the connect-count README and CHANGELOG
+needles; gives `close_orderly.rs` role-neutral peer wording and
+`recv_within.rs` a doc naming its 2 s deadline; and adds per-test summaries
+to the carrier probe.
 
 ## 0.18.0 (upstream 0.14.0)
 

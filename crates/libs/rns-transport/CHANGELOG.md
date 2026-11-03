@@ -78,6 +78,11 @@ Removed) bullet of its own, marked as such.
   N), by `tests/interface_connect_count_carrier_probe.rs` (a UDP carrier
   reads `Some(0)` for as long as it lives, a datagram handled and a sibling
   `TcpClient` connected, and `None` once `stop_interface` removed it), by
+  `tests/interface_connect_count_kiss_carrier_probe.rs` (a
+  `KissTcpClientInterface`, which dials and establishes streams without
+  being a `TcpClient`, reads `Some(0)` across a first stream and a redial,
+  beside a sibling `TcpClient` at `Some(1)`, and `None` once
+  `stop_interface` removed it), by
   `request_layer_api_docs.rs`, which lists `interface_connect_count` and
   both `connected_streams` getters among the items whose rustdoc must cite
   Python or say fork-only, by `crate_readme_sections.rs`, which pins the
@@ -159,10 +164,14 @@ Removed) bullet of its own, marked as such.
   connected once and then gives up goes `Some(1)` to `None` the same way; a
   client with a budget of 0 whose first stream is dropped at once gives up
   from the short-stream path after 1 failed attempt(s) and goes `Some(1)` to
-  `None`).
+  `None`) and by `tests/dial_give_up_prune_probe.rs` (the give-up record is
+  an error-level record whose N is the budget plus one, for budgets of 1
+  and 3; one `Transport::send_packet` after the give-up line is enough for
+  the next count read to be `None`, with no `stop` call and no wait on the
+  tick).
 - Test helpers, test-only: the pure helpers the dial-log and connect-count
   test binaries each carried a copy of live once under `tests/support/`,
-  one helper per file, included by the binaries that use them:
+  one helper per file, each binary including the helpers it uses:
   `tests/support/attempt_number.rs`, `tests/support/recv_within.rs` and
   `tests/support/recv_failures.rs` (the interface-checking form, whose 3 s
   deadline the api and cadence binaries now share in place of their 2 s

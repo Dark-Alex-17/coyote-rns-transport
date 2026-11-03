@@ -87,9 +87,16 @@ Removed) bullet of its own, marked as such.
   items whose rustdoc must cite Python or say fork-only, by
   `crate_readme_sections.rs`, which pins the README paragraph, this bullet,
   the stream-client rule and the carrier list the two rustdoc twins state
-  in the same words, and the give-up clause, and by the rns-tools
+  in the same words, and the give-up clause, by the rns-tools
   `rnstatus_cli` test (`connects=5` in the TCP summary line that
-  `src/bin/shared/rnstatus.rs` renders).
+  `src/bin/shared/rnstatus.rs` renders), and by
+  `python_shared_instance_connect_count.rs` of the reticulumd
+  `python_channel_interop` binary (a live Python rnsd, RNS 1.5.2, is the
+  shared instance (`RNS/Reticulum.py:420-441`; its listener is
+  `RNS/Interfaces/LocalInterface.py:49`): the attached transport reads
+  `Some(1)` after `Connected`, still `Some(1)` across a kill of rnsd while
+  at least three `DialFailed` arrive, and `Some(2)` once rnsd is respawned
+  on the same port).
 
 ### Changed
 
@@ -146,13 +153,19 @@ Removed) bullet of its own, marked as such.
   connect against the same endpoint yields, and ` (attempt N)`, and the TCP
   `last_error` carries that same text with no attempt suffix, for the TCP
   client against a closed loopback port and the unix client against a
-  missing path), and by `crate_readme_sections.rs` of the reticulumd
+  missing path), by `crate_readme_sections.rs` of the reticulumd
   `fork_release_docs_contract`, which reads `DIAL_WARN_STRIDE` from
   `src/iface/dial_log.rs` and requires the README register row, the README
   shared-instance paragraph and this bullet to name `every 30th attempt`,
   and derives the default cadence this bullet and the `dial_log.rs` rustdoc
   name from `DEFAULT_RECONNECT_WAIT` in `iface/tcp_client.rs`, checking
-  `iface/local.rs` declares the same.
+  `iface/local.rs` declares the same, and by
+  `python_shared_instance_connect_count.rs` of the reticulumd
+  `python_channel_interop` binary (against a killed Python rnsd the
+  attached shared-instance client logs exactly one warn ending
+  `(attempt 1)` and debug lines for the redials that follow, then
+  `connected to <endpoint> after N failed attempt(s)` at info once rnsd is
+  back, N being at least the `DialFailed` events read).
 - The TCP client's give-up error line (`iface/tcp_client.rs`),
   `max TCP reconnect attempts reached for <endpoint> after N failed
   attempt(s)`, uses the same `attempt(s)` form as its connect info line;

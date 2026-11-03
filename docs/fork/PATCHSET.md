@@ -35,7 +35,9 @@ counter, M3 is batch hygiene. The `smoke ports` patch is fork commits
 `2f5f4456` and `e18dc0d9`. The `connect counter` patch is fork commits
 `f5364b3d`, `19e78108`, `bf3433a3`, `55bc9720`, `0519d338` and `3ca7f727`.
 The `batch hygiene` patch is fork commits `224da262`, `ede00f4c`,
-`81947745`, `d607fd51`, `4cfe7649` and `811fe217`.
+`81947745`, `d607fd51`, `4cfe7649` and `811fe217`. The `Python-in-the-loop
+connect count interop` patch carries no other id and is fork commit
+`e18dcc2b`.
 
 | File | Patch |
 | --- | --- |
@@ -46,13 +48,15 @@ The `batch hygiene` patch is fork commits `224da262`, `ede00f4c`,
 | `crates/apps/reticulumd/tests/fork_publish_contract_parts/lxmd_smoke_free_ports_probe3.rs` | smoke ports |
 | `crates/apps/reticulumd/tests/fork_release_docs_contract_parts/crate_readme_sections.rs` | dial log, connect counter, batch hygiene |
 | `crates/apps/reticulumd/tests/fork_release_docs_contract_parts/request_layer_api_docs.rs` | connect counter |
+| `crates/apps/reticulumd/tests/python_channel_interop.rs` | Python-in-the-loop connect count interop |
+| `crates/apps/reticulumd/tests/python_channel_interop_parts/python_shared_instance_connect_count.rs` | Python-in-the-loop connect count interop |
 | `crates/apps/rns-tools/src/bin/shared/rnstatus.rs` | connect counter |
 | `crates/apps/rns-tools/tests/rnpath_cli.rs` | batch hygiene |
 | `crates/apps/rns-tools/tests/rnprobe_cli.rs` | batch hygiene |
 | `crates/apps/rns-tools/tests/rnsd_cli.rs` | batch hygiene |
 | `crates/apps/rns-tools/tests/rnstatus_cli.rs` | connect counter |
-| `crates/libs/rns-transport/CHANGELOG.md` | dial log, connect counter, batch hygiene |
-| `crates/libs/rns-transport/README.md` | dial log, connect counter, batch hygiene |
+| `crates/libs/rns-transport/CHANGELOG.md` | dial log, connect counter, batch hygiene, Python-in-the-loop connect count interop |
+| `crates/libs/rns-transport/README.md` | dial log, connect counter, batch hygiene, Python-in-the-loop connect count interop |
 | `crates/libs/rns-transport/src/iface.rs` | dial log, batch hygiene |
 | `crates/libs/rns-transport/src/iface/dial_log.rs` | dial log |
 | `crates/libs/rns-transport/src/iface/local.rs` | dial log, connect counter |
@@ -81,7 +85,7 @@ The `batch hygiene` patch is fork commits `224da262`, `ede00f4c`,
 | `crates/libs/rns-transport/tests/support/spawn_plain_client.rs` | batch hygiene |
 | `crates/libs/rns-transport/tests/support/wait_for_count.rs` | batch hygiene |
 | `crates/libs/rns-transport/tests/support/wait_until.rs` | batch hygiene |
-| `docs/fork/PATCHSET.md` | smoke ports, dial log, connect counter, batch hygiene |
+| `docs/fork/PATCHSET.md` | smoke ports, dial log, connect counter, batch hygiene, Python-in-the-loop connect count interop |
 | `tools/scripts/python-lxmd-rust-lxmd-smoke.sh` | smoke ports |
 
 Fork commits `3eeff0e7`, `91113899`: L1, smoke ports. No library behaviour
@@ -361,6 +365,29 @@ names the cleanup pass as the announce job's 1 s tick and has
 `INTERVAL_ANNOUNCES_RETRANSMIT` in `src/transport/mod.rs`; the give-up
 probes paraphrase the clause instead of quoting it, and `accept_within.rs`
 and `wait_until.rs` gain item docs.
+
+Fork commit `e18dcc2b`: Python-in-the-loop connect count interop. A Python
+rnsd (RNS 1.5.2) is the shared instance on a free TCP port, and this crate
+attaches to it as a local client the way a second Python program does
+(`RNS/Reticulum.py:420-441`):
+`crates/apps/reticulumd/tests/python_channel_interop_parts/python_shared_instance_connect_count.rs`,
+included from `crates/apps/reticulumd/tests/python_channel_interop.rs`,
+attaches with a 50 ms reconnect wait, disconnect reasons and state events,
+reads `Transport::interface_connect_count(shared_instance())` as `Some(1)`
+after `Connected` and `None` for a random address, kills rnsd, reads
+`DisconnectedWithReason`, `Connecting` and at least three `DialFailed`
+while the count stays `Some(1)` and the captured dial log for that endpoint
+holds exactly one warn ending `(attempt 1)` with the rest at debug (the
+binary installs a capture `log::Log` for it, its first; Python has no
+counter and logs each failed dial at `LOG_DEBUG`,
+`RNS/Interfaces/TCPInterface.py:288`), respawns rnsd on the same config dir
+and port (the listener sets `SO_REUSEADDR`,
+`RNS/Interfaces/LocalInterface.py:49`, so the rebind is immediate) and
+reads `Connected`, `Some(2)` and one info line
+`connected to <endpoint> after N failed attempt(s)` with N at least the
+`DialFailed` read; the section's Python-in-the-loop proof rows. The same
+commit adds the sentence naming the proof to the README
+`interface_connect_count` paragraph.
 
 ## 0.18.0 (upstream 0.14.0)
 

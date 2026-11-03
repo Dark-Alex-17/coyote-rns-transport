@@ -34,7 +34,8 @@ counter, M3 is batch hygiene. The `smoke ports` patch is fork commits
 `3eeff0e7` and `91113899`. The `dial log` patch is fork commits `b42bb758`,
 `2f5f4456` and `e18dc0d9`. The `connect counter` patch is fork commits
 `f5364b3d`, `19e78108`, `bf3433a3`, `55bc9720`, `0519d338` and `3ca7f727`.
-The `batch hygiene` patch is fork commits `224da262` and `ede00f4c`.
+The `batch hygiene` patch is fork commits `224da262`, `ede00f4c` and
+`81947745`.
 
 | File | Patch |
 | --- | --- |
@@ -61,6 +62,7 @@ The `batch hygiene` patch is fork commits `224da262` and `ede00f4c`.
 | `crates/libs/rns-transport/src/iface_parts/txmessagetype.rs` | connect counter |
 | `crates/libs/rns-transport/src/transport/core_parts/interface_events.rs` | connect counter, batch hygiene |
 | `crates/libs/rns-transport/tests/dial_failure_events_api.rs` | dial log, batch hygiene |
+| `crates/libs/rns-transport/tests/dial_give_up_text_probe.rs` | batch hygiene |
 | `crates/libs/rns-transport/tests/dial_log_cadence_probe.rs` | dial log, batch hygiene |
 | `crates/libs/rns-transport/tests/dial_log_status_probe.rs` | dial log, batch hygiene |
 | `crates/libs/rns-transport/tests/dial_log_text_probe.rs` | connect counter, batch hygiene |
@@ -280,13 +282,14 @@ wording, states that every other manager-spawned interface, the I2P
 interface included, reads `Some(0)` and that the JSON key is always
 present, and extends the `rnstatus_cli.rs` passthrough fixture and assert.
 
-Fork commits `224da262`, `ede00f4c`: M3, batch hygiene. No library
-behaviour changes; one log line's wording moves. `224da262` hoists the pure
-helpers the dial-log and connect-count test binaries each carried a copy of
-into one-helper files under `crates/libs/rns-transport/tests/support/`,
-included by the binaries that use them: `attempt_number.rs`,
-`recv_within.rs` and `recv_failures.rs` (the interface-checking form, with
-its own deadline) for `tests/dial_failure_events_api.rs`,
+Fork commits `224da262`, `ede00f4c`, `81947745`: M3, batch hygiene. No
+library behaviour changes; one log line's wording moves. `224da262` hoists
+the pure helpers the dial-log and connect-count test binaries each carried a
+copy of into one-helper files under
+`crates/libs/rns-transport/tests/support/`, included by the binaries that
+use them: `attempt_number.rs`, `recv_within.rs` and `recv_failures.rs` (the
+interface-checking form, with its own 3 s deadline) for
+`tests/dial_failure_events_api.rs`,
 `tests/dial_log_cadence_probe.rs`, `tests/dial_log_status_probe.rs` and
 `tests/dial_log_text_probe.rs`, whose capture logger and the readers of its
 per-binary store stay where they were; `wait_until.rs`,
@@ -296,23 +299,35 @@ the reconnect wait) for `tests/interface_connect_count_api.rs`,
 `tests/interface_connect_count_probe.rs` and
 `tests/interface_connect_count_lag_probe.rs`. The same commit adopts
 `tests/interface_connect_count_carrier_probe.rs` (a UDP carrier reads
-`Some(0)` for as long as it lives and `None` after `Transport::stop`),
-tightens the lag probe's bound on `Lagged` to one event of slack, the
-`Connected` the count moves ahead of, names the probe's server-side
+`Some(0)` for as long as it lives and `None` once `stop_interface` removed
+it), retrofitted to the shared helpers rather than carrying its own copies,
+tightens the lag probe's bound on `Lagged` to one event of slack (the
+`Connected` that follows the count's move), names the probe's server-side
 `Transport` `server_transport`, has the `rnpath_cli.rs`, `rnprobe_cli.rs`
 and `rnsd_cli.rs` help tests clear `CLICOLOR_FORCE` and set `NO_COLOR` like
-`rnstatus_cli.rs`, and has `crate_readme_sections.rs` derive the
-`every 150 s` needle from `DEFAULT_RECONNECT_WAIT` in
-`src/iface/tcp_client.rs`, checking `src/iface/local.rs` agrees, in place of
-the literal, and replace two subsumed README needles with
-`None once no record`. `ede00f4c` lists the KISS carriers among the
+`rnstatus_cli.rs`, and has `crate_readme_sections.rs` derive the default
+cadence needle from `DEFAULT_RECONNECT_WAIT` in `src/iface/tcp_client.rs`,
+checking `src/iface/local.rs` agrees, in place of the literal, and replace
+two subsumed README needles with `None once no record`. `ede00f4c` lists
+the KISS carriers among the
 interfaces that read `Some(0)` for life at the four wording twins (README,
 the CHANGELOG bullet, the two rustdocs), names `TcpClient` and
 `LocalUnixClient` in the README dial cadence row in place of "a stream
 client", adds the `max_reconnect_tries` give-up clause to the
 `interface_connect_count` rustdoc, has the TCP client's give-up error line
 read `failed attempt(s)` like its connect line, and orders `dial_log`
-alphabetically among the `src/iface.rs` modules.
+alphabetically among the `src/iface.rs` modules. `81947745` adopts
+`tests/dial_give_up_text_probe.rs` (a client with a budget of 1 that only
+reads refused logs exactly one give-up line in the `failed attempt(s)` form
+with N above the budget and keeps `Some(0)` until `Transport::stop` prunes
+it; a client that connected once and then gives up keeps `Some(1)`), copies
+the give-up clause into the README paragraph and the CHANGELOG bullet, has
+`crate_readme_sections.rs` pin the README cadence row's two clients, the
+carrier list across the four twins, the give-up clause across the README,
+the bullet and the transport getter's rustdoc, and the bullet's new
+Pinned-by cites, finishes the carrier probe's retrofit to `accept_within.rs`
+and `spawn_plain_client.rs`, and has the `await_kind.rs` and
+`recv_failures.rs` docs name the skipped `Lagged` and the deadline.
 
 ## 0.18.0 (upstream 0.14.0)
 

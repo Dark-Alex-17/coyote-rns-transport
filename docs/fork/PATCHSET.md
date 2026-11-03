@@ -36,8 +36,8 @@ counter, M3 is batch hygiene. The `smoke ports` patch is fork commits
 `f5364b3d`, `19e78108`, `bf3433a3`, `55bc9720`, `0519d338` and `3ca7f727`.
 The `batch hygiene` patch is fork commits `224da262`, `ede00f4c`,
 `81947745`, `d607fd51`, `4cfe7649` and `811fe217`. The `Python-in-the-loop
-connect count interop` patch carries no other id and is fork commit
-`e18dcc2b`.
+connect count interop` patch carries no other id and is fork commits
+`e18dcc2b` and `4630ce11`.
 
 | File | Patch |
 | --- | --- |
@@ -46,7 +46,7 @@ connect count interop` patch carries no other id and is fork commit
 | `crates/apps/reticulumd/tests/fork_publish_contract_parts/lxmd_smoke_free_ports_probe.rs` | smoke ports |
 | `crates/apps/reticulumd/tests/fork_publish_contract_parts/lxmd_smoke_free_ports_probe2.rs` | smoke ports |
 | `crates/apps/reticulumd/tests/fork_publish_contract_parts/lxmd_smoke_free_ports_probe3.rs` | smoke ports |
-| `crates/apps/reticulumd/tests/fork_release_docs_contract_parts/crate_readme_sections.rs` | dial log, connect counter, batch hygiene |
+| `crates/apps/reticulumd/tests/fork_release_docs_contract_parts/crate_readme_sections.rs` | dial log, connect counter, batch hygiene, Python-in-the-loop connect count interop |
 | `crates/apps/reticulumd/tests/fork_release_docs_contract_parts/request_layer_api_docs.rs` | connect counter |
 | `crates/apps/reticulumd/tests/python_channel_interop.rs` | Python-in-the-loop connect count interop |
 | `crates/apps/reticulumd/tests/python_channel_interop_parts/python_shared_instance_connect_count.rs` | Python-in-the-loop connect count interop |
@@ -366,10 +366,10 @@ names the cleanup pass as the announce job's 1 s tick and has
 probes paraphrase the clause instead of quoting it, and `accept_within.rs`
 and `wait_until.rs` gain item docs.
 
-Fork commit `e18dcc2b`: Python-in-the-loop connect count interop. A Python
-rnsd (RNS 1.5.2) is the shared instance on a free TCP port, and this crate
-attaches to it as a local client the way a second Python program does
-(`RNS/Reticulum.py:420-441`):
+Fork commits `e18dcc2b`, `4630ce11`: Python-in-the-loop connect count
+interop. A Python rnsd (RNS 1.5.2) is the shared instance on a free TCP
+port, and this crate attaches to it as a local client the way a second
+Python program does (`RNS/Reticulum.py:420-441`):
 `crates/apps/reticulumd/tests/python_channel_interop_parts/python_shared_instance_connect_count.rs`,
 included from `crates/apps/reticulumd/tests/python_channel_interop.rs`,
 attaches with a 50 ms reconnect wait, disconnect reasons and state events,
@@ -380,14 +380,21 @@ while the count stays `Some(1)` and the captured dial log for that endpoint
 holds exactly one warn ending `(attempt 1)` with the rest at debug (the
 binary installs a capture `log::Log` for it, its first; Python has no
 counter and logs each failed dial at `LOG_DEBUG`,
-`RNS/Interfaces/TCPInterface.py:288`), respawns rnsd on the same config dir
-and port (the listener sets `SO_REUSEADDR`,
+`RNS/Interfaces/TCPInterface.py:288`, `RNS/Interfaces/LocalInterface.py:167`),
+respawns rnsd on the same config dir and port (the listener sets
+`SO_REUSEADDR`,
 `RNS/Interfaces/LocalInterface.py:49`, so the rebind is immediate) and
 reads `Connected`, `Some(2)` and one info line
 `connected to <endpoint> after N failed attempt(s)` with N at least the
 `DialFailed` read; the section's Python-in-the-loop proof rows. The same
 commit adds the sentence naming the proof to the README
-`interface_connect_count` paragraph.
+`interface_connect_count` paragraph. The second commit has
+`crates/apps/reticulumd/tests/fork_release_docs_contract_parts/crate_readme_sections.rs`
+require that README sentence, the part's name and the two Python
+references in the connect-counter CHANGELOG bullet, and the part's name in
+the dial-log bullet, the way the `0.18.0` section pinned its interop proof;
+the part's capture logger runs at debug, all its assertions read, and
+empties its store before the attach.
 
 ## 0.18.0 (upstream 0.14.0)
 

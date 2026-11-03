@@ -2,10 +2,11 @@
 // check. Those pin the heading date by shape, the absence of a `### Breaking`
 // subsection on a patch bump and the version by its sites; these pins hold
 // the heading to the day the release was cut and to the top of the ledger,
-// the subsection order a patch release opens with, the connect-count items
-// `### Added` names, the cadence wording `### Changed` names, the patch
-// digit and semver verdict the version bullet records, and the README
-// patch-list order with the 0.18.1 block on top.
+// the subsection set a patch release carries, the connect-count items
+// `### Added` names, the cadence wording of the failed-connect bullet, the
+// patch digit and semver verdict the version bullet records, the CI-only
+// bullet for the lxmd smoke ports, and the README patch-list order with the
+// 0.18.1 block on top.
 
 /// The 0.18.1 heading carries the day the release was cut and is the first
 /// release heading of the CHANGELOG.
@@ -28,19 +29,17 @@ fn release_0_18_1_heading_carries_the_release_date() {
     );
 }
 
-/// A patch release lists no `### Breaking` subsection; the 0.18.1 section
-/// opens on `### Added` instead.
+/// A patch release carries neither `### Breaking` nor `### Fixed`; the
+/// 0.18.1 section is `### Added` then `### Changed` and nothing else.
 #[test]
 fn release_0_18_1_has_no_breaking_subsection_as_a_patch_release() {
     let changelog = read_repo_file("crates/libs/rns-transport/CHANGELOG.md");
     let section = changelog_release_section(&changelog, "0.18.1");
-    let subs = subsections(&section);
-    let (first_name, _) = subs.first().expect("the 0.18.1 section should have subsections");
-    assert_eq!(*first_name, "Added", "the first subsection of a patch release is `### Added`");
-    assert!(
-        subs.iter().all(|(name, _)| *name != "Breaking"),
-        "a patch release carries no `### Breaking` subsection, got {:?}",
-        subs.iter().map(|(name, _)| *name).collect::<Vec<_>>()
+    let names: Vec<&str> = subsections(&section).into_iter().map(|(name, _)| name).collect();
+    assert_eq!(
+        names,
+        ["Added", "Changed"],
+        "a patch release carries `### Added` and `### Changed` only"
     );
 }
 
@@ -53,7 +52,7 @@ fn release_0_18_1_added_names_the_connect_count_api() {
     let added: Vec<String> =
         subsection_bullets(&section, "Added").iter().map(|bullet| joined_prose(bullet)).collect();
     assert!(!added.is_empty(), "the 0.18.1 `### Added` subsection should carry bullets");
-    for needle in ["`Transport::interface_connect_count(", "`connected_streams`"] {
+    for needle in ["`Transport::interface_connect_count(", "`\"connected_streams\"`"] {
         assert!(
             added.iter().any(|bullet| bullet.contains(needle)),
             "the 0.18.1 `### Added` subsection should name the connect counter by {needle:?}"
@@ -61,19 +60,43 @@ fn release_0_18_1_added_names_the_connect_count_api() {
     }
 }
 
-/// `### Changed` of 0.18.1 names the dial-warn cadence by its stride constant
-/// and the attempt suffix every failed-connect line ends in.
+/// The failed-connect bullet of 0.18.1, found by its opening words, names
+/// the dial-warn cadence by its stride constant and the attempt suffix every
+/// failed-connect line ends in; the version bullet's mention of the cadence
+/// does not satisfy the pin.
 #[test]
 fn release_0_18_1_changed_names_the_dial_warn_stride() {
     let changelog = read_repo_file("crates/libs/rns-transport/CHANGELOG.md");
     let section = changelog_release_section(&changelog, "0.18.1");
-    let changed: Vec<String> =
-        subsection_bullets(&section, "Changed").iter().map(|bullet| joined_prose(bullet)).collect();
+    let bullets = subsection_bullets(&section, "Changed");
+    let bullet = joined_prose(&single_bullet_starting_with(
+        &bullets,
+        "- The failed-connect line of `TcpClient`",
+    ));
     for needle in ["`DIAL_WARN_STRIDE`", " (attempt N)"] {
         assert!(
-            changed.iter().any(|bullet| bullet.contains(needle)),
-            "the 0.18.1 `### Changed` subsection should name the cadence by {needle:?}"
+            bullet.contains(needle),
+            "the 0.18.1 failed-connect bullet should name the cadence by {needle:?}"
         );
+    }
+}
+
+/// The one `### Changed` bullet opening `- No library behaviour change (CI):`
+/// is the lxmd smoke script's port derivation: the script, the `127.0.0.1:0`
+/// bind it takes its ports from and the probe that pins it.
+#[test]
+fn release_0_18_1_changed_marks_the_lxmd_smoke_ports_as_ci_only() {
+    let changelog = read_repo_file("crates/libs/rns-transport/CHANGELOG.md");
+    let section = changelog_release_section(&changelog, "0.18.1");
+    let bullets = subsection_bullets(&section, "Changed");
+    let bullet =
+        joined_prose(&single_bullet_starting_with(&bullets, "- No library behaviour change (CI):"));
+    for needle in [
+        "`tools/scripts/python-lxmd-rust-lxmd-smoke.sh`",
+        "`127.0.0.1:0`",
+        "`crates/apps/reticulumd/tests/fork_publish_contract_parts/lxmd_smoke_free_ports_probe.rs`",
+    ] {
+        assert!(bullet.contains(needle), "the 0.18.1 CI-only bullet should say {needle:?}");
     }
 }
 

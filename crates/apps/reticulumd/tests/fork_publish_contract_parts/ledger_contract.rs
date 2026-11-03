@@ -45,9 +45,10 @@ fn ledger_sections_under_full_hash_contract(ledger: &str) -> Vec<(String, &str)>
         .collect()
 }
 
-/// Pins which sections the gate admits at this tree: the releases from 0.15.1
-/// up to 0.18.1, never 0.15.0 or 0.14.1, and no `Unreleased` stub on a
-/// release tree. Extend the expected labels when a section is added or released.
+/// Pins which sections the gate admits at this tree: the newest released
+/// section and the releases from 0.15.1 up, never 0.15.0 or 0.14.1, with no
+/// `Unreleased` stub on a release tree. Extend the expected labels when a
+/// section is added or released.
 #[test]
 fn full_hash_contract_covers_the_newest_section_and_the_releases_from_0_15_1() {
     let ledger = read_repo_file("docs/fork/PATCHSET.md");

@@ -5,8 +5,9 @@ use rns_transport::transport::SharedInstanceEvent;
 // `log::set_logger` accepts a single logger per process, hence the `Once`.
 // The logger stays installed for the rest of the process, so it stores a
 // record only while `armed`, and the run below arms it after emptying the
-// store, disarms it before its teardown and turns the level filter off, so
-// the binary's other tests, which log at debug per packet, keep nothing.
+// store and disarms it from a drop guard once the run ends, turning the
+// level filter off, so the binary's other tests, which log at debug per
+// packet, keep nothing.
 struct CaptureLogger {
     armed: std::sync::atomic::AtomicBool,
     records: StdMutex<Vec<(log::Level, String)>>,
@@ -55,6 +56,16 @@ fn disarm_capture() {
     CAPTURED.records.lock().expect("captured record store").clear();
 }
 
+/// Disarms the capture when the run ends, panic included, so a failed run
+/// leaves the binary's logger off for the tests that follow.
+struct ArmedCapture;
+
+impl Drop for ArmedCapture {
+    fn drop(&mut self) {
+        disarm_capture();
+    }
+}
+
 fn captured_record_count() -> usize {
     CAPTURED.records.lock().expect("captured record store").len()
 }
@@ -99,7 +110,10 @@ async fn run_python_rnsd_shared_instance_tcp_connect_count_across_restart() {
     let reconnected_needle = format!("connected to <{addr}> after ");
 
     install_capture_logger();
-    arm_capture();
+    let _armed = {
+        arm_capture();
+        ArmedCapture
+    };
     let mut rnsd = paths.spawn_rnsd(&dir);
     let rnsd_log = ProcessLogTail::follow("rnsd", &mut rnsd);
     let rnsd_guard = ChildGuard { child: Some(rnsd) };
@@ -244,7 +258,6 @@ async fn run_python_rnsd_shared_instance_tcp_connect_count_across_restart() {
         "the reconnect line counts every failed dial ({logged_failures} logged, {dial_failures} DialFailed read)"
     );
 
-    disarm_capture();
     let detached = tokio::time::timeout(Duration::from_secs(5), transport.detach_shared_instance())
         .await
         .expect("detach concludes");

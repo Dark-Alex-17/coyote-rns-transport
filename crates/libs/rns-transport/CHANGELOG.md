@@ -234,6 +234,10 @@ Removed) bullet of its own, marked as such.
   rns-tools `rnpath_cli`, `rnprobe_cli` and `rnsd_cli` help tests clear
   `CLICOLOR_FORCE` and set `NO_COLOR` like the `rnstatus_cli` one, so a
   caller shell that forces clap's styling cannot fail their substring pins.
+  `python_shared_instance_connect_count.rs` of the reticulumd
+  `python_channel_interop` binary disarms its capture logger from a drop
+  guard, panic included, so a failed run leaves the binary's logger off for
+  the tests that follow it.
 - Release docs contract, test-only: `fork_release_docs_contract.rs` includes
   its tests from `fork_release_docs_contract_parts/`
   (`crate_readme_sections.rs`, `readme_patch_list.rs`,

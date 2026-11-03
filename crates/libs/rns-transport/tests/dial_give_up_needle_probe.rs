@@ -93,8 +93,8 @@ fn count_with_prefix(addr: &str, prefix: &str) -> usize {
 /// The `N` before the needle at the end of `line`.
 fn trailing_count(line: &str) -> u64 {
     let head = line.strip_suffix(NEEDLE).unwrap_or_else(|| panic!("ends in the needle: {line:?}"));
-    let digits =
-        head.rsplit(' ').next().unwrap_or_else(|| panic!("count before the needle: {line:?}"));
+    let (_, digits) =
+        head.rsplit_once(' ').unwrap_or_else(|| panic!("count before the needle: {line:?}"));
     digits.parse().unwrap_or_else(|err| panic!("N in {line:?}: {err}"))
 }
 
@@ -130,6 +130,12 @@ async fn one_needle_matches_the_connect_line_and_the_give_up_line() {
     drop(stream);
     drop(listener);
     wait_until("the client gives up", || count_with_prefix(&addr, GIVE_UP_PREFIX) == 1).await;
+    assert_eq!(
+        count_with_prefix(&addr, DIAL_FAILED_PREFIX) as u64,
+        budget,
+        "the refused dials before and after the stream share one budget: {budget} refused \
+         dials in all, not {budget} after the stream alone"
+    );
 
     let matches: Vec<(log::Level, String)> =
         records_naming(&addr).into_iter().filter(|(_, m)| m.ends_with(NEEDLE)).collect();

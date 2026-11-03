@@ -4,10 +4,10 @@ use rns_transport::transport::SharedInstanceEvent;
 // this binary installs its own `log::Log`; nothing else in it sets one, and
 // `log::set_logger` accepts a single logger per process, hence the `Once`.
 // The logger stays installed for the rest of the process, so it stores a
-// record only while `armed`, and the run below arms it after emptying the
-// store and disarms it from a drop guard once the run ends, turning the
-// level filter off, so the binary's other tests, which log at debug per
-// packet, keep nothing.
+// record only while `armed`, and the run below holds an `ArmedCapture`,
+// which arms it after emptying the store and disarms it once the run ends,
+// turning the level filter off, so the binary's other tests, which log at
+// debug per packet, keep nothing.
 struct CaptureLogger {
     armed: std::sync::atomic::AtomicBool,
     records: StdMutex<Vec<(log::Level, String)>>,
@@ -46,19 +46,29 @@ fn install_capture_logger() {
 }
 
 fn arm_capture() {
-    CAPTURED.records.lock().expect("captured record store").clear();
+    CAPTURED.records.lock().unwrap_or_else(std::sync::PoisonError::into_inner).clear();
     CAPTURED.armed.store(true, std::sync::atomic::Ordering::Release);
 }
 
+// Poison-tolerant on purpose: `disarm_capture` runs from `Drop` during an
+// unwind, where a panic would abort the whole binary.
 fn disarm_capture() {
     CAPTURED.armed.store(false, std::sync::atomic::Ordering::Release);
     log::set_max_level(log::LevelFilter::Off);
-    CAPTURED.records.lock().expect("captured record store").clear();
+    CAPTURED.records.lock().unwrap_or_else(std::sync::PoisonError::into_inner).clear();
 }
 
-/// Disarms the capture when the run ends, panic included, so a failed run
-/// leaves the binary's logger off for the tests that follow.
+/// Arms the capture for the run and disarms it when the run ends, panic
+/// included, so a failed run leaves the binary's logger off for the tests
+/// that follow.
 struct ArmedCapture;
+
+impl ArmedCapture {
+    fn arm() -> Self {
+        arm_capture();
+        Self
+    }
+}
 
 impl Drop for ArmedCapture {
     fn drop(&mut self) {
@@ -110,10 +120,7 @@ async fn run_python_rnsd_shared_instance_tcp_connect_count_across_restart() {
     let reconnected_needle = format!("connected to <{addr}> after ");
 
     install_capture_logger();
-    let _armed = {
-        arm_capture();
-        ArmedCapture
-    };
+    let _armed = ArmedCapture::arm();
     let mut rnsd = paths.spawn_rnsd(&dir);
     let rnsd_log = ProcessLogTail::follow("rnsd", &mut rnsd);
     let rnsd_guard = ChildGuard { child: Some(rnsd) };

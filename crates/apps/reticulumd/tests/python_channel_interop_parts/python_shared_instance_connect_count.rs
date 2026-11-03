@@ -3,17 +3,24 @@ use rns_transport::transport::SharedInstanceEvent;
 // The dial log is the only evidence of the warn-once-then-debug cadence, so
 // this binary installs its own `log::Log`; nothing else in it sets one, and
 // `log::set_logger` accepts a single logger per process, hence the `Once`.
-// The logger stays installed for the rest of the process, so the run below
-// empties the store before it attaches.
+// The logger stays installed for the rest of the process, so it stores a
+// record only while `armed`, and the run below arms it after emptying the
+// store, disarms it before its teardown and turns the level filter off, so
+// the binary's other tests, which log at debug per packet, keep nothing.
 struct CaptureLogger {
+    armed: std::sync::atomic::AtomicBool,
     records: StdMutex<Vec<(log::Level, String)>>,
 }
 
-static CAPTURED: CaptureLogger = CaptureLogger { records: StdMutex::new(Vec::new()) };
+static CAPTURED: CaptureLogger = CaptureLogger {
+    armed: std::sync::atomic::AtomicBool::new(false),
+    records: StdMutex::new(Vec::new()),
+};
 
 impl log::Log for CaptureLogger {
     fn enabled(&self, metadata: &log::Metadata) -> bool {
-        metadata.target().starts_with("rns_transport::iface")
+        self.armed.load(std::sync::atomic::Ordering::Acquire)
+            && metadata.target().starts_with("rns_transport::iface")
     }
 
     fn log(&self, record: &log::Record) {
@@ -33,20 +40,33 @@ fn install_capture_logger() {
     static INSTALL: std::sync::Once = std::sync::Once::new();
     INSTALL.call_once(|| {
         log::set_logger(&CAPTURED).expect("no other logger in this test binary");
-        log::set_max_level(log::LevelFilter::Debug);
     });
+    log::set_max_level(log::LevelFilter::Debug);
 }
 
-fn clear_captured() {
+fn arm_capture() {
+    CAPTURED.records.lock().expect("captured record store").clear();
+    CAPTURED.armed.store(true, std::sync::atomic::Ordering::Release);
+}
+
+fn disarm_capture() {
+    CAPTURED.armed.store(false, std::sync::atomic::Ordering::Release);
+    log::set_max_level(log::LevelFilter::Off);
     CAPTURED.records.lock().expect("captured record store").clear();
 }
 
-fn captured_lines_containing(needle: &str) -> Vec<(log::Level, String)> {
+fn captured_record_count() -> usize {
+    CAPTURED.records.lock().expect("captured record store").len()
+}
+
+/// The captured lines from the `from` record on that contain `needle`.
+fn captured_lines_containing(from: usize, needle: &str) -> Vec<(log::Level, String)> {
     CAPTURED
         .records
         .lock()
         .expect("captured record store")
         .iter()
+        .skip(from)
         .filter(|(_, message)| message.contains(needle))
         .cloned()
         .collect()
@@ -79,7 +99,7 @@ async fn run_python_rnsd_shared_instance_tcp_connect_count_across_restart() {
     let reconnected_needle = format!("connected to <{addr}> after ");
 
     install_capture_logger();
-    clear_captured();
+    arm_capture();
     let mut rnsd = paths.spawn_rnsd(&dir);
     let rnsd_log = ProcessLogTail::follow("rnsd", &mut rnsd);
     let rnsd_guard = ChildGuard { child: Some(rnsd) };
@@ -118,6 +138,9 @@ async fn run_python_rnsd_shared_instance_tcp_connect_count_across_restart() {
     let iface = transport.shared_instance().expect("the shared instance is attached");
     assert_eq!(transport.interface_connect_count(&iface).await, Some(1));
     assert_eq!(transport.interface_connect_count(&AddressHash::new_from_rand(OsRng)).await, None);
+    // The cadence is read from here on, so a first dial that failed before
+    // this Connected cannot stand in for the outage's first redial.
+    let outage_mark = captured_record_count();
 
     // The guard kills and reaps rnsd; the tail's Drop then joins the drains,
     // which see EOF only once the child is gone.
@@ -153,7 +176,7 @@ async fn run_python_rnsd_shared_instance_tcp_connect_count_across_restart() {
     // redial, so the snapshot is taken now and read over the first
     // `dial_failures` lines, each logged before its DialFailed is
     // published, which keeps a slow host's later redials out of the proof.
-    let dial_lines = captured_lines_containing(&dial_failed_needle);
+    let dial_lines = captured_lines_containing(outage_mark, &dial_failed_needle);
     assert_eq!(
         transport.interface_connect_count(&iface).await,
         Some(1),
@@ -173,7 +196,7 @@ async fn run_python_rnsd_shared_instance_tcp_connect_count_across_restart() {
         .collect();
     assert_eq!(warns.len(), 1, "one warn for a steady refusal: {first_dials:#?}");
     assert!(warns[0].ends_with("(attempt 1)"), "the warn is the first attempt: {:?}", warns[0]);
-    assert!(first_dials[0].0 == log::Level::Warn, "the warn is the first line: {first_dials:#?}");
+    assert_eq!(first_dials[0].0, log::Level::Warn, "the warn is the first line: {first_dials:#?}");
     assert!(
         first_dials[1..].iter().all(|(level, _)| *level == log::Level::Debug),
         "every other dial line is debug: {first_dials:#?}"
@@ -204,7 +227,7 @@ async fn run_python_rnsd_shared_instance_tcp_connect_count_across_restart() {
         "the reconnect counts a second stream"
     );
 
-    let reconnected = captured_lines_containing(&reconnected_needle);
+    let reconnected = captured_lines_containing(outage_mark, &reconnected_needle);
     assert_eq!(reconnected.len(), 1, "one reconnect line: {reconnected:#?}");
     let (level, message) = &reconnected[0];
     assert_eq!(*level, log::Level::Info, "the reconnect line is info: {message:?}");
@@ -221,6 +244,7 @@ async fn run_python_rnsd_shared_instance_tcp_connect_count_across_restart() {
         "the reconnect line counts every failed dial ({logged_failures} logged, {dial_failures} DialFailed read)"
     );
 
+    disarm_capture();
     let detached = tokio::time::timeout(Duration::from_secs(5), transport.detach_shared_instance())
         .await
         .expect("detach concludes");
@@ -232,13 +256,15 @@ async fn run_python_rnsd_shared_instance_tcp_connect_count_across_restart() {
 /// (`RNS/Reticulum.py:417` logs the interface start) and this crate attaches
 /// as a local client the way a second Python program does
 /// (`RNS/Reticulum.py:420-441`; `RNS/Interfaces/LocalInterface.py:58-141` is
-/// the `LocalClientInterface` connect path, `:49` the listener's
-/// `SO_REUSEADDR` that lets the respawn rebind the same port). Proven:
+/// the `LocalClientInterface` connect path, `:46-49` the listener's
+/// `SO_REUSEADDR` on non-Windows hosts that lets the respawn rebind the same
+/// port). Proven:
 /// `interface_connect_count(shared_instance())` reads `Some(1)` after
 /// `Connected`, stays `Some(1)` across a kill of rnsd while at least three
-/// `DialFailed` arrive and the dial log warns once (attempt 1) then debugs,
-/// and reads `Some(2)` once rnsd is back on the same port, with one info line
-/// counting the failed dials. Python has no counter and logs each failed
+/// `DialFailed` arrive and, over its first three or more redials, the dial
+/// log warns once (attempt 1) then debugs, and reads `Some(2)` once rnsd is
+/// back on the same port, with one info line counting the failed dials.
+/// Python has no counter and logs each failed
 /// dial at `LOG_DEBUG` (`RNS/Interfaces/TCPInterface.py:288`,
 /// `RNS/Interfaces/LocalInterface.py:167`), so the fork is louder on the
 /// first attempt and quieter after.

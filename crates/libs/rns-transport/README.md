@@ -733,8 +733,10 @@ Python has no equivalent: its reconnect loop keeps only a per-burst local
 `crates/apps/reticulumd/tests/python_channel_interop_parts/python_shared_instance_connect_count.rs`
 attaches this crate to a Python `rnsd` (RNS 1.5.2) shared instance, reads
 `Some(1)` after `Connected`, kills rnsd, reads at least three `DialFailed`
-and the one-warn-then-debug dial log while it is down, and reads `Some(2)`
-once rnsd is back on the same port.
+while it is down and, over its first three or more redials, exactly one warn
+ending `(attempt 1)` with the rest at debug, then
+`connected to <endpoint> after N failed attempt(s)` at info once rnsd is
+back, and reads `Some(2)` on the same port.
 
 A `Tcp` endpoint whose address is not loopback is refused with
 `RnsError::SharedInstanceEndpointNotLoopback` before any lock is taken, with

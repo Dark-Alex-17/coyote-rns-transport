@@ -359,7 +359,8 @@ fn response_cap_rustdoc_twins_describe_the_resource_measure_alike() {
 /// the same seconds; both also name that default beside it, so a retuned
 /// default cannot leave either stale. The bullet also names the
 /// Python-in-the-loop part that reads the cadence against a killed Python
-/// rnsd.
+/// rnsd, and states, in the README's words, the window the part reads it
+/// over.
 #[test]
 fn dial_warn_stride_docs_name_the_source_literal() {
     let source = read_repo_file("crates/libs/rns-transport/src/iface/dial_log.rs");
@@ -400,6 +401,18 @@ fn dial_warn_stride_docs_name_the_source_literal() {
         "the dial-log bullet should name the Python-in-the-loop part in its Pinned-by clause: \
          {part_clause:?}"
     );
+    let window = "over its first three or more redials, exactly one warn ending `(attempt 1)` \
+                  with the rest at debug";
+    let shared_instance = squash(crate_readme_section(&readme, "Attaching to a shared instance"));
+    for (place, text) in [
+        ("README shared-instance section", &shared_instance),
+        ("dial-log bullet", &changelog_section),
+    ] {
+        assert!(
+            text.contains(&squash(window)),
+            "the {place} should scope the proven cadence: {window:?}"
+        );
+    }
     let reconnect_wait = "DEFAULT_RECONNECT_WAIT";
     let tcp_wait =
         duration_const_secs("crates/libs/rns-transport/src/iface/tcp_client.rs", reconnect_wait);
@@ -732,7 +745,7 @@ fn crate_readme_shared_instance_section_describes_interface_events() {
 /// the bullet names the same items, the always-present JSON key, the
 /// source files, the black-box test files, the two docs-contract files and
 /// the Python-in-the-loop part that pin it, with the Python lines the part
-/// attaches by; the README names that part too.
+/// attaches and rebinds by; the README names that part too.
 #[test]
 fn crate_readme_shared_instance_section_describes_interface_connect_count() {
     let readme = read_repo_file("crates/libs/rns-transport/README.md");
@@ -781,7 +794,7 @@ fn crate_readme_shared_instance_section_describes_interface_connect_count() {
         "`crate_readme_sections.rs`",
         "`src/bin/shared/rnstatus.rs` renders), and by `python_shared_instance_connect_count.rs`",
         "`RNS/Reticulum.py:420-441`",
-        "`RNS/Interfaces/LocalInterface.py:49`",
+        "`SO_REUSEADDR` on non-Windows hosts, `RNS/Interfaces/LocalInterface.py:46-49`",
     ] {
         assert!(changelog_section.contains(&squash(claim)), "the changelog should mention {claim}");
     }

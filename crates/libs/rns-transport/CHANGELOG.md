@@ -227,7 +227,8 @@ Removed) bullet of its own, marked as such.
   `tests/interface_connect_count_lag_probe.rs`,
   `tests/interface_connect_count_carrier_probe.rs`,
   `tests/interface_connect_count_kiss_carrier_probe.rs`,
-  `tests/dial_give_up_text_probe.rs` and `tests/dial_give_up_prune_probe.rs`.
+  `tests/dial_give_up_text_probe.rs`, `tests/dial_give_up_prune_probe.rs`
+  and `tests/dial_give_up_needle_probe.rs`.
   The lag probe's bound on `Lagged` allows one event of slack, the
   `Connected` that follows the count's move, and the server-side `Transport`
   of `tests/interface_connect_count_probe.rs` is `server_transport`. The

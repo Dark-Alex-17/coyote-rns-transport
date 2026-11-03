@@ -1056,8 +1056,8 @@ of `0.18.0`:
 - The Python-in-the-loop proof: `python_shared_instance_connect_count.rs` of
   the reticulumd `python_channel_interop` binary attaches to a live Python
   rnsd as the shared instance and reads `Some(1)` after `Connected`, exactly
-  one warn while rnsd is down, and `Some(2)` once rnsd is respawned on the
-  same port.
+  one warn over its first three or more redials while rnsd is down, and
+  `Some(2)` once rnsd is respawned on the same port.
 - Test-only hygiene: the helpers the dial-log and connect-count test binaries
   each carried a copy of live once under `tests/support/`; the rns-tools
   `--help` pins clear `CLICOLOR_FORCE` and set `NO_COLOR`; the lxmd smoke

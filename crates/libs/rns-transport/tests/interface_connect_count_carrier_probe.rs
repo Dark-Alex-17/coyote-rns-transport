@@ -6,13 +6,16 @@
 //! the transport reads `Some(0)` as soon as the manager returns its address, still
 //! `Some(0)` once it has bound and handled a datagram, keeps `Some(0)` while a sibling
 //! `TcpClient` on the same transport moves to `Some(1)`, and reads `None` once
-//! `stop_interface` removed it.
+//! `stop_interface` removed it; after `Transport::stop` both the carrier and its sibling
+//! client read `None`. The second carrier is spawned in peer role (forward address set),
+//! so both unicast roles are covered.
 
 use std::net::SocketAddr;
 use std::time::Duration;
 
 use rns_transport::hash::AddressHash;
 use rns_transport::iface::udp::{UdpInterface, UdpRuntimeStatusHandle};
+use rns_transport::rand_core::OsRng;
 use rns_transport::transport::{InterfaceEventKind, Transport};
 use tokio::net::{TcpListener, UdpSocket};
 use tokio::time::timeout;
@@ -62,12 +65,14 @@ async fn spawn_udp_carrier(
     (address, status)
 }
 
+/// A datagram carrier reads `Some(0)` from the spawn, through its bind and a handled
+/// datagram, and `None` once `stop_interface` removed it.
 #[tokio::test]
 #[deny(clippy::await_holding_invalid_type)]
 async fn a_datagram_carrier_reads_zero_for_as_long_as_it_lives_and_none_once_stopped() {
     let bind: SocketAddr = format!("127.0.0.1:{}", free_udp_port().await).parse().expect("bind");
     let transport = client_transport("connect-count-udp-carrier");
-    let unknown = AddressHash::new_from_rand(rns_transport::rand_core::OsRng);
+    let unknown = AddressHash::new_from_rand(OsRng);
 
     let (iface, status) = spawn_udp_carrier(&transport, bind, None).await;
     assert_eq!(
@@ -115,6 +120,8 @@ async fn a_datagram_carrier_reads_zero_for_as_long_as_it_lives_and_none_once_sto
     timeout(WAIT, transport.stop()).await.expect("transport stop completes");
 }
 
+/// A datagram carrier in peer role keeps `Some(0)` while a sibling `TcpClient` on the same
+/// transport moves to `Some(1)`; after `Transport::stop` both read `None`.
 #[tokio::test]
 #[deny(clippy::await_holding_invalid_type)]
 async fn a_datagram_carrier_keeps_zero_while_a_sibling_stream_client_connects() {

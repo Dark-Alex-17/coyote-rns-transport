@@ -2,9 +2,9 @@ use std::process::Command;
 
 #[test]
 fn rnsd_honors_reticulumd_bin_and_forwards_help_output() {
-    // rnsd execs the rnpath-rs delegate, whose clap styles the help text when
-    // CLICOLOR_FORCE is set in the caller's shell; NO_COLOR overrides it and
-    // the substring pins need plain output.
+    // rnsd launches the rnpath-rs delegate with its own environment, whose
+    // clap styles the help text when CLICOLOR_FORCE is set in the caller's
+    // shell; NO_COLOR overrides it and the substring pins need plain output.
     let output = Command::new(rnsd_bin())
         .env("RETICULUMD_BIN", rnpath_bin())
         .arg("--help")

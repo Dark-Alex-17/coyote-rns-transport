@@ -6,6 +6,7 @@ use std::time::Duration;
 use tokio::sync::mpsc;
 use tokio::time::timeout;
 
+/// The next item of `rx` within a 2 s deadline.
 #[deny(clippy::await_holding_invalid_type)]
 pub async fn recv_within<T>(what: &str, rx: &mut mpsc::Receiver<T>) -> T {
     timeout(Duration::from_secs(2), rx.recv())

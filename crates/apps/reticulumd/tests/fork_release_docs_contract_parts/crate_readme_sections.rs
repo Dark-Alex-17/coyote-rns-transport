@@ -718,13 +718,14 @@ fn crate_readme_shared_instance_section_describes_interface_events() {
 /// manager read and the TCP status handle and JSON key underneath, the
 /// `Some(0)` an interface that is not a stream client reads for life and
 /// the `None` an address no record carries reads; the divergence register
-/// names the count as fork-only, and the changelog bullet names the same
-/// items, the always-present JSON key, the source files, the black-box
-/// test files and the two docs-contract files that pin it.
+/// names the count as fork-only, and the `## Unreleased` release section
+/// that carries the bullet names the same items, the always-present JSON
+/// key, the source files, the black-box test files and the two
+/// docs-contract files that pin it.
 #[test]
 fn crate_readme_shared_instance_section_describes_interface_connect_count() {
     let readme = read_repo_file("crates/libs/rns-transport/README.md");
-    let section = crate_readme_section(&readme, "Attaching to a shared instance");
+    let section = squash(crate_readme_section(&readme, "Attaching to a shared instance"));
     for claim in [
         "`Transport::interface_connect_count(&iface)`",
         "either side of a `RecvError::Lagged`",
@@ -736,7 +737,7 @@ fn crate_readme_shared_instance_section_describes_interface_connect_count() {
         "`None` once no record",
     ] {
         assert!(
-            section.contains(claim),
+            section.contains(&squash(claim)),
             "the shared-instance section should mention {claim}:\n{section}"
         );
     }
@@ -746,8 +747,10 @@ fn crate_readme_shared_instance_section_describes_interface_connect_count() {
         "the divergence register should name the connect count:\n{divergences}"
     );
     let changelog = read_repo_file("crates/libs/rns-transport/CHANGELOG.md");
-    let changelog_section =
-        changelog_section_naming(&changelog, "`Transport::interface_connect_count(&iface)`");
+    let changelog_section = squash(changelog_section_naming(
+        &changelog,
+        "`Transport::interface_connect_count(&iface)`",
+    ));
     for claim in [
         "`RecvError::Lagged`",
         "`Transport::shared_instance()`",
@@ -765,7 +768,7 @@ fn crate_readme_shared_instance_section_describes_interface_connect_count() {
         "`request_layer_api_docs.rs`",
         "`crate_readme_sections.rs`",
     ] {
-        assert!(changelog_section.contains(claim), "the changelog should mention {claim}");
+        assert!(changelog_section.contains(&squash(claim)), "the changelog should mention {claim}");
     }
 }
 

@@ -8,7 +8,7 @@ use rns_transport::transport::{DialFailure, DialFailureKind};
 use tokio::sync::mpsc;
 use tokio::time::timeout;
 
-/// `count` failures of `kind` on `iface`, one per attempt.
+/// `count` failures of `kind` on `iface`, one per attempt, each read within a 3 s deadline.
 #[deny(clippy::await_holding_invalid_type)]
 pub async fn recv_failures(
     rx: &mut mpsc::Receiver<DialFailure>,

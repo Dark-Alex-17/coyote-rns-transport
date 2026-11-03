@@ -11,7 +11,8 @@ use tokio::time::timeout;
 
 const WAIT: Duration = Duration::from_secs(5);
 
-/// The next event tagged with `iface` whose kind satisfies `wanted`; other events are skipped.
+/// The next event tagged with `iface` whose kind satisfies `wanted`; other events and a
+/// `Lagged` are skipped.
 #[deny(clippy::await_holding_invalid_type)]
 pub async fn await_kind(
     what: &str,

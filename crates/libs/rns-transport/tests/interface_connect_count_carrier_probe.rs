@@ -1,34 +1,39 @@
 //! Usage probe for the `Transport::interface_connect_count` promise about the interfaces
 //! that are not stream clients: "any other interface the manager spawned (listeners,
-//! datagram and serial carriers, the I2P interface) reads `Some(0)` for as long as it
-//! lives; only `TcpClient` and `LocalUnixClient` move the count". The listener half is
+//! datagram, serial and KISS carriers, the I2P interface) reads `Some(0)` for as long as
+//! it lives; only `TcpClient` and `LocalUnixClient` move the count". The listener half is
 //! pinned by `interface_connect_count_probe.rs`; this file pins the datagram carrier: a
-//! `UdpInterface` spawned through the transport reads `Some(0)` before it binds, still
-//! `Some(0)` after it has bound and handled a datagram, keeps `Some(0)` while a sibling
-//! `TcpClient` on the same transport moves to `Some(1)`, and reads `None` once
-//! `stop_interface` removed it.
+//! `UdpInterface` spawned through the transport reads `Some(0)` as soon as the manager
+//! returns its address, still `Some(0)` once it has bound and handled a datagram, keeps
+//! `Some(0)` while a sibling `TcpClient` on the same transport moves to `Some(1)`, and
+//! reads `None` once `stop_interface` removed it.
 
 use std::net::SocketAddr;
 use std::time::Duration;
 
 use rns_transport::hash::AddressHash;
-use rns_transport::iface::tcp_client::TcpClient;
 use rns_transport::iface::udp::{UdpInterface, UdpRuntimeStatusHandle};
 use rns_transport::transport::{InterfaceEventKind, Transport};
 use tokio::net::{TcpListener, UdpSocket};
 use tokio::time::timeout;
 
+#[path = "support/accept_within.rs"]
+mod accept_within;
 #[path = "support/await_kind.rs"]
 mod await_kind;
 #[path = "support/client_transport.rs"]
 mod client_transport;
 #[path = "support/free_loopback_port.rs"]
 mod free_loopback_port;
+#[path = "support/spawn_plain_client.rs"]
+mod spawn_plain_client;
 #[path = "support/wait_until.rs"]
 mod wait_until;
+use accept_within::accept_within;
 use await_kind::await_kind;
 use client_transport::client_transport;
 use free_loopback_port::free_loopback_port;
+use spawn_plain_client::spawn_plain_client;
 use wait_until::wait_until;
 
 const WAIT: Duration = Duration::from_secs(5);
@@ -84,7 +89,9 @@ async fn a_datagram_carrier_reads_zero_for_as_long_as_it_lives_and_none_once_sto
     wait_until("the udp carrier to handle a datagram", || {
         if handled == 0 {
             // Not a Reticulum frame: the carrier counts it as a decode error, which is
-            // enough to prove the rx task is alive and reading its socket.
+            // enough to prove the rx task is alive and reading its socket. The send is
+            // best-effort: a datagram the stack refuses or drops is sent again on the
+            // next poll, and the assertion is on the carrier's counters.
             let _ = sender.try_send_to(b"not a reticulum packet", bind);
         }
         let snapshot = status.snapshot();
@@ -121,14 +128,12 @@ async fn a_datagram_carrier_keeps_zero_while_a_sibling_stream_client_connects() 
     let mut events = transport.interface_events();
 
     let (udp_iface, udp_status) = spawn_udp_carrier(&transport, udp_bind, Some(udp_peer)).await;
-    let client = TcpClient::new(tcp_endpoint.to_string()).with_reconnect_wait(RECONNECT_WAIT);
-    let tcp_iface = transport.iface_manager().lock().await.spawn(client, TcpClient::spawn);
+    let (tcp_iface, _) = spawn_plain_client(&transport, tcp_endpoint, RECONNECT_WAIT).await;
     assert_eq!(transport.interface_connect_count(&udp_iface).await, Some(0));
     assert_eq!(transport.interface_connect_count(&tcp_iface).await, Some(0));
 
     let listener = TcpListener::bind(tcp_endpoint).await.expect("bind the port the client dials");
-    let (_stream, _) =
-        timeout(WAIT, listener.accept()).await.expect("accept in time").expect("accept");
+    let _stream = accept_within(&listener, "the tcp client's dial").await;
     await_kind("the tcp Connected", &mut events, tcp_iface, |kind| {
         kind == InterfaceEventKind::Connected
     })

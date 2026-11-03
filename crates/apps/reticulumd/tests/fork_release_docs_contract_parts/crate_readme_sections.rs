@@ -352,10 +352,11 @@ fn response_cap_rustdoc_twins_describe_the_resource_measure_alike() {
 /// shared-instance section and the changelog bullet naming
 /// `DIAL_WARN_STRIDE` all state is read from the source literal in
 /// `src/iface/dial_log.rs`, so a retuned stride cannot leave the docs
-/// naming the old one. The "every 150 s" the changelog and the rustdoc
-/// both name is the stride times the clients' `DEFAULT_RECONNECT_WAIT`,
-/// read from `src/iface/tcp_client.rs` after checking `src/iface/local.rs`
-/// declares the same seconds, so a retuned default cannot leave it either.
+/// naming the old one; the register row names the two clients the cadence
+/// applies to. The "every 150 s" the changelog and the rustdoc both name
+/// is the stride times the clients' `DEFAULT_RECONNECT_WAIT`, read from
+/// `src/iface/tcp_client.rs` after checking `src/iface/local.rs` declares
+/// the same seconds, so a retuned default cannot leave it either.
 #[test]
 fn dial_warn_stride_docs_name_the_source_literal() {
     let source = read_repo_file("crates/libs/rns-transport/src/iface/dial_log.rs");
@@ -377,6 +378,12 @@ fn dial_warn_stride_docs_name_the_source_literal() {
             "the README `## {heading}` section should say {claim:?}"
         );
     }
+    let row = "A `TcpClient` or `LocalUnixClient` failed connect";
+    let divergences = squash(crate_readme_section(&readme, "Known divergences from Python RNS"));
+    assert!(
+        divergences.contains(&squash(row)),
+        "the README divergence register should say {row:?}"
+    );
     let changelog = read_repo_file("crates/libs/rns-transport/CHANGELOG.md");
     let changelog_section = squash(changelog_section_naming(&changelog, "`DIAL_WARN_STRIDE`"));
     assert!(
@@ -702,8 +709,8 @@ fn crate_readme_shared_instance_section_describes_interface_events() {
 /// `Some(0)` an interface that is not a stream client reads for life and
 /// the `None` an address no record carries reads; the divergence register
 /// names the count as fork-only, and the changelog bullet names the same
-/// items, the always-present JSON key, the source files and the black-box
-/// test files.
+/// items, the always-present JSON key, the source files, the black-box
+/// test files and the two docs-contract files that pin it.
 #[test]
 fn crate_readme_shared_instance_section_describes_interface_connect_count() {
     let readme = read_repo_file("crates/libs/rns-transport/README.md");
@@ -742,8 +749,11 @@ fn crate_readme_shared_instance_section_describes_interface_connect_count() {
         "`tests/interface_connect_count_api.rs`",
         "`tests/interface_connect_count_probe.rs`",
         "`tests/interface_connect_count_lag_probe.rs`",
+        "`tests/interface_connect_count_carrier_probe.rs`",
         "`iface_parts/interfacemanager_events.rs`",
         "`transport/core_parts/interface_events.rs`",
+        "`request_layer_api_docs.rs`",
+        "`crate_readme_sections.rs`",
     ] {
         assert!(changelog_section.contains(claim), "the changelog should mention {claim}");
     }
@@ -751,36 +761,60 @@ fn crate_readme_shared_instance_section_describes_interface_connect_count() {
 
 /// The two rustdocs that say which clients move the connect count,
 /// `Transport::interface_connect_count` and
-/// `InterfaceManager::connected_streams`, name the rule in the same words
-/// as the README's shared-instance section and the changelog bullet that
-/// names the getter, so none of the four can drift apart on its own; the
-/// TCP status handle's rustdoc dates its 0 from the first stream rather
-/// than from a dial, since a pre-supplied stream counts without one.
+/// `InterfaceManager::connected_streams`, name the rule and the carriers
+/// it excludes in the same words as the README's shared-instance section
+/// and the changelog bullet that names the getter, so none of the four can
+/// drift apart on its own. The README, the bullet and the transport
+/// getter's rustdoc (the manager's does not go into it) say in the same
+/// words what a client that gave up after `max_reconnect_tries` keeps
+/// reading. The TCP status handle's rustdoc dates its 0 from the first
+/// stream rather than from a dial, since a pre-supplied stream counts
+/// without one.
 #[test]
 fn connect_count_rustdoc_twins_describe_the_stream_client_rule_alike() {
-    let rule = "only `TcpClient` and `LocalUnixClient` move the count";
+    let rules = [
+        "only `TcpClient` and `LocalUnixClient` move the count",
+        "listeners, datagram, serial and KISS carriers, the I2P interface",
+    ];
+    let give_up = "keeps its last `Some(n)` until the manager prunes its record";
     let readme = read_repo_file("crates/libs/rns-transport/README.md");
     let section = squash(crate_readme_section(&readme, "Attaching to a shared instance"));
-    assert!(
-        section.contains(&squash(rule)),
-        "the README shared-instance section should say {rule:?}"
-    );
     let changelog = read_repo_file("crates/libs/rns-transport/CHANGELOG.md");
     let changelog_section = squash(changelog_section_naming(
         &changelog,
         "`Transport::interface_connect_count(&iface)`",
     ));
-    assert!(
-        changelog_section.contains(&squash(rule)),
-        "the changelog section naming interface_connect_count should say {rule:?}"
-    );
-    for file in [
-        "crates/libs/rns-transport/src/transport/core_parts/interface_events.rs",
-        "crates/libs/rns-transport/src/iface_parts/interfacemanager_events.rs",
-    ] {
-        let rustdoc = squash(&doc_comment_text(&read_repo_file(file)));
-        assert!(rustdoc.contains(&squash(rule)), "{file} rustdoc should say {rule:?}");
+    let transport_getter = "crates/libs/rns-transport/src/transport/core_parts/interface_events.rs";
+    let manager_getter = "crates/libs/rns-transport/src/iface_parts/interfacemanager_events.rs";
+    let transport_rustdoc = squash(&doc_comment_text(&read_repo_file(transport_getter)));
+    let manager_rustdoc = squash(&doc_comment_text(&read_repo_file(manager_getter)));
+    for rule in rules {
+        assert!(
+            section.contains(&squash(rule)),
+            "the README shared-instance section should say {rule:?}"
+        );
+        assert!(
+            changelog_section.contains(&squash(rule)),
+            "the changelog section naming interface_connect_count should say {rule:?}"
+        );
+        for (file, rustdoc) in
+            [(transport_getter, &transport_rustdoc), (manager_getter, &manager_rustdoc)]
+        {
+            assert!(rustdoc.contains(&squash(rule)), "{file} rustdoc should say {rule:?}");
+        }
     }
+    assert!(
+        section.contains(&squash(give_up)),
+        "the README shared-instance section should say {give_up:?}"
+    );
+    assert!(
+        changelog_section.contains(&squash(give_up)),
+        "the changelog section naming interface_connect_count should say {give_up:?}"
+    );
+    assert!(
+        transport_rustdoc.contains(&squash(give_up)),
+        "{transport_getter} rustdoc should say {give_up:?}"
+    );
     let handle = "its first stream is up";
     let tcp_client = "crates/libs/rns-transport/src/iface/tcp_client.rs";
     let rustdoc = squash(&doc_comment_text(&read_repo_file(tcp_client)));

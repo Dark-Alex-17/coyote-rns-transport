@@ -19,10 +19,12 @@ Removed) bullet of its own, marked as such.
   `None` once no record in the transport's interface manager carries the
   address (never minted, built with `InterfaceChannel::new`, as tests do,
   or already stopped and pruned, so the read goes `Some(n)` to `None` after
-  `stop_interface`, `detach_shared_instance` or `stop`). The count lives on
-  `InterfaceChannel` (`iface_parts/txmessagetype.rs`), is shared with the
-  manager's record (a virtual interface shares its host's count), and is
-  read through `InterfaceManager::connected_streams(&address)`
+  `stop_interface`, `detach_shared_instance` or `stop`). A client that gave
+  up after `max_reconnect_tries` keeps its last `Some(n)` until the manager
+  prunes its record. The count lives on `InterfaceChannel`
+  (`iface_parts/txmessagetype.rs`), is shared with the manager's record (a
+  virtual interface shares its host's count), and is read through
+  `InterfaceManager::connected_streams(&address)`
   (`iface_parts/interfacemanager_events.rs`). `TcpClient`
   (`iface/tcp_client.rs`) and `LocalUnixClient` (`iface/local.rs`) increment
   it immediately before they publish `InterfaceEventKind::Connected`, so a
@@ -139,13 +141,17 @@ Removed) bullet of its own, marked as such.
   `fork_release_docs_contract`, which reads `DIAL_WARN_STRIDE` from
   `src/iface/dial_log.rs` and requires the README register row, the README
   shared-instance paragraph and this bullet to name `every 30th attempt`,
-  and derives the `every 150 s` the bullet and the `dial_log.rs` rustdoc
+  and derives the default cadence this bullet and the `dial_log.rs` rustdoc
   name from `DEFAULT_RECONNECT_WAIT` in `iface/tcp_client.rs`, checking
   `iface/local.rs` declares the same.
 - The TCP client's give-up error line (`iface/tcp_client.rs`),
   `max TCP reconnect attempts reached for <endpoint> after N failed
   attempt(s)`, uses the same `attempt(s)` form as its connect info line;
-  the prefix and the level are unchanged.
+  the prefix and the level are unchanged. Pinned by
+  `tests/dial_give_up_text_probe.rs` (a client with a budget of 1 that only
+  reads refused logs exactly one give-up line in that form with N above the
+  budget and keeps `Some(0)` on the transport until `stop` prunes it; a
+  client that connected once and then gives up keeps `Some(1)`).
 - Test helpers, test-only: the pure helpers the dial-log and connect-count
   test binaries each carried a copy of live once under `tests/support/`,
   one helper per file, included by the binaries that use them:

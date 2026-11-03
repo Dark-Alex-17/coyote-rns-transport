@@ -26,7 +26,7 @@ parity rows this file plus the crate README `## Known divergences from
 Python RNS` are the parity ledger; `docs/status/*` matrices are not updated
 per fork task.
 
-## Unreleased (upstream 0.14.0)
+## 0.18.1 (upstream 0.14.0)
 
 Every file changed since the `0.18.0` release and the patch each change
 belongs to. Patch ids: L1 is smoke ports, M1 is dial log, M2 is connect
@@ -37,26 +37,37 @@ counter, M3 is batch hygiene. The `smoke ports` patch is fork commits
 The `batch hygiene` patch is fork commits `224da262`, `ede00f4c`,
 `81947745`, `d607fd51`, `4cfe7649` and `811fe217`. The `Python-in-the-loop
 connect count interop` patch carries no other id and is fork commits
-`e18dcc2b`, `4630ce11`, `d0a47981` and `f42185b7`.
+`e18dcc2b`, `4630ce11`, `d0a47981` and `f42185b7`. The `release 0.18.1`
+patch carries no other id and is fork commits `970effab`, `05b7fd8b`,
+`559e28cd`, `053a23de` and `9782e586`.
 
 | File | Patch |
 | --- | --- |
-| `crates/apps/reticulumd/tests/fork_publish_contract.rs` | smoke ports |
-| `crates/apps/reticulumd/tests/fork_publish_contract_parts/ledger_contract.rs` | smoke ports |
+| `Cargo.lock` | release 0.18.1 |
+| `Cargo.toml` | release 0.18.1 |
+| `crates/apps/reticulumd/Cargo.toml` | release 0.18.1 |
+| `crates/apps/reticulumd/tests/fork_publish_contract.rs` | smoke ports, release 0.18.1 |
+| `crates/apps/reticulumd/tests/fork_publish_contract_parts/ledger_contract.rs` | smoke ports, release 0.18.1 |
 | `crates/apps/reticulumd/tests/fork_publish_contract_parts/lxmd_smoke_free_ports_probe.rs` | smoke ports |
 | `crates/apps/reticulumd/tests/fork_publish_contract_parts/lxmd_smoke_free_ports_probe2.rs` | smoke ports |
 | `crates/apps/reticulumd/tests/fork_publish_contract_parts/lxmd_smoke_free_ports_probe3.rs` | smoke ports |
+| `crates/apps/reticulumd/tests/fork_release_docs_contract.rs` | release 0.18.1 |
 | `crates/apps/reticulumd/tests/fork_release_docs_contract_parts/crate_readme_sections.rs` | dial log, connect counter, batch hygiene, Python-in-the-loop connect count interop |
+| `crates/apps/reticulumd/tests/fork_release_docs_contract_parts/readme_patch_list.rs` | release 0.18.1 |
+| `crates/apps/reticulumd/tests/fork_release_docs_contract_parts/release_0_18_1_probe.rs` | release 0.18.1 |
 | `crates/apps/reticulumd/tests/fork_release_docs_contract_parts/request_layer_api_docs.rs` | connect counter |
 | `crates/apps/reticulumd/tests/python_channel_interop.rs` | Python-in-the-loop connect count interop |
-| `crates/apps/reticulumd/tests/python_channel_interop_parts/python_shared_instance_connect_count.rs` | Python-in-the-loop connect count interop |
+| `crates/apps/reticulumd/tests/python_channel_interop_parts/python_shared_instance_connect_count.rs` | Python-in-the-loop connect count interop, release 0.18.1 |
+| `crates/apps/rns-tools/Cargo.toml` | release 0.18.1 |
 | `crates/apps/rns-tools/src/bin/shared/rnstatus.rs` | connect counter |
 | `crates/apps/rns-tools/tests/rnpath_cli.rs` | batch hygiene |
 | `crates/apps/rns-tools/tests/rnprobe_cli.rs` | batch hygiene |
 | `crates/apps/rns-tools/tests/rnsd_cli.rs` | batch hygiene |
 | `crates/apps/rns-tools/tests/rnstatus_cli.rs` | connect counter |
-| `crates/libs/rns-transport/CHANGELOG.md` | dial log, connect counter, batch hygiene, Python-in-the-loop connect count interop |
-| `crates/libs/rns-transport/README.md` | dial log, connect counter, batch hygiene, Python-in-the-loop connect count interop |
+| `crates/libs/rns-transport/CHANGELOG.md` | dial log, connect counter, batch hygiene, Python-in-the-loop connect count interop, release 0.18.1 |
+| `crates/libs/rns-transport/Cargo.toml` | release 0.18.1 |
+| `crates/libs/rns-transport/README.md` | dial log, connect counter, batch hygiene, Python-in-the-loop connect count interop, release 0.18.1 |
+| `crates/libs/rns-transport/fuzz/Cargo.lock` | release 0.18.1 |
 | `crates/libs/rns-transport/src/iface.rs` | dial log, batch hygiene |
 | `crates/libs/rns-transport/src/iface/dial_log.rs` | dial log |
 | `crates/libs/rns-transport/src/iface/local.rs` | dial log, connect counter |
@@ -66,6 +77,7 @@ connect count interop` patch carries no other id and is fork commits
 | `crates/libs/rns-transport/src/iface_parts/txmessagetype.rs` | connect counter |
 | `crates/libs/rns-transport/src/transport/core_parts/interface_events.rs` | connect counter, batch hygiene |
 | `crates/libs/rns-transport/tests/dial_failure_events_api.rs` | dial log, batch hygiene |
+| `crates/libs/rns-transport/tests/dial_give_up_needle_probe.rs` | release 0.18.1 |
 | `crates/libs/rns-transport/tests/dial_give_up_prune_probe.rs` | batch hygiene |
 | `crates/libs/rns-transport/tests/dial_give_up_text_probe.rs` | batch hygiene |
 | `crates/libs/rns-transport/tests/dial_log_cadence_probe.rs` | dial log, batch hygiene |
@@ -85,7 +97,8 @@ connect count interop` patch carries no other id and is fork commits
 | `crates/libs/rns-transport/tests/support/spawn_plain_client.rs` | batch hygiene |
 | `crates/libs/rns-transport/tests/support/wait_for_count.rs` | batch hygiene |
 | `crates/libs/rns-transport/tests/support/wait_until.rs` | batch hygiene |
-| `docs/fork/PATCHSET.md` | smoke ports, dial log, connect counter, batch hygiene, Python-in-the-loop connect count interop |
+| `docs/fork/PATCHSET.md` | smoke ports, dial log, connect counter, batch hygiene, Python-in-the-loop connect count interop, release 0.18.1 |
+| `docs/getting-started.md` | release 0.18.1 |
 | `tools/scripts/python-lxmd-rust-lxmd-smoke.sh` | smoke ports |
 
 Fork commits `3eeff0e7`, `91113899`: L1, smoke ports. No library behaviour
@@ -409,6 +422,62 @@ sentence to the cadence over the first three or more redials the part
 reads, in the same words, which `crate_readme_sections.rs` requires of
 both, and cites the listener's `SO_REUSEADDR` as `:46-49`, the non-Windows
 branch, in the connect-counter bullet, the part's rustdoc and here.
+
+Fork commits `970effab`, `05b7fd8b`, `559e28cd`, `053a23de` and `9782e586`:
+release 0.18.1. The first bumps the crate version to 0.18.1 at every
+manifest and consumer-snippet site (`Cargo.toml`,
+`crates/libs/rns-transport/Cargo.toml`, `crates/apps/reticulumd/Cargo.toml`,
+`crates/apps/rns-tools/Cargo.toml`, the snippet in
+`crates/libs/rns-transport/README.md` and `docs/getting-started.md`) and in
+`Cargo.lock` and `crates/libs/rns-transport/fuzz/Cargo.lock`; the root
+`VERSION` file stays. The second adds the 0.18.1 paragraph to the
+`## Patch list` of `crates/libs/rns-transport/README.md`, folding it into
+the intro sentence and leaving the 0.18.0 block as a standalone paragraph
+with its bullets unchanged. The third promotes `## Unreleased` to
+`## 0.18.1 - 2026-11-03` in the crate `CHANGELOG.md` with a version bullet
+at the head of `### Changed` (the announce field, the patch-bump reasoning
+with no `### Breaking` as every change is additive API a consumer need not
+opt into or a log-line change, the `cargo semver-checks` result of 0
+findings against `v0.18.0` with the gate that runs it, and the contract
+tests that pin the release), a restated test-only bullet for the release
+docs contract parts naming all ten, and a CI-only bullet for the lxmd smoke
+script's free loopback ports; it retargets the promotion-sensitive pins to
+the literal 0.18.1 label:
+`crates/apps/reticulumd/tests/fork_publish_contract_parts/ledger_contract.rs`
+expects the full-hash contract to cover `0.18.1`, `0.18.0`, `0.17.0`,
+`0.16.0` and `0.15.1` with no `Unreleased` label and the bullet-cite
+contract the same five, the two version pins in
+`crates/apps/reticulumd/tests/fork_publish_contract.rs` read `0.18.1`, and
+`crates/apps/reticulumd/tests/fork_release_docs_contract_parts/readme_patch_list.rs`
+gains a 0.18.1 twin
+(`readme_patch_list_opens_with_the_0_18_1_block_and_keeps_the_0_18_0_paragraph`)
+asserting that the 0.18.1 block opens the list, the 0.18.1, 0.18.0, 0.17.0
+order and the 0.18.1 items, while the 0.18.0 test
+(`readme_patch_list_keeps_the_0_18_0_block_above_the_0_17_0_paragraph`)
+keeps its order and its needles through a shared const; and it adds
+`crates/apps/reticulumd/tests/fork_release_docs_contract_parts/release_0_18_1_probe.rs`,
+included from `crates/apps/reticulumd/tests/fork_release_docs_contract.rs`,
+which pins the heading date and its place as the first release heading,
+the absence of a `### Breaking` subsection with `### Added` first, the
+connect-count items under `### Added`, the cadence bullet's
+`DIAL_WARN_STRIDE` and ` (attempt N)` wording, the patch digit and semver
+sentence of the version bullet, and the README patch-list order. The
+fourth adopts `crates/libs/rns-transport/tests/dial_give_up_needle_probe.rs`
+(`one_needle_matches_the_connect_line_and_the_give_up_line`: of every line
+a `TcpClient` logs for its endpoint exactly two end in ` failed
+attempt(s)`, the info connect line and the error give-up line, and the
+give-up count is the budget plus one after a stream dropped before
+`MIN_STABLE_CONNECTION`;
+`give_up_record_is_pruned_within_about_a_second_of_the_line`: the transport
+reads `None` for the client within about a second of the give-up line with
+no call made) and cites it from the give-up bullet of the crate
+`CHANGELOG.md`. The fifth has
+`crates/apps/reticulumd/tests/python_channel_interop_parts/python_shared_instance_connect_count.rs`
+disarm its capture logger from a drop guard bound before the rnsd child
+guard, so a run that panics leaves the binary's logger off for the tests
+that follow as the happy path does, and says so in the test-helpers bullet
+of the crate `CHANGELOG.md`. The ledger commit that cites the five commits
+above touches only this file.
 
 ## 0.18.0 (upstream 0.14.0)
 

@@ -37,7 +37,7 @@ counter, M3 is batch hygiene. The `smoke ports` patch is fork commits
 The `batch hygiene` patch is fork commits `224da262`, `ede00f4c`,
 `81947745`, `d607fd51`, `4cfe7649` and `811fe217`. The `Python-in-the-loop
 connect count interop` patch carries no other id and is fork commits
-`e18dcc2b` and `4630ce11`.
+`e18dcc2b`, `4630ce11` and `d0a47981`.
 
 | File | Patch |
 | --- | --- |
@@ -366,8 +366,8 @@ names the cleanup pass as the announce job's 1 s tick and has
 probes paraphrase the clause instead of quoting it, and `accept_within.rs`
 and `wait_until.rs` gain item docs.
 
-Fork commits `e18dcc2b`, `4630ce11`: Python-in-the-loop connect count
-interop. A Python rnsd (RNS 1.5.2) is the shared instance on a free TCP
+Fork commits `e18dcc2b`, `4630ce11`, `d0a47981`: Python-in-the-loop connect
+count interop. A Python rnsd (RNS 1.5.2) is the shared instance on a free TCP
 port, and this crate attaches to it as a local client the way a second
 Python program does (`RNS/Reticulum.py:420-441`):
 `crates/apps/reticulumd/tests/python_channel_interop_parts/python_shared_instance_connect_count.rs`,
@@ -393,8 +393,14 @@ commit adds the sentence naming the proof to the README
 require that README sentence, the part's name and the two Python
 references in the connect-counter CHANGELOG bullet, and the part's name in
 the dial-log bullet, the way the `0.18.0` section pinned its interop proof;
-the part's capture logger runs at debug, all its assertions read, and
-empties its store before the attach.
+the part's capture logger runs at debug, the lowest level any of its
+assertions read, and empties its store before the attach. The third commit
+has the part snapshot the dial log right after the third `DialFailed` and
+judge the cadence over the first `DialFailed`-many lines, so a slow host
+that reaches the thirtieth redial before the read cannot add the stride's
+second warn to the proof, and has the two part-name pins carry the words
+beside the name in their own bullet, since both bullets share the
+`## Unreleased` section the pins read.
 
 ## 0.18.0 (upstream 0.14.0)
 

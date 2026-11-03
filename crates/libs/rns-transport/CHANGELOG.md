@@ -92,12 +92,12 @@ Removed) bullet of its own, marked as such.
   `src/bin/shared/rnstatus.rs` renders), and by
   `python_shared_instance_connect_count.rs` of the reticulumd
   `python_channel_interop` binary (a live Python rnsd, RNS 1.5.2, is the
-  shared instance, its listener `RNS/Interfaces/LocalInterface.py:49`, and
-  the transport attaches as a second Python program would,
-  `RNS/Reticulum.py:420-441`: the attached transport reads `Some(1)` after
-  `Connected`, still `Some(1)` across a kill of rnsd while at least three
-  `DialFailed` arrive, and `Some(2)` once rnsd is respawned on the same
-  port).
+  shared instance, its listener rebinding the same port by `SO_REUSEADDR`,
+  `RNS/Interfaces/LocalInterface.py:49`, and the transport attaches as a
+  second Python program would, `RNS/Reticulum.py:420-441`: the attached
+  transport reads `Some(1)` after `Connected`, still `Some(1)` across a
+  kill of rnsd while at least three `DialFailed` arrive, and `Some(2)` once
+  rnsd is respawned on the same port).
 
 ### Changed
 

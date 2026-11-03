@@ -391,8 +391,11 @@ fn dial_warn_stride_docs_name_the_source_literal() {
         changelog_section.contains(&squash(&claim)),
         "the changelog section naming DIAL_WARN_STRIDE should say {claim:?}"
     );
-    let tcp_wait = default_reconnect_wait_secs("crates/libs/rns-transport/src/iface/tcp_client.rs");
-    let unix_wait = default_reconnect_wait_secs("crates/libs/rns-transport/src/iface/local.rs");
+    let reconnect_wait = "DEFAULT_RECONNECT_WAIT";
+    let tcp_wait =
+        duration_const_secs("crates/libs/rns-transport/src/iface/tcp_client.rs", reconnect_wait);
+    let unix_wait =
+        duration_const_secs("crates/libs/rns-transport/src/iface/local.rs", reconnect_wait);
     assert_eq!(
         tcp_wait, unix_wait,
         "TcpClient and LocalUnixClient should share the DEFAULT_RECONNECT_WAIT the docs quote"
@@ -418,20 +421,18 @@ fn dial_warn_stride_docs_name_the_source_literal() {
     );
 }
 
-/// The seconds literal of `pub const DEFAULT_RECONNECT_WAIT: Duration =
-/// Duration::from_secs(<n>);` in a client source file.
-fn default_reconnect_wait_secs(file: &str) -> u64 {
-    let declaration = "const DEFAULT_RECONNECT_WAIT: Duration = Duration::from_secs(";
+/// The seconds literal of `const <name>: Duration = Duration::from_secs(<n>);`
+/// in a source file, with or without a `pub` in front.
+fn duration_const_secs(file: &str, name: &str) -> u64 {
+    let declaration = format!("const {name}: Duration = Duration::from_secs(");
     read_repo_file(file)
         .lines()
-        .find_map(|line| line.split_once(declaration))
+        .find_map(|line| line.split_once(declaration.as_str()))
         .and_then(|(_, tail)| tail.trim().strip_suffix(");"))
         .unwrap_or_else(|| panic!("{file} should declare `{declaration}<n>);`"))
         .trim()
         .parse()
-        .unwrap_or_else(|err| {
-            panic!("{file} DEFAULT_RECONNECT_WAIT should be an integer literal: {err}")
-        })
+        .unwrap_or_else(|err| panic!("{file} {name} should be an integer literal: {err}"))
 }
 
 /// The text of the first `## ` changelog section, whatever its heading
@@ -718,10 +719,10 @@ fn crate_readme_shared_instance_section_describes_interface_events() {
 /// manager read and the TCP status handle and JSON key underneath, the
 /// `Some(0)` an interface that is not a stream client reads for life and
 /// the `None` an address no record carries reads; the divergence register
-/// names the count as fork-only, and the `## Unreleased` release section
-/// that carries the bullet names the same items, the always-present JSON
-/// key, the source files, the black-box test files and the two
-/// docs-contract files that pin it.
+/// names the count as fork-only, and the changelog section that carries
+/// the bullet names the same items, the always-present JSON key, the
+/// source files, the black-box test files and the two docs-contract files
+/// that pin it.
 #[test]
 fn crate_readme_shared_instance_section_describes_interface_connect_count() {
     let readme = read_repo_file("crates/libs/rns-transport/README.md");
@@ -779,8 +780,11 @@ fn crate_readme_shared_instance_section_describes_interface_connect_count() {
 /// and the changelog bullet that names the getter, so none of the four can
 /// drift apart on its own. The README, the bullet and the transport
 /// getter's rustdoc (the manager's does not go into it) say in the same
-/// words what a client that gave up after `max_reconnect_tries` keeps
-/// reading. The TCP status handle's rustdoc dates its 0 from the first
+/// words what a `TcpClient` that gave up after `max_reconnect_tries` keeps
+/// reading, and the announce job tick they name as the cleanup pass that
+/// prunes it is read from `INTERVAL_ANNOUNCES_RETRANSMIT` in
+/// `src/transport/mod.rs`, so a retuned interval cannot leave the three
+/// stale. The TCP status handle's rustdoc dates its 0 from the first
 /// stream rather than from a dial, since a pre-supplied stream counts
 /// without one.
 #[test]
@@ -790,6 +794,13 @@ fn connect_count_rustdoc_twins_describe_the_stream_client_rule_alike() {
         "listeners, datagram, serial and KISS carriers, the I2P interface",
     ];
     let give_up = "keeps its last `Some(n)` until the manager prunes its record";
+    let tick = format!(
+        "{} s tick",
+        duration_const_secs(
+            "crates/libs/rns-transport/src/transport/mod.rs",
+            "INTERVAL_ANNOUNCES_RETRANSMIT"
+        )
+    );
     let readme = read_repo_file("crates/libs/rns-transport/README.md");
     let section = squash(crate_readme_section(&readme, "Attaching to a shared instance"));
     let changelog = read_repo_file("crates/libs/rns-transport/CHANGELOG.md");
@@ -816,18 +827,20 @@ fn connect_count_rustdoc_twins_describe_the_stream_client_rule_alike() {
             assert!(rustdoc.contains(&squash(rule)), "{file} rustdoc should say {rule:?}");
         }
     }
-    assert!(
-        section.contains(&squash(give_up)),
-        "the README shared-instance section should say {give_up:?}"
-    );
-    assert!(
-        changelog_section.contains(&squash(give_up)),
-        "the changelog section naming interface_connect_count should say {give_up:?}"
-    );
-    assert!(
-        transport_rustdoc.contains(&squash(give_up)),
-        "{transport_getter} rustdoc should say {give_up:?}"
-    );
+    for claim in [give_up, tick.as_str()] {
+        assert!(
+            section.contains(&squash(claim)),
+            "the README shared-instance section should say {claim:?}"
+        );
+        assert!(
+            changelog_section.contains(&squash(claim)),
+            "the changelog section naming interface_connect_count should say {claim:?}"
+        );
+        assert!(
+            transport_rustdoc.contains(&squash(claim)),
+            "{transport_getter} rustdoc should say {claim:?}"
+        );
+    }
     let handle = "its first stream is up";
     let tcp_client = "crates/libs/rns-transport/src/iface/tcp_client.rs";
     let rustdoc = squash(&doc_comment_text(&read_repo_file(tcp_client)));

@@ -717,10 +717,10 @@ interface manager carries the address: never minted, built with
 `InterfaceChannel::new`, as tests do, or already stopped and pruned, so the
 read goes `Some(n)` to `None` after `stop_interface`,
 `detach_shared_instance` or `stop`; a virtual interface reads its host's
-count. A client that gave up after `max_reconnect_tries` keeps its last
-`Some(n)` until the manager prunes its record, which needs no call: giving
-up cancels the interface's stop token, and the manager's next cleanup pass
-(every send, and the announce job's one-second tick) drops cancelled
+count. A `TcpClient` that gave up after `max_reconnect_tries` keeps its
+last `Some(n)` until the manager prunes its record, which needs no call:
+giving up cancels the interface's stop token, and the manager's next
+cleanup pass (every send, and the announce job's 1 s tick) drops cancelled
 records, so the read goes `None` within about a second. Below the
 transport, `InterfaceManager::connected_streams(&address)` is the same
 read. For a `TcpClient` the same count is also read through

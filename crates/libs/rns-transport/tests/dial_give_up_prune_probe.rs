@@ -1,18 +1,18 @@
-//! Usage probe for the two clauses of the give-up promise that `dial_give_up_text_probe.rs`
-//! leaves to the reader. The CHANGELOG says of the `TcpClient` give-up line that "the prefix
-//! and the level are unchanged", so a consumer filtering its logs at error still sees it;
-//! and the `Transport::interface_connect_count` rustdoc names the two cleanup passes that
-//! prune a client that gave up: "every send, and the announce job's one-second tick". This
-//! file pins the level, pins N as exactly `budget + 1` for a client that only ever reads
-//! `Connection refused`, and exercises the send pass on its own: once the give-up line is
-//! logged, one `Transport::send_packet` is enough for the next read to be `None`, with no
-//! `stop` call and without waiting on the tick. The tick pass is pinned by the text probe's
-//! prune poll, which sends nothing and polls until the read settles at `None`.
+//! Usage probe for the parts of the `TcpClient` give-up behaviour that
+//! `dial_give_up_text_probe.rs` leaves to the reader. The give-up line keeps the error
+//! level it always had, so a consumer filtering its logs at error still sees it, and its N
+//! is exactly `budget + 1` for a client that only ever reads `Connection refused`. Of the
+//! two manager cleanup passes that prune a client that gave up, this file exercises the
+//! send pass on its own: once the give-up line is logged, one `Transport::send_packet` is
+//! enough for the next read to be `None`, with no `stop` call and no poll. The tick pass
+//! is pinned by the text probe's prune poll, which sends nothing and polls until the read
+//! settles at `None`.
 
 use std::sync::{Mutex, Once};
 use std::time::Duration;
 
 use rns_transport::destination::DestinationName;
+use rns_transport::hash::AddressHash;
 use rns_transport::identity::PrivateIdentity;
 use rns_transport::iface::tcp_client::TcpClient;
 use rns_transport::rand_core::OsRng;
@@ -80,11 +80,7 @@ fn give_up_records(addr: &str) -> Vec<(log::Level, String)> {
 /// Spawns a `TcpClient` with `budget` reconnect tries against `addr` through `transport`
 /// and polls until its give-up line is logged; returns the interface address.
 #[deny(clippy::await_holding_invalid_type)]
-async fn spawn_and_give_up(
-    transport: &Transport,
-    addr: &str,
-    budget: u64,
-) -> rns_transport::hash::AddressHash {
+async fn spawn_and_give_up(transport: &Transport, addr: &str, budget: u64) -> AddressHash {
     let client = TcpClient::new(addr.to_string())
         .with_reconnect_wait(RECONNECT_WAIT)
         .with_max_reconnect_tries(Some(budget));
@@ -123,7 +119,9 @@ async fn the_give_up_line_is_an_error_record_naming_budget_plus_one_attempts() {
 
 /// One send through the transport is a cleanup pass: right after the give-up line, a
 /// `send_packet` leaves the record of the client that gave up pruned, so the next
-/// `interface_connect_count` reads `None` with no `stop` and no wait on the announce tick.
+/// `interface_connect_count` reads `None` with no `stop` call. The send is the pass under
+/// test; the announce job's 1 s tick is not excluded, only not polled for, so a tick that
+/// lands first makes the same read `None` for the other reason.
 #[tokio::test]
 #[deny(clippy::await_holding_invalid_type)]
 async fn one_send_after_the_give_up_line_prunes_the_record() {

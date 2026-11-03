@@ -1,13 +1,10 @@
 //! Usage probes for the `TcpClient` give-up line and the count it leaves behind. The
-//! CHANGELOG names the connect line's suffix ` after N failed attempt(s)`; the give-up
-//! line a client logs once its `max_reconnect_tries` budget is spent uses the same
-//! `failed attempt(s)` form, with N above the budget, so a consumer grepping its logs
-//! matches both lines with one needle. The `Transport::interface_connect_count` rustdoc
-//! adds: "A client that gave up after `max_reconnect_tries` keeps its last `Some(n)` until
-//! the manager prunes its record, which needs no call: giving up cancels the interface's
-//! stop token, and the manager's next cleanup pass (every send, and the announce job's
-//! one-second tick) drops cancelled records, so the read goes `None` within about a
-//! second."
+//! give-up line a client logs once its `max_reconnect_tries` budget is spent ends in the
+//! same ` after N failed attempt(s)` suffix as the connect line, with N above the budget,
+//! so a consumer grepping its logs matches both lines with one needle. On the transport,
+//! a client that gave up reads its last `Some(n)` until the manager prunes its record,
+//! which no call has to trigger: the next cleanup pass drops it and the read goes `None`
+//! within about a second.
 //!
 //! Each test therefore reads the count right after the give-up line as `Some(n)` or
 //! already `None`, polls it until it settles at `None` without calling `stop`, and checks

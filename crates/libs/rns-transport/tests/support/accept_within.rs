@@ -8,6 +8,7 @@ use tokio::time::timeout;
 
 const WAIT: Duration = Duration::from_secs(5);
 
+/// The next stream `listener` accepts within a 5 s deadline, or a panic naming `what`.
 #[deny(clippy::await_holding_invalid_type)]
 pub async fn accept_within(listener: &TcpListener, what: &str) -> TcpStream {
     timeout(WAIT, listener.accept())

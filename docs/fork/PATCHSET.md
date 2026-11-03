@@ -39,7 +39,7 @@ The `batch hygiene` patch is fork commits `224da262`, `ede00f4c`,
 connect count interop` patch carries no other id and is fork commits
 `e18dcc2b`, `4630ce11`, `d0a47981` and `f42185b7`. The `release 0.18.1`
 patch carries no other id and is fork commits `970effab`, `05b7fd8b`,
-`559e28cd`, `053a23de` and `9782e586`.
+`559e28cd`, `053a23de`, `9782e586`, `8563a616`, `15725d60` and `8768b905`.
 
 | File | Patch |
 | --- | --- |
@@ -423,9 +423,10 @@ reads, in the same words, which `crate_readme_sections.rs` requires of
 both, and cites the listener's `SO_REUSEADDR` as `:46-49`, the non-Windows
 branch, in the connect-counter bullet, the part's rustdoc and here.
 
-Fork commits `970effab`, `05b7fd8b`, `559e28cd`, `053a23de` and `9782e586`:
-release 0.18.1. The first bumps the crate version to 0.18.1 at every
-manifest and consumer-snippet site (`Cargo.toml`,
+Fork commits `970effab`, `05b7fd8b`, `559e28cd`, `053a23de`, `9782e586`,
+`8563a616`, `15725d60` and `8768b905`: release 0.18.1. The first bumps the
+crate version to 0.18.1 at every manifest and consumer-snippet site
+(`Cargo.toml`,
 `crates/libs/rns-transport/Cargo.toml`, `crates/apps/reticulumd/Cargo.toml`,
 `crates/apps/rns-tools/Cargo.toml`, the snippet in
 `crates/libs/rns-transport/README.md` and `docs/getting-started.md`) and in
@@ -458,10 +459,14 @@ keeps its order and its needles through a shared const; and it adds
 `crates/apps/reticulumd/tests/fork_release_docs_contract_parts/release_0_18_1_probe.rs`,
 included from `crates/apps/reticulumd/tests/fork_release_docs_contract.rs`,
 which pins the heading date and its place as the first release heading,
-the absence of a `### Breaking` subsection with `### Added` first, the
-connect-count items under `### Added`, the cadence bullet's
-`DIAL_WARN_STRIDE` and ` (attempt N)` wording, the patch digit and semver
-sentence of the version bullet, and the README patch-list order. The
+the subsection set of a patch release (`### Added` then `### Changed` and
+nothing else, so neither `### Breaking` nor `### Fixed`), the connect-count
+getter and the `"connected_streams"` status key under `### Added`, the
+failed-connect bullet found by its opening words carrying `DIAL_WARN_STRIDE`
+and ` (attempt N)`, the patch digit and semver sentence of the version
+bullet, the one `- No library behaviour change (CI):` bullet naming the lxmd
+smoke script, its `127.0.0.1:0` bind and the probe that pins it, and the
+README patch-list order. The
 fourth adopts `crates/libs/rns-transport/tests/dial_give_up_needle_probe.rs`
 (`one_needle_matches_the_connect_line_and_the_give_up_line`: of every line
 a `TcpClient` logs for its endpoint exactly two end in ` failed
@@ -476,8 +481,33 @@ no call made) and cites it from the give-up bullet of the crate
 disarm its capture logger from a drop guard bound before the rnsd child
 guard, so a run that panics leaves the binary's logger off for the tests
 that follow as the happy path does, and says so in the test-helpers bullet
-of the crate `CHANGELOG.md`. The ledger commit that cites the five commits
-above touches only this file.
+of the crate `CHANGELOG.md`. The sixth tightens
+`crates/apps/reticulumd/tests/fork_release_docs_contract_parts/release_0_18_1_probe.rs`
+to the pins listed above: the subsection set is asserted as a whole where
+only the first name and the absence of `### Breaking` were, the cadence pin
+reads the failed-connect bullet alone where the version bullet's mention of
+the cadence used to satisfy it, the status-key needle is the quoted key
+rather than the getter name, and the CI-only bullet gains its pin; it also
+rewords the full-hash label pin's rustdoc in
+`crates/apps/reticulumd/tests/fork_publish_contract_parts/ledger_contract.rs`
+to name the newest released section without a version literal. The seventh
+scopes the Python-in-the-loop bullet of the 0.18.1 block in
+`crates/libs/rns-transport/README.md` to the claim the test makes, exactly
+one warn over the first three or more redials while rnsd is down, since
+`DIAL_WARN_STRIDE` warns again on a longer outage, and names
+`tests/dial_give_up_needle_probe.rs` among the `wait_until` and
+`accept_within` consumers in the test-helpers bullet of the crate
+`CHANGELOG.md`. The eighth folds the arming into `ArmedCapture::arm()` in
+`crates/apps/reticulumd/tests/python_channel_interop_parts/python_shared_instance_connect_count.rs`,
+so the guard establishes the state it undoes, and has `arm_capture` and
+`disarm_capture` take the record mutex poison-tolerantly, so the disarm
+running from `Drop` during an unwind cannot abort the binary; and in
+`crates/libs/rns-transport/tests/dial_give_up_needle_probe.rs` it asserts
+that the refused dials before and after the short stream total exactly the
+budget, since every refused dial logs its line before the give-up check and
+the short stream is counted without one, and replaces the `rsplit` whose
+`None` arm could not fire in `trailing_count` with `rsplit_once`. The
+ledger commits that cite the eight commits above touch only this file.
 
 ## 0.18.0 (upstream 0.14.0)
 

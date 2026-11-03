@@ -393,9 +393,12 @@ fn dial_warn_stride_docs_name_the_source_literal() {
         changelog_section.contains(&squash(&claim)),
         "the changelog section naming DIAL_WARN_STRIDE should say {claim:?}"
     );
+    let part_clause =
+        "checking `iface/local.rs` declares the same, and by `python_shared_instance_connect_count.rs`";
     assert!(
-        changelog_section.contains("`python_shared_instance_connect_count.rs`"),
-        "the changelog section naming DIAL_WARN_STRIDE should name the Python-in-the-loop part"
+        changelog_section.contains(&squash(part_clause)),
+        "the dial-log bullet should name the Python-in-the-loop part in its Pinned-by clause: \
+         {part_clause:?}"
     );
     let reconnect_wait = "DEFAULT_RECONNECT_WAIT";
     let tcp_wait =
@@ -776,7 +779,7 @@ fn crate_readme_shared_instance_section_describes_interface_connect_count() {
         "`transport/core_parts/interface_events.rs`",
         "`request_layer_api_docs.rs`",
         "`crate_readme_sections.rs`",
-        "`python_shared_instance_connect_count.rs`",
+        "`src/bin/shared/rnstatus.rs` renders), and by `python_shared_instance_connect_count.rs`",
         "`RNS/Reticulum.py:420-441`",
         "`RNS/Interfaces/LocalInterface.py:49`",
     ] {

@@ -148,31 +148,35 @@ async fn run_python_rnsd_shared_instance_tcp_connect_count_across_restart() {
     })
     .await
     .expect("three DialFailed arrive while rnsd is down");
+    // The dial log warns on the first failure and debugs the rest until the
+    // kind changes or the thirtieth attempt; a killed rnsd refuses every
+    // redial, so the snapshot is taken now and read over the first
+    // `dial_failures` lines, each logged before its DialFailed is
+    // published, which keeps a slow host's later redials out of the proof.
+    let dial_lines = captured_lines_containing(&dial_failed_needle);
     assert_eq!(
         transport.interface_connect_count(&iface).await,
         Some(1),
         "failed redials do not move the count"
     );
 
-    // The dial log warns on the first failure and debugs the rest until the
-    // kind changes or the thirtieth attempt; a killed rnsd refuses every
-    // redial, and three of them arrive long before thirty.
-    let dial_lines = captured_lines_containing(&dial_failed_needle);
     assert!(
         dial_lines.len() >= dial_failures,
         "the dial log has {} lines after {dial_failures} DialFailed: {dial_lines:#?}",
         dial_lines.len()
     );
-    let warns: Vec<&String> = dial_lines
+    let first_dials = &dial_lines[..dial_failures];
+    let warns: Vec<&String> = first_dials
         .iter()
         .filter(|(level, _)| *level == log::Level::Warn)
         .map(|(_, message)| message)
         .collect();
-    assert_eq!(warns.len(), 1, "one warn for a steady refusal: {dial_lines:#?}");
+    assert_eq!(warns.len(), 1, "one warn for a steady refusal: {first_dials:#?}");
     assert!(warns[0].ends_with("(attempt 1)"), "the warn is the first attempt: {:?}", warns[0]);
+    assert!(first_dials[0].0 == log::Level::Warn, "the warn is the first line: {first_dials:#?}");
     assert!(
-        dial_lines.iter().all(|(level, _)| matches!(level, log::Level::Warn | log::Level::Debug)),
-        "every other dial line is debug: {dial_lines:#?}"
+        first_dials[1..].iter().all(|(level, _)| *level == log::Level::Debug),
+        "every other dial line is debug: {first_dials:#?}"
     );
 
     let mut rnsd = paths.spawn_rnsd(&dir);

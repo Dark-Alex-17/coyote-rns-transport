@@ -138,7 +138,36 @@ Removed) bullet of its own, marked as such.
   missing path), and by `crate_readme_sections.rs` of the reticulumd
   `fork_release_docs_contract`, which reads `DIAL_WARN_STRIDE` from
   `src/iface/dial_log.rs` and requires the README register row, the README
-  shared-instance paragraph and this bullet to name `every 30th attempt`.
+  shared-instance paragraph and this bullet to name `every 30th attempt`,
+  and derives the `every 150 s` the bullet and the `dial_log.rs` rustdoc
+  name from `DEFAULT_RECONNECT_WAIT` in `iface/tcp_client.rs`, checking
+  `iface/local.rs` declares the same.
+- The TCP client's give-up error line (`iface/tcp_client.rs`),
+  `max TCP reconnect attempts reached for <endpoint> after N failed
+  attempt(s)`, uses the same `attempt(s)` form as its connect info line;
+  the prefix and the level are unchanged.
+- Test helpers, test-only: the pure helpers the dial-log and connect-count
+  test binaries each carried a copy of live once under `tests/support/`,
+  one helper per file, included by the binaries that use them:
+  `tests/support/attempt_number.rs`, `tests/support/recv_within.rs` and
+  `tests/support/recv_failures.rs` (the interface-checking form) for
+  `tests/dial_failure_events_api.rs`, `tests/dial_log_cadence_probe.rs`,
+  `tests/dial_log_status_probe.rs` and `tests/dial_log_text_probe.rs`,
+  whose capture logger and the readers of its per-binary store stay in
+  each binary; `tests/support/wait_until.rs`,
+  `tests/support/wait_for_count.rs`, `tests/support/await_kind.rs` (the
+  predicate form), `tests/support/accept_within.rs`,
+  `tests/support/close_orderly.rs` and
+  `tests/support/spawn_plain_client.rs` (taking the reconnect wait) for
+  `tests/interface_connect_count_api.rs`,
+  `tests/interface_connect_count_probe.rs` and
+  `tests/interface_connect_count_lag_probe.rs`. The lag probe's bound on
+  `Lagged` allows one event of slack, the `Connected` the count moves
+  ahead of, and the probe's server-side `Transport` is `server_transport`.
+  The rns-tools `rnpath_cli`, `rnprobe_cli` and `rnsd_cli` help tests clear
+  `CLICOLOR_FORCE` and set `NO_COLOR` like the `rnstatus_cli` one, so a
+  caller shell that forces clap's styling cannot fail their substring
+  pins.
 
 ## 0.18.0 - 2026-11-01
 

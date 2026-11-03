@@ -203,7 +203,12 @@ Removed) bullet of its own, marked as such.
   an error-level record whose N is the budget plus one, for budgets of 1
   and 3; one `Transport::send_packet` after the give-up line is enough for
   the next count read to be `None`, with no `stop` call and no wait on the
-  tick).
+  tick), and by `tests/dial_give_up_needle_probe.rs` (one needle,
+  ` failed attempt(s)`, matches exactly two of the lines a client logs for
+  its endpoint, the info connect line and the error give-up line, and the
+  give-up count is the budget plus one after a stream dropped before
+  `MIN_STABLE_CONNECTION`; the give-up record is pruned within about a
+  second of the line with no call made).
 - Test helpers, test-only: the pure helpers the dial-log and connect-count
   test binaries each carried a copy of live once under `tests/support/`,
   one helper per file, each binary including the helpers it uses:

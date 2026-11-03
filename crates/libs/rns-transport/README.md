@@ -730,6 +730,11 @@ key, always present, of `TcpClient::runtime_status_json()` and
 Python has no equivalent: its reconnect loop keeps only a per-burst local
 `attempts` and no count of established streams
 (`RNS/Interfaces/TCPInterface.py:270-298`, `:274-277`).
+`crates/apps/reticulumd/tests/python_channel_interop_parts/python_shared_instance_connect_count.rs`
+attaches this crate to a Python `rnsd` (RNS 1.5.2) shared instance, reads
+`Some(1)` after `Connected`, kills rnsd, reads at least three `DialFailed`
+and the one-warn-then-debug dial log while it is down, and reads `Some(2)`
+once rnsd is back on the same port.
 
 A `Tcp` endpoint whose address is not loopback is refused with
 `RnsError::SharedInstanceEndpointNotLoopback` before any lock is taken, with

@@ -37,7 +37,7 @@ counter, M3 is batch hygiene. The `smoke ports` patch is fork commits
 The `batch hygiene` patch is fork commits `224da262`, `ede00f4c`,
 `81947745`, `d607fd51`, `4cfe7649` and `811fe217`. The `Python-in-the-loop
 connect count interop` patch carries no other id and is fork commits
-`e18dcc2b`, `4630ce11` and `d0a47981`.
+`e18dcc2b`, `4630ce11`, `d0a47981` and `f42185b7`.
 
 | File | Patch |
 | --- | --- |
@@ -366,9 +366,9 @@ names the cleanup pass as the announce job's 1 s tick and has
 probes paraphrase the clause instead of quoting it, and `accept_within.rs`
 and `wait_until.rs` gain item docs.
 
-Fork commits `e18dcc2b`, `4630ce11`, `d0a47981`: Python-in-the-loop connect
-count interop. A Python rnsd (RNS 1.5.2) is the shared instance on a free TCP
-port, and this crate attaches to it as a local client the way a second
+Fork commits `e18dcc2b`, `4630ce11`, `d0a47981`, `f42185b7`: Python-in-the-loop
+connect count interop. A Python rnsd (RNS 1.5.2) is the shared instance on a
+free TCP port, and this crate attaches to it as a local client the way a second
 Python program does (`RNS/Reticulum.py:420-441`):
 `crates/apps/reticulumd/tests/python_channel_interop_parts/python_shared_instance_connect_count.rs`,
 included from `crates/apps/reticulumd/tests/python_channel_interop.rs`,
@@ -382,15 +382,15 @@ binary installs a capture `log::Log` for it, its first; Python has no
 counter and logs each failed dial at `LOG_DEBUG`,
 `RNS/Interfaces/TCPInterface.py:288`, `RNS/Interfaces/LocalInterface.py:167`),
 respawns rnsd on the same config dir and port (the listener sets
-`SO_REUSEADDR`,
-`RNS/Interfaces/LocalInterface.py:49`, so the rebind is immediate) and
+`SO_REUSEADDR` on non-Windows hosts,
+`RNS/Interfaces/LocalInterface.py:46-49`, so the rebind is immediate) and
 reads `Connected`, `Some(2)` and one info line
 `connected to <endpoint> after N failed attempt(s)` with N at least the
 `DialFailed` read; the section's Python-in-the-loop proof rows. The same
 commit adds the sentence naming the proof to the README
 `interface_connect_count` paragraph. The second commit has
 `crates/apps/reticulumd/tests/fork_release_docs_contract_parts/crate_readme_sections.rs`
-require that README sentence, the part's name and the two Python
+require that README sentence name the part, the part's name and the two Python
 references in the connect-counter CHANGELOG bullet, and the part's name in
 the dial-log bullet, the way the `0.18.0` section pinned its interop proof;
 the part's capture logger runs at debug, the lowest level any of its
@@ -400,7 +400,15 @@ judge the cadence over the first `DialFailed`-many lines, so a slow host
 that reaches the thirtieth redial before the read cannot add the stride's
 second warn to the proof, and has the two part-name pins carry the words
 beside the name in their own bullet, since both bullets share the
-`## Unreleased` section the pins read.
+`## Unreleased` section the pins read. The fourth commit has the capture
+logger store a record only while the run has it armed, reading from a mark
+taken after the first `Connected` and disarming with the level filter off
+before the teardown, so the binary's other tests keep nothing when they
+share the process; it scopes the dial-log CHANGELOG bullet and the README
+sentence to the cadence over the first three or more redials the part
+reads, in the same words, which `crate_readme_sections.rs` requires of
+both, and cites the listener's `SO_REUSEADDR` as `:46-49`, the non-Windows
+branch, in the connect-counter bullet, the part's rustdoc and here.
 
 ## 0.18.0 (upstream 0.14.0)
 

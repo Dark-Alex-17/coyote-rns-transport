@@ -10,114 +10,52 @@
 //! the last count.
 
 use std::net::SocketAddr;
-use std::time::{Duration, Instant};
+use std::time::Duration;
+#[cfg(unix)]
+use std::time::Instant;
 
 use rns_transport::hash::AddressHash;
 #[cfg(unix)]
 use rns_transport::iface::local::{LocalUnixEndpoint, LocalUnixServer};
-use rns_transport::iface::tcp_client::{TcpClient, TcpRuntimeStatusHandle};
 use rns_transport::iface::tcp_server::TcpServer;
 use rns_transport::iface::IfaceRole;
-use rns_transport::transport::{InterfaceEvent, InterfaceEventKind, Transport};
-use tokio::io::{AsyncRead, AsyncReadExt as _, AsyncWrite, AsyncWriteExt as _};
+use rns_transport::transport::InterfaceEventKind;
 use tokio::net::{TcpListener, TcpStream};
-use tokio::sync::broadcast;
-use tokio::sync::broadcast::error::RecvError;
 #[cfg(unix)]
 use tokio::sync::broadcast::error::TryRecvError;
 use tokio::time::timeout;
 
+#[path = "support/accept_within.rs"]
+mod accept_within;
+#[path = "support/await_kind.rs"]
+mod await_kind;
 #[path = "support/client_transport.rs"]
 mod client_transport;
+#[path = "support/close_orderly.rs"]
+mod close_orderly;
 #[path = "support/free_loopback_port.rs"]
 mod free_loopback_port;
+#[path = "support/spawn_plain_client.rs"]
+mod spawn_plain_client;
+#[path = "support/wait_for_count.rs"]
+mod wait_for_count;
+#[path = "support/wait_until.rs"]
+mod wait_until;
+use accept_within::accept_within;
+use await_kind::await_kind;
 use client_transport::client_transport;
+use close_orderly::close_orderly;
 use free_loopback_port::free_loopback_port;
+use spawn_plain_client::spawn_plain_client;
+use wait_for_count::wait_for_count;
+use wait_until::wait_until;
 
 const WAIT: Duration = Duration::from_secs(5);
+#[cfg(unix)]
 const POLL: Duration = Duration::from_millis(20);
 const RECONNECT_WAIT: Duration = Duration::from_millis(50);
 #[cfg(unix)]
 const QUIET: Duration = Duration::from_millis(300);
-
-#[deny(clippy::await_holding_invalid_type)]
-async fn wait_until(what: &str, mut condition: impl FnMut() -> bool) {
-    let deadline = Instant::now() + WAIT;
-    while !condition() {
-        assert!(Instant::now() < deadline, "timed out waiting for {what}");
-        tokio::time::sleep(POLL).await;
-    }
-}
-
-/// Polls `transport.interface_connect_count(iface)` until it reads `expected`.
-#[deny(clippy::await_holding_invalid_type)]
-async fn wait_for_count(what: &str, transport: &Transport, iface: AddressHash, expected: u64) {
-    let deadline = Instant::now() + WAIT;
-    loop {
-        let count = transport.interface_connect_count(&iface).await;
-        if count == Some(expected) {
-            return;
-        }
-        assert!(Instant::now() < deadline, "timed out waiting for {what}: read {count:?}");
-        tokio::time::sleep(POLL).await;
-    }
-}
-
-/// The next event tagged with `iface` whose kind satisfies `wanted`; other events are skipped.
-#[deny(clippy::await_holding_invalid_type)]
-async fn await_kind(
-    what: &str,
-    events: &mut broadcast::Receiver<InterfaceEvent>,
-    iface: AddressHash,
-    mut wanted: impl FnMut(InterfaceEventKind) -> bool,
-) {
-    timeout(WAIT, async {
-        loop {
-            match events.recv().await {
-                Ok(event) if event.iface() == iface && wanted(event.kind()) => return,
-                Ok(_) | Err(RecvError::Lagged(_)) => continue,
-                Err(RecvError::Closed) => panic!("{what}: the interface event stream closed"),
-            }
-        }
-    })
-    .await
-    .unwrap_or_else(|_| panic!("{what} timed out"))
-}
-
-#[deny(clippy::await_holding_invalid_type)]
-async fn accept_within(listener: &TcpListener, what: &str) -> TcpStream {
-    timeout(WAIT, listener.accept())
-        .await
-        .unwrap_or_else(|_| panic!("{what} timed out"))
-        .unwrap_or_else(|err| panic!("{what} failed: {err}"))
-        .0
-}
-
-/// Shuts the write side down and reads to the peer's EOF before dropping the stream, so
-/// the peer reads a FIN rather than a reset.
-#[deny(clippy::await_holding_invalid_type)]
-async fn close_orderly(mut stream: impl AsyncRead + AsyncWrite + Unpin) {
-    stream.shutdown().await.expect("shut the write side down");
-    timeout(WAIT, async {
-        let mut sink = [0u8; 1024];
-        while stream.read(&mut sink).await.expect("drain the peer's writes") > 0 {}
-    })
-    .await
-    .expect("timed out waiting for the peer to close its side");
-}
-
-/// Spawns a plain `TcpClient` to `endpoint` through `transport`'s interface manager with
-/// the short reconnect wait; returns its interface address and its status handle.
-#[deny(clippy::await_holding_invalid_type)]
-async fn spawn_plain_client(
-    transport: &Transport,
-    endpoint: SocketAddr,
-) -> (AddressHash, TcpRuntimeStatusHandle) {
-    let client = TcpClient::new(endpoint.to_string()).with_reconnect_wait(RECONNECT_WAIT);
-    let status = client.runtime_status_handle();
-    let iface = transport.iface_manager().lock().await.spawn(client, TcpClient::spawn);
-    (iface, status)
-}
 
 /// The accepted peer's interface the server's status names, parsed back from the
 /// `latest_client_iface` display form `/<hex>/`.
@@ -136,16 +74,17 @@ fn latest_client_iface(server_status: &serde_json::Value) -> AddressHash {
 #[tokio::test]
 #[deny(clippy::await_holding_invalid_type)]
 async fn a_tcp_server_counts_each_accepted_peer_on_its_own_record() {
-    let listener = client_transport("connect-count-server");
+    let server_transport = client_transport("connect-count-server");
     let port = free_loopback_port().await;
-    let server = TcpServer::new(format!("127.0.0.1:{port}"), listener.iface_manager());
+    let server = TcpServer::new(format!("127.0.0.1:{port}"), server_transport.iface_manager());
     let server_status = server.runtime_status_handle();
-    let server_iface = listener.iface_manager().lock().await.spawn(server, TcpServer::spawn);
+    let server_iface =
+        server_transport.iface_manager().lock().await.spawn(server, TcpServer::spawn);
     wait_until("the listener to listen", || {
         server_status.to_json()["listener_state"].as_str() == Some("listening")
     })
     .await;
-    assert_eq!(listener.interface_connect_count(&server_iface).await, Some(0));
+    assert_eq!(server_transport.interface_connect_count(&server_iface).await, Some(0));
 
     let first = TcpStream::connect(("127.0.0.1", port)).await.expect("the first peer connects");
     wait_until("the first accept", || {
@@ -153,7 +92,7 @@ async fn a_tcp_server_counts_each_accepted_peer_on_its_own_record() {
     })
     .await;
     let first_iface = latest_client_iface(&server_status.to_json());
-    wait_for_count("the first peer's stream", &listener, first_iface, 1).await;
+    wait_for_count("the first peer's stream", &server_transport, first_iface, 1).await;
     assert_eq!(
         server_status.to_json()["latest_stream_status"]["connected_streams"].as_u64(),
         Some(1),
@@ -167,21 +106,21 @@ async fn a_tcp_server_counts_each_accepted_peer_on_its_own_record() {
     .await;
     let second_iface = latest_client_iface(&server_status.to_json());
     assert_ne!(second_iface, first_iface, "each accepted peer has its own interface");
-    wait_for_count("the second peer's stream", &listener, second_iface, 1).await;
+    wait_for_count("the second peer's stream", &server_transport, second_iface, 1).await;
     assert_eq!(
-        listener.interface_connect_count(&first_iface).await,
+        server_transport.interface_connect_count(&first_iface).await,
         Some(1),
         "the second accept does not touch the first peer's record"
     );
     assert_eq!(
-        listener.interface_connect_count(&server_iface).await,
+        server_transport.interface_connect_count(&server_iface).await,
         Some(0),
         "the listening interface itself establishes no stream"
     );
 
     close_orderly(first).await;
     close_orderly(second).await;
-    timeout(WAIT, listener.stop()).await.expect("listener stop completes");
+    timeout(WAIT, server_transport.stop()).await.expect("transport stop completes");
 }
 
 /// The unix twin of the test above. A `LocalUnixServer` has no status handle, so the
@@ -248,7 +187,7 @@ async fn a_virtual_interface_reads_its_hosts_count() {
     let endpoint: SocketAddr = format!("127.0.0.1:{port}").parse().expect("endpoint");
     let transport = client_transport("connect-count-virtual");
     let mut events = transport.interface_events();
-    let (host, _status) = spawn_plain_client(&transport, endpoint).await;
+    let (host, _status) = spawn_plain_client(&transport, endpoint, RECONNECT_WAIT).await;
     let child = transport
         .iface_manager()
         .lock()
@@ -293,8 +232,10 @@ async fn sibling_clients_keep_separate_counts() {
     let refused: SocketAddr = format!("127.0.0.1:{refused_port}").parse().expect("endpoint");
     let transport = client_transport("connect-count-siblings");
     let mut events = transport.interface_events();
-    let (served_iface, served_status) = spawn_plain_client(&transport, served).await;
-    let (refused_iface, refused_status) = spawn_plain_client(&transport, refused).await;
+    let (served_iface, served_status) =
+        spawn_plain_client(&transport, served, RECONNECT_WAIT).await;
+    let (refused_iface, refused_status) =
+        spawn_plain_client(&transport, refused, RECONNECT_WAIT).await;
     assert_ne!(served_iface, refused_iface);
 
     let listener = TcpListener::bind(served).await.expect("bind the served port");
@@ -338,7 +279,7 @@ async fn a_stopped_interface_reads_none_while_its_handle_keeps_the_last_count() 
     let endpoint: SocketAddr = format!("127.0.0.1:{port}").parse().expect("endpoint");
     let transport = client_transport("connect-count-stopped");
     let mut events = transport.interface_events();
-    let (iface, status) = spawn_plain_client(&transport, endpoint).await;
+    let (iface, status) = spawn_plain_client(&transport, endpoint, RECONNECT_WAIT).await;
 
     let listener = TcpListener::bind(endpoint).await.expect("bind the port the client dials");
     let stream = accept_within(&listener, "the connect").await;

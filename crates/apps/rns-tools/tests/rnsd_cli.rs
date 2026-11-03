@@ -2,9 +2,13 @@ use std::process::Command;
 
 #[test]
 fn rnsd_honors_reticulumd_bin_and_forwards_help_output() {
+    // clap styles the help text when CLICOLOR_FORCE is set in the caller's
+    // shell; NO_COLOR overrides it and the substring pins need plain output.
     let output = Command::new(rnsd_bin())
         .env("RETICULUMD_BIN", rnpath_bin())
         .arg("--help")
+        .env_remove("CLICOLOR_FORCE")
+        .env("NO_COLOR", "1")
         .output()
         .expect("run rnsd delegated help");
 

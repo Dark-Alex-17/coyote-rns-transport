@@ -23,13 +23,19 @@ use std::time::Duration;
 
 use rns_transport::iface::tcp_client::TcpClient;
 use rns_transport::iface::InterfaceManager;
-use rns_transport::transport::{DialFailure, DialFailureKind};
+use rns_transport::transport::DialFailureKind;
 use tokio::sync::mpsc;
 use tokio::time::timeout;
 
+#[path = "support/attempt_number.rs"]
+mod attempt_number;
 #[path = "support/free_loopback_port.rs"]
 mod free_loopback_port;
+#[path = "support/recv_failures.rs"]
+mod recv_failures;
+use attempt_number::attempt_number;
 use free_loopback_port::free_loopback_port;
+use recv_failures::recv_failures;
 
 const RECONNECT_WAIT: Duration = Duration::from_millis(50);
 const CHANNEL_CAPACITY: usize = 128;
@@ -76,27 +82,6 @@ fn lines_containing(needle: &str) -> Vec<(log::Level, String)> {
         .filter(|(_, message)| message.contains(needle))
         .cloned()
         .collect()
-}
-
-/// The `N` of a failed-dial line's trailing `(attempt N)`.
-fn attempt_number(message: &str) -> u64 {
-    let (_, tail) = message.rsplit_once(" (attempt ").expect("the line ends in its attempt");
-    tail.strip_suffix(')')
-        .expect("the attempt is parenthesised")
-        .parse()
-        .unwrap_or_else(|err| panic!("attempt number in {message:?}: {err}"))
-}
-
-/// `count` failures in a row of the expected kind, one item per attempt.
-#[deny(clippy::await_holding_invalid_type)]
-async fn recv_failures(rx: &mut mpsc::Receiver<DialFailure>, kind: DialFailureKind, count: usize) {
-    for attempt in 1..=count {
-        let failure = timeout(Duration::from_secs(3), rx.recv())
-            .await
-            .unwrap_or_else(|_| panic!("dial failure {attempt} timed out"))
-            .unwrap_or_else(|| panic!("dial failure channel closed before attempt {attempt}"));
-        assert_eq!(failure.kind(), kind, "attempt {attempt}");
-    }
 }
 
 /// Exactly one warn, numbered 1, and at least `min_debugs` debug lines, every
@@ -159,10 +144,11 @@ async fn tcp_runtime_status_counts_the_debug_level_attempts_too() {
 
     let mut manager = InterfaceManager::new(8);
     let context = manager.new_context(client);
+    let iface = context.channel.address;
     let cancel = context.cancel.clone();
     let task = tokio::spawn(TcpClient::spawn(context));
 
-    recv_failures(&mut failure_rx, DialFailureKind::Refused, 4).await;
+    recv_failures(&mut failure_rx, iface, DialFailureKind::Refused, 4).await;
     let lines = lines_containing(&format!("couldn't connect to <{addr}>: "));
     assert_cadence(&lines, 3, "Connection refused");
     assert_status_counts_every_attempt(&status.to_json(), &addr, &lines, 4, "Connection refused");
@@ -191,10 +177,11 @@ async fn tcp_timed_out_dials_follow_the_same_cadence_and_count() {
 
     let mut manager = InterfaceManager::new(8);
     let context = manager.new_context(client);
+    let iface = context.channel.address;
     let cancel = context.cancel.clone();
     let task = tokio::spawn(TcpClient::spawn(context));
 
-    recv_failures(&mut failure_rx, DialFailureKind::Timeout, 3).await;
+    recv_failures(&mut failure_rx, iface, DialFailureKind::Timeout, 3).await;
     let text = format!("connect timed out after {connect_timeout:?}");
     let lines = lines_containing(&format!("couldn't connect to <{addr}>: "));
     assert_cadence(&lines, 2, &text);

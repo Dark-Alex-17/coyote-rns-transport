@@ -38,7 +38,6 @@ use std::path::{Path, PathBuf};
 use std::sync::{Mutex, Once};
 use std::time::Duration;
 
-use rns_transport::hash::AddressHash;
 #[cfg(unix)]
 use rns_transport::iface::local::{LocalUnixClient, LocalUnixEndpoint};
 use rns_transport::iface::tcp_client::TcpClient;
@@ -50,9 +49,18 @@ use tokio::net::UnixListener;
 use tokio::sync::mpsc;
 use tokio::time::timeout;
 
+#[path = "support/attempt_number.rs"]
+mod attempt_number;
 #[path = "support/free_loopback_port.rs"]
 mod free_loopback_port;
+#[path = "support/recv_failures.rs"]
+mod recv_failures;
+#[path = "support/recv_within.rs"]
+mod recv_within;
+use attempt_number::attempt_number;
 use free_loopback_port::free_loopback_port;
+use recv_failures::recv_failures;
+use recv_within::recv_within;
 
 const RECONNECT_WAIT: Duration = Duration::from_millis(50);
 
@@ -136,15 +144,6 @@ fn failed_unix_dial_warns() -> Vec<String> {
     warns_containing("couldn't connect local unix client <")
 }
 
-/// The `N` of a failed-dial line's trailing `(attempt N)`.
-fn attempt_number(message: &str) -> u64 {
-    let (_, tail) = message.rsplit_once(" (attempt ").expect("the line ends in its attempt");
-    tail.strip_suffix(')')
-        .expect("the attempt is parenthesised")
-        .parse()
-        .unwrap_or_else(|err| panic!("attempt number in {message:?}: {err}"))
-}
-
 /// Exactly one warn and at least `min_debugs` debug lines, every one of
 /// them numbered, the warn being attempt 1 and the numbers covering
 /// 1..=`min_debugs + 1`: the cadence a peer that stays down produces until
@@ -200,14 +199,6 @@ fn set_mode(path: &Path, mode: u32) {
     fs::set_permissions(path, fs::Permissions::from_mode(mode)).expect("chmod the socket dir");
 }
 
-#[deny(clippy::await_holding_invalid_type)]
-async fn recv_within<T>(what: &str, rx: &mut mpsc::Receiver<T>) -> T {
-    timeout(Duration::from_secs(2), rx.recv())
-        .await
-        .unwrap_or_else(|_| panic!("{what} timed out"))
-        .unwrap_or_else(|| panic!("{what} channel closed"))
-}
-
 /// Once the connect has fired, the dial-failure channel must stay quiet; a
 /// grace window of several reconnect waits is the only witness an absence
 /// test can have.
@@ -217,22 +208,6 @@ async fn assert_silent<T>(what: &str, rx: &mut mpsc::Receiver<T>) {
         timeout(Duration::from_millis(300), rx.recv()).await.is_err(),
         "{what} should not have fired"
     );
-}
-
-/// `count` failures in a row with the expected kind on `iface`: the client
-/// keeps dialing, one event per attempt.
-#[deny(clippy::await_holding_invalid_type)]
-async fn assert_failures(
-    rx: &mut mpsc::Receiver<DialFailure>,
-    iface: AddressHash,
-    kind: DialFailureKind,
-    count: usize,
-) {
-    for attempt in 1..=count {
-        let failure = recv_within(&format!("dial failure {attempt}"), rx).await;
-        assert_eq!(failure.iface(), iface, "the failure names the interface");
-        assert_eq!(failure.kind(), kind, "attempt {attempt}");
-    }
 }
 
 #[tokio::test]
@@ -256,7 +231,7 @@ async fn tcp_client_reports_refused_dials_until_a_listener_binds_the_port() {
     let cancel = context.cancel.clone();
     let task = tokio::spawn(TcpClient::spawn(context));
 
-    assert_failures(&mut failure_rx, iface, DialFailureKind::Refused, 2).await;
+    recv_failures(&mut failure_rx, iface, DialFailureKind::Refused, 2).await;
     assert!(connect_rx.try_recv().is_err(), "nothing connected while the port was closed");
     let lines = failed_dial_lines(&addr);
     let warns = lines.iter().filter(|(level, _)| *level == log::Level::Warn).count();
@@ -312,7 +287,7 @@ async fn tcp_client_warns_once_then_debugs_until_a_connect_names_the_failed_atte
     let cancel = context.cancel.clone();
     let task = tokio::spawn(TcpClient::spawn(context));
 
-    assert_failures(&mut failure_rx, iface, DialFailureKind::Refused, 4).await;
+    recv_failures(&mut failure_rx, iface, DialFailureKind::Refused, 4).await;
     let lines = failed_dial_lines(&addr);
     let prefix = format!("couldn't connect to <{addr}>: ");
     for (_, message) in &lines {
@@ -364,7 +339,7 @@ async fn tcp_client_warns_again_on_the_thirtieth_failed_attempt() {
     let cancel = context.cancel.clone();
     let task = tokio::spawn(TcpClient::spawn(context));
 
-    assert_failures(&mut failure_rx, iface, DialFailureKind::Refused, STRIDE as usize).await;
+    recv_failures(&mut failure_rx, iface, DialFailureKind::Refused, STRIDE as usize).await;
     let lines = failed_dial_lines(&addr);
     for (_, message) in &lines {
         assert!(message.contains(" (attempt "), "every line is numbered: {message}");
@@ -460,7 +435,7 @@ async fn local_unix_client_reports_not_found_dials_until_the_socket_is_bound() {
     let cancel = context.cancel.clone();
     let task = tokio::spawn(LocalUnixClient::spawn(context));
 
-    assert_failures(&mut failure_rx, iface, DialFailureKind::NotFound, 2).await;
+    recv_failures(&mut failure_rx, iface, DialFailureKind::NotFound, 2).await;
     assert!(connect_rx.try_recv().is_err(), "nothing connected while the path was unbound");
 
     let listener = UnixListener::bind(&socket).expect("bind the socket the client dials");
@@ -503,7 +478,7 @@ async fn local_unix_client_warns_once_then_debugs_until_a_connect_names_the_fail
     let cancel = context.cancel.clone();
     let task = tokio::spawn(LocalUnixClient::spawn(context));
 
-    assert_failures(&mut failure_rx, iface, DialFailureKind::NotFound, 4).await;
+    recv_failures(&mut failure_rx, iface, DialFailureKind::NotFound, 4).await;
     let lines = failed_unix_dial_lines(&label);
     let prefix = format!("couldn't connect local unix client <{label}>: ");
     for (_, message) in &lines {
@@ -556,7 +531,7 @@ async fn local_unix_client_warns_again_when_the_failure_kind_changes() {
     let cancel = context.cancel.clone();
     let task = tokio::spawn(LocalUnixClient::spawn(context));
 
-    assert_failures(&mut failure_rx, iface, DialFailureKind::NotFound, 2).await;
+    recv_failures(&mut failure_rx, iface, DialFailureKind::NotFound, 2).await;
     // Bind and drop a listener on a sibling path, then rename it into place:
     // tokio's UnixListener does not unlink the file on drop, so the stale
     // path remains, and the atomic rename keeps the client out of the
@@ -651,7 +626,7 @@ async fn local_unix_client_reports_an_unreachable_socket_as_io_permission_denied
     let cancel = context.cancel.clone();
     let task = tokio::spawn(LocalUnixClient::spawn(context));
 
-    assert_failures(
+    recv_failures(
         &mut failure_rx,
         iface,
         DialFailureKind::Io(std::io::ErrorKind::PermissionDenied),

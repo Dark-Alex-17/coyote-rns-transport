@@ -21,7 +21,6 @@
 use std::sync::{Mutex, Once};
 use std::time::Duration;
 
-use rns_transport::hash::AddressHash;
 #[cfg(unix)]
 use rns_transport::iface::local::{LocalUnixClient, LocalUnixEndpoint};
 use rns_transport::iface::tcp_client::TcpClient;
@@ -33,9 +32,18 @@ use tokio::net::UnixListener;
 use tokio::sync::mpsc;
 use tokio::time::timeout;
 
+#[path = "support/attempt_number.rs"]
+mod attempt_number;
 #[path = "support/free_loopback_port.rs"]
 mod free_loopback_port;
+#[path = "support/recv_failures.rs"]
+mod recv_failures;
+#[path = "support/recv_within.rs"]
+mod recv_within;
+use attempt_number::attempt_number;
 use free_loopback_port::free_loopback_port;
+use recv_failures::recv_failures;
+use recv_within::recv_within;
 
 const RECONNECT_WAIT: Duration = Duration::from_millis(50);
 /// Comfortably above the dials a 50 ms cadence fits into one probe.
@@ -85,15 +93,6 @@ fn lines_containing(needle: &str) -> Vec<(log::Level, String)> {
         .collect()
 }
 
-/// The `N` of a failed-dial line's trailing `(attempt N)`.
-fn attempt_number(message: &str) -> u64 {
-    let (_, tail) = message.rsplit_once(" (attempt ").expect("the line ends in its attempt");
-    tail.strip_suffix(')')
-        .expect("the attempt is parenthesised")
-        .parse()
-        .unwrap_or_else(|err| panic!("attempt number in {message:?}: {err}"))
-}
-
 /// The `N` of a connect line's ` after N failed attempt(s)` suffix.
 fn failed_count(message: &str, prefix: &str) -> u64 {
     message
@@ -102,29 +101,6 @@ fn failed_count(message: &str, prefix: &str) -> u64 {
         .unwrap_or_else(|| panic!("the connect line ends in the failed count: {message}"))
         .parse()
         .unwrap_or_else(|err| panic!("failed count in {message:?}: {err}"))
-}
-
-#[deny(clippy::await_holding_invalid_type)]
-async fn recv_within<T>(what: &str, rx: &mut mpsc::Receiver<T>) -> T {
-    timeout(Duration::from_secs(2), rx.recv())
-        .await
-        .unwrap_or_else(|_| panic!("{what} timed out"))
-        .unwrap_or_else(|| panic!("{what} channel closed"))
-}
-
-/// `count` failures of `kind` on `iface`, one per attempt.
-#[deny(clippy::await_holding_invalid_type)]
-async fn recv_failures(
-    rx: &mut mpsc::Receiver<DialFailure>,
-    iface: AddressHash,
-    kind: DialFailureKind,
-    count: usize,
-) {
-    for attempt in 1..=count {
-        let failure = recv_within(&format!("dial failure {attempt}"), rx).await;
-        assert_eq!(failure.iface(), iface, "the failure names the interface");
-        assert_eq!(failure.kind(), kind, "attempt {attempt}");
-    }
 }
 
 /// Everything already queued on the dial-failure channel, all of `kind`.

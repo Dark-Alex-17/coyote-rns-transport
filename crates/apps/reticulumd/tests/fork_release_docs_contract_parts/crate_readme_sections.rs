@@ -352,8 +352,10 @@ fn response_cap_rustdoc_twins_describe_the_resource_measure_alike() {
 /// shared-instance section and the changelog bullet naming
 /// `DIAL_WARN_STRIDE` all state is read from the source literal in
 /// `src/iface/dial_log.rs`, so a retuned stride cannot leave the docs
-/// naming the old one; the changelog and the rustdoc also both name the
-/// 150 s cadence the clients' 5 s default produces.
+/// naming the old one. The "every 150 s" the changelog and the rustdoc
+/// both name is the stride times the clients' `DEFAULT_RECONNECT_WAIT`,
+/// read from `src/iface/tcp_client.rs` after checking `src/iface/local.rs`
+/// declares the same seconds, so a retuned default cannot leave it either.
 #[test]
 fn dial_warn_stride_docs_name_the_source_literal() {
     let source = read_repo_file("crates/libs/rns-transport/src/iface/dial_log.rs");
@@ -381,16 +383,38 @@ fn dial_warn_stride_docs_name_the_source_literal() {
         changelog_section.contains(&squash(&claim)),
         "the changelog section naming DIAL_WARN_STRIDE should say {claim:?}"
     );
-    let default_cadence = "every 150 s";
+    let tcp_wait = default_reconnect_wait_secs("crates/libs/rns-transport/src/iface/tcp_client.rs");
+    let unix_wait = default_reconnect_wait_secs("crates/libs/rns-transport/src/iface/local.rs");
+    assert_eq!(
+        tcp_wait, unix_wait,
+        "TcpClient and LocalUnixClient should share the DEFAULT_RECONNECT_WAIT the docs quote"
+    );
+    let default_cadence = format!("every {} s", stride * tcp_wait);
     assert!(
-        changelog_section.contains(&squash(default_cadence)),
+        changelog_section.contains(&squash(&default_cadence)),
         "the changelog section naming DIAL_WARN_STRIDE should say {default_cadence:?}"
     );
     let rustdoc = squash(&doc_comment_text(&source));
     assert!(
-        rustdoc.contains(&squash(default_cadence)),
+        rustdoc.contains(&squash(&default_cadence)),
         "the dial_log.rs rustdoc should say {default_cadence:?}"
     );
+}
+
+/// The seconds literal of `pub const DEFAULT_RECONNECT_WAIT: Duration =
+/// Duration::from_secs(<n>);` in a client source file.
+fn default_reconnect_wait_secs(file: &str) -> u64 {
+    let declaration = "const DEFAULT_RECONNECT_WAIT: Duration = Duration::from_secs(";
+    read_repo_file(file)
+        .lines()
+        .find_map(|line| line.split_once(declaration))
+        .and_then(|(_, tail)| tail.trim().strip_suffix(");"))
+        .unwrap_or_else(|| panic!("{file} should declare `{declaration}<n>);`"))
+        .trim()
+        .parse()
+        .unwrap_or_else(|err| {
+            panic!("{file} DEFAULT_RECONNECT_WAIT should be an integer literal: {err}")
+        })
 }
 
 /// The text of the first `## ` changelog section, whatever its heading
@@ -676,9 +700,10 @@ fn crate_readme_shared_instance_section_describes_interface_events() {
 /// reconciliation it exists for, the shared instance's own interface, the
 /// manager read and the TCP status handle and JSON key underneath, the
 /// `Some(0)` an interface that is not a stream client reads for life and
-/// the `None` a pruned record reads; the divergence register names the
-/// count as fork-only, and the changelog bullet names the same items, the
-/// always-present JSON key, the source files and the black-box test files.
+/// the `None` an address no record carries reads; the divergence register
+/// names the count as fork-only, and the changelog bullet names the same
+/// items, the always-present JSON key, the source files and the black-box
+/// test files.
 #[test]
 fn crate_readme_shared_instance_section_describes_interface_connect_count() {
     let readme = read_repo_file("crates/libs/rns-transport/README.md");
@@ -691,8 +716,7 @@ fn crate_readme_shared_instance_section_describes_interface_connect_count() {
         "`TcpRuntimeStatusHandle::connected_streams()`",
         "`\"connected_streams\"`",
         "`Some(0)` for as long as it lives",
-        "`Some(0)`",
-        "`None`",
+        "`None` once no record",
     ] {
         assert!(
             section.contains(claim),

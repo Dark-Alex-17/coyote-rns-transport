@@ -19,13 +19,16 @@ use std::time::Duration;
 use rns_transport::iface::local::{LocalUnixClient, LocalUnixEndpoint};
 use rns_transport::iface::tcp_client::TcpClient;
 use rns_transport::iface::InterfaceManager;
-use rns_transport::transport::{DialFailure, DialFailureKind};
+use rns_transport::transport::DialFailureKind;
 use tokio::sync::mpsc;
 use tokio::time::timeout;
 
 #[path = "support/free_loopback_port.rs"]
 mod free_loopback_port;
+#[path = "support/recv_failures.rs"]
+mod recv_failures;
 use free_loopback_port::free_loopback_port;
+use recv_failures::recv_failures;
 
 const RECONNECT_WAIT: Duration = Duration::from_millis(50);
 const CHANNEL_CAPACITY: usize = 128;
@@ -74,18 +77,6 @@ fn lines_with_prefix(prefix: &str) -> Vec<(log::Level, String)> {
         .collect()
 }
 
-/// `count` failures in a row of the expected kind, one item per attempt.
-#[deny(clippy::await_holding_invalid_type)]
-async fn recv_failures(rx: &mut mpsc::Receiver<DialFailure>, kind: DialFailureKind, count: usize) {
-    for attempt in 1..=count {
-        let failure = timeout(Duration::from_secs(3), rx.recv())
-            .await
-            .unwrap_or_else(|_| panic!("dial failure {attempt} timed out"))
-            .unwrap_or_else(|| panic!("dial failure channel closed before attempt {attempt}"));
-        assert_eq!(failure.kind(), kind, "attempt {attempt}");
-    }
-}
-
 /// Every line is `{prefix}{text} (attempt N)` with N running 1, 2, 3, ... in
 /// log order: the pre-cadence line plus the suffix and nothing else.
 fn assert_lines_are_prefix_text_and_attempt(
@@ -126,10 +117,11 @@ async fn tcp_failed_lines_and_last_error_carry_the_bare_os_text() {
 
     let mut manager = InterfaceManager::new(8);
     let context = manager.new_context(client);
+    let iface = context.channel.address;
     let cancel = context.cancel.clone();
     let task = tokio::spawn(TcpClient::spawn(context));
 
-    recv_failures(&mut failure_rx, DialFailureKind::Refused, 3).await;
+    recv_failures(&mut failure_rx, iface, DialFailureKind::Refused, 3).await;
     let prefix = format!("couldn't connect to <{addr}>: ");
     let lines = lines_with_prefix(&prefix);
     assert_lines_are_prefix_text_and_attempt(&lines, &prefix, &expected_text);
@@ -181,10 +173,11 @@ async fn local_unix_failed_lines_carry_the_bare_os_text() {
 
     let mut manager = InterfaceManager::new(8);
     let context = manager.new_context(client);
+    let iface = context.channel.address;
     let cancel = context.cancel.clone();
     let task = tokio::spawn(LocalUnixClient::spawn(context));
 
-    recv_failures(&mut failure_rx, DialFailureKind::NotFound, 3).await;
+    recv_failures(&mut failure_rx, iface, DialFailureKind::NotFound, 3).await;
     let prefix = format!("couldn't connect local unix client <{label}>: ");
     let lines = lines_with_prefix(&prefix);
     assert_lines_are_prefix_text_and_attempt(&lines, &prefix, &expected_text);

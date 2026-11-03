@@ -1418,7 +1418,7 @@ impl TcpClient {
                         failed_connect_attempts > max_reconnect_tries
                     }) {
                         log::error!(
-                            "max TCP reconnect attempts reached for <{}> after {} failed attempts",
+                            "max TCP reconnect attempts reached for <{}> after {} failed attempt(s)",
                             addr,
                             failed_connect_attempts
                         );
@@ -1580,7 +1580,7 @@ impl TcpClient {
                     failed_connect_attempts > max_reconnect_tries
                 }) {
                     log::error!(
-                        "max TCP reconnect attempts reached for <{}> after {} failed attempts",
+                        "max TCP reconnect attempts reached for <{}> after {} failed attempt(s)",
                         addr,
                         failed_connect_attempts
                     );

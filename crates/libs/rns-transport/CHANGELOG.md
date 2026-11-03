@@ -31,7 +31,7 @@ Removed) bullet of its own, marked as such.
   a `RecvError::Lagged` learns whether a reconnect happened in between even
   though the events were dropped. A client built from a pre-supplied stream
   counts that stream too, though it publishes no `Connected` for it. Any
-  other interface the manager spawned (listeners, datagram and serial
+  other interface the manager spawned (listeners, datagram, serial and KISS
   carriers, the I2P interface) reads `Some(0)` for as long as it lives; only
   `TcpClient` and `LocalUnixClient` move the count. The shared instance's
   interface is `Transport::shared_instance()`. For a `TcpClient` the same
@@ -59,20 +59,26 @@ Removed) bullet of its own, marked as such.
   record while the listening interface stays at `Some(0)`; a virtual
   interface reads its host's count `Some(0)`, `Some(1)`, `Some(2)`; two
   sibling clients keep separate counts; a stopped interface reads `None`
-  while a status handle that outlives it keeps the last count; a
-  `LocalUnixServer`'s accepted peer counts its pre-supplied stream on its
-  own record with no event published while the listener stays at
-  `Some(0)`), by `tests/interface_connect_count_lag_probe.rs` (a
-  subscriber that idles through 400 accept-and-drop cycles overflows the
-  1024-slot broadcast and reads `RecvError::Lagged`; the difference between
-  the count it took before idling and the count it takes afterwards is the
-  number of reconnects the dropped events would have shown it, and the
-  stream still delivers a `Connected` from the retained tail), by the
-  `iface/tcp_client.rs` unit tests (a client that never connected reads 0,
-  a client built from a pre-supplied stream reads 1, a reconnect storm of N
-  short streams reads N) and by the rns-tools `rnstatus_cli` test
-  (`connects=5` in the TCP summary line that `src/bin/shared/rnstatus.rs`
-  renders).
+  while a status handle that outlives it keeps the last count; the accepted
+  peer of a `LocalUnixServer` counts its pre-supplied stream on its own
+  record with no event published while the listener stays at `Some(0)`), by
+  `tests/interface_connect_count_lag_probe.rs` (a subscriber that idles
+  through 400 accept-and-drop cycles overflows the 1024-slot broadcast and
+  reads `RecvError::Lagged`; the difference between the count it took before
+  idling and the count it takes afterwards is the number of reconnects the
+  dropped events would have shown it, and the stream still delivers a
+  `Connected` from the retained tail), by the `iface/tcp_client.rs` unit
+  tests (a client that never connected reads 0, a client built from a
+  pre-supplied stream reads 1, a reconnect storm of N short streams reads
+  N), by `tests/interface_connect_count_carrier_probe.rs` (a UDP carrier
+  reads `Some(0)` for as long as it lives and `None` after
+  `Transport::stop`), by `request_layer_api_docs.rs`, which lists
+  `interface_connect_count` and both `connected_streams` getters among the
+  items whose rustdoc must cite Python or say fork-only, by
+  `crate_readme_sections.rs`, which pins the README paragraph, this bullet
+  and the stream-client rule the two rustdoc twins state in the same words,
+  and by the rns-tools `rnstatus_cli` test (`connects=5` in the TCP summary
+  line that `src/bin/shared/rnstatus.rs` renders).
 
 ### Changed
 

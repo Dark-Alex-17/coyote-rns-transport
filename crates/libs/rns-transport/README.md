@@ -709,9 +709,9 @@ compares two reads taken either side of a `RecvError::Lagged` learns whether
 a reconnect happened in between even though the events themselves were
 dropped. A client built from a pre-supplied stream counts that stream too,
 though it publishes no `Connected` for it. Any other interface the manager
-spawned (listeners, datagram and serial carriers, the I2P interface) reads
-`Some(0)` for as long as it lives; only `TcpClient` and `LocalUnixClient`
-move the count. The shared instance's interface is
+spawned (listeners, datagram, serial and KISS carriers, the I2P interface)
+reads `Some(0)` for as long as it lives; only `TcpClient` and
+`LocalUnixClient` move the count. The shared instance's interface is
 `Transport::shared_instance()`. `None` once no record in the transport's
 interface manager carries the address: never minted, built with
 `InterfaceChannel::new`, as tests do, or already stopped and pruned, so the
@@ -971,10 +971,10 @@ parity ledger; the `docs/status/*` matrices are not updated per fork task.
   `discovery_port` is 65535, so the pair stays adjacent and distinct; Python
   computes `discovery_port + 1` (`RNS/Interfaces/AutoInterface.py:173`) and
   its unicast bind fails there.
-- A stream client's failed connect logs at warn on the first attempt since
-  the last established stream, on a change of failure kind and on every
-  30th attempt, and at debug between, each line ending in ` (attempt N)`.
-  Python logs every failed attempt at debug
+- A `TcpClient` or `LocalUnixClient` failed connect logs at warn on the
+  first attempt since the last established stream, on a change of failure
+  kind and on every 30th attempt, and at debug between, each line ending in
+  ` (attempt N)`. Python logs every failed attempt at debug
   (`RNS/Interfaces/TCPInterface.py:288`,
   `RNS/Interfaces/LocalInterface.py:159-167`).
 

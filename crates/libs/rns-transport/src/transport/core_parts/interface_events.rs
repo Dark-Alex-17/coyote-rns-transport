@@ -37,7 +37,7 @@ impl Transport {
     /// a reconnect happened in between even though the events themselves
     /// were dropped. A client built from a pre-supplied stream counts that
     /// stream too, though it publishes no `Connected` for it. Any other
-    /// interface the manager spawned (listeners, datagram and serial
+    /// interface the manager spawned (listeners, datagram, serial and KISS
     /// carriers, the I2P interface) reads `Some(0)` for as long as it
     /// lives; only `TcpClient` and `LocalUnixClient` move the count. The
     /// shared instance's interface is `Transport::shared_instance()`.
@@ -45,8 +45,10 @@ impl Transport {
     /// the address: never minted, built with `InterfaceChannel::new`, as
     /// tests do, or already stopped and pruned, so the read goes `Some(n)`
     /// to `None` after `stop_interface`, `detach_shared_instance` or
-    /// `stop`. Python has no equivalent: its reconnect loop keeps only a
-    /// per-burst local `attempts` and no count of established streams
+    /// `stop`. A client that gave up after `max_reconnect_tries` keeps its
+    /// last `Some(n)` until the manager prunes its record. Python has no
+    /// equivalent: its reconnect loop keeps only a per-burst local
+    /// `attempts` and no count of established streams
     /// (`RNS/Interfaces/TCPInterface.py:270-298`, `:274-277`).
     #[deny(clippy::await_holding_invalid_type)]
     pub async fn interface_connect_count(&self, iface: &AddressHash) -> Option<u64> {

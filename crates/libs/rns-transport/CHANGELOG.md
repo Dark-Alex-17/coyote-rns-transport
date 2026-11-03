@@ -8,7 +8,7 @@ no library behaviour (a test-only change such as a fixture hardening or a
 test hygiene pass, release tooling, CI) is a Changed (or, for a deleted file,
 Removed) bullet of its own, marked as such.
 
-## Unreleased
+## 0.18.1 - 2026-11-03
 
 ### Added
 
@@ -102,6 +102,26 @@ Removed) bullet of its own, marked as such.
 
 ### Changed
 
+- The crate version is `0.18.1`; the discovery announce carries it in the
+  `TRANSPORT_VERS` field (`discovery/announce.rs`), so peers observe the fork
+  patch release through discovery. The bump is a patch one under the README
+  policy, as `0.15.1` was: every change since `0.18.0` is either additive
+  API a consumer need not opt into (the connect counter and its status key)
+  or a change to a log line's cadence or text, with no public item removed
+  or changed, so there is no `### Breaking` subsection. `cargo
+  semver-checks` against `v0.18.0` reports 0 findings; additive changes are
+  below cargo-semver-checks' default lint level, so the patch-level run the
+  release check makes has nothing to report, and the release check runs it
+  as `tools/scripts/semver-major-findings-check.sh
+  coyote-rns-transport-v0.18.0 0`. The release contracts are pinned by
+  `crates/apps/reticulumd/tests/fork_publish_contract.rs` and
+  `fork_release_docs_contract.rs`; its
+  `fork_release_docs_contract_parts/release_0_18_1_probe.rs` pins the heading
+  date and its place as the first release heading, the absence of a
+  `### Breaking` subsection on a patch bump, the connect-count items under
+  `### Added`, the cadence bullet's `DIAL_WARN_STRIDE` and ` (attempt N)`
+  wording, the patch digit and the semver sentence above, and the README
+  patch-list order.
 - The failed-connect line of `TcpClient` (`iface/tcp_client.rs`) and
   `LocalUnixClient` (`iface/local.rs`) now follows a cadence instead of
   warning on every attempt: it warns on the first failed attempt since the
@@ -209,6 +229,37 @@ Removed) bullet of its own, marked as such.
   rns-tools `rnpath_cli`, `rnprobe_cli` and `rnsd_cli` help tests clear
   `CLICOLOR_FORCE` and set `NO_COLOR` like the `rnstatus_cli` one, so a
   caller shell that forces clap's styling cannot fail their substring pins.
+- Release docs contract, test-only: `fork_release_docs_contract.rs` includes
+  its tests from `fork_release_docs_contract_parts/`
+  (`crate_readme_sections.rs`, `readme_patch_list.rs`,
+  `release_0_17_0_probe.rs`, `release_0_17_0_probe2.rs`,
+  `release_0_17_0_probe3.rs`, `release_0_17_0_probe4.rs`,
+  `release_0_18_0_probe.rs`, `release_0_18_1_probe.rs`,
+  `release_notes_breaking.rs` and `request_layer_api_docs.rs`); the
+  patch-list pin opens on the 0.18.1 block and keeps the 0.18.0 block as a
+  demoted twin with its needles shared through a const, as the 0.17.0 block
+  is; and the label pins in `fork_publish_contract_parts/ledger_contract.rs`
+  read `0.18.1` first, with no `Unreleased` label, since a release tree
+  carries no stub.
+- No library behaviour change (CI): the lxmd smoke script
+  `tools/scripts/python-lxmd-rust-lxmd-smoke.sh` derives its five listener
+  ports from one `free_loopback_ports` helper, a single Python invocation
+  that binds every socket on `127.0.0.1:0` before reporting any port, in
+  place of offsets of the shell pid, which on a busy CI runner could hand
+  the Rust lxmd RPC port to a listener already bound and panic `reticulumd`
+  at its RPC bind. The defaults are pairwise distinct, each is used only
+  when the caller has not exported the variable, so runs that pin ports
+  keep them, and the two Python control ports are OS-assigned in their own
+  right instead of offsets of the shared-instance port. Pinned by
+  `crates/apps/reticulumd/tests/fork_publish_contract_parts/lxmd_smoke_free_ports_probe.rs`
+  (no pid arithmetic, one helper defined once and called for five ports,
+  no default reading another port variable),
+  `lxmd_smoke_free_ports_probe2.rs` (the script's prologue under bash yields
+  five free, pairwise-distinct loopback ports, exported ports survive
+  verbatim and a missing Python stops the run) and
+  `lxmd_smoke_free_ports_probe3.rs` (the real `reticulumd` comes up
+  listening on the RPC address the prologue derives, and on a loopback port
+  another process holds it still exits non-zero naming the RPC bind).
 
 ## 0.18.0 - 2026-11-01
 

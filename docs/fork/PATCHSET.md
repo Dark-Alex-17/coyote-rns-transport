@@ -35,7 +35,7 @@ counter, M3 is batch hygiene. The `smoke ports` patch is fork commits
 `2f5f4456` and `e18dc0d9`. The `connect counter` patch is fork commits
 `f5364b3d`, `19e78108`, `bf3433a3`, `55bc9720`, `0519d338` and `3ca7f727`.
 The `batch hygiene` patch is fork commits `224da262`, `ede00f4c`,
-`81947745`, `d607fd51` and `4cfe7649`.
+`81947745`, `d607fd51`, `4cfe7649` and `811fe217`.
 
 | File | Patch |
 | --- | --- |
@@ -284,8 +284,9 @@ wording, states that every other manager-spawned interface, the I2P
 interface included, reads `Some(0)` and that the JSON key is always
 present, and extends the `rnstatus_cli.rs` passthrough fixture and assert.
 
-Fork commits `224da262`, `ede00f4c`, `81947745`, `d607fd51`, `4cfe7649`:
-M3, batch hygiene. No library behaviour changes; one log line's wording moves.
+Fork commits `224da262`, `ede00f4c`, `81947745`, `d607fd51`, `4cfe7649`,
+`811fe217`: M3, batch hygiene. No library behaviour changes; one log line's
+wording moves.
 `224da262` hoists the pure helpers the dial-log and connect-count test
 binaries each carried a copy of into one-helper files under
 `crates/libs/rns-transport/tests/support/`, included by the binaries that
@@ -305,10 +306,11 @@ the reconnect wait) for `tests/interface_connect_count_api.rs`,
 `Some(0)` for as long as it lives and `None` once `stop_interface` removed
 it), retrofitted to the shared helpers rather than carrying its own copies,
 tightens the lag probe's bound on `Lagged` to one event of slack (the
-`Connected` that follows the count's move), names the probe's server-side
-`Transport` `server_transport`, has the `rnpath_cli.rs`, `rnprobe_cli.rs`
-and `rnsd_cli.rs` help tests clear `CLICOLOR_FORCE` and set `NO_COLOR` like
-`rnstatus_cli.rs`, and has `crate_readme_sections.rs` derive the default
+`Connected` that follows the count's move), names the server-side
+`Transport` of `tests/interface_connect_count_probe.rs` `server_transport`,
+has the `rnpath_cli.rs`, `rnprobe_cli.rs` and `rnsd_cli.rs` help tests clear
+`CLICOLOR_FORCE` and set `NO_COLOR` like `rnstatus_cli.rs`, and has
+`crate_readme_sections.rs` derive the default
 cadence needle from `DEFAULT_RECONNECT_WAIT` in `src/iface/tcp_client.rs`,
 checking `src/iface/local.rs` agrees, in place of the literal, drop the bare
 `Some(0)` README needle the "for as long as it lives" one subsumes and
@@ -330,8 +332,8 @@ the give-up clause into the README paragraph and the CHANGELOG bullet, has
 carrier list across the four twins, the give-up clause across the README,
 the bullet and the transport getter's rustdoc, and the bullet's new
 Pinned-by cites, finishes the carrier probe's retrofit to `accept_within.rs`
-and `spawn_plain_client.rs`, and has the `await_kind.rs` and
-`recv_failures.rs` docs name the skipped `Lagged` and the deadline.
+and `spawn_plain_client.rs`, has the `await_kind.rs` doc name the skipped
+`Lagged` and the `recv_failures.rs` doc name its 3 s deadline.
 `d607fd51` corrects that clause at its three twins: giving up cancels the
 interface's stop token and the manager's next cleanup pass (every send,
 and the announce job's one-second tick) drops cancelled records, so the
@@ -352,7 +354,13 @@ sibling `TcpClient` at `Some(1)`, and `None` once `stop_interface` removed
 it); has the docs contract squash the connect-count README and CHANGELOG
 needles; gives `close_orderly.rs` role-neutral peer wording and
 `recv_within.rs` a doc naming its 2 s deadline; and adds per-test summaries
-to the carrier probe.
+to the carrier probe. `811fe217` makes a `TcpClient` the subject of the
+give-up clause at its three twins, since only it has `max_reconnect_tries`,
+names the cleanup pass as the announce job's 1 s tick and has
+`crate_readme_sections.rs` read that literal from
+`INTERVAL_ANNOUNCES_RETRANSMIT` in `src/transport/mod.rs`; the give-up
+probes paraphrase the clause instead of quoting it, and `accept_within.rs`
+and `wait_until.rs` gain item docs.
 
 ## 0.18.0 (upstream 0.14.0)
 

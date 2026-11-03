@@ -82,14 +82,14 @@ Removed) bullet of its own, marked as such.
   `KissTcpClientInterface`, which dials and establishes streams without
   being a `TcpClient`, reads `Some(0)` across a first stream and a redial,
   beside a sibling `TcpClient` at `Some(1)`, and `None` once
-  `stop_interface` removed it), by
-  `request_layer_api_docs.rs`, which lists `interface_connect_count` and
-  both `connected_streams` getters among the items whose rustdoc must cite
-  Python or say fork-only, by `crate_readme_sections.rs`, which pins the
-  README paragraph, this bullet, the stream-client rule and the carrier
-  list the two rustdoc twins state in the same words, and the give-up
-  clause, and by the rns-tools `rnstatus_cli` test (`connects=5` in the TCP
-  summary line that `src/bin/shared/rnstatus.rs` renders).
+  `stop_interface` removed it), by `request_layer_api_docs.rs`, which lists
+  `interface_connect_count` and both `connected_streams` getters among the
+  items whose rustdoc must cite Python or say fork-only, by
+  `crate_readme_sections.rs`, which pins the README paragraph, this bullet,
+  the stream-client rule and the carrier list the two rustdoc twins state
+  in the same words, and the give-up clause, and by the rns-tools
+  `rnstatus_cli` test (`connects=5` in the TCP summary line that
+  `src/bin/shared/rnstatus.rs` renders).
 
 ### Changed
 
@@ -185,10 +185,12 @@ Removed) bullet of its own, marked as such.
   (taking the reconnect wait) for `tests/interface_connect_count_api.rs`,
   `tests/interface_connect_count_probe.rs`,
   `tests/interface_connect_count_lag_probe.rs`,
-  `tests/interface_connect_count_carrier_probe.rs` and
-  `tests/dial_give_up_text_probe.rs`. The lag probe's bound on `Lagged`
-  allows one event of slack, the `Connected` that follows the count's move,
-  and the probe's server-side `Transport` is `server_transport`. The
+  `tests/interface_connect_count_carrier_probe.rs`,
+  `tests/interface_connect_count_kiss_carrier_probe.rs`,
+  `tests/dial_give_up_text_probe.rs` and `tests/dial_give_up_prune_probe.rs`.
+  The lag probe's bound on `Lagged` allows one event of slack, the
+  `Connected` that follows the count's move, and the server-side `Transport`
+  of `tests/interface_connect_count_probe.rs` is `server_transport`. The
   rns-tools `rnpath_cli`, `rnprobe_cli` and `rnsd_cli` help tests clear
   `CLICOLOR_FORCE` and set `NO_COLOR` like the `rnstatus_cli` one, so a
   caller shell that forces clap's styling cannot fail their substring pins.

@@ -34,8 +34,8 @@ counter, M3 is batch hygiene. The `smoke ports` patch is fork commits
 `3eeff0e7` and `91113899`. The `dial log` patch is fork commits `b42bb758`,
 `2f5f4456` and `e18dc0d9`. The `connect counter` patch is fork commits
 `f5364b3d`, `19e78108`, `bf3433a3`, `55bc9720`, `0519d338` and `3ca7f727`.
-The `batch hygiene` patch is fork commits `224da262`, `ede00f4c` and
-`81947745`.
+The `batch hygiene` patch is fork commits `224da262`, `ede00f4c`,
+`81947745` and `d607fd51`.
 
 | File | Patch |
 | --- | --- |
@@ -282,13 +282,14 @@ wording, states that every other manager-spawned interface, the I2P
 interface included, reads `Some(0)` and that the JSON key is always
 present, and extends the `rnstatus_cli.rs` passthrough fixture and assert.
 
-Fork commits `224da262`, `ede00f4c`, `81947745`: M3, batch hygiene. No
-library behaviour changes; one log line's wording moves. `224da262` hoists
-the pure helpers the dial-log and connect-count test binaries each carried a
-copy of into one-helper files under
+Fork commits `224da262`, `ede00f4c`, `81947745`, `d607fd51`: M3, batch
+hygiene. No library behaviour changes; one log line's wording moves.
+`224da262` hoists the pure helpers the dial-log and connect-count test
+binaries each carried a copy of into one-helper files under
 `crates/libs/rns-transport/tests/support/`, included by the binaries that
 use them: `attempt_number.rs`, `recv_within.rs` and `recv_failures.rs` (the
-interface-checking form, with its own 3 s deadline) for
+interface-checking form, whose 3 s deadline the api and cadence binaries
+now share in place of their 2 s one) for
 `tests/dial_failure_events_api.rs`,
 `tests/dial_log_cadence_probe.rs`, `tests/dial_log_status_probe.rs` and
 `tests/dial_log_text_probe.rs`, whose capture logger and the readers of its
@@ -307,8 +308,9 @@ tightens the lag probe's bound on `Lagged` to one event of slack (the
 and `rnsd_cli.rs` help tests clear `CLICOLOR_FORCE` and set `NO_COLOR` like
 `rnstatus_cli.rs`, and has `crate_readme_sections.rs` derive the default
 cadence needle from `DEFAULT_RECONNECT_WAIT` in `src/iface/tcp_client.rs`,
-checking `src/iface/local.rs` agrees, in place of the literal, and replace
-two subsumed README needles with `None once no record`. `ede00f4c` lists
+checking `src/iface/local.rs` agrees, in place of the literal, drop the bare
+`Some(0)` README needle the "for as long as it lives" one subsumes and
+replace the bare `None` needle with `None once no record`. `ede00f4c` lists
 the KISS carriers among the
 interfaces that read `Some(0)` for life at the four wording twins (README,
 the CHANGELOG bullet, the two rustdocs), names `TcpClient` and
@@ -328,6 +330,16 @@ the bullet and the transport getter's rustdoc, and the bullet's new
 Pinned-by cites, finishes the carrier probe's retrofit to `accept_within.rs`
 and `spawn_plain_client.rs`, and has the `await_kind.rs` and
 `recv_failures.rs` docs name the skipped `Lagged` and the deadline.
+`d607fd51` corrects that clause at its three twins: giving up cancels the
+interface's stop token and the manager's next cleanup pass (every send,
+and the announce job's one-second tick) drops cancelled records, so the
+read goes `None` within about a second with no `stop` call; the give-up
+probe reads the count right after the give-up line as `Some(n)` or already
+`None`, polls for the prune, checks `stop` leaves it there, and gains the
+short-stream give-up site (a budget of 0 spent by a stream dropped at once,
+`after 1 failed attempt(s)`); `crate_readme_sections.rs` derives the
+"5 s default" needle beside the cadence; and the carrier probe's header
+quotes only the pinned rule clause.
 
 ## 0.18.0 (upstream 0.14.0)
 

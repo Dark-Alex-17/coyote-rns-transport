@@ -21,7 +21,10 @@ Removed) bullet of its own, marked as such.
   or already stopped and pruned, so the read goes `Some(n)` to `None` after
   `stop_interface`, `detach_shared_instance` or `stop`). A client that gave
   up after `max_reconnect_tries` keeps its last `Some(n)` until the manager
-  prunes its record. The count lives on `InterfaceChannel`
+  prunes its record, which needs no call: giving up cancels the interface's
+  stop token, and the manager's next cleanup pass (every send, and the
+  announce job's one-second tick) drops cancelled records, so the read goes
+  `None` within about a second. The count lives on `InterfaceChannel`
   (`iface_parts/txmessagetype.rs`), is shared with the manager's record (a
   virtual interface shares its host's count), and is read through
   `InterfaceManager::connected_streams(&address)`
@@ -151,32 +154,35 @@ Removed) bullet of its own, marked as such.
   the prefix and the level are unchanged. Pinned by
   `tests/dial_give_up_text_probe.rs` (a client with a budget of 1 that only
   reads refused logs exactly one give-up line in that form with N above the
-  budget and keeps `Some(0)` on the transport until `stop` prunes it; a
-  client that connected once and then gives up keeps `Some(1)`).
+  budget, reads `Some(0)` or already `None` right after it and `None` within
+  the manager's next cleanup pass, before any `stop`; a client that
+  connected once and then gives up goes `Some(1)` to `None` the same way; a
+  client with a budget of 0 whose first stream is dropped at once gives up
+  from the short-stream path after 1 failed attempt(s) and goes `Some(1)` to
+  `None`).
 - Test helpers, test-only: the pure helpers the dial-log and connect-count
   test binaries each carried a copy of live once under `tests/support/`,
   one helper per file, included by the binaries that use them:
   `tests/support/attempt_number.rs`, `tests/support/recv_within.rs` and
-  `tests/support/recv_failures.rs` (the interface-checking form) for
-  `tests/dial_failure_events_api.rs`, `tests/dial_log_cadence_probe.rs`,
-  `tests/dial_log_status_probe.rs` and `tests/dial_log_text_probe.rs`,
-  whose capture logger and the readers of its per-binary store stay in
-  each binary; `tests/support/wait_until.rs`,
+  `tests/support/recv_failures.rs` (the interface-checking form, whose 3 s
+  deadline the api and cadence binaries now share in place of their 2 s
+  one) for `tests/dial_failure_events_api.rs`,
+  `tests/dial_log_cadence_probe.rs`, `tests/dial_log_status_probe.rs` and
+  `tests/dial_log_text_probe.rs`, whose capture logger and the readers of
+  its per-binary store stay in each binary; `tests/support/wait_until.rs`,
   `tests/support/wait_for_count.rs`, `tests/support/await_kind.rs` (the
   predicate form), `tests/support/accept_within.rs`,
-  `tests/support/close_orderly.rs` and
-  `tests/support/spawn_plain_client.rs` (taking the reconnect wait) for
-  `tests/interface_connect_count_api.rs`,
+  `tests/support/close_orderly.rs` and `tests/support/spawn_plain_client.rs`
+  (taking the reconnect wait) for `tests/interface_connect_count_api.rs`,
   `tests/interface_connect_count_probe.rs`,
   `tests/interface_connect_count_lag_probe.rs`,
   `tests/interface_connect_count_carrier_probe.rs` and
   `tests/dial_give_up_text_probe.rs`. The lag probe's bound on `Lagged`
   allows one event of slack, the `Connected` that follows the count's move,
-  and the probe's server-side `Transport` is `server_transport`.
-  The rns-tools `rnpath_cli`, `rnprobe_cli` and `rnsd_cli` help tests clear
+  and the probe's server-side `Transport` is `server_transport`. The
+  rns-tools `rnpath_cli`, `rnprobe_cli` and `rnsd_cli` help tests clear
   `CLICOLOR_FORCE` and set `NO_COLOR` like the `rnstatus_cli` one, so a
-  caller shell that forces clap's styling cannot fail their substring
-  pins.
+  caller shell that forces clap's styling cannot fail their substring pins.
 
 ## 0.18.0 - 2026-11-01
 

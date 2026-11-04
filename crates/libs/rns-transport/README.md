@@ -28,7 +28,7 @@ when the rebase breaks the fork's public API, the next patch digit otherwise.
 
 ```toml
 [dependencies]
-coyote-rns-transport = "0.18.0"
+coyote-rns-transport = "0.18.1"
 ```
 
 ```rust
@@ -609,9 +609,16 @@ A client attached while nothing listens also reports each failed attempt:
 TCP port nothing listens on, `NotFound` for a unix socket path nothing has
 bound, `Timeout` for an attempt that outlived the TCP client's connect
 timeout, or an OS `TimedOut`, and `Io(kind)` for any other io error (`Io`
-never carries those three kinds). The TCP client's "couldn't connect" warn
-now carries the io error's text as well, or "connect timed out after
-<timeout>" for the `Timeout` arm no io error reaches. By default the attach
+never carries those three kinds). The TCP client's "couldn't connect"
+failed-connect line now carries the io error's text as well, or
+"connect timed out after <timeout>" for the `Timeout` arm no io error
+reaches. Both clients warn on the first failed attempt since the last
+established stream, on a change of failure kind and on every 30th attempt,
+and log the attempts between at debug, each line ending in ` (attempt N)`;
+the connect info line names how many failed attempts it took when there
+were any, as `connected to <endpoint>` or
+`connected to local unix client <endpoint>` followed by
+` after N failed attempt(s)`. By default the attach
 returns as soon as the client is spawned and keeps dialing, as Python's
 `LocalClientInterface` does (`RNS/Interfaces/LocalInterface.py:159-167`,
 which logs each failed attempt at debug and retries).
@@ -691,6 +698,45 @@ installs the sender (the transport does it in `Transport::new`) and
 `InterfaceChannel::publish_event` is the path an interface implementation
 holding a channel publishes through. Python has no such stream
 (`RNS/Interfaces/LocalInterface.py:159-167`, `:255-266`).
+
+`Transport::interface_connect_count(&iface)` returns `Option<u64>`: how many
+streams the stream client on `iface` has established since the interface
+was spawned, every reconnect included, `Some(0)` for a client that has not
+connected yet. The client increments the count immediately before it
+publishes the matching `Connected` on `interface_events()`, so a receiver
+that read a `Connected` reads at least that count, and a receiver that
+compares two reads taken either side of a `RecvError::Lagged` learns whether
+a reconnect happened in between even though the events themselves were
+dropped. A client built from a pre-supplied stream counts that stream too,
+though it publishes no `Connected` for it. Any other interface the manager
+spawned (listeners, datagram, serial and KISS carriers, the I2P interface)
+reads `Some(0)` for as long as it lives; only `TcpClient` and
+`LocalUnixClient` move the count. The shared instance's interface is
+`Transport::shared_instance()`. `None` once no record in the transport's
+interface manager carries the address: never minted, built with
+`InterfaceChannel::new`, as tests do, or already stopped and pruned, so the
+read goes `Some(n)` to `None` after `stop_interface`,
+`detach_shared_instance` or `stop`; a virtual interface reads its host's
+count. A `TcpClient` that gave up after `max_reconnect_tries` keeps its
+last `Some(n)` until the manager prunes its record, which needs no call:
+giving up cancels the interface's stop token, and the manager's next
+cleanup pass (every send, and the announce job's 1 s tick) drops cancelled
+records, so the read goes `None` within about a second. Below the
+transport, `InterfaceManager::connected_streams(&address)` is the same
+read. For a `TcpClient` the same count is also read through
+`TcpRuntimeStatusHandle::connected_streams()` and the `"connected_streams"`
+key, always present, of `TcpClient::runtime_status_json()` and
+`TcpRuntimeStatusHandle::to_json()`; `TcpRuntimeStatus` itself is unchanged.
+Python has no equivalent: its reconnect loop keeps only a per-burst local
+`attempts` and no count of established streams
+(`RNS/Interfaces/TCPInterface.py:270-298`, `:274-277`).
+`crates/apps/reticulumd/tests/python_channel_interop_parts/python_shared_instance_connect_count.rs`
+attaches this crate to a Python `rnsd` (RNS 1.5.2) shared instance, reads
+`Some(1)` after `Connected`, kills rnsd, reads at least three `DialFailed`
+while it is down and, over its first three or more redials, exactly one warn
+ending `(attempt 1)` with the rest at debug, then
+`connected to <endpoint> after N failed attempt(s)` at info once rnsd is
+back, and reads `Some(2)` on the same port.
 
 A `Tcp` endpoint whose address is not loopback is refused with
 `RnsError::SharedInstanceEndpointNotLoopback` before any lock is taken, with
@@ -936,6 +982,12 @@ parity ledger; the `docs/status/*` matrices are not updated per fork task.
   `discovery_port` is 65535, so the pair stays adjacent and distinct; Python
   computes `discovery_port + 1` (`RNS/Interfaces/AutoInterface.py:173`) and
   its unicast bind fails there.
+- A `TcpClient` or `LocalUnixClient` failed connect logs at warn on the
+  first attempt since the last established stream, on a change of failure
+  kind and on every 30th attempt, and at debug between, each line ending in
+  ` (attempt N)`. Python logs every failed attempt at debug
+  (`RNS/Interfaces/TCPInterface.py:288`,
+  `RNS/Interfaces/LocalInterface.py:159-167`).
 
 Not divergences:
 
@@ -955,6 +1007,11 @@ Not divergences:
   state tagged by interface; Python's clients log their state changes and
   expose no event stream (`RNS/Interfaces/LocalInterface.py:159-167`,
   `:255-266`). API shape, not behaviour.
+- `Transport::interface_connect_count()` is a fork-only per-interface count of
+  established streams; Python's reconnect loop keeps only a per-burst local
+  `attempts` and no count of established streams
+  (`RNS/Interfaces/TCPInterface.py:270-298`, `:274-277`). API shape, not
+  behaviour.
 
 ## Versioning and releases
 
@@ -975,8 +1032,40 @@ full `refs/tags/coyote-rns-transport-v<version>` ref, and
 
 `docs/fork/PATCHSET.md` is the single per-release ledger of every file changed
 since the previous release, with the commit that changed it and the upstream
-site; earlier sections carry the earlier patches. What `0.18.0` carries on top
-of `0.17.0`:
+site; earlier sections carry the earlier patches. What `0.18.1` carries on top
+of `0.18.0`:
+
+- The dial-warn cadence: the failed-connect line of `TcpClient` and
+  `LocalUnixClient` warns on the first failed attempt since the last
+  established stream, whenever the failure kind changes and on every 30th
+  attempt (`DIAL_WARN_STRIDE` in `src/iface/dial_log.rs`), with the attempts
+  between at debug; every line ends in ` (attempt N)`, and the connect info
+  line gains ` after N failed attempt(s)` when N > 0.
+- The connect counter: `Transport::interface_connect_count` reads how many
+  streams the stream client on an interface has established since it was
+  spawned, `Some(0)` before the first connect and `None` once the record is
+  pruned; `InterfaceManager::connected_streams` reads the same count by
+  address, `TcpRuntimeStatusHandle::connected_streams()` and the
+  always-present `connected_streams` key of the TCP status JSON carry it for
+  a `TcpClient`, and `rnstatus-rs` shows it as `connects=N`. Two reads taken
+  either side of a `RecvError::Lagged` tell a subscriber whether a reconnect
+  happened while the events were dropped.
+- The give-up line: `max TCP reconnect attempts reached for <endpoint> after
+  N failed attempt(s)` uses the same `attempt(s)` form as the connect info
+  line; the prefix and the level are unchanged.
+- The Python-in-the-loop proof: `python_shared_instance_connect_count.rs` of
+  the reticulumd `python_channel_interop` binary attaches to a live Python
+  rnsd as the shared instance and reads `Some(1)` after `Connected`, exactly
+  one warn over its first three or more redials while rnsd is down, and
+  `Some(2)` once rnsd is respawned on the same port.
+- Test-only hygiene: the helpers the dial-log and connect-count test binaries
+  each carried a copy of live once under `tests/support/`; the rns-tools
+  `--help` pins clear `CLICOLOR_FORCE` and set `NO_COLOR`; the lxmd smoke
+  script `tools/scripts/python-lxmd-rust-lxmd-smoke.sh` picks free loopback
+  ports by binding `127.0.0.1:0` instead of deriving them from the shell
+  pid.
+
+What `0.18.0` carries on top of `0.17.0`:
 
 - The owned request split: `InboundRequest::into_parts` hands a handler the
   request data by value together with a `ResponseOutcomeTracker` over the

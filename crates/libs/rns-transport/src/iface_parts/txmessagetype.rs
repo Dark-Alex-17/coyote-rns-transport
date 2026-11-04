@@ -200,6 +200,22 @@ pub struct RxMessage {
 /// Live IFAC configuration shared by a carrier and its manager entry.
 pub type IfacState = Arc<std::sync::RwLock<Option<crate::transport::IfacContext>>>;
 
+/// The carrier-side state a channel shares with its manager record: whether
+/// the carrier is operational and how many streams it has established.
+struct CarrierState {
+    online: Arc<AtomicBool>,
+    connected_streams: Arc<AtomicU64>,
+}
+
+impl CarrierState {
+    fn fresh() -> Self {
+        Self {
+            online: Arc::new(AtomicBool::new(true)),
+            connected_streams: Arc::new(AtomicU64::new(0)),
+        }
+    }
+}
+
 pub struct InterfaceChannel {
     pub address: AddressHash,
     pub rx_channel: InterfaceRxSender,
@@ -215,6 +231,10 @@ pub struct InterfaceChannel {
     pub ifac_violations: Arc<AtomicU64>,
     pub ifac_default_size_bytes: usize,
     online: Arc<AtomicBool>,
+    /// Established streams since the interface was spawned; the manager's
+    /// record shares it so `InterfaceManager::connected_streams` reads the
+    /// client loop's increments.
+    connected_streams: Arc<AtomicU64>,
     /// A broadcast sender is not `UnwindSafe`, but its state survives a
     /// panic (tokio guards its own locks), so asserting it keeps this
     /// channel and `InterfaceContext` `UnwindSafe` and `RefUnwindSafe` as
@@ -245,7 +265,7 @@ impl InterfaceChannel {
             address,
             stop,
             IfacRuntime::disabled(crate::iface::DEFAULT_IFAC_SIZE_BYTES),
-            Arc::new(AtomicBool::new(true)),
+            CarrierState::fresh(),
             None,
         )
     }
@@ -256,7 +276,7 @@ impl InterfaceChannel {
         address: AddressHash,
         stop: CancellationToken,
         ifac: IfacRuntime,
-        online: Arc<AtomicBool>,
+        carrier: CarrierState,
         interface_events: Option<tokio::sync::broadcast::Sender<events::InterfaceEvent>>,
     ) -> Self {
         Self {
@@ -267,7 +287,8 @@ impl InterfaceChannel {
             ifac_state: ifac.state,
             ifac_violations: ifac.violations,
             ifac_default_size_bytes: ifac.default_size_bytes,
-            online,
+            online: carrier.online,
+            connected_streams: carrier.connected_streams,
             interface_events: interface_events.map(std::panic::AssertUnwindSafe),
         }
     }
@@ -337,6 +358,7 @@ struct LocalInterface {
     tx_send: InterfaceTxSender,
     stop: CancellationToken,
     online: Arc<AtomicBool>,
+    connected_streams: Arc<AtomicU64>,
     mtu: usize,
     role: IfaceRole,
     mode: InterfaceMode,

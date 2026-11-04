@@ -8,6 +8,269 @@ no library behaviour (a test-only change such as a fixture hardening or a
 test hygiene pass, release tooling, CI) is a Changed (or, for a deleted file,
 Removed) bullet of its own, marked as such.
 
+## 0.18.1 - 2026-11-03
+
+### Added
+
+- `Transport::interface_connect_count(&iface)`
+  (`transport/core_parts/interface_events.rs`) reads how many streams the
+  stream client on an interface has established since it was spawned, every
+  reconnect included: `Some(0)` for a client that has not connected yet,
+  `None` once no record in the transport's interface manager carries the
+  address (never minted, built with `InterfaceChannel::new`, as tests do,
+  or already stopped and pruned, so the read goes `Some(n)` to `None` after
+  `stop_interface`, `detach_shared_instance` or `stop`). A `TcpClient` that
+  gave up after `max_reconnect_tries` keeps its last `Some(n)` until the
+  manager prunes its record, which needs no call: giving up cancels the
+  interface's stop token, and the manager's next cleanup pass (every send,
+  and the announce job's 1 s tick) drops cancelled records, so the read goes
+  `None` within about a second. The count lives on `InterfaceChannel`
+  (`iface_parts/txmessagetype.rs`), is shared with the manager's record (a
+  virtual interface shares its host's count), and is read through
+  `InterfaceManager::connected_streams(&address)`
+  (`iface_parts/interfacemanager_events.rs`). `TcpClient`
+  (`iface/tcp_client.rs`) and `LocalUnixClient` (`iface/local.rs`) increment
+  it immediately before they publish `InterfaceEventKind::Connected`, so a
+  subscriber of `interface_events()` that read a `Connected` reads at least
+  that count, and a subscriber that compares two reads taken either side of
+  a `RecvError::Lagged` learns whether a reconnect happened in between even
+  though the events were dropped. A client built from a pre-supplied stream
+  counts that stream too, though it publishes no `Connected` for it. Any
+  other interface the manager spawned (listeners, datagram, serial and KISS
+  carriers, the I2P interface) reads `Some(0)` for as long as it lives; only
+  `TcpClient` and `LocalUnixClient` move the count. The shared instance's
+  interface is `Transport::shared_instance()`. For a `TcpClient` the same
+  count is also read through `TcpRuntimeStatusHandle::connected_streams()`
+  and the new `"connected_streams"` key, always present, that
+  `TcpClient::runtime_status_json()` and `TcpRuntimeStatusHandle::to_json()`
+  merge into the status JSON; `TcpRuntimeStatus` itself (its pub fields,
+  `new` and `to_json`) is unchanged, so a consumer that constructs it still
+  compiles. `rnstatus-rs` shows the key as `connects=N` in its TCP summary.
+  Python has no equivalent: its reconnect loop keeps only a per-burst local
+  `attempts` and no count of established streams
+  (`RNS/Interfaces/TCPInterface.py:270-298`, `:274-277`). Pinned by
+  `tests/interface_connect_count_api.rs` (a plain `TcpClient` through a
+  transport reads `Some(0)` before its listener accepts and `None` for an
+  address never minted, `Some(1)` by the time a subscriber that predates
+  the spawn reads the first `Connected`, `Some(2)` after an orderly server
+  drop and the redial, with the status handle's getter and JSON agreeing
+  at each step; the pre-spawn `runtime_status_json()` reads 0 and equals
+  the handle's JSON; the shared instance's interface goes `Some(1)` to
+  `Some(2)` across a server-side drop; the unix client over a loopback
+  `UnixListener` goes `Some(0)`, `Some(1)`, `Some(2)`; a manager reads
+  `Some(0)` for a channel it minted and `None` for one built with
+  `InterfaceChannel::new`), by `tests/interface_connect_count_probe.rs`
+  (a `TcpServer`'s accepted peer counts its pre-supplied stream on its own
+  record while the listening interface stays at `Some(0)`; a virtual
+  interface reads its host's count `Some(0)`, `Some(1)`, `Some(2)`; two
+  sibling clients keep separate counts; a stopped interface reads `None`
+  while a status handle that outlives it keeps the last count; the accepted
+  peer of a `LocalUnixServer` counts its pre-supplied stream on its own
+  record with no event published while the listener stays at `Some(0)`), by
+  `tests/interface_connect_count_lag_probe.rs` (a subscriber that idles
+  through 400 accept-and-drop cycles overflows the 1024-slot broadcast and
+  reads `RecvError::Lagged`; the difference between the count it took before
+  idling and the count it takes afterwards is the number of reconnects the
+  dropped events would have shown it, and the stream still delivers a
+  `Connected` from the retained tail), by the `iface/tcp_client.rs` unit
+  tests (a client that never connected reads 0, a client built from a
+  pre-supplied stream reads 1, a reconnect storm of N short streams reads
+  N), by `tests/interface_connect_count_carrier_probe.rs` (a UDP carrier
+  reads `Some(0)` for as long as it lives, a datagram handled and a sibling
+  `TcpClient` connected, and `None` once `stop_interface` removed it), by
+  `tests/interface_connect_count_kiss_carrier_probe.rs` (a
+  `KissTcpClientInterface`, which dials and establishes streams without
+  being a `TcpClient`, reads `Some(0)` across a first stream and a redial,
+  beside a sibling `TcpClient` at `Some(1)`, and `None` once
+  `stop_interface` removed it), by `request_layer_api_docs.rs`, which lists
+  `interface_connect_count` and both `connected_streams` getters among the
+  items whose rustdoc must cite Python or say fork-only, by
+  `crate_readme_sections.rs`, which pins the README paragraph, this bullet,
+  the stream-client rule and the carrier list the two rustdoc twins state
+  in the same words, and the give-up clause, by the rns-tools
+  `rnstatus_cli` test (`connects=5` in the TCP summary line that
+  `src/bin/shared/rnstatus.rs` renders), and by
+  `python_shared_instance_connect_count.rs` of the reticulumd
+  `python_channel_interop` binary (a live Python rnsd, RNS 1.5.2, is the
+  shared instance, its listener rebinding the same port by `SO_REUSEADDR` on
+  non-Windows hosts, `RNS/Interfaces/LocalInterface.py:46-49`, and the
+  transport attaches as a second Python program would,
+  `RNS/Reticulum.py:420-441`: the attached
+  transport reads `Some(1)` after `Connected`, still `Some(1)` across a
+  kill of rnsd while at least three `DialFailed` arrive, and `Some(2)` once
+  rnsd is respawned on the same port).
+
+### Changed
+
+- The crate version is `0.18.1`; the discovery announce carries it in the
+  `TRANSPORT_VERS` field (`discovery/announce.rs`), so peers observe the fork
+  patch release through discovery. The bump is a patch one under the README
+  policy, as `0.15.1` was: every change since `0.18.0` is either additive
+  API a consumer need not opt into (the connect counter and its status key)
+  or a change to a log line's cadence or text, with no public item removed
+  or changed, so there is no `### Breaking` subsection. `cargo
+  semver-checks` against `v0.18.0` reports 0 findings; additive changes are
+  below cargo-semver-checks' default lint level, so the patch-level run the
+  release check makes has nothing to report, and the release check runs it
+  as `tools/scripts/semver-major-findings-check.sh
+  coyote-rns-transport-v0.18.0 0`. The release contracts are pinned by
+  `crates/apps/reticulumd/tests/fork_publish_contract.rs` and
+  `fork_release_docs_contract.rs`; its
+  `fork_release_docs_contract_parts/release_0_18_1_probe.rs` pins the heading
+  date and its place as the first release heading, the absence of a
+  `### Breaking` subsection on a patch bump, the connect-count items under
+  `### Added`, the cadence bullet's `DIAL_WARN_STRIDE` and ` (attempt N)`
+  wording, the patch digit and the semver sentence above, and the README
+  patch-list order.
+- The failed-connect line of `TcpClient` (`iface/tcp_client.rs`) and
+  `LocalUnixClient` (`iface/local.rs`) now follows a cadence instead of
+  warning on every attempt: it warns on the first failed attempt since the
+  last established stream, whenever the failure kind changes, and on every
+  30th attempt (`DIAL_WARN_STRIDE` in `src/iface/dial_log.rs`), and logs
+  the attempts between at debug. Every line ends in ` (attempt N)`, where
+  N counts the consecutive failed `connect()` attempts since the last
+  established stream; the count is cleared when the stream is established,
+  before `MIN_STABLE_CONNECTION` proves it, so it is not the TCP client's
+  `reconnect_attempts`, which a short-lived stream also bumps, and a
+  flapping peer re-arms the cadence at every connect. At a 2 s
+  `reconnect_wait` a peer that refuses at once warns at 0 s and then every
+  60 s; at the clients' 5 s default, every 150 s. A dial that only times
+  out adds the connect timeout to every cycle.
+  The prefixes are unchanged: `couldn't connect to <endpoint>: <text>` for
+  the TCP client and, for the unix client,
+  `couldn't connect local unix client <endpoint>: <error>`. The connect info
+  line, `connected to <endpoint>` or
+  `connected to local unix client <endpoint>`, gains the suffix
+  ` after N failed attempt(s)` when N > 0 and is otherwise unchanged.
+  `DialFailed` interface events, the `with_dial_failure_events` channels and
+  the TCP client's `mark_reconnecting` / `last_error` still fire or record
+  on every attempt; only the log line's level moves. Python logs every
+  failed attempt at debug (`RNS/Interfaces/TCPInterface.py:288`,
+  `RNS/Interfaces/LocalInterface.py:159-167`), so the fork is louder on the
+  first and every 30th attempt and quieter between; listed under Known
+  divergences in the README. Pinned by the `src/iface/dial_log.rs` unit
+  tests (the first failure warns and the same kind then debugs through
+  attempt 29; a change of kind warns at once; attempts 30 and 60 warn with
+  every attempt between at debug; `connected()` returns the cleared count
+  and re-arms the first warn) and by `tests/dial_failure_events_api.rs`
+  (four refused TCP attempts log one warn numbered 1 and at least three
+  debug lines, attempts 2 to 4 among them, under the unchanged prefix, then
+  the connect line names at least four failed attempts and the channel goes
+  quiet; a TCP client left dialing a closed port warns again on attempt 30
+  with attempts 2 to 29 at debug; the unix twin of the warns-once run
+  against a path bound later, checking the unchanged prefix too; a unix
+  dial that reads `NotFound` and then `Refused` once a stale socket file
+  appears warns exactly twice, the second warn being the first refused
+  line, with every line between at debug), by
+  `tests/dial_log_cadence_probe.rs` (a peer that accepts once, drops the
+  stream at once and goes away re-arms the cadence for both clients: the
+  second run warns again at attempt 1 and each connect line names exactly
+  the failures that preceded it; and the connect line is byte-for-byte
+  `connected to <endpoint>` or `connected to local unix client <endpoint>`
+  when the first dial connects), by `tests/dial_log_status_probe.rs` (the
+  TCP runtime status counts the debug-level attempts and keeps
+  `last_error`; timed-out dials against TEST-NET-1 follow the same cadence
+  and count), by `tests/dial_log_text_probe.rs` (each failed line is
+  byte-for-byte the unchanged prefix, the bare OS error text a plain `std`
+  connect against the same endpoint yields, and ` (attempt N)`, and the TCP
+  `last_error` carries that same text with no attempt suffix, for the TCP
+  client against a closed loopback port and the unix client against a
+  missing path), by `crate_readme_sections.rs` of the reticulumd
+  `fork_release_docs_contract`, which reads `DIAL_WARN_STRIDE` from
+  `src/iface/dial_log.rs` and requires the README register row, the README
+  shared-instance paragraph and this bullet to name `every 30th attempt`,
+  and derives the default cadence this bullet and the `dial_log.rs` rustdoc
+  name from `DEFAULT_RECONNECT_WAIT` in `iface/tcp_client.rs`, checking
+  `iface/local.rs` declares the same, and by
+  `python_shared_instance_connect_count.rs` of the reticulumd
+  `python_channel_interop` binary (against a killed Python rnsd the
+  attached shared-instance client logs, over its first three or more
+  redials, exactly one warn ending `(attempt 1)` with the rest at debug,
+  then `connected to <endpoint> after N failed attempt(s)` at info once
+  rnsd is back, N being at least the `DialFailed` events read).
+- The TCP client's give-up error line (`iface/tcp_client.rs`),
+  `max TCP reconnect attempts reached for <endpoint> after N failed
+  attempt(s)`, uses the same `attempt(s)` form as its connect info line;
+  the prefix and the level are unchanged. Pinned by
+  `tests/dial_give_up_text_probe.rs` (a client with a budget of 1 that only
+  reads refused logs exactly one give-up line in that form with N above the
+  budget, reads `Some(0)` or already `None` right after it and `None` within
+  the manager's next cleanup pass, before any `stop`; a client that
+  connected once and then gives up goes `Some(1)` to `None` the same way; a
+  client with a budget of 0 whose first stream is dropped at once gives up
+  from the short-stream path after 1 failed attempt(s) and goes `Some(1)` to
+  `None`) and by `tests/dial_give_up_prune_probe.rs` (the give-up record is
+  an error-level record whose N is the budget plus one, for budgets of 1
+  and 3; one `Transport::send_packet` after the give-up line is enough for
+  the next count read to be `None`, with no `stop` call and no wait on the
+  tick), and by `tests/dial_give_up_needle_probe.rs` (one needle,
+  ` failed attempt(s)`, matches exactly two of the lines a client logs for
+  its endpoint, the info connect line and the error give-up line, and the
+  give-up count is the budget plus one after a stream dropped before
+  `MIN_STABLE_CONNECTION`; the give-up record is pruned within about a
+  second of the line with no call made).
+- Test helpers, test-only: the pure helpers the dial-log and connect-count
+  test binaries each carried a copy of live once under `tests/support/`,
+  one helper per file, each binary including the helpers it uses:
+  `tests/support/attempt_number.rs`, `tests/support/recv_within.rs` and
+  `tests/support/recv_failures.rs` (the interface-checking form, whose 3 s
+  deadline the api and cadence binaries now share in place of their 2 s
+  one) for `tests/dial_failure_events_api.rs`,
+  `tests/dial_log_cadence_probe.rs`, `tests/dial_log_status_probe.rs` and
+  `tests/dial_log_text_probe.rs`, whose capture logger and the readers of
+  its per-binary store stay in each binary; `tests/support/wait_until.rs`,
+  `tests/support/wait_for_count.rs`, `tests/support/await_kind.rs` (the
+  predicate form), `tests/support/accept_within.rs`,
+  `tests/support/close_orderly.rs` and `tests/support/spawn_plain_client.rs`
+  (taking the reconnect wait) for `tests/interface_connect_count_api.rs`,
+  `tests/interface_connect_count_probe.rs`,
+  `tests/interface_connect_count_lag_probe.rs`,
+  `tests/interface_connect_count_carrier_probe.rs`,
+  `tests/interface_connect_count_kiss_carrier_probe.rs`,
+  `tests/dial_give_up_text_probe.rs`, `tests/dial_give_up_prune_probe.rs`
+  and `tests/dial_give_up_needle_probe.rs`.
+  The lag probe's bound on `Lagged` allows one event of slack, the
+  `Connected` that follows the count's move, and the server-side `Transport`
+  of `tests/interface_connect_count_probe.rs` is `server_transport`. The
+  rns-tools `rnpath_cli`, `rnprobe_cli` and `rnsd_cli` help tests clear
+  `CLICOLOR_FORCE` and set `NO_COLOR` like the `rnstatus_cli` one, so a
+  caller shell that forces clap's styling cannot fail their substring pins.
+  `python_shared_instance_connect_count.rs` of the reticulumd
+  `python_channel_interop` binary disarms its capture logger from a drop
+  guard, panic included, so a failed run leaves the binary's logger off for
+  the tests that follow it.
+- Release docs contract, test-only: `fork_release_docs_contract.rs` includes
+  its tests from `fork_release_docs_contract_parts/`
+  (`crate_readme_sections.rs`, `readme_patch_list.rs`,
+  `release_0_17_0_probe.rs`, `release_0_17_0_probe2.rs`,
+  `release_0_17_0_probe3.rs`, `release_0_17_0_probe4.rs`,
+  `release_0_18_0_probe.rs`, `release_0_18_1_probe.rs`,
+  `release_notes_breaking.rs` and `request_layer_api_docs.rs`); the
+  patch-list pin opens on the 0.18.1 block and keeps the 0.18.0 block as a
+  demoted twin with its needles shared through a const, as the 0.17.0 block
+  is; and the label pins in `fork_publish_contract_parts/ledger_contract.rs`
+  read `0.18.1` first, with no `Unreleased` label, since a release tree
+  carries no stub.
+- No library behaviour change (CI): the lxmd smoke script
+  `tools/scripts/python-lxmd-rust-lxmd-smoke.sh` derives its five listener
+  ports from one `free_loopback_ports` helper, a single Python invocation
+  that binds every socket on `127.0.0.1:0` before reporting any port, in
+  place of offsets of the shell pid, which on a busy CI runner could hand
+  the Rust lxmd RPC port to a listener already bound and panic `reticulumd`
+  at its RPC bind. The defaults are pairwise distinct, each is used only
+  when the caller has not exported the variable, so runs that pin ports
+  keep them, and the two Python control ports are OS-assigned in their own
+  right instead of offsets of the shared-instance port. Pinned by
+  `crates/apps/reticulumd/tests/fork_publish_contract_parts/lxmd_smoke_free_ports_probe.rs`
+  (no pid arithmetic, one helper defined once and called for five ports,
+  no default reading another port variable),
+  `lxmd_smoke_free_ports_probe2.rs` (the script's prologue under bash yields
+  five free, pairwise-distinct loopback ports, exported ports survive
+  verbatim and a missing Python stops the run) and
+  `lxmd_smoke_free_ports_probe3.rs` (the real `reticulumd` comes up
+  listening on the RPC address the prologue derives, and on a loopback port
+  another process holds it still exits non-zero naming the RPC bind).
+
 ## 0.18.0 - 2026-11-01
 
 ### Breaking

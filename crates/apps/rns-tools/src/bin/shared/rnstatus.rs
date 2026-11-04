@@ -783,6 +783,7 @@ fn tcp_runtime_summary(status: &Value) -> Option<String> {
         value_str(status, "endpoint"),
         value_u64(status, "reconnect_attempts")
     );
+    append_optional_u64(&mut summary, "connects", status.get("connected_streams"));
     append_optional_u64(&mut summary, "rx", status.get("bytes_rx"));
     append_optional_u64(&mut summary, "tx", status.get("bytes_tx"));
     append_optional_u64(&mut summary, "keepalives", status.get("keepalives_sent"));
@@ -1415,6 +1416,7 @@ mod tests {
                                     "endpoint": "127.0.0.1:4242",
                                     "stream_state": "reconnecting",
                                     "reconnect_attempts": 3,
+                                    "connected_streams": 5,
                                     "bytes_rx": 12,
                                     "bytes_tx": 34,
                                     "keepalives_sent": 2,
@@ -1832,7 +1834,9 @@ mod tests {
         assert!(output.contains("incoming=2"));
         assert!(output.contains("rx=45"));
         assert!(output.contains("tx=60"));
-        assert!(output.contains("tcp stream=reconnecting endpoint=127.0.0.1:4242 reconnects=3"));
+        assert!(output.contains(
+            "tcp stream=reconnecting endpoint=127.0.0.1:4242 reconnects=3 connects=5"
+        ));
         assert!(output.contains("keepalives=2"));
         assert!(output.contains("stale=1"));
         assert!(output.contains("timeouts=1"));

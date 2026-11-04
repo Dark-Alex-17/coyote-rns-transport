@@ -10,6 +10,7 @@ use std::time::Duration;
 
 use tokio::net::{UnixListener, UnixStream};
 
+use super::dial_log::DialAttempts;
 use super::events::{DialFailure, DialFailureKind, DisconnectReason, InterfaceEventKind};
 use super::tcp_client::{run_hdlc_stream_with_runtime_and_ifac, HdlcStreamRuntime, TcpClient};
 use super::{IfacState, Interface, InterfaceContext, InterfaceManager};
@@ -531,6 +532,7 @@ impl LocalUnixClient {
         let iface_address = context.channel.address;
         let ifac_state: IfacState = context.channel.ifac_state.clone();
         let ifac_violations = context.channel.ifac_violations.clone();
+        let connected_streams = context.channel.connected_streams.clone();
         let (
             addr,
             mtu,
@@ -565,6 +567,7 @@ impl LocalUnixClient {
 
         let mut running = true;
         let mut has_connected = false;
+        let mut dial_attempts = DialAttempts::new();
         while running && !context.cancel.is_cancelled() && !iface_stop.is_cancelled() {
             let stream = match stream.take() {
                 Some(stream) => {
@@ -583,8 +586,15 @@ impl LocalUnixClient {
             let stream = match stream {
                 Ok(stream) => stream,
                 Err(err) => {
-                    log::warn!("couldn't connect local unix client <{}>: {}", addr, err);
                     let kind = DialFailureKind::from_io_error(&err);
+                    let level = dial_attempts.record_failure(kind);
+                    log::log!(
+                        level,
+                        "couldn't connect local unix client <{}>: {} (attempt {})",
+                        addr,
+                        err,
+                        dial_attempts.failed()
+                    );
                     iface_events.publish(InterfaceEventKind::DialFailed { reason: kind });
                     if let Some(events) = dial_failure_events.as_ref() {
                         let failure = DialFailure::new(iface_address, kind);
@@ -608,7 +618,17 @@ impl LocalUnixClient {
 
             let (read_stream, write_stream) = stream.into_split();
 
-            log::info!("connected to local unix client <{}>", addr);
+            let failed_dials = dial_attempts.connected();
+            if failed_dials > 0 {
+                log::info!(
+                    "connected to local unix client <{}> after {} failed attempt(s)",
+                    addr,
+                    failed_dials
+                );
+            } else {
+                log::info!("connected to local unix client <{}>", addr);
+            }
+            connected_streams.fetch_add(1, std::sync::atomic::Ordering::Release);
             iface_events.publish(InterfaceEventKind::Connected);
             if let Some(events) = connect_events.as_ref() {
                 if let Err(err) = events.try_send(iface_address) {

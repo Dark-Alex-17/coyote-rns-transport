@@ -103,6 +103,10 @@ async fn shared_instance_tunnel_identity_default_keeps_two_transports_on_one_ide
     let mut b_in_events = b.transport.in_link_events();
     let (_b_destination, b_desc) =
         register_in_destination(&b.transport, "shared-instance-tunnel-identity", "b").await;
+    assert_ne!(
+        a_desc.address_hash, b_desc.address_hash,
+        "the two transports hold distinct destinations"
+    );
     let (b_learned, hops) =
         shared_instance_learn_announce(&mut c.announces, &b_desc.address_hash).await;
     assert_eq!(hops, 1, "c learns b's destination at one hop");
@@ -163,6 +167,10 @@ async fn shared_instance_tunnel_identity_opted_in_transports_on_one_identity_sha
         register_in_destination(&a.transport, "shared-instance-tunnel-identity-on", "a").await;
     let (_b_destination, b_desc) =
         register_in_destination(&b.transport, "shared-instance-tunnel-identity-on", "b").await;
+    assert_ne!(
+        a_desc.address_hash, b_desc.address_hash,
+        "the two transports hold distinct destinations"
+    );
     let (_, hops) = shared_instance_learn_announce(&mut b.announces, &a_desc.address_hash).await;
     assert_eq!(hops, 1, "b learns a's destination at one hop");
     let (_, hops) = shared_instance_learn_announce(&mut a.announces, &b_desc.address_hash).await;

@@ -30,12 +30,13 @@ per fork task.
 
 Every file changed since the `0.18.1` release and the patch each change
 belongs to. Patch ids: N1 is tunnel opt-in. The `tunnel opt-in` patch is
-fork commits `7ae6a364`, `785bce93` and `ad420766`.
+fork commits `7ae6a364`, `785bce93`, `ad420766` and `1446a8e5`.
 
 | File | Patch |
 | --- | --- |
 | `crates/apps/reticulumd/src/bin/reticulumd/bootstrap_interface_startup_parts/shared_instance_attach_probe_tests.rs` | tunnel opt-in |
 | `crates/apps/reticulumd/tests/fork_publish_contract_parts/ledger_contract.rs` | tunnel opt-in |
+| `crates/apps/reticulumd/tests/fork_release_docs_contract_parts/crate_readme_sections.rs` | tunnel opt-in |
 | `crates/libs/rns-transport/CHANGELOG.md` | tunnel opt-in |
 | `crates/libs/rns-transport/README.md` | tunnel opt-in |
 | `crates/libs/rns-transport/src/transport/links_parts/transport_sections/shared_instance.rs` | tunnel opt-in |
@@ -56,13 +57,14 @@ fork commits `7ae6a364`, `785bce93` and `ad420766`.
 | `crates/libs/rns-transport/src/transport/tests_parts/two_transport_shared_instance_state_events_probe.rs` | tunnel opt-in |
 | `crates/libs/rns-transport/src/transport/tests_parts/two_transport_shared_instance_storm.rs` | tunnel opt-in |
 | `crates/libs/rns-transport/src/transport/tests_parts/two_transport_shared_instance_tunnel_default.rs` | tunnel opt-in |
+| `crates/libs/rns-transport/src/transport/tests_parts/two_transport_shared_instance_tunnel_identity.rs` | tunnel opt-in |
 | `crates/libs/rns-transport/tests/interface_events_api.rs` | tunnel opt-in |
 | `crates/libs/rns-transport/tests/shared_instance_disconnect_reasons_api.rs` | tunnel opt-in |
 | `crates/libs/rns-transport/tests/shared_instance_tunnel_synthesis_api.rs` | tunnel opt-in |
 | `crates/libs/rns-transport/tests/support/close_orderly.rs` | tunnel opt-in |
 | `docs/fork/PATCHSET.md` | tunnel opt-in |
 
-Fork commits `7ae6a364`, `785bce93` and `ad420766`: N1, tunnel opt-in.
+Fork commits `7ae6a364`, `785bce93`, `ad420766` and `1446a8e5`: N1, tunnel opt-in.
 Upstream site: `Transport::attach_shared_instance` in
 `crates/libs/rns-transport/src/transport/links_parts/transport_sections/shared_instance.rs`,
 which synthesized a tunnel on the client interface once the first connect
@@ -75,8 +77,10 @@ no tunnel code; `wants_tunnel` is set only on the network-facing clients,
 `RNS/Interfaces/TCPInterface.py:179`), and the fork's unconditional tunnel
 was a bug for two transports on one identity: the tunnel id is the hash of
 the transport public key and the interface hash, the interface hash comes
-from a per-transport counter, so both attaches produced one id and the
-shared instance's reappeared-tunnel branch (`RNS/Transport.py:2820-2868`,
+from a counter per `InterfaceManager`, so when the attach was each
+transport's first interface (the common case for a client that brings up
+only the shared-instance connection) both attaches produced one id and
+the shared instance's reappeared-tunnel branch (`RNS/Transport.py:2820-2868`,
 `:2829`) re-pointed every stored path at the newest connection. `7ae6a364`
 adds `SharedInstanceOptions::with_tunnel_synthesis(bool)`, a `#[must_use]`
 builder off by default with a crate-private read-back; the attach
@@ -116,6 +120,14 @@ and the Type2 header to the tunnel rather than to the shared-instance
 posture, rewrites the README's shared-instance section and divergence row
 around the default-off tunnel, and extends the full-hash ledger pin in
 `ledger_contract.rs` to this reopened section beside the released ones.
+`1446a8e5` adds `two_transport_shared_instance_tunnel_identity.rs`, included
+from `src/transport/tests.rs`: two transports under one identity, each
+asserting up front that its attached interface carries the same full hash
+as the other's, keep a third client's links on the registering transport
+with no tunnel by default and hold one tunnel between them when opted in;
+and a `crate_readme_sections.rs` pin on the README divergence row and the
+shared-instance section's default-off wording. The same commit qualifies
+the collision rationale here, in the rustdoc, the README and the CHANGELOG.
 
 ## 0.18.1 (upstream 0.14.0)
 

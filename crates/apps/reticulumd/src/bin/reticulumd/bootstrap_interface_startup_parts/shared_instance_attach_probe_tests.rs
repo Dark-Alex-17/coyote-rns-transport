@@ -114,6 +114,59 @@ interfaces = [
     assert_slot_holds_attached_record(&transport, &records[0]).await;
 }
 
+/// Usage probe for the daemon's local-client posture: the attach a `LocalClientInterface`
+/// entry produces writes nothing on the accepted stream (no tunnel-synthesis packet, as
+/// Python's `LocalClientInterface` writes none), observed at a raw listener over a quiet
+/// window. The window is not vacuous: once it has passed, the test synthesizes a tunnel by
+/// hand through the public `Transport::synthesize_tunnel_on_interface` and the first bytes
+/// arrive on that same stream, so the stream was live and silent, not dead.
+#[tokio::test]
+async fn local_client_attach_writes_nothing_on_the_accepted_stream_until_asked() {
+    let shared_listener =
+        tokio::net::TcpListener::bind("127.0.0.1:0").await.expect("bind shared local instance");
+    let port = shared_listener.local_addr().expect("shared local addr").port();
+    let config = DaemonConfig::from_toml(&format!(
+        r#"
+interfaces = [
+  {{ type = "LocalClientInterface", enabled = true, name = "quiet-attach-client", shared_instance_type = "tcp", shared_instance_port = {port} }}
+]
+"#
+    ))
+    .expect("local_client config");
+    let args = attach_test_args();
+    let transport = test_transport();
+    let mut records = records_for(&config);
+
+    let batch = run_startup(&args, &config, &transport, &mut records).await;
+    assert_eq!(batch.startup_successes, 1);
+    assert!(batch.startup_failures.is_empty(), "failures={:?}", batch.startup_failures);
+    assert_slot_holds_attached_record(&transport, &records[0]).await;
+
+    let (mut stream, _) =
+        tokio::time::timeout(std::time::Duration::from_secs(5), shared_listener.accept())
+            .await
+            .expect("the client dials the listener within 5 s")
+            .expect("accept the client's connection");
+    let mut buf = [0u8; 512];
+    let quiet = tokio::time::timeout(
+        std::time::Duration::from_secs(3),
+        tokio::io::AsyncReadExt::read(&mut stream, &mut buf),
+    )
+    .await;
+    assert!(quiet.is_err(), "the daemon's attach wrote on the stream unasked: {quiet:?}");
+
+    let iface = transport.shared_instance().expect("shared instance slot filled by attach");
+    assert!(transport.synthesize_tunnel_on_interface(iface).await, "the attached iface is live");
+    let read = tokio::time::timeout(
+        std::time::Duration::from_secs(5),
+        tokio::io::AsyncReadExt::read(&mut stream, &mut buf),
+    )
+    .await
+    .expect("the hand-made tunnel packet reaches the listener within 5 s")
+    .expect("read the tunnel packet");
+    assert!(read > 0, "the stream was live: the tunnel asked for by hand arrived");
+}
+
 /// The two knobs the shared-instance client has no setting for still parse on a
 /// client-posture entry, and the attach warns once per key, in the documented shape
 /// `[daemon] <posture> name=<label> ignores <key>`; `prefer_ipv6` is honoured, so it draws

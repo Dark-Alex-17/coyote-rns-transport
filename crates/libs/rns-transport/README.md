@@ -560,10 +560,11 @@ does nothing; the entries of packets this node sent,
 the receipt guard that is Python's `receipts` list (`RNS/Transport.py:174`),
 stay;
 a queued disconnect is served before the reconnect behind it, so the flush
-never lands after that cycle's tunnel, and since the client emits each
-cycle's disconnect before its reconnect into two equal-depth queues, a
-disconnect can never be lost while its reconnect lands (the realistic storm
-loss is a reconnect, healed by the next one that lands).
+never lands after that cycle's reconnect work (the opted-in tunnel, when
+any, and the re-announce), and since the client emits each cycle's
+disconnect before its reconnect into two equal-depth queues, a disconnect
+can never be lost while its reconnect lands (the realistic storm loss is a
+reconnect, healed by the next one that lands).
 While attached, the duplicate filter
 inserts nothing and consults nothing (`RNS/Transport.py:1618-1627`): the
 owner deduplicates. The filter is skipped for packets arriving on the
@@ -958,7 +959,9 @@ parity ledger; the `docs/status/*` matrices are not updated per fork task.
   `transport_enabled` as configured.
   `SharedInstanceOptions::with_tunnel_synthesis` is a fork extension, off
   by default, under which the client synthesizes a tunnel at attach and on
-  every reconnect; Python's `LocalClientInterface` never does.
+  every reconnect; Python's `LocalClientInterface` never does
+  (`RNS/Interfaces/LocalInterface.py` has no tunnel code; `wants_tunnel` is
+  set by network-facing clients such as `RNS/Interfaces/TCPInterface.py:179`).
 - `attach_shared_instance` refuses a `Tcp` endpoint whose address is not
   loopback by default and attaches it only under
   `SharedInstanceOptions::allow_remote_endpoint(true)`, a fork extension:

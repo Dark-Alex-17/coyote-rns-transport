@@ -32,7 +32,11 @@ Removed) bullet of its own, marked as such.
   and a reconnect with the option off records "reconnected, tunnel
   synthesis is off" at debug. The option has no public getter;
   `Transport::synthesize_tunnel_on_interface` stays public for a caller
-  that wants a tunnel on its own terms. Pinned by
+  that wants a tunnel on its own terms. A consumer that relied on the
+  0.15.1 to 0.18.1 tunnel to have its paths restored on a reconnect keeps
+  it with `SharedInstanceOptions::with_tunnel_synthesis(true)`; the
+  default flip changes no signature, so cargo semver-checks reports
+  nothing for it. Pinned by
   `transport/tests_parts/two_transport_shared_instance_tunnel_default.rs`
   (two default-option clients on one shared instance: no tunnel in its
   table at attach or after a restart, announces learned at one hop, links
@@ -43,7 +47,13 @@ Removed) bullet of its own, marked as such.
   tunnel packet on both, the last builder call wins and chains around the
   other options, the read-back accessor fails to compile outside the
   crate, and `Transport::synthesize_tunnel_on_interface` called by hand
-  still writes the packet); the tunnel pins in
+  still writes the packet) and `tests/shared_instance_tunnel_synthesis_probe.rs`
+  (the opted-in frame decodes to the Data packet for the tunnel-synthesis
+  destination carrying the transport's public key and the attached
+  interface hash, the reopened stream carries the same, a reattach follows
+  the new attach's options, a Unix endpoint honours it, and dropping the
+  builder's return value is refused under `deny(unused_must_use)`); the
+  tunnel pins in
   `transport/tests_parts/two_transport_shared_instance.rs`,
   `two_transport_shared_instance_reconnect.rs`,
   `two_transport_shared_instance_storm.rs`,
@@ -83,7 +93,8 @@ Removed) bullet of its own, marked as such.
   (`RNS/Transport.py:1937-1940`), and the Type2 header on one-hop paths
   comes from `PathEntry::type1_eligible` (`transport/path_table.rs`),
   applied by `route_outbound_packet` (`transport/path.rs`) on the
-  handler's outbound path (`transport/handler.rs`; `RNS/Transport.py:1416`).
+  handler's outbound path (`transport/handler.rs`;
+  `RNS/Transport.py:1416-1427`).
   Both hold with the tunnel off. This supersedes the tunnel clauses of
   the 0.15.1 Added bullet ("synthesizes a tunnel on it at attach (and
   again on every reconnect, see Changed)"), of the 0.15.1 Changed bullet

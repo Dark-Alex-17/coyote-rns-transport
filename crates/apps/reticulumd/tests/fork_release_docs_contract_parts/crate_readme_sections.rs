@@ -739,7 +739,11 @@ fn crate_readme_shared_instance_section_describes_interface_events() {
 /// that is off by default, with Python's local client as the side that never
 /// synthesizes a tunnel, and no longer carries the unconditional claim that
 /// the client synthesizes one at attach; the shared-instance section states
-/// the default and the opt-in call.
+/// the default and the opt-in call, and gives the reason the option is off:
+/// two transports under one identity collide on the tunnel id when the
+/// attach is each transport's first interface, the shared instance then
+/// moves every path to the newest connection, so the opt-in is for a single
+/// transport holding the identity.
 #[test]
 fn crate_readme_divergence_register_names_tunnel_synthesis_as_opt_in() {
     let readme = read_repo_file("crates/libs/rns-transport/README.md");
@@ -760,7 +764,13 @@ fn crate_readme_divergence_register_names_tunnel_synthesis_as_opt_in() {
         "the divergence register should no longer claim an unconditional tunnel:\n{divergences}"
     );
     let section = squash(crate_readme_section(&readme, "Attaching to a shared instance"));
-    for claim in ["synthesizes no tunnel by default", "with_tunnel_synthesis(true)"] {
+    for claim in [
+        "synthesizes no tunnel by default",
+        "with_tunnel_synthesis(true)",
+        "when the attach is each transport's first interface",
+        "RNS/Transport.py:2820-2868",
+        "opt in only when a single transport holds the identity",
+    ] {
         assert!(
             section.contains(&squash(claim)),
             "the shared-instance section should mention {claim}:\n{section}"

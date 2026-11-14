@@ -735,6 +735,39 @@ fn crate_readme_shared_instance_section_describes_interface_events() {
     }
 }
 
+/// The divergence register names `with_tunnel_synthesis` as a fork extension
+/// that is off by default, with Python's local client as the side that never
+/// synthesizes a tunnel, and no longer carries the unconditional claim that
+/// the client synthesizes one at attach; the shared-instance section states
+/// the default and the opt-in call.
+#[test]
+fn crate_readme_divergence_register_names_tunnel_synthesis_as_opt_in() {
+    let readme = read_repo_file("crates/libs/rns-transport/README.md");
+    let divergences = squash(crate_readme_section(&readme, "Known divergences from Python RNS"));
+    for claim in [
+        "SharedInstanceOptions::with_tunnel_synthesis",
+        "fork extension",
+        "off by default",
+        "Python's `LocalClientInterface` never does",
+    ] {
+        assert!(
+            divergences.contains(&squash(claim)),
+            "the divergence register should mention {claim}:\n{divergences}"
+        );
+    }
+    assert!(
+        !divergences.contains(&squash("And the client synthesizes a tunnel at attach")),
+        "the divergence register should no longer claim an unconditional tunnel:\n{divergences}"
+    );
+    let section = squash(crate_readme_section(&readme, "Attaching to a shared instance"));
+    for claim in ["synthesizes no tunnel by default", "with_tunnel_synthesis(true)"] {
+        assert!(
+            section.contains(&squash(claim)),
+            "the shared-instance section should mention {claim}:\n{section}"
+        );
+    }
+}
+
 /// The shared-instance section describes the connect count the way the
 /// clients keep it: the transport getter and its `Option`, the `Lagged`
 /// reconciliation it exists for, the shared instance's own interface, the

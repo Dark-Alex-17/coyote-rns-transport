@@ -4,8 +4,8 @@
 // redials at once the first time a stream drops and waits `reconnect_wait` from the second
 // consecutive failure on; the unix client waits `reconnect_wait` before every retry, as
 // `RNS/Interfaces/LocalInterface.py:160` does), the link-table count the drop's debug line
-// now carries, and the reconnect consumer's rustdoc that the tunnel re-synthesis is not
-// posture-gated. Helpers come from the sibling `tests_parts` files included into this
+// now carries, and the reconnect consumer's rustdoc that the tunnel re-synthesis, when opted
+// in, is not posture-gated. Helpers come from the sibling `tests_parts` files included into this
 // module.
 
 #[cfg(unix)]

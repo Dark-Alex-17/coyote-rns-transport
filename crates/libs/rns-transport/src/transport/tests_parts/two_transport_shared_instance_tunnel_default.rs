@@ -1,5 +1,5 @@
-// Coverage for the default of `SharedInstanceOptions`: a client that does not opt in with
-// `with_tunnel_synthesis` synthesizes no tunnel, as Python's local client does not
+// Coverage for the default tunnel setting of `SharedInstanceOptions`: a client that does not
+// opt in with `with_tunnel_synthesis` synthesizes no tunnel, as Python's local client does not
 // (`RNS/Interfaces/LocalInterface.py` has no tunnel code). Two such clients attached to one
 // TCP shared instance still learn each other's announces at one hop and open links both
 // ways, the shared instance's tunnel table stays empty before and after a restart, and the
@@ -16,7 +16,7 @@ async fn shared_instance_tunnel_default_count(server: &SharedInstanceServer) -> 
     handler.tunnel_table.clear()
 }
 
-/// Two default-option clients exchange announces at one hop and open links both ways with
+/// Two clients that did not opt in exchange announces at one hop and open links both ways with
 /// no tunnel in the shared instance's table; a restart of the shared instance is followed
 /// by a reconnect that records the synthesis as off, re-announces both destinations and
 /// lands no tunnel in the restarted instance's table either.
@@ -77,7 +77,7 @@ async fn shared_instance_tunnel_default_synthesizes_no_tunnel_at_attach_or_recon
         assert!(record.contains("shared instance iface="), "the record names the iface: {record}");
         assert!(
             shared_instance_debug_records_containing(name, "tunnel re-synthesized").is_empty(),
-            "a default-option reconnect re-synthesizes nothing: {:?}",
+            "a reconnect of a client that did not opt in re-synthesizes nothing: {:?}",
             shared_instance_records_for(name)
         );
     }

@@ -257,10 +257,13 @@ impl SharedInstanceOptions {
     /// is set only on the network-facing clients, such as
     /// `RNS/Interfaces/TCPInterface.py:179`). The tunnel id is the hash of
     /// the transport public key and the interface hash, and this crate derives
-    /// the interface hash from a per-transport counter, so two transports
-    /// that attach with one identity, in one process or two, collide on the
-    /// id and the shared instance moves every path to the newest connection
-    /// (`RNS/Transport.py:2820-2868`, the reappeared branch at `:2829`).
+    /// the interface hash from a counter per `InterfaceManager`, so two
+    /// transports that attach with one identity, in one process or two,
+    /// collide on the id when the attach is each transport's first interface
+    /// (the common case for a client that brings up only the shared-instance
+    /// connection) and the shared instance moves every path to the newest
+    /// connection (`RNS/Transport.py:2820-2868`, the reappeared branch at
+    /// `:2829`).
     /// Opt in only when a single transport holds the identity and wants its
     /// paths restored on a reconnect.
     #[must_use]

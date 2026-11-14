@@ -62,7 +62,9 @@ Removed) bullet of its own, marked as such.
   processes or in one, had the first client's links routed to the second.
   The tunnel id is the hash of the transport public key and the interface
   hash (`transport/tunnels.rs`), and this crate derives the interface hash
-  from a per-transport counter (`iface_parts/interfacemanager.rs`), so both
+  from a counter per `InterfaceManager` (`iface_parts/interfacemanager.rs`),
+  so when the attach was each transport's first interface (the common case
+  for a client that brings up only the shared-instance connection) both
   attaches synthesized the same tunnel id and the shared instance's
   reappeared-tunnel branch (`RNS/Transport.py:2820-2868`, the branch at
   `:2829`) re-pointed every path stored under it at the newest connection.
@@ -97,7 +99,11 @@ Removed) bullet of its own, marked as such.
   for the first served connect before the tunnel is synthesized": the
   wait precedes a tunnel only on an opted-in attach). Pinned by
   `transport/tests_parts/two_transport_shared_instance_tunnel_default.rs`
-  and `tests/shared_instance_tunnel_synthesis_api.rs` as above, by the
+  and `tests/shared_instance_tunnel_synthesis_api.rs` as above, by
+  `transport/tests_parts/two_transport_shared_instance_tunnel_identity.rs`
+  (two transports under one identity: the default keeps a third client's
+  links on the registering transport with no tunnel; opted in, the shared
+  instance holds one tunnel for both), by the
   daemon's `bootstrap_interface_startup_parts::shared_instance_attach_tests`
   (`tunnel_synth_ifaces` stays empty for the local-client attach) and its
   `shared_instance_attach_probe_tests` bitrate pin, which synthesizes a

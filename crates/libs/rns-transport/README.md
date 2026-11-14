@@ -510,9 +510,11 @@ in: a tunnel is synthesized on the interface at attach and again at once on
 every reconnect, so the shared instance restores the paths it learned over
 the connection when the client comes back. The tunnel id is the hash of the
 transport public key and the interface hash, and this crate derives the
-interface hash from a per-transport counter, so two transports attaching
-with one identity, in one process or two, collide on the id and the shared
-instance moves every path to the newest connection (`RNS/Transport.py:2820-2868`,
+interface hash from a counter per `InterfaceManager`, so two transports
+attaching with one identity, in one process or two, collide on the id when
+the attach is each transport's first interface (the common case for a client
+that brings up only the shared-instance connection) and the shared instance
+moves every path to the newest connection (`RNS/Transport.py:2820-2868`,
 the reappeared branch at `:2829`): opt in only when a single transport
 holds the identity and wants its paths restored on a reconnect. reticulumd
 leaves it off. `Transport::synthesize_tunnel_on_interface` remains available

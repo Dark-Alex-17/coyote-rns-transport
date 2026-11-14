@@ -107,8 +107,8 @@ async fn shared_instance_probe7_registration_announce_waits_the_quarter_second()
 /// `RNS/Interfaces/LocalInterface.py:178-181`: the re-announce fires `reconnect_wait + 2 s`
 /// after the reconnect, not on the reconnect itself. The first re-announce arrives no
 /// sooner than the floor after the re-accept, and the last one inside the reconnect
-/// fixture's bound. The reconnect's own tunnel re-synthesis is not an announce and does
-/// not count.
+/// fixture's bound. The client did not opt into tunnel synthesis, so the re-announces are
+/// the only traffic the reconnect sends.
 #[tokio::test]
 #[deny(clippy::await_holding_invalid_type)]
 async fn shared_instance_probe7_reannounce_waits_the_reconnect_wait_plus_two_seconds() {

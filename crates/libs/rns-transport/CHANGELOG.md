@@ -8,6 +8,110 @@ no library behaviour (a test-only change such as a fixture hardening or a
 test hygiene pass, release tooling, CI) is a Changed (or, for a deleted file,
 Removed) bullet of its own, marked as such.
 
+## Unreleased
+
+### Added
+
+- `SharedInstanceOptions::with_tunnel_synthesis(bool)`
+  (`transport/shared_instance.rs`), a fork-only `#[must_use]` builder that
+  chains with the other options. With it set,
+  `Transport::attach_shared_instance`
+  (`links_parts/transport_sections/shared_instance.rs`) synthesizes a
+  tunnel on the client interface at attach and the reconnect consumer
+  (`links_parts/transport_sections/shared_instance_reconnect.rs`)
+  re-synthesizes it at once on every reconnect, so the shared instance
+  restores the paths it learned over the connection when the client comes
+  back. Off by default, as Python's local client synthesizes no tunnel (its
+  reconnect job at `RNS/Interfaces/LocalInterface.py:178-181` only
+  re-announces, and the file has no tunnel code anywhere; `wants_tunnel` is
+  set only on the network-facing clients, `RNS/Interfaces/TCPInterface.py:179`).
+  Opt in only when a single transport holds the identity and wants its
+  paths restored on a reconnect; see Fixed for why two transports on one
+  identity cannot. The reconnect consumer is spawned with the options
+  struct in place of the reconnect wait and the disconnect-reasons flag,
+  and a reconnect with the option off records "reconnected, tunnel
+  synthesis is off" at debug. The option has no public getter;
+  `Transport::synthesize_tunnel_on_interface` stays public for a caller
+  that wants a tunnel on its own terms. Pinned by
+  `transport/tests_parts/two_transport_shared_instance_tunnel_default.rs`
+  (two default-option clients on one shared instance: no tunnel in its
+  table at attach or after a restart, announces learned at one hop, links
+  opened both ways, and each reconnect recording the "tunnel synthesis is
+  off" line) and `tests/shared_instance_tunnel_synthesis_api.rs` (against
+  a raw listener: the default and an explicit `false` write nothing on the
+  first stream or on the one a forced drop reopens, the opt-in writes the
+  tunnel packet on both, the last builder call wins and chains around the
+  other options, the read-back accessor fails to compile outside the
+  crate, and `Transport::synthesize_tunnel_on_interface` called by hand
+  still writes the packet); the tunnel pins in
+  `transport/tests_parts/two_transport_shared_instance.rs`,
+  `two_transport_shared_instance_reconnect.rs`,
+  `two_transport_shared_instance_storm.rs`,
+  `two_transport_shared_instance_probe5.rs`,
+  `two_transport_shared_instance_probe7.rs`,
+  `two_transport_shared_instance_probe10.rs`,
+  `two_transport_shared_instance_probe16.rs`,
+  `two_transport_shared_instance_probe17.rs`,
+  `two_transport_shared_instance_probe17_unix.rs`,
+  `two_transport_shared_instance_state_events.rs` and
+  `two_transport_shared_instance_state_events_probe.rs` now opt in.
+
+### Fixed
+
+- Two transports attached to one shared instance with one identity, in two
+  processes or in one, had the first client's links routed to the second.
+  The tunnel id is the hash of the transport public key and the interface
+  hash (`transport/tunnels.rs`), and this crate derives the interface hash
+  from a per-transport counter (`iface_parts/interfacemanager.rs`), so both
+  attaches synthesized the same tunnel id and the shared instance's
+  reappeared-tunnel branch (`RNS/Transport.py:2820-2868`, the branch at
+  `:2829`) re-pointed every path stored under it at the newest connection.
+  Tunnel synthesis at attach
+  (`links_parts/transport_sections/shared_instance.rs`) and on reconnect
+  (`links_parts/transport_sections/shared_instance_reconnect.rs`) is now
+  opt-in through `with_tunnel_synthesis` (see Added) and off by default;
+  reticulumd's local-client attach keeps the default. A correction to the
+  older notes goes with it: the 0.15.1 Added bullet for
+  `attach_shared_instance` said the tunnel was synthesized "so inbound
+  packets take the client-side hop ... and outbound packets on one-hop
+  paths carry a transport header". Both follow from the
+  connected-to-shared-instance posture, not from the tunnel: the hop strip
+  in `transport/inbound_processing.rs` runs when the transport is
+  connected to a shared instance and the packet arrived on it
+  (`RNS/Transport.py:1937-1940`), and the Type2 header on one-hop paths
+  comes from `PathEntry::type1_eligible` (`transport/path_table.rs`),
+  applied by `route_outbound_packet` (`transport/path.rs`) on the
+  handler's outbound path (`transport/handler.rs`; `RNS/Transport.py:1416`).
+  Both hold with the tunnel off. This supersedes the tunnel clauses of
+  the 0.15.1 Added bullet ("synthesizes a tunnel on it at attach (and
+  again on every reconnect, see Changed)"), of the 0.15.1 Changed bullet
+  ("On every shared-instance reconnect the attached client re-synthesizes
+  the tunnel on the interface at once") and its
+  `two_transport_shared_instance_probe10.rs` clause ("still
+  re-synthesizes the tunnel on the reconnect while re-announcing
+  nothing"), of the 0.16.0 Changed clause that the daemon's
+  "stream-reconnect tunnel synthesizer now serves only its `tcp_client`
+  and `backbone_client` interfaces" (it left the attached client's tunnel
+  to the library, which now synthesizes none for the daemon), and of the
+  0.18.0 Added bullet for `with_first_connect_timeout` ("wait that long
+  for the first served connect before the tunnel is synthesized": the
+  wait precedes a tunnel only on an opted-in attach). Pinned by
+  `transport/tests_parts/two_transport_shared_instance_tunnel_default.rs`
+  and `tests/shared_instance_tunnel_synthesis_api.rs` as above, by the
+  daemon's `bootstrap_interface_startup_parts::shared_instance_attach_tests`
+  (`tunnel_synth_ifaces` stays empty for the local-client attach) and its
+  `shared_instance_attach_probe_tests` bitrate pin, which synthesizes a
+  tunnel from the test once the attach is done so that a frame is written
+  to time, and by the raw-listener reset drains in
+  `tests/shared_instance_disconnect_reasons_api.rs` and
+  `transport/tests_parts/two_transport_shared_instance_disconnect_reasons.rs`,
+  which no longer read a tunnel packet before closing a stream with a
+  reset (the client has nothing to write, so nothing is pending on its
+  side when the reset lands); the `close_orderly` drains in
+  `tests/support/close_orderly.rs`, `tests/interface_events_api.rs` and
+  `tests/shared_instance_disconnect_reasons_api.rs` promise no tunnel
+  packet any more and drain whatever the client wrote on the connect.
+
 ## 0.18.1 - 2026-11-03
 
 ### Added

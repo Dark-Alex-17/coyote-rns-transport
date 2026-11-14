@@ -480,9 +480,8 @@ not Python's default (see Known divergences).
 `Transport::attach_shared_instance(SharedInstanceEndpoint, SharedInstanceOptions)`
 spawns a `TcpClient` for a `SharedInstanceEndpoint::Tcp(SocketAddr)`, or on
 unix targets a `LocalUnixClient` for `Unix`, marks that interface as the shared
-instance, sets the transport's client posture, synthesizes a tunnel on it (at
-attach and again on every reconnect) and returns the interface address: the
-posture of a Python program
+instance, sets the transport's client posture and returns the interface
+address: the posture of a Python program
 attaching to the instance that owns `shared_instance_port`
 (`RNS/Reticulum.py:422-441`; the default port is `:295`), with the
 client-side hop count of `RNS/Transport.py:1940` and the transport header
@@ -503,6 +502,21 @@ does (`RNS/Interfaces/LocalInterface.py:159-160`); the TCP client redials
 at once after a drop and sleeps it from the second consecutive short-lived
 connection on, one that lasted under `MIN_STABLE_CONNECTION` (2 s); a
 connection that outlived the window resets the streak.
+The attach synthesizes no tunnel by default, as Python's local client does
+not (`RNS/Interfaces/LocalInterface.py` has no tunnel code; `wants_tunnel`
+is set by network-facing clients such as `RNS/Interfaces/TCPInterface.py:179`).
+`SharedInstanceOptions::with_tunnel_synthesis(true)`, a fork extension, opts
+in: a tunnel is synthesized on the interface at attach and again at once on
+every reconnect, so the shared instance restores the paths it learned over
+the connection when the client comes back. The tunnel id is the hash of the
+transport public key and the interface hash, and this crate derives the
+interface hash from a per-transport counter, so two transports attaching
+with one identity, in one process or two, collide on the id and the shared
+instance moves every path to the newest connection (`RNS/Transport.py:2820-2868`,
+the reappeared branch at `:2829`): opt in only when a single transport
+holds the identity and wants its paths restored on a reconnect. reticulumd
+leaves it off. `Transport::synthesize_tunnel_on_interface` remains available
+to a caller that wants a tunnel on its own terms.
 `SharedInstanceOptions` also carries `with_mtu`, `with_forced_bitrate` and
 `with_interface_mode`, applied to the spawned client as the matching
 `TcpClient`/`LocalUnixClient` constructors would, with the `mtu` and
@@ -515,8 +529,9 @@ attached, a `SINGLE` destination is announced as a path
 response 0.25 s after `register_destination` (`RNS/Transport.py:2911-2916`,
 the context of `RNS/Destination.py:308-315`), and
 `Transport::announce_destinations_to_shared_instance` sends that announce
-for every registered destination on demand. On every reconnect the tunnel is
-re-synthesized at once and every registered single destination is
+for every registered destination on demand. On every reconnect the opted-in
+tunnel, if any, is re-synthesized at once and every registered single
+destination is
 re-announced as a path response `reconnect_wait` plus 2 s later, if the
 transport is still attached then (`RNS/Transport.py:3705-3709`,
 `RNS/Interfaces/LocalInterface.py:178-181`). A dropped connection, as
@@ -938,11 +953,10 @@ parity ledger; the `docs/status/*` matrices are not updated per fork task.
   awaiting the proof (`:659-661`).
 - `attach_shared_instance` does not force transport, remote management or
   probes off as Python does (`RNS/Reticulum.py:438-440`): the caller keeps
-  `transport_enabled` as configured. And the client synthesizes a tunnel at
-  attach and again on every reconnect, which Python's `LocalClientInterface`
-  never does (`RNS/Interfaces/LocalInterface.py` has no tunnel code;
-  `wants_tunnel` is set by network-facing clients such as
-  `RNS/Interfaces/TCPInterface.py:179`).
+  `transport_enabled` as configured.
+  `SharedInstanceOptions::with_tunnel_synthesis` is a fork extension, off
+  by default, under which the client synthesizes a tunnel at attach and on
+  every reconnect; Python's `LocalClientInterface` never does.
 - `attach_shared_instance` refuses a `Tcp` endpoint whose address is not
   loopback by default and attaches it only under
   `SharedInstanceOptions::allow_remote_endpoint(true)`, a fork extension:

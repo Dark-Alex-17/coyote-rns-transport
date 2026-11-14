@@ -198,6 +198,8 @@ async fn aged_pending_out_link_stays_quiet_until_closed_like_python() {
         .await
         .expect("initial link request should be queued")
         .expect("tx channel open");
+    // One second past the 6 s cadence the job used to repeat on, inside the establishment
+    // timeout: a reintroduced repeat would fire here.
     link.lock().await.set_request_time_for_test(std::time::Instant::now() - Duration::from_secs(7));
 
     super::jobs::handle_check_links(handler.lock().await).await;
@@ -218,6 +220,10 @@ async fn aged_pending_out_link_stays_quiet_until_closed_like_python() {
     assert_eq!(
         link.lock().await.close_reason(),
         Some(crate::destination::link::LinkCloseReason::Timeout)
+    );
+    assert!(
+        handler.lock().await.path_table.get(&destination_hash).is_none(),
+        "the path it was tried on is expired"
     );
     let after_close = timeout(Duration::from_millis(200), iface_channel.tx_channel.recv())
         .await

@@ -74,12 +74,13 @@ Removed) bullet of its own, marked as such.
   repeats a byte-identical request every 6 s (the private
   `INTERVAL_OUTPUT_LINK_REPEAT` in `transport/mod.rs` is gone), which
   matches Python, where the request goes out once (`RNS/Link.py:313-320`)
-  and the establishment timeout is the only bound (`RNS/Link.py:722-729`).
+  and the establishment timeout is the only bound (`RNS/Link.py:722-729`
+  and `:732-739`).
   The repeat rarely landed: on every hop that had seen the first request
   the duplicate filters drop it (Python re-admits only announces,
   `RNS/Transport.py:1668-1679`; this crate's
   `transport/inbound_processing.rs` gives `LinkRequest` no duplicate
-  allowance), and Python does not retransmit either.
+  allowance).
   The upstream `reticulum-rs-transport` behaviour this replaces was
   inherited, not fork-added. The "repeat link request" warn disappears. A
   direct second `Link::request()` on a pending link is still allowed and

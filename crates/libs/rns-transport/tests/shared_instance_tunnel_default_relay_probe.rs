@@ -327,6 +327,10 @@ async fn default_clients_relay_and_survive_a_restart(flagged: bool) {
 
     // A forced server-side drop: the shared instance goes away and comes back on its port.
     timeout(WAIT, shared.transport.stop()).await.expect("shared instance stop completes");
+    // A broadcast subscription only sees later events: the pre-restart fan-out must not
+    // stand in for the re-learn below.
+    a.announces = a.transport.recv_announces().await;
+    b.announces = b.transport.recv_announces().await;
     for (name, client) in [("a", &mut a), ("b", &mut b)] {
         assert_eq!(
             next_event(name, &mut client.events).await,

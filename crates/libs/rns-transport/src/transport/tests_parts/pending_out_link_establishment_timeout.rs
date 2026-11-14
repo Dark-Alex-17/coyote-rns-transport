@@ -103,7 +103,8 @@ async fn a_pending_out_link_inside_its_establishment_timeout_is_not_requested_ag
         .await
         .expect("initial link request should be queued")
         .expect("tx channel open");
-    // Well past the first request, inside the establishment timeout.
+    // One second past the 6 s cadence the job used to repeat on, inside the establishment
+    // timeout: a reintroduced repeat would fire here.
     link.lock().await.set_request_time_for_test(std::time::Instant::now() - Duration::from_secs(7));
 
     super::jobs::handle_check_links(handler.lock().await).await;

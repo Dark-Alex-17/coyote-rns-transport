@@ -20,17 +20,17 @@ impl Link {
     }
 
     /// Whether a link that is still `Pending` or in `Handshake` has outlived
-    /// its establishment timeout. The request goes out once
-    /// (`RNS/Link.py:313-320`) and this timeout is the only bound on a link
+    /// its establishment timeout. The transport does not retransmit a
+    /// pending request: Python sends it once (`RNS/Link.py:313-320`), and
+    /// on any hop that saw the first frame a byte-identical repeat is dropped
+    /// by the duplicate filter anyway (`RNS/Transport.py:1668-1679`
+    /// re-admits only single-destination announces; this crate's
+    /// `transport/inbound_processing.rs` gives `PacketType::LinkRequest` no
+    /// duplicate allowance). So this timeout is the only bound on a link
     /// that never comes up: `RNS.Link`'s watchdog closes it then with
-    /// `teardown_reason = TIMEOUT` (`RNS/Link.py:722-729`), and a
-    /// non-transport instance expires the path it was made on. The transport
-    /// does not retransmit a pending request: Python sends it once
-    /// (`RNS/Link.py:313-320`), and on any hop that saw the first frame a
-    /// byte-identical repeat is dropped by the duplicate filter anyway
-    /// (`RNS/Transport.py:1668-1679` re-admits only single-destination
-    /// announces; this crate's `transport/inbound_processing.rs` gives
-    /// `PacketType::LinkRequest` no duplicate allowance).
+    /// `teardown_reason = TIMEOUT` from either `PENDING` or `HANDSHAKE`
+    /// (`RNS/Link.py:722-729`, `:732-739`), and a non-transport instance
+    /// expires the path it was made on.
     ///
     /// Measured from the start of the current attempt, which is not the same
     /// as the latest request packet: a direct repeated `request()` on a

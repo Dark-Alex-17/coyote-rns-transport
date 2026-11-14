@@ -205,7 +205,7 @@ async fn a_sub_tick_establishment_timeout_still_sends_exactly_one_request() {
     assert_eq!(closed.close_reason, Some(LinkCloseReason::Timeout));
     assert_eq!(link.lock().await.status(), LinkStatus::Closed);
 
-    // Everything the stream carried up to the close and for a tick-and-a-half after it.
+    // Everything the stream buffered before the close plus two maintenance ticks after it.
     let requests = link_request_destinations_in(&read_for(&mut stream, ESTABLISHMENT).await);
     assert_eq!(
         requests,

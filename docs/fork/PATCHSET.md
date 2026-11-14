@@ -32,7 +32,7 @@ Every file changed since the `0.18.1` release and the patch each change
 belongs to. Patch ids: N1 is tunnel opt-in, N2 is link request once. The
 `tunnel opt-in` patch is fork commits `7ae6a364`, `785bce93`, `ad420766`,
 `1446a8e5` and `d2e106bb`. The `link request once` patch is fork commits
-`728e10dd`, `2c2f14d9` and `d65fd1e3`.
+`728e10dd`, `2c2f14d9`, `d65fd1e3` and `0be75f6f`.
 
 | File | Patch |
 | --- | --- |
@@ -42,6 +42,7 @@ belongs to. Patch ids: N1 is tunnel opt-in, N2 is link request once. The
 | `crates/libs/rns-transport/CHANGELOG.md` | tunnel opt-in, link request once |
 | `crates/libs/rns-transport/README.md` | tunnel opt-in |
 | `crates/libs/rns-transport/src/destination/link_parts/link_sections/establishment.rs` | link request once |
+| `crates/libs/rns-transport/src/destination/link_parts/link_status_predicates_make_lifecycl_sections/core_tests.rs` | link request once |
 | `crates/libs/rns-transport/src/transport/jobs_parts/link_maintenance.rs` | link request once |
 | `crates/libs/rns-transport/src/transport/links_parts/transport_sections/shared_instance.rs` | tunnel opt-in |
 | `crates/libs/rns-transport/src/transport/links_parts/transport_sections/shared_instance_reconnect.rs` | tunnel opt-in |
@@ -50,6 +51,7 @@ belongs to. Patch ids: N1 is tunnel opt-in, N2 is link request once. The
 | `crates/libs/rns-transport/src/transport/tests.rs` | tunnel opt-in |
 | `crates/libs/rns-transport/src/transport/tests_parts/pending_out_link_establishment_timeout.rs` | link request once |
 | `crates/libs/rns-transport/src/transport/tests_parts/pending_out_link_rediscovery.rs` | link request once |
+| `crates/libs/rns-transport/src/transport/tests_parts/two_transport_loopback_requests_errors.rs` | link request once |
 | `crates/libs/rns-transport/src/transport/tests_parts/two_transport_shared_instance.rs` | tunnel opt-in |
 | `crates/libs/rns-transport/src/transport/tests_parts/two_transport_shared_instance_disconnect_reasons.rs` | tunnel opt-in |
 | `crates/libs/rns-transport/src/transport/tests_parts/two_transport_shared_instance_flush.rs` | tunnel opt-in |
@@ -66,6 +68,7 @@ belongs to. Patch ids: N1 is tunnel opt-in, N2 is link request once. The
 | `crates/libs/rns-transport/src/transport/tests_parts/two_transport_shared_instance_tunnel_default.rs` | tunnel opt-in |
 | `crates/libs/rns-transport/src/transport/tests_parts/two_transport_shared_instance_tunnel_identity.rs` | tunnel opt-in |
 | `crates/libs/rns-transport/tests/interface_events_api.rs` | tunnel opt-in |
+| `crates/libs/rns-transport/tests/pending_link_single_request_concurrent_probe.rs` | link request once |
 | `crates/libs/rns-transport/tests/pending_link_single_request_default_timeout_probe.rs` | link request once |
 | `crates/libs/rns-transport/tests/pending_link_single_request_probe.rs` | link request once |
 | `crates/libs/rns-transport/tests/shared_instance_disconnect_reasons_api.rs` | tunnel opt-in |
@@ -152,7 +155,7 @@ single-transport opt-in sentence; and gives the CHANGELOG Added bullet the
 migration sentence for a consumer that relied on the 0.15.1 to 0.18.1
 tunnel.
 
-Fork commits `728e10dd`, `2c2f14d9` and `d65fd1e3`:
+Fork commits `728e10dd`, `2c2f14d9`, `d65fd1e3` and `0be75f6f`:
 N2, link request once.
 Upstream site: `handle_check_links` in
 `crates/libs/rns-transport/src/transport/jobs_parts/link_maintenance.rs`,
@@ -161,8 +164,8 @@ whose `Pending` arm re-sent the link request every
 the link stayed pending, inherited from upstream `reticulum-rs-transport`.
 Python sends the request once (`RNS/Link.py:313-320`) and only the
 establishment timeout bounds the link (`RNS/Link.py:722-729`). The repeat
-was dead on the wire: the duplicate filters drop a link request whose hash
-they have seen (Python re-admits only announces,
+was dropped by every hop that had seen the first request: the duplicate
+filters drop a link request whose hash they have seen (Python re-admits only announces,
 `RNS/Transport.py:1668-1679`; this crate's `transport/inbound_processing.rs`
 gives `LinkRequest` no duplicate allowance). `728e10dd` empties the
 `Pending` arm into `Pending | Handshake => {}`, deletes the const and the
@@ -201,9 +204,20 @@ under the link and takes the `Closed` event with reason `Timeout` with no
 link request after it; the other pins that a fresh `Transport::link` to the
 same destination after a timeout close is a new link that sends its own
 single request. The same commit softens the 2 s probe's docs to what it
-shows, fixes the carried-in relay probe's announce-timestamp cite
+shows, fixes the relay probe's announce-timestamp cite
 (`RNS/Destination.py:283`, `RNS/Transport.py:2214`) and wording, and
 narrows the CHANGELOG's duplicate-filter sentence to the link request.
+`0be75f6f` adds `tests/pending_link_single_request_concurrent_probe.rs`,
+where two pending links opened back to back each put one `LinkRequest`
+addressed to their own destination on the stream and both close with
+`Timeout`, and a 300 ms timeout shorter than the maintenance tick still
+sends exactly one request; pins the request destination in the two wire
+probes and the rediscovery path request's payload and silence after it in
+`pending_out_link_rediscovery.rs`; drops the stale repeat-cadence wording
+from `core_tests.rs` and `two_transport_loopback_requests_errors.rs`;
+rewords the `establishment_timed_out` rustdoc and the CHANGELOG to Python
+parity first, with the duplicate filters as the reason a repeat rarely
+landed; and widens the relay probe's state-event channel.
 
 ## 0.18.1 (upstream 0.14.0)
 

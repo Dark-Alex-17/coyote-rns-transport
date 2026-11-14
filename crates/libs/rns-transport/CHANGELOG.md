@@ -76,8 +76,10 @@ Removed) bullet of its own, marked as such.
   matches Python, where the request goes out once (`RNS/Link.py:313-320`)
   and the establishment timeout is the only bound (`RNS/Link.py:722-729`).
   The repeat could never land anyway: the duplicate filters
-  (`RNS/Transport.py:1668-1679`, `transport/inbound_processing.rs`) drop a
-  packet whose hash they have seen and let only announces through again.
+  drop a link request whose hash they have seen (Python re-admits only
+  announces, `RNS/Transport.py:1668-1679`; this crate's
+  `transport/inbound_processing.rs` gives `LinkRequest` no duplicate
+  allowance).
   The upstream `reticulum-rs-transport` behaviour this replaces was
   inherited, not fork-added. The "repeat link request" warn disappears. A
   direct second `Link::request()` on a pending link is still allowed and
@@ -85,16 +87,23 @@ Removed) bullet of its own, marked as such.
   `transport/tests_parts/pending_out_link_establishment_timeout.rs` (no
   second request inside the timeout),
   `transport/tests_parts/pending_out_link_rediscovery.rs` (quiet until the
-  timeout close) and `tests/pending_link_single_request_probe.rs` (one
+  timeout close), `tests/pending_link_single_request_probe.rs` (the
+  timeout close and the decoded frame from outside the crate: one
   `LinkRequest` frame on a raw listener's stream over twice a 2 s
-  establishment timeout, then the `Closed` event with reason `Timeout`).
+  establishment timeout, then the `Closed` event with reason `Timeout`)
+  and `tests/pending_link_single_request_default_timeout_probe.rs` (with
+  nothing overridden, one `LinkRequest` over 8 s on a raw listener's
+  stream, past the 6 s mark at which the repeat used to fire, the link
+  still pending at the end of the window, then the `Closed` event with
+  reason `Timeout` once the clock is shortened; and a fresh `link()` after
+  a timeout close sending its own single request).
 - Test-only: `tests/shared_instance_tunnel_default_relay_probe.rs` pins
   that two default-option clients on a `TcpServer` shared instance, plain
   and flagged, learn each other and open links both ways across a
-  shared-instance restart; the reticulumd
-  `shared_instance_attach_probe_tests` module gains a pin that the daemon's
-  local-client attach writes nothing on the accepted stream until a tunnel
-  is asked for by hand.
+  shared-instance restart; the daemon's
+  `bootstrap_interface_startup_parts::shared_instance_attach_probe_tests`
+  gains a pin that the local-client attach writes nothing on the accepted
+  stream until a tunnel is asked for by hand.
 
 ### Fixed
 

@@ -1,12 +1,13 @@
-//! A pending outbound link puts exactly one link request on the wire, measured from
-//! outside the crate on the stream a raw listener accepted from the transport's
-//! `TcpClient`. Python sends the request once (`RNS/Link.py:313-320`) and the
-//! establishment timeout is the only bound on a link that never comes up
-//! (`RNS/Link.py:722-729`); a repeat could never land anyway, since every duplicate
-//! filter on the way drops a byte-identical packet (`RNS/Transport.py:1668-1679`). The
-//! listener never answers, so the link stays pending until its timeout closes it, and
-//! the close event carries `LinkCloseReason::Timeout`. The path request a non-transport
-//! initiator broadcasts after that close is read from the same stream and not counted.
+//! A pending outbound link's request decodes as one `LinkRequest` frame on the stream a
+//! raw listener accepted from the transport's `TcpClient`, and the establishment
+//! timeout closes the link with `LinkCloseReason::Timeout`, measured from outside the
+//! crate. Python sends the request once (`RNS/Link.py:313-320`) and the establishment
+//! timeout is the only bound on a link that never comes up (`RNS/Link.py:722-729`). The
+//! listener never answers, so the link stays pending until its shortened timeout closes
+//! it; the path request a non-transport initiator broadcasts after that close is read
+//! from the same stream and is not a `LinkRequest`. The 2 s timeout used here closes the
+//! link before the 6 s mark at which the removed maintenance repeat used to fire; that
+//! mark is covered by `pending_link_single_request_default_timeout_probe.rs`.
 
 use std::time::Duration;
 
@@ -38,8 +39,7 @@ use wait_until::wait_until;
 /// What the pending link is given before the transport closes it.
 const ESTABLISHMENT_SECS: u64 = 2;
 const ESTABLISHMENT: Duration = Duration::from_secs(ESTABLISHMENT_SECS);
-/// How long the stream is read: twice the timeout, so a repeat sent any time before
-/// the close would be seen.
+/// How long the stream is read: twice the timeout, so the close falls inside the window.
 const WINDOW: Duration = Duration::from_secs(2 * ESTABLISHMENT_SECS);
 const WAIT: Duration = Duration::from_secs(5);
 const RECONNECT_WAIT: Duration = Duration::from_secs(60);
@@ -110,8 +110,8 @@ async fn closed_event_for(
 }
 
 /// Over twice its establishment timeout, a pending link's stream carries one
-/// `LinkRequest` frame and nothing else addressed to the link; then the link is closed
-/// with `Timeout`.
+/// `LinkRequest` frame, the link is closed with `Timeout`, and the path request that
+/// follows the close is not a `LinkRequest`.
 #[tokio::test]
 #[deny(clippy::await_holding_invalid_type)]
 async fn a_pending_link_sends_one_request_and_is_closed_at_its_timeout() {

@@ -270,8 +270,9 @@ async fn announce_and_learn_both_ways(a: &mut Client, b: &mut Client, flagged: b
 /// server does not rebroadcast the path-response re-announce, so the consumer announces
 /// again. An announce for a destination the server already holds at the same hop count is
 /// rebroadcast only when it is newer than the held one, and its timestamp is a whole second
-/// (`RNS/Identity.py` packs `announce_emitted` as an integer), so the round is repeated on a
-/// cadence longer than a second until both peers learned each other at one hop.
+/// (`RNS/Destination.py:283` packs `int(time.time())` into the announce's random hash;
+/// `RNS/Transport.py:2214` reads it back as `announce_emitted`), so the round is repeated
+/// on a cadence longer than a second until both peers learned each other at one hop.
 #[deny(clippy::await_holding_invalid_type)]
 async fn reannounce_until_learned_both_ways(a: &mut Client, b: &mut Client, round: &str) {
     let deadline = Instant::now() + WAIT;
@@ -387,9 +388,9 @@ async fn default_clients_relay_and_survive_a_restart(flagged: bool) {
     timeout(WAIT, restarted.transport.stop()).await.expect("restarted instance stop completes");
 }
 
-/// Criterion (a)'s topology from outside the crate: a plain transport-enabled `TcpServer`,
-/// two default-option clients, announces learned at one hop both ways, links both ways,
-/// and the same after a forced restart.
+/// The plain-server topology from outside the crate: a plain transport-enabled `TcpServer`,
+/// two default-option clients, announces learned at one hop both ways, links both ways, and
+/// the same after a forced restart.
 #[tokio::test]
 #[deny(clippy::await_holding_invalid_type)]
 async fn default_clients_on_a_plain_server_relay_at_one_hop_link_both_ways_and_survive_a_restart() {

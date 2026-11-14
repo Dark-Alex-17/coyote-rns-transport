@@ -114,8 +114,8 @@ interfaces = [
     assert_slot_holds_attached_record(&transport, &records[0]).await;
 }
 
-/// Usage probe for the daemon's local-client posture: the attach a `LocalClientInterface`
-/// entry produces writes nothing on the accepted stream (no tunnel-synthesis packet, as
+/// The daemon's local-client posture: the attach that a `LocalClientInterface` entry
+/// produces writes nothing on the accepted stream (no tunnel-synthesis packet, as
 /// Python's `LocalClientInterface` writes none), observed at a raw listener over a quiet
 /// window. The window is not vacuous: once it has passed, the test synthesizes a tunnel by
 /// hand through the public `Transport::synthesize_tunnel_on_interface` and the first bytes

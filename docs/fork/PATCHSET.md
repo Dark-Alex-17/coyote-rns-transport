@@ -30,7 +30,7 @@ per fork task.
 
 Every file changed since the `0.18.1` release and the patch each change
 belongs to. Patch ids: N1 is tunnel opt-in. The `tunnel opt-in` patch is
-fork commits `7ae6a364`, `785bce93`, `ad420766` and `1446a8e5`.
+fork commits `7ae6a364`, `785bce93`, `ad420766`, `1446a8e5` and `d2e106bb`.
 
 | File | Patch |
 | --- | --- |
@@ -61,10 +61,12 @@ fork commits `7ae6a364`, `785bce93`, `ad420766` and `1446a8e5`.
 | `crates/libs/rns-transport/tests/interface_events_api.rs` | tunnel opt-in |
 | `crates/libs/rns-transport/tests/shared_instance_disconnect_reasons_api.rs` | tunnel opt-in |
 | `crates/libs/rns-transport/tests/shared_instance_tunnel_synthesis_api.rs` | tunnel opt-in |
+| `crates/libs/rns-transport/tests/shared_instance_tunnel_synthesis_probe.rs` | tunnel opt-in |
 | `crates/libs/rns-transport/tests/support/close_orderly.rs` | tunnel opt-in |
 | `docs/fork/PATCHSET.md` | tunnel opt-in |
 
-Fork commits `7ae6a364`, `785bce93`, `ad420766` and `1446a8e5`: N1, tunnel opt-in.
+Fork commits `7ae6a364`, `785bce93`, `ad420766`, `1446a8e5` and `d2e106bb`:
+N1, tunnel opt-in.
 Upstream site: `Transport::attach_shared_instance` in
 `crates/libs/rns-transport/src/transport/links_parts/transport_sections/shared_instance.rs`,
 which synthesized a tunnel on the client interface once the first connect
@@ -128,6 +130,17 @@ with no tunnel by default and hold one tunnel between them when opted in;
 and a `crate_readme_sections.rs` pin on the README divergence row and the
 shared-instance section's default-off wording. The same commit qualifies
 the collision rationale here, in the rustdoc, the README and the CHANGELOG.
+`d2e106bb` adds `tests/shared_instance_tunnel_synthesis_probe.rs`, which
+decodes the frame an opted-in attach writes to a raw listener as the Data
+packet for the tunnel-synthesis destination led by the transport's keys
+and the attached interface's full hash, reads the same on the stream a
+forced drop reopens, checks a reattach follows the new attach's options
+and a Unix endpoint honours them, and refuses a dropped builder result
+under `deny(unused_must_use)`; widens the `crate_readme_sections.rs` pin to
+the README's collision qualifier, its `handle_tunnel` cite and its
+single-transport opt-in sentence; and gives the CHANGELOG Added bullet the
+migration sentence for a consumer that relied on the 0.15.1 to 0.18.1
+tunnel.
 
 ## 0.18.1 (upstream 0.14.0)
 

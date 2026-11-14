@@ -184,12 +184,12 @@ async fn run_python_rnsd_shared_instance_two_clients(tunnel_synthesis: bool) {
     let options = || SharedInstanceOptions::default().with_tunnel_synthesis(tunnel_synthesis);
     let shared = to_transport_private_identity(&PrivateIdentity::new_from_rand(OsRng));
 
-    // The third client's connect completes before a dials. rnsd registers
-    // accepted local clients in accept order on one thread
-    // (`RNS/Interfaces/LocalInterface.py:416-442`), so c is in
-    // `local_client_interfaces` before a's announce is read, and rnsd relays a
-    // local client's announce only to the local clients registered at that
-    // moment (`RNS/Transport.py:2400-2429`).
+    // The third client's connect is served before a dials, and rnsd registers
+    // each accepted local client before it reads from it (the epoll backend
+    // at `RNS/Interfaces/LocalInterface.py:416-444`, the threaded server at
+    // `:447-460`), so c is in `local_client_interfaces` before a's announce
+    // is read; rnsd relays a local client's announce only to the local
+    // clients registered at that moment (`RNS/Transport.py:2400-2429`).
     let c_identity = to_transport_private_identity(&PrivateIdentity::new_from_rand(OsRng));
     let mut c_config = TransportConfig::new("python-rnsd-two-clients-c", &c_identity, false);
     c_config.set_path_request_timeout_secs(2);
@@ -275,6 +275,8 @@ async fn run_python_rnsd_shared_instance_two_clients(tunnel_synthesis: bool) {
             ),
             Ok(Err(err)) => panic!("a's in-link event channel failed: {err:?}"),
         }
+        // The request reached b, which registered no such destination and drops it.
+        two_clients_assert_no_in_link_event(&mut b.in_links, "b");
     } else {
         let link_id = wait_for_out_link_active(&mut c_out, &link, TWO_CLIENTS_LINK).await;
         two_clients_await_in_link_activated(&mut a.in_links, link_id).await;

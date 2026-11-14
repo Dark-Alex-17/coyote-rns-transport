@@ -26,6 +26,97 @@ parity rows this file plus the crate README `## Known divergences from
 Python RNS` are the parity ledger; `docs/status/*` matrices are not updated
 per fork task.
 
+## Unreleased (upstream 0.14.0)
+
+Every file changed since the `0.18.1` release and the patch each change
+belongs to. Patch ids: N1 is tunnel opt-in. The `tunnel opt-in` patch is
+fork commits `7ae6a364`, `785bce93` and `ad420766`.
+
+| File | Patch |
+| --- | --- |
+| `crates/apps/reticulumd/src/bin/reticulumd/bootstrap_interface_startup_parts/shared_instance_attach_probe_tests.rs` | tunnel opt-in |
+| `crates/apps/reticulumd/tests/fork_publish_contract_parts/ledger_contract.rs` | tunnel opt-in |
+| `crates/libs/rns-transport/CHANGELOG.md` | tunnel opt-in |
+| `crates/libs/rns-transport/README.md` | tunnel opt-in |
+| `crates/libs/rns-transport/src/transport/links_parts/transport_sections/shared_instance.rs` | tunnel opt-in |
+| `crates/libs/rns-transport/src/transport/links_parts/transport_sections/shared_instance_reconnect.rs` | tunnel opt-in |
+| `crates/libs/rns-transport/src/transport/shared_instance.rs` | tunnel opt-in |
+| `crates/libs/rns-transport/src/transport/tests.rs` | tunnel opt-in |
+| `crates/libs/rns-transport/src/transport/tests_parts/two_transport_shared_instance.rs` | tunnel opt-in |
+| `crates/libs/rns-transport/src/transport/tests_parts/two_transport_shared_instance_disconnect_reasons.rs` | tunnel opt-in |
+| `crates/libs/rns-transport/src/transport/tests_parts/two_transport_shared_instance_flush.rs` | tunnel opt-in |
+| `crates/libs/rns-transport/src/transport/tests_parts/two_transport_shared_instance_probe10.rs` | tunnel opt-in |
+| `crates/libs/rns-transport/src/transport/tests_parts/two_transport_shared_instance_probe16.rs` | tunnel opt-in |
+| `crates/libs/rns-transport/src/transport/tests_parts/two_transport_shared_instance_probe17.rs` | tunnel opt-in |
+| `crates/libs/rns-transport/src/transport/tests_parts/two_transport_shared_instance_probe17_unix.rs` | tunnel opt-in |
+| `crates/libs/rns-transport/src/transport/tests_parts/two_transport_shared_instance_probe5.rs` | tunnel opt-in |
+| `crates/libs/rns-transport/src/transport/tests_parts/two_transport_shared_instance_probe7.rs` | tunnel opt-in |
+| `crates/libs/rns-transport/src/transport/tests_parts/two_transport_shared_instance_reconnect.rs` | tunnel opt-in |
+| `crates/libs/rns-transport/src/transport/tests_parts/two_transport_shared_instance_state_events.rs` | tunnel opt-in |
+| `crates/libs/rns-transport/src/transport/tests_parts/two_transport_shared_instance_state_events_probe.rs` | tunnel opt-in |
+| `crates/libs/rns-transport/src/transport/tests_parts/two_transport_shared_instance_storm.rs` | tunnel opt-in |
+| `crates/libs/rns-transport/src/transport/tests_parts/two_transport_shared_instance_tunnel_default.rs` | tunnel opt-in |
+| `crates/libs/rns-transport/tests/interface_events_api.rs` | tunnel opt-in |
+| `crates/libs/rns-transport/tests/shared_instance_disconnect_reasons_api.rs` | tunnel opt-in |
+| `crates/libs/rns-transport/tests/shared_instance_tunnel_synthesis_api.rs` | tunnel opt-in |
+| `crates/libs/rns-transport/tests/support/close_orderly.rs` | tunnel opt-in |
+| `docs/fork/PATCHSET.md` | tunnel opt-in |
+
+Fork commits `7ae6a364`, `785bce93` and `ad420766`: N1, tunnel opt-in.
+Upstream site: `Transport::attach_shared_instance` in
+`crates/libs/rns-transport/src/transport/links_parts/transport_sections/shared_instance.rs`,
+which synthesized a tunnel on the client interface once the first connect
+was served; `SharedInstanceReconnectConsumer::on_reconnected` in
+`crates/libs/rns-transport/src/transport/links_parts/transport_sections/shared_instance_reconnect.rs`,
+which re-synthesized it on every reconnect; and `SharedInstanceOptions` in
+`crates/libs/rns-transport/src/transport/shared_instance.rs`. Python's
+local client synthesizes no tunnel (`RNS/Interfaces/LocalInterface.py` has
+no tunnel code; `wants_tunnel` is set only on the network-facing clients,
+`RNS/Interfaces/TCPInterface.py:179`), and the fork's unconditional tunnel
+was a bug for two transports on one identity: the tunnel id is the hash of
+the transport public key and the interface hash, the interface hash comes
+from a per-transport counter, so both attaches produced one id and the
+shared instance's reappeared-tunnel branch (`RNS/Transport.py:2820-2868`,
+`:2829`) re-pointed every stored path at the newest connection. `7ae6a364`
+adds `SharedInstanceOptions::with_tunnel_synthesis(bool)`, a `#[must_use]`
+builder off by default with a crate-private read-back; the attach
+synthesizes the tunnel only with it set, the reconnect consumer is spawned
+with the options struct instead of the reconnect wait and the
+disconnect-reasons scalars and re-synthesizes only with it set, recording
+"reconnected, tunnel synthesis is off" at debug otherwise.
+`Transport::synthesize_tunnel_on_interface` stays public. The same commit
+opts the tunnel pins in, as they read the tunnel table, the tunnel packet
+or the re-synthesis line: `two_transport_shared_instance.rs`,
+`_reconnect.rs`, `_storm.rs`, `_probe5.rs`, `_probe7.rs`, `_probe10.rs`,
+`_probe16.rs`, `_probe17.rs`, `_probe17_unix.rs`, `_state_events.rs` and
+`_state_events_probe.rs` under `src/transport/tests_parts/`; drops the
+tunnel-packet read from the reset drains in
+`tests/shared_instance_disconnect_reasons_api.rs` and
+`two_transport_shared_instance_disconnect_reasons.rs`, which closed a
+stream with linger zero only after reading the packet; and retargets the
+daemon's `shared_instance_attach_probe_tests` bitrate pin, which timed the
+attach's tunnel packet, to synthesize a tunnel from the test once the
+attach is done. The daemon's local-client attach keeps the default.
+`785bce93` adds `two_transport_shared_instance_tunnel_default.rs`,
+included from `src/transport/tests.rs`: two default-option clients on one
+TCP shared instance learn each other's announces at one hop and open links
+both ways with the instance's tunnel table empty before and after a
+restart, each reconnect recording the synthesis as off; and
+`tests/shared_instance_tunnel_synthesis_api.rs`, which reads what the
+client writes on a fresh stream to a raw listener: nothing at attach or on
+a forced reconnect under the default or an explicit `false`, the tunnel
+packet on both with the opt-in, the last builder call in force, a manual
+`Transport::synthesize_tunnel_on_interface` still writing one, and a
+compile-fail check that the accessor is crate-private. The `close_orderly`
+drains in `tests/support/close_orderly.rs`, `tests/interface_events_api.rs`
+and the flush pin's rustdoc no longer promise a tunnel packet. `ad420766`
+reopens the crate CHANGELOG with an `## Unreleased` section whose Fixed
+bullet corrects the 0.15.1 notes that credited the client-side hop strip
+and the Type2 header to the tunnel rather than to the shared-instance
+posture, rewrites the README's shared-instance section and divergence row
+around the default-off tunnel, and extends the full-hash ledger pin in
+`ledger_contract.rs` to this reopened section beside the released ones.
+
 ## 0.18.1 (upstream 0.14.0)
 
 Every file changed since the `0.18.0` release and the patch each change

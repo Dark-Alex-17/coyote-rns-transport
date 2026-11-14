@@ -519,6 +519,13 @@ the reappeared branch at `:2829`): opt in only when a single transport
 holds the identity and wants its paths restored on a reconnect. reticulumd
 leaves it off. `Transport::synthesize_tunnel_on_interface` remains available
 to a caller that wants a tunnel on its own terms.
+`crates/apps/reticulumd/tests/python_channel_interop_parts/python_shared_instance_two_clients.rs`
+attaches two transports under one identity to a Python `rnsd` (RNS 1.5.2)
+shared instance: under the default a third client's link to the first
+transport's destination activates on that transport and the second sees no
+link request; opted in on both, rnsd logs `Tunnel endpoint ... reappeared.
+Restoring paths...` and `Restored path to ...` (`RNS/Transport.py:2830`,
+`:2868`) and the link never reaches the first.
 `SharedInstanceOptions` also carries `with_mtu`, `with_forced_bitrate` and
 `with_interface_mode`, applied to the spawned client as the matching
 `TcpClient`/`LocalUnixClient` constructors would, with the `mtu` and

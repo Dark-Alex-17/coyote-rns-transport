@@ -164,7 +164,16 @@ Removed) bullet of its own, marked as such.
   `transport/tests_parts/two_transport_shared_instance_tunnel_identity.rs`
   (two transports under one identity: the default keeps a third client's
   links on the registering transport with no tunnel; opted in, the shared
-  instance holds one tunnel for both), by the
+  instance holds one tunnel for both), by
+  `python_shared_instance_two_clients.rs` of the reticulumd
+  `python_channel_interop` binary (a live Python rnsd, RNS 1.5.2, is the
+  shared instance and two transports under one identity attach as local
+  clients, `RNS/Reticulum.py:420-441`: under the default a third client's
+  link to the first transport's destination activates there and the second
+  transport's in-link events stay empty; opted in on both, rnsd logs the
+  tunnel reappearing and restores the first transport's path onto the
+  second connection, `RNS/Transport.py:2820-2868`, and the link never
+  reaches the first), by the
   daemon's `bootstrap_interface_startup_parts::shared_instance_attach_tests`
   (`tunnel_synth_ifaces` stays empty for the local-client attach) and its
   `shared_instance_attach_probe_tests` bitrate pin, which synthesizes a

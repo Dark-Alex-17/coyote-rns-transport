@@ -32,15 +32,19 @@ Every file changed since the `0.18.1` release and the patch each change
 belongs to. Patch ids: N1 is tunnel opt-in, N2 is link request once. The
 `tunnel opt-in` patch is fork commits `7ae6a364`, `785bce93`, `ad420766`,
 `1446a8e5` and `d2e106bb`. The `link request once` patch is fork commits
-`728e10dd`, `2c2f14d9`, `d65fd1e3`, `0be75f6f` and `9ae9fdab`.
+`728e10dd`, `2c2f14d9`, `d65fd1e3`, `0be75f6f` and `9ae9fdab`. The
+`Python-in-the-loop two clients interop` patch carries no other id and is
+fork commits `ddcb4430` and `a974386c`.
 
 | File | Patch |
 | --- | --- |
 | `crates/apps/reticulumd/src/bin/reticulumd/bootstrap_interface_startup_parts/shared_instance_attach_probe_tests.rs` | tunnel opt-in, link request once |
 | `crates/apps/reticulumd/tests/fork_publish_contract_parts/ledger_contract.rs` | tunnel opt-in |
 | `crates/apps/reticulumd/tests/fork_release_docs_contract_parts/crate_readme_sections.rs` | tunnel opt-in |
-| `crates/libs/rns-transport/CHANGELOG.md` | tunnel opt-in, link request once |
-| `crates/libs/rns-transport/README.md` | tunnel opt-in |
+| `crates/apps/reticulumd/tests/python_channel_interop.rs` | Python-in-the-loop two clients interop |
+| `crates/apps/reticulumd/tests/python_channel_interop_parts/python_shared_instance_two_clients.rs` | Python-in-the-loop two clients interop |
+| `crates/libs/rns-transport/CHANGELOG.md` | tunnel opt-in, link request once, Python-in-the-loop two clients interop |
+| `crates/libs/rns-transport/README.md` | tunnel opt-in, Python-in-the-loop two clients interop |
 | `crates/libs/rns-transport/src/destination/link_parts/link_sections/establishment.rs` | link request once |
 | `crates/libs/rns-transport/src/destination/link_parts/link_status_predicates_make_lifecycl_sections/core_tests.rs` | link request once |
 | `crates/libs/rns-transport/src/transport/jobs_parts/link_maintenance.rs` | link request once |
@@ -66,7 +70,7 @@ belongs to. Patch ids: N1 is tunnel opt-in, N2 is link request once. The
 | `crates/libs/rns-transport/src/transport/tests_parts/two_transport_shared_instance_state_events_probe.rs` | tunnel opt-in |
 | `crates/libs/rns-transport/src/transport/tests_parts/two_transport_shared_instance_storm.rs` | tunnel opt-in |
 | `crates/libs/rns-transport/src/transport/tests_parts/two_transport_shared_instance_tunnel_default.rs` | tunnel opt-in |
-| `crates/libs/rns-transport/src/transport/tests_parts/two_transport_shared_instance_tunnel_identity.rs` | tunnel opt-in |
+| `crates/libs/rns-transport/src/transport/tests_parts/two_transport_shared_instance_tunnel_identity.rs` | tunnel opt-in, Python-in-the-loop two clients interop |
 | `crates/libs/rns-transport/tests/interface_events_api.rs` | tunnel opt-in |
 | `crates/libs/rns-transport/tests/pending_link_single_request_concurrent_probe.rs` | link request once |
 | `crates/libs/rns-transport/tests/pending_link_single_request_default_timeout_probe.rs` | link request once |
@@ -76,7 +80,7 @@ belongs to. Patch ids: N1 is tunnel opt-in, N2 is link request once. The
 | `crates/libs/rns-transport/tests/shared_instance_tunnel_synthesis_api.rs` | tunnel opt-in |
 | `crates/libs/rns-transport/tests/shared_instance_tunnel_synthesis_probe.rs` | tunnel opt-in |
 | `crates/libs/rns-transport/tests/support/close_orderly.rs` | tunnel opt-in |
-| `docs/fork/PATCHSET.md` | tunnel opt-in, link request once |
+| `docs/fork/PATCHSET.md` | tunnel opt-in, link request once, Python-in-the-loop two clients interop |
 
 Fork commits `7ae6a364`, `785bce93`, `ad420766`, `1446a8e5` and `d2e106bb`:
 N1, tunnel opt-in.
@@ -226,6 +230,34 @@ a buffered pre-restart announce; pins the expired path in
 cites the watchdog's `HANDSHAKE` branch (`RNS/Link.py:732-739`) beside the
 `PENDING` one in the rustdoc and the CHANGELOG; and restores the 7 s
 rationale on the two unit pins.
+
+Fork commits `ddcb4430` and `a974386c`: Python-in-the-loop two clients
+interop. A Python rnsd (RNS 1.5.2) is the shared instance on a free TCP port
+and two transports built from one identity attach as local clients the way a
+second Python program does (`RNS/Reticulum.py:420-441`):
+`crates/apps/reticulumd/tests/python_channel_interop_parts/python_shared_instance_two_clients.rs`,
+included from `crates/apps/reticulumd/tests/python_channel_interop.rs`, has
+each of the two register one destination under a fresh identity before its
+attach and announce it once, with a third client attached before either
+announce since rnsd relays a local client's announce only to the local
+clients connected at that moment (`RNS/Transport.py:2400-2429`), and reads
+both destinations filed at zero hops in rnsd's `LOG_PATHING` output
+(`RNS/Transport.py:2461`, `RNS/__init__.py:66`) with the two attaches
+carrying one interface hash. Under the default the third client's link to
+the first transport's destination activates on that transport, the second
+transport's in-link events stay empty and rnsd logs no `Tunnel endpoint`
+line, as Python's local client synthesizes none
+(`RNS/Interfaces/LocalInterface.py` has no tunnel code). With
+`with_tunnel_synthesis(true)` on both, rnsd logs `Tunnel endpoint <id>
+established.` for the first attach (`RNS/Transport.py:2823`) and files the
+first destination under that tunnel (`:2467-2476`), then takes the
+reappeared branch for the second attach (`:2829-2834`) and logs `Restored
+path to <first destination>` (`:2868`) onto the second connection, after
+which the third client's link request leaves the first transport's in-link
+events empty for 3 s. `ddcb4430` also adds the destination-hash inequality
+assert to both tests of `two_transport_shared_instance_tunnel_identity.rs`.
+`a974386c` names the proof in the README shared-instance section.
+Upstream site: test files only.
 
 ## 0.18.1 (upstream 0.14.0)
 

@@ -184,17 +184,23 @@ async fn run_python_rnsd_shared_instance_two_clients(tunnel_synthesis: bool) {
     let options = || SharedInstanceOptions::default().with_tunnel_synthesis(tunnel_synthesis);
     let shared = to_transport_private_identity(&PrivateIdentity::new_from_rand(OsRng));
 
-    // The third client attaches first: rnsd relays a local client's announce
-    // only to the other local clients attached when it arrives
-    // (`RNS/Transport.py:2400-2429`).
+    // The third client's connect completes before a dials. rnsd registers
+    // accepted local clients in accept order on one thread
+    // (`RNS/Interfaces/LocalInterface.py:416-442`), so c is in
+    // `local_client_interfaces` before a's announce is read, and rnsd relays a
+    // local client's announce only to the local clients registered at that
+    // moment (`RNS/Transport.py:2400-2429`).
     let c_identity = to_transport_private_identity(&PrivateIdentity::new_from_rand(OsRng));
     let mut c_config = TransportConfig::new("python-rnsd-two-clients-c", &c_identity, false);
     c_config.set_path_request_timeout_secs(2);
     let c = Transport::new(c_config);
     let mut c_announces = c.recv_announces().await;
-    c.attach_shared_instance(instance.endpoint.clone(), SharedInstanceOptions::default())
-        .await
-        .expect("attach the third client to the python shared instance");
+    c.attach_shared_instance(
+        instance.endpoint.clone(),
+        SharedInstanceOptions::default().with_first_connect_timeout(TWO_CLIENTS_RNSD_LOG),
+    )
+    .await
+    .expect("attach the third client to the python shared instance");
 
     let mut a = two_clients_attach_registrant(
         "python-rnsd-two-clients-a",
@@ -261,10 +267,14 @@ async fn run_python_rnsd_shared_instance_two_clients(tunnel_synthesis: bool) {
     let mut c_out = c.out_link_events();
     let link = c.link(a_learned).await.expect("link request sent");
     if tunnel_synthesis {
-        assert!(
-            tokio::time::timeout(TWO_CLIENTS_NO_LINK, a.in_links.recv()).await.is_err(),
-            "rnsd routed the link request to a, whose path the restore moved to b's connection"
-        );
+        match tokio::time::timeout(TWO_CLIENTS_NO_LINK, a.in_links.recv()).await {
+            Err(_elapsed) => {}
+            Ok(Ok(event)) => panic!(
+                "in-link event for link {} reached a, whose path the restore moved to b's connection",
+                event.id
+            ),
+            Ok(Err(err)) => panic!("a's in-link event channel failed: {err:?}"),
+        }
     } else {
         let link_id = wait_for_out_link_active(&mut c_out, &link, TWO_CLIENTS_LINK).await;
         two_clients_await_in_link_activated(&mut a.in_links, link_id).await;

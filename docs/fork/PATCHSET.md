@@ -32,7 +32,7 @@ Every file changed since the `0.18.1` release and the patch each change
 belongs to. Patch ids: N1 is tunnel opt-in, N2 is link request once. The
 `tunnel opt-in` patch is fork commits `7ae6a364`, `785bce93`, `ad420766`,
 `1446a8e5` and `d2e106bb`. The `link request once` patch is fork commits
-`728e10dd`, `2c2f14d9`, `d65fd1e3` and `0be75f6f`.
+`728e10dd`, `2c2f14d9`, `d65fd1e3`, `0be75f6f` and `9ae9fdab`.
 
 | File | Patch |
 | --- | --- |
@@ -155,7 +155,7 @@ single-transport opt-in sentence; and gives the CHANGELOG Added bullet the
 migration sentence for a consumer that relied on the 0.15.1 to 0.18.1
 tunnel.
 
-Fork commits `728e10dd`, `2c2f14d9`, `d65fd1e3` and `0be75f6f`:
+Fork commits `728e10dd`, `2c2f14d9`, `d65fd1e3`, `0be75f6f` and `9ae9fdab`:
 N2, link request once.
 Upstream site: `handle_check_links` in
 `crates/libs/rns-transport/src/transport/jobs_parts/link_maintenance.rs`,
@@ -163,11 +163,12 @@ whose `Pending` arm re-sent the link request every
 `INTERVAL_OUTPUT_LINK_REPEAT` (6 s, `src/transport/mod.rs`) for as long as
 the link stayed pending, inherited from upstream `reticulum-rs-transport`.
 Python sends the request once (`RNS/Link.py:313-320`) and only the
-establishment timeout bounds the link (`RNS/Link.py:722-729`). The repeat
-was dropped by every hop that had seen the first request: the duplicate
-filters drop a link request whose hash they have seen (Python re-admits only announces,
-`RNS/Transport.py:1668-1679`; this crate's `transport/inbound_processing.rs`
-gives `LinkRequest` no duplicate allowance). `728e10dd` empties the
+establishment timeout bounds the link (`RNS/Link.py:722-729`, `:732-739`).
+The repeat was dropped by every hop that had seen the first request: the
+duplicate filters drop a link request whose hash they have seen (Python
+re-admits only announces, `RNS/Transport.py:1668-1679`; this crate's
+`transport/inbound_processing.rs` gives `LinkRequest` no duplicate
+allowance). `728e10dd` empties the
 `Pending` arm into `Pending | Handshake => {}`, deletes the const and the
 `pending_packets` queue that only the arm fed, rewords
 the `establishment_timed_out` rustdoc in
@@ -217,7 +218,14 @@ probes and the rediscovery path request's payload and silence after it in
 from `core_tests.rs` and `two_transport_loopback_requests_errors.rs`;
 rewords the `establishment_timed_out` rustdoc and the CHANGELOG to Python
 parity first, with the duplicate filters as the reason a repeat rarely
-landed; and widens the relay probe's state-event channel.
+landed; and widens the relay probe's state-event channel. `9ae9fdab`
+re-subscribes both relay-probe clients' announce receivers right after the
+shared instance stops, so the post-restart re-learn cannot be satisfied by
+a buffered pre-restart announce; pins the expired path in
+`pending_out_link_rediscovery.rs` before the rediscovery path request;
+cites the watchdog's `HANDSHAKE` branch (`RNS/Link.py:732-739`) beside the
+`PENDING` one in the rustdoc and the CHANGELOG; and restores the 7 s
+rationale on the two unit pins.
 
 ## 0.18.1 (upstream 0.14.0)
 

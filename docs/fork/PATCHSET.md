@@ -34,7 +34,7 @@ belongs to. Patch ids: N1 is tunnel opt-in, N2 is link request once. The
 `1446a8e5` and `d2e106bb`. The `link request once` patch is fork commits
 `728e10dd`, `2c2f14d9`, `d65fd1e3`, `0be75f6f` and `9ae9fdab`. The
 `Python-in-the-loop two clients interop` patch carries no other id and is
-fork commits `ddcb4430`, `a974386c` and `d40e0ae3`.
+fork commits `ddcb4430`, `a974386c`, `d40e0ae3` and `7f076dc3`.
 
 | File | Patch |
 | --- | --- |
@@ -231,8 +231,8 @@ cites the watchdog's `HANDSHAKE` branch (`RNS/Link.py:732-739`) beside the
 `PENDING` one in the rustdoc and the CHANGELOG; and restores the 7 s
 rationale on the two unit pins.
 
-Fork commits `ddcb4430`, `a974386c` and `d40e0ae3`: Python-in-the-loop two
-clients interop. A Python rnsd (RNS 1.5.2) is the shared instance on a free
+Fork commits `ddcb4430`, `a974386c`, `d40e0ae3` and `7f076dc3`: Python-in-the-loop
+two clients interop. A Python rnsd (RNS 1.5.2) is the shared instance on a free
 TCP port and two transports built from one identity attach as local clients
 the way a second Python program does (`RNS/Reticulum.py:420-441`):
 `crates/apps/reticulumd/tests/python_channel_interop_parts/python_shared_instance_two_clients.rs`,
@@ -254,12 +254,18 @@ first destination under that tunnel (`:2467-2476`), then takes the
 reappeared branch for the second attach (`:2829-2834`) and logs `Restored
 path to <first destination>` (`:2868`) onto the second connection, after
 which the third client's link request leaves the first transport's in-link
-events empty for 3 s. `ddcb4430` also adds the destination-hash inequality
-assert to both tests of `two_transport_shared_instance_tunnel_identity.rs`.
+events empty for 3 s and the second transport's in-link events empty too,
+as it registered no such destination. `ddcb4430` also adds the
+destination-hash inequality assert to both tests of
+`two_transport_shared_instance_tunnel_identity.rs`.
 `a974386c` names the proof in the README shared-instance section.
 `d40e0ae3` makes the third client's attach wait for its first connect so the
-attach order is observed rather than assumed, matches the negative pin's
-three outcomes apart, and states the 3 s window in the README.
+attach order is observed rather than assumed, tells the negative pin's three
+outcomes apart (an elapsed window passes, an in-link event or a channel error
+panics), and states the 3 s window in the README. `7f076dc3` cites both of
+rnsd's accept paths (`RNS/Interfaces/LocalInterface.py:416-444`, `:447-460`)
+for the attach order and adds the second transport's empty in-link check to
+the negative control.
 Upstream site: test files only.
 
 ## 0.18.1 (upstream 0.14.0)

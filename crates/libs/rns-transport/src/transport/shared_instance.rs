@@ -42,7 +42,8 @@ pub enum SharedInstanceEvent {
     /// exists.
     Connecting,
     /// Fork-only: a stream to the shared instance is established, the first
-    /// included; the tunnel is synthesized on it next.
+    /// included; a tunnel follows on it only when
+    /// [`SharedInstanceOptions::with_tunnel_synthesis`] is set.
     Connected,
     /// Fork-only: an established stream ended while attached
     /// (`RNS/Interfaces/LocalInterface.py:255-266` is the Python drop path);
@@ -101,6 +102,7 @@ pub struct SharedInstanceOptions {
     state_events: Option<mpsc::Sender<SharedInstanceEvent>>,
     first_connect_timeout: Option<Duration>,
     disconnect_reasons: bool,
+    tunnel_synthesis: bool,
 }
 
 impl Default for SharedInstanceOptions {
@@ -114,6 +116,7 @@ impl Default for SharedInstanceOptions {
             state_events: None,
             first_connect_timeout: None,
             disconnect_reasons: false,
+            tunnel_synthesis: false,
         }
     }
 }
@@ -246,6 +249,26 @@ impl SharedInstanceOptions {
         self
     }
 
+    /// Fork-only, opt-in: synthesize a tunnel on the client interface at
+    /// attach and again on every reconnect, so the shared instance restores
+    /// the paths it learned over the connection when the client comes back.
+    /// Off by default, as Python's local client synthesizes no tunnel
+    /// (`RNS/Interfaces/LocalInterface.py` has no tunnel code; `wants_tunnel`
+    /// is set only on the network-facing clients, such as
+    /// `RNS/Interfaces/TCPInterface.py:179`). The tunnel id is the hash of
+    /// the transport public key and the interface hash, and this crate derives
+    /// the interface hash from a per-transport counter, so two transports
+    /// that attach with one identity, in one process or two, collide on the
+    /// id and the shared instance moves every path to the newest connection
+    /// (`RNS/Transport.py:2820-2868`, the reappeared branch at `:2829`).
+    /// Opt in only when a single transport holds the identity and wants its
+    /// paths restored on a reconnect.
+    #[must_use]
+    pub fn with_tunnel_synthesis(mut self, enabled: bool) -> Self {
+        self.tunnel_synthesis = enabled;
+        self
+    }
+
     /// Fork-only: the reconnect wait in force.
     pub(crate) fn reconnect_wait(&self) -> Duration {
         self.reconnect_wait
@@ -287,5 +310,11 @@ impl SharedInstanceOptions {
     /// in place of `Disconnected`, set with [`Self::with_disconnect_reasons`].
     pub(crate) fn disconnect_reasons(&self) -> bool {
         self.disconnect_reasons
+    }
+
+    /// Fork-only: whether a tunnel is synthesized at attach and on every
+    /// reconnect, set with [`Self::with_tunnel_synthesis`].
+    pub(crate) fn tunnel_synthesis(&self) -> bool {
+        self.tunnel_synthesis
     }
 }

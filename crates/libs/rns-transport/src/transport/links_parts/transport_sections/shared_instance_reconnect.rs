@@ -9,15 +9,13 @@ const SHARED_INSTANCE_REAPPEARED_ANNOUNCE_GRACE: Duration = Duration::from_secs(
 impl Transport {
     /// Spawns the task that reacts to the attached client's events and
     /// forwards the attach's state events on `state_events`;
-    /// `first_connect` fires once, on the first connect served;
-    /// `disconnect_reasons` is the attach's
-    /// [`SharedInstanceOptions::with_disconnect_reasons`]; see
-    /// [`SharedInstanceReconnectConsumer::run`].
+    /// `first_connect` fires once, on the first connect served; `options`
+    /// are the attach's, read for the reconnect wait and the two opt-ins;
+    /// see [`SharedInstanceReconnectConsumer::run`].
     fn spawn_shared_instance_reconnect_consumer(
         &self,
         iface: AddressHash,
-        reconnect_wait: Duration,
-        disconnect_reasons: bool,
+        options: &SharedInstanceOptions,
         events: SharedInstanceClientEvents,
         state_events: Option<mpsc::Sender<SharedInstanceEvent>>,
         first_connect: Option<oneshot::Sender<()>>,
@@ -29,8 +27,9 @@ impl Transport {
             name: self.name.clone(),
             tasks: self.shared_instance_tasks.clone(),
             iface,
-            reconnect_wait,
-            disconnect_reasons,
+            reconnect_wait: options.reconnect_wait(),
+            disconnect_reasons: options.disconnect_reasons(),
+            tunnel_synthesis: options.tunnel_synthesis(),
         };
         let SharedInstanceClientEvents { reconnects, connects, disconnects, dial_failures } =
             events;
@@ -135,6 +134,8 @@ pub(super) struct SharedInstanceReconnectConsumer {
     /// Whether `serve_disconnected` sends `DisconnectedWithReason` in place
     /// of `Disconnected`.
     pub(super) disconnect_reasons: bool,
+    /// Whether `on_reconnected` re-synthesizes the tunnel on the interface.
+    pub(super) tunnel_synthesis: bool,
 }
 
 impl SharedInstanceReconnectConsumer {
@@ -144,8 +145,8 @@ impl SharedInstanceReconnectConsumer {
     /// closed channel ends the task, once the disconnects, connects and dial failures still
     /// queued have been served in that order, each as the live arm serves
     /// it. Queued reconnects are not served then: the worker is gone, so the
-    /// tunnel re-synthesis has no stream to ride, and the re-announce is
-    /// posture-gated anyway. A cancel seen by the select serves nothing
+    /// tunnel re-synthesis, when opted in, has no stream to ride, and the
+    /// re-announce is posture-gated anyway. A cancel seen by the select serves nothing
     /// queued: a stop synthesizes no event, and it wins the biased select
     /// (a cancel that lands during the drain does not cut it short, and
     /// `on_disconnected` is posture-gated so that is harmless). The channels
@@ -293,15 +294,20 @@ impl SharedInstanceReconnectConsumer {
         connected && self.iface_manager.lock().await.is_shared_instance(&self.iface)
     }
 
-    /// The tunnel goes out at once, as reticulumd does for its own clients;
-    /// the re-announce waits like Python's reconnect job
-    /// (`RNS/Interfaces/LocalInterface.py:178-181`). Unlike the re-announce,
-    /// the tunnel re-synthesis is not posture-gated: it goes out for any
-    /// interface that is still registered, as reticulumd's own reconnect
-    /// does.
+    /// With `tunnel_synthesis` set the tunnel goes out at once, for any
+    /// interface that is still registered: unlike the re-announce it is not
+    /// posture-gated. Without it nothing is synthesized, as Python's client
+    /// does. The re-announce waits like Python's reconnect job either way
+    /// (`RNS/Interfaces/LocalInterface.py:178-181`).
     #[deny(clippy::await_holding_invalid_type)]
     async fn on_reconnected(&self) {
-        if synthesize_tunnel_on_iface(&self.handler, self.iface).await {
+        if !self.tunnel_synthesis {
+            log::debug!(
+                "tp({}): shared instance iface={} reconnected, tunnel synthesis is off",
+                self.name,
+                self.iface
+            );
+        } else if synthesize_tunnel_on_iface(&self.handler, self.iface).await {
             log::debug!(
                 "tp({}): shared instance iface={} reconnected, tunnel re-synthesized",
                 self.name,

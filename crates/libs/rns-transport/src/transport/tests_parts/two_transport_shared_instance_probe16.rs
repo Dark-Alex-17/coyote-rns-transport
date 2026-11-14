@@ -57,8 +57,9 @@ fn shared_instance_probe16_handshake_teardown_builds_its_close_without_the_close
 }
 
 /// The consumer is built by hand on a client attached to a live shared instance and fed a
-/// reconnect alone, with no disconnect before it: the plain loop re-synthesizes the tunnel,
-/// runs no flush, records no lost event and the learned path is still there afterwards.
+/// reconnect alone, with no disconnect before it: the plain loop re-synthesizes the tunnel
+/// (the consumer has the synthesis on), runs no flush, records no lost event and the
+/// learned path is still there afterwards.
 #[tokio::test]
 #[deny(clippy::await_holding_invalid_type)]
 async fn shared_instance_probe16_reconnect_without_its_disconnect_keeps_the_tables() {
@@ -89,6 +90,8 @@ async fn shared_instance_probe16_reconnect_without_its_disconnect_keeps_the_tabl
         iface: client.iface,
         reconnect_wait: Duration::ZERO,
         disconnect_reasons: false,
+        // The attach above is default-off on purpose: only the consumer's own flag is under test.
+        tunnel_synthesis: true,
     };
     let cancel = consumer.cancel.clone();
     timeout(

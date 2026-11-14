@@ -49,11 +49,10 @@ async fn shared_instance_disconnect_reasons_accept(
 }
 
 /// Closes `stream` in an orderly way: the write side is shut down and the stream read to
-/// the client's EOF before it is dropped. The client writes its tunnel packet on each
-/// connect, shortly after `Connected` is served, and a socket dropped with unread data in
-/// its receive buffer reports a reset to its peer rather than a plain close (TCP sends
-/// RST; Linux sets `ECONNRESET` on a unix socket's peer), which the client would read as
-/// `Reset`.
+/// the client's EOF before it is dropped. Whatever the client may have written on the
+/// connect is drained first, since a socket dropped with unread data in its receive buffer
+/// reports a reset to its peer rather than a plain close (TCP sends RST; Linux sets
+/// `ECONNRESET` on a unix socket's peer), which the client would read as `Reset`.
 #[deny(clippy::await_holding_invalid_type)]
 async fn shared_instance_disconnect_reasons_close_orderly<S: AsyncRead + AsyncWrite + Unpin>(
     mut stream: S,
@@ -65,18 +64,6 @@ async fn shared_instance_disconnect_reasons_close_orderly<S: AsyncRead + AsyncWr
     })
     .await
     .expect("timed out waiting for the client to close its side");
-}
-
-/// Reads the tunnel packet the client writes on connect from `stream`, within
-/// `LOOPBACK_TIMEOUT`.
-#[deny(clippy::await_holding_invalid_type)]
-async fn shared_instance_disconnect_reasons_read_tunnel_packet(stream: &mut tokio::net::TcpStream) {
-    let mut buf = [0u8; 1024];
-    let read = timeout(LOOPBACK_TIMEOUT, stream.read(&mut buf))
-        .await
-        .expect("timed out waiting for the client's tunnel packet")
-        .expect("read the client's tunnel packet");
-    assert!(read > 0, "the client wrote its tunnel packet before the stream ended");
 }
 
 /// Reads the two events a served drop sends, asserts the second is `Connecting` and
@@ -121,15 +108,14 @@ async fn shared_instance_disconnect_reasons_tcp_close_then_reset(
     let after_close = shared_instance_disconnect_reasons_read_drop(&mut events).await;
 
     // The reset has to land on a stream the client already holds; one that arrives before
-    // its connect is served fails the dial instead. Its tunnel packet is read first so
-    // nothing is pending on the client's write side when the reset arrives: a write that
-    // failed first would report the reset from the tx loop instead of the read.
-    let mut second = shared_instance_disconnect_reasons_accept(&listener).await;
+    // its connect is served fails the dial instead. The client has no destination and no
+    // tunnel to synthesize, so nothing is pending on its write side when the reset arrives;
+    // a write that failed first would report the reset from the tx loop instead of the read.
+    let second = shared_instance_disconnect_reasons_accept(&listener).await;
     assert_eq!(
         shared_instance_state_next_cycle_event(&mut events).await,
         Some(SharedInstanceEvent::Connected)
     );
-    shared_instance_disconnect_reasons_read_tunnel_packet(&mut second).await;
     socket2::SockRef::from(&second).set_linger(Some(Duration::ZERO)).expect("linger");
     drop(second);
     let after_reset = shared_instance_disconnect_reasons_read_drop(&mut events).await;

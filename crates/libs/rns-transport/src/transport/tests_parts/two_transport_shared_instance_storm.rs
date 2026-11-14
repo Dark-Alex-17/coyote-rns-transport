@@ -67,7 +67,7 @@ async fn shared_instance_storm_drop_skips_the_close_packet_of_a_link_over_the_dr
     let name = "shared-instance-storm-skipped-close";
     let server = shared_instance_server().await;
     let mut server_announces = server.transport.recv_announces().await;
-    let mut client = shared_instance_reconnect_client(name, &server).await;
+    let mut client = shared_instance_reconnect_tunneled_client(name, &server).await;
     server.await_accepted_connections(1).await;
     shared_instance_assert_attached(&client.transport, client.iface).await;
     let registered =
@@ -111,7 +111,7 @@ async fn shared_instance_storm_of_restarts_loses_no_event() {
     install_test_logger();
     let name = "shared-instance-storm-restarts";
     let server = shared_instance_server().await;
-    let client = shared_instance_reconnect_client(name, &server).await;
+    let client = shared_instance_reconnect_tunneled_client(name, &server).await;
     server.await_accepted_connections(1).await;
     shared_instance_assert_attached(&client.transport, client.iface).await;
 

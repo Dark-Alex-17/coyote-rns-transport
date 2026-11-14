@@ -4,9 +4,10 @@
 // oracle is the TCP arm's, read on a raw `UnixListener`. Helpers and the probe17 constants
 // come from the sibling `tests_parts` files included into this module.
 
-/// Attaches `name` to `listener`'s socket with `options`, accepts its connection and
-/// returns how long the first byte took to arrive at the listener after the accept, plus
-/// the transport for teardown.
+/// Attaches `name` to `listener`'s socket with `options` plus the tunnel synthesis, so the
+/// client writes a packet on connect, accepts its connection and returns how long the
+/// first byte took to arrive at the listener after the accept, plus the transport for
+/// teardown.
 #[cfg(unix)]
 #[deny(clippy::await_holding_invalid_type)]
 async fn shared_instance_probe17_unix_time_to_first_bytes(
@@ -20,7 +21,7 @@ async fn shared_instance_probe17_unix_time_to_first_bytes(
     let iface = transport
         .attach_shared_instance(
             SharedInstanceEndpoint::Unix(LocalUnixEndpoint::filesystem(socket.to_path_buf())),
-            options,
+            options.with_tunnel_synthesis(true),
         )
         .await
         .expect("a filesystem-socket attach is accepted");
@@ -43,7 +44,7 @@ async fn shared_instance_probe17_unix_time_to_first_bytes(
     (transport, accepted.elapsed())
 }
 
-/// With the default options the first frame reaches the unix shared instance well inside
+/// Without a forced bitrate the first frame reaches the unix shared instance well inside
 /// the paced floor; with `with_forced_bitrate(400)` its first byte arrives no sooner than
 /// the floor, since the spawned unix client sleeps `raw_len * 8 / 400` before the write.
 #[cfg(unix)]

@@ -27,7 +27,8 @@ fn shared_instance_debug_records_containing(transport_name: &str, needle: &str) 
 }
 
 /// A TCP attach logs the attached interface at debug with the configured reconnect wait in
-/// force, since the `TcpClient` honours it; nothing about the attach is logged at warn.
+/// force, since the `TcpClient` honours it; nothing about the attach is logged at warn, and
+/// an attach that opted into tunnel synthesis records no race.
 #[tokio::test]
 #[deny(clippy::await_holding_invalid_type)]
 async fn shared_instance_tcp_attach_logs_the_reconnect_wait_in_force_and_never_warns() {
@@ -39,7 +40,9 @@ async fn shared_instance_tcp_attach_logs_the_reconnect_wait_in_force_and_never_w
     let iface = transport
         .attach_shared_instance(
             server.endpoint(),
-            SharedInstanceOptions::default().with_reconnect_wait(Duration::from_millis(250)),
+            SharedInstanceOptions::default()
+                .with_reconnect_wait(Duration::from_millis(250))
+                .with_tunnel_synthesis(true),
         )
         .await
         .expect("attach to the shared instance");
@@ -55,7 +58,7 @@ async fn shared_instance_tcp_attach_logs_the_reconnect_wait_in_force_and_never_w
     assert!(!line.contains("ignored"), "the TCP client honours the wait: {line}");
     assert!(
         shared_instance_debug_records_containing(name, "tunnel not synthesized").is_empty(),
-        "a plain attach synthesizes its tunnel and records no race"
+        "an attach that opted into tunnel synthesis synthesizes it and records no race"
     );
     shared_instance_assert_never_warned(name);
 
@@ -149,12 +152,13 @@ async fn shared_instance_detach_of_a_stale_slot_logs_at_debug_and_never_warns() 
 }
 
 /// An interface removed from the manager between the attach's two sections (what a detach
-/// or stop does when it wins the window) leaves the attach nothing to synthesize its tunnel
-/// on; the attach records that at debug, naming the race rather than an unknown interface,
-/// still returns the interface, and nothing is logged at warn. The handler is held on a
-/// blocking thread so the removal is certain to land before the attach's second section;
-/// a detach racing for real reaches the same line only when its `stop_interface` lands
-/// first, so the removal is driven through the manager directly here.
+/// or stop does when it wins the window) leaves an attach that opted into tunnel synthesis
+/// nothing to synthesize it on; the attach records that at debug, naming the race rather
+/// than an unknown interface, still returns the interface, and nothing is logged at warn.
+/// The handler is held on a blocking thread so the removal is certain to land before the
+/// attach's second section; a detach racing for real reaches the same line only when its
+/// `stop_interface` lands first, so the removal is driven through the manager directly
+/// here.
 #[tokio::test]
 #[deny(clippy::await_holding_invalid_type)]
 async fn shared_instance_attach_whose_interface_is_removed_in_the_window_logs_the_race_at_debug() {
@@ -169,8 +173,10 @@ async fn shared_instance_attach_whose_interface_is_removed_in_the_window_logs_th
         async {
             timeout(
                 STOP_TIMEOUT,
-                transport
-                    .attach_shared_instance(server.endpoint(), SharedInstanceOptions::default()),
+                transport.attach_shared_instance(
+                    server.endpoint(),
+                    SharedInstanceOptions::default().with_tunnel_synthesis(true),
+                ),
             )
             .await
             .expect("the attach returns within its budget")

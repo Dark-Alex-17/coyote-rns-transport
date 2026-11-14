@@ -1,9 +1,10 @@
 // Coverage for what a shared-instance client does when its connection drops and comes
 // back: the drop tears down its links and flushes its tables, the reconnect re-synthesizes
-// the tunnel and re-announces every registered destination as a path response after the
-// reconnect wait plus two seconds, and a client that is detached, has dropped its connected
-// posture or whose interface is no longer flagged as the shared instance flushes nothing.
-// Helpers come from the sibling `tests_parts` files included into this module.
+// the tunnel of a client that opted in and re-announces every registered destination as a
+// path response after the reconnect wait plus two seconds, and a client that is detached,
+// has dropped its connected posture or whose interface is no longer flagged as the shared
+// instance flushes nothing. Helpers come from the sibling `tests_parts` files included into
+// this module.
 
 use crate::destination::link::LinkCloseReason;
 
@@ -25,6 +26,23 @@ async fn shared_instance_reconnect_client(
         name,
         server.endpoint(),
         SharedInstanceOptions::default().with_reconnect_wait(SHARED_INSTANCE_RECONNECT_WAIT),
+    )
+    .await
+}
+
+/// `shared_instance_reconnect_client` opted into tunnel synthesis, for the tests that read
+/// the restarted shared instance's tunnel table or the re-synthesis debug line.
+#[deny(clippy::await_holding_invalid_type)]
+async fn shared_instance_reconnect_tunneled_client(
+    name: &str,
+    server: &SharedInstanceServer,
+) -> SharedInstanceClient {
+    shared_instance_client_with_options(
+        name,
+        server.endpoint(),
+        SharedInstanceOptions::default()
+            .with_reconnect_wait(SHARED_INSTANCE_RECONNECT_WAIT)
+            .with_tunnel_synthesis(true),
     )
     .await
 }
@@ -150,7 +168,8 @@ fn shared_instance_reconnect_assert_not_closed(
 async fn shared_instance_reconnect_flushes_on_drop_and_reannounces_on_return() {
     let server = shared_instance_server().await;
     let mut server_announces = server.transport.recv_announces().await;
-    let mut client = shared_instance_reconnect_client("shared-instance-reconnect", &server).await;
+    let mut client =
+        shared_instance_reconnect_tunneled_client("shared-instance-reconnect", &server).await;
     server.await_accepted_connections(1).await;
     shared_instance_assert_attached(&client.transport, client.iface).await;
 
@@ -299,7 +318,9 @@ async fn shared_instance_reconnect_unflagged_iface_does_not_flush() {
 /// A consumer over a fresh transport named `name` with nothing attached, driven directly
 /// by the tests below, with the transport it reads, returned so the caller keeps the
 /// transport alive for the run; the consumer holds clones of its parts. `reconnect_wait`
-/// is zero so a reconnect's re-announce task is due at once.
+/// is zero so a reconnect's re-announce is due at once; the tunnel synthesis is on, so a
+/// reconnect attempts the re-synthesis and records the not-registered outcome, as nothing
+/// is attached.
 fn shared_instance_reconnect_consumer(
     name: &str,
     iface: AddressHash,
@@ -315,6 +336,7 @@ fn shared_instance_reconnect_consumer(
         iface,
         reconnect_wait: Duration::ZERO,
         disconnect_reasons: false,
+        tunnel_synthesis: true,
     };
     (transport, consumer)
 }

@@ -225,7 +225,8 @@ interfaces = [
 /// daemon no longer builds; its replacement reads the mode and the MTU back from the iface
 /// manager, which cannot read the bitrate. The bitrate is observable at the shared
 /// instance's side instead: the spawned client sleeps `raw_len * 8 / bitrate` before each
-/// write, so with 400 bps the tunnel-synthesis packet the attach sends on the new stream
+/// write. The daemon's attach synthesizes no tunnel, so the test synthesizes one itself
+/// once the client is attached to have a frame to time: with 400 bps that tunnel packet
 /// (about 200 raw bytes) reaches a listener no sooner than 2 s after the accept, where an
 /// entry without the knob delivers it within milliseconds.
 #[tokio::test]
@@ -250,6 +251,8 @@ interfaces = [
     assert_eq!(batch.startup_successes, 1);
     assert!(batch.startup_failures.is_empty(), "failures={:?}", batch.startup_failures);
     assert_slot_holds_attached_record(&transport, &records[0]).await;
+    let iface = transport.shared_instance().expect("shared instance slot filled by attach");
+    assert!(transport.synthesize_tunnel_on_interface(iface).await, "the attached iface is live");
 
     let (mut stream, _) =
         tokio::time::timeout(std::time::Duration::from_secs(5), shared_listener.accept())

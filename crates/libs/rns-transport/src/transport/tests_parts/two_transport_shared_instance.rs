@@ -1,9 +1,9 @@
 // Coverage for the shared-instance client API: two client transports attached to one TCP
 // shared instance learn each other's announces at one hop and open links both ways, a
-// second attach is refused until the first is detached, each attach lands a tunnel in the
-// shared instance's table, and a unix attach registers its client interface before anything
-// listens on the socket and connects once something does. Helpers come from the sibling
-// `tests_parts` files included into this module.
+// second attach is refused until the first is detached, each attach that opts in lands a
+// tunnel in the shared instance's table, and a unix attach registers its client interface
+// before anything listens on the socket and connects once something does. Helpers come
+// from the sibling `tests_parts` files included into this module.
 
 #[cfg(unix)]
 use crate::iface::local::LocalUnixEndpoint;
@@ -33,10 +33,10 @@ impl SharedInstanceServer {
     }
 
     /// Polls the shared instance's tunnel table until the destinations with a path through
-    /// a tunnel are exactly `expected`. Each attached client synthesizes one tunnel at
-    /// attach and the shared instance files the client's announce under it; the export
-    /// skips path-less tunnels, so this is polled only once the clients have announced.
-    /// The handler guard is taken per poll, never across the sleep.
+    /// a tunnel are exactly `expected`. A client attached with `with_tunnel_synthesis`
+    /// synthesizes one tunnel at attach and the shared instance files the client's announce
+    /// under it; the export skips path-less tunnels, so this is polled only once the clients
+    /// have announced. The handler guard is taken per poll, never across the sleep.
     #[deny(clippy::await_holding_invalid_type)]
     async fn await_tunneled_destinations(&self, mut expected: Vec<AddressHash>) {
         expected.sort();
@@ -103,6 +103,21 @@ async fn shared_instance_server_on(port: u16) -> SharedInstanceServer {
 async fn shared_instance_client(name: &str, server: &SharedInstanceServer) -> SharedInstanceClient {
     shared_instance_client_with_options(name, server.endpoint(), SharedInstanceOptions::default())
         .await
+}
+
+/// `shared_instance_client` opted into tunnel synthesis, for the tests that read the
+/// shared instance's tunnel table.
+#[deny(clippy::await_holding_invalid_type)]
+async fn shared_instance_tunneled_client(
+    name: &str,
+    server: &SharedInstanceServer,
+) -> SharedInstanceClient {
+    shared_instance_client_with_options(
+        name,
+        server.endpoint(),
+        SharedInstanceOptions::default().with_tunnel_synthesis(true),
+    )
+    .await
 }
 
 /// A client attached over `endpoint` with `options`, its announce receiver subscribed
@@ -183,8 +198,8 @@ async fn shared_instance_assert_released(transport: &Transport, iface: AddressHa
 #[deny(clippy::await_holding_invalid_type)]
 async fn shared_instance_clients_exchange_announces_and_open_links_both_ways() {
     let server = shared_instance_server().await;
-    let mut a = shared_instance_client("shared-instance-client-a", &server).await;
-    let mut b = shared_instance_client("shared-instance-client-b", &server).await;
+    let mut a = shared_instance_tunneled_client("shared-instance-client-a", &server).await;
+    let mut b = shared_instance_tunneled_client("shared-instance-client-b", &server).await;
     server.await_accepted_connections(2).await;
     shared_instance_assert_attached(&a.transport, a.iface).await;
     shared_instance_assert_attached(&b.transport, b.iface).await;

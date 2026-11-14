@@ -50,9 +50,9 @@ async fn accept_within(listener: &TcpListener, what: &str) -> TcpStream {
 }
 
 /// Closes `stream` in an orderly way: the write side is shut down and the stream read to
-/// the client's EOF before it is dropped. The client writes its tunnel packet on each
-/// connect, shortly after `Connected` is served, and a TCP socket dropped with unread
-/// data in its receive buffer sends a reset rather than a FIN.
+/// the client's EOF before it is dropped. Whatever the client may have written on the
+/// connect is drained first, since a TCP socket dropped with unread data in its receive
+/// buffer sends a reset rather than a FIN.
 #[deny(clippy::await_holding_invalid_type)]
 async fn close_orderly(mut stream: TcpStream) {
     stream.shutdown().await.expect("shut the write side down");
@@ -65,17 +65,10 @@ async fn close_orderly(mut stream: TcpStream) {
 }
 
 /// Closes `stream` with linger zero so the peer sends a reset instead of a FIN. The
-/// client's tunnel packet is read first so nothing is pending on its write side when the
-/// reset arrives: a write that failed first would report the reset from the tx loop
-/// instead of the read.
-#[deny(clippy::await_holding_invalid_type)]
-async fn close_with_reset(mut stream: TcpStream) {
-    let mut buf = [0u8; 1024];
-    let read = timeout(WAIT, stream.read(&mut buf))
-        .await
-        .expect("timed out waiting for the client's tunnel packet")
-        .expect("read the client's tunnel packet");
-    assert!(read > 0, "the client wrote its tunnel packet before the stream ended");
+/// client has no destination and no tunnel to synthesize, so nothing is pending on its
+/// write side when the reset arrives; a write that failed first would report the reset
+/// from the tx loop instead of the read.
+fn close_with_reset(stream: TcpStream) {
     socket2::SockRef::from(&stream).set_linger(Some(Duration::ZERO)).expect("linger");
     drop(stream);
 }
@@ -165,7 +158,7 @@ async fn hold_then_close_then_reset(
     // The reset has to land on a stream the client already holds; one that arrives
     // before its connect is served fails the dial instead.
     let second = serve_connected(&listener, &mut events, "second connection").await;
-    close_with_reset(second).await;
+    close_with_reset(second);
     let after_reset = read_drop(&mut events, "the linger-zero close").await;
     assert_eq!(transport.shared_instance(), Some(iface));
 
@@ -283,7 +276,7 @@ async fn a_readme_consumer_labels_each_reason_and_never_sees_the_plain_disconnec
     assert_eq!(next_label(&mut labels).await, "connecting");
     let second = accept_within(&listener, "second connection").await;
     assert_eq!(next_label(&mut labels).await, "connected");
-    close_with_reset(second).await;
+    close_with_reset(second);
     assert_eq!(next_label(&mut labels).await, "reset");
     assert_eq!(next_label(&mut labels).await, "connecting");
     let third = accept_within(&listener, "third connection").await;

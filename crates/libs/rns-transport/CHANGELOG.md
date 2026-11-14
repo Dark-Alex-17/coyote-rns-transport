@@ -172,8 +172,9 @@ Removed) bullet of its own, marked as such.
   link to the first transport's destination activates there and the second
   transport's in-link events stay empty; opted in on both, rnsd logs the
   tunnel reappearing and restores the first transport's path onto the
-  second connection, `RNS/Transport.py:2820-2868`, and the link never
-  reaches the first), by the
+  second connection, `RNS/Transport.py:2820-2868`, and the first
+  transport's in-link events stay empty for 3 s after the third's link
+  request), by the
   daemon's `bootstrap_interface_startup_parts::shared_instance_attach_tests`
   (`tunnel_synth_ifaces` stays empty for the local-client attach) and its
   `shared_instance_attach_probe_tests` bitrate pin, which synthesizes a

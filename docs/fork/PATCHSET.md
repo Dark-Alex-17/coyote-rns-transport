@@ -34,7 +34,7 @@ belongs to. Patch ids: N1 is tunnel opt-in, N2 is link request once. The
 `1446a8e5` and `d2e106bb`. The `link request once` patch is fork commits
 `728e10dd`, `2c2f14d9`, `d65fd1e3`, `0be75f6f` and `9ae9fdab`. The
 `Python-in-the-loop two clients interop` patch carries no other id and is
-fork commits `ddcb4430` and `a974386c`.
+fork commits `ddcb4430`, `a974386c` and `d40e0ae3`.
 
 | File | Patch |
 | --- | --- |
@@ -231,10 +231,10 @@ cites the watchdog's `HANDSHAKE` branch (`RNS/Link.py:732-739`) beside the
 `PENDING` one in the rustdoc and the CHANGELOG; and restores the 7 s
 rationale on the two unit pins.
 
-Fork commits `ddcb4430` and `a974386c`: Python-in-the-loop two clients
-interop. A Python rnsd (RNS 1.5.2) is the shared instance on a free TCP port
-and two transports built from one identity attach as local clients the way a
-second Python program does (`RNS/Reticulum.py:420-441`):
+Fork commits `ddcb4430`, `a974386c` and `d40e0ae3`: Python-in-the-loop two
+clients interop. A Python rnsd (RNS 1.5.2) is the shared instance on a free
+TCP port and two transports built from one identity attach as local clients
+the way a second Python program does (`RNS/Reticulum.py:420-441`):
 `crates/apps/reticulumd/tests/python_channel_interop_parts/python_shared_instance_two_clients.rs`,
 included from `crates/apps/reticulumd/tests/python_channel_interop.rs`, has
 each of the two register one destination under a fresh identity before its
@@ -257,6 +257,9 @@ which the third client's link request leaves the first transport's in-link
 events empty for 3 s. `ddcb4430` also adds the destination-hash inequality
 assert to both tests of `two_transport_shared_instance_tunnel_identity.rs`.
 `a974386c` names the proof in the README shared-instance section.
+`d40e0ae3` makes the third client's attach wait for its first connect so the
+attach order is observed rather than assumed, matches the negative pin's
+three outcomes apart, and states the 3 s window in the README.
 Upstream site: test files only.
 
 ## 0.18.1 (upstream 0.14.0)

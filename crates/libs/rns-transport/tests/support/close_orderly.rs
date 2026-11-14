@@ -9,9 +9,9 @@ use tokio::time::timeout;
 const WAIT: Duration = Duration::from_secs(5);
 
 /// Closes `stream` in an orderly way: the write side is shut down and the stream read to
-/// the peer's EOF before it is dropped. An attached transport writes its tunnel packet
-/// on each connect, and a TCP socket dropped with unread data in its receive buffer sends
-/// a reset rather than a FIN.
+/// the peer's EOF before it is dropped. Whatever the peer may have written on the connect
+/// is drained first, since a TCP socket dropped with unread data in its receive buffer
+/// sends a reset rather than a FIN.
 #[deny(clippy::await_holding_invalid_type)]
 pub async fn close_orderly(mut stream: impl AsyncRead + AsyncWrite + Unpin) {
     stream.shutdown().await.expect("shut the write side down");

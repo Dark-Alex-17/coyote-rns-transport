@@ -67,7 +67,7 @@ async fn shared_instance_flush_await_reverse_route(
 /// other tables are seeded. The drop's debug record is the gate: it is written after the
 /// last clear. Each table is then asserted empty on its own, the receipt guard is still in
 /// place, and the cached hashes, Python's `packet_hashlist`, are still there (the
-/// reconnect's tunnel packet adds to them, so what was cached before the drop is asserted
+/// reconnect's traffic may add to them, so what was cached before the drop is asserted
 /// kept, not the exact set).
 #[tokio::test]
 #[deny(clippy::await_holding_invalid_type)]

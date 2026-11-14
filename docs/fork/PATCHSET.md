@@ -29,20 +29,27 @@ per fork task.
 ## Unreleased (upstream 0.14.0)
 
 Every file changed since the `0.18.1` release and the patch each change
-belongs to. Patch ids: N1 is tunnel opt-in. The `tunnel opt-in` patch is
-fork commits `7ae6a364`, `785bce93`, `ad420766`, `1446a8e5` and `d2e106bb`.
+belongs to. Patch ids: N1 is tunnel opt-in, N2 is link request once. The
+`tunnel opt-in` patch is fork commits `7ae6a364`, `785bce93`, `ad420766`,
+`1446a8e5` and `d2e106bb`. The `link request once` patch is fork commits
+`728e10dd` and `2c2f14d9`.
 
 | File | Patch |
 | --- | --- |
-| `crates/apps/reticulumd/src/bin/reticulumd/bootstrap_interface_startup_parts/shared_instance_attach_probe_tests.rs` | tunnel opt-in |
+| `crates/apps/reticulumd/src/bin/reticulumd/bootstrap_interface_startup_parts/shared_instance_attach_probe_tests.rs` | tunnel opt-in, link request once |
 | `crates/apps/reticulumd/tests/fork_publish_contract_parts/ledger_contract.rs` | tunnel opt-in |
 | `crates/apps/reticulumd/tests/fork_release_docs_contract_parts/crate_readme_sections.rs` | tunnel opt-in |
-| `crates/libs/rns-transport/CHANGELOG.md` | tunnel opt-in |
+| `crates/libs/rns-transport/CHANGELOG.md` | tunnel opt-in, link request once |
 | `crates/libs/rns-transport/README.md` | tunnel opt-in |
+| `crates/libs/rns-transport/src/destination/link_parts/link_sections/establishment.rs` | link request once |
+| `crates/libs/rns-transport/src/transport/jobs_parts/link_maintenance.rs` | link request once |
 | `crates/libs/rns-transport/src/transport/links_parts/transport_sections/shared_instance.rs` | tunnel opt-in |
 | `crates/libs/rns-transport/src/transport/links_parts/transport_sections/shared_instance_reconnect.rs` | tunnel opt-in |
+| `crates/libs/rns-transport/src/transport/mod.rs` | link request once |
 | `crates/libs/rns-transport/src/transport/shared_instance.rs` | tunnel opt-in |
 | `crates/libs/rns-transport/src/transport/tests.rs` | tunnel opt-in |
+| `crates/libs/rns-transport/src/transport/tests_parts/pending_out_link_establishment_timeout.rs` | link request once |
+| `crates/libs/rns-transport/src/transport/tests_parts/pending_out_link_rediscovery.rs` | link request once |
 | `crates/libs/rns-transport/src/transport/tests_parts/two_transport_shared_instance.rs` | tunnel opt-in |
 | `crates/libs/rns-transport/src/transport/tests_parts/two_transport_shared_instance_disconnect_reasons.rs` | tunnel opt-in |
 | `crates/libs/rns-transport/src/transport/tests_parts/two_transport_shared_instance_flush.rs` | tunnel opt-in |
@@ -59,11 +66,13 @@ fork commits `7ae6a364`, `785bce93`, `ad420766`, `1446a8e5` and `d2e106bb`.
 | `crates/libs/rns-transport/src/transport/tests_parts/two_transport_shared_instance_tunnel_default.rs` | tunnel opt-in |
 | `crates/libs/rns-transport/src/transport/tests_parts/two_transport_shared_instance_tunnel_identity.rs` | tunnel opt-in |
 | `crates/libs/rns-transport/tests/interface_events_api.rs` | tunnel opt-in |
+| `crates/libs/rns-transport/tests/pending_link_single_request_probe.rs` | link request once |
 | `crates/libs/rns-transport/tests/shared_instance_disconnect_reasons_api.rs` | tunnel opt-in |
+| `crates/libs/rns-transport/tests/shared_instance_tunnel_default_relay_probe.rs` | link request once |
 | `crates/libs/rns-transport/tests/shared_instance_tunnel_synthesis_api.rs` | tunnel opt-in |
 | `crates/libs/rns-transport/tests/shared_instance_tunnel_synthesis_probe.rs` | tunnel opt-in |
 | `crates/libs/rns-transport/tests/support/close_orderly.rs` | tunnel opt-in |
-| `docs/fork/PATCHSET.md` | tunnel opt-in |
+| `docs/fork/PATCHSET.md` | tunnel opt-in, link request once |
 
 Fork commits `7ae6a364`, `785bce93`, `ad420766`, `1446a8e5` and `d2e106bb`:
 N1, tunnel opt-in.
@@ -141,6 +150,45 @@ the README's collision qualifier, its `RNS/Transport.py:2820-2868` cite and its
 single-transport opt-in sentence; and gives the CHANGELOG Added bullet the
 migration sentence for a consumer that relied on the 0.15.1 to 0.18.1
 tunnel.
+
+Fork commits `728e10dd` and `2c2f14d9`:
+N2, link request once.
+Upstream site: `handle_check_links` in
+`crates/libs/rns-transport/src/transport/jobs_parts/link_maintenance.rs`,
+whose `Pending` arm re-sent the link request every
+`INTERVAL_OUTPUT_LINK_REPEAT` (6 s, `src/transport/mod.rs`) for as long as
+the link stayed pending, inherited from upstream `reticulum-rs-transport`.
+Python sends the request once (`RNS/Link.py:313-320`) and only the
+establishment timeout bounds the link (`RNS/Link.py:722-729`). The repeat
+was dead on the wire: the duplicate filters (`RNS/Transport.py:1668-1679`,
+this crate's `transport/inbound_processing.rs`) drop a byte-identical
+packet and let only announces through again. `728e10dd` deletes the arm,
+the const and the `pending_packets` queue that only the arm fed, rewords
+the `establishment_timed_out` rustdoc in
+`destination/link_parts/link_sections/establishment.rs` with the Python
+cites, flips the two unit pins (`pending_out_link_establishment_timeout.rs`:
+`a_pending_out_link_inside_its_establishment_timeout_is_not_requested_again`
+expects nothing on the interface channel inside the timeout;
+`pending_out_link_rediscovery.rs`:
+`aged_pending_out_link_stays_quiet_until_closed_like_python` expects
+nothing until the timeout closes the link with `Timeout` and a path
+request, not a link request, follows) and adds the CHANGELOG Changed
+bullets. `2c2f14d9` adds `tests/pending_link_single_request_probe.rs`,
+which spawns a `TcpClient` to a raw listener that never answers, waits for
+the accept and the client's stream count before asking for a link to an
+unknown destination with a 2 s establishment timeout, reads the stream for
+twice that, decodes every HDLC frame and counts exactly one `LinkRequest`
+packet (the path request a non-transport initiator broadcasts after the
+close is read and not counted), then takes the `Closed` event with reason
+`Timeout` from `out_link_events`; and adopts two tests carried over from
+the tunnel opt-in work, each run three times alone before adoption:
+`tests/shared_instance_tunnel_default_relay_probe.rs`, where two
+default-option clients on a `TcpServer` shared instance, plain and flagged,
+learn each other and open links both ways across a shared-instance
+restart, and a `shared_instance_attach_probe_tests.rs` test in the daemon,
+where the local-client attach writes nothing on the accepted stream over a
+quiet window until a tunnel is synthesized by hand through
+`Transport::synthesize_tunnel_on_interface`.
 
 ## 0.18.1 (upstream 0.14.0)
 

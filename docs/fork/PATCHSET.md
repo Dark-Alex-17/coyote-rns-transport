@@ -137,7 +137,7 @@ and the attached interface's full hash, reads the same on the stream a
 forced drop reopens, checks a reattach follows the new attach's options
 and a Unix endpoint honours them, and refuses a dropped builder result
 under `deny(unused_must_use)`; widens the `crate_readme_sections.rs` pin to
-the README's collision qualifier, its `handle_tunnel` cite and its
+the README's collision qualifier, its `RNS/Transport.py:2820-2868` cite and its
 single-transport opt-in sentence; and gives the CHANGELOG Added bullet the
 migration sentence for a consumer that relied on the 0.15.1 to 0.18.1
 tunnel.

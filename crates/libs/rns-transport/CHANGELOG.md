@@ -82,7 +82,11 @@ Removed) bullet of its own, marked as such.
   (`links_parts/transport_sections/shared_instance.rs`) and on reconnect
   (`links_parts/transport_sections/shared_instance_reconnect.rs`) is now
   opt-in through `with_tunnel_synthesis` (see Added) and off by default;
-  reticulumd's local-client attach keeps the default. A correction to the
+  the default is Python's: its local client synthesizes no tunnel
+  (its reconnect job at `RNS/Interfaces/LocalInterface.py:178-181` only
+  re-announces; `wants_tunnel` is set only on the network-facing clients,
+  such as `RNS/Interfaces/TCPInterface.py:179`), and reticulumd's local-client
+  attach keeps the default. A correction to the
   older notes goes with it: the 0.15.1 Added bullet for
   `attach_shared_instance` said the tunnel was synthesized "so inbound
   packets take the client-side hop ... and outbound packets on one-hop
@@ -105,10 +109,12 @@ Removed) bullet of its own, marked as such.
   nothing"), of the 0.16.0 Changed clause that the daemon's
   "stream-reconnect tunnel synthesizer now serves only its `tcp_client`
   and `backbone_client` interfaces" (it left the attached client's tunnel
-  to the library, which now synthesizes none for the daemon), and of the
-  0.18.0 Added bullet for `with_first_connect_timeout` ("wait that long
-  for the first served connect before the tunnel is synthesized": the
-  wait precedes a tunnel only on an opted-in attach). Pinned by
+  to the library, which now synthesizes none for the daemon) and its
+  `two_transport_shared_instance_probe16.rs` clause ("re-synthesizes the
+  tunnel and keeps the tables", which now reads the tunnel under the
+  opt-in), and of the 0.18.0 Added bullet for `with_first_connect_timeout`
+  ("wait that long for the first served connect before the tunnel is
+  synthesized": the wait precedes a tunnel only on an opted-in attach). Pinned by
   `transport/tests_parts/two_transport_shared_instance_tunnel_default.rs`
   and `tests/shared_instance_tunnel_synthesis_api.rs` as above, by
   `transport/tests_parts/two_transport_shared_instance_tunnel_identity.rs`

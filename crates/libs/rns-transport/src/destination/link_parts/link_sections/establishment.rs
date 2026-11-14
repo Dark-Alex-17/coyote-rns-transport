@@ -25,11 +25,12 @@ impl Link {
     /// that never comes up: `RNS.Link`'s watchdog closes it then with
     /// `teardown_reason = TIMEOUT` (`RNS/Link.py:722-729`), and a
     /// non-transport instance expires the path it was made on. The transport
-    /// does not retransmit a pending request, because every duplicate filter
-    /// on the way drops a byte-identical one: `RNS/Transport.py:1668-1679`
-    /// lets only announces through again, and this crate's
-    /// `transport/inbound_processing.rs` does the same for
-    /// `PacketType::LinkRequest`.
+    /// does not retransmit a pending request: Python sends it once
+    /// (`RNS/Link.py:313-320`), and on any hop that saw the first frame a
+    /// byte-identical repeat is dropped by the duplicate filter anyway
+    /// (`RNS/Transport.py:1668-1679` re-admits only single-destination
+    /// announces; this crate's `transport/inbound_processing.rs` gives
+    /// `PacketType::LinkRequest` no duplicate allowance).
     ///
     /// Measured from the start of the current attempt, which is not the same
     /// as the latest request packet: a direct repeated `request()` on a

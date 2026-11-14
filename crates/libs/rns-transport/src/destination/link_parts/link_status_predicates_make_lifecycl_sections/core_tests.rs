@@ -145,9 +145,9 @@
 
     #[test]
     fn outbound_link_request_never_changes_mode_across_repeated_attempts() {
-        // The watchdog's own repeat-request cadence calls `request()`
-        // again on every retry — with only one cipher ever compiled into
-        // a given build (see `LinkMode`'s own doc comment), there is no
+        // A caller may repeat `request()` on a still-pending link (the
+        // maintenance job never does): with only one cipher ever compiled
+        // into a given build (see `LinkMode`'s own doc comment) there is no
         // other mode to fall back to, so every repeat must keep signalling
         // the same, one mode this build can actually use.
         let mut link = test_link();

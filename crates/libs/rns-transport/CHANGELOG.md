@@ -75,11 +75,11 @@ Removed) bullet of its own, marked as such.
   `INTERVAL_OUTPUT_LINK_REPEAT` in `transport/mod.rs` is gone), which
   matches Python, where the request goes out once (`RNS/Link.py:313-320`)
   and the establishment timeout is the only bound (`RNS/Link.py:722-729`).
-  The repeat could never land anyway: the duplicate filters
-  drop a link request whose hash they have seen (Python re-admits only
-  announces, `RNS/Transport.py:1668-1679`; this crate's
+  The repeat rarely landed: on every hop that had seen the first request
+  the duplicate filters drop it (Python re-admits only announces,
+  `RNS/Transport.py:1668-1679`; this crate's
   `transport/inbound_processing.rs` gives `LinkRequest` no duplicate
-  allowance).
+  allowance), and Python does not retransmit either.
   The upstream `reticulum-rs-transport` behaviour this replaces was
   inherited, not fork-added. The "repeat link request" warn disappears. A
   direct second `Link::request()` on a pending link is still allowed and
@@ -96,7 +96,11 @@ Removed) bullet of its own, marked as such.
   stream, past the 6 s mark at which the repeat used to fire, the link
   still pending at the end of the window, then the `Closed` event with
   reason `Timeout` once the clock is shortened; and a fresh `link()` after
-  a timeout close sending its own single request).
+  a timeout close sending its own single request) and
+  `tests/pending_link_single_request_concurrent_probe.rs` (two pending
+  links opened back to back each send one request to their own destination
+  and both close with `Timeout`; a 300 ms timeout, shorter than the
+  maintenance tick, still sends exactly one request).
 - Test-only: `tests/shared_instance_tunnel_default_relay_probe.rs` pins
   that two default-option clients on a `TcpServer` shared instance, plain
   and flagged, learn each other and open links both ways across a

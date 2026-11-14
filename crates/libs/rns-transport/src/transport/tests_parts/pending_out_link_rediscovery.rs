@@ -223,8 +223,15 @@ async fn aged_pending_out_link_stays_quiet_until_closed_like_python() {
         .await
         .expect("rediscovery path request should be queued")
         .expect("tx channel open");
-    assert_ne!(after_close.packet.header.packet_type, PacketType::LinkRequest);
     assert_eq!(after_close.tx_type, crate::iface::TxMessageType::Broadcast(None));
+    assert_eq!(
+        &after_close.packet.data.as_slice()[..ADDRESS_HASH_SIZE],
+        destination_hash.as_slice()
+    );
+    assert!(
+        iface_channel.tx_channel.try_recv().is_err(),
+        "nothing follows the rediscovery path request"
+    );
 }
 
 #[tokio::test]

@@ -133,7 +133,7 @@ async fn default_client(name: &str, endpoint: SocketAddr) -> Client {
     let transport =
         Transport::new(TransportConfig::new(name, &PrivateIdentity::new_from_rand(OsRng), false));
     let announces = transport.recv_announces().await;
-    let (events_tx, mut events) = mpsc::channel(16);
+    let (events_tx, mut events) = mpsc::channel(256);
     transport
         .attach_shared_instance(
             SharedInstanceEndpoint::Tcp(endpoint),

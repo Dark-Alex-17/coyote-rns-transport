@@ -4,7 +4,7 @@
 // come from the sibling `tests_parts` files.
 
 /// A link the connector opened toward a destination nobody serves: it stays `Pending`, its
-/// request repeated, for the whole establishment timeout. The connector does not
+/// request sent once, for the whole establishment timeout. The connector does not
 /// broadcast, so the unserved destination is given a path over the interface the served
 /// one was learned on; without it `Transport::link` refuses the request outright.
 #[deny(clippy::await_holding_invalid_type)]

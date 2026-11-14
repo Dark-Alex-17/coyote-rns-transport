@@ -92,7 +92,7 @@ fn packets_in(raw: &[u8]) -> Vec<Packet> {
     packets
 }
 
-/// The `Closed` event for `id`, skipping anything else the stream carries first.
+/// The `Closed` event for `id`, skipping anything else the event receiver carries first.
 #[deny(clippy::await_holding_invalid_type)]
 async fn closed_event_for(
     events: &mut broadcast::Receiver<LinkEventData>,
@@ -127,14 +127,18 @@ async fn a_pending_link_sends_one_request_and_is_closed_at_its_timeout() {
     wait_until("the client to count its stream", || status.connected_streams() >= 1).await;
     let mut events = transport.out_link_events();
 
-    let link = transport.link(unknown_destination()).await.expect("pending link with broadcast on");
+    let destination = unknown_destination();
+    let link = transport.link(destination).await.expect("pending link with broadcast on");
     link.lock().await.set_establishment_timeout(ESTABLISHMENT);
     let id = *link.lock().await.id();
 
     let raw = read_for_window(&mut stream).await;
     let link_requests = packets_in(&raw)
         .iter()
-        .filter(|packet| packet.header.packet_type == PacketType::LinkRequest)
+        .filter(|packet| {
+            packet.header.packet_type == PacketType::LinkRequest
+                && packet.destination == destination.address_hash
+        })
         .count();
     assert_eq!(
         link_requests, 1,

@@ -23,6 +23,7 @@ use rns_transport::destination::link::{
     LinkCloseReason, LinkEvent, LinkEventData, LinkId, LinkStatus,
 };
 use rns_transport::destination::{DestinationDesc, DestinationName};
+use rns_transport::hash::AddressHash;
 use rns_transport::identity::PrivateIdentity;
 use rns_transport::iface::hdlc::Hdlc;
 use rns_transport::packet::{Packet, PacketType};
@@ -81,10 +82,10 @@ async fn read_for(stream: &mut (impl AsyncRead + Unpin), window: Duration) -> Ve
     }
 }
 
-/// How many `LinkRequest` packets the complete HDLC frames of `raw` carry. Anything
-/// else on the stream (the path request a non-transport initiator broadcasts after a
-/// timeout close) decodes but is not counted.
-fn link_requests_in(raw: &[u8]) -> usize {
+/// How many `LinkRequest` packets addressed to `destination` the complete HDLC frames
+/// of `raw` carry. Anything else on the stream (the path request a non-transport
+/// initiator broadcasts after a timeout close) decodes but is not counted.
+fn link_requests_to(raw: &[u8], destination: AddressHash) -> usize {
     let mut count = 0;
     let mut cursor = 0;
     while let Some((start, end)) = Hdlc::find(&raw[cursor..]) {
@@ -96,7 +97,9 @@ fn link_requests_in(raw: &[u8]) -> usize {
         if len > 0 {
             let packet = Packet::from_bytes(&decoded[..len])
                 .unwrap_or_else(|err| panic!("a frame on the stream is not a packet: {err:?}"));
-            if packet.header.packet_type == PacketType::LinkRequest {
+            if packet.header.packet_type == PacketType::LinkRequest
+                && packet.destination == destination
+            {
                 count += 1;
             }
         }
@@ -151,12 +154,13 @@ async fn a_default_pending_link_sends_one_request_past_the_old_repeat_interval()
         initiator_on_a_silent_listener("pending-link-default-timeout").await;
     let mut events = transport.out_link_events();
 
-    let link = transport.link(unknown_destination()).await.expect("pending link with broadcast on");
+    let destination = unknown_destination();
+    let link = transport.link(destination).await.expect("pending link with broadcast on");
     let id = *link.lock().await.id();
 
     let raw = read_for(&mut stream, PAST_OLD_REPEAT).await;
     assert_eq!(
-        link_requests_in(&raw),
+        link_requests_to(&raw, destination.address_hash),
         1,
         "one link request over {PAST_OLD_REPEAT:?} with the transport-sized establishment timeout"
     );
@@ -172,9 +176,13 @@ async fn a_default_pending_link_sends_one_request_past_the_old_repeat_interval()
     assert_eq!(closed.close_reason, Some(LinkCloseReason::Timeout));
     assert_eq!(link.lock().await.status(), LinkStatus::Closed);
 
-    // Nothing but the rediscovery path request follows the close on this stream.
+    // No link request follows the close on this stream.
     let tail = read_for(&mut stream, SHORT_ESTABLISHMENT).await;
-    assert_eq!(link_requests_in(&tail), 0, "no link request follows the timeout close");
+    assert_eq!(
+        link_requests_to(&tail, destination.address_hash),
+        0,
+        "no link request follows the timeout close"
+    );
 
     timeout(WAIT, transport.stop()).await.expect("transport stop completes");
 }
@@ -194,7 +202,11 @@ async fn a_fresh_link_after_a_timeout_close_sends_its_own_single_request() {
     first.lock().await.set_establishment_timeout(SHORT_ESTABLISHMENT);
     let first_id = *first.lock().await.id();
     let raw = read_for(&mut stream, 2 * SHORT_ESTABLISHMENT).await;
-    assert_eq!(link_requests_in(&raw), 1, "the first attempt sends one link request");
+    assert_eq!(
+        link_requests_to(&raw, destination.address_hash),
+        1,
+        "the first attempt sends one link request"
+    );
     let closed = closed_event_for(&mut events, first_id, WAIT).await;
     assert_eq!(closed.close_reason, Some(LinkCloseReason::Timeout));
 
@@ -203,7 +215,11 @@ async fn a_fresh_link_after_a_timeout_close_sends_its_own_single_request() {
     let second_id = *second.lock().await.id();
     assert_ne!(second_id, first_id, "a fresh attempt is a new link");
     let raw = read_for(&mut stream, 2 * SHORT_ESTABLISHMENT).await;
-    assert_eq!(link_requests_in(&raw), 1, "the second attempt sends its own single request");
+    assert_eq!(
+        link_requests_to(&raw, destination.address_hash),
+        1,
+        "the second attempt sends its own single request"
+    );
     let closed = closed_event_for(&mut events, second_id, WAIT).await;
     assert_eq!(closed.close_reason, Some(LinkCloseReason::Timeout));
     assert_eq!(second.lock().await.status(), LinkStatus::Closed);

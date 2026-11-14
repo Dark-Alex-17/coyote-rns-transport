@@ -1,8 +1,8 @@
 /// `RNS.Link`'s watchdog closes a link that outlives its establishment timeout
 /// while still pending, and on a non-transport instance the path it was
-/// tried on is expired and requested again — the same handling a link that
-/// was closed by hand already got here. Without it the request was repeated
-/// every `INTERVAL_OUTPUT_LINK_REPEAT` for the life of the process.
+/// tried on is expired and requested again - the same handling a link that
+/// was closed by hand already got here. Before the timeout existed the
+/// request was repeated every 6 s for the life of the process.
 #[tokio::test]
 async fn a_pending_out_link_that_outlives_its_establishment_timeout_is_closed_and_the_path_expired()
 {
@@ -70,10 +70,11 @@ async fn a_pending_out_link_that_outlives_its_establishment_timeout_is_closed_an
     );
 }
 
-/// Inside the timeout the link is left pending and its request repeated,
-/// which is what the job did before.
+/// Inside the timeout the link is left pending and nothing is sent: the
+/// request went out once and only the timeout bounds it, as in Python
+/// (`RNS/Link.py:313-320`, `RNS/Link.py:722-729`).
 #[tokio::test]
-async fn a_pending_out_link_inside_its_establishment_timeout_is_requested_again() {
+async fn a_pending_out_link_inside_its_establishment_timeout_is_not_requested_again() {
     let local_identity = PrivateIdentity::new_from_rand(OsRng);
     let config = TransportConfig::new("test", &local_identity, true);
     let transport = Transport::new(config);
@@ -102,20 +103,16 @@ async fn a_pending_out_link_inside_its_establishment_timeout_is_requested_again(
         .await
         .expect("initial link request should be queued")
         .expect("tx channel open");
-    // Past the repeat interval, inside the establishment timeout.
+    // Well past the first request, inside the establishment timeout.
     link.lock().await.set_request_time_for_test(std::time::Instant::now() - Duration::from_secs(7));
 
     super::jobs::handle_check_links(handler.lock().await).await;
 
     assert_eq!(link.lock().await.status(), LinkStatus::Pending);
     assert!(handler.lock().await.path_table.get(&destination_hash).is_some(), "the path is kept");
-    let repeat = timeout(Duration::from_millis(200), iface_channel.tx_channel.recv())
-        .await
-        .expect("the link request should be repeated")
-        .expect("tx channel open");
-    assert_eq!(
-        repeat.packet.destination, destination_hash,
-        "a repeated link request, not a path request"
+    assert!(
+        timeout(Duration::from_millis(200), iface_channel.tx_channel.recv()).await.is_err(),
+        "no second link request is sent inside the establishment timeout"
     );
 }
 
@@ -137,9 +134,8 @@ fn a_pending_link_past_its_establishment_timeout() -> Link {
 }
 
 /// Repeating a request that is still in flight is the retransmit this timeout
-/// exists to bound, so it must not restart the clock. Without this the link
-/// maintenance job's own repeat would keep a dead link alive forever, which is
-/// the behaviour the timeout replaced.
+/// exists to bound, so a caller that does it must not restart the clock; the
+/// maintenance job itself never repeats a request.
 #[test]
 fn repeating_a_still_pending_request_does_not_restart_the_establishment_clock() {
     let mut link = a_pending_link_past_its_establishment_timeout();

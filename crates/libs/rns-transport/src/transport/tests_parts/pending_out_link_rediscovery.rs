@@ -163,8 +163,13 @@ async fn closed_pending_out_link_rediscovery_respects_recent_path_request_thrott
     assert!(iface_channel.tx_channel.try_recv().is_err());
 }
 
+/// An aged pending out-link is left alone until its establishment timeout
+/// closes it with `Timeout`: the request went out once and only the timeout
+/// bounds it (`RNS/Link.py:313-320`, `RNS/Link.py:722-729`). The path is kept
+/// while the link is pending, and what follows the close is the rediscovery
+/// path request, not another link request.
 #[tokio::test]
-async fn aged_pending_out_link_repeats_without_rediscovery_until_closed_like_python() {
+async fn aged_pending_out_link_stays_quiet_until_closed_like_python() {
     let local_identity = PrivateIdentity::new_from_rand(OsRng);
     let config = TransportConfig::new("test", &local_identity, true);
     let transport = Transport::new(config);
@@ -198,12 +203,28 @@ async fn aged_pending_out_link_repeats_without_rediscovery_until_closed_like_pyt
     super::jobs::handle_check_links(handler.lock().await).await;
 
     assert!(handler.lock().await.path_table.get(&destination_hash).is_some());
-    let repeated = timeout(Duration::from_millis(200), iface_channel.tx_channel.recv())
+    assert!(
+        timeout(Duration::from_millis(200), iface_channel.tx_channel.recv()).await.is_err(),
+        "nothing is sent for a pending link inside its establishment timeout"
+    );
+
+    link.lock()
         .await
-        .expect("repeated link request should be queued")
+        .set_establishment_start_for_test(std::time::Instant::now() - Duration::from_secs(60));
+
+    super::jobs::handle_check_links(handler.lock().await).await;
+
+    assert_eq!(link.lock().await.status(), LinkStatus::Closed);
+    assert_eq!(
+        link.lock().await.close_reason(),
+        Some(crate::destination::link::LinkCloseReason::Timeout)
+    );
+    let after_close = timeout(Duration::from_millis(200), iface_channel.tx_channel.recv())
+        .await
+        .expect("rediscovery path request should be queued")
         .expect("tx channel open");
-    assert_eq!(repeated.packet.header.packet_type, PacketType::LinkRequest);
-    assert!(iface_channel.tx_channel.try_recv().is_err());
+    assert_ne!(after_close.packet.header.packet_type, PacketType::LinkRequest);
+    assert_eq!(after_close.tx_type, crate::iface::TxMessageType::Broadcast(None));
 }
 
 #[tokio::test]

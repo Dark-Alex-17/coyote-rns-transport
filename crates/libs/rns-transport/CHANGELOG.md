@@ -66,6 +66,36 @@ Removed) bullet of its own, marked as such.
   `two_transport_shared_instance_state_events.rs` and
   `two_transport_shared_instance_state_events_probe.rs` now opt in.
 
+### Changed
+
+- A pending outbound link now sends its link request once and is closed
+  with `LinkCloseReason::Timeout` at its establishment timeout. The link
+  maintenance job (`transport/jobs_parts/link_maintenance.rs`) no longer
+  repeats a byte-identical request every 6 s (the private
+  `INTERVAL_OUTPUT_LINK_REPEAT` in `transport/mod.rs` is gone), which
+  matches Python, where the request goes out once (`RNS/Link.py:313-320`)
+  and the establishment timeout is the only bound (`RNS/Link.py:722-729`).
+  The repeat could never land anyway: the duplicate filters
+  (`RNS/Transport.py:1668-1679`, `transport/inbound_processing.rs`) drop a
+  packet whose hash they have seen and let only announces through again.
+  The upstream `reticulum-rs-transport` behaviour this replaces was
+  inherited, not fork-added. The "repeat link request" warn disappears. A
+  direct second `Link::request()` on a pending link is still allowed and
+  still does not restart the establishment clock. Pinned by
+  `transport/tests_parts/pending_out_link_establishment_timeout.rs` (no
+  second request inside the timeout),
+  `transport/tests_parts/pending_out_link_rediscovery.rs` (quiet until the
+  timeout close) and `tests/pending_link_single_request_probe.rs` (one
+  `LinkRequest` frame on a raw listener's stream over twice a 2 s
+  establishment timeout, then the `Closed` event with reason `Timeout`).
+- Test-only: `tests/shared_instance_tunnel_default_relay_probe.rs` pins
+  that two default-option clients on a `TcpServer` shared instance, plain
+  and flagged, learn each other and open links both ways across a
+  shared-instance restart; the reticulumd
+  `shared_instance_attach_probe_tests` module gains a pin that the daemon's
+  local-client attach writes nothing on the accepted stream until a tunnel
+  is asked for by hand.
+
 ### Fixed
 
 - Two transports attached to one shared instance with one identity, in two

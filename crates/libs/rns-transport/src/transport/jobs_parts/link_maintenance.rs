@@ -6,7 +6,6 @@ pub(in crate::transport) async fn handle_check_links<'a>(
 ) {
     let mut links_to_remove: Vec<AddressHash> = Vec::new();
     let mut closed_link_ids: Vec<AddressHash> = Vec::new();
-    let mut pending_packets: Vec<Packet> = Vec::new();
     let mut direct_messages: Vec<TxMessage> = Vec::new();
     let mut closed_pending_destinations: Vec<AddressHash> = Vec::new();
     let mut rediscovery_requests: Vec<AddressHash> = Vec::new();
@@ -109,22 +108,7 @@ pub(in crate::transport) async fn handle_check_links<'a>(
                     closed_pending_destinations.push(destination);
                 }
             }
-            LinkStatus::Pending => {
-                if link.elapsed() > INTERVAL_OUTPUT_LINK_REPEAT {
-                    log::warn!("tp({}): repeat link request {}", handler.config.name, link.id());
-                    let destination = link.destination().address_hash;
-                    let next_hop_mtu = match handler.path_table.next_hop_iface(&destination) {
-                        Some(iface) => handler.iface_manager.lock().await.mtu(&iface),
-                        None => None,
-                    };
-                    let packet = match next_hop_mtu {
-                        Some(mtu) => link.request_with_mtu(mtu),
-                        None => link.request(),
-                    };
-                    pending_packets.push(packet);
-                }
-            }
-            LinkStatus::Handshake => {}
+            LinkStatus::Pending | LinkStatus::Handshake => {}
         }
     }
 
@@ -161,9 +145,6 @@ pub(in crate::transport) async fn handle_check_links<'a>(
         }
     }
 
-    for packet in pending_packets {
-        handler.send_packet(packet).await;
-    }
     rediscovery_requests.sort();
     rediscovery_requests.dedup();
     for destination in rediscovery_requests {

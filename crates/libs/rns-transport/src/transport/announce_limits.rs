@@ -33,7 +33,8 @@ pub struct AnnounceRateLimit {
     pub held_release_interval: Duration,
 }
 
-/// Python's ingress-control defaults (RNS/Interfaces/Interface.py:76-84).
+/// Python's ingress-control defaults (RNS/Interfaces/Interface.py:72, :76-84;
+/// `incoming_freq_samples` stands in for the `ia_freq_deque` length at :153).
 impl Default for AnnounceRateLimit {
     fn default() -> Self {
         Self {
@@ -323,7 +324,7 @@ impl AnnounceLimits {
         )
     }
 
-    pub fn check_with_shared_config(
+    pub(crate) fn check_with_shared_config(
         &mut self,
         iface: AddressHash,
         packet: &Packet,
@@ -1051,11 +1052,17 @@ mod tests {
     }
 
     /// The commented `ic_*` lines in the reticulumd interface reference show Python's
-    /// defaults, which `AnnounceRateLimit::default()` pins.
+    /// defaults, which `AnnounceRateLimit::default()` pins. The file is read from the
+    /// workspace checkout at run time, so the test names the layout it needs instead of
+    /// failing to compile in a packaged crate.
     #[test]
     fn example_config_ic_values_match_the_defaults() {
-        let example =
-            include_str!("../../../../apps/reticulumd/examples/interfaces-reference.toml");
+        let path = concat!(
+            env!("CARGO_MANIFEST_DIR"),
+            "/../../apps/reticulumd/examples/interfaces-reference.toml"
+        );
+        let example = std::fs::read_to_string(path)
+            .unwrap_or_else(|err| panic!("read {path} from the workspace checkout: {err}"));
         let example_value = |key: &str| -> f64 {
             let prefix = format!("# {key} = ");
             example

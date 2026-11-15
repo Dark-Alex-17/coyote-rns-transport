@@ -38,6 +38,9 @@ async fn admissions(transport: &Transport, iface: AddressHash) -> Vec<bool> {
     let handler = transport.get_handler();
     let mut admitted = Vec::new();
     for announce in three_fresh_announces() {
+        // The announce signature check inside the admission already separates the samples
+        // by tens of microseconds; the sleep keeps the gaps measurable on any host.
+        tokio::time::sleep(Duration::from_millis(1)).await;
         admitted.push(
             super::announce::admit_announce_before_queue(
                 &announce,

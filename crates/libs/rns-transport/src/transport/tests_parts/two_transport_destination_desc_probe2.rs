@@ -9,7 +9,8 @@
 async fn destination_desc_resolves_each_of_two_announced_peers_to_its_own_entry() {
     let listener = listener("loopback-listener", TcpClient::DEFAULT_MTU).await;
     // Two announces follow in quick succession; the limiter admits both on a fresh
-    // interface, since it measures nothing from fewer than three samples.
+    // interface, since it measures nothing from fewer than three samples
+    // (`RNS/Interfaces/Interface.py:84`, `:346-348`).
     let mut connector =
         connector("loopback-connector", listener.port, TcpClient::DEFAULT_MTU).await;
     listener.await_accepted_connections(1).await;

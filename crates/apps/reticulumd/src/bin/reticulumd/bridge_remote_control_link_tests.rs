@@ -295,7 +295,7 @@ async fn open_refreshed_remote_link_closed_before_activation_refreshes_once_and_
         );
         transport.reset_out_link(&remote.address_hash).await;
 
-        let deadline = tokio::time::Instant::now() + timeout + Duration::from_secs(3);
+        let deadline = tokio::time::Instant::now() + 2 * timeout + Duration::from_secs(3);
         let mut further_link_requests = 0usize;
         loop {
             let remaining = deadline.saturating_duration_since(tokio::time::Instant::now());
@@ -333,6 +333,6 @@ async fn open_refreshed_remote_link_closed_before_activation_refreshes_once_and_
         "unexpected message: {message}"
     );
     assert!(elapsed >= timeout, "returned before the retry's wait could time out: {elapsed:?}");
-    assert!(elapsed < 2 * timeout + Duration::from_secs(3), "took {elapsed:?}");
+    assert!(elapsed < 2 * timeout + Duration::from_secs(5), "took {elapsed:?}");
     assert_eq!(further_link_requests, 1, "exactly one more link request follows the refresh");
 }

@@ -49,14 +49,15 @@ fn unknown_destination() -> DestinationDesc {
 
 /// A 2 s establishment timeout on a pending link ends a 60 s activation wait with
 /// `ConnectionAborted` naming `Timeout`, within the next maintenance tick of the close.
+/// The clock starts before `transport.link(..)`, where the link's establishment began.
 #[tokio::test]
 #[deny(clippy::await_holding_invalid_type)]
 async fn a_timed_out_establishment_ends_the_activation_wait_with_the_close_reason() {
     let transport = broadcasting("link-activation-closed-timeout");
+    let started = Instant::now();
     let link = transport.link(unknown_destination()).await.expect("pending link with broadcast on");
     link.lock().await.set_establishment_timeout(ESTABLISHMENT);
 
-    let started = Instant::now();
     let error = await_link_activation(&transport, &link, ACTIVATION_WAIT)
         .await
         .expect_err("a pending link with no interface never activates");

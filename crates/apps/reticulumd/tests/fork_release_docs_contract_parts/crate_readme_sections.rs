@@ -190,6 +190,35 @@ fn crate_readme_link_section_describes_resolve_destination() {
     }
 }
 
+/// The link-opening section describes the activation wait's exit on a
+/// closed link the way `delivery::await_link_activation` behaves: the
+/// error kind, the two ways the close is read, the three close reasons in
+/// the message, the deadline that still answers `TimedOut`, and the
+/// transport-sized establishment timeout a broadcast-on link to an unknown
+/// destination carries, with the setter that shortens it.
+#[test]
+fn crate_readme_link_section_describes_the_activation_wait_close() {
+    let readme = read_repo_file("crates/libs/rns-transport/README.md");
+    let section = crate_readme_section(&readme, "Opening links and admitting resources");
+    for claim in [
+        "`delivery::await_link_activation`",
+        "`io::ErrorKind::ConnectionAborted`",
+        "`Transport::out_link_events`",
+        "`Timeout`",
+        "`InitiatorClosed`",
+        "`DestinationClosed`",
+        "`TimedOut`",
+        "`PATHFINDER_M`",
+        "774 s",
+        "`Link::set_establishment_timeout`",
+    ] {
+        assert!(
+            section.contains(claim),
+            "the link-opening section should mention {claim}:\n{section}"
+        );
+    }
+}
+
 /// The link proof section describes the per-link `ProofStrategy` the way
 /// it behaves: the setter and its `All` default, the destination default
 /// copied onto an accepted link, the deferred proof from the payload's

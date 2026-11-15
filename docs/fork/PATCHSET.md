@@ -40,8 +40,8 @@ is fork commits `15251a8c`, `1232c410`, `745d4bd4`, `519d5973`,
 two clients interop` patch carries no other id and is fork commits
 `ddcb4430`, `a974386c`, `d40e0ae3` and `7f076dc3`. The `local client
 announce admission` patch is fork commits `be18658a`, `83e03e75`,
-`92e82a60`, `244722bf`, `08f18f07`, `b0f194ce`, `e14ced8a`, `4a22affe` and
-`84ae2a5c`.
+`92e82a60`, `244722bf`, `08f18f07`, `b0f194ce`, `e14ced8a`, `4a22affe`,
+`84ae2a5c`, `29d78171` and `3d887f3e`.
 
 | File | Patch |
 | --- | --- |
@@ -49,8 +49,11 @@ announce admission` patch is fork commits `be18658a`, `83e03e75`,
 | `crates/apps/reticulumd/src/bin/reticulumd/bootstrap_interface_startup_parts/shared_instance_attach_probe_tests.rs` | tunnel opt-in, link request once |
 | `crates/apps/reticulumd/src/bin/reticulumd/bridge_remote_control_link.rs` | activation close exit |
 | `crates/apps/reticulumd/src/bin/reticulumd/bridge_remote_control_link_tests.rs` | activation close exit |
+| `crates/apps/reticulumd/tests/config.rs` | local client announce admission |
+| `crates/apps/reticulumd/tests/config_parts/interfaces_reference_ingress_examples.rs` | local client announce admission |
 | `crates/apps/reticulumd/tests/fork_publish_contract_parts/ledger_contract.rs` | tunnel opt-in |
 | `crates/apps/reticulumd/tests/fork_release_docs_contract_parts/crate_readme_sections.rs` | tunnel opt-in, activation close exit |
+| `crates/apps/reticulumd/tests/local_client_announce_admission_probe.rs` | local client announce admission |
 | `crates/apps/reticulumd/tests/python_channel_interop.rs` | Python-in-the-loop two clients interop |
 | `crates/apps/reticulumd/tests/python_channel_interop_parts/python_shared_instance_two_clients.rs` | Python-in-the-loop two clients interop |
 | `crates/libs/rns-transport/CHANGELOG.md` | tunnel opt-in, link request once, Python-in-the-loop two clients interop, activation close exit, local client announce admission |
@@ -91,6 +94,7 @@ announce admission` patch is fork commits `be18658a`, `83e03e75`,
 | `crates/libs/rns-transport/src/transport/tests_parts/two_transport_shared_instance_storm.rs` | tunnel opt-in |
 | `crates/libs/rns-transport/src/transport/tests_parts/two_transport_shared_instance_tunnel_default.rs` | tunnel opt-in |
 | `crates/libs/rns-transport/src/transport/tests_parts/two_transport_shared_instance_tunnel_identity.rs` | tunnel opt-in, Python-in-the-loop two clients interop |
+| `crates/libs/rns-transport/tests/announce_admission_mixed_iface_probe.rs` | local client announce admission |
 | `crates/libs/rns-transport/tests/announce_admission_reconnect_probe.rs` | local client announce admission |
 | `crates/libs/rns-transport/tests/announce_admission_usage_probe.rs` | local client announce admission |
 | `crates/libs/rns-transport/tests/interface_events_api.rs` | tunnel opt-in |
@@ -383,7 +387,7 @@ the negative control.
 Upstream site: test files only.
 
 Fork commits `be18658a`, `83e03e75`, `92e82a60`, `244722bf`, `08f18f07`,
-`b0f194ce`, `e14ced8a`, `4a22affe` and `84ae2a5c`:
+`b0f194ce`, `e14ced8a`, `4a22affe`, `84ae2a5c`, `29d78171` and `3d887f3e`:
 N4, local client announce admission.
 Upstream site: `admit_announce_before_queue` in
 `crates/libs/rns-transport/src/transport/announce.rs`, which ran the
@@ -502,7 +506,33 @@ module's surface, cites `MAX_HELD_ANNOUNCES` (`Interface.py:72`) and the
 deque length (`:153`) on the defaults, spaces the child fixture's samples
 1 ms, and marks which commented values of the example config are defaults.
 `84ae2a5c` names the reconnect probe and the `ic_new_time` example move in
-the CHANGELOG bullet.
+the CHANGELOG bullet. `29d78171` answers the fourth round: the example
+config pin leaves the library crate, where a unit test had read a sibling
+app crate's file from the workspace layout and failed outside it;
+`crates/apps/reticulumd/tests/config_parts/interfaces_reference_ingress_examples.rs`,
+included from `crates/apps/reticulumd/tests/config.rs`, pins every
+commented `ic_*`, `ic_pr_*` and `ec_pr_freq` value of the example to the
+RNS 1.5.2 literal (`Interface.py:72`, `:76-86`), cutting the parsed
+remainder at the first `#`, with `announce_rate_limit_defaults_match_rns_1_5_2`
+left as the library pin; the two held-third tests of
+`tests/announce_admission_usage_probe.rs` install the hold logger and
+assert the "holding announce" record was logged, the positive control for
+the exemption pins' empty checks, and the two-announce test asserts both
+learns inside 5 s; the commit adopts
+`tests/announce_admission_mixed_iface_probe.rs` from the probe lane (one
+transport is at once a flagged shared-instance client and a plain
+`TcpClient` connector: the plain interface holds the third of three, the
+shared-instance interface admits three right after, so the flag is read per
+interface) and `crates/apps/reticulumd/tests/local_client_announce_admission_probe.rs`
+(the daemon binary boots from an empty storage directory with one
+`LocalInterface` listener on a free loopback port; two local clients
+announce 100 ms apart and one announces three back to back, a third client
+learns all of them inside 5 s and the daemon's debug log carries no
+"holding announce" record); and the `Default` rustdoc names the 6-sample
+window against `IA_FREQ_SAMPLES` = 48. `3d887f3e` names the moved pin and
+the two probes in the CHANGELOG bullet and has the README row say the
+constants refresh and the sustained clock make the inherited formula and
+release arming observable.
 
 ## 0.18.1 (upstream 0.14.0)
 

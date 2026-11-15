@@ -268,8 +268,8 @@ Removed) bullet of its own, marked as such.
   (`transport/announce_limits.rs`) now admits every announce on an
   interface flagged as the shared instance, the flag read under the same
   interface manager guard that already supplies the interface's shared
-  config, and a child registered on a flagged interface carries the flag
-  (`iface_parts/interfacemanager.rs`). Three further details follow RNS
+  config, and a child registered on a flagged interface already carries the
+  flag (`iface_parts/interfacemanager.rs`, unchanged). Three further details follow RNS
   1.5.2 (`RNS/Interfaces/Interface.py:188-211`, `:346-348`): the measured
   announce frequency reads 0 until more than `IC_DEQUE_MIN_SAMPLE` = 2
   samples exist (`Interface.py:84`), so two announces on a fresh ordinary
@@ -310,14 +310,26 @@ Removed) bullet of its own, marked as such.
   isolates the server's per-client child; an ordinary fresh `TcpClient`
   interface learns two announces 100 ms apart but holds the third for hold
   plus penalty, about 30 s, in place of the six minutes the old defaults
-  gave, and `ic_burst_hold`, `ic_burst_penalty` and
+  gave, logging the "holding announce" record the exemption pins filter
+  on, and `ic_burst_hold`, `ic_burst_penalty` and
   `ic_held_release_interval` of 1 s on that interface shorten the hold to a
-  few seconds), by `tests/announce_admission_reconnect_probe.rs` (two
+  few seconds), by `tests/announce_admission_mixed_iface_probe.rs` (one
+  transport that is at once a flagged shared-instance client and a plain
+  `TcpClient` connector holds the third of three announces on the plain
+  interface and admits three right after on the shared-instance one: the
+  flag is read per interface), by `tests/announce_admission_reconnect_probe.rs` (two
   default-option clients whose shared instance is stopped and started again
   on its port still admit three back-to-back announces after the reconnect,
   on the client interface and on the restarted instance's fresh per-client
   child; three announces 1.5 s apart on an unflagged `TcpClient` interface
   are all learned under the 3 Hz threshold), by
+  `local_client_announce_admission_probe.rs` of the reticulumd test suite
+  (the daemon binary boots from an empty storage directory with one
+  `LocalInterface` listener on a free loopback port; two local clients
+  announce 100 ms apart and one announces three back to back, a third
+  client learns all of them inside 5 s and the daemon's debug log carries
+  no "holding announce" record, so the listener the daemon builds from its
+  own config is flagged), by
   `tests/shared_instance_one_identity_two_clients_probe.rs` (a third local
   client of a flagged `TcpServer` learns two destinations announced 100 ms
   apart by two clients under one identity within 5 s, and a link to the
@@ -327,9 +339,11 @@ Removed) bullet of its own, marked as such.
   child of a flagged channel, and the channel itself, admit three
   back-to-back announces under a limiter that holds on any measurable
   frequency, while an unflagged channel holds the third) and by the
-  `transport/announce_limits.rs` unit tests (the default values, the
-  commented `ic_*` values of `examples/interfaces-reference.toml` read
-  against them, the three-sample floor, the shared-instance exemption
+  `transport/announce_limits.rs` unit tests (the default values, with the
+  commented `ic_*`, `ic_pr_*` and `ec_pr_freq` values of
+  `examples/interfaces-reference.toml` pinned to the same literals by
+  `config_parts/interfaces_reference_ingress_examples.rs` of the reticulumd
+  config test binary, which owns the file; the three-sample floor, the shared-instance exemption
   against the same six-announce sequence held from the third on an ordinary
   interface and under an explicit `ingress_control = true`, the sustained
   clock and the release guard; the held-announce release tests feed a third

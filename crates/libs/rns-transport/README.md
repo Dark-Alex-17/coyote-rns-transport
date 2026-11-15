@@ -1045,8 +1045,8 @@ parity ledger; the `docs/status/*` matrices are not updated per fork task.
   Python, and a shared-instance interface, the client's and the child a
   shared instance holds per accepted client, is never limited
   (`RNS/Interfaces/LocalInterface.py:130`). The formula and the release
-  arming are inherited from upstream `reticulum-rs-transport`, made visible
-  by the exemption and the constants refresh.
+  arming are inherited from upstream `reticulum-rs-transport`; the constants
+  refresh and the sustained clock make the difference observable.
 
 Not divergences:
 

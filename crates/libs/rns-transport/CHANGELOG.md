@@ -138,7 +138,14 @@ Removed) bullet of its own, marked as such.
   already closed when the wait starts answers at once from the status
   read, with the exact text; a repeated wait answers the same way; two
   waiters on one link both learn of the one close; a short wait on an
-  open pending link still answers `TimedOut`) and
+  open pending link still answers `TimedOut`),
+  `tests/link_activation_closed_busy_transport_probe.rs` (a `Closed` event
+  the broadcast channel dropped under a burst of more than 1024 closes
+  still ends the wait from the status read, not with `UnexpectedEof`; a
+  wait the caller cancelled under `tokio::time::timeout` leaves a second
+  wait able to see the close; a link to a destination without a path
+  entry carries the transport-sized establishment timeout of about 774 s
+  until the caller shortens it) and
   `fork_release_docs_contract_parts/crate_readme_sections.rs` (the README
   section's claims), with `tests/link_activation_deadline_api.rs` and
   `tests/link_activation_max_timeout_probe.rs` still pinning the

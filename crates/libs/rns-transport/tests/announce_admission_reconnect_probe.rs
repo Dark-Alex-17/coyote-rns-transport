@@ -14,29 +14,45 @@
 //!   so the floor admits the first two and the threshold, not the floor, decides the third.
 
 use std::net::SocketAddr;
-use std::sync::{Arc, Once};
 use std::time::{Duration, Instant};
 
-use rns_transport::destination::{DestinationName, SingleInputDestination};
 use rns_transport::hash::AddressHash;
 use rns_transport::identity::PrivateIdentity;
 use rns_transport::iface::tcp_client::TcpClient;
-use rns_transport::iface::tcp_server::TcpServer;
 use rns_transport::rand_core::OsRng;
 use rns_transport::transport::{
     AnnounceEvent, SharedInstanceEndpoint, SharedInstanceEvent, SharedInstanceOptions, Transport,
     TransportConfig,
 };
-use tokio::sync::broadcast::error::RecvError;
-use tokio::sync::{broadcast, mpsc, Mutex};
+use tokio::sync::{broadcast, mpsc};
 use tokio::time::timeout;
 
+#[path = "support/announce.rs"]
+mod announce;
 #[path = "support/free_loopback_port.rs"]
 mod free_loopback_port;
+#[path = "support/hold_log.rs"]
+mod hold_log;
+#[path = "support/learn_all.rs"]
+mod learn_all;
+#[path = "support/register_destinations.rs"]
+mod register_destinations;
+#[path = "support/stop_all.rs"]
+mod stop_all;
+#[path = "support/tcp_server_on.rs"]
+mod tcp_server_on;
+#[path = "support/wait_until_within.rs"]
+mod wait_until_within;
+use announce::announce;
 use free_loopback_port::free_loopback_port;
+use hold_log::{holds_by, install_hold_logger};
+use learn_all::learn_all;
+use register_destinations::register_destinations;
+use stop_all::stop_all;
+use tcp_server_on::tcp_server_on;
+use wait_until_within::wait_until_within;
 
 const WAIT: Duration = Duration::from_secs(15);
-const POLL: Duration = Duration::from_millis(20);
 const RECONNECT_WAIT: Duration = Duration::from_millis(50);
 /// Three announces at this spacing read 15 Hz on an ordinary fresh interface, over the 3 Hz
 /// `burst_freq_new` threshold.
@@ -51,115 +67,6 @@ const LEARNER: &str = "reconnect-probe-learner";
 const ANNOUNCER: &str = "reconnect-probe-announcer";
 const PLAIN_LISTENER: &str = "reconnect-probe-plain-listener";
 const PLAIN_CONNECTOR: &str = "reconnect-probe-plain-connector";
-
-/// Captures the limiter's `tp(<name>): holding announce for <dst> before queue for <delay>`
-/// records; `log::set_logger` is process-wide, so the records are attributed to a test by
-/// the transport name in the message.
-struct HoldLogger {
-    records: std::sync::Mutex<Vec<String>>,
-}
-
-static HOLDS: HoldLogger = HoldLogger { records: std::sync::Mutex::new(Vec::new()) };
-
-impl log::Log for HoldLogger {
-    fn enabled(&self, metadata: &log::Metadata) -> bool {
-        metadata.target().starts_with("rns_transport::transport")
-    }
-
-    fn log(&self, record: &log::Record) {
-        if !self.enabled(record.metadata()) {
-            return;
-        }
-        let message = record.args().to_string();
-        if message.contains("holding announce") {
-            self.records.lock().expect("hold record store").push(message);
-        }
-    }
-
-    fn flush(&self) {}
-}
-
-fn install_hold_logger() {
-    static INSTALL: Once = Once::new();
-    INSTALL.call_once(|| {
-        log::set_logger(&HOLDS).expect("no other logger in this test binary");
-        log::set_max_level(log::LevelFilter::Debug);
-    });
-}
-
-/// The hold records logged by the transports named in `names`.
-fn holds_by(names: &[&str]) -> Vec<String> {
-    HOLDS
-        .records
-        .lock()
-        .expect("hold record store")
-        .iter()
-        .filter(|message| names.iter().any(|name| message.contains(&format!("tp({name})"))))
-        .cloned()
-        .collect()
-}
-
-#[deny(clippy::await_holding_invalid_type)]
-async fn wait_until(what: &str, mut condition: impl FnMut() -> bool) {
-    let deadline = Instant::now() + WAIT;
-    while !condition() {
-        assert!(Instant::now() < deadline, "timed out waiting for {what}");
-        tokio::time::sleep(POLL).await;
-    }
-}
-
-/// Waits up to `WAIT` for the announces of every hash in `expected`, in whatever order they
-/// arrive; returns the hashes still missing when the window passed.
-#[deny(clippy::await_holding_invalid_type)]
-async fn learn_all(
-    announces: &mut broadcast::Receiver<AnnounceEvent>,
-    expected: &[AddressHash],
-) -> Vec<AddressHash> {
-    let mut missing: Vec<AddressHash> = expected.to_vec();
-    let deadline = Instant::now() + WAIT;
-    while !missing.is_empty() {
-        let remaining = deadline.saturating_duration_since(Instant::now());
-        if remaining.is_zero() {
-            break;
-        }
-        match timeout(remaining, announces.recv()).await {
-            Ok(Ok(event)) => {
-                let address_hash = event.destination.lock().await.desc.address_hash;
-                if let Some(idx) = missing.iter().position(|hash| *hash == address_hash) {
-                    eprintln!("learned {address_hash}");
-                    missing.swap_remove(idx);
-                }
-            }
-            Ok(Err(RecvError::Lagged(_))) => continue,
-            Ok(Err(RecvError::Closed)) => panic!("announce channel closed"),
-            Err(_elapsed) => break,
-        }
-    }
-    missing
-}
-
-/// A node with a `TcpServer` on `port`, flagged as the shared instance when asked (rnsd's
-/// topology, which also needs `transport_enabled`) and an ordinary listener otherwise.
-#[deny(clippy::await_holding_invalid_type)]
-async fn tcp_server_on(name: &str, port: u16, shared_instance: bool) -> Transport {
-    let mut config = TransportConfig::new(name, &PrivateIdentity::new_from_rand(OsRng), false);
-    config.set_transport_enabled(shared_instance);
-    let transport = Transport::new(config);
-    let server = TcpServer::new(format!("127.0.0.1:{port}"), transport.iface_manager());
-    let status = server.runtime_status_handle();
-    let listener = transport.iface_manager().lock().await.spawn(server, TcpServer::spawn);
-    if shared_instance {
-        assert!(
-            transport.iface_manager().lock().await.set_shared_instance(listener, true),
-            "the listener is flagged as the shared instance"
-        );
-    }
-    wait_until("the listener to listen", || {
-        status.to_json()["listener_state"].as_str() == Some("listening")
-    })
-    .await;
-    transport
-}
 
 /// A local client attached with `SharedInstanceOptions::default()` plus the state stream
 /// and a short reconnect wait (neither touches admission), read through `Connected`.
@@ -217,33 +124,6 @@ async fn local_client(name: &str, endpoint: SocketAddr) -> Client {
     Client { transport, events, announces }
 }
 
-/// Registers `count` destinations, each under a fresh identity, on `transport`.
-#[deny(clippy::await_holding_invalid_type)]
-async fn register_destinations(
-    transport: &Transport,
-    count: usize,
-) -> Vec<(Arc<Mutex<SingleInputDestination>>, AddressHash)> {
-    let mut out = Vec::with_capacity(count);
-    for idx in 0..count {
-        let destination = transport
-            .add_destination(
-                PrivateIdentity::new_from_rand(OsRng),
-                DestinationName::new(APP_NAME, &format!("d{idx}")),
-            )
-            .await;
-        let hash = destination.lock().await.desc.address_hash;
-        out.push((destination, hash));
-    }
-    out
-}
-
-/// Announces `destination` with no packet context, so the receiving limiter weighs it.
-#[deny(clippy::await_holding_invalid_type)]
-async fn announce(transport: &Transport, destination: &Arc<Mutex<SingleInputDestination>>) {
-    let packet = destination.lock().await.announce(OsRng, None).expect("announce packet");
-    transport.send_packet(packet).await;
-}
-
 /// A plain, unflagged `TcpClient` connector to `endpoint`, its announce receiver subscribed
 /// before the connect; returns once the stream is connected.
 #[deny(clippy::await_holding_invalid_type)]
@@ -258,18 +138,11 @@ async fn plain_connector(
     let status = client.runtime_status_handle();
     let context = transport.iface_manager().lock().await.new_context(client);
     tokio::spawn(TcpClient::spawn(context));
-    wait_until("the connector to connect", || {
+    wait_until_within("the connector to connect", WAIT, || {
         status.to_json()["stream_state"].as_str() == Some("connected")
     })
     .await;
     (transport, announces)
-}
-
-#[deny(clippy::await_holding_invalid_type)]
-async fn stop_all(transports: Vec<Transport>) {
-    for transport in transports {
-        timeout(WAIT, transport.stop()).await.expect("stop completes");
-    }
 }
 
 /// Two default-option clients of a flagged shared instance; the instance is stopped and
@@ -285,7 +158,7 @@ async fn reconnected_local_clients_still_admit_three_back_to_back_announces() {
     let names = [SHARED_INSTANCE, LEARNER, ANNOUNCER];
     let port = free_loopback_port().await;
     let endpoint = SocketAddr::from(([127, 0, 0, 1], port));
-    let shared = tcp_server_on(SHARED_INSTANCE, port, true).await;
+    let (shared, _) = tcp_server_on(SHARED_INSTANCE, port, true).await;
     let mut learner = local_client(LEARNER, endpoint).await;
     let mut announcer = local_client(ANNOUNCER, endpoint).await;
 
@@ -303,7 +176,7 @@ async fn reconnected_local_clients_still_admit_three_back_to_back_announces() {
             "{name}: `Connecting` follows the drop"
         );
     }
-    let restarted = tcp_server_on(SHARED_INSTANCE, port, true).await;
+    let (restarted, _) = tcp_server_on(SHARED_INSTANCE, port, true).await;
     for (name, client) in [(LEARNER, &mut learner), (ANNOUNCER, &mut announcer)] {
         await_connected(
             &format!("{name}: the redial on the restarted instance"),
@@ -318,7 +191,7 @@ async fn reconnected_local_clients_still_admit_three_back_to_back_announces() {
     // A broadcast subscription only sees later events.
     learner.announces = learner.transport.recv_announces().await;
 
-    let destinations = register_destinations(&announcer.transport, 3).await;
+    let destinations = register_destinations(&announcer.transport, APP_NAME, "d", 3).await;
     for (destination, _hash) in &destinations {
         announce(&announcer.transport, destination).await;
         tokio::time::sleep(BACK_TO_BACK).await;
@@ -326,7 +199,7 @@ async fn reconnected_local_clients_still_admit_three_back_to_back_announces() {
     let hashes: Vec<AddressHash> = destinations.iter().map(|(_, hash)| *hash).collect();
 
     let started = Instant::now();
-    let missing = learn_all(&mut learner.announces, &hashes).await;
+    let missing = learn_all(&mut learner.announces, &hashes, WAIT).await;
     assert!(
         missing.is_empty(),
         "after the reconnect the learner did not learn {} of the three destinations within \
@@ -362,9 +235,9 @@ async fn ordinary_fresh_interface_admits_three_announces_spaced_over_a_second() 
     let names = [PLAIN_LISTENER, PLAIN_CONNECTOR];
     let port = free_loopback_port().await;
     let endpoint = SocketAddr::from(([127, 0, 0, 1], port));
-    let listener = tcp_server_on(PLAIN_LISTENER, port, false).await;
+    let (listener, _) = tcp_server_on(PLAIN_LISTENER, port, false).await;
     let (connector, mut announces) = plain_connector(PLAIN_CONNECTOR, endpoint).await;
-    let destinations = register_destinations(&listener, 3).await;
+    let destinations = register_destinations(&listener, APP_NAME, "d", 3).await;
 
     for (idx, (destination, _hash)) in destinations.iter().enumerate() {
         if idx > 0 {
@@ -375,7 +248,7 @@ async fn ordinary_fresh_interface_admits_three_announces_spaced_over_a_second() 
     let hashes: Vec<AddressHash> = destinations.iter().map(|(_, hash)| *hash).collect();
 
     let started = Instant::now();
-    let missing = learn_all(&mut announces, &hashes).await;
+    let missing = learn_all(&mut announces, &hashes, WAIT).await;
     assert!(
         missing.is_empty(),
         "the connector did not learn {} of three announces 1.5 s apart within {WAIT:?} ({:?}); \

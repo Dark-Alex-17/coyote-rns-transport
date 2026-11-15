@@ -115,8 +115,8 @@ pub async fn send_on_link_observed(
 
 // The `Debug` names of `LinkCloseReason` (`Timeout`, `InitiatorClosed`,
 // `DestinationClosed`) are part of the error text, pinned by
-// tests/link_activation_closed_probe.rs, tests/link_activation_closed_usage_probe.rs
-// and the daemon's bridge remote-control link tests.
+// tests/support/assert_closed_before_activation.rs (and its includers) and the
+// daemon's bridge remote-control link tests.
 fn closed_before_activation(reason: Option<LinkCloseReason>) -> io::Error {
     let reason = reason.map_or_else(|| "unknown".to_string(), |reason| format!("{reason:?}"));
     io::Error::new(
@@ -174,6 +174,8 @@ pub async fn await_link_activation(
                 }
                 match event.event {
                     LinkEvent::Activated => return Ok(()),
+                    // The writer sets status and reason before publishing Closed,
+                    // so the loop head rereads them from the link.
                     LinkEvent::Closed => continue,
                     _ => {}
                 }

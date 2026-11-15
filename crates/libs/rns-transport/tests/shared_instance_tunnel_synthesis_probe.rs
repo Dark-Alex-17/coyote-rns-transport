@@ -31,18 +31,22 @@ use rns_transport::transport::{
 };
 use tokio::io::{AsyncRead, AsyncReadExt as _};
 use tokio::net::TcpListener;
-use tokio::sync::mpsc;
 use tokio::time::timeout;
 
 #[path = "support/accept_within.rs"]
 mod accept_within;
 use accept_within::accept_within;
+#[path = "support/attach_with_events.rs"]
+mod attach_with_events;
+use attach_with_events::attach_with_events;
 #[path = "support/compile_fail.rs"]
 mod compile_fail;
 use compile_fail::{candidate_rlibs, deps_dir, rustc, Scratch};
+#[path = "support/next_event.rs"]
+mod next_event;
+use next_event::next_event;
 
 const WAIT: Duration = Duration::from_secs(5);
-const RECONNECT_WAIT: Duration = Duration::from_millis(50);
 /// How long a fresh stream is watched for a frame the client should not write; an
 /// opted-in client's tunnel frame lands within milliseconds on loopback.
 const QUIET: Duration = Duration::from_secs(1);
@@ -52,41 +56,9 @@ const QUIET: Duration = Duration::from_secs(1);
 /// `RNS/Transport.py:2790-2798`).
 const TUNNEL_BODY: usize = PUBLIC_KEY_LENGTH * 2 + HASH_SIZE + ADDRESS_HASH_SIZE;
 
-#[deny(clippy::await_holding_invalid_type)]
-async fn next_event(
-    what: &str,
-    events: &mut mpsc::Receiver<SharedInstanceEvent>,
-) -> Option<SharedInstanceEvent> {
-    timeout(WAIT, events.recv()).await.unwrap_or_else(|_| panic!("{what} timed out"))
-}
-
 /// A non-broadcasting transport under `identity`.
 fn transport_under(name: &str, identity: &PrivateIdentity) -> Transport {
     Transport::new(TransportConfig::new(name, identity, false))
-}
-
-/// Attaches `transport` at `endpoint` with `options` plus a state stream and the short
-/// reconnect wait, reads the attach's `Connecting`, and returns the stream with the
-/// interface address the attach reported.
-#[deny(clippy::await_holding_invalid_type)]
-async fn attach(
-    transport: &Transport,
-    endpoint: SharedInstanceEndpoint,
-    options: SharedInstanceOptions,
-) -> (mpsc::Receiver<SharedInstanceEvent>, AddressHash) {
-    let (events_tx, mut events) = mpsc::channel(16);
-    let iface = transport
-        .attach_shared_instance(
-            endpoint,
-            options.with_reconnect_wait(RECONNECT_WAIT).with_state_events(events_tx),
-        )
-        .await
-        .expect("the attach is accepted");
-    assert_eq!(
-        next_event("the attach's Connecting", &mut events).await,
-        Some(SharedInstanceEvent::Connecting)
-    );
-    (events, iface)
 }
 
 /// The full interface hash the transport registered for `iface`, which is what the
@@ -195,14 +167,17 @@ async fn the_opt_in_frame_is_the_tunnel_packet_of_the_identity_and_the_interface
     let endpoint = SharedInstanceEndpoint::Tcp(listener.local_addr().expect("the address"));
     let identity = PrivateIdentity::new_from_rand(OsRng);
     let transport = transport_under("tunnel-synthesis-frame", &identity);
-    let (mut events, iface) =
-        attach(&transport, endpoint, SharedInstanceOptions::default().with_tunnel_synthesis(true))
-            .await;
+    let (mut events, iface) = attach_with_events(
+        &transport,
+        endpoint,
+        SharedInstanceOptions::default().with_tunnel_synthesis(true),
+    )
+    .await;
     let iface_hash = full_hash_of(&transport, iface).await;
 
     let mut first = accept_within(&listener, "first connection").await;
     assert_eq!(
-        next_event("first Connected", &mut events).await,
+        next_event("first Connected", &mut events, WAIT).await,
         Some(SharedInstanceEvent::Connected)
     );
     let packet = first_frame_within_quiet(&mut first, "first connection")
@@ -211,11 +186,17 @@ async fn the_opt_in_frame_is_the_tunnel_packet_of_the_identity_and_the_interface
     let first_random = assert_tunnel_packet(&packet, &identity, &iface_hash, "at attach");
 
     drop(first);
-    assert_eq!(next_event("the drop", &mut events).await, Some(SharedInstanceEvent::Disconnected));
-    assert_eq!(next_event("the redial", &mut events).await, Some(SharedInstanceEvent::Connecting));
+    assert_eq!(
+        next_event("the drop", &mut events, WAIT).await,
+        Some(SharedInstanceEvent::Disconnected)
+    );
+    assert_eq!(
+        next_event("the redial", &mut events, WAIT).await,
+        Some(SharedInstanceEvent::Connecting)
+    );
     let mut second = accept_within(&listener, "second connection").await;
     assert_eq!(
-        next_event("second Connected", &mut events).await,
+        next_event("second Connected", &mut events, WAIT).await,
         Some(SharedInstanceEvent::Connected)
     );
     let packet = first_frame_within_quiet(&mut second, "second connection")
@@ -247,7 +228,7 @@ async fn a_reattach_follows_the_options_of_the_new_attach() {
 
     for (nth, opted_in) in [(1, true), (2, false), (3, true)] {
         let what = format!("attach {nth} (opt-in {opted_in})");
-        let (mut events, iface) = attach(
+        let (mut events, iface) = attach_with_events(
             &transport,
             SharedInstanceEndpoint::Tcp(addr),
             SharedInstanceOptions::default().with_tunnel_synthesis(opted_in),
@@ -255,7 +236,10 @@ async fn a_reattach_follows_the_options_of_the_new_attach() {
         .await;
         let iface_hash = full_hash_of(&transport, iface).await;
         let mut stream = accept_within(&listener, &what).await;
-        assert_eq!(next_event(&what, &mut events).await, Some(SharedInstanceEvent::Connected));
+        assert_eq!(
+            next_event(&what, &mut events, WAIT).await,
+            Some(SharedInstanceEvent::Connected)
+        );
         match first_frame_within_quiet(&mut stream, &what).await {
             Some(packet) => {
                 assert!(opted_in, "{what}: a default attach writes nothing on connect");
@@ -284,7 +268,7 @@ async fn a_unix_endpoint_honours_the_option_too() {
             tokio::net::UnixListener::bind(&socket).expect("bind the socket the client dials");
         let identity = PrivateIdentity::new_from_rand(OsRng);
         let transport = transport_under(name, &identity);
-        let (mut events, iface) = attach(
+        let (mut events, iface) = attach_with_events(
             &transport,
             SharedInstanceEndpoint::Unix(LocalUnixEndpoint::filesystem(&socket)),
             SharedInstanceOptions::default().with_tunnel_synthesis(opted_in),
@@ -295,7 +279,7 @@ async fn a_unix_endpoint_honours_the_option_too() {
             .await
             .expect("unix connection timed out")
             .expect("unix connection failed");
-        assert_eq!(next_event(name, &mut events).await, Some(SharedInstanceEvent::Connected));
+        assert_eq!(next_event(name, &mut events, WAIT).await, Some(SharedInstanceEvent::Connected));
         match first_frame_within_quiet(&mut stream, name).await {
             Some(packet) => {
                 assert!(opted_in, "{name}: a default unix attach writes nothing on connect");

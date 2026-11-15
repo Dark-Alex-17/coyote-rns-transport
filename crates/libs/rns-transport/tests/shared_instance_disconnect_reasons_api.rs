@@ -10,59 +10,40 @@
 //! plain `Disconnected`, so the README's consumer that matches on it keeps working; the
 //! option follows the last `with_disconnect_reasons` call.
 
-use std::net::SocketAddr;
 use std::time::Duration;
 
 use rns_transport::transport::{
-    DisconnectReason, SharedInstanceEndpoint, SharedInstanceEvent, SharedInstanceOptions, Transport,
+    DisconnectReason, SharedInstanceEndpoint, SharedInstanceEvent, SharedInstanceOptions,
 };
-use tokio::io::{AsyncReadExt as _, AsyncWriteExt as _};
 use tokio::net::{TcpListener, TcpStream};
 use tokio::sync::mpsc;
 use tokio::sync::mpsc::error::TryRecvError;
 use tokio::time::timeout;
 
+#[path = "support/accept_within.rs"]
+mod accept_within;
+use accept_within::accept_within;
+#[path = "support/attach_with_events.rs"]
+mod attach_with_events;
+use attach_with_events::attach_with_events;
 #[path = "support/client_transport.rs"]
 mod client_transport;
 use client_transport::client_transport;
+#[path = "support/close_orderly.rs"]
+mod close_orderly;
+use close_orderly::close_orderly;
+#[path = "support/next_event.rs"]
+mod next_event;
+use next_event::next_event;
+#[path = "support/serve_connected.rs"]
+mod serve_connected;
+use serve_connected::serve_connected;
 
 const WAIT: Duration = Duration::from_secs(5);
 const RECONNECT_WAIT: Duration = Duration::from_millis(50);
 /// How long a held, quiet socket is watched for a spurious event. The attach's clients
 /// run no read watchdog, so no length of silence should produce an event.
 const QUIET: Duration = Duration::from_millis(400);
-
-#[deny(clippy::await_holding_invalid_type)]
-async fn next_event(
-    what: &str,
-    events: &mut mpsc::Receiver<SharedInstanceEvent>,
-) -> Option<SharedInstanceEvent> {
-    timeout(WAIT, events.recv()).await.unwrap_or_else(|_| panic!("{what} timed out"))
-}
-
-#[deny(clippy::await_holding_invalid_type)]
-async fn accept_within(listener: &TcpListener, what: &str) -> TcpStream {
-    timeout(WAIT, listener.accept())
-        .await
-        .unwrap_or_else(|_| panic!("{what} timed out"))
-        .unwrap_or_else(|err| panic!("{what} failed: {err}"))
-        .0
-}
-
-/// Closes `stream` in an orderly way: the write side is shut down and the stream read to
-/// the client's EOF before it is dropped. Whatever the client may have written on the
-/// connect is drained first, since a TCP socket dropped with unread data in its receive
-/// buffer sends a reset rather than a FIN.
-#[deny(clippy::await_holding_invalid_type)]
-async fn close_orderly(mut stream: TcpStream) {
-    stream.shutdown().await.expect("shut the write side down");
-    timeout(WAIT, async {
-        let mut sink = [0u8; 1024];
-        while stream.read(&mut sink).await.expect("drain the client's writes") > 0 {}
-    })
-    .await
-    .expect("timed out waiting for the client to close its side");
-}
 
 /// Closes `stream` with linger zero so the peer sends a reset instead of a FIN. The
 /// client has no destination and no tunnel to synthesize, so nothing is pending on its
@@ -73,42 +54,6 @@ fn close_with_reset(stream: TcpStream) {
     drop(stream);
 }
 
-/// Attaches `transport` to the raw listener at `endpoint` with `options` plus a
-/// 16-slot state stream and the short reconnect wait, and reads the attach's
-/// `Connecting`; returns the stream's receiver.
-#[deny(clippy::await_holding_invalid_type)]
-async fn attach(
-    transport: &Transport,
-    endpoint: SocketAddr,
-    options: SharedInstanceOptions,
-) -> mpsc::Receiver<SharedInstanceEvent> {
-    let (events_tx, mut events) = mpsc::channel(16);
-    transport
-        .attach_shared_instance(
-            SharedInstanceEndpoint::Tcp(endpoint),
-            options.with_reconnect_wait(RECONNECT_WAIT).with_state_events(events_tx),
-        )
-        .await
-        .expect("the attach is accepted");
-    assert_eq!(
-        next_event("the attach's Connecting", &mut events).await,
-        Some(SharedInstanceEvent::Connecting)
-    );
-    events
-}
-
-/// Serves one connection on `listener` and reads `Connected` for it.
-#[deny(clippy::await_holding_invalid_type)]
-async fn serve_connected(
-    listener: &TcpListener,
-    events: &mut mpsc::Receiver<SharedInstanceEvent>,
-    what: &str,
-) -> TcpStream {
-    let stream = accept_within(listener, what).await;
-    assert_eq!(next_event(what, events).await, Some(SharedInstanceEvent::Connected), "{what}");
-    stream
-}
-
 /// Reads the two events a served drop sends, asserts the second is `Connecting` and
 /// returns the first, the one in the `Disconnected` position.
 #[deny(clippy::await_holding_invalid_type)]
@@ -117,9 +62,9 @@ async fn read_drop(
     what: &str,
 ) -> SharedInstanceEvent {
     let dropped =
-        next_event(what, events).await.unwrap_or_else(|| panic!("{what}: the stream ended"));
+        next_event(what, events, WAIT).await.unwrap_or_else(|| panic!("{what}: the stream ended"));
     assert_eq!(
-        next_event(what, events).await,
+        next_event(what, events, WAIT).await,
         Some(SharedInstanceEvent::Connecting),
         "{what}: `Connecting` follows the drop at once"
     );
@@ -137,7 +82,8 @@ async fn hold_then_close_then_reset(
     let listener = TcpListener::bind("127.0.0.1:0").await.expect("bind listener");
     let endpoint = listener.local_addr().expect("listener address");
     let transport = client_transport(name);
-    let mut events = attach(&transport, endpoint, options).await;
+    let (mut events, _) =
+        attach_with_events(&transport, SharedInstanceEndpoint::Tcp(endpoint), options).await;
     let iface = transport.shared_instance().expect("the slot names the attached interface");
 
     let first = serve_connected(&listener, &mut events, "first connection").await;
@@ -165,7 +111,7 @@ async fn hold_then_close_then_reset(
     let third = serve_connected(&listener, &mut events, "third connection").await;
     assert!(transport.detach_shared_instance().await, "the attach is in place");
     assert_eq!(
-        next_event("the stream's end", &mut events).await,
+        next_event("the stream's end", &mut events, WAIT).await,
         None,
         "the detach ends the stream without a disconnect event"
     );

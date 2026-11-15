@@ -11,11 +11,10 @@
 //! crate-private, and `Transport::synthesize_tunnel_on_interface` stays public for a
 //! consumer that wants to synthesize by hand.
 
-use std::net::SocketAddr;
 use std::time::Duration;
 
 use rns_transport::transport::{
-    SharedInstanceEndpoint, SharedInstanceEvent, SharedInstanceOptions, Transport,
+    SharedInstanceEndpoint, SharedInstanceEvent, SharedInstanceOptions,
 };
 use tokio::io::AsyncReadExt as _;
 use tokio::net::{TcpListener, TcpStream};
@@ -24,63 +23,27 @@ use tokio::time::timeout;
 
 #[path = "support/accept_within.rs"]
 mod accept_within;
-use accept_within::accept_within;
+#[path = "support/attach_with_events.rs"]
+mod attach_with_events;
+use attach_with_events::attach_with_events;
 #[path = "support/client_transport.rs"]
 mod client_transport;
 use client_transport::client_transport;
 #[path = "support/compile_fail.rs"]
 mod compile_fail;
 use compile_fail::{candidate_rlibs, deps_dir, rustc, Scratch};
+#[path = "support/next_event.rs"]
+mod next_event;
+use next_event::next_event;
+#[path = "support/serve_connected.rs"]
+mod serve_connected;
+use serve_connected::serve_connected;
 
 const WAIT: Duration = Duration::from_secs(5);
-const RECONNECT_WAIT: Duration = Duration::from_millis(50);
 /// How long a fresh stream is watched for bytes the client should not write. The tunnel
 /// packet of an opted-in client lands within milliseconds on loopback, so a quiet second
 /// is well past where one would have arrived.
 const QUIET: Duration = Duration::from_secs(1);
-
-#[deny(clippy::await_holding_invalid_type)]
-async fn next_event(
-    what: &str,
-    events: &mut mpsc::Receiver<SharedInstanceEvent>,
-) -> Option<SharedInstanceEvent> {
-    timeout(WAIT, events.recv()).await.unwrap_or_else(|_| panic!("{what} timed out"))
-}
-
-/// Attaches `transport` to the raw listener at `endpoint` with `options` plus a 16-slot
-/// state stream and the short reconnect wait, and reads the attach's `Connecting`.
-#[deny(clippy::await_holding_invalid_type)]
-async fn attach(
-    transport: &Transport,
-    endpoint: SocketAddr,
-    options: SharedInstanceOptions,
-) -> mpsc::Receiver<SharedInstanceEvent> {
-    let (events_tx, mut events) = mpsc::channel(16);
-    transport
-        .attach_shared_instance(
-            SharedInstanceEndpoint::Tcp(endpoint),
-            options.with_reconnect_wait(RECONNECT_WAIT).with_state_events(events_tx),
-        )
-        .await
-        .expect("the attach is accepted");
-    assert_eq!(
-        next_event("the attach's Connecting", &mut events).await,
-        Some(SharedInstanceEvent::Connecting)
-    );
-    events
-}
-
-/// Serves one connection on `listener` and reads `Connected` for it.
-#[deny(clippy::await_holding_invalid_type)]
-async fn serve_connected(
-    listener: &TcpListener,
-    events: &mut mpsc::Receiver<SharedInstanceEvent>,
-    what: &str,
-) -> TcpStream {
-    let stream = accept_within(listener, what).await;
-    assert_eq!(next_event(what, events).await, Some(SharedInstanceEvent::Connected), "{what}");
-    stream
-}
 
 /// How many bytes `stream` carries within `QUIET` of the accept: zero when the client
 /// writes nothing on connect, the tunnel packet's length when it does. An end of stream
@@ -105,12 +68,12 @@ async fn drop_and_read_reconnect(
 ) {
     drop(stream);
     assert_eq!(
-        next_event(what, events).await,
+        next_event(what, events, WAIT).await,
         Some(SharedInstanceEvent::Disconnected),
         "{what}: the drop is served"
     );
     assert_eq!(
-        next_event(what, events).await,
+        next_event(what, events, WAIT).await,
         Some(SharedInstanceEvent::Connecting),
         "{what}: `Connecting` follows the drop"
     );
@@ -123,7 +86,8 @@ async fn first_bytes_on_two_connects(name: &str, options: SharedInstanceOptions)
     let listener = TcpListener::bind("127.0.0.1:0").await.expect("bind a loopback listener");
     let endpoint = listener.local_addr().expect("the listener's address");
     let transport = client_transport(name);
-    let mut events = attach(&transport, endpoint, options).await;
+    let (mut events, _) =
+        attach_with_events(&transport, SharedInstanceEndpoint::Tcp(endpoint), options).await;
 
     let mut first = serve_connected(&listener, &mut events, "first connection").await;
     let on_first = bytes_within_quiet(&mut first, "first connection").await;
@@ -203,7 +167,12 @@ async fn manual_synthesis_through_the_public_transport_method_writes_the_packet(
     let listener = TcpListener::bind("127.0.0.1:0").await.expect("bind a loopback listener");
     let endpoint = listener.local_addr().expect("the listener's address");
     let transport = client_transport("tunnel-synthesis-manual");
-    let mut events = attach(&transport, endpoint, SharedInstanceOptions::default()).await;
+    let (mut events, _) = attach_with_events(
+        &transport,
+        SharedInstanceEndpoint::Tcp(endpoint),
+        SharedInstanceOptions::default(),
+    )
+    .await;
     let mut stream = serve_connected(&listener, &mut events, "the connection").await;
     assert_eq!(bytes_within_quiet(&mut stream, "before the manual call").await, 0);
 

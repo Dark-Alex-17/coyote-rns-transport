@@ -40,9 +40,14 @@ use tokio::time::timeout;
 #[path = "support/free_loopback_port.rs"]
 mod free_loopback_port;
 use free_loopback_port::free_loopback_port;
+#[path = "support/next_event.rs"]
+mod next_event;
+use next_event::next_event;
+#[path = "support/wait_until_within.rs"]
+mod wait_until_within;
+use wait_until_within::wait_until_within;
 
 const WAIT: Duration = Duration::from_secs(15);
-const POLL: Duration = Duration::from_millis(20);
 const RECONNECT_WAIT: Duration = Duration::from_millis(50);
 
 /// The shared instance: a transport-enabled node with a `TcpServer` on 127.0.0.1, its
@@ -64,15 +69,6 @@ struct Client {
 }
 
 #[deny(clippy::await_holding_invalid_type)]
-async fn wait_until(what: &str, mut condition: impl FnMut() -> bool) {
-    let deadline = Instant::now() + WAIT;
-    while !condition() {
-        assert!(Instant::now() < deadline, "timed out waiting for {what}");
-        tokio::time::sleep(POLL).await;
-    }
-}
-
-#[deny(clippy::await_holding_invalid_type)]
 async fn shared_instance_on(port: u16, flagged: bool) -> SharedInstance {
     let mut config = TransportConfig::new(
         "tunnel-default-relay-shared-instance",
@@ -90,19 +86,11 @@ async fn shared_instance_on(port: u16, flagged: bool) -> SharedInstance {
             "the listener is flagged as the shared instance"
         );
     }
-    wait_until("the shared instance to listen", || {
+    wait_until_within("the shared instance to listen", WAIT, || {
         status.to_json()["listener_state"].as_str() == Some("listening")
     })
     .await;
     SharedInstance { transport, endpoint: SocketAddr::from(([127, 0, 0, 1], port)), flagged }
-}
-
-#[deny(clippy::await_holding_invalid_type)]
-async fn next_event(
-    what: &str,
-    events: &mut mpsc::Receiver<SharedInstanceEvent>,
-) -> Option<SharedInstanceEvent> {
-    timeout(WAIT, events.recv()).await.unwrap_or_else(|_| panic!("{what} timed out"))
 }
 
 /// Reads the state stream until `Connected`: a client that redials at once while the port
@@ -143,8 +131,8 @@ async fn default_client(name: &str, endpoint: SocketAddr) -> Client {
         )
         .await
         .expect("the default attach is accepted");
-    assert_eq!(next_event(name, &mut events).await, Some(SharedInstanceEvent::Connecting));
-    assert_eq!(next_event(name, &mut events).await, Some(SharedInstanceEvent::Connected));
+    assert_eq!(next_event(name, &mut events, WAIT).await, Some(SharedInstanceEvent::Connecting));
+    assert_eq!(next_event(name, &mut events, WAIT).await, Some(SharedInstanceEvent::Connected));
     Client {
         transport,
         events,
@@ -333,12 +321,12 @@ async fn default_clients_relay_and_survive_a_restart(flagged: bool) {
     b.announces = b.transport.recv_announces().await;
     for (name, client) in [("a", &mut a), ("b", &mut b)] {
         assert_eq!(
-            next_event(name, &mut client.events).await,
+            next_event(name, &mut client.events, WAIT).await,
             Some(SharedInstanceEvent::Disconnected),
             "{name}: the drop is served"
         );
         assert_eq!(
-            next_event(name, &mut client.events).await,
+            next_event(name, &mut client.events, WAIT).await,
             Some(SharedInstanceEvent::Connecting),
             "{name}: `Connecting` follows the drop"
         );

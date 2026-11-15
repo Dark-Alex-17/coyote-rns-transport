@@ -254,7 +254,10 @@ async fn rns_1_5_parent_interface_reports_active_child_burst_counts() {
                 &announce,
                 crate::iface::IfaceSource::None,
                 false,
-                &shared,
+                super::announce_limits::IngressInterface {
+                    shared_config: &shared,
+                    shared_instance: false,
+                },
             );
         }
     }

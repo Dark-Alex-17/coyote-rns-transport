@@ -1,4 +1,4 @@
-use super::announce_limits::AnnounceLimitAction;
+use super::announce_limits::{AnnounceLimitAction, IngressInterface};
 use super::path_table::AnnouncePolicyInput;
 use super::*;
 use crate::identity::Identity;
@@ -71,16 +71,19 @@ pub(super) async fn admit_announce_before_queue(
     }
     let destination_known = handler.has_destination(&packet.destination)
         || handler.knows_destination(&packet.destination);
-    let shared_config = {
+    let (shared_config, shared_instance) = {
         let manager = handler.iface_manager.lock().await;
-        manager.shared_config(&iface).cloned().unwrap_or_default()
+        (
+            manager.shared_config(&iface).cloned().unwrap_or_default(),
+            manager.is_shared_instance(&iface),
+        )
     };
     if let AnnounceLimitAction::Hold(delay) = handler.announce_limits.check_with_shared_config(
         iface,
         packet,
         source,
         destination_known,
-        &shared_config,
+        IngressInterface { shared_config: &shared_config, shared_instance },
     ) {
         log::debug!(
             "tp({}): holding announce for {} before queue for {:?}",

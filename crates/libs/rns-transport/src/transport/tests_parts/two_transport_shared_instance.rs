@@ -32,6 +32,17 @@ impl SharedInstanceServer {
         .await;
     }
 
+    /// The number of tunnels, path-less ones included, the shared instance holds. `clear`
+    /// reports the pre-clear count, so the table is emptied as a side effect: call this
+    /// once the test no longer needs the tunnels. The handler guard is held for the call
+    /// alone.
+    #[deny(clippy::await_holding_invalid_type)]
+    async fn tunnel_count(&self) -> usize {
+        let handler = self.transport.get_handler();
+        let mut handler = handler.lock().await;
+        handler.tunnel_table.clear()
+    }
+
     /// Polls the shared instance's tunnel table until the destinations with a path through
     /// a tunnel are exactly `expected`. A client attached with `with_tunnel_synthesis`
     /// synthesizes one tunnel at attach and the shared instance files the client's announce

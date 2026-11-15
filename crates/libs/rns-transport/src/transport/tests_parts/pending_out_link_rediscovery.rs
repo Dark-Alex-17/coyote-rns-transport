@@ -209,6 +209,7 @@ async fn aged_pending_out_link_stays_quiet_until_closed_like_python() {
         timeout(Duration::from_millis(200), iface_channel.tx_channel.recv()).await.is_err(),
         "nothing is sent for a pending link inside its establishment timeout"
     );
+    assert_eq!(link.lock().await.status(), LinkStatus::Pending);
 
     link.lock()
         .await

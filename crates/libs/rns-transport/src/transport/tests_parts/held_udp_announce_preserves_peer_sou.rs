@@ -127,6 +127,16 @@ async fn learned_announces_are_not_held_after_route_is_known() {
     );
     let announce = destination.announce(OsRng, None).expect("announce");
 
+    assert!(
+        super::announce::admit_announce_before_queue(
+            &announce,
+            &handler,
+            iface,
+            crate::iface::IfaceSource::None,
+        )
+        .await,
+        "the first announce of a fresh interface is admitted"
+    );
     handle_announce(&announce, handler.lock().await, iface, crate::iface::IfaceSource::None).await;
     timeout(Duration::from_millis(200), announce_rx.recv())
         .await
@@ -135,6 +145,16 @@ async fn learned_announces_are_not_held_after_route_is_known() {
 
     tokio::time::sleep(Duration::from_millis(1100)).await;
     let repeated_announce = destination.announce(OsRng, None).expect("fresh announce");
+    assert!(
+        super::announce::admit_announce_before_queue(
+            &repeated_announce,
+            &handler,
+            iface,
+            crate::iface::IfaceSource::None,
+        )
+        .await,
+        "an announce for a known destination bypasses the ingress hold"
+    );
     handle_announce(
         &repeated_announce,
         handler.lock().await,
@@ -226,6 +246,16 @@ async fn path_response_announces_are_not_held_by_rate_limits() {
     let mut announce = destination.announce(OsRng, None).expect("announce");
     announce.context = PacketContext::PathResponse;
 
+    assert!(
+        super::announce::admit_announce_before_queue(
+            &announce,
+            &handler,
+            iface,
+            crate::iface::IfaceSource::None,
+        )
+        .await,
+        "a path-response announce bypasses the rate limiter"
+    );
     handle_announce(&announce, handler.lock().await, iface, crate::iface::IfaceSource::None).await;
 
     let received = timeout(Duration::from_millis(200), announce_rx.recv())

@@ -1237,23 +1237,5 @@ async fn ingress_control_false_bypasses_unknown_announce_holding() {
         iface
     };
 
-    let mut admitted = Vec::new();
-    for _ in 0..3 {
-        let mut destination = SingleInputDestination::new(
-            PrivateIdentity::new_from_rand(OsRng),
-            DestinationName::new("lxmf", "delivery"),
-        );
-        let announce = destination.announce(OsRng, None).expect("announce");
-        admitted.push(
-            super::announce::admit_announce_before_queue(
-                &announce,
-                &handler,
-                iface,
-                IfaceSource::None,
-            )
-            .await,
-        );
-        tokio::time::sleep(Duration::from_millis(1)).await;
-    }
-    assert_eq!(admitted, vec![true; 3]);
+    assert_eq!(admissions(&transport, iface).await, vec![true; 3]);
 }

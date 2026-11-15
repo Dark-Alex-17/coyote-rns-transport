@@ -6,16 +6,6 @@
 // reconnect records that the synthesis is off. Helpers come from the sibling `tests_parts`
 // files included into this module.
 
-/// The number of tunnels, path-less ones included, the shared instance holds; `clear`
-/// reports the pre-clear count, so an empty table reads zero and is left as it was. The
-/// handler guard is held for the call alone.
-#[deny(clippy::await_holding_invalid_type)]
-async fn shared_instance_tunnel_default_count(server: &SharedInstanceServer) -> usize {
-    let handler = server.transport.get_handler();
-    let mut handler = handler.lock().await;
-    handler.tunnel_table.clear()
-}
-
 /// Two clients that did not opt in exchange announces at one hop and open links both ways with
 /// no tunnel in the shared instance's table; a restart of the shared instance is followed
 /// by a reconnect that records the synthesis as off, re-announces both destinations and
@@ -45,11 +35,7 @@ async fn shared_instance_tunnel_default_synthesizes_no_tunnel_at_attach_or_recon
     let (b_learned, hops) =
         shared_instance_learn_announce(&mut a.announces, &b_desc.address_hash).await;
     assert_eq!(hops, 1, "a learns b's destination at one hop");
-    assert_eq!(
-        shared_instance_tunnel_default_count(&server).await,
-        0,
-        "neither attach synthesized a tunnel"
-    );
+    assert_eq!(server.tunnel_count().await, 0, "neither attach synthesized a tunnel");
 
     let (_link_to_a, link_id) = open_link(&b.transport, a_learned).await;
     let activated =
@@ -68,13 +54,13 @@ async fn shared_instance_tunnel_default_synthesizes_no_tunnel_at_attach_or_recon
     let mut restarted_announces = restarted.transport.recv_announces().await;
     restarted.await_accepted_connections(2).await;
 
-    for name in [name_a, name_b] {
+    for (name, iface) in [(name_a, a.iface), (name_b, b.iface)] {
         let record = shared_instance_probe10_await_debug_record(
             name,
             "reconnected, tunnel synthesis is off",
         )
         .await;
-        assert!(record.contains("shared instance iface="), "the record names the iface: {record}");
+        assert!(record.contains(&iface.to_string()), "the record names the iface: {record}");
         assert!(
             shared_instance_debug_records_containing(name, "tunnel re-synthesized").is_empty(),
             "a reconnect of a client that did not opt in re-synthesizes nothing: {:?}",
@@ -86,11 +72,7 @@ async fn shared_instance_tunnel_default_synthesizes_no_tunnel_at_attach_or_recon
         vec![a_desc.address_hash, b_desc.address_hash],
     )
     .await;
-    assert_eq!(
-        shared_instance_tunnel_default_count(&restarted).await,
-        0,
-        "neither reconnect synthesized a tunnel"
-    );
+    assert_eq!(restarted.tunnel_count().await, 0, "neither reconnect synthesized a tunnel");
 
     timeout(STOP_TIMEOUT, a.transport.stop()).await.expect("client a stop completes");
     timeout(STOP_TIMEOUT, b.transport.stop()).await.expect("client b stop completes");

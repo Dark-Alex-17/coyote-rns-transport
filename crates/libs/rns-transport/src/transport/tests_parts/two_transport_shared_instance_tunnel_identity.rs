@@ -27,15 +27,6 @@ async fn shared_instance_identity_client(
     SharedInstanceClient { transport, announces, iface }
 }
 
-/// The number of tunnels, path-less ones included, the shared instance holds. `clear`
-/// reports the pre-clear count; the handler guard is held for the call alone.
-#[deny(clippy::await_holding_invalid_type)]
-async fn shared_instance_tunnel_identity_count(server: &SharedInstanceServer) -> usize {
-    let handler = server.transport.get_handler();
-    let mut handler = handler.lock().await;
-    handler.tunnel_table.clear()
-}
-
 /// The interface-hash counter is per transport, so two transports whose shared-instance
 /// attach is their first interface carry the same full hash; with one identity that is what
 /// makes the tunnel ids collide.
@@ -110,11 +101,7 @@ async fn shared_instance_tunnel_identity_default_keeps_two_transports_on_one_ide
     let (b_learned, hops) =
         shared_instance_learn_announce(&mut c.announces, &b_desc.address_hash).await;
     assert_eq!(hops, 1, "c learns b's destination at one hop");
-    assert_eq!(
-        shared_instance_tunnel_identity_count(&server).await,
-        0,
-        "neither default attach synthesized a tunnel"
-    );
+    assert_eq!(server.tunnel_count().await, 0, "neither default attach synthesized a tunnel");
 
     let (_link_to_a, link_id) = open_link(&c.transport, a_learned).await;
     let activated =
@@ -124,11 +111,7 @@ async fn shared_instance_tunnel_identity_default_keeps_two_transports_on_one_ide
     let activated =
         await_event(&mut b_in_events, |event| matches!(event.event, LinkEvent::Activated)).await;
     assert_eq!(activated.id, link_id, "the link to b's destination activates on b");
-    assert_eq!(
-        shared_instance_tunnel_identity_count(&server).await,
-        0,
-        "the links landed no tunnel either"
-    );
+    assert_eq!(server.tunnel_count().await, 0, "the links landed no tunnel either");
 
     timeout(STOP_TIMEOUT, a.transport.stop()).await.expect("client a stop completes");
     timeout(STOP_TIMEOUT, b.transport.stop()).await.expect("client b stop completes");
@@ -177,7 +160,7 @@ async fn shared_instance_tunnel_identity_opted_in_transports_on_one_identity_sha
     assert_eq!(hops, 1, "a learns b's destination at one hop");
     server.await_tunneled_destinations(vec![a_desc.address_hash, b_desc.address_hash]).await;
     assert_eq!(
-        shared_instance_tunnel_identity_count(&server).await,
+        server.tunnel_count().await,
         1,
         "one identity and one per-transport interface counter make one tunnel id for both"
     );

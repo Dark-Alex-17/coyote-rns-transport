@@ -175,6 +175,53 @@ Removed) bullet of its own, marked as such.
   on that interface (see Fixed for the three-sample floor); the
   `connector_with` rustdoc in `transport/tests_parts/two_transport_loopback.rs`
   now names the three-announce case the knob is for.
+- Test hygiene, test-only: the integration probes of this section share one
+  `tests/support/` harness instead of a copy each. The five single-request
+  probes take `tests/support/read_for.rs`, `tests/support/packets_in.rs`,
+  `tests/support/link_requests_to.rs`, `tests/support/closed_event_for.rs`,
+  `tests/support/initiator_on_a_silent_listener.rs`,
+  `tests/support/unknown_destination.rs` and `tests/support/broadcasting.rs`;
+  the shared HDLC scanner in `packets_in` rescans from a frame's closing
+  flag instead of stepping past it, so a frame whose opening flag is the
+  previous frame's closing flag is counted where the per-file copies
+  dropped it. The activation probes share
+  `tests/support/assert_closed_before_activation.rs`; the announce-admission
+  probes share `tests/support/hold_log.rs`, `tests/support/learn_all.rs`,
+  `tests/support/tcp_server_on.rs`, `tests/support/register_destinations.rs`,
+  `tests/support/announce.rs`, `tests/support/announce_within.rs`,
+  `tests/support/stop_all.rs` and `tests/support/wait_until_within.rs`; the
+  shared-instance attach tests share `tests/support/next_event.rs`,
+  `tests/support/attach_with_events.rs` and
+  `tests/support/serve_connected.rs`. Two probes are adopted:
+  `tests/link_activation_closed_other_link_probe.rs` (a `Closed` event for
+  another link id does not end an activation wait; a neighbour's hand close
+  or establishment-timeout close leaves the wait running to its own
+  deadline or its own close) and `tests/announce_admission_unix_probe.rs`
+  (Unix only; a flagged `LocalUnixServer` and its default-option clients
+  never ingress-limit, an unflagged one holds the third of three announces
+  100 ms apart). Unit pins are tightened: `SharedInstanceServer::tunnel_count`
+  replaces two helpers that cleared the tunnel table to count it, the
+  tunnel-default reconnect records are checked for their iface value, the
+  aged pending link pin asserts `LinkStatus::Pending` inside its quiet
+  window, the learned and path-response holding pins run
+  `admit_announce_before_queue` so they reach the limiter, the daemon's
+  attach-probe oracle tells EOF and a read error apart, and the bridge
+  closed-before-activation test counts the refresh's two path requests
+  before the second link request. `delivery::await_link_activation`
+  (`delivery.rs`) no longer builds its error from the reason on the
+  `LinkEvent::Closed` event; the event wakes the wait, which rereads the
+  link, and since the one writer of `Closed` sets the reason before it
+  publishes, no observable behaviour changes. Pinned by
+  `tests/pending_link_single_request_probe.rs`,
+  `tests/link_activation_closed_probe.rs`,
+  `tests/link_activation_closed_other_link_probe.rs`,
+  `tests/announce_admission_usage_probe.rs`,
+  `tests/announce_admission_unix_probe.rs`,
+  `tests/shared_instance_tunnel_synthesis_probe.rs`,
+  `transport/tests_parts/two_transport_shared_instance.rs`,
+  `transport/tests_parts/module_prelude.rs` and the daemon's
+  `bootstrap_interface_startup_parts::shared_instance_attach_probe_tests`
+  and `bridge_remote_control_link_tests`.
 
 ### Fixed
 

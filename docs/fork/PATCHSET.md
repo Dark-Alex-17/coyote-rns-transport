@@ -30,8 +30,8 @@ per fork task.
 
 Every file changed since the `0.18.1` release and the patch each change
 belongs to. Patch ids: N1 is tunnel opt-in, N2 is link request once, N3 is
-activation close exit, N4 is local client announce admission. The
-`tunnel opt-in` patch is fork commits
+activation close exit, N4 is local client announce admission, N5 is run
+hygiene. The `tunnel opt-in` patch is fork commits
 `7ae6a364`, `785bce93`, `ad420766`, `1446a8e5` and `d2e106bb`. The
 `link request once` patch is fork commits `728e10dd`, `2c2f14d9`,
 `d65fd1e3`, `0be75f6f` and `9ae9fdab`. The `activation close exit` patch
@@ -41,45 +41,49 @@ two clients interop` patch carries no other id and is fork commits
 `ddcb4430`, `a974386c`, `d40e0ae3` and `7f076dc3`. The `local client
 announce admission` patch is fork commits `be18658a`, `83e03e75`,
 `92e82a60`, `244722bf`, `08f18f07`, `b0f194ce`, `e14ced8a`, `4a22affe`,
-`84ae2a5c`, `29d78171` and `3d887f3e`.
+`84ae2a5c`, `29d78171` and `3d887f3e`. The `run hygiene` patch is fork
+commits `863d7ba9`, `6707f86f`, `e4dfc449`, `655c44d1`, `477b9863`,
+`a111e152`, `a6b0b7f6` and `af24c666`.
 
 | File | Patch |
 | --- | --- |
-| `crates/apps/reticulumd/examples/interfaces-reference.toml` | local client announce admission |
-| `crates/apps/reticulumd/src/bin/reticulumd/bootstrap_interface_startup_parts/shared_instance_attach_probe_tests.rs` | tunnel opt-in, link request once |
+| `crates/apps/reticulumd/examples/interfaces-reference.toml` | local client announce admission, run hygiene |
+| `crates/apps/reticulumd/src/bin/reticulumd/bootstrap_interface_startup_parts/shared_instance_attach_probe_tests.rs` | tunnel opt-in, link request once, run hygiene |
 | `crates/apps/reticulumd/src/bin/reticulumd/bridge_remote_control_link.rs` | activation close exit |
-| `crates/apps/reticulumd/src/bin/reticulumd/bridge_remote_control_link_tests.rs` | activation close exit |
+| `crates/apps/reticulumd/src/bin/reticulumd/bridge_remote_control_link_tests.rs` | activation close exit, run hygiene |
 | `crates/apps/reticulumd/tests/config.rs` | local client announce admission |
 | `crates/apps/reticulumd/tests/config_parts/interfaces_reference_ingress_examples.rs` | local client announce admission |
 | `crates/apps/reticulumd/tests/fork_publish_contract_parts/ledger_contract.rs` | tunnel opt-in |
-| `crates/apps/reticulumd/tests/fork_release_docs_contract_parts/crate_readme_sections.rs` | tunnel opt-in, activation close exit |
-| `crates/apps/reticulumd/tests/local_client_announce_admission_probe.rs` | local client announce admission |
+| `crates/apps/reticulumd/tests/fork_release_docs_contract_parts/crate_readme_sections.rs` | tunnel opt-in, activation close exit, run hygiene |
+| `crates/apps/reticulumd/tests/local_client_announce_admission_probe.rs` | local client announce admission, run hygiene |
 | `crates/apps/reticulumd/tests/python_channel_interop.rs` | Python-in-the-loop two clients interop |
-| `crates/apps/reticulumd/tests/python_channel_interop_parts/python_shared_instance_two_clients.rs` | Python-in-the-loop two clients interop |
-| `crates/libs/rns-transport/CHANGELOG.md` | tunnel opt-in, link request once, Python-in-the-loop two clients interop, activation close exit, local client announce admission |
-| `crates/libs/rns-transport/README.md` | tunnel opt-in, Python-in-the-loop two clients interop, activation close exit, local client announce admission |
-| `crates/libs/rns-transport/src/delivery.rs` | activation close exit |
+| `crates/apps/reticulumd/tests/python_channel_interop_parts/python_shared_instance_live.rs` | run hygiene |
+| `crates/apps/reticulumd/tests/python_channel_interop_parts/python_shared_instance_two_clients.rs` | Python-in-the-loop two clients interop, run hygiene |
+| `crates/libs/rns-transport/CHANGELOG.md` | tunnel opt-in, link request once, Python-in-the-loop two clients interop, activation close exit, local client announce admission, run hygiene |
+| `crates/libs/rns-transport/README.md` | tunnel opt-in, Python-in-the-loop two clients interop, activation close exit, local client announce admission, run hygiene |
+| `crates/libs/rns-transport/src/delivery.rs` | activation close exit, run hygiene |
 | `crates/libs/rns-transport/src/destination/link_parts/link_sections/establishment.rs` | link request once |
 | `crates/libs/rns-transport/src/destination/link_parts/link_status_predicates_make_lifecycl_sections/core_tests.rs` | link request once |
 | `crates/libs/rns-transport/src/transport/announce.rs` | local client announce admission |
-| `crates/libs/rns-transport/src/transport/announce_limits.rs` | local client announce admission |
+| `crates/libs/rns-transport/src/transport/announce_limits.rs` | local client announce admission, run hygiene |
 | `crates/libs/rns-transport/src/transport/jobs_parts/link_maintenance.rs` | link request once |
 | `crates/libs/rns-transport/src/transport/links_parts/transport_sections/shared_instance.rs` | tunnel opt-in |
 | `crates/libs/rns-transport/src/transport/links_parts/transport_sections/shared_instance_reconnect.rs` | tunnel opt-in |
 | `crates/libs/rns-transport/src/transport/mod.rs` | link request once |
-| `crates/libs/rns-transport/src/transport/shared_instance.rs` | tunnel opt-in |
+| `crates/libs/rns-transport/src/transport/shared_instance.rs` | tunnel opt-in, run hygiene |
 | `crates/libs/rns-transport/src/transport/tests.rs` | tunnel opt-in, local client announce admission |
-| `crates/libs/rns-transport/src/transport/tests_parts/module_prelude.rs` | local client announce admission |
+| `crates/libs/rns-transport/src/transport/tests_parts/held_udp_announce_preserves_peer_sou.rs` | run hygiene |
+| `crates/libs/rns-transport/src/transport/tests_parts/module_prelude.rs` | local client announce admission, run hygiene |
 | `crates/libs/rns-transport/src/transport/tests_parts/pending_out_link_establishment_timeout.rs` | link request once |
-| `crates/libs/rns-transport/src/transport/tests_parts/pending_out_link_rediscovery.rs` | link request once |
+| `crates/libs/rns-transport/src/transport/tests_parts/pending_out_link_rediscovery.rs` | link request once, run hygiene |
 | `crates/libs/rns-transport/src/transport/tests_parts/rns_1_5_ingress_admission.rs` | local client announce admission |
 | `crates/libs/rns-transport/src/transport/tests_parts/shared_child_announce_admission.rs` | local client announce admission |
 | `crates/libs/rns-transport/src/transport/tests_parts/two_transport_destination_desc_probe2.rs` | local client announce admission |
-| `crates/libs/rns-transport/src/transport/tests_parts/two_transport_loopback.rs` | local client announce admission |
+| `crates/libs/rns-transport/src/transport/tests_parts/two_transport_loopback.rs` | local client announce admission, run hygiene |
 | `crates/libs/rns-transport/src/transport/tests_parts/two_transport_loopback_requests_errors.rs` | link request once |
 | `crates/libs/rns-transport/src/transport/tests_parts/two_transport_loopback_requests_receipt_stop.rs` | local client announce admission |
 | `crates/libs/rns-transport/src/transport/tests_parts/two_transport_loopback_requests_routing.rs` | local client announce admission |
-| `crates/libs/rns-transport/src/transport/tests_parts/two_transport_shared_instance.rs` | tunnel opt-in |
+| `crates/libs/rns-transport/src/transport/tests_parts/two_transport_shared_instance.rs` | tunnel opt-in, run hygiene |
 | `crates/libs/rns-transport/src/transport/tests_parts/two_transport_shared_instance_disconnect_reasons.rs` | tunnel opt-in |
 | `crates/libs/rns-transport/src/transport/tests_parts/two_transport_shared_instance_flush.rs` | tunnel opt-in, local client announce admission |
 | `crates/libs/rns-transport/src/transport/tests_parts/two_transport_shared_instance_probe10.rs` | tunnel opt-in |
@@ -91,30 +95,54 @@ announce admission` patch is fork commits `be18658a`, `83e03e75`,
 | `crates/libs/rns-transport/src/transport/tests_parts/two_transport_shared_instance_reconnect.rs` | tunnel opt-in |
 | `crates/libs/rns-transport/src/transport/tests_parts/two_transport_shared_instance_state_events.rs` | tunnel opt-in |
 | `crates/libs/rns-transport/src/transport/tests_parts/two_transport_shared_instance_state_events_probe.rs` | tunnel opt-in |
-| `crates/libs/rns-transport/src/transport/tests_parts/two_transport_shared_instance_storm.rs` | tunnel opt-in |
-| `crates/libs/rns-transport/src/transport/tests_parts/two_transport_shared_instance_tunnel_default.rs` | tunnel opt-in |
-| `crates/libs/rns-transport/src/transport/tests_parts/two_transport_shared_instance_tunnel_identity.rs` | tunnel opt-in, Python-in-the-loop two clients interop |
-| `crates/libs/rns-transport/tests/announce_admission_mixed_iface_probe.rs` | local client announce admission |
-| `crates/libs/rns-transport/tests/announce_admission_reconnect_probe.rs` | local client announce admission |
-| `crates/libs/rns-transport/tests/announce_admission_usage_probe.rs` | local client announce admission |
+| `crates/libs/rns-transport/src/transport/tests_parts/two_transport_shared_instance_storm.rs` | tunnel opt-in, run hygiene |
+| `crates/libs/rns-transport/src/transport/tests_parts/two_transport_shared_instance_tunnel_default.rs` | tunnel opt-in, run hygiene |
+| `crates/libs/rns-transport/src/transport/tests_parts/two_transport_shared_instance_tunnel_identity.rs` | tunnel opt-in, Python-in-the-loop two clients interop, run hygiene |
+| `crates/libs/rns-transport/tests/announce_admission_mixed_iface_probe.rs` | local client announce admission, run hygiene |
+| `crates/libs/rns-transport/tests/announce_admission_reconnect_probe.rs` | local client announce admission, run hygiene |
+| `crates/libs/rns-transport/tests/announce_admission_unix_probe.rs` | run hygiene |
+| `crates/libs/rns-transport/tests/announce_admission_usage_probe.rs` | local client announce admission, run hygiene |
 | `crates/libs/rns-transport/tests/interface_events_api.rs` | tunnel opt-in |
-| `crates/libs/rns-transport/tests/link_activation_closed_busy_transport_probe.rs` | activation close exit |
-| `crates/libs/rns-transport/tests/link_activation_closed_probe.rs` | activation close exit |
-| `crates/libs/rns-transport/tests/link_activation_closed_teardown_restart_probe.rs` | activation close exit |
-| `crates/libs/rns-transport/tests/link_activation_closed_usage_probe.rs` | activation close exit |
-| `crates/libs/rns-transport/tests/pending_link_single_request_concurrent_probe.rs` | link request once |
-| `crates/libs/rns-transport/tests/pending_link_single_request_consumer_repeat_probe.rs` | activation close exit |
-| `crates/libs/rns-transport/tests/pending_link_single_request_default_timeout_probe.rs` | link request once |
-| `crates/libs/rns-transport/tests/pending_link_single_request_probe.rs` | link request once |
-| `crates/libs/rns-transport/tests/pending_link_single_request_usage_probe.rs` | activation close exit |
+| `crates/libs/rns-transport/tests/link_activation_closed_busy_transport_probe.rs` | activation close exit, run hygiene |
+| `crates/libs/rns-transport/tests/link_activation_closed_other_link_probe.rs` | run hygiene |
+| `crates/libs/rns-transport/tests/link_activation_closed_probe.rs` | activation close exit, run hygiene |
+| `crates/libs/rns-transport/tests/link_activation_closed_teardown_restart_probe.rs` | activation close exit, run hygiene |
+| `crates/libs/rns-transport/tests/link_activation_closed_usage_probe.rs` | activation close exit, run hygiene |
+| `crates/libs/rns-transport/tests/link_activation_deadline_api.rs` | run hygiene |
+| `crates/libs/rns-transport/tests/outbound_outcome_api.rs` | run hygiene |
+| `crates/libs/rns-transport/tests/pending_link_single_request_concurrent_probe.rs` | link request once, run hygiene |
+| `crates/libs/rns-transport/tests/pending_link_single_request_consumer_repeat_probe.rs` | activation close exit, run hygiene |
+| `crates/libs/rns-transport/tests/pending_link_single_request_default_timeout_probe.rs` | link request once, run hygiene |
+| `crates/libs/rns-transport/tests/pending_link_single_request_probe.rs` | link request once, run hygiene |
+| `crates/libs/rns-transport/tests/pending_link_single_request_usage_probe.rs` | activation close exit, run hygiene |
 | `crates/libs/rns-transport/tests/request_receipt_readme.rs` | local client announce admission |
-| `crates/libs/rns-transport/tests/shared_instance_disconnect_reasons_api.rs` | tunnel opt-in |
+| `crates/libs/rns-transport/tests/shared_instance_disconnect_reasons_api.rs` | tunnel opt-in, run hygiene |
 | `crates/libs/rns-transport/tests/shared_instance_one_identity_two_clients_probe.rs` | local client announce admission |
-| `crates/libs/rns-transport/tests/shared_instance_tunnel_default_relay_probe.rs` | link request once |
-| `crates/libs/rns-transport/tests/shared_instance_tunnel_synthesis_api.rs` | tunnel opt-in |
-| `crates/libs/rns-transport/tests/shared_instance_tunnel_synthesis_probe.rs` | tunnel opt-in |
+| `crates/libs/rns-transport/tests/shared_instance_tunnel_default_relay_probe.rs` | link request once, run hygiene |
+| `crates/libs/rns-transport/tests/shared_instance_tunnel_synthesis_api.rs` | tunnel opt-in, run hygiene |
+| `crates/libs/rns-transport/tests/shared_instance_tunnel_synthesis_probe.rs` | tunnel opt-in, run hygiene |
+| `crates/libs/rns-transport/tests/support/announce.rs` | run hygiene |
+| `crates/libs/rns-transport/tests/support/announce_within.rs` | run hygiene |
+| `crates/libs/rns-transport/tests/support/assert_closed_before_activation.rs` | run hygiene |
+| `crates/libs/rns-transport/tests/support/attach_with_events.rs` | run hygiene |
+| `crates/libs/rns-transport/tests/support/broadcasting.rs` | run hygiene |
 | `crates/libs/rns-transport/tests/support/close_orderly.rs` | tunnel opt-in |
-| `docs/fork/PATCHSET.md` | tunnel opt-in, link request once, Python-in-the-loop two clients interop, activation close exit, local client announce admission |
+| `crates/libs/rns-transport/tests/support/closed_event_for.rs` | run hygiene |
+| `crates/libs/rns-transport/tests/support/hold_log.rs` | run hygiene |
+| `crates/libs/rns-transport/tests/support/initiator_on_a_silent_listener.rs` | run hygiene |
+| `crates/libs/rns-transport/tests/support/learn_all.rs` | run hygiene |
+| `crates/libs/rns-transport/tests/support/link_requests_to.rs` | run hygiene |
+| `crates/libs/rns-transport/tests/support/next_event.rs` | run hygiene |
+| `crates/libs/rns-transport/tests/support/packets_in.rs` | run hygiene |
+| `crates/libs/rns-transport/tests/support/read_for.rs` | run hygiene |
+| `crates/libs/rns-transport/tests/support/register_destinations.rs` | run hygiene |
+| `crates/libs/rns-transport/tests/support/serve_connected.rs` | run hygiene |
+| `crates/libs/rns-transport/tests/support/stop_all.rs` | run hygiene |
+| `crates/libs/rns-transport/tests/support/tcp_server_on.rs` | run hygiene |
+| `crates/libs/rns-transport/tests/support/unknown_destination.rs` | run hygiene |
+| `crates/libs/rns-transport/tests/support/wait_until_within.rs` | run hygiene |
+| `docs/fork/PATCHSET.md` | tunnel opt-in, link request once, Python-in-the-loop two clients interop, activation close exit, local client announce admission, run hygiene |
+| `docs/status/current-roadmap.md` | run hygiene |
 
 Fork commits `7ae6a364`, `785bce93`, `ad420766`, `1446a8e5` and `d2e106bb`:
 N1, tunnel opt-in.
@@ -534,6 +562,103 @@ window against `IA_FREQ_SAMPLES` = 48. `3d887f3e` names the moved pin and
 the two probes in the CHANGELOG bullet and has the README row say the
 constants refresh and the sustained clock make the inherited formula and
 release arming observable.
+
+Fork commits `863d7ba9`, `6707f86f`, `e4dfc449`, `655c44d1`, `477b9863`,
+`a111e152`, `a6b0b7f6` and `af24c666`:
+N5, run hygiene.
+Upstream site: the test files and shared helpers of the four patches above
+and the fork's own documentation; the one production edit is
+`delivery::await_link_activation` in
+`crates/libs/rns-transport/src/delivery.rs`. The integration tests the four
+patches added had each grown a copy of the same harness; this patch moves
+those copies into `crates/libs/rns-transport/tests/support/`, tightens unit
+pins that asserted less than their names said, and adopts two probes from
+the review's usage probes. `863d7ba9` moves the raw-listener harness of the
+five `tests/pending_link_single_request*_probe.rs` files into
+`tests/support/read_for.rs`, `packets_in.rs`, `link_requests_to.rs`,
+`closed_event_for.rs`, `initiator_on_a_silent_listener.rs`,
+`unknown_destination.rs` and `broadcasting.rs`; the shared HDLC scanner in
+`packets_in.rs` rescans from a frame's closing flag instead of stepping
+past it, so a frame whose opening flag is the previous frame's closing
+flag, which the per-file copies dropped, is counted. `6707f86f` has the
+four `tests/link_activation_closed*_probe.rs` files,
+`tests/link_activation_deadline_api.rs` and `tests/outbound_outcome_api.rs`
+take `broadcasting` and `unknown_destination` from support, gives the
+three that check the close text one
+`tests/support/assert_closed_before_activation.rs`, and adopts
+`tests/link_activation_closed_other_link_probe.rs` (a `Closed` event for a
+different link id does not end the wait: a neighbour's hand close, and a
+neighbour's establishment-timeout close, both leave the wait on the first
+link running to its own deadline or its own close). `e4dfc449` is the only
+production edit: `await_link_activation` no longer builds its error from
+the reason carried on the `LinkEvent::Closed` event; the event wakes the
+wait, which rereads `LinkStatus` and `close_reason` from the link, the
+same read every poll slice already makes. The only writer of `Closed` sets
+the reason before it publishes the event, so the reread returns the reason
+the event carried and nothing observable changes; what goes is the one
+path on which a reason the link did not hold could have been reported, and
+every activation probe keeps its timing bound. `655c44d1` moves the
+shared-instance harness of the three `tests/announce_admission_*_probe.rs`
+files into `tests/support/hold_log.rs`, `wait_until_within.rs`,
+`learn_all.rs`, `tcp_server_on.rs`, `register_destinations.rs`,
+`announce.rs`, `stop_all.rs` and `announce_within.rs`, with `learn_all`
+taking one `within: Duration` where the copies had differed, and adopts
+`tests/announce_admission_unix_probe.rs` (`#![cfg(unix)]`; a flagged
+`LocalUnixServer` and its default-option clients never ingress-limit, a
+third client learning five destinations from two clients inside 5 s, while
+an unflagged `LocalUnixServer` holds the third of three announces 100 ms
+apart, so the exemption follows the flag and not the interface kind).
+`477b9863` has `tests/shared_instance_disconnect_reasons_api.rs`,
+`tests/shared_instance_tunnel_synthesis_api.rs`,
+`tests/shared_instance_tunnel_synthesis_probe.rs` and
+`tests/shared_instance_tunnel_default_relay_probe.rs` share
+`tests/support/next_event.rs`, `attach_with_events.rs` and
+`serve_connected.rs`; the disconnect-reasons file takes `accept_within`
+and `close_orderly` from support and the relay probe uses
+`wait_until_within`. `a111e152` tightens the unit pins under
+`transport/tests_parts/`: `SharedInstanceServer::tunnel_count` replaces
+two helpers that cleared the tunnel table to count it; the tunnel-default
+reconnect records are checked for their iface value; the storm restart
+pin runs on the default client and counts the "reconnected" word every
+reconnect arm logs and no other crate log line carries;
+`aged_pending_out_link_stays_quiet_until_closed_like_python` asserts
+`LinkStatus::Pending` inside the quiet window;
+`ingress_control_false_bypasses_unknown_announce_holding` reuses the
+`admissions` helper; `learned_announces_are_not_held_after_route_is_known`
+and `path_response_announces_are_not_held_by_rate_limits` run
+`admit_announce_before_queue` before `handle_announce`, so they reach the
+limiter; and `connector_with` folds into `connector`, its `Some` branch
+having had no caller. `a6b0b7f6` does the same on the daemon side and in
+the interop helpers: the attach probe's quiet-window oracle in
+`crates/apps/reticulumd/src/bin/reticulumd/bootstrap_interface_startup_parts/shared_instance_attach_probe_tests.rs`
+tells EOF and a read error apart; the bridge closed-before-activation test in
+`crates/apps/reticulumd/src/bin/reticulumd/bridge_remote_control_link_tests.rs`
+counts the refresh's two path requests (`request_path`, then `await_path`)
+and checks they leave before the second link request;
+`crates/apps/reticulumd/tests/local_client_announce_admission_probe.rs`
+scans the daemon log once, after a `stop_daemon` that asserts the SIGINT
+and the exit status, anchored on an `[announce-debug] accepted dst=`
+record; `release_guard_needs_min_samples` in `announce_limits.rs` is
+renamed `release_guard_is_inert_once_two_samples_exist` for what it
+checks; `live_wait_for_python_announce` in
+`crates/apps/reticulumd/tests/python_channel_interop_parts/python_shared_instance_live.rs`
+takes a `within` and replaces `two_clients_learn_announce`; and the
+`RNS/Transport.py:2398-2430` cites are corrected to `:2400-2429`.
+`af24c666` aligns the prose with the code: "first interface" becomes "the
+same ordinal in each transport's interface order" at its five sites and in
+the `crate_readme_sections.rs` needle; the README cites
+`RNS/Reticulum.py:420-441`; the README and CHANGELOG activation-wait prose
+say the event wakes the wait, name `unknown` and `UnexpectedEof` and give
+the 774 s bound as exact when the path table holds no first-hop metrics,
+with two new needles and the pin
+`crate_readme_shared_instance_section_names_the_two_clients_proof`; a
+CHANGELOG line ending in an orphan "by" is reflowed; the N3 paragraph
+above says the bridge test reads the refresh's path requests and the N4
+paragraph is reworded in plain prose; `docs/status/current-roadmap.md`
+says the request is sent once and names `LinkCloseReason::Timeout`; and
+the defaults comment of
+`crates/apps/reticulumd/examples/interfaces-reference.toml` says which
+commented line flips its default.
 
 ## 0.18.1 (upstream 0.14.0)
 

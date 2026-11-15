@@ -286,19 +286,30 @@ Removed) bullet of its own, marked as such.
   `incoming_freq_samples` 6 and `max_held_announces` 256 are unchanged, the
   per-interface `ic_*` overrides keep applying over the defaults, and the
   daemon's commented `ic_*` examples in `examples/interfaces-reference.toml`
-  read the same values. Two divergences remain and are registered under
+  read the same values (its `ic_pr_*` and `ec_pr_freq` examples now read the
+  path-request defaults, 3.0 / 8.0 / 5.0 Hz, that `iface_runtime.rs` and
+  `iface_parts/interface_traffic.rs` already applied). Two divergences remain
+  and are registered under
   Known divergences in the README: the frequency formula (this crate
   averages the gaps over its last 6 samples plus the gap to now; Python
   divides the sample count by the span to the oldest of 48 with a 10 s
   decay, `Interface.py:60-67`, `:346-355`) and the release timing (this
-  crate arms the held release when the burst deactivates and reports hold
-  plus penalty as the delay; Python arms it at activation, `:206`, and
-  re-arms it per release, `:293`). Pinned by
+  crate arms the held release when the burst deactivates and releases a
+  held announce only once the burst has ended, reporting hold plus penalty
+  as the delay; Python arms it at activation, `:206`, and releases on the
+  interval plus a frequency-under-threshold check alone, `:277-282`, with
+  the burst still active; both re-arm it per release, `:293`). Pinned by
+  `tests/announce_admission_usage_probe.rs` (one local client of a flagged
+  `TcpServer` announces three destinations back to back and another local
+  client learns all three with no "holding announce" record from any of
+  the three transports, where an ordinary fresh `TcpClient` interface learns
+  two announces 100 ms apart but holds the third for hold plus penalty,
+  about 31 s, in place of the six minutes the old defaults gave), by
   `tests/shared_instance_one_identity_two_clients_probe.rs` (a third local
   client of a flagged `TcpServer` learns two destinations announced 100 ms
-  apart by two clients under one identity, and a link to the second
-  activates there; its first two tests are the out-of-crate twins of the
-  `two_transport_shared_instance_tunnel_identity.rs` default and opt-in
+  apart by two clients under one identity within 5 s, and a link to the
+  second activates there; its first two tests are the out-of-crate twins of
+  the `two_transport_shared_instance_tunnel_identity.rs` default and opt-in
   cases), by `transport/tests_parts/shared_child_announce_admission.rs` (a
   child of a flagged channel, and the channel itself, admit three
   back-to-back announces under a limiter that holds on any measurable
@@ -307,11 +318,14 @@ Removed) bullet of its own, marked as such.
   three-sample floor, the shared-instance exemption against the same
   six-announce sequence held from the third on an ordinary interface, the
   sustained clock and the release guard; the held-announce release tests
-  feed a third sample before each expected hold, with the existing
-  three-sample fixtures in
+  feed a third sample before each expected hold, and the two
+  `ingress_control = false` pins there and in
+  `transport/tests_parts/module_prelude.rs` feed a third announce the
+  limiter would otherwise hold; the existing three-sample fixtures in
   `transport/tests_parts/held_udp_announce_preserves_peer_sou.rs`,
-  `transport/tests_parts/rns_1_5_ingress_admission.rs` and
-  `transport/tests_parts/two_transport_shared_instance_flush.rs` unchanged).
+  `transport/tests_parts/two_transport_shared_instance_flush.rs` and
+  `transport/tests_parts/rns_1_5_ingress_admission.rs` keep their sample
+  counts, the last only passing the limiter's new argument).
 
 ## 0.18.1 - 2026-11-03
 

@@ -1032,12 +1032,15 @@ parity ledger; the `docs/status/*` matrices are not updated per fork task.
 - Announce ingress control measures an interface's announce frequency as
   the inverse of the mean gap over its last 6 samples plus the gap to now
   (`transport/announce_limits.rs`), and arms the held-announce release when
-  a burst deactivates, reporting hold plus penalty as the hold delay. Python
-  divides the sample count by the span back to the oldest of 48 samples,
-  dropping the oldest past a 10 s decay
-  (`RNS/Interfaces/Interface.py:60-67`, `:346-355`), arms the release at
-  activation (`:206`) and re-arms it per release (`:293`). The thresholds,
-  hold, penalty and release interval (`:76-84`), the more-than-two-sample
+  a burst deactivates, releasing a held announce only once the burst has
+  ended and reporting hold plus penalty as the hold delay. Python divides
+  the sample count by the span back to the oldest of 48 samples, dropping
+  the oldest past a 10 s decay (`RNS/Interfaces/Interface.py:60-67`,
+  `:346-355`), arms the release at activation (`:206`) and releases on the
+  interval plus a frequency-under-threshold check alone (`:277-282`), with
+  the burst still active; both sides re-arm the release per release
+  (`:293`). The thresholds, hold, penalty and release interval (`:76-84`),
+  the more-than-two-sample
   floor on the measurement (`:84`, `:346-348`), the sustained clock and the
   two-sample release guard (`:188-211`) follow Python, and a shared-instance
   interface, the client's and the child a shared instance holds per

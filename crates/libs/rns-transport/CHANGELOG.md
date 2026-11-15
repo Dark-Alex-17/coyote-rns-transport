@@ -109,6 +109,45 @@ Removed) bullet of its own, marked as such.
   `bootstrap_interface_startup_parts::shared_instance_attach_probe_tests`
   gains a pin that the local-client attach writes nothing on the accepted
   stream until a tunnel is asked for by hand.
+- `delivery::await_link_activation` (`delivery.rs`) now returns
+  `io::ErrorKind::ConnectionAborted` with "link closed before activation:
+  <reason>" as soon as the link reads `LinkStatus::Closed` or its
+  `LinkEvent::Closed` event arrives on `Transport::out_link_events`,
+  naming the `LinkCloseReason` (`Timeout`, `InitiatorClosed`,
+  `DestinationClosed`; `unknown` when the link carries none), instead of
+  waiting out the caller's own timeout. That timeout still answers
+  `TimedOut` with the unchanged text, and a closed event channel still
+  answers `UnexpectedEof`. Python's watchdog closes a pending link at its
+  establishment timeout (`RNS/Link.py:722-729`), and with broadcast on a
+  link to an unknown destination carries the transport-sized establishment
+  timeout of about 774 s (`6 s + 6 s x PATHFINDER_M`), now the only bound
+  on it since the request goes out once; a caller waiting with a long
+  timeout learns of that close at the close. `reticulumd`'s
+  `open_refreshed_remote_link` (the daemon's bridge remote-control link
+  module), which refreshed the propagation node path and retried only on
+  `TimedOut`, now retries on that `ConnectionAborted` too, so a link the
+  establishment timeout closes before the daemon's own wait ends still
+  gets its one refresh and retry; that module's unit tests pin it (the
+  first pending link is closed under the wait, exactly one more link
+  request follows the refresh, and the final error names the close). Pinned
+  by
+  `tests/link_activation_closed_probe.rs` (a 2 s establishment timeout
+  ends a 60 s wait with `ConnectionAborted` naming `Timeout` within 4 s;
+  `Link::close()` on a pending link ends it naming `InitiatorClosed`
+  within 1.5 s), with `tests/link_activation_deadline_api.rs` and
+  `tests/link_activation_max_timeout_probe.rs` still pinning the
+  `TimedOut` path.
+- Test-only: `tests/pending_link_single_request_usage_probe.rs` pins the
+  consumer side of the one-request rule: a pending link on a transport
+  with no interface at all is closed once with `Timeout` on the
+  maintenance tick after a 2 s establishment timeout, `Link::close()` on a
+  pending link publishes `InitiatorClosed` once and puts nothing more on
+  the wire, and no "repeat link request" record is logged across the 6 s
+  mark at which the removed repeat used to fire;
+  `tests/pending_link_single_request_consumer_repeat_probe.rs` pins that a
+  consumer's direct second `Link::request()` goes out without restarting
+  the establishment clock, and that the timeout close is followed by one
+  path request and no further link request.
 
 ### Fixed
 

@@ -30,17 +30,20 @@ per fork task.
 
 Every file changed since the `0.18.1` release and the patch each change
 belongs to. Patch ids: N1 is tunnel opt-in, N2 is link request once, N3 is
-activation close exit. The `tunnel opt-in` patch is fork commits
+activation close exit, N4 is local client announce admission. The
+`tunnel opt-in` patch is fork commits
 `7ae6a364`, `785bce93`, `ad420766`, `1446a8e5` and `d2e106bb`. The
 `link request once` patch is fork commits `728e10dd`, `2c2f14d9`,
 `d65fd1e3`, `0be75f6f` and `9ae9fdab`. The `activation close exit` patch
 is fork commits `15251a8c`, `1232c410`, `745d4bd4`, `519d5973`,
 `86ce4bec`, `9fc9d686`, `da5a3ef1` and `d31bca6d`. The `Python-in-the-loop
 two clients interop` patch carries no other id and is fork commits
-`ddcb4430`, `a974386c`, `d40e0ae3` and `7f076dc3`.
+`ddcb4430`, `a974386c`, `d40e0ae3` and `7f076dc3`. The `local client
+announce admission` patch is fork commits `be18658a`, `83e03e75` and `92e82a60`.
 
 | File | Patch |
 | --- | --- |
+| `crates/apps/reticulumd/examples/interfaces-reference.toml` | local client announce admission |
 | `crates/apps/reticulumd/src/bin/reticulumd/bootstrap_interface_startup_parts/shared_instance_attach_probe_tests.rs` | tunnel opt-in, link request once |
 | `crates/apps/reticulumd/src/bin/reticulumd/bridge_remote_control_link.rs` | activation close exit |
 | `crates/apps/reticulumd/src/bin/reticulumd/bridge_remote_control_link_tests.rs` | activation close exit |
@@ -48,20 +51,28 @@ two clients interop` patch carries no other id and is fork commits
 | `crates/apps/reticulumd/tests/fork_release_docs_contract_parts/crate_readme_sections.rs` | tunnel opt-in, activation close exit |
 | `crates/apps/reticulumd/tests/python_channel_interop.rs` | Python-in-the-loop two clients interop |
 | `crates/apps/reticulumd/tests/python_channel_interop_parts/python_shared_instance_two_clients.rs` | Python-in-the-loop two clients interop |
-| `crates/libs/rns-transport/CHANGELOG.md` | tunnel opt-in, link request once, Python-in-the-loop two clients interop, activation close exit |
-| `crates/libs/rns-transport/README.md` | tunnel opt-in, Python-in-the-loop two clients interop, activation close exit |
+| `crates/libs/rns-transport/CHANGELOG.md` | tunnel opt-in, link request once, Python-in-the-loop two clients interop, activation close exit, local client announce admission |
+| `crates/libs/rns-transport/README.md` | tunnel opt-in, Python-in-the-loop two clients interop, activation close exit, local client announce admission |
 | `crates/libs/rns-transport/src/delivery.rs` | activation close exit |
 | `crates/libs/rns-transport/src/destination/link_parts/link_sections/establishment.rs` | link request once |
 | `crates/libs/rns-transport/src/destination/link_parts/link_status_predicates_make_lifecycl_sections/core_tests.rs` | link request once |
+| `crates/libs/rns-transport/src/transport/announce.rs` | local client announce admission |
+| `crates/libs/rns-transport/src/transport/announce_limits.rs` | local client announce admission |
 | `crates/libs/rns-transport/src/transport/jobs_parts/link_maintenance.rs` | link request once |
 | `crates/libs/rns-transport/src/transport/links_parts/transport_sections/shared_instance.rs` | tunnel opt-in |
 | `crates/libs/rns-transport/src/transport/links_parts/transport_sections/shared_instance_reconnect.rs` | tunnel opt-in |
 | `crates/libs/rns-transport/src/transport/mod.rs` | link request once |
 | `crates/libs/rns-transport/src/transport/shared_instance.rs` | tunnel opt-in |
-| `crates/libs/rns-transport/src/transport/tests.rs` | tunnel opt-in |
+| `crates/libs/rns-transport/src/transport/tests.rs` | tunnel opt-in, local client announce admission |
 | `crates/libs/rns-transport/src/transport/tests_parts/pending_out_link_establishment_timeout.rs` | link request once |
 | `crates/libs/rns-transport/src/transport/tests_parts/pending_out_link_rediscovery.rs` | link request once |
+| `crates/libs/rns-transport/src/transport/tests_parts/rns_1_5_ingress_admission.rs` | local client announce admission |
+| `crates/libs/rns-transport/src/transport/tests_parts/shared_child_announce_admission.rs` | local client announce admission |
+| `crates/libs/rns-transport/src/transport/tests_parts/two_transport_destination_desc_probe2.rs` | local client announce admission |
+| `crates/libs/rns-transport/src/transport/tests_parts/two_transport_loopback.rs` | local client announce admission |
+| `crates/libs/rns-transport/src/transport/tests_parts/two_transport_loopback_requests_receipt_stop.rs` | local client announce admission |
 | `crates/libs/rns-transport/src/transport/tests_parts/two_transport_loopback_requests_errors.rs` | link request once |
+| `crates/libs/rns-transport/src/transport/tests_parts/two_transport_loopback_requests_routing.rs` | local client announce admission |
 | `crates/libs/rns-transport/src/transport/tests_parts/two_transport_shared_instance.rs` | tunnel opt-in |
 | `crates/libs/rns-transport/src/transport/tests_parts/two_transport_shared_instance_disconnect_reasons.rs` | tunnel opt-in |
 | `crates/libs/rns-transport/src/transport/tests_parts/two_transport_shared_instance_flush.rs` | tunnel opt-in |
@@ -87,12 +98,14 @@ two clients interop` patch carries no other id and is fork commits
 | `crates/libs/rns-transport/tests/pending_link_single_request_default_timeout_probe.rs` | link request once |
 | `crates/libs/rns-transport/tests/pending_link_single_request_probe.rs` | link request once |
 | `crates/libs/rns-transport/tests/pending_link_single_request_usage_probe.rs` | activation close exit |
+| `crates/libs/rns-transport/tests/request_receipt_readme.rs` | local client announce admission |
 | `crates/libs/rns-transport/tests/shared_instance_disconnect_reasons_api.rs` | tunnel opt-in |
+| `crates/libs/rns-transport/tests/shared_instance_one_identity_two_clients_probe.rs` | local client announce admission |
 | `crates/libs/rns-transport/tests/shared_instance_tunnel_default_relay_probe.rs` | link request once |
 | `crates/libs/rns-transport/tests/shared_instance_tunnel_synthesis_api.rs` | tunnel opt-in |
 | `crates/libs/rns-transport/tests/shared_instance_tunnel_synthesis_probe.rs` | tunnel opt-in |
 | `crates/libs/rns-transport/tests/support/close_orderly.rs` | tunnel opt-in |
-| `docs/fork/PATCHSET.md` | tunnel opt-in, link request once, Python-in-the-loop two clients interop, activation close exit |
+| `docs/fork/PATCHSET.md` | tunnel opt-in, link request once, Python-in-the-loop two clients interop, activation close exit, local client announce admission |
 
 Fork commits `7ae6a364`, `785bce93`, `ad420766`, `1446a8e5` and `d2e106bb`:
 N1, tunnel opt-in.
@@ -363,6 +376,67 @@ rnsd's accept paths (`RNS/Interfaces/LocalInterface.py:416-444`, `:447-460`)
 for the attach order and adds the second transport's empty in-link check to
 the negative control.
 Upstream site: test files only.
+
+Fork commits `be18658a`, `83e03e75` and `92e82a60`:
+N4, local client announce admission.
+Upstream site: `admit_announce_before_queue` in
+`crates/libs/rns-transport/src/transport/announce.rs`, which ran the
+announce ingress limiter of
+`crates/libs/rns-transport/src/transport/announce_limits.rs` on every
+interface but one with `ingress_control = false`, the interface a
+transport attaches to a shared instance over and the child interfaces a
+shared instance holds per accepted client included; and the limiter
+itself, which measured a frequency from two samples and carried the
+constants of an older Reticulum (3.5 / 12.0 Hz, hold 60 s, penalty 300 s,
+release 30 s). Two local clients announcing destinations less than about
+0.6 s apart had the second announce held for six minutes on every other
+local client, so a third client learned one of the two. Python's local
+client interface never ingress-limits, as a client program's interface
+and as the child rnsd spawns per accepted client alike
+(`RNS/Interfaces/LocalInterface.py:130`; `RNS/Transport.py:1823` is the
+only inbound gate). `be18658a` reads `is_shared_instance` for the
+receiving interface under the interface manager guard
+`admit_announce_before_queue` already takes for the shared config and
+hands both to the limiter as one `IngressInterface` value; a flagged
+interface is admitted before any rate limit is looked up, its per-interface
+limit dropped, the way `ingress_control = false` already was, and a child
+registered on a flagged interface carries the flag
+(`crates/libs/rns-transport/src/iface_parts/interfacemanager.rs`, unchanged).
+The same commit ports three details of RNS 1.5.2's `Interface.py`: the
+measured frequency reads 0 until more than `IC_DEQUE_MIN_SAMPLE` = 2
+samples exist (`:84`, `:346-348`); a burst ends only once the frequency
+has stayed under the threshold for a full hold after the last
+over-threshold sample as well as after activation (`ic_burst_sustained`,
+`:197`) and only with at least two samples in the deque (`:195`); and
+`AnnounceRateLimit::default()` reads the 1.5.2 constants (`:76-84`):
+`burst_freq_new` 3.0 Hz, `burst_freq` 10.0 Hz, `burst_hold` 15 s,
+`burst_penalty` 15 s, `held_release_interval` 5 s, with `new_time` 2 h,
+`incoming_freq_samples` 6 and `max_held_announces` 256 unchanged. The
+1/mean-gap formula over the last 6 samples and the release armed at
+deactivation stay, as the README's new Known divergences row records. The
+commit adds `tests/shared_instance_one_identity_two_clients_probe.rs`
+(three local clients of a flagged `TcpServer`; the third learns two
+destinations announced 100 ms apart by two clients under one identity and
+a link to the second activates there, red before the change with
+"holding announce for /<B>/ before queue for 360s"; its first two tests
+are the out-of-crate twins of the
+`two_transport_shared_instance_tunnel_identity.rs` default and opt-in
+cases), `transport/tests_parts/shared_child_announce_admission.rs` (a
+child of a flagged channel, and the channel itself, admit three
+back-to-back announces under a limiter that holds on any measurable
+frequency; an unflagged channel holds the third), and in
+`announce_limits.rs` pins on the default values, the three-sample floor,
+the exemption against the same six-announce sequence held from the third
+on an ordinary interface, the sustained clock and the release guard, with
+the held-release tests fed a third sample before each expected hold;
+`rns_1_5_ingress_admission.rs` passes the new value. `83e03e75` drops the
+2 s announce spacings and the `ingress_control = false` that four test
+flows carried to dodge the two-sample measurement, each of which puts
+exactly two announces on the connector's interface, and rewords the
+`connector_with` rustdoc to the three-announce case. `92e82a60` writes the
+CHANGELOG Fixed bullet and the test-only Changed bullet, the README
+divergence row, and the 1.5.2 values into the daemon's commented `ic_*`
+examples in `crates/apps/reticulumd/examples/interfaces-reference.toml`.
 
 ## 0.18.1 (upstream 0.14.0)
 

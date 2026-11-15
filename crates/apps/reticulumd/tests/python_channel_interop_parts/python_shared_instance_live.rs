@@ -166,8 +166,9 @@ fn write_live_shared_instance_config(dir: &std::path::Path, config: &str) {
 async fn live_wait_for_python_announce(
     announces: &mut tokio::sync::broadcast::Receiver<AnnounceEvent>,
     python_hash: AddressHash,
+    within: Duration,
 ) -> DestinationDesc {
-    tokio::time::timeout(Duration::from_secs(60), async {
+    tokio::time::timeout(within, async {
         loop {
             match announces.recv().await {
                 Ok(event) => {
@@ -184,7 +185,7 @@ async fn live_wait_for_python_announce(
         }
     })
     .await
-    .expect("timed out waiting for the Python client's announce")
+    .expect("timed out waiting for the announce relayed by rnsd")
 }
 
 #[deny(clippy::await_holding_invalid_type)]
@@ -283,7 +284,7 @@ async fn run_python_rnsd_shared_instance_requests_both_ways(
 
     // The first announce went out before the client connected, so rnsd had
     // nobody to rebroadcast it to; this one it re-sends to the client as a
-    // plain announce (RNS/Transport.py:2398-2430), which is the only way
+    // plain announce (RNS/Transport.py:2400-2429), which is the only way
     // the client's handler can fire: its path request is answered with a
     // path response the handler does not accept (RNS/Transport.py:2501-2504).
     // rnsd files a re-announce at the same hop count only when its emitted
@@ -317,7 +318,8 @@ async fn run_python_rnsd_shared_instance_requests_both_ways(
         "python request outcome: {outcome}"
     );
 
-    let python_destination = live_wait_for_python_announce(&mut announces, python_hash).await;
+    let python_destination =
+        live_wait_for_python_announce(&mut announces, python_hash, Duration::from_secs(60)).await;
     let mut link_events = transport.out_link_events();
     let link = transport.link(python_destination).await.expect("link request sent");
     let link_id = wait_for_out_link_active(&mut link_events, &link, Duration::from_secs(20)).await;
@@ -352,7 +354,7 @@ async fn run_python_rnsd_shared_instance_requests_both_ways(
 /// `:2461`, `RNS/Interfaces/LocalInterface.py:351-353`), a Rust announce
 /// sent while the Python client is connected reaches that client's announce
 /// handler through rnsd's live rebroadcast to its other local clients
-/// (`RNS/Transport.py:2398-2430`; the handler takes no path responses, so
+/// (`RNS/Transport.py:2400-2429`; the handler takes no path responses, so
 /// rnsd's replay of the cached announce cannot stand in for it), and a
 /// `Link.request` is answered in both directions through rnsd.
 #[tokio::test]

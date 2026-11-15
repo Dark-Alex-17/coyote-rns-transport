@@ -1086,8 +1086,11 @@ mod tests {
         assert_eq!(entry.held_release, at(50) + rate_limit.burst_penalty);
     }
 
+    // The single-sample burst_active state is built by hand: production cannot reach it, as
+    // a burst only activates above the threshold, which takes more than two samples. So this
+    // pins the ported shape of the guard (`IC_DEQUE_MIN_SAMPLE`), not a reachable deactivation.
     #[test]
-    fn release_guard_needs_min_samples() {
+    fn release_guard_is_inert_once_two_samples_exist() {
         let rate_limit = test_rate_limit();
         let now = Instant::now();
         let mut entry = AnnounceLimitEntry::new(now);

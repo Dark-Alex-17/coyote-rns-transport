@@ -54,6 +54,12 @@ struct Daemon {
     log: Arc<Mutex<String>>,
 }
 
+impl Daemon {
+    fn log_snapshot(&self) -> String {
+        self.log.lock().expect("daemon log store").clone()
+    }
+}
+
 impl Drop for Daemon {
     fn drop(&mut self) {
         if self.child.try_wait().ok().flatten().is_none() {
@@ -179,15 +185,8 @@ async fn wait_for_daemon(daemon: &mut Daemon, local_port: u16, rpc_port: u16) {
     }
 }
 
-fn daemon_holds(daemon: &Daemon) -> Vec<String> {
-    daemon
-        .log
-        .lock()
-        .expect("daemon log store")
-        .lines()
-        .filter(|line| line.contains("holding announce"))
-        .map(str::to_owned)
-        .collect()
+fn hold_records(log: &str) -> Vec<String> {
+    log.lines().filter(|line| line.contains("holding announce")).map(str::to_owned).collect()
 }
 
 /// A local client of the daemon attached with `SharedInstanceOptions::default()`, its announce
@@ -279,14 +278,21 @@ async fn stop_all(transports: Vec<Transport>) {
 }
 
 fn stop_daemon(mut daemon: Daemon) -> String {
-    let _ = Command::new("kill").args(["-INT", &daemon.child.id().to_string()]).status();
+    let status = Command::new("kill")
+        .args(["-INT", &daemon.child.id().to_string()])
+        .status()
+        .expect("send SIGINT to the daemon");
+    assert!(status.success(), "failed to signal the daemon with SIGINT");
     let deadline = Instant::now() + WAIT;
-    while daemon.child.try_wait().ok().flatten().is_none() && Instant::now() < deadline {
+    loop {
+        if let Some(status) = daemon.child.try_wait().expect("wait for the daemon's exit") {
+            assert!(status.success(), "the daemon failed during shutdown: {status}");
+            break;
+        }
+        assert!(Instant::now() < deadline, "the daemon did not exit within {WAIT:?} of SIGINT");
         thread::sleep(Duration::from_millis(50));
     }
-    let log = daemon.log.lock().expect("daemon log store").clone();
-    drop(daemon);
-    log
+    daemon.log_snapshot()
 }
 
 #[tokio::test]
@@ -318,7 +324,7 @@ async fn reticulumd_local_clients_announcing_back_to_back_are_learned_in_full() 
         missing.is_empty(),
         "the third local client of reticulumd did not learn {missing:?} within {PROMPT:?} after \
          two local clients announced 100 ms apart; daemon hold records: {:?}",
-        daemon_holds(&daemon)
+        hold_records(&daemon.log_snapshot())
     );
     eprintln!("both destinations learned {:?} after the second announce", started.elapsed());
 
@@ -335,7 +341,7 @@ async fn reticulumd_local_clients_announcing_back_to_back_are_learned_in_full() 
         "the learner did not learn {} of three back-to-back destinations within {PROMPT:?} \
          ({missing:?}); daemon hold records: {:?}",
         missing.len(),
-        daemon_holds(&daemon)
+        hold_records(&daemon.log_snapshot())
     );
     eprintln!("all three burst destinations learned {:?} after the burst", started.elapsed());
     for (idx, hash) in hashes.iter().enumerate() {
@@ -345,17 +351,18 @@ async fn reticulumd_local_clients_announcing_back_to_back_are_learned_in_full() 
         );
     }
 
-    let holds = daemon_holds(&daemon);
-    assert!(holds.is_empty(), "reticulumd's per-client child held an announce: {holds:?}");
-
+    let accepted_record = format!("[announce-debug] accepted dst={}", a_destinations[0].1);
     drop(a_destinations);
     drop(b_destinations);
     drop(burst);
     stop_all(vec![a, b, learner]).await;
     let log = stop_daemon(daemon);
+    // A debug record from the announce path proves the debug level reached the log, so the
+    // absence of a hold record below means something.
     assert!(
-        !log.contains("holding announce"),
-        "reticulumd held an announce during the run:\n{}",
-        log.lines().filter(|line| line.contains("holding announce")).collect::<Vec<_>>().join("\n")
+        log.contains(&accepted_record),
+        "the daemon log carries no {accepted_record:?} record\n--- daemon log ---\n{log}"
     );
+    let holds = hold_records(&log);
+    assert!(holds.is_empty(), "reticulumd held an announce during the run: {holds:?}");
 }

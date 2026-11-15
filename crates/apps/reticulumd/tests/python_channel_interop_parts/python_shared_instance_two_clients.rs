@@ -86,31 +86,6 @@ async fn two_clients_interface_hash(
 }
 
 #[deny(clippy::await_holding_invalid_type)]
-async fn two_clients_learn_announce(
-    announces: &mut tokio::sync::broadcast::Receiver<AnnounceEvent>,
-    hash: &AddressHash,
-) -> DestinationDesc {
-    tokio::time::timeout(TWO_CLIENTS_ANNOUNCE, async {
-        loop {
-            match announces.recv().await {
-                Ok(event) => {
-                    let desc = event.destination.lock().await.desc;
-                    if desc.address_hash == *hash {
-                        return desc;
-                    }
-                }
-                Err(tokio::sync::broadcast::error::RecvError::Lagged(_)) => continue,
-                Err(tokio::sync::broadcast::error::RecvError::Closed) => {
-                    panic!("announce channel closed")
-                }
-            }
-        }
-    })
-    .await
-    .expect("timed out waiting for the announce relayed by rnsd")
-}
-
-#[deny(clippy::await_holding_invalid_type)]
 async fn two_clients_await_in_link_activated(
     events: &mut tokio::sync::broadcast::Receiver<LinkEventData>,
     link_id: AddressHash,
@@ -225,7 +200,9 @@ async fn run_python_rnsd_shared_instance_two_clients(tunnel_synthesis: bool) {
     } else {
         None
     };
-    let a_learned = two_clients_learn_announce(&mut c_announces, &a.desc.address_hash).await;
+    let a_learned =
+        live_wait_for_python_announce(&mut c_announces, a.desc.address_hash, TWO_CLIENTS_ANNOUNCE)
+            .await;
 
     let mut b = two_clients_attach_registrant(
         "python-rnsd-two-clients-b",
@@ -275,7 +252,7 @@ async fn run_python_rnsd_shared_instance_two_clients(tunnel_synthesis: bool) {
             ),
             Ok(Err(err)) => panic!("a's in-link event channel failed: {err:?}"),
         }
-        // The request reached b, which registered no such destination and drops it.
+        // b registered no such destination, so nothing raised an in-link event on it.
         two_clients_assert_no_in_link_event(&mut b.in_links, "b");
     } else {
         let link_id = wait_for_out_link_active(&mut c_out, &link, TWO_CLIENTS_LINK).await;

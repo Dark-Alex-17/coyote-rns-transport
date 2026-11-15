@@ -283,6 +283,12 @@ async fn open_refreshed_remote_link_closed_before_activation_refreshes_once_and_
         packet.header.packet_type == rns_transport::packet::PacketType::LinkRequest
             && packet.destination == remote.address_hash
     };
+    let is_path_request_for_remote = |packet: &rns_transport::packet::Packet| {
+        packet.header.packet_type == rns_transport::packet::PacketType::Data
+            && packet.data.len() >= rns_transport::hash::ADDRESS_HASH_SIZE
+            && packet.data.as_slice()[..rns_transport::hash::ADDRESS_HASH_SIZE]
+                == *remote.address_hash.as_slice()
+    };
     let closer = async {
         let first = tokio::time::timeout(Duration::from_secs(2), iface.tx_channel.recv())
             .await
@@ -297,6 +303,10 @@ async fn open_refreshed_remote_link_closed_before_activation_refreshes_once_and_
 
         let deadline = tokio::time::Instant::now() + 2 * timeout + Duration::from_secs(3);
         let mut further_link_requests = 0usize;
+        let mut path_requests = 0usize;
+        let mut seen = 0usize;
+        let mut last_path_request_index = None;
+        let mut second_link_request_index = None;
         loop {
             let remaining = deadline.saturating_duration_since(tokio::time::Instant::now());
             if remaining.is_zero() {
@@ -305,12 +315,18 @@ async fn open_refreshed_remote_link_closed_before_activation_refreshes_once_and_
             match tokio::time::timeout(remaining, iface.tx_channel.recv()).await {
                 Ok(Some(message)) if is_link_request_to_remote(&message.packet) => {
                     further_link_requests += 1;
+                    second_link_request_index.get_or_insert(seen);
+                }
+                Ok(Some(message)) if is_path_request_for_remote(&message.packet) => {
+                    path_requests += 1;
+                    last_path_request_index = Some(seen);
                 }
                 Ok(Some(_)) => {}
                 Ok(None) | Err(_) => break,
             }
+            seen += 1;
         }
-        further_link_requests
+        (further_link_requests, path_requests, last_path_request_index, second_link_request_index)
     };
 
     let started = std::time::Instant::now();
@@ -320,7 +336,8 @@ async fn open_refreshed_remote_link_closed_before_activation_refreshes_once_and_
                 .await;
         (result, started.elapsed())
     };
-    let ((result, open_elapsed), further_link_requests) = tokio::join!(open, closer);
+    let ((result, open_elapsed), (further_link_requests, path_requests, path_index, link_index)) =
+        tokio::join!(open, closer);
 
     let Err(err) = result else {
         panic!("nothing answers the link request, yet a link opened");
@@ -340,4 +357,15 @@ async fn open_refreshed_remote_link_closed_before_activation_refreshes_once_and_
     );
     assert!(open_elapsed < 2 * timeout + Duration::from_secs(5), "the open took {open_elapsed:?}");
     assert_eq!(further_link_requests, 1, "exactly one more link request follows the refresh");
+    assert_eq!(
+        path_requests, 2,
+        "the refresh requests the remote's path once itself and once more through \
+         `await_path`, which finds no path"
+    );
+    let path_index = path_index.expect("the path requests were counted");
+    let link_index = link_index.expect("the second link request was counted");
+    assert!(
+        path_index < link_index,
+        "the path requests leave before the second link request: {path_index} vs {link_index}"
+    );
 }

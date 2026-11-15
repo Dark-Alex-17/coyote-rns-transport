@@ -153,7 +153,12 @@ interfaces = [
         tokio::io::AsyncReadExt::read(&mut stream, &mut buf),
     )
     .await;
-    assert!(quiet.is_err(), "the daemon's attach wrote on the stream unasked: {quiet:?}");
+    match quiet {
+        Err(_) => {}
+        Ok(Ok(0)) => panic!("the daemon's attach closed the stream"),
+        Ok(Ok(n)) => panic!("the daemon's attach wrote {n} bytes on the stream unasked"),
+        Ok(Err(err)) => panic!("the read failed: {err}"),
+    }
 
     let iface = transport.shared_instance().expect("shared instance slot filled by attach");
     assert!(transport.synthesize_tunnel_on_interface(iface).await, "the attached iface is live");

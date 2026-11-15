@@ -145,7 +145,12 @@ Removed) bullet of its own, marked as such.
   wait the caller cancelled under `tokio::time::timeout` leaves a second
   wait able to see the close; a link to a destination without a path
   entry carries the transport-sized establishment timeout of about 774 s
-  until the caller shortens it) and
+  until the caller shortens it),
+  `tests/link_activation_closed_teardown_restart_probe.rs` (`Link::teardown()`
+  on a pending link ends the wait naming `InitiatorClosed`; after
+  `Link::restart()` a fresh wait runs to its own deadline with `TimedOut`
+  rather than failing fast on the earlier close, and a second close ends
+  the next wait again) and
   `fork_release_docs_contract_parts/crate_readme_sections.rs` (the README
   section's claims), with `tests/link_activation_deadline_api.rs` and
   `tests/link_activation_max_timeout_probe.rs` still pinning the

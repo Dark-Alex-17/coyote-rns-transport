@@ -35,9 +35,9 @@ activation close exit. The `tunnel opt-in` patch is fork commits
 `link request once` patch is fork commits `728e10dd`, `2c2f14d9`,
 `d65fd1e3`, `0be75f6f` and `9ae9fdab`. The `activation close exit` patch
 is fork commits `15251a8c`, `1232c410`, `745d4bd4`, `519d5973`,
-`86ce4bec`, `9fc9d686` and `da5a3ef1`. The `Python-in-the-loop two clients
-interop` patch carries no other id and is fork commits `ddcb4430`,
-`a974386c`, `d40e0ae3` and `7f076dc3`.
+`86ce4bec`, `9fc9d686`, `da5a3ef1` and `d31bca6d`. The `Python-in-the-loop
+two clients interop` patch carries no other id and is fork commits
+`ddcb4430`, `a974386c`, `d40e0ae3` and `7f076dc3`.
 
 | File | Patch |
 | --- | --- |
@@ -78,8 +78,9 @@ interop` patch carries no other id and is fork commits `ddcb4430`,
 | `crates/libs/rns-transport/src/transport/tests_parts/two_transport_shared_instance_tunnel_default.rs` | tunnel opt-in |
 | `crates/libs/rns-transport/src/transport/tests_parts/two_transport_shared_instance_tunnel_identity.rs` | tunnel opt-in, Python-in-the-loop two clients interop |
 | `crates/libs/rns-transport/tests/interface_events_api.rs` | tunnel opt-in |
-| `crates/libs/rns-transport/tests/link_activation_closed_probe.rs` | activation close exit |
 | `crates/libs/rns-transport/tests/link_activation_closed_busy_transport_probe.rs` | activation close exit |
+| `crates/libs/rns-transport/tests/link_activation_closed_probe.rs` | activation close exit |
+| `crates/libs/rns-transport/tests/link_activation_closed_teardown_restart_probe.rs` | activation close exit |
 | `crates/libs/rns-transport/tests/link_activation_closed_usage_probe.rs` | activation close exit |
 | `crates/libs/rns-transport/tests/pending_link_single_request_concurrent_probe.rs` | link request once |
 | `crates/libs/rns-transport/tests/pending_link_single_request_consumer_repeat_probe.rs` | activation close exit |
@@ -243,7 +244,7 @@ cites the watchdog's `HANDSHAKE` branch (`RNS/Link.py:732-739`) beside the
 rationale on the two unit pins.
 
 Fork commits `15251a8c`, `1232c410`, `745d4bd4`, `519d5973`, `86ce4bec`,
-`9fc9d686` and `da5a3ef1`:
+`9fc9d686`, `da5a3ef1` and `d31bca6d`:
 N3, activation close exit.
 Upstream site: `delivery::await_link_activation` in
 `crates/libs/rns-transport/src/delivery.rs`, which returned `Ok` on
@@ -320,6 +321,11 @@ its 1024 events still ends the wait from the status read, not with
 `tokio::time::timeout` leaves a second wait able to see the close; and a
 link to a destination without a path entry carries the transport-sized
 establishment timeout of about 774 s until the caller shortens it.
+`d31bca6d` adds `tests/link_activation_closed_teardown_restart_probe.rs`:
+`Link::teardown()` on a pending link ends the wait naming
+`InitiatorClosed`, and after `Link::restart()` a fresh wait runs to its
+own deadline with `TimedOut` rather than failing fast on the earlier
+close, while a second close ends the next wait again.
 
 Fork commits `ddcb4430`, `a974386c`, `d40e0ae3` and `7f076dc3`: Python-in-the-loop
 two clients interop. A Python rnsd (RNS 1.5.2) is the shared instance on a free

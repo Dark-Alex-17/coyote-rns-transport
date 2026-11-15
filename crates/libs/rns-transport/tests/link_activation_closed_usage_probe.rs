@@ -164,13 +164,13 @@ async fn two_waiters_on_one_link_both_learn_of_the_close() {
     let link = transport.link(unknown_destination()).await.expect("pending link with broadcast on");
     link.lock().await.set_establishment_timeout(ESTABLISHMENT_FAR);
 
+    let started = Instant::now();
     let closer = Arc::clone(&link);
     let closer_task = tokio::spawn(async move {
         tokio::time::sleep(HAND_CLOSE_AT).await;
         closer.lock().await.close();
     });
 
-    let started = Instant::now();
     let second_transport = Arc::clone(&transport);
     let second_link = Arc::clone(&link);
     let second_waiter = tokio::spawn(async move {

@@ -208,7 +208,7 @@ fn crate_readme_link_section_describes_the_activation_wait_close() {
         "`InitiatorClosed`",
         "`DestinationClosed`",
         "`TimedOut`",
-        "`PATHFINDER_M`",
+        "`PATHFINDER_M` (128)",
         "774 s",
         "`Link::set_establishment_timeout`",
     ] {

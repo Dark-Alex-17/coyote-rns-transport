@@ -314,11 +314,13 @@ async fn open_refreshed_remote_link_closed_before_activation_refreshes_once_and_
     };
 
     let started = std::time::Instant::now();
-    let (result, further_link_requests) = tokio::join!(
-        open_refreshed_remote_link(&transport, &remote.address_hash, destination, timeout),
-        closer
-    );
-    let elapsed = started.elapsed();
+    let open = async {
+        let result =
+            open_refreshed_remote_link(&transport, &remote.address_hash, destination, timeout)
+                .await;
+        (result, started.elapsed())
+    };
+    let ((result, open_elapsed), further_link_requests) = tokio::join!(open, closer);
 
     let Err(err) = result else {
         panic!("nothing answers the link request, yet a link opened");
@@ -332,7 +334,10 @@ async fn open_refreshed_remote_link_closed_before_activation_refreshes_once_and_
         ),
         "unexpected message: {message}"
     );
-    assert!(elapsed >= timeout, "returned before the retry's wait could time out: {elapsed:?}");
-    assert!(elapsed < 2 * timeout + Duration::from_secs(5), "took {elapsed:?}");
+    assert!(
+        open_elapsed >= timeout,
+        "the open returned before the retry's wait could time out: {open_elapsed:?}"
+    );
+    assert!(open_elapsed < 2 * timeout + Duration::from_secs(5), "the open took {open_elapsed:?}");
     assert_eq!(further_link_requests, 1, "exactly one more link request follows the refresh");
 }

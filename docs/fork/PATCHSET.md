@@ -43,7 +43,8 @@ announce admission` patch is fork commits `be18658a`, `83e03e75`,
 `92e82a60`, `244722bf`, `08f18f07`, `b0f194ce`, `e14ced8a`, `4a22affe`,
 `84ae2a5c`, `29d78171` and `3d887f3e`. The `run hygiene` patch is fork
 commits `863d7ba9`, `6707f86f`, `e4dfc449`, `655c44d1`, `477b9863`,
-`a111e152`, `a6b0b7f6` and `af24c666`.
+`a111e152`, `a6b0b7f6`, `af24c666`, `ac65cba0`, `32aabfe5`, `c28dfd6f` and
+`43d56a61`.
 
 | File | Patch |
 | --- | --- |
@@ -59,6 +60,7 @@ commits `863d7ba9`, `6707f86f`, `e4dfc449`, `655c44d1`, `477b9863`,
 | `crates/apps/reticulumd/tests/python_channel_interop.rs` | Python-in-the-loop two clients interop |
 | `crates/apps/reticulumd/tests/python_channel_interop_parts/python_shared_instance_live.rs` | run hygiene |
 | `crates/apps/reticulumd/tests/python_channel_interop_parts/python_shared_instance_two_clients.rs` | Python-in-the-loop two clients interop, run hygiene |
+| `crates/apps/reticulumd/tests/support/python_shared_instance_client.py` | run hygiene |
 | `crates/libs/rns-transport/CHANGELOG.md` | tunnel opt-in, link request once, Python-in-the-loop two clients interop, activation close exit, local client announce admission, run hygiene |
 | `crates/libs/rns-transport/README.md` | tunnel opt-in, Python-in-the-loop two clients interop, activation close exit, local client announce admission, run hygiene |
 | `crates/libs/rns-transport/src/delivery.rs` | activation close exit, run hygiene |
@@ -110,6 +112,7 @@ commits `863d7ba9`, `6707f86f`, `e4dfc449`, `655c44d1`, `477b9863`,
 | `crates/libs/rns-transport/tests/link_activation_closed_usage_probe.rs` | activation close exit, run hygiene |
 | `crates/libs/rns-transport/tests/link_activation_deadline_api.rs` | run hygiene |
 | `crates/libs/rns-transport/tests/outbound_outcome_api.rs` | run hygiene |
+| `crates/libs/rns-transport/tests/packets_in_scanner_pin.rs` | run hygiene |
 | `crates/libs/rns-transport/tests/pending_link_single_request_concurrent_probe.rs` | link request once, run hygiene |
 | `crates/libs/rns-transport/tests/pending_link_single_request_consumer_repeat_probe.rs` | activation close exit, run hygiene |
 | `crates/libs/rns-transport/tests/pending_link_single_request_default_timeout_probe.rs` | link request once, run hygiene |
@@ -564,7 +567,8 @@ constants refresh and the sustained clock make the inherited formula and
 release arming observable.
 
 Fork commits `863d7ba9`, `6707f86f`, `e4dfc449`, `655c44d1`, `477b9863`,
-`a111e152`, `a6b0b7f6` and `af24c666`:
+`a111e152`, `a6b0b7f6`, `af24c666`, `ac65cba0`, `32aabfe5`, `c28dfd6f` and
+`43d56a61`:
 N5, run hygiene.
 Upstream site: the test files and shared helpers of the four patches above
 and the fork's own documentation; the one production edit is
@@ -579,9 +583,11 @@ five `tests/pending_link_single_request*_probe.rs` files into
 `closed_event_for.rs`, `initiator_on_a_silent_listener.rs`,
 `unknown_destination.rs` and `broadcasting.rs`; the shared HDLC scanner in
 `packets_in.rs` rescans from a frame's closing flag instead of stepping
-past it, so a frame whose opening flag is the previous frame's closing
-flag, which the per-file copies dropped, is counted. `6707f86f` has the
-four `tests/link_activation_closed*_probe.rs` files,
+past it, so it also counts a frame that shares its opening flag with the
+previous frame's closing flag, which production readers would drop; the
+probes pin what the client sent, and `tests/packets_in_scanner_pin.rs`
+below pins the scanner itself. `6707f86f` has the four
+`tests/link_activation_closed*_probe.rs` files,
 `tests/link_activation_deadline_api.rs` and `tests/outbound_outcome_api.rs`
 take `broadcasting` and `unknown_destination` from support, gives the
 three that check the close text one
@@ -619,15 +625,17 @@ and `close_orderly` from support and the relay probe uses
 `transport/tests_parts/`: `SharedInstanceServer::tunnel_count` replaces
 two helpers that cleared the tunnel table to count it; the tunnel-default
 reconnect records are checked for their iface value; the storm restart
-pin runs on the default client and counts the "reconnected" word every
-reconnect arm logs and no other crate log line carries;
+pin runs on the default client and counts the "reconnected" word;
 `aged_pending_out_link_stays_quiet_until_closed_like_python` asserts
 `LinkStatus::Pending` inside the quiet window;
 `ingress_control_false_bypasses_unknown_announce_holding` reuses the
 `admissions` helper; `learned_announces_are_not_held_after_route_is_known`
 and `path_response_announces_are_not_held_by_rate_limits` run
 `admit_announce_before_queue` before `handle_announce`, so they reach the
-limiter; and `connector_with` folds into `connector`, its `Some` branch
+limiter, and since `ac65cba0` they first prime the interface with three
+fresh unknown announces and check that a fourth is held, so the admission
+they then see is the limiter's exemption and not a measurement still under
+threshold; and `connector_with` folds into `connector`, its `Some` branch
 having had no caller. `a6b0b7f6` does the same on the daemon side and in
 the interop helpers: the attach probe's quiet-window oracle in
 `crates/apps/reticulumd/src/bin/reticulumd/bootstrap_interface_startup_parts/shared_instance_attach_probe_tests.rs`
@@ -645,8 +653,9 @@ checks; `live_wait_for_python_announce` in
 takes a `within` and replaces `two_clients_learn_announce`; and the
 `RNS/Transport.py:2398-2430` cites are corrected to `:2400-2429`.
 `af24c666` aligns the prose with the code: "first interface" becomes "the
-same ordinal in each transport's interface order" at its five sites and in
-the `crate_readme_sections.rs` needle; the README cites
+same ordinal in each transport's interface order" at its five library
+sites (`43d56a61` below does the three in the Python two-clients part) and
+in the `crate_readme_sections.rs` needle; the README cites
 `RNS/Reticulum.py:420-441`; the README and CHANGELOG activation-wait prose
 say the event wakes the wait, name `unknown` and `UnexpectedEof` and give
 the 774 s bound as exact when the path table holds no first-hop metrics,
@@ -658,7 +667,45 @@ paragraph is reworded in plain prose; `docs/status/current-roadmap.md`
 says the request is sent once and names `LinkCloseReason::Timeout`; and
 the defaults comment of
 `crates/apps/reticulumd/examples/interfaces-reference.toml` says which
-commented line flips its default.
+commented line flips its default. The last four commits answer the review
+of the eight above. `ac65cba0` makes the admission pins discriminating:
+the two pins in
+`transport/tests_parts/held_udp_announce_preserves_peer_sou.rs` take
+`hold_everything_rate_limit()`, prime the interface and assert the fourth
+unknown announce is held before asserting that the known-destination
+repeat, and the path-response announce, are admitted (each goes red with
+the limiter's exemption disabled); the storm restart pin in
+`two_transport_shared_instance_storm.rs` counts the default client's exact
+line "reconnected, tunnel synthesis is off", so a degraded reconnect does
+not pass as a cycle; and the `tunnel_count` rustdoc gets back the clause
+that a call expecting zero leaves an empty table as it was. `32aabfe5`
+moves `tests/support/initiator_on_a_silent_listener.rs` to the `use
+super::` convention of its siblings, building its transport with
+`broadcasting`, and has its five includers declare the sibling modules;
+adds `tests/packets_in_scanner_pin.rs`, which feeds the shared scanner
+doubled-flag, shared-flag and trailing-partial byte streams and pins the
+frame count of each; has `closed_event_for` (and the concurrent probe's
+local `closed_events_for`) skip a lagged broadcast receiver instead of
+panicking; corrects the rustdoc of `hold_log.rs`, `attach_with_events.rs`
+and `packets_in.rs` (the last saying that production readers drop the
+shared-flag frame and the harness counts it because the probes pin what
+the client sent); gives the other-link probe's second test the upper bound
+its first already had; and has the `unix_server` docstring in
+`tests/announce_admission_unix_probe.rs` say transport mode is constant
+across the flagged and unflagged listener because admission never reads
+it. `c28dfd6f` is a comment-only edit to `delivery.rs`: the note above the
+close text names `tests/support/assert_closed_before_activation.rs` as the
+pin's home, and the `LinkEvent::Closed => continue` arm says why the loop
+head rereads the link. `43d56a61` finishes the prose sweeps in the daemon
+tests: `python_shared_instance_two_clients.rs` takes the "same ordinal"
+wording at its three sites; `live_wait_for_python_announce` is renamed
+`live_wait_for_relayed_announce`; the `RNS/Transport.py` cite in
+`crates/apps/reticulumd/tests/support/python_shared_instance_client.py`
+is corrected to `:2400-2429`;
+`crates/apps/reticulumd/tests/local_client_announce_admission_probe.rs`
+reads the daemon log through `log_snapshot()` in `wait_for_daemon`; and
+the two-clients docs pin in `crate_readme_sections.rs` says "the section"
+where it had said "the bullet".
 
 ## 0.18.1 (upstream 0.14.0)
 

@@ -13,11 +13,14 @@ use std::time::{Duration, Instant};
 
 use rns_transport::delivery::await_link_activation;
 use rns_transport::destination::link::{LinkCloseReason, LinkStatus};
-use rns_transport::destination::{DestinationDesc, DestinationName};
-use rns_transport::identity::PrivateIdentity;
-use rns_transport::rand_core::OsRng;
-use rns_transport::transport::{Transport, TransportConfig};
 use tokio::time::timeout;
+
+#[path = "support/broadcasting.rs"]
+mod broadcasting;
+#[path = "support/unknown_destination.rs"]
+mod unknown_destination;
+use broadcasting::broadcasting;
+use unknown_destination::unknown_destination;
 
 /// The shortened establishment timeout the maintenance job closes the link at.
 const ESTABLISHMENT: Duration = Duration::from_secs(2);
@@ -33,19 +36,6 @@ const HAND_CLOSE_AT: Duration = Duration::from_millis(500);
 const HAND_CLOSE_BOUND: Duration = Duration::from_millis(1500);
 /// How long the transport is given to stop.
 const WAIT: Duration = Duration::from_secs(15);
-
-fn broadcasting(name: &str) -> Transport {
-    Transport::new(TransportConfig::new(name, &PrivateIdentity::new_from_rand(OsRng), true))
-}
-
-fn unknown_destination() -> DestinationDesc {
-    let remote = *PrivateIdentity::new_from_rand(OsRng).as_identity();
-    DestinationDesc {
-        identity: remote,
-        address_hash: remote.address_hash,
-        name: DestinationName::new("lxmf", "delivery"),
-    }
-}
 
 /// A 2 s establishment timeout on a pending link ends a 60 s activation wait with
 /// `ConnectionAborted` naming `Timeout`, within the next maintenance tick of the close.

@@ -20,11 +20,17 @@ use std::time::{Duration, Instant};
 
 use rns_transport::delivery::await_link_activation;
 use rns_transport::destination::link::{Link, LinkCloseReason, LinkStatus};
-use rns_transport::destination::{DestinationDesc, DestinationName};
-use rns_transport::identity::PrivateIdentity;
-use rns_transport::rand_core::OsRng;
-use rns_transport::transport::{Transport, TransportConfig};
 use tokio::time::timeout;
+
+#[path = "support/assert_closed_before_activation.rs"]
+mod assert_closed_before_activation;
+#[path = "support/broadcasting.rs"]
+mod broadcasting;
+#[path = "support/unknown_destination.rs"]
+mod unknown_destination;
+use assert_closed_before_activation::assert_closed_before_activation;
+use broadcasting::broadcasting;
+use unknown_destination::unknown_destination;
 
 /// What the caller passes; every wait here has to return long before it.
 const ACTIVATION_WAIT: Duration = Duration::from_secs(60);
@@ -43,28 +49,6 @@ const TRANSPORT_SIZED_ESTABLISHMENT: Duration = Duration::from_secs(774);
 const TRANSPORT_SIZED_SLACK: Duration = Duration::from_secs(10);
 /// How long the transport is given to stop.
 const WAIT: Duration = Duration::from_secs(15);
-
-fn broadcasting(name: &str) -> Transport {
-    Transport::new(TransportConfig::new(name, &PrivateIdentity::new_from_rand(OsRng), true))
-}
-
-fn unknown_destination() -> DestinationDesc {
-    let remote = *PrivateIdentity::new_from_rand(OsRng).as_identity();
-    DestinationDesc {
-        identity: remote,
-        address_hash: remote.address_hash,
-        name: DestinationName::new("lxmf", "delivery"),
-    }
-}
-
-fn assert_closed_before_activation(error: &io::Error, reason: &str) {
-    assert_eq!(error.kind(), io::ErrorKind::ConnectionAborted, "unexpected error: {error}");
-    assert_eq!(
-        error.to_string(),
-        format!("link closed before activation: {reason}"),
-        "the error text names the close reason exactly as the contract spells it"
-    );
-}
 
 /// Closes a link without yielding, so a burst of these lands on the event channel before
 /// any subscriber gets to read it. Nothing else holds these locks, so `try_lock` succeeds.

@@ -101,21 +101,13 @@ async fn held_udp_announce_preserves_peer_source_for_unicast_route() {
     assert_eq!(routing.hash_for_addr(&held_peer), Some(virtual_hash));
 }
 
-/// Arms the ingress hold on `iface` under `hold_everything_rate_limit`: three fresh unknown
-/// announces 1 ms apart make the frequency measurable whatever the interface has sampled
-/// before, and a fourth fresh unknown announce is then held. An announce admitted after
-/// this was exempted by the limiter rather than merely under threshold.
-async fn arm_ingress_hold(handler: &Arc<Mutex<TransportHandler>>, iface: AddressHash) {
-    for announce in three_fresh_announces() {
-        tokio::time::sleep(Duration::from_millis(1)).await;
-        super::announce::admit_announce_before_queue(
-            &announce,
-            handler,
-            iface,
-            crate::iface::IfaceSource::None,
-        )
-        .await;
-    }
+/// Arms the ingress hold on `iface` under `hold_everything_rate_limit`: the three fresh
+/// unknown announces of `admissions` make the frequency measurable whatever the interface
+/// has sampled before, and a fourth fresh unknown announce is then held. An announce
+/// admitted after this was exempted by the limiter rather than merely under threshold.
+async fn arm_ingress_hold(transport: &Transport, iface: AddressHash) {
+    let _ = admissions(transport, iface).await;
+    let handler = transport.get_handler();
     let mut probe_destination = SingleInputDestination::new(
         PrivateIdentity::new_from_rand(OsRng),
         DestinationName::new("lxmf", "delivery"),
@@ -124,7 +116,7 @@ async fn arm_ingress_hold(handler: &Arc<Mutex<TransportHandler>>, iface: Address
     assert!(
         !super::announce::admit_announce_before_queue(
             &probe,
-            handler,
+            &handler,
             iface,
             crate::iface::IfaceSource::None,
         )
@@ -168,7 +160,7 @@ async fn learned_announces_are_not_held_after_route_is_known() {
         .expect("broadcast receive");
 
     tokio::time::sleep(Duration::from_millis(1100)).await;
-    arm_ingress_hold(&handler, iface).await;
+    arm_ingress_hold(&transport, iface).await;
     let repeated_announce = destination.announce(OsRng, None).expect("fresh announce");
     assert!(
         super::announce::admit_announce_before_queue(
@@ -256,7 +248,7 @@ async fn path_response_announces_are_not_held_by_rate_limits() {
         AnnounceLimits::with_rate_limit(hold_everything_rate_limit());
 
     let iface = AddressHash::new_from_rand(OsRng);
-    arm_ingress_hold(&handler, iface).await;
+    arm_ingress_hold(&transport, iface).await;
     let mut destination = SingleInputDestination::new(
         PrivateIdentity::new_from_rand(OsRng),
         DestinationName::new("lxmf", "propagation"),

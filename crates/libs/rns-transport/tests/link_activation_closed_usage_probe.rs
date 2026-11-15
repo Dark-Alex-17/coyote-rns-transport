@@ -1,13 +1,14 @@
 //! Usage-pattern probe for `delivery::await_link_activation` on a closed link, written from
 //! the contract alone: the wait ends with `io::ErrorKind::ConnectionAborted` and the text
 //! `link closed before activation: <reason>` as soon as the link reads `LinkStatus::Closed`
-//! or its `LinkEvent::Closed` arrives. `tests/link_activation_closed_probe.rs` pins the two
-//! closes that land under a single wait; this file pins the shapes a consumer meets around
-//! them: a link that is already closed when the wait starts (no event can reach a subscriber
-//! that joins late, so the status read has to answer), the exact error text, a second wait on
-//! the same closed link, and two waiters on one link both learning of the one close. The
-//! transport has broadcast on and no interface, so `Transport::link` hands back a pending
-//! link that nothing can ever activate.
+//! (a `LinkEvent::Closed` for its id only wakes the reread).
+//! `tests/link_activation_closed_probe.rs` pins the two closes that land under a single
+//! wait; this file pins the shapes a consumer meets around them: a link that is already
+//! closed when the wait starts (no event can reach a subscriber that joins late, so the
+//! status read has to answer), the exact error text, a second wait on the same closed link,
+//! and two waiters on one link both learning of the one close. The transport has broadcast
+//! on and no interface, so `Transport::link` hands back a pending link that nothing can ever
+//! activate.
 
 use std::io;
 use std::sync::Arc;

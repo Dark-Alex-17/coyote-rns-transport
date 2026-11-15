@@ -7,7 +7,6 @@
 //! in for the initiator giving up. The transport has broadcast on and no interface, so
 //! `Transport::link` hands back a pending link that nothing can ever activate.
 
-use std::io;
 use std::sync::Arc;
 use std::time::{Duration, Instant};
 
@@ -15,10 +14,13 @@ use rns_transport::delivery::await_link_activation;
 use rns_transport::destination::link::{LinkCloseReason, LinkStatus};
 use tokio::time::timeout;
 
+#[path = "support/assert_closed_before_activation.rs"]
+mod assert_closed_before_activation;
 #[path = "support/broadcasting.rs"]
 mod broadcasting;
 #[path = "support/unknown_destination.rs"]
 mod unknown_destination;
+use assert_closed_before_activation::assert_closed_before_activation;
 use broadcasting::broadcasting;
 use unknown_destination::unknown_destination;
 
@@ -52,8 +54,7 @@ async fn a_timed_out_establishment_ends_the_activation_wait_with_the_close_reaso
         .await
         .expect_err("a pending link with no interface never activates");
     let elapsed = started.elapsed();
-    assert_eq!(error.kind(), io::ErrorKind::ConnectionAborted, "unexpected error: {error}");
-    assert!(error.to_string().contains("Timeout"), "the close reason is in the error: {error}");
+    assert_closed_before_activation(&error, "Timeout");
     assert!(
         elapsed >= ESTABLISHMENT,
         "the wait outlives the establishment timeout, waited {elapsed:?}"
@@ -88,11 +89,7 @@ async fn a_link_closed_by_the_initiator_ends_the_activation_wait_with_initiator_
         .await
         .expect_err("a pending link closed by hand never activates");
     let elapsed = started.elapsed();
-    assert_eq!(error.kind(), io::ErrorKind::ConnectionAborted, "unexpected error: {error}");
-    assert!(
-        error.to_string().contains("InitiatorClosed"),
-        "the close reason is in the error: {error}"
-    );
+    assert_closed_before_activation(&error, "InitiatorClosed");
     assert!(elapsed >= HAND_CLOSE_AT, "the wait outlives the hand close, waited {elapsed:?}");
     assert!(
         elapsed < HAND_CLOSE_BOUND,

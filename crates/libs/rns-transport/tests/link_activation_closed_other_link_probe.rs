@@ -1,7 +1,8 @@
 //! Usage-pattern probe for `delivery::await_link_activation` with more than one pending link
 //! on the transport, written from the contract alone: the wait ends with
-//! `io::ErrorKind::ConnectionAborted` when the link it waits on reads `LinkStatus::Closed` or
-//! a `LinkEvent::Closed` for ITS id arrives on `Transport::out_link_events`, and only then.
+//! `io::ErrorKind::ConnectionAborted` as soon as the link it waits on reads
+//! `LinkStatus::Closed`; a `LinkEvent::Closed` for ITS id on `Transport::out_link_events`
+//! only wakes the reread, so a neighbour's event never ends it.
 //! `tests/link_activation_closed_probe.rs` pins the close of the waited-on link; this file
 //! pins that the close of a neighbour does not leak into the wait: a hand close of another
 //! pending link, and the establishment-timeout close of another pending link (the event that

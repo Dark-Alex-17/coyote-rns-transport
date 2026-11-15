@@ -1,11 +1,11 @@
 //! Usage-pattern probe for `delivery::await_link_activation` on a busy transport, written
 //! from the contract alone: the wait ends with `io::ErrorKind::ConnectionAborted` and the
 //! text `link closed before activation: <reason>` as soon as the link reads
-//! `LinkStatus::Closed` or its `LinkEvent::Closed` arrives on `Transport::out_link_events`,
-//! its own deadline still answers `TimedOut`, and `UnexpectedEof` is reserved for an event
-//! channel that is gone. `tests/link_activation_closed_probe.rs` and
-//! `tests/link_activation_closed_usage_probe.rs` pin the closes a quiet transport hands a
-//! single waiter; this file pins the shapes a consumer meets on a loaded one: a `Closed`
+//! `LinkStatus::Closed` (a `LinkEvent::Closed` for its id on `Transport::out_link_events`
+//! only wakes the reread), its own deadline still answers `TimedOut`, and `UnexpectedEof`
+//! is reserved for an event channel that is gone. `tests/link_activation_closed_probe.rs`
+//! and `tests/link_activation_closed_usage_probe.rs` pin the closes a quiet transport hands
+//! a single waiter; this file pins the shapes a consumer meets on a loaded one: a `Closed`
 //! event that the broadcast channel dropped before the waiter read it (more than the
 //! channel's 1024 events land in one burst, so the status read is all that can answer), a
 //! first wait the caller cancelled under `tokio::time::timeout` followed by a second wait on

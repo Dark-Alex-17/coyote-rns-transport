@@ -1,8 +1,8 @@
 //! Usage-pattern probe for `delivery::await_link_activation` around the two other ways a
 //! consumer moves a pending link through `Closed`, written from the contract alone: the wait
 //! ends with `io::ErrorKind::ConnectionAborted` and `link closed before activation: <reason>`
-//! as soon as the link reads `LinkStatus::Closed` or its `LinkEvent::Closed` arrives, and
-//! only then. `tests/link_activation_closed_probe.rs` and
+//! as soon as the link reads `LinkStatus::Closed`, and only then; a `LinkEvent::Closed` for
+//! its id only wakes the reread. `tests/link_activation_closed_probe.rs` and
 //! `tests/link_activation_closed_usage_probe.rs` pin `Link::close()` and the establishment
 //! timeout; this file pins `Link::teardown()` (the close that would also tell the peer) under
 //! a wait, and `Link::restart()` after a close: a restarted link reads `Pending` again with

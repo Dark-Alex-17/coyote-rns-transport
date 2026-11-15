@@ -43,8 +43,8 @@ announce admission` patch is fork commits `be18658a`, `83e03e75`,
 `92e82a60`, `244722bf`, `08f18f07`, `b0f194ce`, `e14ced8a`, `4a22affe`,
 `84ae2a5c`, `29d78171` and `3d887f3e`. The `run hygiene` patch is fork
 commits `863d7ba9`, `6707f86f`, `e4dfc449`, `655c44d1`, `477b9863`,
-`a111e152`, `a6b0b7f6`, `af24c666`, `ac65cba0`, `32aabfe5`, `c28dfd6f` and
-`43d56a61`.
+`a111e152`, `a6b0b7f6`, `af24c666`, `ac65cba0`, `32aabfe5`, `c28dfd6f`,
+`43d56a61` and `98fb3075`.
 
 | File | Patch |
 | --- | --- |
@@ -567,8 +567,8 @@ constants refresh and the sustained clock make the inherited formula and
 release arming observable.
 
 Fork commits `863d7ba9`, `6707f86f`, `e4dfc449`, `655c44d1`, `477b9863`,
-`a111e152`, `a6b0b7f6`, `af24c666`, `ac65cba0`, `32aabfe5`, `c28dfd6f` and
-`43d56a61`:
+`a111e152`, `a6b0b7f6`, `af24c666`, `ac65cba0`, `32aabfe5`, `c28dfd6f`,
+`43d56a61` and `98fb3075`:
 N5, run hygiene.
 Upstream site: the test files and shared helpers of the four patches above
 and the fork's own documentation; the one production edit is
@@ -589,8 +589,9 @@ probes pin what the client sent, and `tests/packets_in_scanner_pin.rs`
 below pins the scanner itself. `6707f86f` has the four
 `tests/link_activation_closed*_probe.rs` files,
 `tests/link_activation_deadline_api.rs` and `tests/outbound_outcome_api.rs`
-take `broadcasting` and `unknown_destination` from support, gives the
-three that check the close text one
+take `broadcasting` and `unknown_destination` from support
+(`outbound_outcome_api.rs` the latter only), gives the three that check
+the close text one
 `tests/support/assert_closed_before_activation.rs`, and adopts
 `tests/link_activation_closed_other_link_probe.rs` (a `Closed` event for a
 different link id does not end the wait: a neighbour's hand close, and a
@@ -601,9 +602,12 @@ the reason carried on the `LinkEvent::Closed` event; the event wakes the
 wait, which rereads `LinkStatus` and `close_reason` from the link, the
 same read every poll slice already makes. The only writer of `Closed` sets
 the reason before it publishes the event, so the reread returns the reason
-the event carried and nothing observable changes; what goes is the one
-path on which a reason the link did not hold could have been reported, and
-every activation probe keeps its timing bound. `655c44d1` moves the
+the event carried and no probe observes a change; the only reachable
+difference is a `Link::restart()` landing between the event and the
+reread, which now keeps the wait on the restarted link (restart has no
+production caller). What goes is the one path on which a reason the link
+did not hold could have been reported, and every activation probe keeps
+its timing bound. `655c44d1` moves the
 shared-instance harness of the three `tests/announce_admission_*_probe.rs`
 files into `tests/support/hold_log.rs`, `wait_until_within.rs`,
 `learn_all.rs`, `tcp_server_on.rs`, `register_destinations.rs`,
@@ -622,9 +626,10 @@ apart, so the exemption follows the flag and not the interface kind).
 `serve_connected.rs`; the disconnect-reasons file takes `accept_within`
 and `close_orderly` from support and the relay probe uses
 `wait_until_within`. `a111e152` tightens the unit pins under
-`transport/tests_parts/`: `SharedInstanceServer::tunnel_count` replaces
-two helpers that cleared the tunnel table to count it; the tunnel-default
-reconnect records are checked for their iface value; the storm restart
+`transport/tests_parts/`: one `SharedInstanceServer::tunnel_count`, whose
+rustdoc names the clear it still performs, replaces two helpers that each
+cleared the tunnel table to count it; the tunnel-default reconnect
+records are checked for their iface value; the storm restart
 pin runs on the default client and counts the "reconnected" word;
 `aged_pending_out_link_stays_quiet_until_closed_like_python` asserts
 `LinkStatus::Pending` inside the quiet window;
@@ -657,9 +662,10 @@ same ordinal in each transport's interface order" at its five library
 sites (`43d56a61` below does the three in the Python two-clients part) and
 in the `crate_readme_sections.rs` needle; the README cites
 `RNS/Reticulum.py:420-441`; the README and CHANGELOG activation-wait prose
-say the event wakes the wait, name `unknown` and `UnexpectedEof` and give
-the 774 s bound as exact when the path table holds no first-hop metrics,
-with two new needles and the pin
+say the event wakes the wait, and the README's alone comes to name
+`unknown` and `UnexpectedEof` and to give the 774 s bound as exact when
+the path table holds no first-hop metrics (the CHANGELOG already named
+both and keeps "about 774 s"), with two new needles and the pin
 `crate_readme_shared_instance_section_names_the_two_clients_proof`; a
 CHANGELOG line ending in an orphan "by" is reflowed; the N3 paragraph
 above says the bridge test reads the refresh's path requests and the N4
@@ -667,7 +673,7 @@ paragraph is reworded in plain prose; `docs/status/current-roadmap.md`
 says the request is sent once and names `LinkCloseReason::Timeout`; and
 the defaults comment of
 `crates/apps/reticulumd/examples/interfaces-reference.toml` says which
-commented line flips its default. The last four commits answer the review
+commented line flips its default. The last five commits answer the review
 of the eight above. `ac65cba0` makes the admission pins discriminating:
 the two pins in
 `transport/tests_parts/held_udp_announce_preserves_peer_sou.rs` take
@@ -705,7 +711,13 @@ is corrected to `:2400-2429`;
 `crates/apps/reticulumd/tests/local_client_announce_admission_probe.rs`
 reads the daemon log through `log_snapshot()` in `wait_for_daemon`; and
 the two-clients docs pin in `crate_readme_sections.rs` says "the section"
-where it had said "the bullet".
+where it had said "the bullet". `98fb3075` aligns the probe headers with
+the contract: the `//!` docs of the other-link, busy-transport, usage and
+teardown-restart probes now say the wait ends when the link reads
+`LinkStatus::Closed` and that its `LinkEvent::Closed` only wakes the
+reread; `tests/link_activation_closed_probe.rs` takes the shared
+exact-text pin in place of two `contains` checks; and `arm_ingress_hold`
+in `held_udp_announce_preserves_peer_sou.rs` primes through `admissions`.
 
 ## 0.18.1 (upstream 0.14.0)
 

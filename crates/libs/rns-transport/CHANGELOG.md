@@ -182,7 +182,9 @@ Removed) bullet of its own, marked as such.
   the shared HDLC scanner in `packets_in` rescans from a frame's closing
   flag instead of stepping past it and counts a frame that shares its
   opening flag with the previous closing flag, which production readers
-  would drop, so the probes pin what the client sent;
+  would drop, so the probes pin what the client sent; the shared
+  `closed_event_for` bounds the whole wait by one deadline where the
+  single-request probe's copy re-armed its timeout per event;
   `tests/packets_in_scanner_pin.rs` pins the scanner at the byte level on
   doubled-flag, shared-flag and trailing-partial streams. The activation
   probes share `tests/support/assert_closed_before_activation.rs`; the
@@ -200,13 +202,14 @@ Removed) bullet of its own, marked as such.
   deadline or its own close) and `tests/announce_admission_unix_probe.rs`
   (Unix only; a flagged `LocalUnixServer` and its default-option clients
   never ingress-limit, an unflagged one holds the third of three announces
-  100 ms apart). Unit pins are tightened: `SharedInstanceServer::tunnel_count`
-  replaces two helpers that cleared the tunnel table to count it, the
-  tunnel-default reconnect records are checked for their iface value, the
-  storm restart pin runs on the default client and counts its exact
-  "reconnected, tunnel synthesis is off" line, the aged pending link pin
-  asserts `LinkStatus::Pending` inside its quiet
-  window, the learned and path-response holding pins run
+  100 ms apart). Unit pins are tightened: one
+  `SharedInstanceServer::tunnel_count`, whose rustdoc names the clear it
+  still performs, replaces two helpers that each cleared the tunnel table
+  to count it, the tunnel-default reconnect records are checked for their
+  iface value, the storm restart pin runs on the default client and counts
+  its exact "reconnected, tunnel synthesis is off" line, the aged pending
+  link pin asserts `LinkStatus::Pending` inside its quiet window, the
+  learned and path-response holding pins run
   `admit_announce_before_queue` under `hold_everything_rate_limit()` after
   priming the interface with three unknown announces and checking a fourth
   is held, so the admission they assert is the limiter's exemption,
@@ -233,9 +236,12 @@ Removed) bullet of its own, marked as such.
   the event wakes the wait, which rereads `LinkStatus` and `close_reason`
   from the link, the same read every poll slice makes. The one writer of
   `Closed` sets the reason before it publishes, so the reread returns the
-  reason the event carried and nothing observable changes; what goes is the
-  one path on which a reason the link did not hold could have been
-  reported. Pinned by `tests/link_activation_closed_probe.rs`,
+  reason the event carried and no probe observes a change; the only
+  reachable difference is a `Link::restart()` landing between the event
+  and the reread, which now keeps the wait on the restarted link (restart
+  has no production caller). What goes is the one path on which a reason
+  the link did not hold could have been reported. Pinned by
+  `tests/link_activation_closed_probe.rs`,
   `tests/link_activation_closed_other_link_probe.rs` and
   `tests/support/assert_closed_before_activation.rs`.
 

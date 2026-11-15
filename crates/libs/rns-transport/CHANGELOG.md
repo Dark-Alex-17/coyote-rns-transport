@@ -166,6 +166,16 @@ Removed) bullet of its own, marked as such.
   consumer's direct second `Link::request()` goes out without restarting
   the establishment clock, and that the timeout close is followed by one
   path request and no further link request.
+- Test-only: the 2 s spacings and the `ingress_control: Some(false)` that
+  kept a second announce on a fresh loopback interface out of the old
+  two-sample ingress measurement are gone from
+  `transport/tests_parts/two_transport_loopback_requests_routing.rs`,
+  `transport/tests_parts/two_transport_loopback_requests_receipt_stop.rs`,
+  `transport/tests_parts/two_transport_destination_desc_probe2.rs` and
+  `tests/request_receipt_readme.rs`, each of which puts exactly two announces
+  on that interface (see Fixed for the three-sample floor); the
+  `connector_with` rustdoc in `transport/tests_parts/two_transport_loopback.rs`
+  now names the three-announce case the knob is for.
 
 ### Fixed
 
@@ -245,6 +255,63 @@ Removed) bullet of its own, marked as such.
   `tests/support/close_orderly.rs`, `tests/interface_events_api.rs` and
   `tests/shared_instance_disconnect_reasons_api.rs` promise no tunnel
   packet any more and drain whatever the client wrote on the connect.
+- A transport attached to a shared instance ran its announce ingress
+  limiter on that connection, and so did a shared instance on the child
+  interfaces it holds per accepted client (`transport/announce.rs`,
+  `admit_announce_before_queue`): two local clients announcing destinations
+  less than about 0.6 s apart had the second announce held for six minutes
+  on every other local client ("holding announce ... before queue"), so a
+  third client learned one of the two. Python's local client interface
+  never ingress-limits, as a client program's interface and as the child
+  rnsd spawns per accepted client alike (`RNS/Interfaces/LocalInterface.py:130`;
+  `RNS/Transport.py:1823` is the only inbound gate). The limiter
+  (`transport/announce_limits.rs`) now admits every announce on an
+  interface flagged as the shared instance, the flag read under the same
+  interface manager guard that already supplies the interface's shared
+  config, and a child registered on a flagged interface carries the flag
+  (`iface_parts/interfacemanager.rs`). Three further details follow RNS
+  1.5.2 (`RNS/Interfaces/Interface.py:188-211`, `:346-348`): the measured
+  announce frequency reads 0 until more than `IC_DEQUE_MIN_SAMPLE` = 2
+  samples exist (`Interface.py:84`), so two announces on a fresh ordinary
+  interface no longer trip the limiter and the third within about a second
+  of them does; a burst ends only once the frequency has stayed under the
+  threshold for a full hold after the last over-threshold sample as well as
+  after activation (`ic_burst_sustained`, `:197`) and only with at least
+  two samples in the deque (`:195`); and `AnnounceRateLimit::default()`
+  reads Python's constants (`Interface.py:76-84`, which
+  `RNS/Reticulum.py:1191-1219` returns unless the `[reticulum]` section
+  overrides them): `burst_freq_new` 3.0 Hz (was 3.5), `burst_freq` 10.0 Hz
+  (was 12.0), `burst_hold` 15 s (was 60 s), `burst_penalty` 15 s (was
+  300 s), `held_release_interval` 5 s (was 30 s); `new_time` 2 h,
+  `incoming_freq_samples` 6 and `max_held_announces` 256 are unchanged, the
+  per-interface `ic_*` overrides keep applying over the defaults, and the
+  daemon's commented `ic_*` examples in `examples/interfaces-reference.toml`
+  read the same values. Two divergences remain and are registered under
+  Known divergences in the README: the frequency formula (this crate
+  averages the gaps over its last 6 samples plus the gap to now; Python
+  divides the sample count by the span to the oldest of 48 with a 10 s
+  decay, `Interface.py:60-67`, `:346-355`) and the release timing (this
+  crate arms the held release when the burst deactivates and reports hold
+  plus penalty as the delay; Python arms it at activation, `:206`, and
+  re-arms it per release, `:293`). Pinned by
+  `tests/shared_instance_one_identity_two_clients_probe.rs` (a third local
+  client of a flagged `TcpServer` learns two destinations announced 100 ms
+  apart by two clients under one identity, and a link to the second
+  activates there; its first two tests are the out-of-crate twins of the
+  `two_transport_shared_instance_tunnel_identity.rs` default and opt-in
+  cases), by `transport/tests_parts/shared_child_announce_admission.rs` (a
+  child of a flagged channel, and the channel itself, admit three
+  back-to-back announces under a limiter that holds on any measurable
+  frequency, while an unflagged channel holds the third) and by the
+  `transport/announce_limits.rs` unit tests (the default values, the
+  three-sample floor, the shared-instance exemption against the same
+  six-announce sequence held from the third on an ordinary interface, the
+  sustained clock and the release guard; the held-announce release tests
+  feed a third sample before each expected hold, with the existing
+  three-sample fixtures in
+  `transport/tests_parts/held_udp_announce_preserves_peer_sou.rs`,
+  `transport/tests_parts/rns_1_5_ingress_admission.rs` and
+  `transport/tests_parts/two_transport_shared_instance_flush.rs` unchanged).
 
 ## 0.18.1 - 2026-11-03
 

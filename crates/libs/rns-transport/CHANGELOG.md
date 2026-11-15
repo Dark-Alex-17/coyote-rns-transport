@@ -134,16 +134,22 @@ Removed) bullet of its own, marked as such.
   `tests/link_activation_closed_probe.rs` (a 2 s establishment timeout
   ends a 60 s wait with `ConnectionAborted` naming `Timeout` within 4 s;
   `Link::close()` on a pending link ends it naming `InitiatorClosed`
-  within 1.5 s), with `tests/link_activation_deadline_api.rs` and
+  within 1.5 s), `tests/link_activation_closed_usage_probe.rs` (a link
+  already closed when the wait starts answers at once from the status
+  read, with the exact text; a repeated wait answers the same way; two
+  waiters on one link both learn of the one close; a short wait on an
+  open pending link still answers `TimedOut`) and
+  `fork_release_docs_contract_parts/crate_readme_sections.rs` (the README
+  section's claims), with `tests/link_activation_deadline_api.rs` and
   `tests/link_activation_max_timeout_probe.rs` still pinning the
   `TimedOut` path.
 - Test-only: `tests/pending_link_single_request_usage_probe.rs` pins the
   consumer side of the one-request rule: a pending link on a transport
   with no interface at all is closed once with `Timeout` on the
   maintenance tick after a 2 s establishment timeout, `Link::close()` on a
-  pending link publishes `InitiatorClosed` once and puts nothing more on
-  the wire, and no "repeat link request" record is logged across the 6 s
-  mark at which the removed repeat used to fire;
+  pending link publishes `InitiatorClosed` once and puts no further link
+  request on the wire, and no "repeat link request" record is logged
+  across the 6 s mark at which the removed repeat used to fire;
   `tests/pending_link_single_request_consumer_repeat_probe.rs` pins that a
   consumer's direct second `Link::request()` goes out without restarting
   the establishment clock, and that the timeout close is followed by one

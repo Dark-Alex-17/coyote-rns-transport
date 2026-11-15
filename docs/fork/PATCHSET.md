@@ -31,13 +31,13 @@ per fork task.
 Every file changed since the `0.18.1` release and the patch each change
 belongs to. Patch ids: N1 is tunnel opt-in, N2 is link request once, N3 is
 activation close exit. The `tunnel opt-in` patch is fork commits
-`7ae6a364`, `785bce93`, `ad420766`,
-`1446a8e5` and `d2e106bb`. The `link request once` patch is fork commits
-`728e10dd`, `2c2f14d9`, `d65fd1e3`, `0be75f6f` and `9ae9fdab`. The
-`Python-in-the-loop two clients interop` patch carries no other id and is
-fork commits `ddcb4430`, `a974386c`, `d40e0ae3` and `7f076dc3`. The
-`activation close exit` patch is fork commits `15251a8c`, `1232c410` and
-`745d4bd4`.
+`7ae6a364`, `785bce93`, `ad420766`, `1446a8e5` and `d2e106bb`. The
+`link request once` patch is fork commits `728e10dd`, `2c2f14d9`,
+`d65fd1e3`, `0be75f6f` and `9ae9fdab`. The `activation close exit` patch
+is fork commits `15251a8c`, `1232c410`, `745d4bd4`, `519d5973` and
+`86ce4bec`. The `Python-in-the-loop two clients interop` patch carries no
+other id and is fork commits `ddcb4430`, `a974386c`, `d40e0ae3` and
+`7f076dc3`.
 
 | File | Patch |
 | --- | --- |
@@ -45,7 +45,7 @@ fork commits `ddcb4430`, `a974386c`, `d40e0ae3` and `7f076dc3`. The
 | `crates/apps/reticulumd/src/bin/reticulumd/bridge_remote_control_link.rs` | activation close exit |
 | `crates/apps/reticulumd/src/bin/reticulumd/bridge_remote_control_link_tests.rs` | activation close exit |
 | `crates/apps/reticulumd/tests/fork_publish_contract_parts/ledger_contract.rs` | tunnel opt-in |
-| `crates/apps/reticulumd/tests/fork_release_docs_contract_parts/crate_readme_sections.rs` | tunnel opt-in |
+| `crates/apps/reticulumd/tests/fork_release_docs_contract_parts/crate_readme_sections.rs` | tunnel opt-in, activation close exit |
 | `crates/apps/reticulumd/tests/python_channel_interop.rs` | Python-in-the-loop two clients interop |
 | `crates/apps/reticulumd/tests/python_channel_interop_parts/python_shared_instance_two_clients.rs` | Python-in-the-loop two clients interop |
 | `crates/libs/rns-transport/CHANGELOG.md` | tunnel opt-in, link request once, Python-in-the-loop two clients interop, activation close exit |
@@ -79,6 +79,7 @@ fork commits `ddcb4430`, `a974386c`, `d40e0ae3` and `7f076dc3`. The
 | `crates/libs/rns-transport/src/transport/tests_parts/two_transport_shared_instance_tunnel_identity.rs` | tunnel opt-in, Python-in-the-loop two clients interop |
 | `crates/libs/rns-transport/tests/interface_events_api.rs` | tunnel opt-in |
 | `crates/libs/rns-transport/tests/link_activation_closed_probe.rs` | activation close exit |
+| `crates/libs/rns-transport/tests/link_activation_closed_usage_probe.rs` | activation close exit |
 | `crates/libs/rns-transport/tests/pending_link_single_request_concurrent_probe.rs` | link request once |
 | `crates/libs/rns-transport/tests/pending_link_single_request_consumer_repeat_probe.rs` | activation close exit |
 | `crates/libs/rns-transport/tests/pending_link_single_request_default_timeout_probe.rs` | link request once |
@@ -240,7 +241,7 @@ cites the watchdog's `HANDSHAKE` branch (`RNS/Link.py:732-739`) beside the
 `PENDING` one in the rustdoc and the CHANGELOG; and restores the 7 s
 rationale on the two unit pins.
 
-Fork commits `15251a8c`, `1232c410` and `745d4bd4`:
+Fork commits `15251a8c`, `1232c410`, `745d4bd4`, `519d5973` and `86ce4bec`:
 N3, activation close exit.
 Upstream site: `delivery::await_link_activation` in
 `crates/libs/rns-transport/src/delivery.rs`, which returned `Ok` on
@@ -282,12 +283,28 @@ from the link request once work:
 `tests/pending_link_single_request_usage_probe.rs` (a pending link on a
 transport with no interface is closed once with `Timeout` on the tick
 after a 2 s establishment timeout, `Link::close()` publishes
-`InitiatorClosed` once and puts nothing more on a raw listener's stream,
-and no "repeat link request" record is logged across the 6 s mark) and
+`InitiatorClosed` once and puts no further link request on a raw
+listener's stream, and no "repeat link request" record is logged across
+the 6 s mark) and
 `tests/pending_link_single_request_consumer_repeat_probe.rs` (a consumer's
 direct second `Link::request()` reaches the wire without restarting the
 establishment clock; one path request and no link request follow the
-timeout close).
+timeout close). `519d5973` takes the status and the close reason from one
+lock at the loop head, so a `Closed` reading cannot pair with a reason
+read after it, notes above the helper that the `Debug` names of
+`LinkCloseReason` are part of the error text, and has the daemon's retry
+rustdoc say the `ConnectionAborted` covers any close reason. `86ce4bec`
+starts the timeout-close probe's clock before `transport.link()`, where
+the establishment clock starts; gives the daemon retry test two more
+seconds of slack on its closer window and elapsed bound; pins the README
+section's activation-wait claims in
+`crates/apps/reticulumd/tests/fork_release_docs_contract_parts/crate_readme_sections.rs`;
+and adds `tests/link_activation_closed_usage_probe.rs`, written against
+the contract alone: a link already closed when the wait starts answers at
+once from the status read with the exact error text, a second wait on the
+same link answers the same way, two waiters on one link both learn of the
+one close, and a short wait on an open pending link still answers
+`TimedOut` with the link left pending.
 
 Fork commits `ddcb4430`, `a974386c`, `d40e0ae3` and `7f076dc3`: Python-in-the-loop
 two clients interop. A Python rnsd (RNS 1.5.2) is the shared instance on a free

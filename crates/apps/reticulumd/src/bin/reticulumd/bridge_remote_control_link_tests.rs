@@ -255,3 +255,84 @@ async fn open_refreshed_remote_link_without_a_path_refreshes_once_and_fails() {
         remote.address_hash.as_slice()
     );
 }
+
+/// With `broadcast` on, the first link request goes out and the pending link is closed
+/// under the wait (`reset_out_link` runs `Link::close`, publishing `InitiatorClosed`).
+/// The open takes that close as the cue to refresh the path once and retry; the retry's
+/// own wait times out and its error names the close.
+#[tokio::test]
+#[deny(clippy::await_holding_invalid_type)]
+async fn open_refreshed_remote_link_closed_before_activation_refreshes_once_and_retries() {
+    let identity = rns_transport::identity::PrivateIdentity::new_from_rand(rand_core::OsRng);
+    let transport = Transport::new(rns_transport::transport::TransportConfig::new(
+        "remote-control-link-closed",
+        &identity,
+        true,
+    ));
+    let mut iface = transport.iface_manager().lock().await.new_channel(4);
+    let remote =
+        *rns_transport::identity::PrivateIdentity::new_from_rand(rand_core::OsRng).as_identity();
+    let destination = DestinationDesc {
+        identity: remote,
+        address_hash: remote.address_hash,
+        name: DestinationName::new("lxmf", "propagation"),
+    };
+    let timeout = Duration::from_secs(3);
+
+    let is_link_request_to_remote = |packet: &rns_transport::packet::Packet| {
+        packet.header.packet_type == rns_transport::packet::PacketType::LinkRequest
+            && packet.destination == remote.address_hash
+    };
+    let closer = async {
+        let first = tokio::time::timeout(Duration::from_secs(2), iface.tx_channel.recv())
+            .await
+            .expect("the first link request leaves within two seconds")
+            .expect("interface tx open");
+        assert!(
+            is_link_request_to_remote(&first.packet),
+            "unexpected first packet: {:?}",
+            first.packet.header.packet_type
+        );
+        transport.reset_out_link(&remote.address_hash).await;
+
+        let deadline = tokio::time::Instant::now() + timeout + Duration::from_secs(3);
+        let mut further_link_requests = 0usize;
+        loop {
+            let remaining = deadline.saturating_duration_since(tokio::time::Instant::now());
+            if remaining.is_zero() {
+                break;
+            }
+            match tokio::time::timeout(remaining, iface.tx_channel.recv()).await {
+                Ok(Some(message)) if is_link_request_to_remote(&message.packet) => {
+                    further_link_requests += 1;
+                }
+                Ok(Some(_)) => {}
+                Ok(None) | Err(_) => break,
+            }
+        }
+        further_link_requests
+    };
+
+    let started = std::time::Instant::now();
+    let (result, further_link_requests) = tokio::join!(
+        open_refreshed_remote_link(&transport, &remote.address_hash, destination, timeout),
+        closer
+    );
+    let elapsed = started.elapsed();
+
+    let Err(err) = result else {
+        panic!("nothing answers the link request, yet a link opened");
+    };
+    assert_eq!(err.kind(), std::io::ErrorKind::TimedOut, "unexpected error: {err}");
+    let message = err.to_string();
+    assert!(
+        message.contains(
+            "retried after refreshing propagation node path due to \
+             link closed before activation: InitiatorClosed"
+        ),
+        "unexpected message: {message}"
+    );
+    assert!(elapsed >= timeout, "returned before the retry's wait could time out: {elapsed:?}");
+    assert!(elapsed < 2 * timeout + Duration::from_secs(3), "took {elapsed:?}");
+    assert_eq!(further_link_requests, 1, "exactly one more link request follows the refresh");
+}

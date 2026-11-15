@@ -15,31 +15,31 @@
 
 use std::time::{Duration, Instant};
 
-use rns_transport::buffer::OutputBuffer;
-use rns_transport::destination::link::{
-    LinkCloseReason, LinkEvent, LinkEventData, LinkId, LinkStatus,
-};
-use rns_transport::destination::{DestinationDesc, DestinationName, PlainInputDestination};
+use rns_transport::destination::link::{LinkCloseReason, LinkStatus};
+use rns_transport::destination::{DestinationName, PlainInputDestination};
 use rns_transport::hash::{AddressHash, ADDRESS_HASH_SIZE};
-use rns_transport::identity::{EmptyIdentity, PrivateIdentity};
-use rns_transport::iface::hdlc::Hdlc;
+use rns_transport::identity::EmptyIdentity;
 use rns_transport::packet::{Packet, PacketType};
-use rns_transport::rand_core::OsRng;
-use rns_transport::transport::{Transport, TransportConfig};
-use tokio::io::{AsyncRead, AsyncReadExt};
-use tokio::net::{TcpListener, TcpStream};
-use tokio::sync::broadcast;
 use tokio::time::timeout;
 
-#[path = "support/accept_within.rs"]
-mod accept_within;
-#[path = "support/spawn_plain_client.rs"]
-mod spawn_plain_client;
-#[path = "support/wait_until.rs"]
-mod wait_until;
-use accept_within::accept_within;
-use spawn_plain_client::spawn_plain_client;
-use wait_until::wait_until;
+#[path = "support/closed_event_for.rs"]
+mod closed_event_for;
+#[path = "support/initiator_on_a_silent_listener.rs"]
+mod initiator_on_a_silent_listener;
+#[path = "support/link_requests_to.rs"]
+mod link_requests_to;
+#[path = "support/packets_in.rs"]
+mod packets_in;
+#[path = "support/read_for.rs"]
+mod read_for;
+#[path = "support/unknown_destination.rs"]
+mod unknown_destination;
+use closed_event_for::closed_event_for;
+use initiator_on_a_silent_listener::initiator_on_a_silent_listener;
+use link_requests_to::link_requests_to;
+use packets_in::packets_in;
+use read_for::read_for;
+use unknown_destination::unknown_destination;
 
 /// The establishment timeout each attempt is given.
 const ESTABLISHMENT: Duration = Duration::from_secs(3);
@@ -49,16 +49,6 @@ const REPEAT_AT: Duration = Duration::from_secs(2);
 /// 4 s; a clock restarted at the 2 s repeat would publish no earlier than 5 s.
 const CLOSE_BY: Duration = Duration::from_millis(4500);
 const WAIT: Duration = Duration::from_secs(6);
-const RECONNECT_WAIT: Duration = Duration::from_secs(60);
-
-fn unknown_destination() -> DestinationDesc {
-    let remote = *PrivateIdentity::new_from_rand(OsRng).as_identity();
-    DestinationDesc {
-        identity: remote,
-        address_hash: remote.address_hash,
-        name: DestinationName::new("lxmf", "delivery"),
-    }
-}
 
 /// The address every Reticulum path request is sent to (`rnstransport.path.request`).
 fn path_request_destination() -> AddressHash {
@@ -68,52 +58,6 @@ fn path_request_destination() -> AddressHash {
     )
     .desc
     .address_hash
-}
-
-/// Everything `stream` carries during `window`. An end of stream is a failure: the
-/// client has no reason to close a stream it just connected.
-#[deny(clippy::await_holding_invalid_type)]
-async fn read_for(stream: &mut (impl AsyncRead + Unpin), window: Duration) -> Vec<u8> {
-    let mut raw = Vec::new();
-    let mut buf = [0u8; 1024];
-    let deadline = tokio::time::Instant::now() + window;
-    loop {
-        let left = deadline.saturating_duration_since(tokio::time::Instant::now());
-        match timeout(left, stream.read(&mut buf)).await {
-            Err(_) => return raw,
-            Ok(Ok(0)) => panic!("the client closed the stream"),
-            Ok(Ok(read)) => raw.extend_from_slice(&buf[..read]),
-            Ok(Err(err)) => panic!("the read failed: {err}"),
-        }
-    }
-}
-
-/// The packets in every complete HDLC frame of `raw`, in order.
-fn packets_in(raw: &[u8]) -> Vec<Packet> {
-    let mut packets = Vec::new();
-    let mut cursor = 0;
-    while let Some((start, end)) = Hdlc::find(&raw[cursor..]) {
-        let frame = &raw[cursor + start..=cursor + end];
-        let mut decoded = [0u8; 1024];
-        let mut output = OutputBuffer::new(&mut decoded);
-        let len = Hdlc::decode(frame, &mut output)
-            .unwrap_or_else(|err| panic!("a frame on the stream does not decode: {err:?}"));
-        if len > 0 {
-            packets
-                .push(Packet::from_bytes(&decoded[..len]).unwrap_or_else(|err| {
-                    panic!("a frame on the stream is not a packet: {err:?}")
-                }));
-        }
-        cursor += end + 1;
-    }
-    packets
-}
-
-fn link_requests_to(packets: &[Packet], destination: AddressHash) -> usize {
-    packets
-        .iter()
-        .filter(|p| p.header.packet_type == PacketType::LinkRequest && p.destination == destination)
-        .count()
 }
 
 /// Path requests naming `destination`: sent to the path-request address, with the asked-for
@@ -129,40 +73,6 @@ fn path_requests_for(packets: &[Packet], destination: AddressHash) -> usize {
                 && &p.data.as_slice()[..ADDRESS_HASH_SIZE] == destination.as_slice()
         })
         .count()
-}
-
-/// The `Closed` event for `id` within `within`, skipping anything else first.
-#[deny(clippy::await_holding_invalid_type)]
-async fn closed_event_for(
-    events: &mut broadcast::Receiver<LinkEventData>,
-    id: LinkId,
-    within: Duration,
-) -> LinkEventData {
-    let deadline = tokio::time::Instant::now() + within;
-    loop {
-        let left = deadline.saturating_duration_since(tokio::time::Instant::now());
-        let event = timeout(left, events.recv())
-            .await
-            .expect("the timeout close publishes an out-link event")
-            .expect("the out-link event stream remains open");
-        if event.id == id && matches!(event.event, LinkEvent::Closed) {
-            return event;
-        }
-    }
-}
-
-/// A non-transport initiator with broadcast on, its plain `TcpClient` connected to a raw
-/// loopback listener that never answers; returns the transport and the accepted stream.
-#[deny(clippy::await_holding_invalid_type)]
-async fn initiator_on_a_silent_listener(name: &str) -> (Transport, TcpStream) {
-    let listener = TcpListener::bind("127.0.0.1:0").await.expect("a loopback listener binds");
-    let addr = listener.local_addr().expect("the listener has an address");
-    let transport =
-        Transport::new(TransportConfig::new(name, &PrivateIdentity::new_from_rand(OsRng), true));
-    let (_iface, status) = spawn_plain_client(&transport, addr, RECONNECT_WAIT).await;
-    let stream = accept_within(&listener, "the client's connect").await;
-    wait_until("the client to count its stream", || status.connected_streams() >= 1).await;
-    (transport, stream)
 }
 
 /// A consumer that repeats `Link::request()` by hand on a still-pending link puts a second

@@ -20,9 +20,10 @@ const SHARED_INSTANCE_STORM_TIMEOUT: Duration = Duration::from_secs(60);
 /// prefix and must not count as a cycle.
 const SHARED_INSTANCE_STORM_DROP_SUMMARY: &str = "reverse route(s) cleared";
 
-/// The word every `on_reconnected` line carries and no other crate log line does, so the
-/// pin covers the reconnect service whichever tunnel arm the client is on.
-const SHARED_INSTANCE_STORM_RECONNECT_PREFIX: &str = "reconnected";
+/// The `on_reconnected` arm the default client logs; the storm counts that line alone, so a
+/// degraded reconnect (no longer registered) does not pass as a cycle. The opt-in
+/// re-synthesis arm is pinned by probe10 and probe16.
+const SHARED_INSTANCE_STORM_RECONNECT_LINE: &str = "reconnected, tunnel synthesis is off";
 
 /// The drop lines and the reconnect lines of `records`, counted in that order.
 fn shared_instance_storm_cycle_counts(records: &[String]) -> (usize, usize) {
@@ -30,7 +31,7 @@ fn shared_instance_storm_cycle_counts(records: &[String]) -> (usize, usize) {
         records.iter().filter(|record| record.contains(SHARED_INSTANCE_STORM_DROP_SUMMARY)).count();
     let reconnected = records
         .iter()
-        .filter(|record| record.contains(SHARED_INSTANCE_STORM_RECONNECT_PREFIX))
+        .filter(|record| record.contains(SHARED_INSTANCE_STORM_RECONNECT_LINE))
         .count();
     (dropped, reconnected)
 }
@@ -149,7 +150,7 @@ async fn shared_instance_storm_of_restarts_loses_no_event() {
     for record in &records {
         if record.contains(SHARED_INSTANCE_STORM_DROP_SUMMARY) {
             dropped_so_far += 1;
-        } else if record.contains(SHARED_INSTANCE_STORM_RECONNECT_PREFIX) {
+        } else if record.contains(SHARED_INSTANCE_STORM_RECONNECT_LINE) {
             reconnected_so_far += 1;
             assert!(
                 dropped_so_far >= reconnected_so_far,

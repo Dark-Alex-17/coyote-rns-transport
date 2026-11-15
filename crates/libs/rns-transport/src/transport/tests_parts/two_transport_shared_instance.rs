@@ -33,9 +33,10 @@ impl SharedInstanceServer {
     }
 
     /// The number of tunnels, path-less ones included, the shared instance holds. `clear`
-    /// reports the pre-clear count, so the table is emptied as a side effect: call this
-    /// once the test no longer needs the tunnels. The handler guard is held for the call
-    /// alone.
+    /// reports the pre-clear count, so a non-zero count empties the table as a side effect
+    /// (call it once the test no longer needs the tunnels), while a call that expects zero
+    /// leaves an empty table as it was and is safe mid-test. The handler guard is held for
+    /// the call alone.
     #[deny(clippy::await_holding_invalid_type)]
     async fn tunnel_count(&self) -> usize {
         let handler = self.transport.get_handler();

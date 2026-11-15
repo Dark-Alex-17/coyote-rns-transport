@@ -387,6 +387,20 @@ on the request still goes out on every outgoing interface, as
 `RNS/Transport.py:1439-1443` floods a packet without a path entry.
 `RnsError` is `#[non_exhaustive]`, so a match on it keeps a wildcard arm.
 
+`delivery::await_link_activation` returns as soon as the link it waits on
+is closed, with `io::ErrorKind::ConnectionAborted` and the close reason
+(`Timeout`, `InitiatorClosed`, `DestinationClosed`) in the message,
+whether it reads the closed status or takes the `Closed` event from
+`Transport::out_link_events`; its own deadline still answers `TimedOut`.
+A caller that passes a long wait on a link whose establishment times out
+therefore learns of it at the close, not at the deadline. With `broadcast`
+on, a `link` to a destination without a path entry is given the
+transport-sized establishment timeout, the first hop's 6 s plus 6 s for
+each of `PATHFINDER_M` (128) hops, about 774 s, and since the request is
+sent once that timeout is the only bound on such a link; a caller that
+wants a shorter one sets `Link::set_establishment_timeout` on the returned
+link before it waits.
+
 `Transport::destination_desc` returns `Option<DestinationDesc>` for a
 destination learned from an announce (the same map is also filled when a
 cached path table is restored), `Some` exactly when

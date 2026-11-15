@@ -130,11 +130,12 @@ no tunnel code; `wants_tunnel` is set only on the network-facing clients,
 `RNS/Interfaces/TCPInterface.py:179`), and the fork's unconditional tunnel
 was a bug for two transports on one identity: the tunnel id is the hash of
 the transport public key and the interface hash, the interface hash comes
-from a counter per `InterfaceManager`, so when the attach was each
-transport's first interface (the common case for a client that brings up
-only the shared-instance connection) both attaches produced one id and
-the shared instance's reappeared-tunnel branch (`RNS/Transport.py:2820-2868`,
-`:2829`) re-pointed every stored path at the newest connection. `7ae6a364`
+from a counter per `InterfaceManager`, so when the attach sat at the same
+ordinal in each transport's interface order (the common case for a client
+that brings up only the shared-instance connection) both attaches produced
+one id and the shared instance's reappeared-tunnel branch
+(`RNS/Transport.py:2820-2868`, `:2829`) re-pointed every stored path at the
+newest connection. `7ae6a364`
 adds `SharedInstanceOptions::with_tunnel_synthesis(bool)`, a `#[must_use]`
 builder off by default with a crate-private read-back; the attach
 synthesizes the tunnel only with it set, the reconnect consumer is spawned
@@ -302,9 +303,9 @@ link the establishment timeout closed before the daemon's wait ended would
 have returned the `ConnectionAborted` unretried; the retry arm now takes
 both kinds, and a unit test in `bridge_remote_control_link_tests.rs` closes
 the first pending link under the wait through `Transport::reset_out_link`
-and reads one refresh, exactly one more link request on the interface and
-a final error naming the close. `745d4bd4` adopts two probes carried over
-from the link request once work:
+and reads the refresh's path requests for the remote, exactly one more link
+request on the interface and a final error naming the close. `745d4bd4`
+adopts two probes carried over from the link request once work:
 `tests/pending_link_single_request_usage_probe.rs` (a pending link on a
 transport with no interface is closed once with `Timeout` on the tick
 after a 2 s establishment timeout, `Link::close()` publishes
@@ -463,12 +464,12 @@ release-timing divergence as above and says the release guard is inert
 here, the deque trimming by count alone; the flush fixture's doc says its
 held announces are seeded through `check()`, past the exemption; and
 `tests/announce_admission_usage_probe.rs` is adopted from the review's
-probe lane (one local client of a flagged `TcpServer` announces three
+usage probes (one local client of a flagged `TcpServer` announces three
 destinations back to back and another local client learns all three with
 no "holding announce" record; an ordinary fresh `TcpClient` interface
 learns two announces 100 ms apart and holds the third for hold plus
 penalty, about 30 s), while
-the one-identity probe drops its plan-review ids, names the 250 ms
+the one-identity probe drops its review ids, names the 250 ms
 registration announce as the reason for its spacing and asserts the two
 learns within 5 s. `08f18f07` carries the release-timing wording into the
 README row and the CHANGELOG bullet and sets the daemon's `ec_pr_freq`
@@ -482,7 +483,7 @@ admits three announces through `admit_announce_before_queue` under the
 shared-instance exemption and a pin reading the commented `ic_*` lines of
 `crates/apps/reticulumd/examples/interfaces-reference.toml` against
 `AnnounceRateLimit::default()`; `tests/announce_admission_usage_probe.rs`
-gains the second round's three probe-lane tests (an explicit
+gains the second round's three review tests (an explicit
 `ingress_control = true` with hold-on-anything thresholds on both
 shared-instance interfaces, three announces from an unflagged `TcpClient`
 into the flagged listener so the server's per-client child is exercised on
@@ -495,7 +496,7 @@ doc says the third and fourth unknown destinations are held; the
 one-identity probe drops an unreachable assert. `e14ced8a` names those
 pins in the CHANGELOG bullet and reflows the README row. `4a22affe` answers
 the third round: it adopts `tests/announce_admission_reconnect_probe.rs`
-from the probe lane (two default-option clients whose shared instance is
+from the review (two default-option clients whose shared instance is
 stopped and started again on its port still admit three back-to-back
 announces after the reconnect; three announces 1.5 s apart on an unflagged
 `TcpClient` interface are all learned under the 3 Hz threshold), has the
@@ -519,7 +520,7 @@ left as the library pin; the two held-third tests of
 assert the "holding announce" record was logged, the positive control for
 the exemption pins' empty checks, and the two-announce test asserts both
 learns inside 5 s; the commit adopts
-`tests/announce_admission_mixed_iface_probe.rs` from the probe lane (one
+`tests/announce_admission_mixed_iface_probe.rs` from the review (one
 transport is at once a flagged shared-instance client and a plain
 `TcpClient` connector: the plain interface holds the third of three, the
 shared-instance interface admits three right after, so the flag is read per

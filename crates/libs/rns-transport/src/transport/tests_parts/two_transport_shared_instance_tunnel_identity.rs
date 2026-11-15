@@ -1,13 +1,13 @@
 // Coverage for the rationale behind the default of `SharedInstanceOptions`: two transports
 // that attach to one shared instance under one identity. The tunnel id is the hash of the
 // transport public key and the interface hash, and the interface hash comes from a
-// per-transport counter, so two opted-in attaches under one identity that are each their
-// transport's first interface synthesize one tunnel id and the shared instance holds one
-// tunnel for both (`RNS/Transport.py:2820-2868`, the reappeared branch at `:2829`). Under
-// the default neither synthesizes a tunnel, so the shared instance keeps a path per
-// connection and a third client's links reach the transport that registered the
-// destination. Helpers come from the sibling `tests_parts` files included into this
-// module.
+// per-transport counter, so two opted-in attaches under one identity that sit at the same
+// ordinal in each transport's interface order synthesize one tunnel id and the shared
+// instance holds one tunnel for both (`RNS/Transport.py:2820-2868`, the reappeared branch
+// at `:2829`). Under the default neither synthesizes a tunnel, so the shared instance
+// keeps a path per connection and a third client's links reach the transport that
+// registered the destination. Helpers come from the sibling `tests_parts` files included
+// into this module.
 
 /// A client of the shared instance built under `identity` rather than a fresh one, its
 /// announce receiver subscribed before the attach.
@@ -28,8 +28,8 @@ async fn shared_instance_identity_client(
 }
 
 /// The interface-hash counter is per transport, so two transports whose shared-instance
-/// attach is their first interface carry the same full hash; with one identity that is what
-/// makes the tunnel ids collide.
+/// attach sits at the same ordinal in their interface order carry the same full hash; with
+/// one identity that is what makes the tunnel ids collide.
 #[deny(clippy::await_holding_invalid_type)]
 async fn shared_instance_assert_same_interface_hash(
     a: &SharedInstanceClient,
@@ -48,7 +48,7 @@ async fn shared_instance_assert_same_interface_hash(
     assert!(a_hash.is_some(), "a's attached interface is registered");
     assert_eq!(
         a_hash, b_hash,
-        "both attaches are each transport's first interface, so the interface-hash counter agrees"
+        "both attaches sit at the same ordinal in each transport's interface order, so the interface-hash counter agrees"
     );
 }
 

@@ -111,9 +111,9 @@ Removed) bullet of its own, marked as such.
   stream until a tunnel is asked for by hand.
 - `delivery::await_link_activation` (`delivery.rs`) now returns
   `io::ErrorKind::ConnectionAborted` with "link closed before activation:
-  <reason>" as soon as the link reads `LinkStatus::Closed` or its
-  `LinkEvent::Closed` event arrives on `Transport::out_link_events`,
-  naming the `LinkCloseReason` (`Timeout`, `InitiatorClosed`,
+  <reason>" as soon as the link reads `LinkStatus::Closed`, its
+  `LinkEvent::Closed` on `Transport::out_link_events` waking the wait to
+  reread the link, naming the `LinkCloseReason` (`Timeout`, `InitiatorClosed`,
   `DestinationClosed`; `unknown` when the link carries none), instead of
   waiting out the caller's own timeout. That timeout still answers
   `TimedOut` with the unchanged text, and a closed event channel still
@@ -129,11 +129,10 @@ Removed) bullet of its own, marked as such.
   establishment timeout closes before the daemon's own wait ends still
   gets its one refresh and retry; that module's unit tests pin it (the
   first pending link is closed under the wait, exactly one more link
-  request follows the refresh, and the final error names the close). Pinned
-  by
-  `tests/link_activation_closed_probe.rs` (a 2 s establishment timeout
-  ends a 60 s wait with `ConnectionAborted` naming `Timeout` within 4 s;
-  `Link::close()` on a pending link ends it naming `InitiatorClosed`
+  request follows the refresh, and the final error names the close).
+  Pinned by `tests/link_activation_closed_probe.rs` (a 2 s establishment
+  timeout ends a 60 s wait with `ConnectionAborted` naming `Timeout` within
+  4 s; `Link::close()` on a pending link ends it naming `InitiatorClosed`
   within 1.5 s), `tests/link_activation_closed_usage_probe.rs` (a link
   already closed when the wait starts answers at once from the status
   read, with the exact text; a repeated wait answers the same way; two
@@ -184,12 +183,12 @@ Removed) bullet of its own, marked as such.
   The tunnel id is the hash of the transport public key and the interface
   hash (`transport/tunnels.rs`), and this crate derives the interface hash
   from a counter per `InterfaceManager` (`iface_parts/interfacemanager.rs`),
-  so when the attach was each transport's first interface (the common case
-  for a client that brings up only the shared-instance connection) both
-  attaches synthesized the same tunnel id and the shared instance's
-  reappeared-tunnel branch (`RNS/Transport.py:2820-2868`, the branch at
-  `:2829`) re-pointed every path stored under it at the newest connection.
-  Tunnel synthesis at attach
+  so when the attach sat at the same ordinal in each transport's interface
+  order (the common case for a client that brings up only the shared-instance
+  connection) both attaches synthesized the same tunnel id and the shared
+  instance's reappeared-tunnel branch (`RNS/Transport.py:2820-2868`, the
+  branch at `:2829`) re-pointed every path stored under it at the newest
+  connection. Tunnel synthesis at attach
   (`links_parts/transport_sections/shared_instance.rs`) and on reconnect
   (`links_parts/transport_sections/shared_instance_reconnect.rs`) is now
   opt-in through `with_tunnel_synthesis` (see Added) and off by default;

@@ -62,8 +62,10 @@
 # passphrase = "shared-secret"
 # ingress_control = false
 # egress_control = false
-# The ic_* and ec_pr_freq values below are the defaults; ingress_control = false
-# above is not (Python defaults it to on, egress_control to off).
+# ingress_control defaults to true and egress_control to false, as in Python:
+# the commented ingress_control line above flips its default, the
+# egress_control line restates its own. The ic_* and ec_pr_freq values below
+# are the defaults.
 # ic_max_held_announces = 256
 # ic_burst_hold = 15.0
 # ic_burst_freq_new = 3.0

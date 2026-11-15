@@ -389,17 +389,19 @@ on the request still goes out on every outgoing interface, as
 
 `delivery::await_link_activation` returns as soon as the link it waits on
 is closed, with `io::ErrorKind::ConnectionAborted` and the close reason
-(`Timeout`, `InitiatorClosed`, `DestinationClosed`) in the message,
-whether it reads the closed status or takes the `Closed` event from
-`Transport::out_link_events`; its own deadline still answers `TimedOut`.
-A caller that passes a long wait on a link whose establishment times out
-therefore learns of it at the close, not at the deadline. With `broadcast`
-on, a `link` to a destination without a path entry is given the
-transport-sized establishment timeout, the first hop's 6 s plus 6 s for
-each of `PATHFINDER_M` (128) hops, about 774 s, and since the request is
-sent once that timeout is the only bound on such a link; a caller that
-wants a shorter one sets `Link::set_establishment_timeout` on the returned
-link before it waits.
+(`Timeout`, `InitiatorClosed`, `DestinationClosed`; `unknown` when the link
+carries none) in the message: the link's `Closed` event on
+`Transport::out_link_events` wakes the wait, which then reads the reason
+from the link. Its own deadline still answers `TimedOut`, and a gone event
+channel answers `UnexpectedEof`. A caller that passes a long wait on a link
+whose establishment times out therefore learns of it at the close, not at
+the deadline. With `broadcast` on, a `link` to a destination without a path
+entry is given the transport-sized establishment timeout, the first hop's
+6 s plus 6 s for each of `PATHFINDER_M` (128) hops, about 774 s (exact when
+the path table holds no first-hop metrics for the destination), and since
+the request is sent once that timeout is the only bound on such a link; a
+caller that wants a shorter one sets `Link::set_establishment_timeout` on
+the returned link before it waits.
 
 `Transport::destination_desc` returns `Option<DestinationDesc>` for a
 destination learned from an announce (the same map is also filled when a
@@ -497,7 +499,7 @@ unix targets a `LocalUnixClient` for `Unix`, marks that interface as the shared
 instance, sets the transport's client posture and returns the interface
 address: the posture of a Python program
 attaching to the instance that owns `shared_instance_port`
-(`RNS/Reticulum.py:422-441`; the default port is `:295`), with the
+(`RNS/Reticulum.py:420-441`; the default port is `:295`), with the
 client-side hop count of `RNS/Transport.py:1940` and the transport header
 on one-hop paths of `:1416-1427`. One shared instance is held at a time:
 `shared_instance()` reports the attached interface, a second call returns
@@ -526,13 +528,14 @@ the connection when the client comes back. The tunnel id is the hash of the
 transport public key and the interface hash, and this crate derives the
 interface hash from a counter per `InterfaceManager`, so two transports
 attaching with one identity, in one process or two, collide on the id when
-the attach is each transport's first interface (the common case for a client
-that brings up only the shared-instance connection) and the shared instance
-moves every path to the newest connection (`RNS/Transport.py:2820-2868`,
-the reappeared branch at `:2829`): opt in only when a single transport
-holds the identity and wants its paths restored on a reconnect. reticulumd
-leaves it off. `Transport::synthesize_tunnel_on_interface` remains available
-to a caller that wants a tunnel on its own terms.
+the attach sits at the same ordinal in each transport's interface order (the
+common case for a client that brings up only the shared-instance connection)
+and the shared instance moves every path to the newest connection
+(`RNS/Transport.py:2820-2868`, the reappeared branch at `:2829`): opt in
+only when a single transport holds the identity and wants its paths restored
+on a reconnect. reticulumd leaves it off.
+`Transport::synthesize_tunnel_on_interface` remains available to a caller
+that wants a tunnel on its own terms.
 `crates/apps/reticulumd/tests/python_channel_interop_parts/python_shared_instance_two_clients.rs`
 attaches two transports under one identity to a Python `rnsd` (RNS 1.5.2)
 shared instance: under the default a third client's link to the first

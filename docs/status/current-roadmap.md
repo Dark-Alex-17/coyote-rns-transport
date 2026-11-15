@@ -1440,10 +1440,11 @@ Scoped release evidence is split as follows:
   rediscovery handling above, which a caller previously had to trigger by
   closing the link by hand; before it, the link request was repeated every
   `INTERVAL_OUTPUT_LINK_REPEAT` for the life of the process. Inside the timeout
-  the request is still repeated as before, and a repeat does not restart the
-  clock, while an explicit restart or a request from a state the link had left
-  begins a new attempt with a fresh one. Python's `teardown_reason = TIMEOUT` is
-  not yet surfaced to callers as a distinct close reason.
+  the request is sent once (a direct second `request()` on a pending link is
+  still allowed and does not restart the clock), while an explicit restart or
+  a request from a state the link had left begins a new attempt with a fresh
+  one. Python's `teardown_reason = TIMEOUT` is surfaced to callers as
+  `LinkCloseReason::Timeout`.
 - A delivery-proof receipt handler can be installed through a shared
   `Transport`. `set_receipt_handler` took `&mut self`, which bought nothing
   because the handler it installs lives behind the transport's own lock, and

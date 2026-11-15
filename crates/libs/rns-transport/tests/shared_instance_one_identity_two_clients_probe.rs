@@ -322,7 +322,6 @@ async fn opted_in_attaches_under_one_identity_move_the_first_transports_path_to_
 
     let mut c_out = c.transport.out_link_events();
     let (_link_a, link_to_a) = open_link(&c, &a.destination_hash, "the link c -> a").await;
-    let window = Instant::now();
     match timeout(NO_LINK, a.in_links.recv()).await {
         Err(_elapsed) => {}
         Ok(Ok(event)) => panic!(
@@ -331,7 +330,6 @@ async fn opted_in_attaches_under_one_identity_move_the_first_transports_path_to_
         ),
         Ok(Err(err)) => panic!("a's in-link channel failed: {err:?}"),
     }
-    assert!(window.elapsed() >= NO_LINK, "the window was waited out");
     loop {
         match c_out.try_recv() {
             Ok(event) if event.id == link_to_a => assert!(

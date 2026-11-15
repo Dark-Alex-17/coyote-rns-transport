@@ -16,7 +16,7 @@ use crate::ratchets::now_secs;
 /// (RNS/Interfaces/Interface.py:84, :195, :346-348). The release guard is inert here: this
 /// deque only trims by count, while Python's also drains samples older than AR_FREQ_DECAY
 /// (RNS/Interfaces/Interface.py:352), so once two samples exist the guard always passes.
-/// It is kept so the two deactivation paths read alike.
+/// It is kept so this deactivation reads like RNS/Interfaces/Interface.py:195.
 const IC_DEQUE_MIN_SAMPLE: usize = 2;
 
 #[derive(Clone)]
@@ -1012,29 +1012,72 @@ mod tests {
     #[test]
     fn shared_instance_interface_is_never_ingress_limited() {
         let iface = AddressHash::new([0xF0; crate::hash::ADDRESS_HASH_SIZE]);
-        let config = InterfaceSharedConfig::default();
         let now = Instant::now();
-        let burst = |limits: &mut AnnounceLimits, shared_instance: bool| -> Vec<bool> {
-            (0..6u8)
-                .map(|idx| {
-                    limits.check_with_shared_config_at(
-                        iface,
-                        &announce_packet(AddressHash::new([idx + 1; 16]), 1),
-                        IfaceSource::None,
-                        false,
-                        IngressInterface { shared_config: &config, shared_instance },
-                        now + Duration::from_millis(idx.into()),
-                    ) == AnnounceLimitAction::Allow
-                })
-                .collect()
-        };
+        let burst =
+            |limits: &mut AnnounceLimits, config: &InterfaceSharedConfig, shared_instance: bool| {
+                (0..6u8)
+                    .map(|idx| {
+                        limits.check_with_shared_config_at(
+                            iface,
+                            &announce_packet(AddressHash::new([idx + 1; 16]), 1),
+                            IfaceSource::None,
+                            false,
+                            IngressInterface { shared_config: config, shared_instance },
+                            now + Duration::from_millis(idx.into()),
+                        ) == AnnounceLimitAction::Allow
+                    })
+                    .collect::<Vec<bool>>()
+            };
+        let default_config = InterfaceSharedConfig::default();
 
         let mut shared = AnnounceLimits::with_rate_limit(test_rate_limit());
-        assert_eq!(burst(&mut shared, true), vec![true; 6]);
+        assert_eq!(burst(&mut shared, &default_config, true), vec![true; 6]);
         assert!(shared.release_ready_at(now + Duration::from_secs(1)).is_empty());
 
+        // LocalInterface.py:130 overrides whatever ingress_control the config asked for.
+        let ingress_controlled =
+            InterfaceSharedConfig { ingress_control: Some(true), ..Default::default() };
+        let mut shared_with_ingress_control = AnnounceLimits::with_rate_limit(test_rate_limit());
+        assert_eq!(
+            burst(&mut shared_with_ingress_control, &ingress_controlled, true),
+            vec![true; 6]
+        );
+
         let mut plain = AnnounceLimits::with_rate_limit(test_rate_limit());
-        assert_eq!(burst(&mut plain, false), vec![true, true, false, false, false, false]);
+        assert_eq!(
+            burst(&mut plain, &default_config, false),
+            vec![true, true, false, false, false, false]
+        );
+    }
+
+    /// The commented `ic_*` lines in the reticulumd interface reference show Python's
+    /// defaults, which `AnnounceRateLimit::default()` pins.
+    #[test]
+    fn example_config_ic_values_match_the_defaults() {
+        let example =
+            include_str!("../../../../apps/reticulumd/examples/interfaces-reference.toml");
+        let example_value = |key: &str| -> f64 {
+            let prefix = format!("# {key} = ");
+            example
+                .lines()
+                .find_map(|line| line.strip_prefix(&prefix))
+                .unwrap_or_else(|| panic!("interfaces-reference.toml has no commented {key} line"))
+                .trim()
+                .parse()
+                .unwrap_or_else(|err| panic!("{key}: {err}"))
+        };
+
+        let defaults = AnnounceRateLimit::default();
+        assert_eq!(example_value("ic_burst_hold"), defaults.burst_hold.as_secs_f64());
+        assert_eq!(example_value("ic_burst_freq_new"), defaults.burst_freq_new);
+        assert_eq!(example_value("ic_burst_freq"), defaults.burst_freq);
+        assert_eq!(example_value("ic_new_time"), defaults.new_time.as_secs_f64());
+        assert_eq!(example_value("ic_burst_penalty"), defaults.burst_penalty.as_secs_f64());
+        assert_eq!(
+            example_value("ic_held_release_interval"),
+            defaults.held_release_interval.as_secs_f64()
+        );
+        assert_eq!(example_value("ic_max_held_announces"), defaults.max_held_announces as f64);
     }
 
     #[test]

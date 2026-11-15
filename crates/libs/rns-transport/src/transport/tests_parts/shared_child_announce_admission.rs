@@ -1,18 +1,3 @@
-/// A limiter that holds on any measurable frequency, so an admitted announce proves the
-/// interface was exempted rather than merely under threshold.
-fn hold_everything_rate_limit() -> AnnounceRateLimit {
-    AnnounceRateLimit {
-        incoming_freq_samples: 3,
-        max_held_announces: 8,
-        new_time: Duration::from_secs(3600),
-        burst_freq_new: 0.1,
-        burst_freq: 0.1,
-        burst_hold: Duration::from_millis(20),
-        burst_penalty: Duration::from_millis(20),
-        held_release_interval: Duration::from_millis(10),
-    }
-}
-
 /// A transport-enabled node with one channel (flagged as the shared instance when asked)
 /// and one virtual child registered on it, the way rnsd holds a listener and a per-client
 /// child.

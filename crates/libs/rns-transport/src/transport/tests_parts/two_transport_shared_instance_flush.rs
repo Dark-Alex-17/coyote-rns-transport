@@ -7,10 +7,10 @@
 // from the wire. Helpers come from the sibling `tests_parts` files included into this
 // module.
 
-/// Three announces inside one sample window trip the burst detector, so the fourth
-/// unknown destination is held rather than admitted. The held announces are seeded through
-/// `check()`, which skips the shared-instance exemption, so the fixture reaches a state
-/// production no longer produces on that interface.
+/// Two announces inside one sample window give the burst detector a frequency, so the third
+/// and fourth unknown destinations are held rather than admitted. The held announces are
+/// seeded through `check()`, which skips the shared-instance exemption, so the fixture
+/// reaches a state production no longer produces on that interface.
 fn shared_instance_flush_rate_limit() -> AnnounceRateLimit {
     AnnounceRateLimit {
         incoming_freq_samples: 3,

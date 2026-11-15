@@ -40,7 +40,7 @@ is fork commits `15251a8c`, `1232c410`, `745d4bd4`, `519d5973`,
 two clients interop` patch carries no other id and is fork commits
 `ddcb4430`, `a974386c`, `d40e0ae3` and `7f076dc3`. The `local client
 announce admission` patch is fork commits `be18658a`, `83e03e75`,
-`92e82a60`, `244722bf` and `08f18f07`.
+`92e82a60`, `244722bf`, `08f18f07`, `b0f194ce` and `e14ced8a`.
 
 | File | Patch |
 | --- | --- |
@@ -380,7 +380,8 @@ for the attach order and adds the second transport's empty in-link check to
 the negative control.
 Upstream site: test files only.
 
-Fork commits `be18658a`, `83e03e75`, `92e82a60`, `244722bf` and `08f18f07`:
+Fork commits `be18658a`, `83e03e75`, `92e82a60`, `244722bf`, `08f18f07`,
+`b0f194ce` and `e14ced8a`:
 N4, local client announce admission.
 Upstream site: `admit_announce_before_queue` in
 `crates/libs/rns-transport/src/transport/announce.rs`, which ran the
@@ -446,9 +447,9 @@ examples in `crates/apps/reticulumd/examples/interfaces-reference.toml`.
 `244722bf` answers the first review round: the two `ingress_control =
 false` pins (`announce_limits.rs` and `tests_parts/module_prelude.rs`) fed
 two announces, which the three-sample floor admits on any interface, and
-now feed a third the limiter would otherwise hold, the second through the
-`hold_everything_rate_limit` fixture of
-`shared_child_announce_admission.rs`; the two exempt arms of
+now feed a third (the unit pin's third is one the limiter would otherwise
+hold; the `module_prelude.rs` twin still drove `handle_announce` at this
+commit, which `b0f194ce` corrects); the two exempt arms of
 `check_with_shared_config_at` merge into one; `next_release_delay` bases
 the hold-until on the later of activation and the last sustained sample,
 pinned in `burst_sustained_resets_the_hold_clock`; the rustdoc states the
@@ -459,12 +460,34 @@ held announces are seeded through `check()`, past the exemption; and
 probe lane (one local client of a flagged `TcpServer` announces three
 destinations back to back and another local client learns all three with
 no "holding announce" record; an ordinary fresh `TcpClient` interface
-learns two announces 100 ms apart and holds the third for about 31 s), while
+learns two announces 100 ms apart and holds the third for hold plus
+penalty, about 30 s), while
 the one-identity probe drops its plan-review ids, names the 250 ms
 registration announce as the reason for its spacing and asserts the two
 learns within 5 s. `08f18f07` carries the release-timing wording into the
 README row and the CHANGELOG bullet and sets the daemon's `ec_pr_freq`
-example to the 5.0 Hz default (`Interface.py:86`).
+example to the 5.0 Hz default (`Interface.py:86`). `b0f194ce` answers the
+second round: `ingress_control_false_bypasses_unknown_announce_holding` in
+`tests_parts/module_prelude.rs` drove `handle_announce`, which never reaches
+the ingress limiter (only `admit_announce_before_queue` does), and now
+admits three announces through `admit_announce_before_queue` under the
+`hold_everything_rate_limit` fixture, moved into `module_prelude.rs`; the
+`announce_limits.rs` unit tests gain an `ingress_control = true` arm for the
+shared-instance exemption and a pin reading the commented `ic_*` lines of
+`crates/apps/reticulumd/examples/interfaces-reference.toml` against
+`AnnounceRateLimit::default()`; `tests/announce_admission_usage_probe.rs`
+gains the second round's three probe-lane tests (an explicit
+`ingress_control = true` with hold-on-anything thresholds on both
+shared-instance interfaces, three announces from an unflagged `TcpClient`
+into the flagged listener so the server's per-client child is exercised on
+its own, and 1 s `ic_burst_hold`, `ic_burst_penalty` and
+`ic_held_release_interval` overrides shortening the hold to a few seconds),
+sends its first test's announces with the None context, since a
+path-response announce is admitted before the exemption is consulted,
+names its transports once and asserts the learn time; the flush fixture's
+doc says the third and fourth unknown destinations are held; the
+one-identity probe drops an unreachable assert. `e14ced8a` names those
+pins in the CHANGELOG bullet and reflows the README row.
 
 ## 0.18.1 (upstream 0.14.0)
 

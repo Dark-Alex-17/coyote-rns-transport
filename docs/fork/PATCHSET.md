@@ -40,7 +40,8 @@ is fork commits `15251a8c`, `1232c410`, `745d4bd4`, `519d5973`,
 two clients interop` patch carries no other id and is fork commits
 `ddcb4430`, `a974386c`, `d40e0ae3` and `7f076dc3`. The `local client
 announce admission` patch is fork commits `be18658a`, `83e03e75`,
-`92e82a60`, `244722bf`, `08f18f07`, `b0f194ce` and `e14ced8a`.
+`92e82a60`, `244722bf`, `08f18f07`, `b0f194ce`, `e14ced8a`, `4a22affe` and
+`84ae2a5c`.
 
 | File | Patch |
 | --- | --- |
@@ -90,6 +91,7 @@ announce admission` patch is fork commits `be18658a`, `83e03e75`,
 | `crates/libs/rns-transport/src/transport/tests_parts/two_transport_shared_instance_storm.rs` | tunnel opt-in |
 | `crates/libs/rns-transport/src/transport/tests_parts/two_transport_shared_instance_tunnel_default.rs` | tunnel opt-in |
 | `crates/libs/rns-transport/src/transport/tests_parts/two_transport_shared_instance_tunnel_identity.rs` | tunnel opt-in, Python-in-the-loop two clients interop |
+| `crates/libs/rns-transport/tests/announce_admission_reconnect_probe.rs` | local client announce admission |
 | `crates/libs/rns-transport/tests/announce_admission_usage_probe.rs` | local client announce admission |
 | `crates/libs/rns-transport/tests/interface_events_api.rs` | tunnel opt-in |
 | `crates/libs/rns-transport/tests/link_activation_closed_busy_transport_probe.rs` | activation close exit |
@@ -381,7 +383,7 @@ the negative control.
 Upstream site: test files only.
 
 Fork commits `be18658a`, `83e03e75`, `92e82a60`, `244722bf`, `08f18f07`,
-`b0f194ce` and `e14ced8a`:
+`b0f194ce`, `e14ced8a`, `4a22affe` and `84ae2a5c`:
 N4, local client announce admission.
 Upstream site: `admit_announce_before_queue` in
 `crates/libs/rns-transport/src/transport/announce.rs`, which ran the
@@ -487,7 +489,20 @@ path-response announce is admitted before the exemption is consulted,
 names its transports once and asserts the learn time; the flush fixture's
 doc says the third and fourth unknown destinations are held; the
 one-identity probe drops an unreachable assert. `e14ced8a` names those
-pins in the CHANGELOG bullet and reflows the README row.
+pins in the CHANGELOG bullet and reflows the README row. `4a22affe` answers
+the third round: it adopts `tests/announce_admission_reconnect_probe.rs`
+from the probe lane (two default-option clients whose shared instance is
+stopped and started again on its port still admit three back-to-back
+announces after the reconnect; three announces 1.5 s apart on an unflagged
+`TcpClient` interface are all learned under the 3 Hz threshold), has the
+example `ic_*` pin read the reticulumd example from the workspace checkout
+at run time instead of `include_str!`, so a packaged crate's tests still
+compile, makes `check_with_shared_config` `pub(crate)` like the rest of the
+module's surface, cites `MAX_HELD_ANNOUNCES` (`Interface.py:72`) and the
+deque length (`:153`) on the defaults, spaces the child fixture's samples
+1 ms, and marks which commented values of the example config are defaults.
+`84ae2a5c` names the reconnect probe and the `ic_new_time` example move in
+the CHANGELOG bullet.
 
 ## 0.18.1 (upstream 0.14.0)
 

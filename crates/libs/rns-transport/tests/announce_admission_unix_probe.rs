@@ -66,7 +66,9 @@ const UNFLAGGED_CONNECTOR: &str = "unix-probe-plain-connector";
 
 /// A transport-enabled node with a `LocalUnixServer` on `socket`, flagged as the shared
 /// instance when asked and left an ordinary listener otherwise; its announce receiver is
-/// subscribed before the spawn.
+/// subscribed before the spawn. Transport mode stays enabled for the flagged and the
+/// unflagged listener alike: the admission decision never reads it, so the flag is the
+/// only variable between the two tests.
 #[deny(clippy::await_holding_invalid_type)]
 async fn unix_server(
     name: &str,

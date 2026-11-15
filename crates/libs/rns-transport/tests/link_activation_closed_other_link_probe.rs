@@ -127,6 +127,10 @@ async fn another_links_establishment_timeout_does_not_end_the_wait() {
         elapsed >= PAST_NEIGHBOUR_TIMEOUT_WAIT,
         "the wait reaches its own deadline, waited {elapsed:?}"
     );
+    assert!(
+        elapsed < PAST_NEIGHBOUR_TIMEOUT_WAIT + DEADLINE_SLACK,
+        "the wait returns close to its deadline, waited {elapsed:?}"
+    );
     assert_eq!(waited.lock().await.status(), LinkStatus::Pending);
     assert_eq!(waited.lock().await.close_reason(), None);
     assert_eq!(

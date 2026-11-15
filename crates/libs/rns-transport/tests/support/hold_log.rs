@@ -2,7 +2,9 @@
 //! <delay>` records and reads them back by transport name; shared by the integration tests
 //! that pin which interfaces hold an announce. `log::set_logger` is process-wide, so the two
 //! functions share one logger per test binary and the records are attributed to a test by
-//! the transport name in the message.
+//! the transport name in the message. This file is the deliberate exception to the one
+//! public function per support file rule: the installer and the reader share one private
+//! static, so they live together.
 
 use std::sync::Once;
 

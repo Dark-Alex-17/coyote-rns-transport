@@ -24,6 +24,8 @@ use rns_transport::destination::link::{
 use tokio::sync::broadcast;
 use tokio::time::timeout;
 
+#[path = "support/accept_within.rs"]
+mod accept_within;
 #[path = "support/broadcasting.rs"]
 mod broadcasting;
 #[path = "support/closed_event_for.rs"]
@@ -36,8 +38,12 @@ mod link_requests_to;
 mod packets_in;
 #[path = "support/read_for.rs"]
 mod read_for;
+#[path = "support/spawn_plain_client.rs"]
+mod spawn_plain_client;
 #[path = "support/unknown_destination.rs"]
 mod unknown_destination;
+#[path = "support/wait_until.rs"]
+mod wait_until;
 use broadcasting::broadcasting;
 use closed_event_for::closed_event_for;
 use initiator_on_a_silent_listener::initiator_on_a_silent_listener;

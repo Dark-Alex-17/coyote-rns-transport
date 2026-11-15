@@ -19,9 +19,13 @@ use rns_transport::destination::link::{
 };
 use rns_transport::hash::AddressHash;
 use rns_transport::packet::{Packet, PacketType};
-use tokio::sync::broadcast;
+use tokio::sync::broadcast::{self, error::RecvError};
 use tokio::time::timeout;
 
+#[path = "support/accept_within.rs"]
+mod accept_within;
+#[path = "support/broadcasting.rs"]
+mod broadcasting;
 #[path = "support/closed_event_for.rs"]
 mod closed_event_for;
 #[path = "support/initiator_on_a_silent_listener.rs"]
@@ -30,8 +34,12 @@ mod initiator_on_a_silent_listener;
 mod packets_in;
 #[path = "support/read_for.rs"]
 mod read_for;
+#[path = "support/spawn_plain_client.rs"]
+mod spawn_plain_client;
 #[path = "support/unknown_destination.rs"]
 mod unknown_destination;
+#[path = "support/wait_until.rs"]
+mod wait_until;
 use closed_event_for::closed_event_for;
 use initiator_on_a_silent_listener::initiator_on_a_silent_listener;
 use packets_in::packets_in;
@@ -63,10 +71,14 @@ async fn closed_events_for<const N: usize>(
     let deadline = tokio::time::Instant::now() + WAIT;
     while closed.len() < N {
         let left = deadline.saturating_duration_since(tokio::time::Instant::now());
-        let event = timeout(left, events.recv())
+        let event = match timeout(left, events.recv())
             .await
             .expect("every timeout close publishes an out-link event")
-            .expect("the out-link event stream remains open");
+        {
+            Ok(event) => event,
+            Err(RecvError::Lagged(_)) => continue,
+            Err(RecvError::Closed) => panic!("the out-link event stream remains open"),
+        };
         if ids.contains(&event.id) && matches!(event.event, LinkEvent::Closed) {
             closed.insert(event.id, event);
         }

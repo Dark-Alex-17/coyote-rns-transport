@@ -22,6 +22,10 @@ use rns_transport::identity::EmptyIdentity;
 use rns_transport::packet::{Packet, PacketType};
 use tokio::time::timeout;
 
+#[path = "support/accept_within.rs"]
+mod accept_within;
+#[path = "support/broadcasting.rs"]
+mod broadcasting;
 #[path = "support/closed_event_for.rs"]
 mod closed_event_for;
 #[path = "support/initiator_on_a_silent_listener.rs"]
@@ -32,8 +36,12 @@ mod link_requests_to;
 mod packets_in;
 #[path = "support/read_for.rs"]
 mod read_for;
+#[path = "support/spawn_plain_client.rs"]
+mod spawn_plain_client;
 #[path = "support/unknown_destination.rs"]
 mod unknown_destination;
+#[path = "support/wait_until.rs"]
+mod wait_until;
 use closed_event_for::closed_event_for;
 use initiator_on_a_silent_listener::initiator_on_a_silent_listener;
 use link_requests_to::link_requests_to;

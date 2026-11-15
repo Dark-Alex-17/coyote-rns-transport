@@ -7,9 +7,13 @@ use rns_transport::packet::Packet;
 
 /// The packets in every complete HDLC frame of `raw`, in order. `Hdlc::find` returns the
 /// indices of the next two 0x7E flags, so a closing flag can double as the next frame's
-/// opening flag; rescanning from the closing flag handles both doubled-flag and
-/// shared-flag streams, and the empty frame between a closing and an opening flag
-/// decodes to zero bytes and is skipped.
+/// opening flag; rescanning from the closing flag counts a frame that shares its opening
+/// flag with the previous frame's closing flag, and the empty frame between a closing and
+/// an opening flag decodes to zero bytes and is skipped. Production readers
+/// (`src/iface/tcp_client.rs` drains through the closing flag, like the read loop of
+/// `RNS/Interfaces/TCPInterface.py`) would drop that shared-flag frame; the harness counts
+/// it on purpose because the probes pin what the client SENT, and a request a peer would
+/// drop still left the client.
 pub fn packets_in(raw: &[u8]) -> Vec<Packet> {
     let mut packets = Vec::new();
     let mut cursor = 0;

@@ -16,8 +16,8 @@ use super::next_event::next_event;
 const WAIT: Duration = Duration::from_secs(5);
 const RECONNECT_WAIT: Duration = Duration::from_millis(50);
 
-/// Attaches `transport` at `endpoint` with `options` plus a 16-slot state stream and the
-/// short reconnect wait, reads the attach's `Connecting`, and returns the stream with the
+/// Attaches `transport` at `endpoint` with `options` plus a 16-slot state stream and a
+/// 50 ms reconnect wait, reads the attach's `Connecting`, and returns the stream with the
 /// interface address the attach reported.
 #[deny(clippy::await_holding_invalid_type)]
 pub async fn attach_with_events(

@@ -4,7 +4,7 @@
 use std::time::Duration;
 
 use rns_transport::destination::link::{LinkEvent, LinkEventData, LinkId};
-use tokio::sync::broadcast;
+use tokio::sync::broadcast::{self, error::RecvError};
 use tokio::time::timeout;
 
 /// The `Closed` event for `id` within `within`, skipping anything else first.
@@ -17,10 +17,14 @@ pub async fn closed_event_for(
     let deadline = tokio::time::Instant::now() + within;
     loop {
         let left = deadline.saturating_duration_since(tokio::time::Instant::now());
-        let event = timeout(left, events.recv())
+        let event = match timeout(left, events.recv())
             .await
             .expect("the close publishes an out-link event")
-            .expect("the out-link event stream remains open");
+        {
+            Ok(event) => event,
+            Err(RecvError::Lagged(_)) => continue,
+            Err(RecvError::Closed) => panic!("the out-link event stream remains open"),
+        };
         if event.id == id && matches!(event.event, LinkEvent::Closed) {
             return event;
         }

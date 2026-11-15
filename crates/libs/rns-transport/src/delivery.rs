@@ -125,7 +125,7 @@ fn closed_before_activation(reason: Option<LinkCloseReason>) -> io::Error {
     )
 }
 
-/// Waits until `link` is active. Three errors end the wait early:
+/// Waits until `link` is active. Three errors end the wait without activation:
 /// `ConnectionAborted` as soon as the link reads `LinkStatus::Closed` or
 /// its `LinkEvent::Closed` arrives on `Transport::out_link_events`, with
 /// the `LinkCloseReason` in the message (`unknown` when the link carries
@@ -141,9 +141,6 @@ pub async fn await_link_activation(
     wait_timeout: Duration,
 ) -> io::Result<()> {
     let link_id = *link.lock().await.id();
-    if link.lock().await.status() == LinkStatus::Active {
-        return Ok(());
-    }
 
     let mut events = transport.out_link_events();
     let now = tokio::time::Instant::now();

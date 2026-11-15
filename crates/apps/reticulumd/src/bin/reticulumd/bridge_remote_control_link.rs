@@ -23,10 +23,10 @@ pub(super) async fn resolve_remote_identity(
 
 /// Opens a link to the propagation node with one path refresh in reserve: a
 /// link request that times out, that is closed before it activates
-/// (`ConnectionAborted` from `await_link_activation`, whatever the close
-/// reason; the establishment timeout is the usual one), or that cannot be
-/// sent for want of a path, refreshes the path once and tries again. The
-/// retry's error names the first error it was retrying.
+/// (`ConnectionAborted` from `await_link_activation`; usually the link's
+/// establishment-timeout watchdog, but any close reason qualifies), or that
+/// cannot be sent for want of a path, refreshes the path once and tries
+/// again. The retry's error names the first error it was retrying.
 pub(super) async fn open_refreshed_remote_link(
     transport: &Transport,
     remote_hash: &AddressHash,

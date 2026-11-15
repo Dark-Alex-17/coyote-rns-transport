@@ -126,15 +126,16 @@ fn closed_before_activation(reason: Option<LinkCloseReason>) -> io::Error {
 }
 
 /// Waits until `link` is active. Three errors end the wait without activation:
-/// `ConnectionAborted` as soon as the link reads `LinkStatus::Closed` or
-/// its `LinkEvent::Closed` arrives on `Transport::out_link_events`, with
-/// the `LinkCloseReason` in the message (`unknown` when the link carries
-/// none); `TimedOut` once `wait_timeout` passes; `UnexpectedEof` when the
-/// event channel is gone. Python's watchdog closes a pending link at its
-/// establishment timeout (`RNS/Link.py:722-729`), so a caller with a long
-/// `wait_timeout` learns of that close at the close, not at its deadline.
-/// A timeout the clock cannot hold, `Duration::MAX` included, waits
-/// indefinitely instead of panicking.
+/// `ConnectionAborted` as soon as the link reads `LinkStatus::Closed`, with
+/// the link's `LinkCloseReason` in the message (`unknown` when the link
+/// carries none); `TimedOut` once `wait_timeout` passes; `UnexpectedEof`
+/// when the event channel is gone. A `LinkEvent::Closed` for the link on
+/// `Transport::out_link_events` wakes the wait so it rereads the link
+/// without waiting out the poll slice. Python's watchdog closes a pending
+/// link at its establishment timeout (`RNS/Link.py:722-729`), so a caller
+/// with a long `wait_timeout` learns of that close at the close, not at
+/// its deadline. A timeout the clock cannot hold, `Duration::MAX`
+/// included, waits indefinitely instead of panicking.
 pub async fn await_link_activation(
     transport: &Transport,
     link: &Arc<tokio::sync::Mutex<Link>>,
@@ -173,7 +174,7 @@ pub async fn await_link_activation(
                 }
                 match event.event {
                     LinkEvent::Activated => return Ok(()),
-                    LinkEvent::Closed => return Err(closed_before_activation(event.close_reason)),
+                    LinkEvent::Closed => continue,
                     _ => {}
                 }
             }

@@ -1040,14 +1040,13 @@ parity ledger; the `docs/status/*` matrices are not updated per fork task.
   interval plus a frequency-under-threshold check alone (`:277-282`), with
   the burst still active; both sides re-arm the release per release
   (`:293`). The thresholds, hold, penalty and release interval (`:76-84`),
-  the more-than-two-sample
-  floor on the measurement (`:84`, `:346-348`), the sustained clock and the
-  two-sample release guard (`:188-211`) follow Python, and a shared-instance
-  interface, the client's and the child a shared instance holds per
-  accepted client, is never limited (`RNS/Interfaces/LocalInterface.py:130`).
-  The formula and the release arming are inherited from upstream
-  `reticulum-rs-transport`, made visible by the exemption and the constants
-  refresh.
+  the more-than-two-sample floor on the measurement (`:84`, `:346-348`),
+  the sustained clock and the two-sample release guard (`:188-211`) follow
+  Python, and a shared-instance interface, the client's and the child a
+  shared instance holds per accepted client, is never limited
+  (`RNS/Interfaces/LocalInterface.py:130`). The formula and the release
+  arming are inherited from upstream `reticulum-rs-transport`, made visible
+  by the exemption and the constants refresh.
 
 Not divergences:
 

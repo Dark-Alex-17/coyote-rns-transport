@@ -302,9 +302,15 @@ Removed) bullet of its own, marked as such.
   `tests/announce_admission_usage_probe.rs` (one local client of a flagged
   `TcpServer` announces three destinations back to back and another local
   client learns all three with no "holding announce" record from any of
-  the three transports, where an ordinary fresh `TcpClient` interface learns
-  two announces 100 ms apart but holds the third for hold plus penalty,
-  about 31 s, in place of the six minutes the old defaults gave), by
+  the three transports, the same with `ingress_control = true` and
+  hold-on-anything thresholds on both shared-instance interfaces, and the
+  same three from an unflagged `TcpClient` into the flagged listener, which
+  isolates the server's per-client child; an ordinary fresh `TcpClient`
+  interface learns two announces 100 ms apart but holds the third for hold
+  plus penalty, about 30 s, in place of the six minutes the old defaults
+  gave, and `ic_burst_hold`, `ic_burst_penalty` and
+  `ic_held_release_interval` of 1 s on that interface shorten the hold to a
+  few seconds), by
   `tests/shared_instance_one_identity_two_clients_probe.rs` (a third local
   client of a flagged `TcpServer` learns two destinations announced 100 ms
   apart by two clients under one identity within 5 s, and a link to the
@@ -315,13 +321,15 @@ Removed) bullet of its own, marked as such.
   back-to-back announces under a limiter that holds on any measurable
   frequency, while an unflagged channel holds the third) and by the
   `transport/announce_limits.rs` unit tests (the default values, the
-  three-sample floor, the shared-instance exemption against the same
-  six-announce sequence held from the third on an ordinary interface, the
-  sustained clock and the release guard; the held-announce release tests
-  feed a third sample before each expected hold, and the two
-  `ingress_control = false` pins there and in
-  `transport/tests_parts/module_prelude.rs` feed a third announce the
-  limiter would otherwise hold; the existing three-sample fixtures in
+  commented `ic_*` values of `examples/interfaces-reference.toml` read
+  against them, the three-sample floor, the shared-instance exemption
+  against the same six-announce sequence held from the third on an ordinary
+  interface and under an explicit `ingress_control = true`, the sustained
+  clock and the release guard; the held-announce release tests feed a third
+  sample before each expected hold, the `ingress_control = false` pin there
+  feeds a third announce the limiter would otherwise hold, and the
+  `transport/tests_parts/module_prelude.rs` twin admits three through
+  `admit_announce_before_queue`; the existing three-sample fixtures in
   `transport/tests_parts/held_udp_announce_preserves_peer_sou.rs`,
   `transport/tests_parts/two_transport_shared_instance_flush.rs` and
   `transport/tests_parts/rns_1_5_ingress_admission.rs` keep their sample

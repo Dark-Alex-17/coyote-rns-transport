@@ -39,7 +39,8 @@ is fork commits `15251a8c`, `1232c410`, `745d4bd4`, `519d5973`,
 `86ce4bec`, `9fc9d686`, `da5a3ef1` and `d31bca6d`. The `Python-in-the-loop
 two clients interop` patch carries no other id and is fork commits
 `ddcb4430`, `a974386c`, `d40e0ae3` and `7f076dc3`. The `local client
-announce admission` patch is fork commits `be18658a`, `83e03e75` and `92e82a60`.
+announce admission` patch is fork commits `be18658a`, `83e03e75`,
+`92e82a60`, `244722bf` and `08f18f07`.
 
 | File | Patch |
 | --- | --- |
@@ -64,18 +65,19 @@ announce admission` patch is fork commits `be18658a`, `83e03e75` and `92e82a60`.
 | `crates/libs/rns-transport/src/transport/mod.rs` | link request once |
 | `crates/libs/rns-transport/src/transport/shared_instance.rs` | tunnel opt-in |
 | `crates/libs/rns-transport/src/transport/tests.rs` | tunnel opt-in, local client announce admission |
+| `crates/libs/rns-transport/src/transport/tests_parts/module_prelude.rs` | local client announce admission |
 | `crates/libs/rns-transport/src/transport/tests_parts/pending_out_link_establishment_timeout.rs` | link request once |
 | `crates/libs/rns-transport/src/transport/tests_parts/pending_out_link_rediscovery.rs` | link request once |
 | `crates/libs/rns-transport/src/transport/tests_parts/rns_1_5_ingress_admission.rs` | local client announce admission |
 | `crates/libs/rns-transport/src/transport/tests_parts/shared_child_announce_admission.rs` | local client announce admission |
 | `crates/libs/rns-transport/src/transport/tests_parts/two_transport_destination_desc_probe2.rs` | local client announce admission |
 | `crates/libs/rns-transport/src/transport/tests_parts/two_transport_loopback.rs` | local client announce admission |
-| `crates/libs/rns-transport/src/transport/tests_parts/two_transport_loopback_requests_receipt_stop.rs` | local client announce admission |
 | `crates/libs/rns-transport/src/transport/tests_parts/two_transport_loopback_requests_errors.rs` | link request once |
+| `crates/libs/rns-transport/src/transport/tests_parts/two_transport_loopback_requests_receipt_stop.rs` | local client announce admission |
 | `crates/libs/rns-transport/src/transport/tests_parts/two_transport_loopback_requests_routing.rs` | local client announce admission |
 | `crates/libs/rns-transport/src/transport/tests_parts/two_transport_shared_instance.rs` | tunnel opt-in |
 | `crates/libs/rns-transport/src/transport/tests_parts/two_transport_shared_instance_disconnect_reasons.rs` | tunnel opt-in |
-| `crates/libs/rns-transport/src/transport/tests_parts/two_transport_shared_instance_flush.rs` | tunnel opt-in |
+| `crates/libs/rns-transport/src/transport/tests_parts/two_transport_shared_instance_flush.rs` | tunnel opt-in, local client announce admission |
 | `crates/libs/rns-transport/src/transport/tests_parts/two_transport_shared_instance_probe10.rs` | tunnel opt-in |
 | `crates/libs/rns-transport/src/transport/tests_parts/two_transport_shared_instance_probe16.rs` | tunnel opt-in |
 | `crates/libs/rns-transport/src/transport/tests_parts/two_transport_shared_instance_probe17.rs` | tunnel opt-in |
@@ -88,6 +90,7 @@ announce admission` patch is fork commits `be18658a`, `83e03e75` and `92e82a60`.
 | `crates/libs/rns-transport/src/transport/tests_parts/two_transport_shared_instance_storm.rs` | tunnel opt-in |
 | `crates/libs/rns-transport/src/transport/tests_parts/two_transport_shared_instance_tunnel_default.rs` | tunnel opt-in |
 | `crates/libs/rns-transport/src/transport/tests_parts/two_transport_shared_instance_tunnel_identity.rs` | tunnel opt-in, Python-in-the-loop two clients interop |
+| `crates/libs/rns-transport/tests/announce_admission_usage_probe.rs` | local client announce admission |
 | `crates/libs/rns-transport/tests/interface_events_api.rs` | tunnel opt-in |
 | `crates/libs/rns-transport/tests/link_activation_closed_busy_transport_probe.rs` | activation close exit |
 | `crates/libs/rns-transport/tests/link_activation_closed_probe.rs` | activation close exit |
@@ -377,7 +380,7 @@ for the attach order and adds the second transport's empty in-link check to
 the negative control.
 Upstream site: test files only.
 
-Fork commits `be18658a`, `83e03e75` and `92e82a60`:
+Fork commits `be18658a`, `83e03e75`, `92e82a60`, `244722bf` and `08f18f07`:
 N4, local client announce admission.
 Upstream site: `admit_announce_before_queue` in
 `crates/libs/rns-transport/src/transport/announce.rs`, which ran the
@@ -412,8 +415,11 @@ over-threshold sample as well as after activation (`ic_burst_sustained`,
 `burst_freq_new` 3.0 Hz, `burst_freq` 10.0 Hz, `burst_hold` 15 s,
 `burst_penalty` 15 s, `held_release_interval` 5 s, with `new_time` 2 h,
 `incoming_freq_samples` 6 and `max_held_announces` 256 unchanged. The
-1/mean-gap formula over the last 6 samples and the release armed at
-deactivation stay, as the README's new Known divergences row records. The
+1/mean-gap formula over the last 6 samples and the release timing stay (the
+release is armed at deactivation and a held announce leaves only once the
+burst has ended, where Python's `process_held_announces`, `:277-282`,
+releases on the interval plus a frequency check with the burst still
+active), as the README's new Known divergences row records. The
 commit adds `tests/shared_instance_one_identity_two_clients_probe.rs`
 (three local clients of a flagged `TcpServer`; the third learns two
 destinations announced 100 ms apart by two clients under one identity and
@@ -437,6 +443,28 @@ exactly two announces on the connector's interface, and rewords the
 CHANGELOG Fixed bullet and the test-only Changed bullet, the README
 divergence row, and the 1.5.2 values into the daemon's commented `ic_*`
 examples in `crates/apps/reticulumd/examples/interfaces-reference.toml`.
+`244722bf` answers the first review round: the two `ingress_control =
+false` pins (`announce_limits.rs` and `tests_parts/module_prelude.rs`) fed
+two announces, which the three-sample floor admits on any interface, and
+now feed a third the limiter would otherwise hold, the second through the
+`hold_everything_rate_limit` fixture of
+`shared_child_announce_admission.rs`; the two exempt arms of
+`check_with_shared_config_at` merge into one; `next_release_delay` bases
+the hold-until on the later of activation and the last sustained sample,
+pinned in `burst_sustained_resets_the_hold_clock`; the rustdoc states the
+release-timing divergence as above and says the release guard is inert
+here, the deque trimming by count alone; the flush fixture's doc says its
+held announces are seeded through `check()`, past the exemption; and
+`tests/announce_admission_usage_probe.rs` is adopted from the review's
+probe lane (one local client of a flagged `TcpServer` announces three
+destinations back to back and another local client learns all three with
+no "holding announce" record; an ordinary fresh `TcpClient` interface
+learns two announces 100 ms apart and holds the third for about 31 s), while
+the one-identity probe drops its plan-review ids, names the 250 ms
+registration announce as the reason for its spacing and asserts the two
+learns within 5 s. `08f18f07` carries the release-timing wording into the
+README row and the CHANGELOG bullet and sets the daemon's `ec_pr_freq`
+example to the 5.0 Hz default (`Interface.py:86`).
 
 ## 0.18.1 (upstream 0.14.0)
 

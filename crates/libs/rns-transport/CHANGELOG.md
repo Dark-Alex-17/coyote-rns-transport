@@ -286,7 +286,9 @@ Removed) bullet of its own, marked as such.
   `incoming_freq_samples` 6 and `max_held_announces` 256 are unchanged, the
   per-interface `ic_*` overrides keep applying over the defaults, and the
   daemon's commented `ic_*` examples in `examples/interfaces-reference.toml`
-  read the same values (its `ic_pr_*` and `ec_pr_freq` examples now read the
+  read the same values (its `ic_new_time` example read 60 s against the
+  unchanged 2 h default, so that line moves too; its `ic_pr_*` and
+  `ec_pr_freq` examples now read the
   path-request defaults, 3.0 / 8.0 / 5.0 Hz, that `iface_runtime.rs` and
   `iface_parts/interface_traffic.rs` already applied). Two divergences remain
   and are registered under
@@ -310,7 +312,12 @@ Removed) bullet of its own, marked as such.
   plus penalty, about 30 s, in place of the six minutes the old defaults
   gave, and `ic_burst_hold`, `ic_burst_penalty` and
   `ic_held_release_interval` of 1 s on that interface shorten the hold to a
-  few seconds), by
+  few seconds), by `tests/announce_admission_reconnect_probe.rs` (two
+  default-option clients whose shared instance is stopped and started again
+  on its port still admit three back-to-back announces after the reconnect,
+  on the client interface and on the restarted instance's fresh per-client
+  child; three announces 1.5 s apart on an unflagged `TcpClient` interface
+  are all learned under the 3 Hz threshold), by
   `tests/shared_instance_one_identity_two_clients_probe.rs` (a third local
   client of a flagged `TcpServer` learns two destinations announced 100 ms
   apart by two clients under one identity within 5 s, and a link to the

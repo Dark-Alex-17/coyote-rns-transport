@@ -80,9 +80,10 @@ async fn connector(name: &str, port: u16, mtu: usize) -> LoopbackConnector {
 }
 
 /// Like `connector`, with `shared` applied to the `TcpClient` iface before it is spawned.
-/// Pass `ingress_control: Some(false)` when the test announces twice in quick succession:
-/// a freshly connected interface otherwise holds the second of two announces that arrive
-/// within half a second for `burst_hold`, well past the loopback timeout.
+/// A test that sends three or more announces for unknown destinations inside one sample
+/// window can pass `ingress_control: Some(false)`: the limiter reads 0 Hz until more than
+/// two samples exist (`RNS/Interfaces/Interface.py:84`, `:346-348`), so two announces at any
+/// spacing are admitted on a fresh interface and the third within about a second is held.
 #[deny(clippy::await_holding_invalid_type)]
 async fn connector_with(
     name: &str,

@@ -72,9 +72,8 @@ async fn two_transport_loopback_stop_skips_a_held_link_and_its_receipt_concludes
 /// link. `Transport::link` reuses the out-link per destination, hence the sibling.
 #[deny(clippy::await_holding_invalid_type)]
 async fn stop_open_sibling_link(pair: &mut LoopbackRequestPair) -> (Arc<Mutex<Link>>, AddressHash) {
-    // See `two_transport_loopback_request_handler_is_scoped_to_its_destination` for why the
-    // sibling's announce waits.
-    tokio::time::sleep(SIBLING_ANNOUNCE_SPACING).await;
+    // The sibling's announce is the second on the connector's interface, under the
+    // limiter's three-sample floor (`RNS/Interfaces/Interface.py:84`, `:346-348`).
     let (sibling, sibling_desc) = register_in_destination(
         &pair.handles.listener.transport,
         "loopback",

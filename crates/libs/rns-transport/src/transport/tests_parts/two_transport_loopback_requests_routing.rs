@@ -7,10 +7,6 @@
 // to a sibling destination on the same transport stays silent for the same path until that
 // destination registers its own handler. Helpers come from the sibling `tests_parts` files.
 
-/// Spacing between two announces the listener sends to the connector's fresh interface, so
-/// the second one is not held by announce ingress control.
-const SIBLING_ANNOUNCE_SPACING: Duration = Duration::from_secs(2);
-
 /// Identifies the connector to the responder as `identity` and returns its hash once the
 /// responder has posted `PeerIdentified` for the pair's link.
 #[deny(clippy::await_holding_invalid_type)]
@@ -152,14 +148,9 @@ async fn two_transport_loopback_request_handler_is_scoped_to_its_destination() {
     let mut pair = loopback_request_pair("request-scope-a").await;
     register_handler(&pair, "/echo", RequestAllow::All, echo_handler()).await;
 
-    // The connector's interface is new, so announces arriving too close together trip
-    // ingress control and are held for minutes (`RNS/Interfaces/Interface.py:76-77`,
-    // `:188-205`). The fork measures an announce frequency from two samples already
-    // (`transport/announce_limits.rs:91-114`; Python returns zero until a third sample,
-    // `Interface.py:346-348`), so the pair's own announce plus this one a fraction of a
-    // second later would measure above the new-interface threshold. Two samples `gap`
-    // apart measure as `2 / gap` Hz; two seconds keeps the sibling's announce well under it.
-    tokio::time::sleep(SIBLING_ANNOUNCE_SPACING).await;
+    // The sibling's announce is the second on the connector's fresh interface; the limiter
+    // measures nothing from fewer than three samples (`RNS/Interfaces/Interface.py:84`,
+    // `:346-348`), so it needs no spacing from the pair's own.
     let (sibling, sibling_desc) =
         register_in_destination(&pair.handles.listener.transport, "loopback", "request-scope-b")
             .await;

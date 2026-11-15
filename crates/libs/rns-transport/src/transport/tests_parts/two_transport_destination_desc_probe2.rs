@@ -8,17 +8,10 @@
 #[deny(clippy::await_holding_invalid_type)]
 async fn destination_desc_resolves_each_of_two_announced_peers_to_its_own_entry() {
     let listener = listener("loopback-listener", TcpClient::DEFAULT_MTU).await;
-    // Two announces follow in quick succession, so the connector's ingress control is off.
-    let mut connector = connector_with(
-        "loopback-connector",
-        listener.port,
-        TcpClient::DEFAULT_MTU,
-        Some(crate::iface::InterfaceSharedConfig {
-            ingress_control: Some(false),
-            ..Default::default()
-        }),
-    )
-    .await;
+    // Two announces follow in quick succession; the limiter admits both on a fresh
+    // interface, since it measures nothing from fewer than three samples.
+    let mut connector =
+        connector("loopback-connector", listener.port, TcpClient::DEFAULT_MTU).await;
     listener.await_accepted_connections(1).await;
 
     // Announce two distinct destinations one after the other so neither announce is

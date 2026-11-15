@@ -13,7 +13,10 @@ use crate::ratchets::now_secs;
 
 /// The frequency reads as zero until the deque holds MORE than this many samples, and a
 /// burst stays active until the deque has refilled to at least this many
-/// (RNS/Interfaces/Interface.py:84, :195, :346-348).
+/// (RNS/Interfaces/Interface.py:84, :195, :346-348). The release guard is inert here: this
+/// deque only trims by count, while Python's also drains samples older than AR_FREQ_DECAY
+/// (RNS/Interfaces/Interface.py:352), so once two samples exist the guard always passes.
+/// It is kept so the two deactivation paths read alike.
 const IC_DEQUE_MIN_SAMPLE: usize = 2;
 
 #[derive(Clone)]
@@ -140,10 +143,13 @@ impl AnnounceLimitEntry {
 
     /// Mirrors RNS/Interfaces/Interface.py:188-211: a burst ends only once the frequency has
     /// stayed under the threshold for a full hold after both activation and the last
-    /// over-threshold sample, and only with enough samples to trust the reading. Python arms
-    /// the held release at activation (:206) and re-arms it per release (:293); this limiter
-    /// arms it when the burst deactivates, so the penalty follows the hold instead of
-    /// overlapping it.
+    /// over-threshold sample, and only with enough samples to trust the reading. Release
+    /// timing diverges: Python's process_held_announces (RNS/Interfaces/Interface.py:277-282)
+    /// releases as soon as ic_held_release has passed and the frequency is under the
+    /// threshold, whether or not the burst has ended, and re-arms per release (:293).
+    /// `release_one` refuses while this returns true, so a Rust release waits for
+    /// deactivation (hold elapsed since activation and since the last over-threshold sample)
+    /// plus the penalty armed here.
     fn should_ingress_limit(&mut self, now: Instant, rate_limit: &AnnounceRateLimit) -> bool {
         let freq_threshold = self.threshold(now, rate_limit);
         let incoming_freq = self.incoming_announce_frequency(now);
@@ -217,7 +223,8 @@ impl AnnounceLimitEntry {
         if self.burst_active {
             let hold_until = self
                 .burst_activated
-                .map(|activated_at| activated_at + rate_limit.burst_hold + rate_limit.burst_penalty)
+                .max(self.burst_sustained)
+                .map(|hold_from| hold_from + rate_limit.burst_hold + rate_limit.burst_penalty)
                 .unwrap_or(now);
             return hold_until.saturating_duration_since(now);
         }
@@ -367,11 +374,8 @@ impl AnnounceLimits {
         if packet.context == PacketContext::PathResponse {
             return AnnounceLimitAction::Allow;
         }
-        if shared_config.ingress_control == Some(false) {
-            self.interface_rate_limits.remove(&iface);
-            return AnnounceLimitAction::Allow;
-        }
-        if shared_instance {
+        // The shared_instance half mirrors RNS/Interfaces/LocalInterface.py:130.
+        if shared_config.ingress_control == Some(false) || shared_instance {
             self.interface_rate_limits.remove(&iface);
             return AnnounceLimitAction::Allow;
         }
@@ -893,6 +897,17 @@ mod tests {
             ),
             AnnounceLimitAction::Allow
         );
+        assert_eq!(
+            limits.check_with_shared_config_at(
+                iface,
+                &announce_packet(AddressHash::new([3; 16]), 1),
+                IfaceSource::None,
+                false,
+                ingress,
+                now + Duration::from_millis(2),
+            ),
+            AnnounceLimitAction::Allow
+        );
         assert!(limits.release_ready_at(now + Duration::from_secs(1)).is_empty());
     }
 
@@ -1045,6 +1060,10 @@ mod tests {
 
         assert!(entry.should_ingress_limit(at(45), &rate_limit));
         assert!(entry.burst_active, "a hold after activation alone must not end the burst");
+        assert_eq!(
+            entry.next_release_delay(at(45), &rate_limit),
+            at(30) + rate_limit.burst_hold + rate_limit.burst_penalty - at(45)
+        );
 
         assert!(entry.should_ingress_limit(at(50), &rate_limit));
         assert!(!entry.burst_active);

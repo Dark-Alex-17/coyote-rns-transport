@@ -46,11 +46,12 @@ const POLL: Duration = Duration::from_millis(20);
 /// local client; a request that reaches the registering transport activates well inside it.
 const NO_LINK: Duration = Duration::from_secs(3);
 const APP_NAME: &str = "one-identity-two-clients";
-/// Spacing between the first registrant's announce and the second attach. A shared-instance
-/// interface never ingress-limits, in Rust as in Python (`RNS/Interfaces/LocalInterface.py:130`,
-/// pinned by `third_client_admits_two_local_client_announces_back_to_back`), so the spacing
-/// is not a limiter workaround: it keeps the first's path filed before the second attaches,
-/// the ordering the tunnel-synthesis negative control depends on.
+/// Spacing between the first registrant's announce and the second attach. Adding a
+/// destination on an attached client spawns a registration announce 250 ms later
+/// (`SHARED_INSTANCE_REGISTRATION_ANNOUNCE_DELAY` in
+/// `links_parts/transport_sections/shared_instance_announce.rs`, `RNS/Transport.py:2911-2916`).
+/// The tunnel-synthesis negative control needs that re-announce to have landed before b
+/// attaches, else it re-points a's path back and the control turns positive.
 const ANNOUNCE_SPACING: Duration = Duration::from_millis(1100);
 /// Back-to-back spacing a Python local client admits without a hold.
 const BACK_TO_BACK: Duration = Duration::from_millis(100);
@@ -128,9 +129,10 @@ async fn attach(
     }
 }
 
-/// Registers one destination under a FRESH identity (gate answer 1: only the transport
-/// identity is shared) and announces it to the shared instance as a path response, which a
-/// flagged shared instance fans out to the other local clients.
+/// Registers one destination under a FRESH identity (only the transport identity is shared)
+/// and announces it to the shared instance as a path response, which a flagged shared
+/// instance fans out to the other local clients. Every call produces two announces: the
+/// immediate one and the registration announce 250 ms later.
 #[deny(clippy::await_holding_invalid_type)]
 async fn register_and_announce(client: &mut Client, aspect: &str) {
     let destination = client
@@ -242,7 +244,7 @@ async fn stop_all(clients: Vec<Client>, shared: Transport) {
 async fn default_attaches_under_one_identity_keep_each_link_on_the_registering_transport() {
     let (shared, endpoint) = flagged_shared_instance().await;
     let identity = PrivateIdentity::new_from_rand(OsRng);
-    // The third client first (F7): it must be attached when a's announce is fanned out.
+    // The third client first: it must be attached when a's announce is fanned out.
     let mut c = attach(
         "one-identity-c",
         &PrivateIdentity::new_from_rand(OsRng),
@@ -312,7 +314,7 @@ async fn opted_in_attaches_under_one_identity_move_the_first_transports_path_to_
     let mut b = attach("one-identity-on-b", &identity, endpoint, opted_in()).await;
     register_and_announce(&mut b, "b").await;
     assert_ne!(a.destination_hash, b.destination_hash, "two distinct destinations");
-    // F3 precondition: one identity and one interface hash make one tunnel id.
+    // Precondition: one identity and one interface hash make one tunnel id.
     let a_hash = interface_hash(&a).await;
     assert!(a_hash.is_some(), "a's attached interface is registered");
     assert_eq!(a_hash, interface_hash(&b).await, "both attaches carry one interface hash");
@@ -353,9 +355,12 @@ async fn opted_in_attaches_under_one_identity_move_the_first_transports_path_to_
 /// (`RNS/Interfaces/LocalInterface.py:130`, both for a client program and for the
 /// interfaces rnsd spawns per accepted client), and `Interface.incoming_announce_frequency`
 /// reads 0 until more than `IC_DEQUE_MIN_SAMPLE` = 2 samples exist (`Interface.py:84`,
-/// `:346-348`), so a Python third client files both paths at once. A Rust third client
-/// must do the same: both destinations learned within `WAIT`, and a link to the second
-/// activates on the second.
+/// `:346-348`), so a Python third client files both paths at once. This pins the
+/// two-announce usage on a Rust third client: both destinations filed within `WAIT`, and a
+/// link to the second activates on the second. The exemption itself is pinned by
+/// `shared_child_announce_admission.rs`, the unit test
+/// `shared_instance_interface_is_never_ingress_limited` and
+/// `tests/announce_admission_usage_probe.rs`.
 #[tokio::test]
 #[deny(clippy::await_holding_invalid_type)]
 async fn third_client_admits_two_local_client_announces_back_to_back() {
@@ -385,7 +390,11 @@ async fn third_client_admits_two_local_client_announces_back_to_back() {
         &b.destination_hash,
     )
     .await;
-    eprintln!("c learned both destinations after {:?}", started.elapsed());
+    assert!(
+        started.elapsed() < Duration::from_secs(5),
+        "c learned both destinations after {:?}; a held announce would surface no sooner than 30 s",
+        started.elapsed()
+    );
 
     let mut c_out = c.transport.out_link_events();
     let (_link_b, link_to_b) = open_link(&c, &b.destination_hash, "the link c -> b").await;

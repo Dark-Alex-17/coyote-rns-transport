@@ -1203,16 +1203,8 @@ async fn ingress_control_false_bypasses_unknown_announce_holding() {
     let handler = transport.get_handler();
     let mut announce_rx = transport.recv_announces().await;
 
-    handler.lock().await.announce_limits = AnnounceLimits::with_rate_limit(AnnounceRateLimit {
-        incoming_freq_samples: 3,
-        max_held_announces: 8,
-        new_time: Duration::from_secs(3600),
-        burst_freq_new: 0.1,
-        burst_freq: 0.1,
-        burst_hold: Duration::from_millis(20),
-        burst_penalty: Duration::from_millis(20),
-        held_release_interval: Duration::from_millis(10),
-    });
+    handler.lock().await.announce_limits =
+        AnnounceLimits::with_rate_limit(hold_everything_rate_limit());
 
     let iface = {
         let manager = transport.iface_manager();
@@ -1253,5 +1245,20 @@ async fn ingress_control_false_bypasses_unknown_announce_holding() {
     timeout(Duration::from_millis(200), announce_rx.recv())
         .await
         .expect("second announce should bypass limiter and emit")
+        .expect("broadcast receive");
+
+    tokio::time::sleep(Duration::from_millis(1)).await;
+
+    let mut third_destination = SingleInputDestination::new(
+        PrivateIdentity::new_from_rand(OsRng),
+        DestinationName::new("lxmf", "delivery"),
+    );
+    let third_announce = third_destination.announce(OsRng, None).expect("third announce");
+    handle_announce(&third_announce, handler.lock().await, iface, crate::iface::IfaceSource::None)
+        .await;
+
+    timeout(Duration::from_millis(200), announce_rx.recv())
+        .await
+        .expect("third announce should bypass limiter and emit")
         .expect("broadcast receive");
 }

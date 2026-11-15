@@ -164,7 +164,7 @@ async fn wait_for_daemon(daemon: &mut Daemon, local_port: u16, rpc_port: u16) {
         if let Ok(Some(status)) = daemon.child.try_wait() {
             panic!(
                 "reticulumd exited before it was ready: {status}\n--- daemon log ---\n{}",
-                daemon.log.lock().expect("daemon log store")
+                daemon.log_snapshot()
             );
         }
         let rpc_ready = rpc_status(rpc_port).is_ok();
@@ -179,7 +179,7 @@ async fn wait_for_daemon(daemon: &mut Daemon, local_port: u16, rpc_port: u16) {
         assert!(
             Instant::now() < deadline,
             "reticulumd did not come up within {DAEMON_START:?}\n--- daemon log ---\n{}",
-            daemon.log.lock().expect("daemon log store")
+            daemon.log_snapshot()
         );
         tokio::time::sleep(Duration::from_millis(50)).await;
     }

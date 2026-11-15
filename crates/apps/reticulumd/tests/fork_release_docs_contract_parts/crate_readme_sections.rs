@@ -876,11 +876,12 @@ fn crate_readme_shared_instance_section_describes_interface_connect_count() {
     }
 }
 
-/// The shared-instance section and the changelog bullet on the two-client
+/// The shared-instance section and the changelog section on the two-client
 /// collision both name the Python-in-the-loop part that proves the default
 /// and the opt-in against a live rnsd, with the Python lines it reads: the
 /// README gives the part's full path and the reappeared-tunnel log line,
-/// the bullet gives the file name and the local-client attach it rides on.
+/// the changelog section gives the file name and the local-client attach it
+/// rides on.
 #[test]
 fn crate_readme_shared_instance_section_names_the_two_clients_proof() {
     let readme = read_repo_file("crates/libs/rns-transport/README.md");

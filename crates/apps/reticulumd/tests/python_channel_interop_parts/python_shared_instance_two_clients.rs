@@ -1,8 +1,8 @@
 // Two transports under one transport identity attached to a live Python
 // rnsd. The tunnel id is the hash of the transport public key and the
 // interface hash, and the interface hash comes from a per-transport counter,
-// so two opted-in attaches under one identity that are each their
-// transport's first interface synthesize one tunnel id; rnsd then takes the
+// so two opted-in attaches under one identity that sit at the same ordinal
+// in each transport's interface order synthesize one tunnel id; rnsd then takes the
 // reappeared branch for the second attach and moves the first transport's
 // path onto the second connection (`RNS/Transport.py:2820-2868`). Under the
 // default neither synthesizes a tunnel and rnsd keeps a path per connection.
@@ -201,7 +201,7 @@ async fn run_python_rnsd_shared_instance_two_clients(tunnel_synthesis: bool) {
         None
     };
     let a_learned =
-        live_wait_for_python_announce(&mut c_announces, a.desc.address_hash, TWO_CLIENTS_ANNOUNCE)
+        live_wait_for_relayed_announce(&mut c_announces, a.desc.address_hash, TWO_CLIENTS_ANNOUNCE)
             .await;
 
     let mut b = two_clients_attach_registrant(
@@ -222,7 +222,7 @@ async fn run_python_rnsd_shared_instance_two_clients(tunnel_synthesis: bool) {
     assert!(a_iface_hash.is_some(), "a's attached interface is registered");
     assert_eq!(
         a_iface_hash, b_iface_hash,
-        "both attaches are each transport's first interface, so the interface-hash counter agrees"
+        "both attaches sit at the same ordinal in each transport's interface order, so the interface-hash counter agrees"
     );
     if let Some(tunnel_id) = &tunnel_id {
         let reappeared = format!("Tunnel endpoint <{tunnel_id}> reappeared. Restoring paths...");
@@ -291,7 +291,8 @@ async fn python_rnsd_shared_instance_two_clients_link_lands_on_the_registering_t
 /// [`python_rnsd_shared_instance_two_clients_link_lands_on_the_registering_transport`]
 /// and the reason `with_tunnel_synthesis` is off by default. Both transports
 /// opt in, and each tunnel id hashes the shared public key with an interface
-/// hash both draw from their own first-interface counter, so the ids agree.
+/// hash that sits at the same ordinal in each transport's interface order, so
+/// the ids agree.
 /// rnsd logs `Tunnel endpoint <id> established.` for the first attach
 /// (`RNS/Transport.py:2823`) and files the first transport's destination
 /// under that tunnel on its announce (`Path to <hash> associated with tunnel

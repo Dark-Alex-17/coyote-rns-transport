@@ -163,9 +163,9 @@ fn write_live_shared_instance_config(dir: &std::path::Path, config: &str) {
 }
 
 #[deny(clippy::await_holding_invalid_type)]
-async fn live_wait_for_python_announce(
+async fn live_wait_for_relayed_announce(
     announces: &mut tokio::sync::broadcast::Receiver<AnnounceEvent>,
-    python_hash: AddressHash,
+    hash: AddressHash,
     within: Duration,
 ) -> DestinationDesc {
     tokio::time::timeout(within, async {
@@ -173,7 +173,7 @@ async fn live_wait_for_python_announce(
             match announces.recv().await {
                 Ok(event) => {
                     let desc = event.destination.lock().await.desc;
-                    if desc.address_hash == python_hash {
+                    if desc.address_hash == hash {
                         return desc;
                     }
                 }
@@ -319,7 +319,7 @@ async fn run_python_rnsd_shared_instance_requests_both_ways(
     );
 
     let python_destination =
-        live_wait_for_python_announce(&mut announces, python_hash, Duration::from_secs(60)).await;
+        live_wait_for_relayed_announce(&mut announces, python_hash, Duration::from_secs(60)).await;
     let mut link_events = transport.out_link_events();
     let link = transport.link(python_destination).await.expect("link request sent");
     let link_id = wait_for_out_link_active(&mut link_events, &link, Duration::from_secs(20)).await;

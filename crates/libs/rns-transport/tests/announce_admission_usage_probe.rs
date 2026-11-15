@@ -411,7 +411,11 @@ async fn ordinary_fresh_interface_admits_two_announces_without_spacing() {
         &destinations[1].1,
     )
     .await;
-    eprintln!("d0 after {first:?}, d1 after {second:?}");
+    assert!(
+        first < Duration::from_secs(5) && second < Duration::from_secs(5),
+        "d0 after {first:?}, d1 after {second:?}; a held announce would surface no sooner \
+         than 30 s"
+    );
 
     drop(destinations);
     stop_all(vec![connector, listener]).await;
@@ -425,6 +429,7 @@ async fn ordinary_fresh_interface_admits_two_announces_without_spacing() {
 #[tokio::test]
 #[deny(clippy::await_holding_invalid_type)]
 async fn ordinary_fresh_interface_holds_the_third_announce_for_hold_plus_penalty() {
+    install_hold_logger();
     let (listener, endpoint, _) = tcp_server("probe-held-listener", false, false).await;
     let (connector, mut announces) = plain_connector("probe-held-connector", endpoint, None).await;
     let destinations = register_destinations(&listener, 3).await;
@@ -444,6 +449,12 @@ async fn ordinary_fresh_interface_holds_the_third_announce_for_hold_plus_penalty
         early.is_err(),
         "the third announce inside one second was admitted after {:?}; the limiter must hold it",
         early.unwrap_or_default()
+    );
+    // The positive control for the empty `holds_by` checks of the exemption pins: the hold
+    // is logged under the connector's name with the text they filter on.
+    assert!(
+        !holds_by(&["probe-held-connector"]).is_empty(),
+        "the connector held the third announce but logged no holding announce record"
     );
     let remaining = RELEASED.saturating_sub(third_sent.elapsed());
     let released = announce_within(&mut announces, &destinations[2].1, remaining).await;
@@ -580,6 +591,7 @@ async fn plain_connector_announcing_three_to_a_flagged_listener_is_learned_in_fu
 #[tokio::test]
 #[deny(clippy::await_holding_invalid_type)]
 async fn ordinary_interface_ic_overrides_shorten_the_hold() {
+    install_hold_logger();
     let (listener, endpoint, _) = tcp_server("probe-override-listener", false, false).await;
     let overrides = InterfaceSharedConfig {
         ic_burst_hold: Some(1.0),
@@ -607,6 +619,10 @@ async fn ordinary_interface_ic_overrides_shorten_the_hold() {
         "the third announce inside one second was admitted after {:?}; the limiter must hold \
          it for at least ic_burst_hold = 1 s",
         early.unwrap_or_default()
+    );
+    assert!(
+        !holds_by(&["probe-override-connector"]).is_empty(),
+        "the connector held the third announce but logged no holding announce record"
     );
     let released =
         announce_within(&mut announces, &destinations[2].1, Duration::from_secs(10)).await;

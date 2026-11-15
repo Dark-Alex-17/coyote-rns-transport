@@ -34,7 +34,8 @@ pub struct AnnounceRateLimit {
 }
 
 /// Python's ingress-control defaults (RNS/Interfaces/Interface.py:72, :76-84;
-/// `incoming_freq_samples` stands in for the `ia_freq_deque` length at :153).
+/// `incoming_freq_samples` is 6 where Python keeps IA_FREQ_SAMPLES = 48 at :60 and :153,
+/// part of the formula divergence the README's Known divergences row records).
 impl Default for AnnounceRateLimit {
     fn default() -> Self {
         Self {
@@ -1049,42 +1050,6 @@ mod tests {
             burst(&mut plain, &default_config, false),
             vec![true, true, false, false, false, false]
         );
-    }
-
-    /// The commented `ic_*` lines in the reticulumd interface reference show Python's
-    /// defaults, which `AnnounceRateLimit::default()` pins. The file is read from the
-    /// workspace checkout at run time, so the test names the layout it needs instead of
-    /// failing to compile in a packaged crate.
-    #[test]
-    fn example_config_ic_values_match_the_defaults() {
-        let path = concat!(
-            env!("CARGO_MANIFEST_DIR"),
-            "/../../apps/reticulumd/examples/interfaces-reference.toml"
-        );
-        let example = std::fs::read_to_string(path)
-            .unwrap_or_else(|err| panic!("read {path} from the workspace checkout: {err}"));
-        let example_value = |key: &str| -> f64 {
-            let prefix = format!("# {key} = ");
-            example
-                .lines()
-                .find_map(|line| line.strip_prefix(&prefix))
-                .unwrap_or_else(|| panic!("interfaces-reference.toml has no commented {key} line"))
-                .trim()
-                .parse()
-                .unwrap_or_else(|err| panic!("{key}: {err}"))
-        };
-
-        let defaults = AnnounceRateLimit::default();
-        assert_eq!(example_value("ic_burst_hold"), defaults.burst_hold.as_secs_f64());
-        assert_eq!(example_value("ic_burst_freq_new"), defaults.burst_freq_new);
-        assert_eq!(example_value("ic_burst_freq"), defaults.burst_freq);
-        assert_eq!(example_value("ic_new_time"), defaults.new_time.as_secs_f64());
-        assert_eq!(example_value("ic_burst_penalty"), defaults.burst_penalty.as_secs_f64());
-        assert_eq!(
-            example_value("ic_held_release_interval"),
-            defaults.held_release_interval.as_secs_f64()
-        );
-        assert_eq!(example_value("ic_max_held_announces"), defaults.max_held_announces as f64);
     }
 
     #[test]

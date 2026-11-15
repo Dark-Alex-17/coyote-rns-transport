@@ -6,8 +6,9 @@
 // queues never hold more than two events and none can be dropped here; the loss-free claim
 // is about ordering and service, not back-pressure. The drop flush also sends no close
 // packet for a link that rode the dropped interface itself, so the restarted instance
-// receives no close for a link it never knew. Helpers come from the sibling `tests_parts`
-// files included into this module.
+// receives no close for a link it never knew. The storm runs once per posture, so the
+// opt-in client's tunnel re-synthesis is exercised at restart rate too. Helpers come from
+// the sibling `tests_parts` files included into this module.
 
 const SHARED_INSTANCE_STORM_RESTARTS: usize = 6;
 
@@ -20,31 +21,29 @@ const SHARED_INSTANCE_STORM_TIMEOUT: Duration = Duration::from_secs(60);
 /// prefix and must not count as a cycle.
 const SHARED_INSTANCE_STORM_DROP_SUMMARY: &str = "reverse route(s) cleared";
 
-/// The `on_reconnected` arm the default client logs; the storm counts that line alone, so a
-/// degraded reconnect (no longer registered) does not pass as a cycle. The opt-in
-/// re-synthesis arm is pinned by probe10 and probe16.
-const SHARED_INSTANCE_STORM_RECONNECT_LINE: &str = "reconnected, tunnel synthesis is off";
-
-/// The drop lines and the reconnect lines of `records`, counted in that order.
-fn shared_instance_storm_cycle_counts(records: &[String]) -> (usize, usize) {
+/// The drop lines and the lines containing `reconnect_line` of `records`, counted in that
+/// order.
+fn shared_instance_storm_cycle_counts(records: &[String], reconnect_line: &str) -> (usize, usize) {
     let dropped =
         records.iter().filter(|record| record.contains(SHARED_INSTANCE_STORM_DROP_SUMMARY)).count();
-    let reconnected = records
-        .iter()
-        .filter(|record| record.contains(SHARED_INSTANCE_STORM_RECONNECT_LINE))
-        .count();
+    let reconnected = records.iter().filter(|record| record.contains(reconnect_line)).count();
     (dropped, reconnected)
 }
 
 /// Polls the test logger until `name` has recorded at least `cycles` drop lines and
-/// `cycles` reconnect lines; returns every record of `name` in arrival order.
+/// `cycles` lines containing `reconnect_line`; returns every record of `name` in arrival
+/// order.
 #[deny(clippy::await_holding_invalid_type)]
-async fn shared_instance_storm_await_cycle_records(name: &str, cycles: usize) -> Vec<String> {
+async fn shared_instance_storm_await_cycle_records(
+    name: &str,
+    cycles: usize,
+    reconnect_line: &str,
+) -> Vec<String> {
     let deadline = Instant::now() + LOOPBACK_TIMEOUT;
     loop {
         let records: Vec<String> =
             shared_instance_records_for(name).into_iter().map(|(_, record)| record).collect();
-        let (dropped, reconnected) = shared_instance_storm_cycle_counts(&records);
+        let (dropped, reconnected) = shared_instance_storm_cycle_counts(&records, reconnect_line);
         if dropped >= cycles && reconnected >= cycles {
             return records;
         }
@@ -107,16 +106,16 @@ async fn shared_instance_storm_drop_skips_the_close_packet_of_a_link_over_the_dr
 }
 
 /// Six back-to-back restarts of the shared instance, each waited for up to the re-accept:
-/// the consumer records one drop line and one reconnect line per restart, in record order
+/// the consumer records one drop line and one `reconnect_line` per restart, in record order
 /// every drop line precedes the reconnect line of its cycle and the counts match, so
-/// neither channel lost an event at this rate.
-#[tokio::test]
+/// neither channel lost an event at this rate. `client` is attached to `server` already.
 #[deny(clippy::await_holding_invalid_type)]
-async fn shared_instance_storm_of_restarts_loses_no_event() {
-    install_test_logger();
-    let name = "shared-instance-storm-restarts";
-    let server = shared_instance_server().await;
-    let client = shared_instance_reconnect_client(name, &server).await;
+async fn shared_instance_storm_of_restarts(
+    name: &str,
+    client: SharedInstanceClient,
+    server: SharedInstanceServer,
+    reconnect_line: &str,
+) {
     server.await_accepted_connections(1).await;
     shared_instance_assert_attached(&client.transport, client.iface).await;
 
@@ -134,9 +133,13 @@ async fn shared_instance_storm_of_restarts_loses_no_event() {
     .expect("the restarts complete inside the storm timeout");
     let storm_took = started.elapsed();
 
-    let records =
-        shared_instance_storm_await_cycle_records(name, SHARED_INSTANCE_STORM_RESTARTS).await;
-    let (dropped, reconnected) = shared_instance_storm_cycle_counts(&records);
+    let records = shared_instance_storm_await_cycle_records(
+        name,
+        SHARED_INSTANCE_STORM_RESTARTS,
+        reconnect_line,
+    )
+    .await;
+    let (dropped, reconnected) = shared_instance_storm_cycle_counts(&records, reconnect_line);
     assert_eq!(
         dropped, SHARED_INSTANCE_STORM_RESTARTS,
         "one drop line per restart after a {storm_took:?} storm: {records:?}"
@@ -150,7 +153,7 @@ async fn shared_instance_storm_of_restarts_loses_no_event() {
     for record in &records {
         if record.contains(SHARED_INSTANCE_STORM_DROP_SUMMARY) {
             dropped_so_far += 1;
-        } else if record.contains(SHARED_INSTANCE_STORM_RECONNECT_LINE) {
+        } else if record.contains(reconnect_line) {
             reconnected_so_far += 1;
             assert!(
                 dropped_so_far >= reconnected_so_far,
@@ -163,4 +166,35 @@ async fn shared_instance_storm_of_restarts_loses_no_event() {
 
     timeout(STOP_TIMEOUT, client.transport.stop()).await.expect("client stop completes");
     timeout(STOP_TIMEOUT, server.transport.stop()).await.expect("shared instance stop completes");
+}
+
+/// The storm over a client in the default posture: every restart logs the synthesis-off
+/// line.
+#[tokio::test]
+#[deny(clippy::await_holding_invalid_type)]
+async fn shared_instance_storm_of_restarts_loses_no_event() {
+    install_test_logger();
+    let name = "shared-instance-storm-restarts";
+    let server = shared_instance_server().await;
+    let client = shared_instance_reconnect_client(name, &server).await;
+    shared_instance_storm_of_restarts(name, client, server, SHARED_INSTANCE_RECONNECT_OFF_LINE)
+        .await;
+}
+
+/// The storm over a client that opted into tunnel synthesis: every restart re-synthesizes
+/// the tunnel, so the client stays registered through six back-to-back reconnects.
+#[tokio::test]
+#[deny(clippy::await_holding_invalid_type)]
+async fn shared_instance_storm_of_restarts_loses_no_event_with_tunnel_synthesis() {
+    install_test_logger();
+    let name = "shared-instance-storm-restarts-tunneled";
+    let server = shared_instance_server().await;
+    let client = shared_instance_reconnect_tunneled_client(name, &server).await;
+    shared_instance_storm_of_restarts(
+        name,
+        client,
+        server,
+        SHARED_INSTANCE_RECONNECT_RESYNTHESIZED_LINE,
+    )
+    .await;
 }

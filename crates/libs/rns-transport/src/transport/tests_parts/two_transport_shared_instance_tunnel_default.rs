@@ -55,11 +55,9 @@ async fn shared_instance_tunnel_default_synthesizes_no_tunnel_at_attach_or_recon
     restarted.await_accepted_connections(2).await;
 
     for (name, iface) in [(name_a, a.iface), (name_b, b.iface)] {
-        let record = shared_instance_probe10_await_debug_record(
-            name,
-            "reconnected, tunnel synthesis is off",
-        )
-        .await;
+        let record =
+            shared_instance_probe10_await_debug_record(name, SHARED_INSTANCE_RECONNECT_OFF_LINE)
+                .await;
         assert!(record.contains(&iface.to_string()), "the record names the iface: {record}");
         assert!(
             shared_instance_debug_records_containing(name, "tunnel re-synthesized").is_empty(),

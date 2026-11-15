@@ -77,6 +77,16 @@ impl SharedInstanceServer {
     }
 }
 
+/// The `on_reconnected` debug line of a client in the default posture (tunnel synthesis
+/// off). The arm is tested before registration, so a client that is no longer registered
+/// logs this same line: a test that counts it pins the service and ordering of the
+/// reconnect events, not registration, which probe10 and probe16 pin.
+const SHARED_INSTANCE_RECONNECT_OFF_LINE: &str = "reconnected, tunnel synthesis is off";
+
+/// The `on_reconnected` debug line of a client that opted into tunnel synthesis and is
+/// still registered; a degraded reconnect logs `not re-synthesized` instead.
+const SHARED_INSTANCE_RECONNECT_RESYNTHESIZED_LINE: &str = "reconnected, tunnel re-synthesized";
+
 /// A client of the shared instance: broadcast and transport both off. The announce
 /// receiver is subscribed before the attach so the first relayed announce cannot be missed.
 struct SharedInstanceClient {

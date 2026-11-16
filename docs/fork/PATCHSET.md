@@ -45,7 +45,7 @@ announce admission` patch is fork commits `be18658a`, `83e03e75`,
 commits `863d7ba9`, `6707f86f`, `e4dfc449`, `655c44d1`, `477b9863`,
 `a111e152`, `a6b0b7f6`, `af24c666`, `ac65cba0`, `32aabfe5`, `c28dfd6f`,
 `43d56a61`, `98fb3075`, `9cc4782f`, `0a2ac538`, `d31d0559`, `f1973fb7`,
-`3a95f2f3`, `5338f85a`, `01bea0f6` and `1052de05`. The `release 0.18.2` patch carries
+`3a95f2f3`, `5338f85a`, `01bea0f6`, `1052de05` and `7c698d6b`. The `release 0.18.2` patch carries
 no other id and is fork commits `4e5ab382`, `f19bf251`, `0d6654cb`,
 `a7611163` and `bd1a06c1`.
 
@@ -74,6 +74,7 @@ no other id and is fork commits `4e5ab382`, `f19bf251`, `0d6654cb`,
 | `crates/apps/reticulumd/tests/support/python_shared_instance_client.py` | run hygiene |
 | `crates/apps/rns-tools/Cargo.toml` | release 0.18.2 |
 | `crates/libs/rns-core/src/buffer.rs` | run hygiene |
+| `crates/libs/rns-transport/src/buffer.rs` | run hygiene |
 | `crates/libs/rns-transport/CHANGELOG.md` | tunnel opt-in, link request once, Python-in-the-loop two clients interop, activation close exit, local client announce admission, run hygiene, release 0.18.2 |
 | `crates/libs/rns-transport/Cargo.toml` | release 0.18.2 |
 | `crates/libs/rns-transport/README.md` | tunnel opt-in, Python-in-the-loop two clients interop, activation close exit, local client announce admission, run hygiene, release 0.18.2 |
@@ -590,7 +591,7 @@ release arming observable.
 Fork commits `863d7ba9`, `6707f86f`, `e4dfc449`, `655c44d1`, `477b9863`,
 `a111e152`, `a6b0b7f6`, `af24c666`, `ac65cba0`, `32aabfe5`, `c28dfd6f`,
 `43d56a61`, `98fb3075`, `9cc4782f`, `0a2ac538`, `d31d0559`, `f1973fb7`,
-`3a95f2f3`, `5338f85a`, `01bea0f6` and `1052de05`:
+`3a95f2f3`, `5338f85a`, `01bea0f6`, `1052de05` and `7c698d6b`:
 N5, run hygiene.
 Upstream site: the test files and shared helpers of the four patches above
 and the fork's own documentation; the one production edit is
@@ -823,7 +824,8 @@ exception. The CHANGELOG names it in the Pinned-by clause of the reread
 bullet. `1052de05` iterates the buffer bytes in the two `Display` impls of
 `crates/libs/rns-core/src/buffer.rs` (`OutputBuffer`, `StaticBuffer`): the CI
 toolchain moved to clippy 1.100, whose `needless_range_loop` flags the index
-loops; the hex output is unchanged.
+loops; the hex output is unchanged. `7c698d6b` does the same in the transport
+crate's twin module, `crates/libs/rns-transport/src/buffer.rs`.
 
 Fork commits `4e5ab382`, `f19bf251`, `0d6654cb`, `a7611163` and `bd1a06c1`:
 release 0.18.2. The first bumps the crate version to 0.18.2 at every

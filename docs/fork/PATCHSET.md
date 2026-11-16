@@ -44,8 +44,8 @@ announce admission` patch is fork commits `be18658a`, `83e03e75`,
 `84ae2a5c`, `29d78171` and `3d887f3e`. The `run hygiene` patch is fork
 commits `863d7ba9`, `6707f86f`, `e4dfc449`, `655c44d1`, `477b9863`,
 `a111e152`, `a6b0b7f6`, `af24c666`, `ac65cba0`, `32aabfe5`, `c28dfd6f`,
-`43d56a61`, `98fb3075`, `9cc4782f`, `0a2ac538`, `d31d0559` and
-`f1973fb7`.
+`43d56a61`, `98fb3075`, `9cc4782f`, `0a2ac538`, `d31d0559`, `f1973fb7`,
+`3a95f2f3` and `5338f85a`.
 
 | File | Patch |
 | --- | --- |
@@ -573,8 +573,8 @@ release arming observable.
 
 Fork commits `863d7ba9`, `6707f86f`, `e4dfc449`, `655c44d1`, `477b9863`,
 `a111e152`, `a6b0b7f6`, `af24c666`, `ac65cba0`, `32aabfe5`, `c28dfd6f`,
-`43d56a61`, `98fb3075`, `9cc4782f`, `0a2ac538`, `d31d0559` and
-`f1973fb7`:
+`43d56a61`, `98fb3075`, `9cc4782f`, `0a2ac538`, `d31d0559`, `f1973fb7`,
+`3a95f2f3` and `5338f85a`:
 N5, run hygiene.
 Upstream site: the test files and shared helpers of the four patches above
 and the fork's own documentation; the one production edit is
@@ -582,8 +582,12 @@ and the fork's own documentation; the one production edit is
 `crates/libs/rns-transport/src/delivery.rs`. The integration tests the four
 patches added had each grown a copy of the same harness; this patch moves
 those copies into `crates/libs/rns-transport/tests/support/`, tightens unit
-pins that asserted less than their names said, and adopts two probes from
-the review's usage probes. `863d7ba9` moves the raw-listener harness of the
+pins that asserted less than their names said, and adopts three probes
+from the review's usage probes:
+`tests/link_activation_closed_other_link_probe.rs`,
+`tests/announce_admission_unix_probe.rs` and
+`tests/link_activation_closed_wake_probe.rs`.
+`863d7ba9` moves the raw-listener harness of the
 five `tests/pending_link_single_request*_probe.rs` files into
 `tests/support/read_for.rs`, `packets_in.rs`, `link_requests_to.rs`,
 `closed_event_for.rs`, `initiator_on_a_silent_listener.rs`,
@@ -609,12 +613,13 @@ wait, which rereads `LinkStatus` and `close_reason` from the link, the
 same read every poll slice already makes. The observable contract is
 unchanged: a closed link yields `ConnectionAborted` naming its reason
 within the poll slice, and every activation probe keeps its timing bound.
-The one reachable difference is `Link::restart()` under a wait, which is
-public but has no production caller: a link closed and restarted before
-the reread reads `Pending` with no reason, so the wait now stays alive to
+The one reachable difference is a link re-pended under a wait, by
+`Link::restart()` or by `Link::request()` on a closed link (both public,
+neither with a production caller): closed and re-pended before the
+reread, the link reads `Pending` with no reason, so the wait now runs to
 its own deadline instead of failing with a stale reason, pinned by
 `tests/link_activation_closed_wake_probe.rs` (adopted by `0a2ac538`
-below). `655c44d1` moves the
+below, the request path added by `3a95f2f3`). `655c44d1` moves the
 shared-instance harness of the three `tests/announce_admission_*_probe.rs`
 files into `tests/support/hold_log.rs`, `wait_until_within.rs`,
 `learn_all.rs`, `tcp_server_on.rs`, `register_destinations.rs`,
@@ -654,8 +659,8 @@ the interop helpers: the attach probe's quiet-window oracle in
 `crates/apps/reticulumd/src/bin/reticulumd/bootstrap_interface_startup_parts/shared_instance_attach_probe_tests.rs`
 tells EOF and a read error apart; the bridge closed-before-activation test in
 `crates/apps/reticulumd/src/bin/reticulumd/bridge_remote_control_link_tests.rs`
-counts the refresh's two path requests (`request_path`, then `await_path`)
-and checks they leave before the second link request;
+asserts the refresh's path request precedes the retry's second link
+request (`3a95f2f3` below settles the count it reads);
 `crates/apps/reticulumd/tests/local_client_announce_admission_probe.rs`
 scans the daemon log once, after a `stop_daemon` that asserts the SIGINT
 and the exit status, anchored on an `[announce-debug] accepted dst=`
@@ -681,7 +686,7 @@ paragraph is reworded in plain prose; `docs/status/current-roadmap.md`
 says the request is sent once and names `LinkCloseReason::Timeout`; and
 the defaults comment of
 `crates/apps/reticulumd/examples/interfaces-reference.toml` says which
-commented line flips its default. The last five commits answer the review
+commented line flips its default. The next five commits answer the review
 of the eight above. `ac65cba0` makes the admission pins discriminating:
 the two pins in
 `transport/tests_parts/held_udp_announce_preserves_peer_sou.rs` take
@@ -730,6 +735,7 @@ teardown-restart probes now say the wait ends when the link reads
 reread; `tests/link_activation_closed_probe.rs` takes the shared
 exact-text pin in place of two `contains` checks; and `arm_ingress_hold`
 in `held_udp_announce_preserves_peer_sou.rs` primes through `admissions`.
+The six commits that follow answer a second review round.
 `9cc4782f` runs the restart storm over both tunnel postures:
 `shared_instance_storm_of_restarts_loses_no_event` in
 `two_transport_shared_instance_storm.rs` keeps the default client and
@@ -754,7 +760,7 @@ broadcast receiver lagged, where `32aabfe5` had them continue: the probes
 pin that the event is published exactly once, which a skipped lag cannot
 show. `d31d0559` is a second comment-only edit to `delivery.rs`: the
 `LinkEvent::Closed => continue` arm now states the reachable difference
-(`Link::restart()` under a wait, no production caller, pinned by the wake
+(a link re-pended under a wait, no production caller, pinned by the wake
 probe), and the close-reason comment says `Timeout` and `InitiatorClosed`
 are pinned by the shared helper's includers and the daemon test while
 `DestinationClosed` is pinned only by the README contract needle.
@@ -766,6 +772,27 @@ the copies in `tests/shared_instance_tunnel_default_relay_probe.rs`,
 `tests/announce_admission_reconnect_probe.rs`; the one-identity probe
 takes `wait_until_within` and its header takes the "same ordinal"
 wording; and the relay probe cites `RNS/Transport.py:2400-2429`.
+`3a95f2f3` gives the wake probe its third test: `Link::close()` then
+`Link::request()` in one lock scope re-pends the link under a fresh id,
+and the wait runs to `TimedOut` as it does after `restart()`, with the
+probe header naming both re-pend paths. The same commit has the bridge
+closed-before-activation test assert at least one path request from the
+refresh, placed before the second link request, where it had asserted
+exactly two; adds the lag-posture clause to the rustdoc of
+`tests/support/learn_all.rs` and `announce_within.rs` (a lagged receiver
+is skipped because an announce stream may legitimately lag); renames the
+usage probe's local `learn_announce` to `expect_announce_within`, a
+different helper from the support waiter of the old name; has the
+`RecvError::Closed` arms of `closed_event_for.rs` and the concurrent probe
+panic with "closed before the Closed event arrived" where the text had
+said the stream remains open; has the `stop_daemon` asserts in the
+daemon's admission
+probe carry the daemon log; and has
+`two_transport_shared_instance_probe10.rs` and `..._probe16.rs` read
+`SHARED_INSTANCE_RECONNECT_RESYNTHESIZED_LINE`. `5338f85a` is a third
+comment-only edit to `delivery.rs`: the `LinkEvent::Closed => continue`
+arm names both re-pend paths, `Link::restart()` and `Link::request()` on
+a closed link.
 
 ## 0.18.1 (upstream 0.14.0)
 

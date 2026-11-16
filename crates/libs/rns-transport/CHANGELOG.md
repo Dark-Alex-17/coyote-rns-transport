@@ -205,10 +205,12 @@ Removed) bullet of its own, marked as such.
   another link id does not end an activation wait; a neighbour's hand close
   or establishment-timeout close leaves the wait running to its own
   deadline or its own close), `tests/link_activation_closed_wake_probe.rs`
-  (a hand close under the wait returns within 100 ms on at least five of
-  six links, so the `Closed` event wakes the reread rather than the 250 ms
-  poll; a close and `Link::restart()` in one lock scope before the reread
-  leaves the wait running to its own deadline) and
+  (three tests: a hand close under the wait returns within 100 ms on at
+  least five of six links, so the `Closed` event wakes the reread rather
+  than the 250 ms poll; a close and `Link::restart()` in one lock scope
+  before the reread leaves the wait running to its own deadline; and a
+  close and `Link::request()` in one lock scope does the same, the link
+  re-pended under a fresh id) and
   `tests/announce_admission_unix_probe.rs`
   (Unix only; a flagged `LocalUnixServer` and its default-option clients
   never ingress-limit, an unflagged one holds the third of three announces
@@ -226,8 +228,8 @@ Removed) bullet of its own, marked as such.
   `connector_with` is folded into `connector` (its unused `Some` branch
   gone), the daemon's
   attach-probe oracle tells EOF and a read error apart, and the bridge
-  closed-before-activation test counts the refresh's two path requests
-  before the second link request. Pinned by
+  closed-before-activation test asserts the refresh's path request
+  precedes the retry's second link request. Pinned by
   `tests/pending_link_single_request_probe.rs`,
   `tests/packets_in_scanner_pin.rs`,
   `tests/link_activation_closed_probe.rs`,
@@ -245,16 +247,17 @@ Removed) bullet of its own, marked as such.
   `transport/tests_parts/module_prelude.rs` and the daemon's
   `bootstrap_interface_startup_parts::shared_instance_attach_probe_tests`
   and `bridge_remote_control_link_tests`.
-- Behaviour-neutral: `delivery::await_link_activation` (`delivery.rs`) no
-  longer builds its error from the reason on the `LinkEvent::Closed` event;
-  the event wakes the wait, which rereads `LinkStatus` and `close_reason`
-  from the link, the same read every poll slice makes. The observable
-  contract is unchanged: a closed link yields `ConnectionAborted` naming
-  its reason within the poll slice. The one reachable difference is
-  `Link::restart()` under a wait (public, no production caller): a link
-  closed and restarted before the reread reads `Pending` with no reason,
-  so the wait now stays alive to its own deadline instead of failing with
-  a stale reason. Pinned by
+- `delivery::await_link_activation` (`delivery.rs`) no longer builds its
+  error from the reason on the `LinkEvent::Closed` event; the event wakes
+  the wait, which rereads `LinkStatus` and `close_reason` from the link,
+  the same read every poll slice makes. The observable contract is
+  unchanged: a closed link yields `ConnectionAborted` naming its reason
+  within the poll slice. The one reachable difference is a link re-pended
+  under a wait, by `Link::restart()`
+  (`link_sections/next_watchdog_deadline.rs`) or by `Link::request()` on a
+  closed link (`link_sections/new.rs`), both public, neither with a
+  production caller, which now runs the wait to its own deadline instead
+  of failing with a stale reason. Pinned by
   `tests/link_activation_closed_probe.rs`,
   `tests/link_activation_closed_other_link_probe.rs`,
   `tests/link_activation_closed_wake_probe.rs` and

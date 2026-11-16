@@ -45,7 +45,7 @@ announce admission` patch is fork commits `be18658a`, `83e03e75`,
 commits `863d7ba9`, `6707f86f`, `e4dfc449`, `655c44d1`, `477b9863`,
 `a111e152`, `a6b0b7f6`, `af24c666`, `ac65cba0`, `32aabfe5`, `c28dfd6f`,
 `43d56a61`, `98fb3075`, `9cc4782f`, `0a2ac538`, `d31d0559`, `f1973fb7`,
-`3a95f2f3`, `5338f85a`, `01bea0f6`, `1052de05`, `7c698d6b` and `5deddb8a`. The `release 0.18.2` patch carries
+`3a95f2f3`, `5338f85a`, `01bea0f6`, `1052de05`, `7c698d6b`, `5deddb8a` and `b47c8656`. The `release 0.18.2` patch carries
 no other id and is fork commits `4e5ab382`, `f19bf251`, `0d6654cb`,
 `a7611163` and `bd1a06c1`.
 
@@ -598,7 +598,7 @@ release arming observable.
 Fork commits `863d7ba9`, `6707f86f`, `e4dfc449`, `655c44d1`, `477b9863`,
 `a111e152`, `a6b0b7f6`, `af24c666`, `ac65cba0`, `32aabfe5`, `c28dfd6f`,
 `43d56a61`, `98fb3075`, `9cc4782f`, `0a2ac538`, `d31d0559`, `f1973fb7`,
-`3a95f2f3`, `5338f85a`, `01bea0f6`, `1052de05`, `7c698d6b` and `5deddb8a`:
+`3a95f2f3`, `5338f85a`, `01bea0f6`, `1052de05`, `7c698d6b`, `5deddb8a` and `b47c8656`:
 N5, run hygiene.
 Upstream site: the test files and shared helpers of the four patches above
 and the fork's own documentation; the one production edit is
@@ -839,7 +839,8 @@ the compile-fail harness in `tests/support/compile_fail.rs` finds the profile ro
 as the nearest ancestor owning `build/` or `deps/`, passes one `-L` per directory
 holding an rlib, rmeta or proc-macro dylib, and searches the `rns_transport` rlib
 across them (its five includers rename `deps_dir` to `artifact_root`); the
-lxmf-cli test-binary lookups find the root the same way.
+lxmf-cli test-binary lookups find the root the same way; `b47c8656` makes those
+lookups key on the `build` directory too, as cargo 1.100 writes no `deps` at all.
 
 Fork commits `4e5ab382`, `f19bf251`, `0d6654cb`, `a7611163` and `bd1a06c1`:
 release 0.18.2. The first bumps the crate version to 0.18.2 at every

@@ -40,7 +40,7 @@ use tokio::time::timeout;
 mod compile_fail;
 #[path = "support/free_loopback_port.rs"]
 mod free_loopback_port;
-use compile_fail::{candidate_rlibs, deps_dir, rustc, Scratch};
+use compile_fail::{artifact_root, candidate_rlibs, rustc, Scratch};
 use free_loopback_port::free_loopback_port;
 
 const WAIT: Duration = Duration::from_secs(15);
@@ -653,9 +653,9 @@ const REJECTED_DIAGNOSTIC: &str = "method `with_packet_hash` is private";
 #[test]
 fn readme_items_resolve_downstream_and_with_packet_hash_does_not() {
     let scratch = Scratch::new("link-proof-strategy-api");
-    let deps = deps_dir();
+    let deps = artifact_root();
     let candidates = candidate_rlibs(&deps);
-    assert!(!candidates.is_empty(), "no librns_transport-*.rlib next to {}", deps.display());
+    assert!(!candidates.is_empty(), "no librns_transport-*.rlib under {}", deps.display());
     let mut failures = Vec::new();
     let mut rlib = None;
     for candidate in candidates {

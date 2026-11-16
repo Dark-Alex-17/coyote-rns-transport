@@ -41,7 +41,7 @@ mod attach_with_events;
 use attach_with_events::attach_with_events;
 #[path = "support/compile_fail.rs"]
 mod compile_fail;
-use compile_fail::{candidate_rlibs, deps_dir, rustc, Scratch};
+use compile_fail::{artifact_root, candidate_rlibs, rustc, Scratch};
 #[path = "support/next_event.rs"]
 mod next_event;
 use next_event::next_event;
@@ -304,9 +304,9 @@ const DISCARDED: &str = "#![deny(unused_must_use)]\n\
 #[test]
 fn dropping_the_builder_result_is_refused_under_deny_unused_must_use() {
     let scratch = Scratch::new("tunnel-synthesis-must-use");
-    let deps = deps_dir();
+    let deps = artifact_root();
     let candidates = candidate_rlibs(&deps);
-    assert!(!candidates.is_empty(), "no librns_transport-*.rlib next to {}", deps.display());
+    assert!(!candidates.is_empty(), "no librns_transport-*.rlib under {}", deps.display());
     let mut outputs = Vec::new();
     for candidate in candidates {
         let output = rustc(&scratch.0, &deps, &candidate, "tunnel_must_use", DISCARDED);

@@ -50,9 +50,14 @@ fn resolve_test_binary_if_present(name: &str, provided: Option<&str>) -> Option<
         return Some(PathBuf::from(path));
     }
 
+    // Older cargos run the test executable from `target/<profile>/deps`, cargo 1.100 from
+    // `target/<profile>/build/<crate>/<hash>/out`; the profile directory is the nearest
+    // ancestor that owns a `deps` directory.
     let current_exe = std::env::current_exe().expect("current test executable path");
-    let deps_dir = current_exe.parent().expect("test executable parent");
-    let target_dir = deps_dir.parent().expect("target debug dir");
+    let target_dir = current_exe
+        .ancestors()
+        .find(|dir| dir.join("deps").is_dir())
+        .expect("test executable should live under target/<profile>");
     binary_candidates(target_dir, name).into_iter().find(|candidate| candidate.exists())
 }
 

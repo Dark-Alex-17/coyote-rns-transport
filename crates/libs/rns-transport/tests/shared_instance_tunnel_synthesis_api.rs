@@ -31,7 +31,7 @@ mod client_transport;
 use client_transport::client_transport;
 #[path = "support/compile_fail.rs"]
 mod compile_fail;
-use compile_fail::{candidate_rlibs, deps_dir, rustc, Scratch};
+use compile_fail::{artifact_root, candidate_rlibs, rustc, Scratch};
 #[path = "support/next_event.rs"]
 mod next_event;
 use next_event::next_event;
@@ -219,9 +219,9 @@ const REJECTED_DIAGNOSTIC: &str = "method `tunnel_synthesis` is private";
 #[test]
 fn the_builder_compiles_for_a_consumer_and_the_accessor_does_not() {
     let scratch = Scratch::new("tunnel-synthesis-compile-fail");
-    let deps = deps_dir();
+    let deps = artifact_root();
     let candidates = candidate_rlibs(&deps);
-    assert!(!candidates.is_empty(), "no librns_transport-*.rlib next to {}", deps.display());
+    assert!(!candidates.is_empty(), "no librns_transport-*.rlib under {}", deps.display());
     let mut failures = Vec::new();
     let mut rlib = None;
     for candidate in candidates {

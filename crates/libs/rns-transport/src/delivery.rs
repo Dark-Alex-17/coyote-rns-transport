@@ -176,9 +176,11 @@ pub async fn await_link_activation(
                 match event.event {
                     LinkEvent::Activated => return Ok(()),
                     // A closed link still yields ConnectionAborted naming its reason within the
-                    // poll slice. The one reachable difference is Link::restart() under a wait
-                    // (no production caller): the wait stays alive instead of failing with a
-                    // stale reason. Pinned by tests/link_activation_closed_wake_probe.rs.
+                    // poll slice. The one reachable difference is a link re-pended under a
+                    // wait: Link::restart() or Link::request() on a closed link, both public,
+                    // neither with a production caller; the wait runs to its own deadline
+                    // instead of failing with a stale reason. Pinned by
+                    // tests/link_activation_closed_wake_probe.rs.
                     LinkEvent::Closed => continue,
                     _ => {}
                 }

@@ -285,8 +285,9 @@ Removed) bullet of its own, marked as such.
   `tests/link_activation_closed_other_link_probe.rs`,
   `tests/link_activation_closed_wake_probe.rs`,
   `tests/link_activation_closed_repend_then_close_probe.rs` (a link
-  re-pended under the wait and closed a second time, by hand or by its own
-  establishment timeout, still ends the wait within the poll slice) and
+  re-pended under the wait and closed a second time still ends the wait:
+  within the poll slice of a hand close, within the maintenance tick plus
+  the poll slice of a timeout close) and
   `tests/support/assert_closed_before_activation.rs`.
 - Release docs contract, test-only: `fork_release_docs_contract.rs` includes
   its tests from `fork_release_docs_contract_parts/`

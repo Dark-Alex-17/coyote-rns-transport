@@ -46,7 +46,8 @@ commits `863d7ba9`, `6707f86f`, `e4dfc449`, `655c44d1`, `477b9863`,
 `a111e152`, `a6b0b7f6`, `af24c666`, `ac65cba0`, `32aabfe5`, `c28dfd6f`,
 `43d56a61`, `98fb3075`, `9cc4782f`, `0a2ac538`, `d31d0559`, `f1973fb7`,
 `3a95f2f3`, `5338f85a` and `01bea0f6`. The `release 0.18.2` patch carries
-no other id and is fork commits `4e5ab382`, `f19bf251` and `0d6654cb`.
+no other id and is fork commits `4e5ab382`, `f19bf251`, `0d6654cb` and
+`a7611163`.
 
 | File | Patch |
 | --- | --- |
@@ -121,7 +122,7 @@ no other id and is fork commits `4e5ab382`, `f19bf251` and `0d6654cb`.
 | `crates/libs/rns-transport/tests/link_activation_closed_busy_transport_probe.rs` | activation close exit, run hygiene |
 | `crates/libs/rns-transport/tests/link_activation_closed_other_link_probe.rs` | run hygiene |
 | `crates/libs/rns-transport/tests/link_activation_closed_probe.rs` | activation close exit, run hygiene |
-| `crates/libs/rns-transport/tests/link_activation_closed_repend_then_close_probe.rs` | run hygiene |
+| `crates/libs/rns-transport/tests/link_activation_closed_repend_then_close_probe.rs` | run hygiene, release 0.18.2 |
 | `crates/libs/rns-transport/tests/link_activation_closed_teardown_restart_probe.rs` | activation close exit, run hygiene |
 | `crates/libs/rns-transport/tests/link_activation_closed_usage_probe.rs` | activation close exit, run hygiene |
 | `crates/libs/rns-transport/tests/link_activation_closed_wake_probe.rs` | run hygiene |
@@ -811,14 +812,16 @@ a closed link. `01bea0f6` adopts
 the contract alone: a link re-pended under the wait by `Link::request()` or
 `Link::restart()` and then closed a second time, by hand or by a 2 s
 establishment timeout, ends the wait with `ConnectionAborted` naming
-`InitiatorClosed` or `Timeout` within the poll slice of that close, not at
-the caller's 60 s deadline, after `Link::request()` has rotated the link id
-out from under the waiter's event filter; the wake probe pins the first
-half of the same exception. The CHANGELOG names it in the Pinned-by clause
-of the reread bullet.
+`InitiatorClosed` or `Timeout` within the poll slice of a hand close and
+within the maintenance tick plus the poll slice of a timeout close, not at
+the caller's 60 s deadline; in the `Link::request()` cases the link id has
+rotated out from under the waiter's event filter and the next event or
+poll slice answers; the wake probe pins the first half of the same
+exception. The CHANGELOG names it in the Pinned-by clause of the reread
+bullet.
 
-Fork commits `4e5ab382`, `f19bf251` and `0d6654cb`: release 0.18.2. The
-first bumps the crate version to 0.18.2 at every manifest and
+Fork commits `4e5ab382`, `f19bf251`, `0d6654cb` and `a7611163`: release
+0.18.2. The first bumps the crate version to 0.18.2 at every manifest and
 consumer-snippet site (`Cargo.toml`,
 `crates/libs/rns-transport/Cargo.toml`, `crates/apps/reticulumd/Cargo.toml`,
 `crates/apps/rns-tools/Cargo.toml`, the snippet in
@@ -867,8 +870,17 @@ the subsection set `### Added`, `### Changed`, `### Fixed` and nothing else
 single-request and fail-fast bullets under `### Changed` by their opening
 words, the patch digit and semver sentence of the version bullet, the two
 `### Fixed` bullets by their opening words, and the README patch-list
-order. The ledger commit that cites the three commits above touches only
-this file and the crate `CHANGELOG.md`.
+order. The fourth adds
+`ledger_0_18_2_attributes_the_two_reconnect_arm_probes_to_both_patches` to
+`crates/apps/reticulumd/tests/fork_publish_contract_parts/ledger_contract.rs`,
+pinning the `tunnel opt-in, run hygiene` cells of the two reconnect-arm
+probe rows; widens `TIMEOUT_CLOSE_BOUND` in
+`crates/libs/rns-transport/tests/link_activation_closed_repend_then_close_probe.rs`
+to the 4 s its sibling allows the maintenance tick, starts the re-pend
+clock before the lock that re-pends and says that any event wakes the
+reread; and has the README's one-link-request bullet call the removed
+constant private. The ledger commits that cite the four commits above
+touch only this file and the crate `CHANGELOG.md`.
 
 ## 0.18.1 (upstream 0.14.0)
 

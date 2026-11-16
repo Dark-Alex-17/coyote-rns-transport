@@ -1,4 +1,4 @@
-use crate::destination::link::{Link, LinkEvent, LinkStatus};
+use crate::destination::link::{Link, LinkCloseReason, LinkEvent, LinkStatus};
 use crate::destination::DestinationDesc;
 use crate::error::RnsError;
 use crate::packet::Packet;
@@ -113,8 +113,29 @@ pub async fn send_on_link_observed(
     }
 }
 
-/// Waits until `link` is active, or until `wait_timeout` passes with a
-/// `TimedOut` error. A timeout the clock cannot hold, `Duration::MAX`
+// The `Debug` names of `LinkCloseReason` (`Timeout`, `InitiatorClosed`,
+// `DestinationClosed`) are part of the error text. `Timeout` and `InitiatorClosed`
+// are pinned by the includers of tests/support/assert_closed_before_activation.rs
+// and the daemon's bridge remote-control link tests; `DestinationClosed` only by
+// the README contract needle in the daemon's crate_readme_sections.rs.
+fn closed_before_activation(reason: Option<LinkCloseReason>) -> io::Error {
+    let reason = reason.map_or_else(|| "unknown".to_string(), |reason| format!("{reason:?}"));
+    io::Error::new(
+        io::ErrorKind::ConnectionAborted,
+        format!("link closed before activation: {reason}"),
+    )
+}
+
+/// Waits until `link` is active. Three errors end the wait without activation:
+/// `ConnectionAborted` as soon as the link reads `LinkStatus::Closed`, with
+/// the link's `LinkCloseReason` in the message (`unknown` when the link
+/// carries none); `TimedOut` once `wait_timeout` passes; `UnexpectedEof`
+/// when the event channel is gone. A `LinkEvent::Closed` for the link on
+/// `Transport::out_link_events` wakes the wait so it rereads the link
+/// without waiting out the poll slice. Python's watchdog closes a pending
+/// link at its establishment timeout (`RNS/Link.py:722-729`), so a caller
+/// with a long `wait_timeout` learns of that close at the close, not at
+/// its deadline. A timeout the clock cannot hold, `Duration::MAX`
 /// included, waits indefinitely instead of panicking.
 pub async fn await_link_activation(
     transport: &Transport,
@@ -122,9 +143,6 @@ pub async fn await_link_activation(
     wait_timeout: Duration,
 ) -> io::Result<()> {
     let link_id = *link.lock().await.id();
-    if link.lock().await.status() == LinkStatus::Active {
-        return Ok(());
-    }
 
     let mut events = transport.out_link_events();
     let now = tokio::time::Instant::now();
@@ -134,8 +152,14 @@ pub async fn await_link_activation(
         .checked_add(wait_timeout)
         .unwrap_or_else(|| now + Duration::from_secs(30 * 365 * 24 * 60 * 60));
     loop {
-        if link.lock().await.status() == LinkStatus::Active {
-            return Ok(());
+        let (status, close_reason) = {
+            let guard = link.lock().await;
+            (guard.status(), guard.close_reason())
+        };
+        match status {
+            LinkStatus::Active => return Ok(()),
+            LinkStatus::Closed => return Err(closed_before_activation(close_reason)),
+            _ => {}
         }
 
         let remaining = deadline.saturating_duration_since(tokio::time::Instant::now());
@@ -146,8 +170,19 @@ pub async fn await_link_activation(
         let wait_slice = remaining.min(Duration::from_millis(250));
         match tokio::time::timeout(wait_slice, events.recv()).await {
             Ok(Ok(event)) => {
-                if event.id == link_id && matches!(event.event, LinkEvent::Activated) {
-                    return Ok(());
+                if event.id != link_id {
+                    continue;
+                }
+                match event.event {
+                    LinkEvent::Activated => return Ok(()),
+                    // A closed link still yields ConnectionAborted naming its reason within the
+                    // poll slice. The one reachable difference is a link re-pended under a
+                    // wait: Link::restart() or Link::request() on a closed link, both public,
+                    // neither with a production caller; the wait runs to its own deadline
+                    // instead of failing with a stale reason. Pinned by
+                    // tests/link_activation_closed_wake_probe.rs.
+                    LinkEvent::Closed => continue,
+                    _ => {}
                 }
             }
             Ok(Err(tokio::sync::broadcast::error::RecvError::Lagged(_))) => continue,

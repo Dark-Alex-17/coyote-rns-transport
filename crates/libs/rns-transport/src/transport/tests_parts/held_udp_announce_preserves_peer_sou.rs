@@ -101,6 +101,30 @@ async fn held_udp_announce_preserves_peer_source_for_unicast_route() {
     assert_eq!(routing.hash_for_addr(&held_peer), Some(virtual_hash));
 }
 
+/// Arms the ingress hold on `iface` under `hold_everything_rate_limit`: the three fresh
+/// unknown announces of `admissions` make the frequency measurable whatever the interface
+/// has sampled before, and a fourth fresh unknown announce is then held. An announce
+/// admitted after this was exempted by the limiter rather than merely under threshold.
+async fn arm_ingress_hold(transport: &Transport, iface: AddressHash) {
+    let _ = admissions(transport, iface).await;
+    let handler = transport.get_handler();
+    let mut probe_destination = SingleInputDestination::new(
+        PrivateIdentity::new_from_rand(OsRng),
+        DestinationName::new("lxmf", "delivery"),
+    );
+    let probe = probe_destination.announce(OsRng, None).expect("probe announce");
+    assert!(
+        !super::announce::admit_announce_before_queue(
+            &probe,
+            &handler,
+            iface,
+            crate::iface::IfaceSource::None,
+        )
+        .await,
+        "a fresh unknown announce on this interface is held"
+    );
+}
+
 #[tokio::test]
 async fn learned_announces_are_not_held_after_route_is_known() {
     let local_identity = PrivateIdentity::new_from_rand(OsRng);
@@ -109,16 +133,8 @@ async fn learned_announces_are_not_held_after_route_is_known() {
     let handler = transport.get_handler();
     let mut announce_rx = transport.recv_announces().await;
 
-    handler.lock().await.announce_limits = AnnounceLimits::with_rate_limit(AnnounceRateLimit {
-        incoming_freq_samples: 3,
-        max_held_announces: 8,
-        new_time: Duration::from_secs(3600),
-        burst_freq_new: 100.0,
-        burst_freq: 100.0,
-        burst_hold: Duration::from_millis(20),
-        burst_penalty: Duration::from_millis(20),
-        held_release_interval: Duration::from_millis(10),
-    });
+    handler.lock().await.announce_limits =
+        AnnounceLimits::with_rate_limit(hold_everything_rate_limit());
 
     let iface = AddressHash::new_from_rand(OsRng);
     let mut destination = SingleInputDestination::new(
@@ -127,6 +143,16 @@ async fn learned_announces_are_not_held_after_route_is_known() {
     );
     let announce = destination.announce(OsRng, None).expect("announce");
 
+    assert!(
+        super::announce::admit_announce_before_queue(
+            &announce,
+            &handler,
+            iface,
+            crate::iface::IfaceSource::None,
+        )
+        .await,
+        "the first announce of a fresh interface is admitted"
+    );
     handle_announce(&announce, handler.lock().await, iface, crate::iface::IfaceSource::None).await;
     timeout(Duration::from_millis(200), announce_rx.recv())
         .await
@@ -134,7 +160,18 @@ async fn learned_announces_are_not_held_after_route_is_known() {
         .expect("broadcast receive");
 
     tokio::time::sleep(Duration::from_millis(1100)).await;
+    arm_ingress_hold(&transport, iface).await;
     let repeated_announce = destination.announce(OsRng, None).expect("fresh announce");
+    assert!(
+        super::announce::admit_announce_before_queue(
+            &repeated_announce,
+            &handler,
+            iface,
+            crate::iface::IfaceSource::None,
+        )
+        .await,
+        "an announce for a known destination bypasses the ingress hold"
+    );
     handle_announce(
         &repeated_announce,
         handler.lock().await,
@@ -207,18 +244,11 @@ async fn path_response_announces_are_not_held_by_rate_limits() {
     let handler = transport.get_handler();
     let mut announce_rx = transport.recv_announces().await;
 
-    handler.lock().await.announce_limits = AnnounceLimits::with_rate_limit(AnnounceRateLimit {
-        incoming_freq_samples: 1,
-        max_held_announces: 8,
-        new_time: Duration::from_secs(3600),
-        burst_freq_new: 0.0,
-        burst_freq: 0.0,
-        burst_hold: Duration::from_secs(60),
-        burst_penalty: Duration::from_secs(60),
-        held_release_interval: Duration::from_secs(60),
-    });
+    handler.lock().await.announce_limits =
+        AnnounceLimits::with_rate_limit(hold_everything_rate_limit());
 
     let iface = AddressHash::new_from_rand(OsRng);
+    arm_ingress_hold(&transport, iface).await;
     let mut destination = SingleInputDestination::new(
         PrivateIdentity::new_from_rand(OsRng),
         DestinationName::new("lxmf", "propagation"),
@@ -226,6 +256,16 @@ async fn path_response_announces_are_not_held_by_rate_limits() {
     let mut announce = destination.announce(OsRng, None).expect("announce");
     announce.context = PacketContext::PathResponse;
 
+    assert!(
+        super::announce::admit_announce_before_queue(
+            &announce,
+            &handler,
+            iface,
+            crate::iface::IfaceSource::None,
+        )
+        .await,
+        "a path-response announce bypasses the rate limiter"
+    );
     handle_announce(&announce, handler.lock().await, iface, crate::iface::IfaceSource::None).await;
 
     let received = timeout(Duration::from_millis(200), announce_rx.recv())

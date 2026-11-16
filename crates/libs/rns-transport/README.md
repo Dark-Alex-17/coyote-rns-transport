@@ -28,7 +28,7 @@ when the rebase breaks the fork's public API, the next patch digit otherwise.
 
 ```toml
 [dependencies]
-coyote-rns-transport = "0.18.1"
+coyote-rns-transport = "0.18.2"
 ```
 
 ```rust
@@ -387,6 +387,22 @@ on the request still goes out on every outgoing interface, as
 `RNS/Transport.py:1439-1443` floods a packet without a path entry.
 `RnsError` is `#[non_exhaustive]`, so a match on it keeps a wildcard arm.
 
+`delivery::await_link_activation` returns as soon as the link it waits on
+is closed, with `io::ErrorKind::ConnectionAborted` and the close reason
+(`Timeout`, `InitiatorClosed`, `DestinationClosed`; `unknown` when the link
+carries none) in the message: the link's `Closed` event on
+`Transport::out_link_events` wakes the wait, which then reads the reason
+from the link. Its own deadline still answers `TimedOut`, and a gone event
+channel answers `UnexpectedEof`. A caller that passes a long wait on a link
+whose establishment times out therefore learns of it at the close, not at
+the deadline. With `broadcast` on, a `link` to a destination without a path
+entry is given the transport-sized establishment timeout, the first hop's
+6 s plus 6 s for each of `PATHFINDER_M` (128) hops, about 774 s (exact when
+the path table holds no first-hop metrics for the destination), and since
+the request is sent once that timeout is the only bound on such a link; a
+caller that wants a shorter one sets `Link::set_establishment_timeout` on
+the returned link before it waits.
+
 `Transport::destination_desc` returns `Option<DestinationDesc>` for a
 destination learned from an announce (the same map is also filled when a
 cached path table is restored), `Some` exactly when
@@ -480,11 +496,10 @@ not Python's default (see Known divergences).
 `Transport::attach_shared_instance(SharedInstanceEndpoint, SharedInstanceOptions)`
 spawns a `TcpClient` for a `SharedInstanceEndpoint::Tcp(SocketAddr)`, or on
 unix targets a `LocalUnixClient` for `Unix`, marks that interface as the shared
-instance, sets the transport's client posture, synthesizes a tunnel on it (at
-attach and again on every reconnect) and returns the interface address: the
-posture of a Python program
+instance, sets the transport's client posture and returns the interface
+address: the posture of a Python program
 attaching to the instance that owns `shared_instance_port`
-(`RNS/Reticulum.py:422-441`; the default port is `:295`), with the
+(`RNS/Reticulum.py:420-441`; the default port is `:295`), with the
 client-side hop count of `RNS/Transport.py:1940` and the transport header
 on one-hop paths of `:1416-1427`. One shared instance is held at a time:
 `shared_instance()` reports the attached interface, a second call returns
@@ -503,6 +518,32 @@ does (`RNS/Interfaces/LocalInterface.py:159-160`); the TCP client redials
 at once after a drop and sleeps it from the second consecutive short-lived
 connection on, one that lasted under `MIN_STABLE_CONNECTION` (2 s); a
 connection that outlived the window resets the streak.
+The attach synthesizes no tunnel by default, as Python's local client does
+not (`RNS/Interfaces/LocalInterface.py` has no tunnel code; `wants_tunnel`
+is set by network-facing clients such as `RNS/Interfaces/TCPInterface.py:179`).
+`SharedInstanceOptions::with_tunnel_synthesis(true)`, a fork extension, opts
+in: a tunnel is synthesized on the interface at attach and again at once on
+every reconnect, so the shared instance restores the paths it learned over
+the connection when the client comes back. The tunnel id is the hash of the
+transport public key and the interface hash, and this crate derives the
+interface hash from a counter per `InterfaceManager`, so two transports
+attaching with one identity, in one process or two, collide on the id when
+the attach sits at the same ordinal in each transport's interface order (the
+common case for a client that brings up only the shared-instance connection)
+and the shared instance moves every path to the newest connection
+(`RNS/Transport.py:2820-2868`, the reappeared branch at `:2829`): opt in
+only when a single transport holds the identity and wants its paths restored
+on a reconnect. reticulumd leaves it off.
+`Transport::synthesize_tunnel_on_interface` remains available to a caller
+that wants a tunnel on its own terms.
+`crates/apps/reticulumd/tests/python_channel_interop_parts/python_shared_instance_two_clients.rs`
+attaches two transports under one identity to a Python `rnsd` (RNS 1.5.2)
+shared instance: under the default a third client's link to the first
+transport's destination activates on that transport and the second's in-link
+events stay empty; opted in on both, rnsd logs `Tunnel endpoint ...
+reappeared. Restoring paths...` and `Restored path to ...`
+(`RNS/Transport.py:2830`, `:2868`) and the first's in-link events stay empty
+for 3 s after the third's `link()`.
 `SharedInstanceOptions` also carries `with_mtu`, `with_forced_bitrate` and
 `with_interface_mode`, applied to the spawned client as the matching
 `TcpClient`/`LocalUnixClient` constructors would, with the `mtu` and
@@ -515,8 +556,9 @@ attached, a `SINGLE` destination is announced as a path
 response 0.25 s after `register_destination` (`RNS/Transport.py:2911-2916`,
 the context of `RNS/Destination.py:308-315`), and
 `Transport::announce_destinations_to_shared_instance` sends that announce
-for every registered destination on demand. On every reconnect the tunnel is
-re-synthesized at once and every registered single destination is
+for every registered destination on demand. On every reconnect the opted-in
+tunnel, if any, is re-synthesized at once and every registered single
+destination is
 re-announced as a path response `reconnect_wait` plus 2 s later, if the
 transport is still attached then (`RNS/Transport.py:3705-3709`,
 `RNS/Interfaces/LocalInterface.py:178-181`). A dropped connection, as
@@ -543,10 +585,11 @@ does nothing; the entries of packets this node sent,
 the receipt guard that is Python's `receipts` list (`RNS/Transport.py:174`),
 stay;
 a queued disconnect is served before the reconnect behind it, so the flush
-never lands after that cycle's tunnel, and since the client emits each
-cycle's disconnect before its reconnect into two equal-depth queues, a
-disconnect can never be lost while its reconnect lands (the realistic storm
-loss is a reconnect, healed by the next one that lands).
+never lands after that cycle's reconnect work (the opted-in tunnel, when
+any, and the re-announce), and since the client emits each cycle's
+disconnect before its reconnect into two equal-depth queues, a disconnect
+can never be lost while its reconnect lands (the realistic storm loss is a
+reconnect, healed by the next one that lands).
 While attached, the duplicate filter
 inserts nothing and consults nothing (`RNS/Transport.py:1618-1627`): the
 owner deduplicates. The filter is skipped for packets arriving on the
@@ -938,11 +981,12 @@ parity ledger; the `docs/status/*` matrices are not updated per fork task.
   awaiting the proof (`:659-661`).
 - `attach_shared_instance` does not force transport, remote management or
   probes off as Python does (`RNS/Reticulum.py:438-440`): the caller keeps
-  `transport_enabled` as configured. And the client synthesizes a tunnel at
-  attach and again on every reconnect, which Python's `LocalClientInterface`
-  never does (`RNS/Interfaces/LocalInterface.py` has no tunnel code;
-  `wants_tunnel` is set by network-facing clients such as
-  `RNS/Interfaces/TCPInterface.py:179`).
+  `transport_enabled` as configured.
+  `SharedInstanceOptions::with_tunnel_synthesis` is a fork extension, off
+  by default, under which the client synthesizes a tunnel at attach and on
+  every reconnect; Python's `LocalClientInterface` never does
+  (`RNS/Interfaces/LocalInterface.py` has no tunnel code; `wants_tunnel` is
+  set by network-facing clients such as `RNS/Interfaces/TCPInterface.py:179`).
 - `attach_shared_instance` refuses a `Tcp` endpoint whose address is not
   loopback by default and attaches it only under
   `SharedInstanceOptions::allow_remote_endpoint(true)`, a fork extension:
@@ -988,6 +1032,24 @@ parity ledger; the `docs/status/*` matrices are not updated per fork task.
   ` (attempt N)`. Python logs every failed attempt at debug
   (`RNS/Interfaces/TCPInterface.py:288`,
   `RNS/Interfaces/LocalInterface.py:159-167`).
+- Announce ingress control measures an interface's announce frequency as
+  the inverse of the mean gap over its last 6 samples plus the gap to now
+  (`transport/announce_limits.rs`), and arms the held-announce release when
+  a burst deactivates, releasing a held announce only once the burst has
+  ended and reporting hold plus penalty as the hold delay. Python divides
+  the sample count by the span back to the oldest of 48 samples, dropping
+  the oldest past a 10 s decay (`RNS/Interfaces/Interface.py:60-67`,
+  `:346-355`), arms the release at activation (`:206`) and releases on the
+  interval plus a frequency-under-threshold check alone (`:277-282`), with
+  the burst still active; both sides re-arm the release per release
+  (`:293`). The thresholds, hold, penalty and release interval (`:76-84`),
+  the more-than-two-sample floor on the measurement (`:84`, `:346-348`),
+  the sustained clock and the two-sample release guard (`:188-211`) follow
+  Python, and a shared-instance interface, the client's and the child a
+  shared instance holds per accepted client, is never limited
+  (`RNS/Interfaces/LocalInterface.py:130`). The formula and the release
+  arming are inherited from upstream `reticulum-rs-transport`; the constants
+  refresh and the sustained clock make the difference observable.
 
 Not divergences:
 
@@ -1032,8 +1094,64 @@ full `refs/tags/coyote-rns-transport-v<version>` ref, and
 
 `docs/fork/PATCHSET.md` is the single per-release ledger of every file changed
 since the previous release, with the commit that changed it and the upstream
-site; earlier sections carry the earlier patches. What `0.18.1` carries on top
-of `0.18.0`:
+site; earlier sections carry the earlier patches. What `0.18.2` carries on top
+of `0.18.1`:
+
+- The tunnel opt-in: `SharedInstanceOptions::with_tunnel_synthesis` is a
+  `#[must_use]` builder, off by default; with it set
+  `Transport::attach_shared_instance` synthesizes a tunnel on the client
+  interface at attach and the reconnect consumer re-synthesizes it on every
+  reconnect. The default is Python's: `RNS/Interfaces/LocalInterface.py` has
+  no tunnel code, and `wants_tunnel` is set only on the network-facing
+  clients. The tunnel id is the hash of the transport public key and the
+  interface hash, which this crate derives from a per-process counter per
+  `InterfaceManager`, so two transports on one identity attaching at the same
+  ordinal produced one tunnel id, and the shared instance's reappeared-tunnel
+  branch (`RNS/Transport.py:2829`) re-pointed every path under it at the
+  newest connection. Opt in only when a single transport holds the identity
+  and wants its paths restored on a reconnect.
+  `Transport::synthesize_tunnel_on_interface` stays public.
+- One link request: a pending outbound link sends its link request once and
+  is closed with `LinkCloseReason::Timeout` at its establishment timeout; the
+  maintenance job no longer repeats a byte-identical request every 6 s
+  (the private `INTERVAL_OUTPUT_LINK_REPEAT` is gone), matching
+  `RNS/Link.py:313-320` and `:722-729`. Every duplicate filter dropped the
+  repeat anyway.
+- The fail-fast wait: `delivery::await_link_activation` returns
+  `io::ErrorKind::ConnectionAborted` with `link closed before activation:
+  <reason>` as soon as the link reads `LinkStatus::Closed`, within the poll
+  slice; the reason is `Timeout`, `InitiatorClosed`, `DestinationClosed` or
+  `unknown`, and the `Closed` event wakes the reread. `TimedOut` at the
+  caller's deadline and `UnexpectedEof` on a closed event channel are
+  unchanged.
+- Announce admission: an interface flagged as the shared instance, the
+  client's connection and the children a shared instance holds per accepted
+  client alike, is never ingress-limited (`admit_announce_before_queue` in
+  `transport/announce.rs`; `RNS/Interfaces/LocalInterface.py:130`), and the
+  limiter follows RNS 1.5.2: the measured frequency reads 0 until more than
+  `IC_DEQUE_MIN_SAMPLE` = 2 samples exist, a burst ends only after a
+  sustained hold under the threshold, and `AnnounceRateLimit::default()`
+  reads the 1.5.2 constants (`burst_freq_new` 3.0 Hz, `burst_freq` 10.0 Hz,
+  `burst_hold` 15 s, `burst_penalty` 15 s, `held_release_interval` 5 s).
+- The Python-in-the-loop proof: `python_shared_instance_two_clients.rs` of
+  the reticulumd `python_channel_interop` binary runs two transports under
+  one identity as local clients of a live Python rnsd (RNS 1.5.2); under the
+  default a third client's link lands on the registering transport, and
+  with the opt-in on both, rnsd logs `Tunnel endpoint` reappeared and
+  `Restored path to` the first destination onto the second connection, and
+  the link never activates there.
+- Test-only hygiene: the probes share one harness under `tests/support/`
+  (raw-listener readers, shared-instance waiters, the
+  closed-before-activation text pin), unit pins that asserted less than
+  their names said were tightened, and further probes were adopted, the
+  last being `link_activation_closed_repend_then_close_probe.rs`.
+- For a consumer: pin `coyote-rns-transport = "0.18.2"`; there is nothing to
+  opt into: the defaults are the fix. A wait on a link that closes now fails
+  fast with `ConnectionAborted` instead of running to its deadline. A
+  consumer that relied on the 0.15.1 to 0.18.1 tunnel for path restore on
+  reconnect opts back in with `with_tunnel_synthesis(true)`.
+
+What `0.18.1` carries on top of `0.18.0`:
 
 - The dial-warn cadence: the failed-connect line of `TcpClient` and
   `LocalUnixClient` warns on the first failed attempt since the last

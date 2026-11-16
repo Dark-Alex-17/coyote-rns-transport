@@ -190,6 +190,39 @@ fn crate_readme_link_section_describes_resolve_destination() {
     }
 }
 
+/// The link-opening section describes the activation wait's exit on a
+/// closed link the way `delivery::await_link_activation` behaves: the
+/// error kind, the `Closed` event that wakes the wait to reread the link,
+/// the three close reasons in the message and the `unknown` a link with
+/// none renders, the deadline that still answers `TimedOut`, the
+/// `UnexpectedEof` of a gone event channel, and the transport-sized
+/// establishment timeout a broadcast-on link to an unknown destination
+/// carries, with the setter that shortens it.
+#[test]
+fn crate_readme_link_section_describes_the_activation_wait_close() {
+    let readme = read_repo_file("crates/libs/rns-transport/README.md");
+    let section = crate_readme_section(&readme, "Opening links and admitting resources");
+    for claim in [
+        "`delivery::await_link_activation`",
+        "`io::ErrorKind::ConnectionAborted`",
+        "`Transport::out_link_events`",
+        "`Timeout`",
+        "`InitiatorClosed`",
+        "`DestinationClosed`",
+        "`unknown`",
+        "`TimedOut`",
+        "`UnexpectedEof`",
+        "`PATHFINDER_M` (128)",
+        "774 s",
+        "`Link::set_establishment_timeout`",
+    ] {
+        assert!(
+            section.contains(claim),
+            "the link-opening section should mention {claim}:\n{section}"
+        );
+    }
+}
+
 /// The link proof section describes the per-link `ProofStrategy` the way
 /// it behaves: the setter and its `All` default, the destination default
 /// copied onto an accepted link, the deferred proof from the payload's
@@ -735,6 +768,49 @@ fn crate_readme_shared_instance_section_describes_interface_events() {
     }
 }
 
+/// The divergence register names `with_tunnel_synthesis` as a fork extension
+/// that is off by default, with Python's local client as the side that never
+/// synthesizes a tunnel, and no longer carries the unconditional claim that
+/// the client synthesizes one at attach; the shared-instance section states
+/// the default and the opt-in call, and gives the reason the option is off:
+/// two transports under one identity collide on the tunnel id when the
+/// attach sits at the same ordinal in each transport's interface order, the
+/// shared instance then moves every path to the newest connection, so the
+/// opt-in is for a single transport holding the identity.
+#[test]
+fn crate_readme_divergence_register_names_tunnel_synthesis_as_opt_in() {
+    let readme = read_repo_file("crates/libs/rns-transport/README.md");
+    let divergences = squash(crate_readme_section(&readme, "Known divergences from Python RNS"));
+    for claim in [
+        "SharedInstanceOptions::with_tunnel_synthesis",
+        "fork extension",
+        "off by default",
+        "Python's `LocalClientInterface` never does",
+    ] {
+        assert!(
+            divergences.contains(&squash(claim)),
+            "the divergence register should mention {claim}:\n{divergences}"
+        );
+    }
+    assert!(
+        !divergences.contains(&squash("And the client synthesizes a tunnel at attach")),
+        "the divergence register should no longer claim an unconditional tunnel:\n{divergences}"
+    );
+    let section = squash(crate_readme_section(&readme, "Attaching to a shared instance"));
+    for claim in [
+        "synthesizes no tunnel by default",
+        "with_tunnel_synthesis(true)",
+        "when the attach sits at the same ordinal in each transport's interface order",
+        "RNS/Transport.py:2820-2868",
+        "opt in only when a single transport holds the identity",
+    ] {
+        assert!(
+            section.contains(&squash(claim)),
+            "the shared-instance section should mention {claim}:\n{section}"
+        );
+    }
+}
+
 /// The shared-instance section describes the connect count the way the
 /// clients keep it: the transport getter and its `Option`, the `Lagged`
 /// reconciliation it exists for, the shared instance's own interface, the
@@ -796,6 +872,35 @@ fn crate_readme_shared_instance_section_describes_interface_connect_count() {
         "`RNS/Reticulum.py:420-441`",
         "`SO_REUSEADDR` on non-Windows hosts, `RNS/Interfaces/LocalInterface.py:46-49`",
     ] {
+        assert!(changelog_section.contains(&squash(claim)), "the changelog should mention {claim}");
+    }
+}
+
+/// The shared-instance section and the changelog section on the two-client
+/// collision both name the Python-in-the-loop part that proves the default
+/// and the opt-in against a live rnsd, with the Python lines it reads: the
+/// README gives the part's full path and the reappeared-tunnel log line,
+/// the changelog section gives the file name and the local-client attach it
+/// rides on.
+#[test]
+fn crate_readme_shared_instance_section_names_the_two_clients_proof() {
+    let readme = read_repo_file("crates/libs/rns-transport/README.md");
+    let section = squash(crate_readme_section(&readme, "Attaching to a shared instance"));
+    for claim in [
+        "`crates/apps/reticulumd/tests/python_channel_interop_parts/python_shared_instance_two_clients.rs`",
+        "`RNS/Transport.py:2830`",
+    ] {
+        assert!(
+            section.contains(&squash(claim)),
+            "the shared-instance section should mention {claim}:\n{section}"
+        );
+    }
+    let changelog = read_repo_file("crates/libs/rns-transport/CHANGELOG.md");
+    let changelog_section = squash(changelog_section_naming(
+        &changelog,
+        "Two transports attached to one shared instance with one identity",
+    ));
+    for claim in ["`python_shared_instance_two_clients.rs`", "`RNS/Reticulum.py:420-441`"] {
         assert!(changelog_section.contains(&squash(claim)), "the changelog should mention {claim}");
     }
 }

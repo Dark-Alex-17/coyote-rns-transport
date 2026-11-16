@@ -20,15 +20,24 @@ impl Link {
     }
 
     /// Whether a link that is still `Pending` or in `Handshake` has outlived
-    /// its establishment timeout. `RNS.Link`'s watchdog closes it then with
-    /// `teardown_reason = TIMEOUT`, and a non-transport instance expires the
-    /// path it was made on.
+    /// its establishment timeout. The transport does not retransmit a
+    /// pending request: Python sends it once (`RNS/Link.py:313-320`), and
+    /// on any hop that saw the first frame a byte-identical repeat is dropped
+    /// by the duplicate filter anyway (`RNS/Transport.py:1668-1679`
+    /// re-admits only single-destination announces; this crate's
+    /// `transport/inbound_processing.rs` gives `PacketType::LinkRequest` no
+    /// duplicate allowance). So this timeout is the only bound on a link
+    /// that never comes up: `RNS.Link`'s watchdog closes it then with
+    /// `teardown_reason = TIMEOUT` from either `PENDING` or `HANDSHAKE`
+    /// (`RNS/Link.py:722-729`, `:732-739`), and a non-transport instance
+    /// expires the path it was made on.
     ///
     /// Measured from the start of the current attempt, which is not the same
-    /// as the latest request packet: repeating a still-pending request keeps
-    /// the clock running, since that is the retransmit this timeout exists to
-    /// bound. Only a request that starts over from a state the link had
-    /// already left, or an explicit [`Link::restart`], begins a new attempt.
+    /// as the latest request packet: a direct repeated `request()` on a
+    /// still-pending link keeps the clock running, since that is the
+    /// retransmit this timeout exists to bound. Only a request that starts
+    /// over from a state the link had already left, or an explicit
+    /// [`Link::restart`], begins a new attempt.
     pub fn establishment_timed_out(&self, now: Instant) -> bool {
         matches!(self.status, LinkStatus::Pending | LinkStatus::Handshake)
             && now.duration_since(self.establishment_started_at) >= self.establishment_timeout

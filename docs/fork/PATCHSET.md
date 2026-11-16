@@ -26,6 +26,891 @@ parity rows this file plus the crate README `## Known divergences from
 Python RNS` are the parity ledger; `docs/status/*` matrices are not updated
 per fork task.
 
+## 0.18.2 (upstream 0.14.0)
+
+Every file changed since the `0.18.1` release and the patch each change
+belongs to. Patch ids: N1 is tunnel opt-in, N2 is link request once, N3 is
+activation close exit, N4 is local client announce admission, N5 is run
+hygiene. The `tunnel opt-in` patch is fork commits
+`7ae6a364`, `785bce93`, `ad420766`, `1446a8e5` and `d2e106bb`. The
+`link request once` patch is fork commits `728e10dd`, `2c2f14d9`,
+`d65fd1e3`, `0be75f6f` and `9ae9fdab`. The `activation close exit` patch
+is fork commits `15251a8c`, `1232c410`, `745d4bd4`, `519d5973`,
+`86ce4bec`, `9fc9d686`, `da5a3ef1` and `d31bca6d`. The `Python-in-the-loop
+two clients interop` patch carries no other id and is fork commits
+`ddcb4430`, `a974386c`, `d40e0ae3` and `7f076dc3`. The `local client
+announce admission` patch is fork commits `be18658a`, `83e03e75`,
+`92e82a60`, `244722bf`, `08f18f07`, `b0f194ce`, `e14ced8a`, `4a22affe`,
+`84ae2a5c`, `29d78171` and `3d887f3e`. The `run hygiene` patch is fork
+commits `863d7ba9`, `6707f86f`, `e4dfc449`, `655c44d1`, `477b9863`,
+`a111e152`, `a6b0b7f6`, `af24c666`, `ac65cba0`, `32aabfe5`, `c28dfd6f`,
+`43d56a61`, `98fb3075`, `9cc4782f`, `0a2ac538`, `d31d0559`, `f1973fb7`,
+`3a95f2f3`, `5338f85a`, `01bea0f6`, `1052de05`, `7c698d6b`, `5deddb8a` and `b47c8656`. The `release 0.18.2` patch carries
+no other id and is fork commits `4e5ab382`, `f19bf251`, `0d6654cb`,
+`a7611163` and `bd1a06c1`.
+
+| File | Patch |
+| --- | --- |
+| `Cargo.lock` | release 0.18.2 |
+| `Cargo.toml` | release 0.18.2 |
+| `crates/apps/lxmf-cli/tests/support/lxmd_three_node.rs` | run hygiene |
+| `crates/apps/lxmf-cli/tests/support/python_lxmd_remote_relay_parts/module_prelude.rs` | run hygiene |
+| `crates/apps/lxmf-cli/tests/version_cli.rs` | run hygiene |
+| `crates/apps/reticulumd/Cargo.toml` | release 0.18.2 |
+| `crates/apps/reticulumd/examples/interfaces-reference.toml` | local client announce admission, run hygiene |
+| `crates/apps/reticulumd/src/bin/reticulumd/bootstrap_interface_startup_parts/shared_instance_attach_probe_tests.rs` | tunnel opt-in, link request once, run hygiene |
+| `crates/apps/reticulumd/src/bin/reticulumd/bridge_remote_control_link.rs` | activation close exit |
+| `crates/apps/reticulumd/src/bin/reticulumd/bridge_remote_control_link_tests.rs` | activation close exit, run hygiene |
+| `crates/apps/reticulumd/tests/config.rs` | local client announce admission |
+| `crates/apps/reticulumd/tests/config_parts/interfaces_reference_ingress_examples.rs` | local client announce admission |
+| `crates/apps/reticulumd/tests/fork_publish_contract.rs` | release 0.18.2 |
+| `crates/apps/reticulumd/tests/fork_publish_contract_parts/ledger_contract.rs` | tunnel opt-in, release 0.18.2 |
+| `crates/apps/reticulumd/tests/fork_release_docs_contract.rs` | release 0.18.2 |
+| `crates/apps/reticulumd/tests/fork_release_docs_contract_parts/crate_readme_sections.rs` | tunnel opt-in, activation close exit, run hygiene |
+| `crates/apps/reticulumd/tests/fork_release_docs_contract_parts/readme_patch_list.rs` | release 0.18.2 |
+| `crates/apps/reticulumd/tests/fork_release_docs_contract_parts/release_0_18_1_probe.rs` | release 0.18.2 |
+| `crates/apps/reticulumd/tests/fork_release_docs_contract_parts/release_0_18_2_probe.rs` | release 0.18.2 |
+| `crates/apps/reticulumd/tests/local_client_announce_admission_probe.rs` | local client announce admission, run hygiene |
+| `crates/apps/reticulumd/tests/python_channel_interop.rs` | Python-in-the-loop two clients interop |
+| `crates/apps/reticulumd/tests/python_channel_interop_parts/python_shared_instance_live.rs` | run hygiene |
+| `crates/apps/reticulumd/tests/python_channel_interop_parts/python_shared_instance_two_clients.rs` | Python-in-the-loop two clients interop, run hygiene |
+| `crates/apps/reticulumd/tests/support/python_shared_instance_client.py` | run hygiene |
+| `crates/apps/rns-tools/Cargo.toml` | release 0.18.2 |
+| `crates/libs/rns-core/src/buffer.rs` | run hygiene |
+| `crates/libs/rns-transport/CHANGELOG.md` | tunnel opt-in, link request once, Python-in-the-loop two clients interop, activation close exit, local client announce admission, run hygiene, release 0.18.2 |
+| `crates/libs/rns-transport/Cargo.toml` | release 0.18.2 |
+| `crates/libs/rns-transport/README.md` | tunnel opt-in, Python-in-the-loop two clients interop, activation close exit, local client announce admission, run hygiene, release 0.18.2 |
+| `crates/libs/rns-transport/fuzz/Cargo.lock` | release 0.18.2 |
+| `crates/libs/rns-transport/src/buffer.rs` | run hygiene |
+| `crates/libs/rns-transport/src/delivery.rs` | activation close exit, run hygiene |
+| `crates/libs/rns-transport/src/destination/link_parts/link_sections/establishment.rs` | link request once |
+| `crates/libs/rns-transport/src/destination/link_parts/link_status_predicates_make_lifecycl_sections/core_tests.rs` | link request once |
+| `crates/libs/rns-transport/src/transport/announce.rs` | local client announce admission |
+| `crates/libs/rns-transport/src/transport/announce_limits.rs` | local client announce admission, run hygiene |
+| `crates/libs/rns-transport/src/transport/jobs_parts/link_maintenance.rs` | link request once |
+| `crates/libs/rns-transport/src/transport/links_parts/transport_sections/shared_instance.rs` | tunnel opt-in |
+| `crates/libs/rns-transport/src/transport/links_parts/transport_sections/shared_instance_reconnect.rs` | tunnel opt-in |
+| `crates/libs/rns-transport/src/transport/mod.rs` | link request once |
+| `crates/libs/rns-transport/src/transport/shared_instance.rs` | tunnel opt-in, run hygiene |
+| `crates/libs/rns-transport/src/transport/tests.rs` | tunnel opt-in, local client announce admission |
+| `crates/libs/rns-transport/src/transport/tests_parts/held_udp_announce_preserves_peer_sou.rs` | run hygiene |
+| `crates/libs/rns-transport/src/transport/tests_parts/module_prelude.rs` | local client announce admission, run hygiene |
+| `crates/libs/rns-transport/src/transport/tests_parts/pending_out_link_establishment_timeout.rs` | link request once |
+| `crates/libs/rns-transport/src/transport/tests_parts/pending_out_link_rediscovery.rs` | link request once, run hygiene |
+| `crates/libs/rns-transport/src/transport/tests_parts/rns_1_5_ingress_admission.rs` | local client announce admission |
+| `crates/libs/rns-transport/src/transport/tests_parts/shared_child_announce_admission.rs` | local client announce admission |
+| `crates/libs/rns-transport/src/transport/tests_parts/two_transport_destination_desc_probe2.rs` | local client announce admission |
+| `crates/libs/rns-transport/src/transport/tests_parts/two_transport_loopback.rs` | local client announce admission, run hygiene |
+| `crates/libs/rns-transport/src/transport/tests_parts/two_transport_loopback_requests_errors.rs` | link request once |
+| `crates/libs/rns-transport/src/transport/tests_parts/two_transport_loopback_requests_receipt_stop.rs` | local client announce admission |
+| `crates/libs/rns-transport/src/transport/tests_parts/two_transport_loopback_requests_routing.rs` | local client announce admission |
+| `crates/libs/rns-transport/src/transport/tests_parts/two_transport_shared_instance.rs` | tunnel opt-in, run hygiene |
+| `crates/libs/rns-transport/src/transport/tests_parts/two_transport_shared_instance_disconnect_reasons.rs` | tunnel opt-in |
+| `crates/libs/rns-transport/src/transport/tests_parts/two_transport_shared_instance_flush.rs` | tunnel opt-in, local client announce admission |
+| `crates/libs/rns-transport/src/transport/tests_parts/two_transport_shared_instance_probe10.rs` | tunnel opt-in, run hygiene |
+| `crates/libs/rns-transport/src/transport/tests_parts/two_transport_shared_instance_probe16.rs` | tunnel opt-in, run hygiene |
+| `crates/libs/rns-transport/src/transport/tests_parts/two_transport_shared_instance_probe17.rs` | tunnel opt-in |
+| `crates/libs/rns-transport/src/transport/tests_parts/two_transport_shared_instance_probe17_unix.rs` | tunnel opt-in |
+| `crates/libs/rns-transport/src/transport/tests_parts/two_transport_shared_instance_probe5.rs` | tunnel opt-in |
+| `crates/libs/rns-transport/src/transport/tests_parts/two_transport_shared_instance_probe7.rs` | tunnel opt-in |
+| `crates/libs/rns-transport/src/transport/tests_parts/two_transport_shared_instance_reconnect.rs` | tunnel opt-in |
+| `crates/libs/rns-transport/src/transport/tests_parts/two_transport_shared_instance_state_events.rs` | tunnel opt-in |
+| `crates/libs/rns-transport/src/transport/tests_parts/two_transport_shared_instance_state_events_probe.rs` | tunnel opt-in |
+| `crates/libs/rns-transport/src/transport/tests_parts/two_transport_shared_instance_storm.rs` | tunnel opt-in, run hygiene |
+| `crates/libs/rns-transport/src/transport/tests_parts/two_transport_shared_instance_tunnel_default.rs` | tunnel opt-in, run hygiene |
+| `crates/libs/rns-transport/src/transport/tests_parts/two_transport_shared_instance_tunnel_identity.rs` | tunnel opt-in, Python-in-the-loop two clients interop, run hygiene |
+| `crates/libs/rns-transport/tests/announce_admission_mixed_iface_probe.rs` | local client announce admission, run hygiene |
+| `crates/libs/rns-transport/tests/announce_admission_reconnect_probe.rs` | local client announce admission, run hygiene |
+| `crates/libs/rns-transport/tests/announce_admission_unix_probe.rs` | run hygiene |
+| `crates/libs/rns-transport/tests/announce_admission_usage_probe.rs` | local client announce admission, run hygiene |
+| `crates/libs/rns-transport/tests/breaking_changes_compile_fail.rs` | run hygiene |
+| `crates/libs/rns-transport/tests/dial_failure_reason_contract_probe.rs` | run hygiene |
+| `crates/libs/rns-transport/tests/interface_events_api.rs` | tunnel opt-in |
+| `crates/libs/rns-transport/tests/link_activation_closed_busy_transport_probe.rs` | activation close exit, run hygiene |
+| `crates/libs/rns-transport/tests/link_activation_closed_other_link_probe.rs` | run hygiene |
+| `crates/libs/rns-transport/tests/link_activation_closed_probe.rs` | activation close exit, run hygiene |
+| `crates/libs/rns-transport/tests/link_activation_closed_repend_then_close_probe.rs` | run hygiene, release 0.18.2 |
+| `crates/libs/rns-transport/tests/link_activation_closed_teardown_restart_probe.rs` | activation close exit, run hygiene |
+| `crates/libs/rns-transport/tests/link_activation_closed_usage_probe.rs` | activation close exit, run hygiene |
+| `crates/libs/rns-transport/tests/link_activation_closed_wake_probe.rs` | run hygiene |
+| `crates/libs/rns-transport/tests/link_activation_deadline_api.rs` | run hygiene |
+| `crates/libs/rns-transport/tests/link_proof_strategy_api.rs` | run hygiene |
+| `crates/libs/rns-transport/tests/outbound_outcome_api.rs` | run hygiene |
+| `crates/libs/rns-transport/tests/packets_in_scanner_pin.rs` | run hygiene |
+| `crates/libs/rns-transport/tests/pending_link_single_request_concurrent_probe.rs` | link request once, run hygiene |
+| `crates/libs/rns-transport/tests/pending_link_single_request_consumer_repeat_probe.rs` | activation close exit, run hygiene |
+| `crates/libs/rns-transport/tests/pending_link_single_request_default_timeout_probe.rs` | link request once, run hygiene |
+| `crates/libs/rns-transport/tests/pending_link_single_request_probe.rs` | link request once, run hygiene |
+| `crates/libs/rns-transport/tests/pending_link_single_request_usage_probe.rs` | activation close exit, run hygiene |
+| `crates/libs/rns-transport/tests/request_receipt_readme.rs` | local client announce admission |
+| `crates/libs/rns-transport/tests/shared_instance_disconnect_reasons_api.rs` | tunnel opt-in, run hygiene |
+| `crates/libs/rns-transport/tests/shared_instance_one_identity_two_clients_probe.rs` | local client announce admission, run hygiene |
+| `crates/libs/rns-transport/tests/shared_instance_tunnel_default_relay_probe.rs` | link request once, run hygiene |
+| `crates/libs/rns-transport/tests/shared_instance_tunnel_synthesis_api.rs` | tunnel opt-in, run hygiene |
+| `crates/libs/rns-transport/tests/shared_instance_tunnel_synthesis_probe.rs` | tunnel opt-in, run hygiene |
+| `crates/libs/rns-transport/tests/support/announce.rs` | run hygiene |
+| `crates/libs/rns-transport/tests/support/announce_within.rs` | run hygiene |
+| `crates/libs/rns-transport/tests/support/assert_closed_before_activation.rs` | run hygiene |
+| `crates/libs/rns-transport/tests/support/attach_with_events.rs` | run hygiene |
+| `crates/libs/rns-transport/tests/support/await_activated.rs` | run hygiene |
+| `crates/libs/rns-transport/tests/support/await_connected.rs` | run hygiene |
+| `crates/libs/rns-transport/tests/support/broadcasting.rs` | run hygiene |
+| `crates/libs/rns-transport/tests/support/close_orderly.rs` | tunnel opt-in |
+| `crates/libs/rns-transport/tests/support/closed_event_for.rs` | run hygiene |
+| `crates/libs/rns-transport/tests/support/compile_fail.rs` | run hygiene |
+| `crates/libs/rns-transport/tests/support/hold_log.rs` | run hygiene |
+| `crates/libs/rns-transport/tests/support/initiator_on_a_silent_listener.rs` | run hygiene |
+| `crates/libs/rns-transport/tests/support/learn_all.rs` | run hygiene |
+| `crates/libs/rns-transport/tests/support/learn_announce.rs` | run hygiene |
+| `crates/libs/rns-transport/tests/support/link_requests_to.rs` | run hygiene |
+| `crates/libs/rns-transport/tests/support/next_event.rs` | run hygiene |
+| `crates/libs/rns-transport/tests/support/packets_in.rs` | run hygiene |
+| `crates/libs/rns-transport/tests/support/read_for.rs` | run hygiene |
+| `crates/libs/rns-transport/tests/support/register_destinations.rs` | run hygiene |
+| `crates/libs/rns-transport/tests/support/serve_connected.rs` | run hygiene |
+| `crates/libs/rns-transport/tests/support/stop_all.rs` | run hygiene |
+| `crates/libs/rns-transport/tests/support/tcp_server_on.rs` | run hygiene |
+| `crates/libs/rns-transport/tests/support/unknown_destination.rs` | run hygiene |
+| `crates/libs/rns-transport/tests/support/wait_until_within.rs` | run hygiene |
+| `docs/fork/PATCHSET.md` | tunnel opt-in, link request once, Python-in-the-loop two clients interop, activation close exit, local client announce admission, run hygiene, release 0.18.2 |
+| `docs/getting-started.md` | release 0.18.2 |
+| `docs/status/current-roadmap.md` | run hygiene |
+
+Fork commits `7ae6a364`, `785bce93`, `ad420766`, `1446a8e5` and `d2e106bb`:
+N1, tunnel opt-in.
+Upstream site: `Transport::attach_shared_instance` in
+`crates/libs/rns-transport/src/transport/links_parts/transport_sections/shared_instance.rs`,
+which synthesized a tunnel on the client interface once the first connect
+was served; `SharedInstanceReconnectConsumer::on_reconnected` in
+`crates/libs/rns-transport/src/transport/links_parts/transport_sections/shared_instance_reconnect.rs`,
+which re-synthesized it on every reconnect; and `SharedInstanceOptions` in
+`crates/libs/rns-transport/src/transport/shared_instance.rs`. Python's
+local client synthesizes no tunnel (`RNS/Interfaces/LocalInterface.py` has
+no tunnel code; `wants_tunnel` is set only on the network-facing clients,
+`RNS/Interfaces/TCPInterface.py:179`), and the fork's unconditional tunnel
+was a bug for two transports on one identity: the tunnel id is the hash of
+the transport public key and the interface hash, the interface hash comes
+from a counter per `InterfaceManager`, so when the attach sat at the same
+ordinal in each transport's interface order (the common case for a client
+that brings up only the shared-instance connection) both attaches produced
+one id and the shared instance's reappeared-tunnel branch
+(`RNS/Transport.py:2820-2868`, `:2829`) re-pointed every stored path at the
+newest connection. `7ae6a364`
+adds `SharedInstanceOptions::with_tunnel_synthesis(bool)`, a `#[must_use]`
+builder off by default with a crate-private read-back; the attach
+synthesizes the tunnel only with it set, the reconnect consumer is spawned
+with the options struct instead of the reconnect wait and the
+disconnect-reasons scalars and re-synthesizes only with it set, recording
+"reconnected, tunnel synthesis is off" at debug otherwise.
+`Transport::synthesize_tunnel_on_interface` stays public. The same commit
+opts the tunnel pins in, as they read the tunnel table, the tunnel packet
+or the re-synthesis line: `two_transport_shared_instance.rs`,
+`_reconnect.rs`, `_storm.rs`, `_probe5.rs`, `_probe7.rs`, `_probe10.rs`,
+`_probe16.rs`, `_probe17.rs`, `_probe17_unix.rs`, `_state_events.rs` and
+`_state_events_probe.rs` under `src/transport/tests_parts/`; drops the
+tunnel-packet read from the reset drains in
+`tests/shared_instance_disconnect_reasons_api.rs` and
+`two_transport_shared_instance_disconnect_reasons.rs`, which closed a
+stream with linger zero only after reading the packet; and retargets the
+daemon's `shared_instance_attach_probe_tests` bitrate pin, which timed the
+attach's tunnel packet, to synthesize a tunnel from the test once the
+attach is done. The daemon's local-client attach keeps the default.
+`785bce93` adds `two_transport_shared_instance_tunnel_default.rs`,
+included from `src/transport/tests.rs`: two default-option clients on one
+TCP shared instance learn each other's announces at one hop and open links
+both ways with the instance's tunnel table empty before and after a
+restart, each reconnect recording the synthesis as off; and
+`tests/shared_instance_tunnel_synthesis_api.rs`, which reads what the
+client writes on a fresh stream to a raw listener: nothing at attach or on
+a forced reconnect under the default or an explicit `false`, the tunnel
+packet on both with the opt-in, the last builder call in force, a manual
+`Transport::synthesize_tunnel_on_interface` still writing one, and a
+compile-fail check that the accessor is crate-private. The `close_orderly`
+drains in `tests/support/close_orderly.rs`, `tests/interface_events_api.rs`
+and the flush pin's rustdoc no longer promise a tunnel packet. `ad420766`
+reopens the crate CHANGELOG with an `## Unreleased` section whose Fixed
+bullet corrects the 0.15.1 notes that credited the client-side hop strip
+and the Type2 header to the tunnel rather than to the shared-instance
+posture, rewrites the README's shared-instance section and divergence row
+around the default-off tunnel, and extends the full-hash ledger pin in
+`ledger_contract.rs` to this reopened section beside the released ones.
+`1446a8e5` adds `two_transport_shared_instance_tunnel_identity.rs`, included
+from `src/transport/tests.rs`: two transports under one identity, each
+asserting up front that its attached interface carries the same full hash
+as the other's, keep a third client's links on the registering transport
+with no tunnel by default and hold one tunnel between them when opted in;
+and a `crate_readme_sections.rs` pin on the README divergence row and the
+shared-instance section's default-off wording. The same commit qualifies
+the collision rationale here, in the rustdoc, the README and the CHANGELOG.
+`d2e106bb` adds `tests/shared_instance_tunnel_synthesis_probe.rs`, which
+decodes the frame an opted-in attach writes to a raw listener as the Data
+packet for the tunnel-synthesis destination led by the transport's keys
+and the attached interface's full hash, reads the same on the stream a
+forced drop reopens, checks a reattach follows the new attach's options
+and a Unix endpoint honours them, and refuses a dropped builder result
+under `deny(unused_must_use)`; widens the `crate_readme_sections.rs` pin to
+the README's collision qualifier, its `RNS/Transport.py:2820-2868` cite and its
+single-transport opt-in sentence; and gives the CHANGELOG Added bullet the
+migration sentence for a consumer that relied on the 0.15.1 to 0.18.1
+tunnel.
+
+Fork commits `728e10dd`, `2c2f14d9`, `d65fd1e3`, `0be75f6f` and `9ae9fdab`:
+N2, link request once.
+Upstream site: `handle_check_links` in
+`crates/libs/rns-transport/src/transport/jobs_parts/link_maintenance.rs`,
+whose `Pending` arm re-sent the link request every
+`INTERVAL_OUTPUT_LINK_REPEAT` (6 s, `src/transport/mod.rs`) for as long as
+the link stayed pending, inherited from upstream `reticulum-rs-transport`.
+Python sends the request once (`RNS/Link.py:313-320`) and only the
+establishment timeout bounds the link (`RNS/Link.py:722-729`, `:732-739`).
+The repeat was dropped by every hop that had seen the first request: the
+duplicate filters drop a link request whose hash they have seen (Python
+re-admits only announces, `RNS/Transport.py:1668-1679`; this crate's
+`transport/inbound_processing.rs` gives `LinkRequest` no duplicate
+allowance). `728e10dd` empties the
+`Pending` arm into `Pending | Handshake => {}`, deletes the const and the
+`pending_packets` queue that only the arm fed, rewords
+the `establishment_timed_out` rustdoc in
+`destination/link_parts/link_sections/establishment.rs` with the Python
+cites, flips the two unit pins (`pending_out_link_establishment_timeout.rs`:
+`a_pending_out_link_inside_its_establishment_timeout_is_not_requested_again`
+expects nothing on the interface channel inside the timeout;
+`pending_out_link_rediscovery.rs`:
+`aged_pending_out_link_stays_quiet_until_closed_like_python` expects
+nothing until the timeout closes the link with `Timeout` and a path
+request, not a link request, follows) and adds the CHANGELOG Changed
+bullets. `2c2f14d9` adds `tests/pending_link_single_request_probe.rs`,
+which spawns a `TcpClient` to a raw listener that never answers, waits for
+the accept and the client's stream count before asking for a link to an
+unknown destination with a 2 s establishment timeout, reads the stream for
+twice that, decodes every HDLC frame and counts exactly one `LinkRequest`
+packet (the path request a non-transport initiator broadcasts after the
+close is read and not counted), then takes the `Closed` event with reason
+`Timeout` from `out_link_events`; and adopts two tests carried over from
+the tunnel opt-in work:
+`tests/shared_instance_tunnel_default_relay_probe.rs`, where two
+default-option clients on a `TcpServer` shared instance, plain and flagged,
+learn each other and open links both ways across a shared-instance
+restart, and a `shared_instance_attach_probe_tests.rs` test in the daemon,
+where the local-client attach writes nothing on the accepted stream over a
+quiet window until a tunnel is synthesized by hand through
+`Transport::synthesize_tunnel_on_interface`. `d65fd1e3` adds
+`tests/pending_link_single_request_default_timeout_probe.rs`, which leaves
+the establishment timeout at the transport-sized value, since the 2 s
+probe closes its link before the 6 s mark at which the removed repeat used
+to fire: one test reads the raw listener's stream for 8 s and counts one
+`LinkRequest` with the link still `Pending`, then shortens the timeout
+under the link and takes the `Closed` event with reason `Timeout` with no
+link request after it; the other pins that a fresh `Transport::link` to the
+same destination after a timeout close is a new link that sends its own
+single request. The same commit softens the 2 s probe's docs to what it
+shows, fixes the relay probe's announce-timestamp cite
+(`RNS/Destination.py:283`, `RNS/Transport.py:2214`) and wording, and
+narrows the CHANGELOG's duplicate-filter sentence to the link request.
+`0be75f6f` adds `tests/pending_link_single_request_concurrent_probe.rs`,
+where two pending links opened back to back each put one `LinkRequest`
+addressed to their own destination on the stream and both close with
+`Timeout`, and a 300 ms timeout shorter than the maintenance tick still
+sends exactly one request; pins the request destination in the two wire
+probes and the rediscovery path request's payload and silence after it in
+`pending_out_link_rediscovery.rs`; drops the stale repeat-cadence wording
+from `core_tests.rs` and `two_transport_loopback_requests_errors.rs`;
+rewords the `establishment_timed_out` rustdoc and the CHANGELOG to Python
+parity first, with the duplicate filters as the reason a repeat rarely
+landed; and widens the relay probe's state-event channel. `9ae9fdab`
+re-subscribes both relay-probe clients' announce receivers right after the
+shared instance stops, so the post-restart re-learn cannot be satisfied by
+a buffered pre-restart announce; pins the expired path in
+`pending_out_link_rediscovery.rs` before the rediscovery path request;
+cites the watchdog's `HANDSHAKE` branch (`RNS/Link.py:732-739`) beside the
+`PENDING` one in the rustdoc and the CHANGELOG; and restores the 7 s
+rationale on the two unit pins.
+
+Fork commits `15251a8c`, `1232c410`, `745d4bd4`, `519d5973`, `86ce4bec`,
+`9fc9d686`, `da5a3ef1` and `d31bca6d`:
+N3, activation close exit.
+Upstream site: `delivery::await_link_activation` in
+`crates/libs/rns-transport/src/delivery.rs`, which returned `Ok` on
+`Active`, `TimedOut` at the caller's own deadline and `UnexpectedEof` when
+the event channel was gone, and never read `LinkStatus::Closed`: a caller
+waiting 60 s on a link whose establishment timeout closed it at 2 s
+learned nothing for the remaining 58 s. Python's watchdog closes a pending
+link at its establishment timeout with `teardown_reason = TIMEOUT`
+(`RNS/Link.py:722-729`), and a Python caller sees the state change at
+once. `15251a8c` reads the status in the loop head beside the `Active`
+check and returns `io::ErrorKind::ConnectionAborted` with
+"link closed before activation: <reason>" on `Closed`, the reason being the
+link's `LinkCloseReason` (`Timeout`, `InitiatorClosed`,
+`DestinationClosed`; `unknown` when the link carries none); a `Closed`
+event for the link on `Transport::out_link_events` returns the same error
+from the event's own `close_reason` without taking the link lock again.
+The `TimedOut` and `UnexpectedEof` paths and texts are unchanged, as
+`tests/link_activation_deadline_api.rs` and
+`tests/link_activation_max_timeout_probe.rs` still pin. The rustdoc names
+the three outcomes with the Python cite. The commit adds
+`tests/link_activation_closed_probe.rs` (a broadcast-on transport with no
+interface, a 2 s establishment timeout on the pending link and a 60 s
+wait: `ConnectionAborted` naming `Timeout` within 4 s, the link `Closed`
+with that reason; `Link::close()` 500 ms into the wait: `ConnectionAborted`
+naming `InitiatorClosed` within 1.5 s) and a README paragraph under
+"Opening links and admitting resources" on the fail-fast and on the
+transport-sized establishment timeout a broadcast-on link to an unknown
+destination carries. `1232c410` follows the new error into the daemon:
+`open_refreshed_remote_link` in
+`crates/apps/reticulumd/src/bin/reticulumd/bridge_remote_control_link.rs`
+refreshed the propagation node path and retried only on `TimedOut`, so a
+link the establishment timeout closed before the daemon's wait ended would
+have returned the `ConnectionAborted` unretried; the retry arm now takes
+both kinds, and a unit test in `bridge_remote_control_link_tests.rs` closes
+the first pending link under the wait through `Transport::reset_out_link`
+and reads the refresh's path requests for the remote, exactly one more link
+request on the interface and a final error naming the close. `745d4bd4`
+adopts two probes carried over from the link request once work:
+`tests/pending_link_single_request_usage_probe.rs` (a pending link on a
+transport with no interface is closed once with `Timeout` on the tick
+after a 2 s establishment timeout, `Link::close()` publishes
+`InitiatorClosed` once and puts no further link request on a raw
+listener's stream, and no "repeat link request" record is logged across
+the 6 s mark) and
+`tests/pending_link_single_request_consumer_repeat_probe.rs` (a consumer's
+direct second `Link::request()` reaches the wire without restarting the
+establishment clock; one path request and no link request follow the
+timeout close). `519d5973` takes the status and the close reason from one
+lock at the loop head, so a `Closed` reading cannot pair with a reason
+read after it, notes above the helper that the `Debug` names of
+`LinkCloseReason` are part of the error text, and has the daemon's retry
+rustdoc say the `ConnectionAborted` covers any close reason. `86ce4bec`
+starts the timeout-close probe's clock before `transport.link()`, where
+the establishment clock starts; gives the daemon retry test two more
+seconds of slack on its closer window and elapsed bound; pins the README
+section's activation-wait claims in
+`crates/apps/reticulumd/tests/fork_release_docs_contract_parts/crate_readme_sections.rs`;
+and adds `tests/link_activation_closed_usage_probe.rs`, written against
+the contract alone: a link already closed when the wait starts answers at
+once from the status read with the exact error text, a second wait on the
+same link answers the same way, two waiters on one link both learn of the
+one close, and a short wait on an open pending link still answers
+`TimedOut` with the link left pending. `9fc9d686` drops the pre-loop
+`Active` check that the loop head's snapshot subsumes, so the function
+takes the link lock once before it subscribes, and has the rustdoc say
+the three errors end the wait without activation. `da5a3ef1` has the
+daemon retry test time the open alone rather than its join with the
+closer's fixed window, starts the hand-close probes' clocks before the
+closer is spawned, pins the `PATHFINDER_M` (128) text of the new README
+paragraph, and adds `tests/link_activation_closed_busy_transport_probe.rs`:
+a `Closed` event the broadcast channel dropped under a burst of more than
+its 1024 events still ends the wait from the status read, not with
+`UnexpectedEof`; a first wait the caller cancelled under
+`tokio::time::timeout` leaves a second wait able to see the close; and a
+link to a destination without a path entry carries the transport-sized
+establishment timeout of about 774 s until the caller shortens it.
+`d31bca6d` adds `tests/link_activation_closed_teardown_restart_probe.rs`:
+`Link::teardown()` on a pending link ends the wait naming
+`InitiatorClosed`, and after `Link::restart()` a fresh wait runs to its
+own deadline with `TimedOut` rather than failing fast on the earlier
+close, while a second close ends the next wait again.
+
+Fork commits `ddcb4430`, `a974386c`, `d40e0ae3` and `7f076dc3`: Python-in-the-loop
+two clients interop. A Python rnsd (RNS 1.5.2) is the shared instance on a free
+TCP port and two transports built from one identity attach as local clients
+the way a second Python program does (`RNS/Reticulum.py:420-441`):
+`crates/apps/reticulumd/tests/python_channel_interop_parts/python_shared_instance_two_clients.rs`,
+included from `crates/apps/reticulumd/tests/python_channel_interop.rs`, has
+each of the two register one destination under a fresh identity before its
+attach and announce it once, with a third client attached before either
+announce since rnsd relays a local client's announce only to the local
+clients connected at that moment (`RNS/Transport.py:2400-2429`), and reads
+both destinations filed at zero hops in rnsd's `LOG_PATHING` output
+(`RNS/Transport.py:2461`, `RNS/__init__.py:66`) with the two attaches
+carrying one interface hash. Under the default the third client's link to
+the first transport's destination activates on that transport, the second
+transport's in-link events stay empty and rnsd logs no `Tunnel endpoint`
+line, as Python's local client synthesizes none
+(`RNS/Interfaces/LocalInterface.py` has no tunnel code). With
+`with_tunnel_synthesis(true)` on both, rnsd logs `Tunnel endpoint <id>
+established.` for the first attach (`RNS/Transport.py:2823`) and files the
+first destination under that tunnel (`:2467-2476`), then takes the
+reappeared branch for the second attach (`:2829-2834`) and logs `Restored
+path to <first destination>` (`:2868`) onto the second connection, after
+which the third client's link request leaves the first transport's in-link
+events empty for 3 s and the second transport's in-link events empty too,
+as it registered no such destination. `ddcb4430` also adds the
+destination-hash inequality assert to both tests of
+`two_transport_shared_instance_tunnel_identity.rs`.
+`a974386c` names the proof in the README shared-instance section.
+`d40e0ae3` makes the third client's attach wait for its first connect so the
+attach order is observed rather than assumed, tells the negative pin's three
+outcomes apart (an elapsed window passes, an in-link event or a channel error
+panics), and states the 3 s window in the README. `7f076dc3` cites both of
+rnsd's accept paths (`RNS/Interfaces/LocalInterface.py:416-444`, `:447-460`)
+for the attach order and adds the second transport's empty in-link check to
+the negative control.
+Upstream site: test files only.
+
+Fork commits `be18658a`, `83e03e75`, `92e82a60`, `244722bf`, `08f18f07`,
+`b0f194ce`, `e14ced8a`, `4a22affe`, `84ae2a5c`, `29d78171` and `3d887f3e`:
+N4, local client announce admission.
+Upstream site: `admit_announce_before_queue` in
+`crates/libs/rns-transport/src/transport/announce.rs`, which ran the
+announce ingress limiter of
+`crates/libs/rns-transport/src/transport/announce_limits.rs` on every
+interface but one with `ingress_control = false`, the interface a
+transport attaches to a shared instance over and the child interfaces a
+shared instance holds per accepted client included; and the limiter
+itself, which measured a frequency from two samples and carried the
+constants of an older Reticulum (3.5 / 12.0 Hz, hold 60 s, penalty 300 s,
+release 30 s). Two local clients announcing destinations less than about
+0.6 s apart had the second announce held for six minutes on every other
+local client, so a third client learned one of the two. Python's local
+client interface never ingress-limits, as a client program's interface
+and as the child rnsd spawns per accepted client alike
+(`RNS/Interfaces/LocalInterface.py:130`; `RNS/Transport.py:1823` is the
+only inbound gate). `be18658a` reads `is_shared_instance` for the
+receiving interface under the interface manager guard
+`admit_announce_before_queue` already takes for the shared config and
+hands both to the limiter as one `IngressInterface` value; a flagged
+interface is admitted before any rate limit is looked up, its per-interface
+limit dropped, the way `ingress_control = false` already was, and a child
+registered on a flagged interface carries the flag
+(`crates/libs/rns-transport/src/iface_parts/interfacemanager.rs`, unchanged).
+The same commit ports three details of RNS 1.5.2's `Interface.py`: the
+measured frequency reads 0 until more than `IC_DEQUE_MIN_SAMPLE` = 2
+samples exist (`:84`, `:346-348`); a burst ends only once the frequency
+has stayed under the threshold for a full hold after the last
+over-threshold sample as well as after activation (`ic_burst_sustained`,
+`:197`) and only with at least two samples in the deque (`:195`); and
+`AnnounceRateLimit::default()` reads the 1.5.2 constants (`:76-84`):
+`burst_freq_new` 3.0 Hz, `burst_freq` 10.0 Hz, `burst_hold` 15 s,
+`burst_penalty` 15 s, `held_release_interval` 5 s, with `new_time` 2 h,
+`incoming_freq_samples` 6 and `max_held_announces` 256 unchanged. The
+1/mean-gap formula over the last 6 samples and the release timing stay (the
+release is armed at deactivation and a held announce leaves only once the
+burst has ended, where Python's `process_held_announces`, `:277-282`,
+releases on the interval plus a frequency check with the burst still
+active), as the README's new Known divergences row records. The
+commit adds `tests/shared_instance_one_identity_two_clients_probe.rs`
+(three local clients of a flagged `TcpServer`; the third learns two
+destinations announced 100 ms apart by two clients under one identity and
+a link to the second activates there, red before the change with
+"holding announce for /<B>/ before queue for 360s"; its first two tests
+are the out-of-crate twins of the
+`two_transport_shared_instance_tunnel_identity.rs` default and opt-in
+cases), `transport/tests_parts/shared_child_announce_admission.rs` (a
+child of a flagged channel, and the channel itself, admit three
+back-to-back announces under a limiter that holds on any measurable
+frequency; an unflagged channel holds the third), and in
+`announce_limits.rs` pins on the default values, the three-sample floor,
+the exemption against the same six-announce sequence held from the third
+on an ordinary interface, the sustained clock and the release guard, with
+the held-release tests fed a third sample before each expected hold;
+`rns_1_5_ingress_admission.rs` passes the new value. `83e03e75` drops the
+2 s announce spacings and the `ingress_control = false` that four test
+flows carried to dodge the two-sample measurement, each of which puts
+exactly two announces on the connector's interface, and rewords the
+`connector_with` rustdoc to the three-announce case. `92e82a60` writes the
+CHANGELOG Fixed bullet and the test-only Changed bullet, the README
+divergence row, and the 1.5.2 values into the daemon's commented `ic_*`
+examples in `crates/apps/reticulumd/examples/interfaces-reference.toml`.
+`244722bf` answers the first review round: the two `ingress_control =
+false` pins (`announce_limits.rs` and `tests_parts/module_prelude.rs`) fed
+two announces, which the three-sample floor admits on any interface, and
+now feed a third (the unit pin's third is one the limiter would otherwise
+hold; the `module_prelude.rs` twin still drove `handle_announce` at this
+commit, which `b0f194ce` corrects); the two exempt arms of
+`check_with_shared_config_at` merge into one; `next_release_delay` bases
+the hold-until on the later of activation and the last sustained sample,
+pinned in `burst_sustained_resets_the_hold_clock`; the rustdoc states the
+release-timing divergence as above and says the release guard is inert
+here, the deque trimming by count alone; the flush fixture's doc says its
+held announces are seeded through `check()`, past the exemption; and
+`tests/announce_admission_usage_probe.rs` is adopted from the review's
+usage probes (one local client of a flagged `TcpServer` announces three
+destinations back to back and another local client learns all three with
+no "holding announce" record; an ordinary fresh `TcpClient` interface
+learns two announces 100 ms apart and holds the third for hold plus
+penalty, about 30 s), while
+the one-identity probe drops its review ids, names the 250 ms
+registration announce as the reason for its spacing and asserts the two
+learns within 5 s. `08f18f07` carries the release-timing wording into the
+README row and the CHANGELOG bullet and sets the daemon's `ec_pr_freq`
+example to the 5.0 Hz default (`Interface.py:86`). `b0f194ce` answers the
+second round: `ingress_control_false_bypasses_unknown_announce_holding` in
+`tests_parts/module_prelude.rs` drove `handle_announce`, which never reaches
+the ingress limiter (only `admit_announce_before_queue` does), and now
+admits three announces through `admit_announce_before_queue` under the
+`hold_everything_rate_limit` fixture, moved into `module_prelude.rs`; the
+`announce_limits.rs` unit tests gain an `ingress_control = true` arm for the
+shared-instance exemption and a pin reading the commented `ic_*` lines of
+`crates/apps/reticulumd/examples/interfaces-reference.toml` against
+`AnnounceRateLimit::default()`; `tests/announce_admission_usage_probe.rs`
+gains the second round's three review tests (an explicit
+`ingress_control = true` with hold-on-anything thresholds on both
+shared-instance interfaces, three announces from an unflagged `TcpClient`
+into the flagged listener so the server's per-client child is exercised on
+its own, and 1 s `ic_burst_hold`, `ic_burst_penalty` and
+`ic_held_release_interval` overrides shortening the hold to a few seconds),
+sends its first test's announces with the None context, since a
+path-response announce is admitted before the exemption is consulted,
+names its transports once and asserts the learn time; the flush fixture's
+doc says the third and fourth unknown destinations are held; the
+one-identity probe drops an unreachable assert. `e14ced8a` names those
+pins in the CHANGELOG bullet and reflows the README row. `4a22affe` answers
+the third round: it adopts `tests/announce_admission_reconnect_probe.rs`
+from the review (two default-option clients whose shared instance is
+stopped and started again on its port still admit three back-to-back
+announces after the reconnect; three announces 1.5 s apart on an unflagged
+`TcpClient` interface are all learned under the 3 Hz threshold), has the
+example `ic_*` pin read the reticulumd example from the workspace checkout
+at run time instead of `include_str!`, so a packaged crate's tests still
+compile, makes `check_with_shared_config` `pub(crate)` like the rest of the
+module's surface, cites `MAX_HELD_ANNOUNCES` (`Interface.py:72`) and the
+deque length (`:153`) on the defaults, spaces the child fixture's samples
+1 ms, and marks which commented values of the example config are defaults.
+`84ae2a5c` names the reconnect probe and the `ic_new_time` example move in
+the CHANGELOG bullet. `29d78171` answers the fourth round: the example
+config pin leaves the library crate, where a unit test had read a sibling
+app crate's file from the workspace layout and failed outside it;
+`crates/apps/reticulumd/tests/config_parts/interfaces_reference_ingress_examples.rs`,
+included from `crates/apps/reticulumd/tests/config.rs`, pins every
+commented `ic_*`, `ic_pr_*` and `ec_pr_freq` value of the example to the
+RNS 1.5.2 literal (`Interface.py:72`, `:76-86`), cutting the parsed
+remainder at the first `#`, with `announce_rate_limit_defaults_match_rns_1_5_2`
+left as the library pin; the two held-third tests of
+`tests/announce_admission_usage_probe.rs` install the hold logger and
+assert the "holding announce" record was logged, the positive control for
+the exemption pins' empty checks, and the two-announce test asserts both
+learns inside 5 s; the commit adopts
+`tests/announce_admission_mixed_iface_probe.rs` from the review (one
+transport is at once a flagged shared-instance client and a plain
+`TcpClient` connector: the plain interface holds the third of three, the
+shared-instance interface admits three right after, so the flag is read per
+interface) and `crates/apps/reticulumd/tests/local_client_announce_admission_probe.rs`
+(the daemon binary boots from an empty storage directory with one
+`LocalInterface` listener on a free loopback port; two local clients
+announce 100 ms apart and one announces three back to back, a third client
+learns all of them inside 5 s and the daemon's debug log carries no
+"holding announce" record); and the `Default` rustdoc names the 6-sample
+window against `IA_FREQ_SAMPLES` = 48. `3d887f3e` names the moved pin and
+the two probes in the CHANGELOG bullet and has the README row say the
+constants refresh and the sustained clock make the inherited formula and
+release arming observable.
+
+Fork commits `863d7ba9`, `6707f86f`, `e4dfc449`, `655c44d1`, `477b9863`,
+`a111e152`, `a6b0b7f6`, `af24c666`, `ac65cba0`, `32aabfe5`, `c28dfd6f`,
+`43d56a61`, `98fb3075`, `9cc4782f`, `0a2ac538`, `d31d0559`, `f1973fb7`,
+`3a95f2f3`, `5338f85a`, `01bea0f6`, `1052de05`, `7c698d6b`, `5deddb8a` and `b47c8656`:
+N5, run hygiene.
+Upstream site: the test files and shared helpers of the four patches above
+and the fork's own documentation; the one production edit is
+`delivery::await_link_activation` in
+`crates/libs/rns-transport/src/delivery.rs`. The integration tests the four
+patches added had each grown a copy of the same harness; this patch moves
+those copies into `crates/libs/rns-transport/tests/support/`, tightens unit
+pins that asserted less than their names said, and adopts four probes
+from the review's usage probes:
+`tests/link_activation_closed_other_link_probe.rs`,
+`tests/announce_admission_unix_probe.rs`,
+`tests/link_activation_closed_wake_probe.rs` and, last,
+`tests/link_activation_closed_repend_then_close_probe.rs`.
+`863d7ba9` moves the raw-listener harness of the
+five `tests/pending_link_single_request*_probe.rs` files into
+`tests/support/read_for.rs`, `packets_in.rs`, `link_requests_to.rs`,
+`closed_event_for.rs`, `initiator_on_a_silent_listener.rs`,
+`unknown_destination.rs` and `broadcasting.rs`; the shared HDLC scanner in
+`packets_in.rs` rescans from a frame's closing flag instead of stepping
+past it, so it also counts a frame that shares its opening flag with the
+previous frame's closing flag, which production readers would drop; the
+probes pin what the client sent, and `tests/packets_in_scanner_pin.rs`
+below pins the scanner itself. `6707f86f` has the four
+`tests/link_activation_closed*_probe.rs` files,
+`tests/link_activation_deadline_api.rs` and `tests/outbound_outcome_api.rs`
+take `broadcasting` and `unknown_destination` from support
+(`outbound_outcome_api.rs` the latter only), gives the three that check
+the close text one
+`tests/support/assert_closed_before_activation.rs`, and adopts
+`tests/link_activation_closed_other_link_probe.rs` (a `Closed` event for a
+different link id does not end the wait: a neighbour's hand close, and a
+neighbour's establishment-timeout close, both leave the wait on the first
+link running to its own deadline or its own close). `e4dfc449` is the only
+production edit: `await_link_activation` no longer builds its error from
+the reason carried on the `LinkEvent::Closed` event; the event wakes the
+wait, which rereads `LinkStatus` and `close_reason` from the link, the
+same read every poll slice already makes. The observable contract is
+unchanged: a closed link yields `ConnectionAborted` naming its reason
+within the poll slice, and every activation probe keeps its timing bound.
+The one reachable difference is a link re-pended under a wait, by
+`Link::restart()` or by `Link::request()` on a closed link (both public,
+neither with a production caller): closed and re-pended before the
+reread, the link reads `Pending` with no reason, so the wait now runs to
+its own deadline instead of failing with a stale reason, pinned by
+`tests/link_activation_closed_wake_probe.rs` (adopted by `0a2ac538`
+below, the request path added by `3a95f2f3`). `655c44d1` moves the
+shared-instance harness of the three `tests/announce_admission_*_probe.rs`
+files into `tests/support/hold_log.rs`, `wait_until_within.rs`,
+`learn_all.rs`, `tcp_server_on.rs`, `register_destinations.rs`,
+`announce.rs`, `stop_all.rs` and `announce_within.rs`, with `learn_all`
+taking one `within: Duration` where the copies had differed, and adopts
+`tests/announce_admission_unix_probe.rs` (`#![cfg(unix)]`; a flagged
+`LocalUnixServer` and its default-option clients never ingress-limit, a
+third client learning five destinations from two clients inside 5 s, while
+an unflagged `LocalUnixServer` holds the third of three announces 100 ms
+apart, so the exemption follows the flag and not the interface kind).
+`477b9863` has `tests/shared_instance_disconnect_reasons_api.rs`,
+`tests/shared_instance_tunnel_synthesis_api.rs`,
+`tests/shared_instance_tunnel_synthesis_probe.rs` and
+`tests/shared_instance_tunnel_default_relay_probe.rs` share
+`tests/support/next_event.rs`, `attach_with_events.rs` and
+`serve_connected.rs`; the disconnect-reasons file takes `accept_within`
+and `close_orderly` from support and the relay probe uses
+`wait_until_within`. `a111e152` tightens the unit pins under
+`transport/tests_parts/`: one `SharedInstanceServer::tunnel_count`, whose
+rustdoc names the clear it still performs, replaces two helpers that each
+cleared the tunnel table to count it; the tunnel-default reconnect
+records are checked for their iface value; the storm restart pin moves
+to the default client and counts the " reconnected" prefix both postures'
+lines share (`ac65cba0` and `9cc4782f` below sharpen it);
+`aged_pending_out_link_stays_quiet_until_closed_like_python` asserts
+`LinkStatus::Pending` inside the quiet window;
+`ingress_control_false_bypasses_unknown_announce_holding` reuses the
+`admissions` helper; `learned_announces_are_not_held_after_route_is_known`
+and `path_response_announces_are_not_held_by_rate_limits` run
+`admit_announce_before_queue` before `handle_announce`, so they reach the
+limiter, and since `ac65cba0` they first prime the interface with three
+fresh unknown announces and check that a fourth is held, so the admission
+they then see is the limiter's exemption and not a measurement still under
+threshold; and `connector_with` folds into `connector`, its `Some` branch
+having had no caller. `a6b0b7f6` does the same on the daemon side and in
+the interop helpers: the attach probe's quiet-window oracle in
+`crates/apps/reticulumd/src/bin/reticulumd/bootstrap_interface_startup_parts/shared_instance_attach_probe_tests.rs`
+tells EOF and a read error apart; the bridge closed-before-activation test in
+`crates/apps/reticulumd/src/bin/reticulumd/bridge_remote_control_link_tests.rs`
+asserts the refresh's path request precedes the retry's second link
+request (`3a95f2f3` below settles the count it reads);
+`crates/apps/reticulumd/tests/local_client_announce_admission_probe.rs`
+scans the daemon log once, after a `stop_daemon` that asserts the SIGINT
+and the exit status, anchored on an `[announce-debug] accepted dst=`
+record; `release_guard_needs_min_samples` in `announce_limits.rs` is
+renamed `release_guard_is_inert_once_two_samples_exist` for what it
+checks; `live_wait_for_python_announce` in
+`crates/apps/reticulumd/tests/python_channel_interop_parts/python_shared_instance_live.rs`
+takes a `within` and replaces `two_clients_learn_announce`; and the
+`RNS/Transport.py:2398-2430` cites are corrected to `:2400-2429`.
+`af24c666` aligns the prose with the code: "first interface" becomes "the
+same ordinal in each transport's interface order" at its five library
+sites (`43d56a61` below does the three in the Python two-clients part) and
+in the `crate_readme_sections.rs` needle; the README cites
+`RNS/Reticulum.py:420-441`; the README and CHANGELOG activation-wait prose
+say the event wakes the wait, and the README's alone comes to name
+`unknown` and `UnexpectedEof` and to give the 774 s bound as exact when
+the path table holds no first-hop metrics (the CHANGELOG already named
+both and keeps "about 774 s"), with two new needles and the pin
+`crate_readme_shared_instance_section_names_the_two_clients_proof`; a
+CHANGELOG line ending in an orphan "by" is reflowed; the N3 paragraph
+above says the bridge test reads the refresh's path requests and the N4
+paragraph is reworded in plain prose; `docs/status/current-roadmap.md`
+says the request is sent once and names `LinkCloseReason::Timeout`; and
+the defaults comment of
+`crates/apps/reticulumd/examples/interfaces-reference.toml` says which
+commented line flips its default. The next five commits answer the review
+of the eight above. `ac65cba0` makes the admission pins discriminating:
+the two pins in
+`transport/tests_parts/held_udp_announce_preserves_peer_sou.rs` take
+`hold_everything_rate_limit()`, prime the interface and assert the fourth
+unknown announce is held before asserting that the known-destination
+repeat, and the path-response announce, are admitted (each goes red with
+the limiter's exemption disabled); the storm restart pin in
+`two_transport_shared_instance_storm.rs` counts the default client's exact
+line "reconnected, tunnel synthesis is off" (the storm pins the loss-free
+service and ordering of the drop and reconnect events per posture; the
+reconnect arms that depend on how the client registered are pinned by
+`two_transport_shared_instance_probe10.rs` and
+`two_transport_shared_instance_probe16.rs`); and the `tunnel_count`
+rustdoc gets back the clause that a call expecting zero leaves an empty
+table as it was. `32aabfe5` moves
+`tests/support/initiator_on_a_silent_listener.rs` to the `use
+super::` convention of its siblings, building its transport with
+`broadcasting`, and has its five includers declare the sibling modules;
+adds `tests/packets_in_scanner_pin.rs`, which feeds the shared scanner
+doubled-flag, shared-flag and trailing-partial byte streams and pins the
+frame count of each; has `closed_event_for` (and the concurrent probe's
+local `closed_events_for`) skip a lagged broadcast receiver instead of
+panicking; corrects the rustdoc of `hold_log.rs`, `attach_with_events.rs`
+and `packets_in.rs` (the last saying that production readers drop the
+shared-flag frame and the harness counts it because the probes pin what
+the client sent); gives the other-link probe's second test the upper bound
+its first already had; and has the `unix_server` docstring in
+`tests/announce_admission_unix_probe.rs` say transport mode is constant
+across the flagged and unflagged listener because admission never reads
+it. `c28dfd6f` is a comment-only edit to `delivery.rs`: the note above the
+close text names `tests/support/assert_closed_before_activation.rs` as the
+pin's home, and the `LinkEvent::Closed => continue` arm says why the loop
+head rereads the link. `43d56a61` finishes the prose sweeps in the daemon
+tests: `python_shared_instance_two_clients.rs` takes the "same ordinal"
+wording at its three sites; `live_wait_for_python_announce` is renamed
+`live_wait_for_relayed_announce`; the `RNS/Transport.py` cite in
+`crates/apps/reticulumd/tests/support/python_shared_instance_client.py`
+is corrected to `:2400-2429`;
+`crates/apps/reticulumd/tests/local_client_announce_admission_probe.rs`
+reads the daemon log through `log_snapshot()` in `wait_for_daemon`; and
+the two-clients docs pin in `crate_readme_sections.rs` says "the section"
+where it had said "the bullet". `98fb3075` aligns the probe headers with
+the contract: the `//!` docs of the other-link, busy-transport, usage and
+teardown-restart probes now say the wait ends when the link reads
+`LinkStatus::Closed` and that its `LinkEvent::Closed` only wakes the
+reread; `tests/link_activation_closed_probe.rs` takes the shared
+exact-text pin in place of two `contains` checks; and `arm_ingress_hold`
+in `held_udp_announce_preserves_peer_sou.rs` primes through `admissions`.
+The six commits that follow answer a second review round.
+`9cc4782f` runs the restart storm over both tunnel postures:
+`shared_instance_storm_of_restarts_loses_no_event` in
+`two_transport_shared_instance_storm.rs` keeps the default client and
+counts the exact "reconnected, tunnel synthesis is off" line, and a
+`_with_tunnel_synthesis` twin on `shared_instance_reconnect_tunneled_client`
+counts "reconnected, tunnel re-synthesized", so six back-to-back
+re-syntheses are exercised again as they were before the pin moved to the
+default client; the two lines are the consts
+`SHARED_INSTANCE_RECONNECT_OFF_LINE` and
+`SHARED_INSTANCE_RECONNECT_RESYNTHESIZED_LINE` beside `tunnel_count` in
+`two_transport_shared_instance.rs`, and
+`two_transport_shared_instance_tunnel_default.rs` reads the first.
+`0a2ac538` adopts `tests/link_activation_closed_wake_probe.rs` from the
+review's usage probes: a hand close under the wait returns within 100 ms
+on at least five of six fresh links, so the `Closed` event wakes the
+reread rather than the 250 ms poll finding it; and `Link::close()`
+followed by `Link::restart()` in one lock scope before the reread leaves
+the wait running to its own deadline, `TimedOut`. The same commit has
+`closed_event_for`, the concurrent probe's `closed_events_for` and the
+usage probe's `closed_events_during` panic naming the lag when the
+broadcast receiver lagged, where `32aabfe5` had them continue: the probes
+pin that the event is published exactly once, which a skipped lag cannot
+show. `d31d0559` is a second comment-only edit to `delivery.rs`: the
+`LinkEvent::Closed => continue` arm now states the reachable difference
+(a link re-pended under a wait, no production caller, pinned by the wake
+probe), and the close-reason comment says `Timeout` and `InitiatorClosed`
+are pinned by the shared helper's includers and the daemon test while
+`DestinationClosed` is pinned only by the README contract needle.
+`f1973fb7` moves the last copied shared-instance waiters into
+`tests/support/await_connected.rs`, `learn_announce.rs` and
+`await_activated.rs`, each taking a caller-supplied `within`, replacing
+the copies in `tests/shared_instance_tunnel_default_relay_probe.rs`,
+`tests/shared_instance_one_identity_two_clients_probe.rs` and
+`tests/announce_admission_reconnect_probe.rs`; the one-identity probe
+takes `wait_until_within` and its header takes the "same ordinal"
+wording; and the relay probe cites `RNS/Transport.py:2400-2429`.
+`3a95f2f3` gives the wake probe its third test: `Link::close()` then
+`Link::request()` in one lock scope re-pends the link under a fresh id,
+and the wait runs to `TimedOut` as it does after `restart()`, with the
+probe header naming both re-pend paths. The same commit has the bridge
+closed-before-activation test assert at least one path request from the
+refresh, placed before the second link request, where it had asserted
+exactly two; adds the lag-posture clause to the rustdoc of
+`tests/support/learn_all.rs` and `announce_within.rs` (a lagged receiver
+is skipped because an announce stream may legitimately lag); renames the
+usage probe's local `learn_announce` to `expect_announce_within`, a
+different helper from the support waiter of the old name; has the
+`RecvError::Closed` arms of `closed_event_for.rs` and the concurrent probe
+panic with "closed before the Closed event arrived" where the text had
+said the stream remains open; has the `stop_daemon` asserts in the
+daemon's admission
+probe carry the daemon log; and has
+`two_transport_shared_instance_probe10.rs` and `..._probe16.rs` read
+`SHARED_INSTANCE_RECONNECT_RESYNTHESIZED_LINE`. `5338f85a` is a third
+comment-only edit to `delivery.rs`: the `LinkEvent::Closed => continue`
+arm names both re-pend paths, `Link::restart()` and `Link::request()` on
+a closed link. `01bea0f6` adopts
+`tests/link_activation_closed_repend_then_close_probe.rs`, written against
+the contract alone: a link re-pended under the wait by `Link::request()` or
+`Link::restart()` and then closed a second time, by hand or by a 2 s
+establishment timeout, ends the wait with `ConnectionAborted` naming
+`InitiatorClosed` or `Timeout` within the poll slice of a hand close and
+within the maintenance tick plus the poll slice of a timeout close, not at
+the caller's 60 s deadline; in the `Link::request()` cases the link id has
+rotated out from under the waiter's event filter and the next event or
+poll slice answers; the wake probe pins the first half of the same
+exception. The CHANGELOG names it in the Pinned-by clause of the reread
+bullet. `1052de05` iterates the buffer bytes in the two `Display` impls of
+`crates/libs/rns-core/src/buffer.rs` (`OutputBuffer`, `StaticBuffer`): the CI
+toolchain moved to clippy 1.100, whose `needless_range_loop` flags the index
+loops; the hex output is unchanged. `7c698d6b` does the same in the transport
+crate's twin module, `crates/libs/rns-transport/src/buffer.rs`.
+`5deddb8a` follows cargo 1.100's target layout, which keeps every unit's output under
+`target/<profile>/build/<crate>/<hash>/out` and runs test executables from there:
+the compile-fail harness in `tests/support/compile_fail.rs` finds the profile root
+as the nearest ancestor owning `build/` or `deps/`, passes one `-L` per directory
+holding an rlib, rmeta or proc-macro dylib, and searches the `rns_transport` rlib
+across them (its five includers rename `deps_dir` to `artifact_root`); the
+lxmf-cli test-binary lookups find the root the same way; `b47c8656` makes those
+lookups key on the `build` directory too, as cargo 1.100 writes no `deps` at all.
+
+Fork commits `4e5ab382`, `f19bf251`, `0d6654cb`, `a7611163` and `bd1a06c1`:
+release 0.18.2. The first bumps the crate version to 0.18.2 at every
+manifest and consumer-snippet site (`Cargo.toml`,
+`crates/libs/rns-transport/Cargo.toml`, `crates/apps/reticulumd/Cargo.toml`,
+`crates/apps/rns-tools/Cargo.toml`, the snippet in
+`crates/libs/rns-transport/README.md` and `docs/getting-started.md`) and in
+`Cargo.lock` and `crates/libs/rns-transport/fuzz/Cargo.lock`, and retargets
+the two version pins in `crates/apps/reticulumd/tests/fork_publish_contract.rs`
+to `0.18.2`; the root `VERSION` file stays. The
+second adds the 0.18.2 paragraph to the `## Patch list` of
+`crates/libs/rns-transport/README.md`, folding it into the intro sentence
+and leaving the 0.18.1 block as a standalone paragraph with its bullets
+unchanged; its seven bullets are the tunnel opt-in and the same-identity
+collision it answers, the one link request, the fail-fast activation wait,
+shared-instance announce admission with the 1.5.2 limiter constants, the
+Python-in-the-loop two-clients proof, the test-only hygiene, and the
+consumer note (pin 0.18.2, nothing to opt into, a wait on a closed link
+fails fast). The third promotes `## Unreleased` to `## 0.18.2 - 2026-11-16`
+in the crate `CHANGELOG.md` with a version bullet at the head of
+`### Changed` (the announce field, the patch-bump reasoning with no
+`### Breaking` as every change is additive API a consumer need not opt into
+or a default-behaviour correction toward Python RNS, the
+`cargo semver-checks` result of 0 findings against `v0.18.1` with the gate
+that runs it, `tools/scripts/semver-major-findings-check.sh
+coyote-rns-transport-v0.18.1 0`, and the contract tests that pin the
+release) and a restated test-only bullet for the release docs contract
+parts naming all eleven; it retargets the promotion-sensitive pins to the
+literal 0.18.2 label:
+`crates/apps/reticulumd/tests/fork_publish_contract_parts/ledger_contract.rs`
+expects the full-hash contract to cover `0.18.2`, `0.18.1`, `0.18.0`,
+`0.17.0`, `0.16.0` and `0.15.1` with no `Unreleased` label and the
+bullet-cite contract the same six, and
+`crates/apps/reticulumd/tests/fork_release_docs_contract_parts/readme_patch_list.rs`
+gains a 0.18.2 twin
+(`readme_patch_list_opens_with_the_0_18_2_block_and_keeps_the_0_18_1_paragraph`)
+asserting that the 0.18.2 block opens the list, the 0.18.2, 0.18.1, 0.18.0
+order and the 0.18.2 items, while the 0.18.1 test
+(`readme_patch_list_keeps_the_0_18_1_block_above_the_0_18_0_paragraph`)
+keeps its order and its needles through a shared const; it demotes the
+first-release-heading assertion out of
+`crates/apps/reticulumd/tests/fork_release_docs_contract_parts/release_0_18_1_probe.rs`,
+which keeps its date pin; and it adds
+`crates/apps/reticulumd/tests/fork_release_docs_contract_parts/release_0_18_2_probe.rs`,
+included from `crates/apps/reticulumd/tests/fork_release_docs_contract.rs`,
+which pins the heading date and its place as the first release heading,
+the subsection set `### Added`, `### Changed`, `### Fixed` and nothing else
+(so no `### Breaking`), the opt-in builder under `### Added`, the
+single-request and fail-fast bullets under `### Changed` by their opening
+words, the patch digit and semver sentence of the version bullet, the two
+`### Fixed` bullets by their opening words, and the README patch-list
+order. The fourth adds
+`ledger_0_18_2_attributes_the_two_reconnect_arm_probes_to_both_patches` to
+`crates/apps/reticulumd/tests/fork_publish_contract_parts/ledger_contract.rs`,
+pinning the `tunnel opt-in, run hygiene` cells of the two reconnect-arm
+probe rows; widens `TIMEOUT_CLOSE_BOUND` in
+`crates/libs/rns-transport/tests/link_activation_closed_repend_then_close_probe.rs`
+to 4 s of slack after the 2 s establishment timeout, starts the re-pend
+clock before the lock that re-pends and says that any event wakes the
+reread; and has the README's one-link-request bullet call the removed
+constant private. The fifth has the re-pend probe's `TIMEOUT_CLOSE_BOUND`
+comment say the 4 s is slack after the 2 s establishment timeout, looser
+than the sibling's 4 s total measured from link creation, gives the
+restart twin the `close_reason` assert its request twin makes, guards the
+0.18.2 probe's first-bullet read with `first()`, rewords the 0.18.1 probe's
+order pin rustdoc for the demoted block, and restores the two-mode
+sentence to the full-hash label pin's rustdoc. The ledger commits that
+cite the five commits above touch only this file and the crate
+`CHANGELOG.md`.
+
 ## 0.18.1 (upstream 0.14.0)
 
 Every file changed since the `0.18.0` release and the patch each change

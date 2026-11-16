@@ -7,8 +7,10 @@
 // from the wire. Helpers come from the sibling `tests_parts` files included into this
 // module.
 
-/// Three announces inside one sample window trip the burst detector, so the fourth
-/// unknown destination is held rather than admitted.
+/// The third announce inside one sample window is the first with a measurable frequency, so
+/// it and the fourth unknown destination are held rather than admitted. The held announces are
+/// seeded through `check()`, which skips the shared-instance exemption, so the fixture
+/// reaches a state production no longer produces on that interface.
 fn shared_instance_flush_rate_limit() -> AnnounceRateLimit {
     AnnounceRateLimit {
         incoming_freq_samples: 3,
@@ -67,7 +69,7 @@ async fn shared_instance_flush_await_reverse_route(
 /// other tables are seeded. The drop's debug record is the gate: it is written after the
 /// last clear. Each table is then asserted empty on its own, the receipt guard is still in
 /// place, and the cached hashes, Python's `packet_hashlist`, are still there (the
-/// reconnect's tunnel packet adds to them, so what was cached before the drop is asserted
+/// reconnect's traffic may add to them, so what was cached before the drop is asserted
 /// kept, not the exact set).
 #[tokio::test]
 #[deny(clippy::await_holding_invalid_type)]

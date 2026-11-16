@@ -114,6 +114,64 @@ interfaces = [
     assert_slot_holds_attached_record(&transport, &records[0]).await;
 }
 
+/// The daemon's local-client posture: the attach that a `LocalClientInterface` entry
+/// produces writes nothing on the accepted stream (no tunnel-synthesis packet, as
+/// Python's `LocalClientInterface` writes none), observed at a raw listener over a quiet
+/// window. The window is not vacuous: once it has passed, the test synthesizes a tunnel by
+/// hand through the public `Transport::synthesize_tunnel_on_interface` and the first bytes
+/// arrive on that same stream, so the stream was live and silent, not dead.
+#[tokio::test]
+async fn local_client_attach_writes_nothing_on_the_accepted_stream_until_asked() {
+    let shared_listener =
+        tokio::net::TcpListener::bind("127.0.0.1:0").await.expect("bind shared local instance");
+    let port = shared_listener.local_addr().expect("shared local addr").port();
+    let config = DaemonConfig::from_toml(&format!(
+        r#"
+interfaces = [
+  {{ type = "LocalClientInterface", enabled = true, name = "quiet-attach-client", shared_instance_type = "tcp", shared_instance_port = {port} }}
+]
+"#
+    ))
+    .expect("local_client config");
+    let args = attach_test_args();
+    let transport = test_transport();
+    let mut records = records_for(&config);
+
+    let batch = run_startup(&args, &config, &transport, &mut records).await;
+    assert_eq!(batch.startup_successes, 1);
+    assert!(batch.startup_failures.is_empty(), "failures={:?}", batch.startup_failures);
+    assert_slot_holds_attached_record(&transport, &records[0]).await;
+
+    let (mut stream, _) =
+        tokio::time::timeout(std::time::Duration::from_secs(5), shared_listener.accept())
+            .await
+            .expect("the client dials the listener within 5 s")
+            .expect("accept the client's connection");
+    let mut buf = [0u8; 512];
+    let quiet = tokio::time::timeout(
+        std::time::Duration::from_secs(3),
+        tokio::io::AsyncReadExt::read(&mut stream, &mut buf),
+    )
+    .await;
+    match quiet {
+        Err(_) => {}
+        Ok(Ok(0)) => panic!("the daemon's attach closed the stream"),
+        Ok(Ok(n)) => panic!("the daemon's attach wrote {n} bytes on the stream unasked"),
+        Ok(Err(err)) => panic!("the read failed: {err}"),
+    }
+
+    let iface = transport.shared_instance().expect("shared instance slot filled by attach");
+    assert!(transport.synthesize_tunnel_on_interface(iface).await, "the attached iface is live");
+    let read = tokio::time::timeout(
+        std::time::Duration::from_secs(5),
+        tokio::io::AsyncReadExt::read(&mut stream, &mut buf),
+    )
+    .await
+    .expect("the hand-made tunnel packet reaches the listener within 5 s")
+    .expect("read the tunnel packet");
+    assert!(read > 0, "the stream was live: the tunnel asked for by hand arrived");
+}
+
 /// The two knobs the shared-instance client has no setting for still parse on a
 /// client-posture entry, and the attach warns once per key, in the documented shape
 /// `[daemon] <posture> name=<label> ignores <key>`; `prefer_ipv6` is honoured, so it draws
@@ -225,7 +283,8 @@ interfaces = [
 /// daemon no longer builds; its replacement reads the mode and the MTU back from the iface
 /// manager, which cannot read the bitrate. The bitrate is observable at the shared
 /// instance's side instead: the spawned client sleeps `raw_len * 8 / bitrate` before each
-/// write, so with 400 bps the tunnel-synthesis packet the attach sends on the new stream
+/// write. The daemon's attach synthesizes no tunnel, so the test synthesizes one itself
+/// once the client is attached to have a frame to time: with 400 bps that tunnel packet
 /// (about 200 raw bytes) reaches a listener no sooner than 2 s after the accept, where an
 /// entry without the knob delivers it within milliseconds.
 #[tokio::test]
@@ -250,6 +309,8 @@ interfaces = [
     assert_eq!(batch.startup_successes, 1);
     assert!(batch.startup_failures.is_empty(), "failures={:?}", batch.startup_failures);
     assert_slot_holds_attached_record(&transport, &records[0]).await;
+    let iface = transport.shared_instance().expect("shared instance slot filled by attach");
+    assert!(transport.synthesize_tunnel_on_interface(iface).await, "the attached iface is live");
 
     let (mut stream, _) =
         tokio::time::timeout(std::time::Duration::from_secs(5), shared_listener.accept())

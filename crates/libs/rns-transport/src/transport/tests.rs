@@ -43,6 +43,7 @@ include!("tests_parts/disabled_transport_shared_child_local_destination.rs");
 include!("tests_parts/enabled_transport_shared_child_local_destination.rs");
 include!("tests_parts/disabled_shared_child_local_announce.rs");
 include!("tests_parts/enabled_shared_child_local_announce.rs");
+include!("tests_parts/shared_child_announce_admission.rs");
 include!("tests_parts/shared_child_remote_link_request.rs");
 include!("tests_parts/shared_owner_unknown_link_request.rs");
 
@@ -303,3 +304,5 @@ include!("tests_parts/two_transport_shared_instance_state_events_probe3.rs");
 include!("tests_parts/two_transport_shared_instance_state_events_probe4.rs");
 include!("tests_parts/two_transport_shared_instance_dial_failures.rs");
 include!("tests_parts/two_transport_shared_instance_disconnect_reasons.rs");
+include!("tests_parts/two_transport_shared_instance_tunnel_default.rs");
+include!("tests_parts/two_transport_shared_instance_tunnel_identity.rs");

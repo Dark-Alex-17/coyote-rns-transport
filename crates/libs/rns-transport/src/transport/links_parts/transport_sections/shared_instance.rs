@@ -9,10 +9,11 @@ impl Transport {
     /// `endpoint`, the posture a Python program takes when another instance
     /// already owns the configured `shared_instance_port`
     /// (`RNS/Reticulum.py:422-441`, `:437` marks it connected): the interface
-    /// is marked as the shared instance, the transport is marked connected to
-    /// one, and a tunnel is synthesized on it at attach and again on every
-    /// reconnect, as reticulumd does for its own clients. Python's
-    /// shared-instance client synthesizes no tunnel at all
+    /// is marked as the shared instance and the transport is marked connected
+    /// to one. A tunnel goes out on the interface at attach and on every
+    /// reconnect only when [`SharedInstanceOptions::with_tunnel_synthesis`]
+    /// is set; by default none does, as Python's shared-instance client
+    /// synthesizes no tunnel
     /// (`RNS/Interfaces/LocalInterface.py` has no tunnel code; `wants_tunnel`
     /// is set by the network-facing clients such as
     /// `RNS/Interfaces/TCPInterface.py:179`); its reconnect hooks
@@ -27,8 +28,8 @@ impl Transport {
     /// the events of every connection cycle after it; the stream ends when
     /// the task does and no other sender clone is alive.
     /// With [`SharedInstanceOptions::with_first_connect_timeout`] set, the
-    /// attach also waits that long for the first served connect, before the
-    /// tunnel is synthesized; without one, or when the attach's consumer
+    /// attach also waits that long for the first served connect, before any
+    /// opted-in tunnel goes out; without one, or when the attach's consumer
     /// ends first (a stop, detach or `stop_interface` during the wait), it
     /// detaches again and returns [`RnsError::SharedInstanceConnectTimeout`],
     /// the stream reading `Connecting`, zero or more
@@ -189,8 +190,7 @@ impl Transport {
             options.first_connect_timeout().map(|_| tokio::sync::oneshot::channel()).unzip();
         self.spawn_shared_instance_reconnect_consumer(
             iface,
-            options.reconnect_wait(),
-            options.disconnect_reasons(),
+            &options,
             SharedInstanceClientEvents {
                 reconnects: reconnect_rx,
                 connects: connect_rx,
@@ -230,7 +230,7 @@ impl Transport {
                 }
             }
         }
-        if !self.synthesize_tunnel_on_interface(iface).await {
+        if options.tunnel_synthesis() && !self.synthesize_tunnel_on_interface(iface).await {
             log::debug!(
                 "tp({}): shared instance iface={} removed by a detach, stop or stop_interface that raced the attach, tunnel not synthesized",
                 self.name,

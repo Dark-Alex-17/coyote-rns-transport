@@ -4,8 +4,8 @@
 // redials at once the first time a stream drops and waits `reconnect_wait` from the second
 // consecutive failure on; the unix client waits `reconnect_wait` before every retry, as
 // `RNS/Interfaces/LocalInterface.py:160` does), the link-table count the drop's debug line
-// now carries, and the reconnect consumer's rustdoc that the tunnel re-synthesis is not
-// posture-gated. Helpers come from the sibling `tests_parts` files included into this
+// now carries, and the reconnect consumer's rustdoc that the tunnel re-synthesis, when opted
+// in, is not posture-gated. Helpers come from the sibling `tests_parts` files included into this
 // module.
 
 #[cfg(unix)]
@@ -215,10 +215,11 @@ async fn shared_instance_probe10_drop_debug_line_counts_the_link_table_entries_i
         .expect("restarted shared instance stop completes");
 }
 
-/// `SharedInstanceReconnectConsumer::on_reconnected` rustdoc: "Unlike the re-announce, the
-/// tunnel re-synthesis is not posture-gated: it goes out for any interface that is still
-/// registered." A client whose connected posture is dropped before the shared instance
-/// restarts still re-synthesizes its tunnel on the reconnect, and re-announces nothing.
+/// `SharedInstanceReconnectConsumer::on_reconnected` rustdoc: with the tunnel synthesis on,
+/// the tunnel goes out "for any interface that is still registered: unlike the re-announce
+/// it is not posture-gated." A client that opted in and whose connected posture is dropped
+/// before the shared instance restarts still re-synthesizes its tunnel on the reconnect,
+/// and re-announces nothing.
 #[tokio::test]
 #[deny(clippy::await_holding_invalid_type)]
 async fn shared_instance_probe10_posture_dropped_before_the_restart_still_resynthesizes_the_tunnel()
@@ -227,16 +228,18 @@ async fn shared_instance_probe10_posture_dropped_before_the_restart_still_resynt
     let name = "shared-instance-probe10-tunnel";
     let server = shared_instance_server().await;
     let mut server_announces = server.transport.recv_announces().await;
-    let client = shared_instance_reconnect_client(name, &server).await;
+    let client = shared_instance_reconnect_tunneled_client(name, &server).await;
     server.await_accepted_connections(1).await;
     shared_instance_assert_attached(&client.transport, client.iface).await;
     let first = shared_instance_reconnect_register(&client, &mut server_announces, "first").await;
     client.transport.set_connected_to_shared_instance(false).await;
 
     let (restarted, mut restarted_announces, _) = shared_instance_reconnect_restart(server).await;
-    let record =
-        shared_instance_probe10_await_debug_record(name, "reconnected, tunnel re-synthesized")
-            .await;
+    let record = shared_instance_probe10_await_debug_record(
+        name,
+        SHARED_INSTANCE_RECONNECT_RESYNTHESIZED_LINE,
+    )
+    .await;
     assert!(record.contains(&client.iface.to_string()), "the record names the iface: {record}");
     assert!(
         shared_instance_debug_records_containing(name, "tunnel not re-synthesized").is_empty(),

@@ -26,7 +26,7 @@ use rns_transport::transport::{DialFailureKind, DisconnectReason};
 
 #[path = "support/compile_fail.rs"]
 mod compile_fail;
-use compile_fail::{candidate_rlibs, deps_dir, rustc, Scratch};
+use compile_fail::{artifact_root, candidate_rlibs, rustc, Scratch};
 
 /// The shape every downstream `match` on `DialFailureKind` has to take: a wildcard arm.
 #[deny(unreachable_patterns)]
@@ -152,9 +152,9 @@ const REJECTED: &[(&str, &str, &str)] = &[
 
 /// The rlib the migrated consumer compiles against, with the deps directory.
 fn working_rlib(scratch: &Path) -> (PathBuf, PathBuf) {
-    let deps = deps_dir();
+    let deps = artifact_root();
     let candidates = candidate_rlibs(&deps);
-    assert!(!candidates.is_empty(), "no librns_transport-*.rlib next to {}", deps.display());
+    assert!(!candidates.is_empty(), "no librns_transport-*.rlib under {}", deps.display());
     let mut failures = Vec::new();
     for rlib in candidates {
         let output =

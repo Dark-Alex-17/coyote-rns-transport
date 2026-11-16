@@ -22,9 +22,11 @@ pub(super) async fn resolve_remote_identity(
 }
 
 /// Opens a link to the propagation node with one path refresh in reserve: a
-/// link request that times out, or that cannot be sent for want of a path,
-/// refreshes the path once and tries again. The retry's error names the
-/// first error it was retrying.
+/// link request that times out, that is closed before it activates
+/// (`ConnectionAborted` from `await_link_activation`; usually the link's
+/// establishment-timeout watchdog, but any close reason qualifies), or that
+/// cannot be sent for want of a path, refreshes the path once and tries
+/// again. The retry's error names the first error it was retrying.
 pub(super) async fn open_refreshed_remote_link(
     transport: &Transport,
     remote_hash: &AddressHash,
@@ -34,7 +36,12 @@ pub(super) async fn open_refreshed_remote_link(
     let first_error = match transport.link(destination).await {
         Ok(link) => match await_link_activation(transport, &link, timeout).await {
             Ok(()) => return Ok(link),
-            Err(err) if err.kind() == std::io::ErrorKind::TimedOut => {
+            Err(err)
+                if matches!(
+                    err.kind(),
+                    std::io::ErrorKind::TimedOut | std::io::ErrorKind::ConnectionAborted
+                ) =>
+            {
                 link.lock().await.close();
                 err
             }

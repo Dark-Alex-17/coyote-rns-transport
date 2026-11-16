@@ -37,9 +37,6 @@ use free_loopback_port::free_loopback_port;
 
 const WAIT: Duration = Duration::from_secs(15);
 const POLL: Duration = Duration::from_millis(20);
-/// A second announce from the same interface inside the connector's ingress-control sample
-/// window is rate-limited; this keeps a second destination's announce outside it.
-const ANNOUNCE_SPACING: Duration = Duration::from_secs(2);
 
 /// The two ends of one active link, built from the public API only.
 struct Pair {
@@ -156,13 +153,14 @@ async fn pair(aspect: &str) -> Pair {
 }
 
 /// Announces a second destination on the pair's listener and opens a second link to it from
-/// the pair's connector, so one transport holds two active links.
+/// the pair's connector, so one transport holds two active links. The announce is the
+/// second on the connector's interface, under the limiter's three-sample floor
+/// (`RNS/Interfaces/Interface.py:84`, `:346-348`), so it needs no spacing from the first.
 #[deny(clippy::await_holding_invalid_type)]
 async fn second_link(
     pair: &Pair,
     aspect: &str,
 ) -> (Arc<Mutex<SingleInputDestination>>, AddressHash) {
-    tokio::time::sleep(ANNOUNCE_SPACING).await;
     let destination = pair
         .listener
         .add_destination(

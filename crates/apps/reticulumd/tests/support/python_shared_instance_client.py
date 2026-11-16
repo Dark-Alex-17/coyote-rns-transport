@@ -12,7 +12,7 @@ The announce handler takes no path responses: rnsd answers this client's
 path request by replaying the cached Rust announce as a PATH_RESPONSE, which
 Python drops before the handler (RNS/Transport.py:2501-2504); only an
 announce rnsd re-sends live to its other local clients (RNS/Transport.py:
-2398-2430) reaches it. stdout carries one JSON object per line; the RNS log
+2400-2429) reaches it. stdout carries one JSON object per line; the RNS log
 lines the transport thread prints to the same stdout are skipped by the
 Rust reader. Everything else goes to stderr.
 """

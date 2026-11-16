@@ -100,6 +100,27 @@ async fn shared_instance_state_client(
     (client, events)
 }
 
+/// `shared_instance_state_client` opted into tunnel synthesis, for the pins that read the
+/// restarted shared instance's tunnel table.
+#[deny(clippy::await_holding_invalid_type)]
+async fn shared_instance_state_tunneled_client(
+    name: &str,
+    endpoint: SharedInstanceEndpoint,
+    capacity: usize,
+) -> (SharedInstanceClient, tokio::sync::mpsc::Receiver<SharedInstanceEvent>) {
+    let (events_tx, events) = tokio::sync::mpsc::channel(capacity);
+    let client = shared_instance_client_with_options(
+        name,
+        endpoint,
+        SharedInstanceOptions::default()
+            .with_reconnect_wait(SHARED_INSTANCE_RECONNECT_WAIT)
+            .with_state_events(events_tx)
+            .with_tunnel_synthesis(true),
+    )
+    .await;
+    (client, events)
+}
+
 /// The TCP shared instance goes away and comes back on the same port: the stream reads
 /// `Connecting`, `Connected`, then `Disconnected`, `Connecting` with the connected posture
 /// and the slot untouched, then `Connected` on the restart, and ends on the detach with
@@ -346,7 +367,8 @@ async fn shared_instance_state_events_full_channel_drops_at_debug_without_stalli
     let name = "shared-instance-state-full";
     let server = shared_instance_server().await;
     let mut server_announces = server.transport.recv_announces().await;
-    let (client, mut events) = shared_instance_state_client(name, server.endpoint(), 1).await;
+    let (client, mut events) =
+        shared_instance_state_tunneled_client(name, server.endpoint(), 1).await;
     server.await_accepted_connections(1).await;
     shared_instance_assert_attached(&client.transport, client.iface).await;
     let registered =

@@ -3,9 +3,9 @@
 // the iface manager cannot read it back from the spawned client. The client sleeps
 // `raw_len * 8 / bitrate` before each write, so the bitrate is observable from the shared
 // instance's side as the time the first frame takes to arrive on a freshly accepted
-// stream: the attach synthesizes a tunnel on the interface and that packet (about 200 raw
-// bytes) goes out as soon as the stream is up with the default options, and no sooner than
-// its paced delay with a bitrate low enough to tell apart. Helpers come from the sibling
+// stream: an attach that opted into tunnel synthesis writes the tunnel packet (about 200
+// raw bytes) as soon as the stream is up without a forced bitrate, and no sooner than its
+// paced delay with a bitrate low enough to tell apart. Helpers come from the sibling
 // `tests_parts` files included into this module.
 
 /// A bitrate at which the tunnel-synthesis packet (over 100 bytes raw) is paced for more
@@ -19,9 +19,10 @@ const SHARED_INSTANCE_PROBE17_PACED_FLOOR: Duration = Duration::from_secs(2);
 /// How long the first bytes may take to arrive at all.
 const SHARED_INSTANCE_PROBE17_ARRIVAL_CAP: Duration = Duration::from_secs(20);
 
-/// Attaches `name` to `listener`'s address with `options`, accepts its connection and
-/// returns how long the first byte took to arrive at the listener after the accept, plus
-/// the transport for teardown.
+/// Attaches `name` to `listener`'s address with `options` plus the tunnel synthesis, so the
+/// client writes a packet on connect, accepts its connection and returns how long the
+/// first byte took to arrive at the listener after the accept, plus the transport for
+/// teardown.
 #[deny(clippy::await_holding_invalid_type)]
 async fn shared_instance_probe17_time_to_first_bytes(
     name: &str,
@@ -32,7 +33,10 @@ async fn shared_instance_probe17_time_to_first_bytes(
     let identity = PrivateIdentity::new_from_rand(OsRng);
     let transport = Transport::new(TransportConfig::new(name, &identity, false));
     let iface = transport
-        .attach_shared_instance(SharedInstanceEndpoint::Tcp(addr), options)
+        .attach_shared_instance(
+            SharedInstanceEndpoint::Tcp(addr),
+            options.with_tunnel_synthesis(true),
+        )
         .await
         .expect("a loopback attach is accepted");
     shared_instance_assert_attached(&transport, iface).await;
@@ -54,7 +58,7 @@ async fn shared_instance_probe17_time_to_first_bytes(
     (transport, accepted.elapsed())
 }
 
-/// With the default options the first frame reaches the shared instance well inside the
+/// Without a forced bitrate the first frame reaches the shared instance well inside the
 /// paced floor; with `with_forced_bitrate(400)` its first byte arrives no sooner than the
 /// floor, since the spawned client sleeps `raw_len * 8 / 400` before the write.
 #[tokio::test]

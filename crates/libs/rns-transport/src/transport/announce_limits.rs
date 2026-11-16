@@ -11,6 +11,14 @@ use crate::iface::{IfaceSource, InterfaceSharedConfig};
 use crate::packet::{Packet, PacketContext};
 use crate::ratchets::now_secs;
 
+/// The frequency reads as zero until the deque holds MORE than this many samples, and a
+/// burst stays active until the deque has refilled to at least this many
+/// (RNS/Interfaces/Interface.py:84, :195, :346-348). The release guard is inert here: this
+/// deque only trims by count, while Python's also drains samples older than AR_FREQ_DECAY
+/// (RNS/Interfaces/Interface.py:352), so once two samples exist the guard always passes.
+/// It is kept so this deactivation reads like RNS/Interfaces/Interface.py:195.
+const IC_DEQUE_MIN_SAMPLE: usize = 2;
+
 #[derive(Clone)]
 pub struct AnnounceRateLimit {
     #[allow(dead_code)]
@@ -25,19 +33,31 @@ pub struct AnnounceRateLimit {
     pub held_release_interval: Duration,
 }
 
+/// Python's ingress-control defaults (RNS/Interfaces/Interface.py:72, :76-84;
+/// `incoming_freq_samples` is 6 where Python keeps IA_FREQ_SAMPLES = 48 at :60 and :153,
+/// part of the formula divergence the README's Known divergences row records).
 impl Default for AnnounceRateLimit {
     fn default() -> Self {
         Self {
             incoming_freq_samples: 6,
             max_held_announces: 256,
             new_time: Duration::from_secs(2 * 60 * 60),
-            burst_freq_new: 3.5,
-            burst_freq: 12.0,
-            burst_hold: Duration::from_secs(60),
-            burst_penalty: Duration::from_secs(5 * 60),
-            held_release_interval: Duration::from_secs(30),
+            burst_freq_new: 3.0,
+            burst_freq: 10.0,
+            burst_hold: Duration::from_secs(15),
+            burst_penalty: Duration::from_secs(15),
+            held_release_interval: Duration::from_secs(5),
         }
     }
+}
+
+/// What the receiving interface tells the limiter, read under the interface manager guard.
+#[derive(Clone, Copy)]
+pub(crate) struct IngressInterface<'a> {
+    pub(crate) shared_config: &'a InterfaceSharedConfig,
+    /// A shared-instance interface, both the local client's and the child rnsd spawns per
+    /// accepted client, never ingress-limits (RNS/Interfaces/LocalInterface.py:130).
+    pub(crate) shared_instance: bool,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -59,6 +79,7 @@ struct AnnounceLimitEntry {
     incoming: VecDeque<Instant>,
     burst_active: bool,
     burst_activated: Option<Instant>,
+    burst_sustained: Option<Instant>,
     held_release: Instant,
     held_announces: BTreeMap<AddressHash, HeldAnnounce>,
 }
@@ -71,6 +92,7 @@ impl AnnounceLimitEntry {
             incoming: VecDeque::new(),
             burst_active: false,
             burst_activated: None,
+            burst_sustained: None,
             held_release: now,
             held_announces: BTreeMap::new(),
         }
@@ -89,7 +111,7 @@ impl AnnounceLimitEntry {
     }
 
     fn incoming_announce_frequency(&self, now: Instant) -> f64 {
-        if self.incoming.len() <= 1 {
+        if self.incoming.len() <= IC_DEQUE_MIN_SAMPLE {
             return 0.0;
         }
 
@@ -121,25 +143,41 @@ impl AnnounceLimitEntry {
         }
     }
 
+    /// Mirrors RNS/Interfaces/Interface.py:188-211: a burst ends only once the frequency has
+    /// stayed under the threshold for a full hold after both activation and the last
+    /// over-threshold sample, and only with enough samples to trust the reading. Release
+    /// timing diverges: Python's process_held_announces (RNS/Interfaces/Interface.py:277-282)
+    /// releases as soon as ic_held_release has passed and the frequency is under the
+    /// threshold, whether or not the burst has ended, and re-arms per release (:293).
+    /// `release_one` refuses while this returns true, so a Rust release waits for
+    /// deactivation (hold elapsed since activation and since the last over-threshold sample)
+    /// plus the penalty armed here.
     fn should_ingress_limit(&mut self, now: Instant, rate_limit: &AnnounceRateLimit) -> bool {
         let freq_threshold = self.threshold(now, rate_limit);
         let incoming_freq = self.incoming_announce_frequency(now);
 
         if self.burst_active {
-            if incoming_freq < freq_threshold {
-                if let Some(activated_at) = self.burst_activated {
-                    if now >= activated_at + rate_limit.burst_hold {
-                        self.burst_active = false;
-                        self.burst_activated = None;
-                        self.held_release = now + rate_limit.burst_penalty;
-                    }
+            let hold_elapsed_since =
+                |marker: Option<Instant>| marker.is_none_or(|at| now >= at + rate_limit.burst_hold);
+            if incoming_freq < freq_threshold
+                && hold_elapsed_since(self.burst_activated)
+                && hold_elapsed_since(self.burst_sustained)
+            {
+                if self.incoming.len() >= IC_DEQUE_MIN_SAMPLE {
+                    self.burst_active = false;
+                    self.burst_activated = None;
+                    self.burst_sustained = None;
+                    self.held_release = now + rate_limit.burst_penalty;
                 }
+            } else if incoming_freq >= freq_threshold {
+                self.burst_sustained = Some(now);
             }
 
             true
         } else if incoming_freq > freq_threshold {
             self.burst_active = true;
             self.burst_activated = Some(now);
+            self.burst_sustained = Some(now);
             true
         } else {
             false
@@ -187,7 +225,8 @@ impl AnnounceLimitEntry {
         if self.burst_active {
             let hold_until = self
                 .burst_activated
-                .map(|activated_at| activated_at + rate_limit.burst_hold + rate_limit.burst_penalty)
+                .max(self.burst_sustained)
+                .map(|hold_from| hold_from + rate_limit.burst_hold + rate_limit.burst_penalty)
                 .unwrap_or(now);
             return hold_until.saturating_duration_since(now);
         }
@@ -276,29 +315,30 @@ impl AnnounceLimits {
         source: IfaceSource,
         destination_known: bool,
     ) -> AnnounceLimitAction {
+        let shared_config = InterfaceSharedConfig::default();
         self.check_with_shared_config(
             iface,
             packet,
             source,
             destination_known,
-            &InterfaceSharedConfig::default(),
+            IngressInterface { shared_config: &shared_config, shared_instance: false },
         )
     }
 
-    pub fn check_with_shared_config(
+    pub(crate) fn check_with_shared_config(
         &mut self,
         iface: AddressHash,
         packet: &Packet,
         source: IfaceSource,
         destination_known: bool,
-        shared_config: &InterfaceSharedConfig,
+        ingress: IngressInterface<'_>,
     ) -> AnnounceLimitAction {
         self.check_with_shared_config_at(
             iface,
             packet,
             source,
             destination_known,
-            shared_config,
+            ingress,
             Instant::now(),
         )
     }
@@ -312,12 +352,13 @@ impl AnnounceLimits {
         destination_known: bool,
         now: Instant,
     ) -> AnnounceLimitAction {
+        let shared_config = InterfaceSharedConfig::default();
         self.check_with_shared_config_at(
             iface,
             packet,
             source,
             destination_known,
-            &InterfaceSharedConfig::default(),
+            IngressInterface { shared_config: &shared_config, shared_instance: false },
             now,
         )
     }
@@ -328,13 +369,15 @@ impl AnnounceLimits {
         packet: &Packet,
         source: IfaceSource,
         destination_known: bool,
-        shared_config: &InterfaceSharedConfig,
+        ingress: IngressInterface<'_>,
         now: Instant,
     ) -> AnnounceLimitAction {
+        let IngressInterface { shared_config, shared_instance } = ingress;
         if packet.context == PacketContext::PathResponse {
             return AnnounceLimitAction::Allow;
         }
-        if shared_config.ingress_control == Some(false) {
+        // The shared_instance half mirrors RNS/Interfaces/LocalInterface.py:130.
+        if shared_config.ingress_control == Some(false) || shared_instance {
             self.interface_rate_limits.remove(&iface);
             return AnnounceLimitAction::Allow;
         }
@@ -562,13 +605,23 @@ mod tests {
             ),
             AnnounceLimitAction::Allow
         );
+        assert_eq!(
+            limits.check_at(
+                iface_a,
+                &announce_packet(AddressHash::new([4; 16]), 1),
+                IfaceSource::None,
+                false,
+                now + Duration::from_millis(5),
+            ),
+            AnnounceLimitAction::Allow
+        );
         assert!(matches!(
             limits.check_at(
                 iface_a,
                 &announce_packet(AddressHash::new([2; 16]), 1),
                 IfaceSource::None,
                 false,
-                now + Duration::from_millis(5)
+                now + Duration::from_millis(10)
             ),
             AnnounceLimitAction::Hold(_)
         ));
@@ -600,13 +653,23 @@ mod tests {
             ),
             AnnounceLimitAction::Allow
         );
+        assert_eq!(
+            limits.check_at(
+                iface,
+                &announce_packet(AddressHash::new([4; 16]), 4),
+                IfaceSource::None,
+                false,
+                now + Duration::from_millis(5),
+            ),
+            AnnounceLimitAction::Allow
+        );
         assert!(matches!(
             limits.check_at(
                 iface,
                 &announce_packet(AddressHash::new([2; 16]), 3),
                 IfaceSource::None,
                 false,
-                now + Duration::from_millis(5)
+                now + Duration::from_millis(10)
             ),
             AnnounceLimitAction::Hold(_)
         ));
@@ -616,7 +679,7 @@ mod tests {
                 &announce_packet(AddressHash::new([3; 16]), 1),
                 IfaceSource::None,
                 false,
-                now + Duration::from_millis(10)
+                now + Duration::from_millis(15)
             ),
             AnnounceLimitAction::Hold(_)
         ));
@@ -650,13 +713,23 @@ mod tests {
             ),
             AnnounceLimitAction::Allow
         );
+        assert_eq!(
+            limits.check_at(
+                iface_a,
+                &announce_packet(AddressHash::new([0x14; 16]), 1),
+                IfaceSource::None,
+                false,
+                now + Duration::from_millis(5),
+            ),
+            AnnounceLimitAction::Allow
+        );
         assert!(matches!(
             limits.check_at(
                 iface_a,
                 &announce_packet(AddressHash::new([0x12; 16]), 4),
                 IfaceSource::None,
                 false,
-                now + Duration::from_millis(5),
+                now + Duration::from_millis(10),
             ),
             AnnounceLimitAction::Hold(_)
         ));
@@ -666,7 +739,7 @@ mod tests {
                 &announce_packet(AddressHash::new([0x13; 16]), 2),
                 IfaceSource::None,
                 false,
-                now + Duration::from_millis(10),
+                now + Duration::from_millis(15),
             ),
             AnnounceLimitAction::Hold(_)
         ));
@@ -681,13 +754,23 @@ mod tests {
             ),
             AnnounceLimitAction::Allow
         );
+        assert_eq!(
+            limits.check_at(
+                iface_b,
+                &announce_packet(AddressHash::new([0x24; 16]), 1),
+                IfaceSource::None,
+                false,
+                now + Duration::from_millis(5),
+            ),
+            AnnounceLimitAction::Allow
+        );
         assert!(matches!(
             limits.check_at(
                 iface_b,
                 &announce_packet(AddressHash::new([0x22; 16]), 5),
                 IfaceSource::None,
                 false,
-                now + Duration::from_millis(5),
+                now + Duration::from_millis(10),
             ),
             AnnounceLimitAction::Hold(_)
         ));
@@ -697,7 +780,7 @@ mod tests {
                 &announce_packet(AddressHash::new([0x23; 16]), 3),
                 IfaceSource::None,
                 false,
-                now + Duration::from_millis(10),
+                now + Duration::from_millis(15),
             ),
             AnnounceLimitAction::Hold(_)
         ));
@@ -745,13 +828,23 @@ mod tests {
             ),
             AnnounceLimitAction::Allow
         );
+        assert_eq!(
+            limits.check_at(
+                iface,
+                &announce_packet(AddressHash::new([4; 16]), 2),
+                IfaceSource::None,
+                false,
+                now + Duration::from_millis(5),
+            ),
+            AnnounceLimitAction::Allow
+        );
         assert!(matches!(
             limits.check_at(
                 iface,
                 &announce_packet(AddressHash::new([2; 16]), 5),
                 IfaceSource::None,
                 false,
-                now + Duration::from_millis(5)
+                now + Duration::from_millis(10)
             ),
             AnnounceLimitAction::Hold(_)
         ));
@@ -761,7 +854,7 @@ mod tests {
                 &announce_packet(AddressHash::new([3; 16]), 1),
                 IfaceSource::None,
                 false,
-                now + Duration::from_millis(10)
+                now + Duration::from_millis(15)
             ),
             AnnounceLimitAction::Hold(_)
         ));
@@ -781,6 +874,7 @@ mod tests {
         let mut limits = AnnounceLimits::with_rate_limit(rate_limit);
         let iface = AddressHash::new([0xEE; crate::hash::ADDRESS_HASH_SIZE]);
         let config = InterfaceSharedConfig { ingress_control: Some(false), ..Default::default() };
+        let ingress = IngressInterface { shared_config: &config, shared_instance: false };
         let now = Instant::now();
 
         assert_eq!(
@@ -789,7 +883,7 @@ mod tests {
                 &announce_packet(AddressHash::new([1; 16]), 1),
                 IfaceSource::None,
                 false,
-                &config,
+                ingress,
                 now,
             ),
             AnnounceLimitAction::Allow
@@ -800,8 +894,19 @@ mod tests {
                 &announce_packet(AddressHash::new([2; 16]), 1),
                 IfaceSource::None,
                 false,
-                &config,
+                ingress,
                 now + Duration::from_millis(1),
+            ),
+            AnnounceLimitAction::Allow
+        );
+        assert_eq!(
+            limits.check_with_shared_config_at(
+                iface,
+                &announce_packet(AddressHash::new([3; 16]), 1),
+                IfaceSource::None,
+                false,
+                ingress,
+                now + Duration::from_millis(2),
             ),
             AnnounceLimitAction::Allow
         );
@@ -824,6 +929,7 @@ mod tests {
             ic_held_release_interval: Some(0.01),
             ..Default::default()
         };
+        let ingress = IngressInterface { shared_config: &config, shared_instance: false };
         let now = Instant::now();
 
         assert_eq!(
@@ -832,8 +938,19 @@ mod tests {
                 &announce_packet(AddressHash::new([1; 16]), 3),
                 IfaceSource::None,
                 false,
-                &config,
+                ingress,
                 now,
+            ),
+            AnnounceLimitAction::Allow
+        );
+        assert_eq!(
+            limits.check_with_shared_config_at(
+                iface,
+                &announce_packet(AddressHash::new([4; 16]), 3),
+                IfaceSource::None,
+                false,
+                ingress,
+                now + Duration::from_millis(1),
             ),
             AnnounceLimitAction::Allow
         );
@@ -843,8 +960,8 @@ mod tests {
                 &announce_packet(AddressHash::new([2; 16]), 5),
                 IfaceSource::None,
                 false,
-                &config,
-                now + Duration::from_millis(1),
+                ingress,
+                now + Duration::from_millis(2),
             ),
             AnnounceLimitAction::Hold(_)
         ));
@@ -854,8 +971,8 @@ mod tests {
                 &announce_packet(AddressHash::new([3; 16]), 1),
                 IfaceSource::None,
                 false,
-                &config,
-                now + Duration::from_millis(2),
+                ingress,
+                now + Duration::from_millis(3),
             ),
             AnnounceLimitAction::Hold(_)
         ));
@@ -865,6 +982,128 @@ mod tests {
         let released = limits.release_ready_at(now + Duration::from_millis(90));
         assert_eq!(released.len(), 1);
         assert_eq!(released[0].packet.destination, AddressHash::new([3; 16]));
+    }
+
+    #[test]
+    fn announce_rate_limit_defaults_match_rns_1_5_2() {
+        let defaults = AnnounceRateLimit::default();
+        assert_eq!(defaults.incoming_freq_samples, 6);
+        assert_eq!(defaults.max_held_announces, 256);
+        assert_eq!(defaults.new_time, Duration::from_secs(2 * 60 * 60));
+        assert_eq!(defaults.burst_freq_new, 3.0);
+        assert_eq!(defaults.burst_freq, 10.0);
+        assert_eq!(defaults.burst_hold, Duration::from_secs(15));
+        assert_eq!(defaults.burst_penalty, Duration::from_secs(15));
+        assert_eq!(defaults.held_release_interval, Duration::from_secs(5));
+    }
+
+    #[test]
+    fn incoming_announce_frequency_needs_more_than_two_samples() {
+        let rate_limit = test_rate_limit();
+        let now = Instant::now();
+        let mut entry = AnnounceLimitEntry::new(now);
+
+        entry.record_announce(now, &rate_limit);
+        entry.record_announce(now + Duration::from_millis(1), &rate_limit);
+        assert_eq!(entry.incoming_announce_frequency(now + Duration::from_millis(1)), 0.0);
+
+        entry.record_announce(now + Duration::from_millis(2), &rate_limit);
+        assert!(entry.incoming_announce_frequency(now + Duration::from_millis(2)) > 0.0);
+    }
+
+    #[test]
+    fn shared_instance_interface_is_never_ingress_limited() {
+        let iface = AddressHash::new([0xF0; crate::hash::ADDRESS_HASH_SIZE]);
+        let now = Instant::now();
+        let burst =
+            |limits: &mut AnnounceLimits, config: &InterfaceSharedConfig, shared_instance: bool| {
+                (0..6u8)
+                    .map(|idx| {
+                        limits.check_with_shared_config_at(
+                            iface,
+                            &announce_packet(AddressHash::new([idx + 1; 16]), 1),
+                            IfaceSource::None,
+                            false,
+                            IngressInterface { shared_config: config, shared_instance },
+                            now + Duration::from_millis(idx.into()),
+                        ) == AnnounceLimitAction::Allow
+                    })
+                    .collect::<Vec<bool>>()
+            };
+        let default_config = InterfaceSharedConfig::default();
+
+        let mut shared = AnnounceLimits::with_rate_limit(test_rate_limit());
+        assert_eq!(burst(&mut shared, &default_config, true), vec![true; 6]);
+        assert!(shared.release_ready_at(now + Duration::from_secs(1)).is_empty());
+
+        // LocalInterface.py:130 overrides whatever ingress_control the config asked for.
+        let ingress_controlled =
+            InterfaceSharedConfig { ingress_control: Some(true), ..Default::default() };
+        let mut shared_with_ingress_control = AnnounceLimits::with_rate_limit(test_rate_limit());
+        assert_eq!(
+            burst(&mut shared_with_ingress_control, &ingress_controlled, true),
+            vec![true; 6]
+        );
+
+        let mut plain = AnnounceLimits::with_rate_limit(test_rate_limit());
+        assert_eq!(
+            burst(&mut plain, &default_config, false),
+            vec![true, true, false, false, false, false]
+        );
+    }
+
+    #[test]
+    fn burst_sustained_resets_the_hold_clock() {
+        let rate_limit = test_rate_limit();
+        let now = Instant::now();
+        let at = |ms: u64| now + Duration::from_millis(ms);
+        let mut entry = AnnounceLimitEntry::new(now);
+
+        for ms in [0, 1] {
+            entry.record_announce(at(ms), &rate_limit);
+            assert!(!entry.should_ingress_limit(at(ms), &rate_limit));
+        }
+        entry.record_announce(at(2), &rate_limit);
+        assert!(entry.should_ingress_limit(at(2), &rate_limit));
+        assert_eq!(entry.burst_activated, Some(at(2)));
+
+        for ms in [10, 20, 30] {
+            entry.record_announce(at(ms), &rate_limit);
+            assert!(entry.should_ingress_limit(at(ms), &rate_limit));
+        }
+        assert_eq!(entry.burst_sustained, Some(at(30)));
+
+        assert!(entry.should_ingress_limit(at(45), &rate_limit));
+        assert!(entry.burst_active, "a hold after activation alone must not end the burst");
+        assert_eq!(
+            entry.next_release_delay(at(45), &rate_limit),
+            at(30) + rate_limit.burst_hold + rate_limit.burst_penalty - at(45)
+        );
+
+        assert!(entry.should_ingress_limit(at(50), &rate_limit));
+        assert!(!entry.burst_active);
+        assert_eq!(entry.burst_sustained, None);
+        assert_eq!(entry.held_release, at(50) + rate_limit.burst_penalty);
+    }
+
+    // The single-sample burst_active state is built by hand: production cannot reach it, as
+    // a burst only activates above the threshold, which takes more than two samples. So this
+    // pins the ported shape of the guard (`IC_DEQUE_MIN_SAMPLE`), not a reachable deactivation.
+    #[test]
+    fn release_guard_is_inert_once_two_samples_exist() {
+        let rate_limit = test_rate_limit();
+        let now = Instant::now();
+        let mut entry = AnnounceLimitEntry::new(now);
+        entry.record_announce(now, &rate_limit);
+        entry.burst_active = true;
+        entry.burst_activated = Some(now);
+
+        assert!(entry.should_ingress_limit(now + Duration::from_millis(100), &rate_limit));
+        assert!(entry.burst_active);
+
+        entry.record_announce(now + Duration::from_millis(100), &rate_limit);
+        assert!(entry.should_ingress_limit(now + Duration::from_millis(200), &rate_limit));
+        assert!(!entry.burst_active);
     }
 
     #[test]

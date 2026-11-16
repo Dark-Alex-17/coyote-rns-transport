@@ -14,7 +14,7 @@ use std::path::{Path, PathBuf};
 
 #[path = "support/compile_fail.rs"]
 mod compile_fail;
-use compile_fail::{candidate_rlibs, deps_dir, rustc, Scratch};
+use compile_fail::{artifact_root, candidate_rlibs, rustc, Scratch};
 
 /// The migrated shapes the CHANGELOG tells a consumer to write. Compiling this first proves
 /// the harness itself works against the chosen rlib, so a rejected snippet below fails for
@@ -185,9 +185,9 @@ const V0_16_0_REJECTED: &[(&str, &str, &str)] = &[
 /// with every candidate's diagnostics, when no rlib works: that is a harness problem, not a
 /// verdict on the crate.
 fn working_rlib(scratch: &Path) -> (PathBuf, PathBuf) {
-    let deps = deps_dir();
+    let deps = artifact_root();
     let candidates = candidate_rlibs(&deps);
-    assert!(!candidates.is_empty(), "no librns_transport-*.rlib next to {}", deps.display());
+    assert!(!candidates.is_empty(), "no librns_transport-*.rlib under {}", deps.display());
     let mut failures = Vec::new();
     for rlib in candidates {
         let output = rustc(scratch, &deps, &rlib, "migrated_consumer", MIGRATED_CONSUMER);

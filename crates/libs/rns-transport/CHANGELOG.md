@@ -8,6 +8,489 @@ no library behaviour (a test-only change such as a fixture hardening or a
 test hygiene pass, release tooling, CI) is a Changed (or, for a deleted file,
 Removed) bullet of its own, marked as such.
 
+## 0.18.2 - 2026-11-16
+
+### Added
+
+- `SharedInstanceOptions::with_tunnel_synthesis(bool)`
+  (`transport/shared_instance.rs`), a fork-only `#[must_use]` builder that
+  chains with the other options. With it set,
+  `Transport::attach_shared_instance`
+  (`links_parts/transport_sections/shared_instance.rs`) synthesizes a
+  tunnel on the client interface at attach and the reconnect consumer
+  (`links_parts/transport_sections/shared_instance_reconnect.rs`)
+  re-synthesizes it at once on every reconnect, so the shared instance
+  restores the paths it learned over the connection when the client comes
+  back. Off by default, as Python's local client synthesizes no tunnel (its
+  reconnect job at `RNS/Interfaces/LocalInterface.py:178-181` only
+  re-announces, and the file has no tunnel code anywhere; `wants_tunnel` is
+  set only on the network-facing clients, `RNS/Interfaces/TCPInterface.py:179`).
+  Opt in only when a single transport holds the identity and wants its
+  paths restored on a reconnect; see Fixed for why two transports on one
+  identity cannot. The reconnect consumer is spawned with the options
+  struct in place of the reconnect wait and the disconnect-reasons flag,
+  and a reconnect with the option off records "reconnected, tunnel
+  synthesis is off" at debug. The option has no public getter;
+  `Transport::synthesize_tunnel_on_interface` stays public for a caller
+  that wants a tunnel on its own terms. A consumer that relied on the
+  0.15.1 to 0.18.1 tunnel to have its paths restored on a reconnect keeps
+  it with `SharedInstanceOptions::with_tunnel_synthesis(true)`; the
+  default flip changes no signature, so cargo semver-checks reports
+  nothing for it. Pinned by
+  `transport/tests_parts/two_transport_shared_instance_tunnel_default.rs`
+  (two default-option clients on one shared instance: no tunnel in its
+  table at attach or after a restart, announces learned at one hop, links
+  opened both ways, and each reconnect recording the "tunnel synthesis is
+  off" line) and `tests/shared_instance_tunnel_synthesis_api.rs` (against
+  a raw listener: the default and an explicit `false` write nothing on the
+  first stream or on the one a forced drop reopens, the opt-in writes the
+  tunnel packet on both, the last builder call wins and chains around the
+  other options, the read-back accessor fails to compile outside the
+  crate, and `Transport::synthesize_tunnel_on_interface` called by hand
+  still writes the packet) and `tests/shared_instance_tunnel_synthesis_probe.rs`
+  (the opted-in frame decodes to the Data packet for the tunnel-synthesis
+  destination carrying the transport's public key and the attached
+  interface hash, the reopened stream carries the same, a reattach follows
+  the new attach's options, a Unix endpoint honours it, and dropping the
+  builder's return value is refused under `deny(unused_must_use)`); the
+  tunnel pins in
+  `transport/tests_parts/two_transport_shared_instance.rs`,
+  `two_transport_shared_instance_reconnect.rs`,
+  `two_transport_shared_instance_storm.rs`,
+  `two_transport_shared_instance_probe5.rs`,
+  `two_transport_shared_instance_probe7.rs`,
+  `two_transport_shared_instance_probe10.rs`,
+  `two_transport_shared_instance_probe16.rs`,
+  `two_transport_shared_instance_probe17.rs`,
+  `two_transport_shared_instance_probe17_unix.rs`,
+  `two_transport_shared_instance_state_events.rs` and
+  `two_transport_shared_instance_state_events_probe.rs` now opt in.
+
+### Changed
+
+- The crate version is `0.18.2`; the discovery announce carries it in the
+  `TRANSPORT_VERS` field (`discovery/announce.rs`), so peers observe the fork
+  patch release through discovery. The bump is a patch one under the README
+  policy, as `0.15.1` and `0.18.1` were: every change since `0.18.1` is
+  either additive API a consumer need not opt into (the
+  `with_tunnel_synthesis` builder) or a change to default behaviour that
+  corrects it toward Python RNS (tunnel synthesis off by default, one link
+  request, the fail-fast activation wait, shared-instance announce admission
+  and the 1.5.2 limiter constants), with no public item removed or changed,
+  so there is no `### Breaking` subsection. `cargo semver-checks` against
+  `v0.18.1` reports 0 findings; additive changes are below
+  cargo-semver-checks' default lint level, so the patch-level run the
+  release check makes has nothing to report, and the release check runs it
+  as `tools/scripts/semver-major-findings-check.sh
+  coyote-rns-transport-v0.18.1 0`. The release contracts are pinned by
+  `crates/apps/reticulumd/tests/fork_publish_contract.rs` and
+  `fork_release_docs_contract.rs`; its
+  `fork_release_docs_contract_parts/release_0_18_2_probe.rs` pins the heading
+  date and its place as the first release heading, the subsection set
+  `### Added`, `### Changed`, `### Fixed` of this release with no
+  `### Breaking`, the opt-in builder under `### Added`, the single-request
+  and fail-fast bullets under `### Changed` by their opening words, the
+  patch digit and the semver sentence above, the two `### Fixed` bullets by
+  their opening words, and the README patch-list order with the 0.18.2
+  block on top.
+- A pending outbound link now sends its link request once and is closed
+  with `LinkCloseReason::Timeout` at its establishment timeout. The link
+  maintenance job (`transport/jobs_parts/link_maintenance.rs`) no longer
+  repeats a byte-identical request every 6 s (the private
+  `INTERVAL_OUTPUT_LINK_REPEAT` in `transport/mod.rs` is gone), which
+  matches Python, where the request goes out once (`RNS/Link.py:313-320`)
+  and the establishment timeout is the only bound (`RNS/Link.py:722-729`
+  and `:732-739`).
+  The repeat rarely landed: on every hop that had seen the first request
+  the duplicate filters drop it (Python re-admits only announces,
+  `RNS/Transport.py:1668-1679`; this crate's
+  `transport/inbound_processing.rs` gives `LinkRequest` no duplicate
+  allowance).
+  The upstream `reticulum-rs-transport` behaviour this replaces was
+  inherited, not fork-added. The "repeat link request" warn disappears. A
+  direct second `Link::request()` on a pending link is still allowed and
+  still does not restart the establishment clock. Pinned by
+  `transport/tests_parts/pending_out_link_establishment_timeout.rs` (no
+  second request inside the timeout),
+  `transport/tests_parts/pending_out_link_rediscovery.rs` (quiet until the
+  timeout close), `tests/pending_link_single_request_probe.rs` (the
+  timeout close and the decoded frame from outside the crate: one
+  `LinkRequest` frame on a raw listener's stream over twice a 2 s
+  establishment timeout, then the `Closed` event with reason `Timeout`)
+  and `tests/pending_link_single_request_default_timeout_probe.rs` (with
+  nothing overridden, one `LinkRequest` over 8 s on a raw listener's
+  stream, past the 6 s mark at which the repeat used to fire, the link
+  still pending at the end of the window, then the `Closed` event with
+  reason `Timeout` once the clock is shortened; and a fresh `link()` after
+  a timeout close sending its own single request) and
+  `tests/pending_link_single_request_concurrent_probe.rs` (two pending
+  links opened back to back each send one request to their own destination
+  and both close with `Timeout`; a 300 ms timeout, shorter than the
+  maintenance tick, still sends exactly one request).
+- Test-only: `tests/shared_instance_tunnel_default_relay_probe.rs` pins
+  that two default-option clients on a `TcpServer` shared instance, plain
+  and flagged, learn each other and open links both ways across a
+  shared-instance restart; the daemon's
+  `bootstrap_interface_startup_parts::shared_instance_attach_probe_tests`
+  gains a pin that the local-client attach writes nothing on the accepted
+  stream until a tunnel is asked for by hand.
+- `delivery::await_link_activation` (`delivery.rs`) now returns
+  `io::ErrorKind::ConnectionAborted` with "link closed before activation:
+  <reason>" as soon as the link reads `LinkStatus::Closed` (its
+  `LinkEvent::Closed` on `Transport::out_link_events` wakes the wait to
+  reread the link), naming the `LinkCloseReason` (`Timeout`, `InitiatorClosed`,
+  `DestinationClosed`; `unknown` when the link carries none), instead of
+  waiting out the caller's own timeout. That timeout still answers
+  `TimedOut` with the unchanged text, and a closed event channel still
+  answers `UnexpectedEof`. Python's watchdog closes a pending link at its
+  establishment timeout (`RNS/Link.py:722-729`), and with broadcast on a
+  link to an unknown destination carries the transport-sized establishment
+  timeout of about 774 s (`6 s + 6 s x PATHFINDER_M`), now the only bound
+  on it since the request goes out once; a caller waiting with a long
+  timeout learns of that close at the close. `reticulumd`'s
+  `open_refreshed_remote_link` (the daemon's bridge remote-control link
+  module), which refreshed the propagation node path and retried only on
+  `TimedOut`, now retries on that `ConnectionAborted` too, so a link the
+  establishment timeout closes before the daemon's own wait ends still
+  gets its one refresh and retry; that module's unit tests pin it (the
+  first pending link is closed under the wait, exactly one more link
+  request follows the refresh, and the final error names the close).
+  Pinned by `tests/link_activation_closed_probe.rs` (a 2 s establishment
+  timeout ends a 60 s wait with `ConnectionAborted` naming `Timeout` within
+  4 s; `Link::close()` on a pending link ends it naming `InitiatorClosed`
+  within 1.5 s), `tests/link_activation_closed_usage_probe.rs` (a link
+  already closed when the wait starts answers at once from the status
+  read, with the exact text; a repeated wait answers the same way; two
+  waiters on one link both learn of the one close; a short wait on an
+  open pending link still answers `TimedOut`),
+  `tests/link_activation_closed_busy_transport_probe.rs` (a `Closed` event
+  the broadcast channel dropped under a burst of more than 1024 closes
+  still ends the wait from the status read, not with `UnexpectedEof`; a
+  wait the caller cancelled under `tokio::time::timeout` leaves a second
+  wait able to see the close; a link to a destination without a path
+  entry carries the transport-sized establishment timeout of about 774 s
+  until the caller shortens it),
+  `tests/link_activation_closed_teardown_restart_probe.rs` (`Link::teardown()`
+  on a pending link ends the wait naming `InitiatorClosed`; after
+  `Link::restart()` a fresh wait runs to its own deadline with `TimedOut`
+  rather than failing fast on the earlier close, and a second close ends
+  the next wait again) and
+  `fork_release_docs_contract_parts/crate_readme_sections.rs` (the README
+  section's claims), with `tests/link_activation_deadline_api.rs` and
+  `tests/link_activation_max_timeout_probe.rs` still pinning the
+  `TimedOut` path.
+- Test-only: `tests/pending_link_single_request_usage_probe.rs` pins the
+  consumer side of the one-request rule: a pending link on a transport
+  with no interface at all is closed once with `Timeout` on the
+  maintenance tick after a 2 s establishment timeout, `Link::close()` on a
+  pending link publishes `InitiatorClosed` once and puts no further link
+  request on the wire, and no "repeat link request" record is logged
+  across the 6 s mark at which the removed repeat used to fire;
+  `tests/pending_link_single_request_consumer_repeat_probe.rs` pins that a
+  consumer's direct second `Link::request()` goes out without restarting
+  the establishment clock, and that the timeout close is followed by one
+  path request and no further link request.
+- Test-only: the 2 s spacings and the `ingress_control: Some(false)` that
+  kept a second announce on a fresh loopback interface out of the old
+  two-sample ingress measurement are gone from
+  `transport/tests_parts/two_transport_loopback_requests_routing.rs`,
+  `transport/tests_parts/two_transport_loopback_requests_receipt_stop.rs`,
+  `transport/tests_parts/two_transport_destination_desc_probe2.rs` and
+  `tests/request_receipt_readme.rs`, each of which puts exactly two announces
+  on that interface (see Fixed for the three-sample floor).
+- Test hygiene, test-only: the integration probes of this section share one
+  `tests/support/` harness instead of a copy each. The five single-request
+  probes take `tests/support/read_for.rs`, `tests/support/packets_in.rs`,
+  `tests/support/link_requests_to.rs`, `tests/support/closed_event_for.rs`,
+  `tests/support/initiator_on_a_silent_listener.rs`,
+  `tests/support/unknown_destination.rs` and `tests/support/broadcasting.rs`;
+  the shared HDLC scanner in `packets_in` rescans from a frame's closing
+  flag instead of stepping past it and counts a frame that shares its
+  opening flag with the previous closing flag, which production readers
+  would drop, so the probes pin what the client sent; the shared
+  `closed_event_for` bounds the whole wait by one deadline where the
+  single-request probe's copy re-armed its timeout per event;
+  `tests/packets_in_scanner_pin.rs` pins the scanner at the byte level on
+  doubled-flag, shared-flag and trailing-partial streams; the shared
+  `closed_event_for` and the two probes' local copies panic naming the lag
+  on a lagged broadcast receiver, since they pin "published once". The
+  activation probes share `tests/support/assert_closed_before_activation.rs`;
+  the announce-admission
+  probes share `tests/support/hold_log.rs`, `tests/support/learn_all.rs`,
+  `tests/support/tcp_server_on.rs`, `tests/support/register_destinations.rs`,
+  `tests/support/announce.rs`, `tests/support/announce_within.rs`,
+  `tests/support/stop_all.rs` and `tests/support/wait_until_within.rs`; the
+  four shared-instance attach tests this run touched share
+  `tests/support/next_event.rs`, `tests/support/attach_with_events.rs` and
+  `tests/support/serve_connected.rs`; the relay, one-identity and
+  reconnect probes share `tests/support/await_connected.rs`,
+  `tests/support/learn_announce.rs` and `tests/support/await_activated.rs`,
+  each taking a caller-supplied `within`. Three probes are adopted:
+  `tests/link_activation_closed_other_link_probe.rs` (a `Closed` event for
+  another link id does not end an activation wait; a neighbour's hand close
+  or establishment-timeout close leaves the wait running to its own
+  deadline or its own close), `tests/link_activation_closed_wake_probe.rs`
+  (three tests: a hand close under the wait returns within 100 ms on at
+  least five of six links, so the `Closed` event wakes the reread rather
+  than the 250 ms poll; a close and `Link::restart()` in one lock scope
+  before the reread leaves the wait running to its own deadline; and a
+  close and `Link::request()` in one lock scope does the same, the link
+  re-pended under a fresh id) and
+  `tests/announce_admission_unix_probe.rs`
+  (Unix only; a flagged `LocalUnixServer` and its default-option clients
+  never ingress-limit, an unflagged one holds the third of three announces
+  100 ms apart). Unit pins are tightened: one
+  `SharedInstanceServer::tunnel_count`, whose rustdoc names the clear it
+  still performs, replaces two helpers that each cleared the tunnel table
+  to count it, the tunnel-default reconnect records are checked for their
+  iface value, the storm restart pin runs once per tunnel posture and
+  counts that posture's exact reconnect line, the aged pending
+  link pin asserts `LinkStatus::Pending` inside its quiet window, the
+  learned and path-response holding pins run
+  `admit_announce_before_queue` under `hold_everything_rate_limit()` after
+  priming the interface with three unknown announces and checking a fourth
+  is held, so the admission they assert is the limiter's exemption,
+  `connector_with` is folded into `connector` (its unused `Some` branch
+  gone), the daemon's
+  attach-probe oracle tells EOF and a read error apart, and the bridge
+  closed-before-activation test asserts the refresh's path request
+  precedes the retry's second link request. Pinned by
+  `tests/pending_link_single_request_probe.rs`,
+  `tests/packets_in_scanner_pin.rs`,
+  `tests/link_activation_closed_probe.rs`,
+  `tests/link_activation_closed_other_link_probe.rs`,
+  `tests/link_activation_closed_wake_probe.rs`,
+  `tests/announce_admission_usage_probe.rs`,
+  `tests/announce_admission_unix_probe.rs`,
+  `tests/shared_instance_tunnel_synthesis_probe.rs`,
+  `tests/shared_instance_tunnel_default_relay_probe.rs`,
+  `tests/support/await_connected.rs`, `tests/support/learn_announce.rs`,
+  `tests/support/await_activated.rs`,
+  `transport/tests_parts/two_transport_shared_instance.rs`,
+  `transport/tests_parts/two_transport_shared_instance_storm.rs`,
+  `transport/tests_parts/held_udp_announce_preserves_peer_sou.rs`,
+  `transport/tests_parts/module_prelude.rs` and the daemon's
+  `bootstrap_interface_startup_parts::shared_instance_attach_probe_tests`
+  and `bridge_remote_control_link_tests`.
+- `delivery::await_link_activation` (`delivery.rs`) no longer builds its
+  error from the reason on the `LinkEvent::Closed` event; the event wakes
+  the wait, which rereads `LinkStatus` and `close_reason` from the link,
+  the same read every poll slice makes. The observable contract is
+  unchanged: a closed link yields `ConnectionAborted` naming its reason
+  within the poll slice. The one reachable difference is a link re-pended
+  under a wait, by `Link::restart()`
+  (`link_sections/next_watchdog_deadline.rs`) or by `Link::request()` on a
+  closed link (`link_sections/new.rs`), both public, neither with a
+  production caller, which now runs the wait to its own deadline instead
+  of failing with a stale reason. Pinned by
+  `tests/link_activation_closed_probe.rs`,
+  `tests/link_activation_closed_other_link_probe.rs`,
+  `tests/link_activation_closed_wake_probe.rs`,
+  `tests/link_activation_closed_repend_then_close_probe.rs` (a link
+  re-pended under the wait and closed a second time still ends the wait:
+  within the poll slice of a hand close, within the maintenance tick plus
+  the poll slice of a timeout close) and
+  `tests/support/assert_closed_before_activation.rs`.
+- Release docs contract, test-only: `fork_release_docs_contract.rs` includes
+  its tests from `fork_release_docs_contract_parts/`
+  (`crate_readme_sections.rs`, `readme_patch_list.rs`,
+  `release_0_17_0_probe.rs`, `release_0_17_0_probe2.rs`,
+  `release_0_17_0_probe3.rs`, `release_0_17_0_probe4.rs`,
+  `release_0_18_0_probe.rs`, `release_0_18_1_probe.rs`,
+  `release_0_18_2_probe.rs`, `release_notes_breaking.rs` and
+  `request_layer_api_docs.rs`); the patch-list pin opens on the 0.18.2 block
+  and keeps the 0.18.1 block as a demoted twin with its needles shared
+  through a const, as the 0.18.0 and 0.17.0 blocks are; the 0.18.1 probe
+  keeps its date pin and no longer claims the first release heading, which
+  `release_0_18_2_probe.rs` owns; and the label pins in
+  `fork_publish_contract_parts/ledger_contract.rs` read `0.18.2` first,
+  with no `Unreleased` label, since a release tree carries no stub, and the
+  same part's
+  `ledger_0_18_2_attributes_the_two_reconnect_arm_probes_to_both_patches`
+  pins the `tunnel opt-in, run hygiene` cells of the
+  `two_transport_shared_instance_probe10.rs` and
+  `two_transport_shared_instance_probe16.rs` rows of the 0.18.2 ledger
+  table.
+
+### Fixed
+
+- Two transports attached to one shared instance with one identity, in two
+  processes or in one, had the first client's links routed to the second.
+  The tunnel id is the hash of the transport public key and the interface
+  hash (`transport/tunnels.rs`), and this crate derives the interface hash
+  from a counter per `InterfaceManager` (`iface_parts/interfacemanager.rs`),
+  so when the attach sat at the same ordinal in each transport's interface
+  order (the common case for a client that brings up only the shared-instance
+  connection) both attaches synthesized the same tunnel id and the shared
+  instance's reappeared-tunnel branch (`RNS/Transport.py:2820-2868`, the
+  branch at `:2829`) re-pointed every path stored under it at the newest
+  connection. Tunnel synthesis at attach
+  (`links_parts/transport_sections/shared_instance.rs`) and on reconnect
+  (`links_parts/transport_sections/shared_instance_reconnect.rs`) is now
+  opt-in through `with_tunnel_synthesis` (see Added) and off by default;
+  the default is Python's: its local client synthesizes no tunnel
+  (its reconnect job at `RNS/Interfaces/LocalInterface.py:178-181` only
+  re-announces; `wants_tunnel` is set only on the network-facing clients,
+  such as `RNS/Interfaces/TCPInterface.py:179`), and reticulumd's local-client
+  attach keeps the default. A correction to the
+  older notes goes with it: the 0.15.1 Added bullet for
+  `attach_shared_instance` said the tunnel was synthesized "so inbound
+  packets take the client-side hop ... and outbound packets on one-hop
+  paths carry a transport header". Both follow from the
+  connected-to-shared-instance posture, not from the tunnel: the hop strip
+  in `transport/inbound_processing.rs` runs when the transport is
+  connected to a shared instance and the packet arrived on it
+  (`RNS/Transport.py:1937-1940`), and the Type2 header on one-hop paths
+  comes from `PathEntry::type1_eligible` (`transport/path_table.rs`),
+  applied by `route_outbound_packet` (`transport/path.rs`) on the
+  handler's outbound path (`transport/handler.rs`;
+  `RNS/Transport.py:1416-1427`).
+  Both hold with the tunnel off. This supersedes the tunnel clauses of
+  the 0.15.1 Added bullet ("synthesizes a tunnel on it at attach (and
+  again on every reconnect, see Changed)"), of the 0.15.1 Changed bullet
+  ("On every shared-instance reconnect the attached client re-synthesizes
+  the tunnel on the interface at once") and its
+  `two_transport_shared_instance_probe10.rs` clause ("still
+  re-synthesizes the tunnel on the reconnect while re-announcing
+  nothing"), of the 0.16.0 Changed clause that the daemon's
+  "stream-reconnect tunnel synthesizer now serves only its `tcp_client`
+  and `backbone_client` interfaces" (it left the attached client's tunnel
+  to the library, which now synthesizes none for the daemon) and its
+  `two_transport_shared_instance_probe16.rs` clause ("re-synthesizes the
+  tunnel and keeps the tables", which now reads the tunnel under the
+  opt-in), and of the 0.18.0 Added bullet for `with_first_connect_timeout`
+  ("wait that long for the first served connect before the tunnel is
+  synthesized": the wait precedes a tunnel only on an opted-in attach). Pinned by
+  `transport/tests_parts/two_transport_shared_instance_tunnel_default.rs`
+  and `tests/shared_instance_tunnel_synthesis_api.rs` as above, by
+  `transport/tests_parts/two_transport_shared_instance_tunnel_identity.rs`
+  (two transports under one identity: the default keeps a third client's
+  links on the registering transport with no tunnel; opted in, the shared
+  instance holds one tunnel for both), by
+  `python_shared_instance_two_clients.rs` of the reticulumd
+  `python_channel_interop` binary (a live Python rnsd, RNS 1.5.2, is the
+  shared instance and two transports under one identity attach as local
+  clients, `RNS/Reticulum.py:420-441`: under the default a third client's
+  link to the first transport's destination activates there and the second
+  transport's in-link events stay empty; opted in on both, rnsd logs the
+  tunnel reappearing and restores the first transport's path onto the
+  second connection, `RNS/Transport.py:2820-2868`, and the first
+  transport's in-link events stay empty for 3 s after the third's link
+  request), by the
+  daemon's `bootstrap_interface_startup_parts::shared_instance_attach_tests`
+  (`tunnel_synth_ifaces` stays empty for the local-client attach) and its
+  `shared_instance_attach_probe_tests` bitrate pin, which synthesizes a
+  tunnel from the test once the attach is done so that a frame is written
+  to time, and by the raw-listener reset drains in
+  `tests/shared_instance_disconnect_reasons_api.rs` and
+  `transport/tests_parts/two_transport_shared_instance_disconnect_reasons.rs`,
+  which no longer read a tunnel packet before closing a stream with a
+  reset (the client has nothing to write, so nothing is pending on its
+  side when the reset lands); the `close_orderly` drains in
+  `tests/support/close_orderly.rs`, `tests/interface_events_api.rs` and
+  `tests/shared_instance_disconnect_reasons_api.rs` promise no tunnel
+  packet any more and drain whatever the client wrote on the connect.
+- A transport attached to a shared instance ran its announce ingress
+  limiter on that connection, and so did a shared instance on the child
+  interfaces it holds per accepted client (`transport/announce.rs`,
+  `admit_announce_before_queue`): two local clients announcing destinations
+  less than about 0.6 s apart had the second announce held for six minutes
+  on every other local client ("holding announce ... before queue"), so a
+  third client learned one of the two. Python's local client interface
+  never ingress-limits, as a client program's interface and as the child
+  rnsd spawns per accepted client alike (`RNS/Interfaces/LocalInterface.py:130`;
+  `RNS/Transport.py:1823` is the only inbound gate). The limiter
+  (`transport/announce_limits.rs`) now admits every announce on an
+  interface flagged as the shared instance, the flag read under the same
+  interface manager guard that already supplies the interface's shared
+  config, and a child registered on a flagged interface already carries the
+  flag (`iface_parts/interfacemanager.rs`, unchanged). Three further details follow RNS
+  1.5.2 (`RNS/Interfaces/Interface.py:188-211`, `:346-348`): the measured
+  announce frequency reads 0 until more than `IC_DEQUE_MIN_SAMPLE` = 2
+  samples exist (`Interface.py:84`), so two announces on a fresh ordinary
+  interface no longer trip the limiter and the third within about a second
+  of them does; a burst ends only once the frequency has stayed under the
+  threshold for a full hold after the last over-threshold sample as well as
+  after activation (`ic_burst_sustained`, `:197`) and only with at least
+  two samples in the deque (`:195`); and `AnnounceRateLimit::default()`
+  reads Python's constants (`Interface.py:76-84`, which
+  `RNS/Reticulum.py:1191-1219` returns unless the `[reticulum]` section
+  overrides them): `burst_freq_new` 3.0 Hz (was 3.5), `burst_freq` 10.0 Hz
+  (was 12.0), `burst_hold` 15 s (was 60 s), `burst_penalty` 15 s (was
+  300 s), `held_release_interval` 5 s (was 30 s); `new_time` 2 h,
+  `incoming_freq_samples` 6 and `max_held_announces` 256 are unchanged, the
+  per-interface `ic_*` overrides keep applying over the defaults, and the
+  daemon's commented `ic_*` examples in `examples/interfaces-reference.toml`
+  read the same values (its `ic_new_time` example read 60 s against the
+  unchanged 2 h default, so that line moves too; its `ic_pr_*` and
+  `ec_pr_freq` examples now read the
+  path-request defaults, 3.0 / 8.0 / 5.0 Hz, that `iface_runtime.rs` and
+  `iface_parts/interface_traffic.rs` already applied). Two divergences remain
+  and are registered under
+  Known divergences in the README: the frequency formula (this crate
+  averages the gaps over its last 6 samples plus the gap to now; Python
+  divides the sample count by the span to the oldest of 48 with a 10 s
+  decay, `Interface.py:60-67`, `:346-355`) and the release timing (this
+  crate arms the held release when the burst deactivates and releases a
+  held announce only once the burst has ended, reporting hold plus penalty
+  as the delay; Python arms it at activation, `:206`, and releases on the
+  interval plus a frequency-under-threshold check alone, `:277-282`, with
+  the burst still active; both re-arm it per release, `:293`). Pinned by
+  `tests/announce_admission_usage_probe.rs` (one local client of a flagged
+  `TcpServer` announces three destinations back to back and another local
+  client learns all three with no "holding announce" record from any of
+  the three transports, the same with `ingress_control = true` and
+  hold-on-anything thresholds on both shared-instance interfaces, and the
+  same three from an unflagged `TcpClient` into the flagged listener, which
+  isolates the server's per-client child; an ordinary fresh `TcpClient`
+  interface learns two announces 100 ms apart but holds the third for hold
+  plus penalty, about 30 s, in place of the six minutes the old defaults
+  gave, logging the "holding announce" record the exemption pins filter
+  on, and `ic_burst_hold`, `ic_burst_penalty` and
+  `ic_held_release_interval` of 1 s on that interface shorten the hold to a
+  few seconds), by `tests/announce_admission_mixed_iface_probe.rs` (one
+  transport that is at once a flagged shared-instance client and a plain
+  `TcpClient` connector holds the third of three announces on the plain
+  interface and admits three right after on the shared-instance one: the
+  flag is read per interface), by `tests/announce_admission_reconnect_probe.rs` (two
+  default-option clients whose shared instance is stopped and started again
+  on its port still admit three back-to-back announces after the reconnect,
+  on the client interface and on the restarted instance's fresh per-client
+  child; three announces 1.5 s apart on an unflagged `TcpClient` interface
+  are all learned under the 3 Hz threshold), by
+  `local_client_announce_admission_probe.rs` of the reticulumd test suite
+  (the daemon binary boots from an empty storage directory with one
+  `LocalInterface` listener on a free loopback port; two local clients
+  announce 100 ms apart and one announces three back to back, a third
+  client learns all of them inside 5 s and the daemon's debug log carries
+  no "holding announce" record, so the listener the daemon builds from its
+  own config is flagged), by
+  `tests/shared_instance_one_identity_two_clients_probe.rs` (a third local
+  client of a flagged `TcpServer` learns two destinations announced 100 ms
+  apart by two clients under one identity within 5 s, and a link to the
+  second activates there; its first two tests are the out-of-crate twins of
+  the `two_transport_shared_instance_tunnel_identity.rs` default and opt-in
+  cases), by `transport/tests_parts/shared_child_announce_admission.rs` (a
+  child of a flagged channel, and the channel itself, admit three
+  back-to-back announces under a limiter that holds on any measurable
+  frequency, while an unflagged channel holds the third) and by the
+  `transport/announce_limits.rs` unit tests (the default values, with the
+  commented `ic_*`, `ic_pr_*` and `ec_pr_freq` values of
+  `examples/interfaces-reference.toml` pinned to the same literals by
+  `config_parts/interfaces_reference_ingress_examples.rs` of the reticulumd
+  config test binary, which owns the file; the three-sample floor, the shared-instance exemption
+  against the same six-announce sequence held from the third on an ordinary
+  interface and under an explicit `ingress_control = true`, the sustained
+  clock and the release guard; the held-announce release tests feed a third
+  sample before each expected hold, the `ingress_control = false` pin there
+  feeds a third announce the limiter would otherwise hold, and the
+  `transport/tests_parts/module_prelude.rs` twin admits three through
+  `admit_announce_before_queue`; the existing three-sample fixtures in
+  `transport/tests_parts/held_udp_announce_preserves_peer_sou.rs`,
+  `transport/tests_parts/two_transport_shared_instance_flush.rs` and
+  `transport/tests_parts/rns_1_5_ingress_admission.rs` keep their sample
+  counts, the last only passing the limiter's new argument).
+
 ## 0.18.1 - 2026-11-03
 
 ### Added

@@ -11,3 +11,5 @@ include!("config_parts/parses_meshtastic_interface.rs");
 include!("config_parts/parses_reticulum_runtime_policy.rs");
 
 include!("config_parts/shared_instance_client_knobs.rs");
+
+include!("config_parts/interfaces_reference_ingress_examples.rs");

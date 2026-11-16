@@ -116,9 +116,12 @@ async fn shared_instance_state_refused_attach_sends_nothing_and_ends_the_stream(
 async fn shared_instance_state_dropped_receiver_keeps_the_consumer_serving() {
     let server = shared_instance_server().await;
     let mut server_announces = server.transport.recv_announces().await;
-    let (client, mut events) =
-        shared_instance_state_client("shared-instance-state-receiver-gone", server.endpoint(), 8)
-            .await;
+    let (client, mut events) = shared_instance_state_tunneled_client(
+        "shared-instance-state-receiver-gone",
+        server.endpoint(),
+        8,
+    )
+    .await;
     server.await_accepted_connections(1).await;
     assert_eq!(
         shared_instance_state_next(&mut events).await,

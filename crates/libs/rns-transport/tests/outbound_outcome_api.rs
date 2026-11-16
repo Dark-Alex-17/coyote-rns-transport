@@ -17,13 +17,16 @@ use std::sync::Arc;
 use std::time::{Duration, Instant};
 
 use rns_transport::destination::link::LinkStatus;
-use rns_transport::destination::{DestinationDesc, DestinationName};
 use rns_transport::error::RnsError;
 use rns_transport::hash::{AddressHash, Hash};
 use rns_transport::identity::PrivateIdentity;
 use rns_transport::rand_core::OsRng;
 use rns_transport::resource::{OutboundFailure, OutboundResult, RejectReason, ResourceEventKind};
 use rns_transport::transport::{ResourceAcceptHook, Transport, TransportConfig};
+
+#[path = "support/unknown_destination.rs"]
+mod unknown_destination;
+use unknown_destination::unknown_destination;
 
 /// The README's `match` on an outcome, wildcard arm included.
 #[deny(unreachable_patterns)]
@@ -192,15 +195,6 @@ async fn plain_send_resource_signatures_are_unchanged() {
         assert!(matches!(result, Err(RnsError::InvalidArgument)), "got {result:?}");
     }
     transport.stop().await;
-}
-
-fn unknown_destination() -> DestinationDesc {
-    let remote = *PrivateIdentity::new_from_rand(OsRng).as_identity();
-    DestinationDesc {
-        identity: remote,
-        address_hash: remote.address_hash,
-        name: DestinationName::new("lxmf", "delivery"),
-    }
 }
 
 /// Through the public API alone, twice over: the fast fail is repeatable and leaves nothing

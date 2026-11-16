@@ -62,16 +62,20 @@
 # passphrase = "shared-secret"
 # ingress_control = false
 # egress_control = false
+# ingress_control defaults to true and egress_control to false, as in Python:
+# the commented ingress_control line above flips its default, the
+# egress_control line restates its own. The ic_* and ec_pr_freq values below
+# are the defaults.
 # ic_max_held_announces = 256
-# ic_burst_hold = 60.0
+# ic_burst_hold = 15.0
 # ic_burst_freq_new = 3.0
-# ic_burst_freq = 12.0
+# ic_burst_freq = 10.0
 # ic_pr_burst_freq_new = 3.0
-# ic_pr_burst_freq = 12.0
-# ec_pr_freq = 12.0
-# ic_new_time = 60.0
-# ic_burst_penalty = 300.0
-# ic_held_release_interval = 30.0
+# ic_pr_burst_freq = 8.0
+# ec_pr_freq = 5.0
+# ic_new_time = 7200.0
+# ic_burst_penalty = 15.0
+# ic_held_release_interval = 5.0
 # discoverable = false
 # announce_interval = 360             # minutes when discoverable=true
 # discovery_stamp_value = 16

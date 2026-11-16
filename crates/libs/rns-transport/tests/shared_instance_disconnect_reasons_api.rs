@@ -10,21 +10,34 @@
 //! plain `Disconnected`, so the README's consumer that matches on it keeps working; the
 //! option follows the last `with_disconnect_reasons` call.
 
-use std::net::SocketAddr;
 use std::time::Duration;
 
 use rns_transport::transport::{
-    DisconnectReason, SharedInstanceEndpoint, SharedInstanceEvent, SharedInstanceOptions, Transport,
+    DisconnectReason, SharedInstanceEndpoint, SharedInstanceEvent, SharedInstanceOptions,
 };
-use tokio::io::{AsyncReadExt as _, AsyncWriteExt as _};
 use tokio::net::{TcpListener, TcpStream};
 use tokio::sync::mpsc;
 use tokio::sync::mpsc::error::TryRecvError;
 use tokio::time::timeout;
 
+#[path = "support/accept_within.rs"]
+mod accept_within;
+use accept_within::accept_within;
+#[path = "support/attach_with_events.rs"]
+mod attach_with_events;
+use attach_with_events::attach_with_events;
 #[path = "support/client_transport.rs"]
 mod client_transport;
 use client_transport::client_transport;
+#[path = "support/close_orderly.rs"]
+mod close_orderly;
+use close_orderly::close_orderly;
+#[path = "support/next_event.rs"]
+mod next_event;
+use next_event::next_event;
+#[path = "support/serve_connected.rs"]
+mod serve_connected;
+use serve_connected::serve_connected;
 
 const WAIT: Duration = Duration::from_secs(5);
 const RECONNECT_WAIT: Duration = Duration::from_millis(50);
@@ -32,88 +45,13 @@ const RECONNECT_WAIT: Duration = Duration::from_millis(50);
 /// run no read watchdog, so no length of silence should produce an event.
 const QUIET: Duration = Duration::from_millis(400);
 
-#[deny(clippy::await_holding_invalid_type)]
-async fn next_event(
-    what: &str,
-    events: &mut mpsc::Receiver<SharedInstanceEvent>,
-) -> Option<SharedInstanceEvent> {
-    timeout(WAIT, events.recv()).await.unwrap_or_else(|_| panic!("{what} timed out"))
-}
-
-#[deny(clippy::await_holding_invalid_type)]
-async fn accept_within(listener: &TcpListener, what: &str) -> TcpStream {
-    timeout(WAIT, listener.accept())
-        .await
-        .unwrap_or_else(|_| panic!("{what} timed out"))
-        .unwrap_or_else(|err| panic!("{what} failed: {err}"))
-        .0
-}
-
-/// Closes `stream` in an orderly way: the write side is shut down and the stream read to
-/// the client's EOF before it is dropped. The client writes its tunnel packet on each
-/// connect, shortly after `Connected` is served, and a TCP socket dropped with unread
-/// data in its receive buffer sends a reset rather than a FIN.
-#[deny(clippy::await_holding_invalid_type)]
-async fn close_orderly(mut stream: TcpStream) {
-    stream.shutdown().await.expect("shut the write side down");
-    timeout(WAIT, async {
-        let mut sink = [0u8; 1024];
-        while stream.read(&mut sink).await.expect("drain the client's writes") > 0 {}
-    })
-    .await
-    .expect("timed out waiting for the client to close its side");
-}
-
 /// Closes `stream` with linger zero so the peer sends a reset instead of a FIN. The
-/// client's tunnel packet is read first so nothing is pending on its write side when the
-/// reset arrives: a write that failed first would report the reset from the tx loop
-/// instead of the read.
-#[deny(clippy::await_holding_invalid_type)]
-async fn close_with_reset(mut stream: TcpStream) {
-    let mut buf = [0u8; 1024];
-    let read = timeout(WAIT, stream.read(&mut buf))
-        .await
-        .expect("timed out waiting for the client's tunnel packet")
-        .expect("read the client's tunnel packet");
-    assert!(read > 0, "the client wrote its tunnel packet before the stream ended");
+/// client has no destination and no tunnel to synthesize, so nothing is pending on its
+/// write side when the reset arrives; a write that failed first would report the reset
+/// from the tx loop instead of the read.
+fn close_with_reset(stream: TcpStream) {
     socket2::SockRef::from(&stream).set_linger(Some(Duration::ZERO)).expect("linger");
     drop(stream);
-}
-
-/// Attaches `transport` to the raw listener at `endpoint` with `options` plus a
-/// 16-slot state stream and the short reconnect wait, and reads the attach's
-/// `Connecting`; returns the stream's receiver.
-#[deny(clippy::await_holding_invalid_type)]
-async fn attach(
-    transport: &Transport,
-    endpoint: SocketAddr,
-    options: SharedInstanceOptions,
-) -> mpsc::Receiver<SharedInstanceEvent> {
-    let (events_tx, mut events) = mpsc::channel(16);
-    transport
-        .attach_shared_instance(
-            SharedInstanceEndpoint::Tcp(endpoint),
-            options.with_reconnect_wait(RECONNECT_WAIT).with_state_events(events_tx),
-        )
-        .await
-        .expect("the attach is accepted");
-    assert_eq!(
-        next_event("the attach's Connecting", &mut events).await,
-        Some(SharedInstanceEvent::Connecting)
-    );
-    events
-}
-
-/// Serves one connection on `listener` and reads `Connected` for it.
-#[deny(clippy::await_holding_invalid_type)]
-async fn serve_connected(
-    listener: &TcpListener,
-    events: &mut mpsc::Receiver<SharedInstanceEvent>,
-    what: &str,
-) -> TcpStream {
-    let stream = accept_within(listener, what).await;
-    assert_eq!(next_event(what, events).await, Some(SharedInstanceEvent::Connected), "{what}");
-    stream
 }
 
 /// Reads the two events a served drop sends, asserts the second is `Connecting` and
@@ -124,9 +62,9 @@ async fn read_drop(
     what: &str,
 ) -> SharedInstanceEvent {
     let dropped =
-        next_event(what, events).await.unwrap_or_else(|| panic!("{what}: the stream ended"));
+        next_event(what, events, WAIT).await.unwrap_or_else(|| panic!("{what}: the stream ended"));
     assert_eq!(
-        next_event(what, events).await,
+        next_event(what, events, WAIT).await,
         Some(SharedInstanceEvent::Connecting),
         "{what}: `Connecting` follows the drop at once"
     );
@@ -144,7 +82,8 @@ async fn hold_then_close_then_reset(
     let listener = TcpListener::bind("127.0.0.1:0").await.expect("bind listener");
     let endpoint = listener.local_addr().expect("listener address");
     let transport = client_transport(name);
-    let mut events = attach(&transport, endpoint, options).await;
+    let (mut events, _) =
+        attach_with_events(&transport, SharedInstanceEndpoint::Tcp(endpoint), options).await;
     let iface = transport.shared_instance().expect("the slot names the attached interface");
 
     let first = serve_connected(&listener, &mut events, "first connection").await;
@@ -165,14 +104,14 @@ async fn hold_then_close_then_reset(
     // The reset has to land on a stream the client already holds; one that arrives
     // before its connect is served fails the dial instead.
     let second = serve_connected(&listener, &mut events, "second connection").await;
-    close_with_reset(second).await;
+    close_with_reset(second);
     let after_reset = read_drop(&mut events, "the linger-zero close").await;
     assert_eq!(transport.shared_instance(), Some(iface));
 
     let third = serve_connected(&listener, &mut events, "third connection").await;
     assert!(transport.detach_shared_instance().await, "the attach is in place");
     assert_eq!(
-        next_event("the stream's end", &mut events).await,
+        next_event("the stream's end", &mut events, WAIT).await,
         None,
         "the detach ends the stream without a disconnect event"
     );
@@ -283,7 +222,7 @@ async fn a_readme_consumer_labels_each_reason_and_never_sees_the_plain_disconnec
     assert_eq!(next_label(&mut labels).await, "connecting");
     let second = accept_within(&listener, "second connection").await;
     assert_eq!(next_label(&mut labels).await, "connected");
-    close_with_reset(second).await;
+    close_with_reset(second);
     assert_eq!(next_label(&mut labels).await, "reset");
     assert_eq!(next_label(&mut labels).await, "connecting");
     let third = accept_within(&listener, "third connection").await;

@@ -297,8 +297,10 @@ Removed) bullet of its own, marked as such.
   `release_0_18_2_probe.rs`, `release_notes_breaking.rs` and
   `request_layer_api_docs.rs`); the patch-list pin opens on the 0.18.2 block
   and keeps the 0.18.1 block as a demoted twin with its needles shared
-  through a const, as the 0.18.0 and 0.17.0 blocks are; and the label pins
-  in `fork_publish_contract_parts/ledger_contract.rs` read `0.18.2` first,
+  through a const, as the 0.18.0 and 0.17.0 blocks are; the 0.18.1 probe
+  keeps its date pin and no longer claims the first release heading, which
+  `release_0_18_2_probe.rs` owns; and the label pins in
+  `fork_publish_contract_parts/ledger_contract.rs` read `0.18.2` first,
   with no `Unreleased` label, since a release tree carries no stub.
 
 ### Fixed

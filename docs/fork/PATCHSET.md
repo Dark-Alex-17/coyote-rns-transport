@@ -26,7 +26,7 @@ parity rows this file plus the crate README `## Known divergences from
 Python RNS` are the parity ledger; `docs/status/*` matrices are not updated
 per fork task.
 
-## Unreleased (upstream 0.14.0)
+## 0.18.2 (upstream 0.14.0)
 
 Every file changed since the `0.18.1` release and the patch each change
 belongs to. Patch ids: N1 is tunnel opt-in, N2 is link request once, N3 is
@@ -45,25 +45,37 @@ announce admission` patch is fork commits `be18658a`, `83e03e75`,
 commits `863d7ba9`, `6707f86f`, `e4dfc449`, `655c44d1`, `477b9863`,
 `a111e152`, `a6b0b7f6`, `af24c666`, `ac65cba0`, `32aabfe5`, `c28dfd6f`,
 `43d56a61`, `98fb3075`, `9cc4782f`, `0a2ac538`, `d31d0559`, `f1973fb7`,
-`3a95f2f3` and `5338f85a`.
+`3a95f2f3`, `5338f85a` and `01bea0f6`. The `release 0.18.2` patch carries
+no other id and is fork commits `4e5ab382`, `f19bf251` and `0d6654cb`.
 
 | File | Patch |
 | --- | --- |
+| `Cargo.lock` | release 0.18.2 |
+| `Cargo.toml` | release 0.18.2 |
+| `crates/apps/reticulumd/Cargo.toml` | release 0.18.2 |
 | `crates/apps/reticulumd/examples/interfaces-reference.toml` | local client announce admission, run hygiene |
 | `crates/apps/reticulumd/src/bin/reticulumd/bootstrap_interface_startup_parts/shared_instance_attach_probe_tests.rs` | tunnel opt-in, link request once, run hygiene |
 | `crates/apps/reticulumd/src/bin/reticulumd/bridge_remote_control_link.rs` | activation close exit |
 | `crates/apps/reticulumd/src/bin/reticulumd/bridge_remote_control_link_tests.rs` | activation close exit, run hygiene |
 | `crates/apps/reticulumd/tests/config.rs` | local client announce admission |
 | `crates/apps/reticulumd/tests/config_parts/interfaces_reference_ingress_examples.rs` | local client announce admission |
-| `crates/apps/reticulumd/tests/fork_publish_contract_parts/ledger_contract.rs` | tunnel opt-in |
+| `crates/apps/reticulumd/tests/fork_publish_contract.rs` | release 0.18.2 |
+| `crates/apps/reticulumd/tests/fork_publish_contract_parts/ledger_contract.rs` | tunnel opt-in, release 0.18.2 |
+| `crates/apps/reticulumd/tests/fork_release_docs_contract.rs` | release 0.18.2 |
 | `crates/apps/reticulumd/tests/fork_release_docs_contract_parts/crate_readme_sections.rs` | tunnel opt-in, activation close exit, run hygiene |
+| `crates/apps/reticulumd/tests/fork_release_docs_contract_parts/readme_patch_list.rs` | release 0.18.2 |
+| `crates/apps/reticulumd/tests/fork_release_docs_contract_parts/release_0_18_1_probe.rs` | release 0.18.2 |
+| `crates/apps/reticulumd/tests/fork_release_docs_contract_parts/release_0_18_2_probe.rs` | release 0.18.2 |
 | `crates/apps/reticulumd/tests/local_client_announce_admission_probe.rs` | local client announce admission, run hygiene |
 | `crates/apps/reticulumd/tests/python_channel_interop.rs` | Python-in-the-loop two clients interop |
 | `crates/apps/reticulumd/tests/python_channel_interop_parts/python_shared_instance_live.rs` | run hygiene |
 | `crates/apps/reticulumd/tests/python_channel_interop_parts/python_shared_instance_two_clients.rs` | Python-in-the-loop two clients interop, run hygiene |
 | `crates/apps/reticulumd/tests/support/python_shared_instance_client.py` | run hygiene |
-| `crates/libs/rns-transport/CHANGELOG.md` | tunnel opt-in, link request once, Python-in-the-loop two clients interop, activation close exit, local client announce admission, run hygiene |
-| `crates/libs/rns-transport/README.md` | tunnel opt-in, Python-in-the-loop two clients interop, activation close exit, local client announce admission, run hygiene |
+| `crates/apps/rns-tools/Cargo.toml` | release 0.18.2 |
+| `crates/libs/rns-transport/CHANGELOG.md` | tunnel opt-in, link request once, Python-in-the-loop two clients interop, activation close exit, local client announce admission, run hygiene, release 0.18.2 |
+| `crates/libs/rns-transport/Cargo.toml` | release 0.18.2 |
+| `crates/libs/rns-transport/README.md` | tunnel opt-in, Python-in-the-loop two clients interop, activation close exit, local client announce admission, run hygiene, release 0.18.2 |
+| `crates/libs/rns-transport/fuzz/Cargo.lock` | release 0.18.2 |
 | `crates/libs/rns-transport/src/delivery.rs` | activation close exit, run hygiene |
 | `crates/libs/rns-transport/src/destination/link_parts/link_sections/establishment.rs` | link request once |
 | `crates/libs/rns-transport/src/destination/link_parts/link_status_predicates_make_lifecycl_sections/core_tests.rs` | link request once |
@@ -89,8 +101,8 @@ commits `863d7ba9`, `6707f86f`, `e4dfc449`, `655c44d1`, `477b9863`,
 | `crates/libs/rns-transport/src/transport/tests_parts/two_transport_shared_instance.rs` | tunnel opt-in, run hygiene |
 | `crates/libs/rns-transport/src/transport/tests_parts/two_transport_shared_instance_disconnect_reasons.rs` | tunnel opt-in |
 | `crates/libs/rns-transport/src/transport/tests_parts/two_transport_shared_instance_flush.rs` | tunnel opt-in, local client announce admission |
-| `crates/libs/rns-transport/src/transport/tests_parts/two_transport_shared_instance_probe10.rs` | tunnel opt-in |
-| `crates/libs/rns-transport/src/transport/tests_parts/two_transport_shared_instance_probe16.rs` | tunnel opt-in |
+| `crates/libs/rns-transport/src/transport/tests_parts/two_transport_shared_instance_probe10.rs` | tunnel opt-in, run hygiene |
+| `crates/libs/rns-transport/src/transport/tests_parts/two_transport_shared_instance_probe16.rs` | tunnel opt-in, run hygiene |
 | `crates/libs/rns-transport/src/transport/tests_parts/two_transport_shared_instance_probe17.rs` | tunnel opt-in |
 | `crates/libs/rns-transport/src/transport/tests_parts/two_transport_shared_instance_probe17_unix.rs` | tunnel opt-in |
 | `crates/libs/rns-transport/src/transport/tests_parts/two_transport_shared_instance_probe5.rs` | tunnel opt-in |
@@ -109,6 +121,7 @@ commits `863d7ba9`, `6707f86f`, `e4dfc449`, `655c44d1`, `477b9863`,
 | `crates/libs/rns-transport/tests/link_activation_closed_busy_transport_probe.rs` | activation close exit, run hygiene |
 | `crates/libs/rns-transport/tests/link_activation_closed_other_link_probe.rs` | run hygiene |
 | `crates/libs/rns-transport/tests/link_activation_closed_probe.rs` | activation close exit, run hygiene |
+| `crates/libs/rns-transport/tests/link_activation_closed_repend_then_close_probe.rs` | run hygiene |
 | `crates/libs/rns-transport/tests/link_activation_closed_teardown_restart_probe.rs` | activation close exit, run hygiene |
 | `crates/libs/rns-transport/tests/link_activation_closed_usage_probe.rs` | activation close exit, run hygiene |
 | `crates/libs/rns-transport/tests/link_activation_closed_wake_probe.rs` | run hygiene |
@@ -149,7 +162,8 @@ commits `863d7ba9`, `6707f86f`, `e4dfc449`, `655c44d1`, `477b9863`,
 | `crates/libs/rns-transport/tests/support/tcp_server_on.rs` | run hygiene |
 | `crates/libs/rns-transport/tests/support/unknown_destination.rs` | run hygiene |
 | `crates/libs/rns-transport/tests/support/wait_until_within.rs` | run hygiene |
-| `docs/fork/PATCHSET.md` | tunnel opt-in, link request once, Python-in-the-loop two clients interop, activation close exit, local client announce admission, run hygiene |
+| `docs/fork/PATCHSET.md` | tunnel opt-in, link request once, Python-in-the-loop two clients interop, activation close exit, local client announce admission, run hygiene, release 0.18.2 |
+| `docs/getting-started.md` | release 0.18.2 |
 | `docs/status/current-roadmap.md` | run hygiene |
 
 Fork commits `7ae6a364`, `785bce93`, `ad420766`, `1446a8e5` and `d2e106bb`:
@@ -574,7 +588,7 @@ release arming observable.
 Fork commits `863d7ba9`, `6707f86f`, `e4dfc449`, `655c44d1`, `477b9863`,
 `a111e152`, `a6b0b7f6`, `af24c666`, `ac65cba0`, `32aabfe5`, `c28dfd6f`,
 `43d56a61`, `98fb3075`, `9cc4782f`, `0a2ac538`, `d31d0559`, `f1973fb7`,
-`3a95f2f3` and `5338f85a`:
+`3a95f2f3`, `5338f85a` and `01bea0f6`:
 N5, run hygiene.
 Upstream site: the test files and shared helpers of the four patches above
 and the fork's own documentation; the one production edit is
@@ -792,7 +806,69 @@ probe carry the daemon log; and has
 `SHARED_INSTANCE_RECONNECT_RESYNTHESIZED_LINE`. `5338f85a` is a third
 comment-only edit to `delivery.rs`: the `LinkEvent::Closed => continue`
 arm names both re-pend paths, `Link::restart()` and `Link::request()` on
-a closed link.
+a closed link. `01bea0f6` adopts
+`tests/link_activation_closed_repend_then_close_probe.rs`, written against
+the contract alone: a link re-pended under the wait by `Link::request()` or
+`Link::restart()` and then closed a second time, by hand or by a 2 s
+establishment timeout, ends the wait with `ConnectionAborted` naming
+`InitiatorClosed` or `Timeout` within the poll slice of that close, not at
+the caller's 60 s deadline, after `Link::request()` has rotated the link id
+out from under the waiter's event filter; the wake probe pins the first
+half of the same exception. The CHANGELOG names it in the Pinned-by clause
+of the reread bullet.
+
+Fork commits `4e5ab382`, `f19bf251` and `0d6654cb`: release 0.18.2. The
+first bumps the crate version to 0.18.2 at every manifest and
+consumer-snippet site (`Cargo.toml`,
+`crates/libs/rns-transport/Cargo.toml`, `crates/apps/reticulumd/Cargo.toml`,
+`crates/apps/rns-tools/Cargo.toml`, the snippet in
+`crates/libs/rns-transport/README.md` and `docs/getting-started.md`) and in
+`Cargo.lock` and `crates/libs/rns-transport/fuzz/Cargo.lock`, and retargets
+the two version pins in `crates/apps/reticulumd/tests/fork_publish_contract.rs`
+to `0.18.2`; the root `VERSION` file stays. The
+second adds the 0.18.2 paragraph to the `## Patch list` of
+`crates/libs/rns-transport/README.md`, folding it into the intro sentence
+and leaving the 0.18.1 block as a standalone paragraph with its bullets
+unchanged; its seven bullets are the tunnel opt-in and the same-identity
+collision it answers, the one link request, the fail-fast activation wait,
+shared-instance announce admission with the 1.5.2 limiter constants, the
+Python-in-the-loop two-clients proof, the test-only hygiene, and the
+consumer note (pin 0.18.2, nothing to opt into, a wait on a closed link
+fails fast). The third promotes `## Unreleased` to `## 0.18.2 - 2026-11-16`
+in the crate `CHANGELOG.md` with a version bullet at the head of
+`### Changed` (the announce field, the patch-bump reasoning with no
+`### Breaking` as every change is additive API a consumer need not opt into
+or a default-behaviour correction toward Python RNS, the
+`cargo semver-checks` result of 0 findings against `v0.18.1` with the gate
+that runs it, `tools/scripts/semver-major-findings-check.sh
+coyote-rns-transport-v0.18.1 0`, and the contract tests that pin the
+release) and a restated test-only bullet for the release docs contract
+parts naming all eleven; it retargets the promotion-sensitive pins to the
+literal 0.18.2 label:
+`crates/apps/reticulumd/tests/fork_publish_contract_parts/ledger_contract.rs`
+expects the full-hash contract to cover `0.18.2`, `0.18.1`, `0.18.0`,
+`0.17.0`, `0.16.0` and `0.15.1` with no `Unreleased` label and the
+bullet-cite contract the same six, and
+`crates/apps/reticulumd/tests/fork_release_docs_contract_parts/readme_patch_list.rs`
+gains a 0.18.2 twin
+(`readme_patch_list_opens_with_the_0_18_2_block_and_keeps_the_0_18_1_paragraph`)
+asserting that the 0.18.2 block opens the list, the 0.18.2, 0.18.1, 0.18.0
+order and the 0.18.2 items, while the 0.18.1 test
+(`readme_patch_list_keeps_the_0_18_1_block_above_the_0_18_0_paragraph`)
+keeps its order and its needles through a shared const; it demotes the
+first-release-heading assertion out of
+`crates/apps/reticulumd/tests/fork_release_docs_contract_parts/release_0_18_1_probe.rs`,
+which keeps its date pin; and it adds
+`crates/apps/reticulumd/tests/fork_release_docs_contract_parts/release_0_18_2_probe.rs`,
+included from `crates/apps/reticulumd/tests/fork_release_docs_contract.rs`,
+which pins the heading date and its place as the first release heading,
+the subsection set `### Added`, `### Changed`, `### Fixed` and nothing else
+(so no `### Breaking`), the opt-in builder under `### Added`, the
+single-request and fail-fast bullets under `### Changed` by their opening
+words, the patch digit and semver sentence of the version bullet, the two
+`### Fixed` bullets by their opening words, and the README patch-list
+order. The ledger commit that cites the three commits above touches only
+this file and the crate `CHANGELOG.md`.
 
 ## 0.18.1 (upstream 0.14.0)
 

@@ -82,7 +82,9 @@ async fn closed_events_during(
                     count += 1;
                 }
             }
-            Ok(Err(broadcast::error::RecvError::Lagged(_))) => {}
+            Ok(Err(broadcast::error::RecvError::Lagged(n))) => {
+                panic!("the out-link event receiver lagged by {n} event(s)")
+            }
             Ok(Err(broadcast::error::RecvError::Closed)) => return count,
         }
     }

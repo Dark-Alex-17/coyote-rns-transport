@@ -76,7 +76,9 @@ async fn closed_events_for<const N: usize>(
             .expect("every timeout close publishes an out-link event")
         {
             Ok(event) => event,
-            Err(RecvError::Lagged(_)) => continue,
+            Err(RecvError::Lagged(n)) => {
+                panic!("the out-link event receiver lagged by {n} event(s)")
+            }
             Err(RecvError::Closed) => panic!("the out-link event stream remains open"),
         };
         if ids.contains(&event.id) && matches!(event.event, LinkEvent::Closed) {

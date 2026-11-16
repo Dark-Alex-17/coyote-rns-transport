@@ -5,14 +5,15 @@
 //! only "as soon as the link reads `LinkStatus::Closed`". `tests/link_activation_closed_probe.rs`
 //! bounds a hand close at 1.5 s, which a 250 ms poll alone would also meet; the first test
 //! here measures the close-to-return latency over several links so a wake is told apart
-//! from a poll. The second test is the one shape where "the event wakes a reread" and "the
-//! event ends the wait" answer differently: a link closed and restarted inside one lock
-//! scope, before the waiter runs again, reads `Pending` with no reason at the reread, so the
-//! wait keeps going to its own deadline (`TimedOut`) instead of answering a stale
-//! `ConnectionAborted` for a link that is pending again. `Link::restart()` is public, so a
-//! consumer can reach this; the test pins the contract's answer. The transport has
-//! broadcast on and no interface, so `Transport::link` hands back a pending link that
-//! nothing can ever activate.
+//! from a poll. The other two tests cover the one shape where "the event wakes a reread" and
+//! "the event ends the wait" answer differently: a link re-pended under a wait, by
+//! `Link::restart()` or by `Link::request()` on a closed link (`request_with_mtu_limit`
+//! refreshes the keys; both public, neither with a production caller). Closed and
+//! re-pended inside one lock scope, before the waiter runs again, the link reads `Pending`
+//! with no reason at the reread, so the wait runs to its own deadline (`TimedOut`) instead
+//! of failing with a stale `ConnectionAborted` for a link that is pending again. The
+//! transport has broadcast on and no interface, so `Transport::link` hands back a pending
+//! link that nothing can ever activate.
 
 use std::io;
 use std::sync::Arc;
@@ -132,6 +133,57 @@ async fn a_close_and_restart_before_the_reread_leaves_the_wait_running_to_its_de
         .expect_err("a pending link with no interface never activates");
     let elapsed = started.elapsed();
     closer_task.await.expect("closer task");
+    assert_eq!(
+        error.kind(),
+        io::ErrorKind::TimedOut,
+        "a link that is pending again at the reread does not end the wait: {error}"
+    );
+    assert_eq!(error.to_string(), "link activation timed out");
+    assert!(elapsed >= SHORT_WAIT, "the wait reaches its own deadline, waited {elapsed:?}");
+    assert!(
+        elapsed < SHORT_WAIT + DEADLINE_SLACK,
+        "the wait returns close to its deadline, waited {elapsed:?}"
+    );
+    assert_eq!(link.lock().await.status(), LinkStatus::Pending);
+    assert_eq!(link.lock().await.close_reason(), None);
+
+    timeout(WAIT, transport.stop()).await.expect("transport stop completes");
+}
+
+/// `Link::request()` on a closed link re-pends it with fresh keys and a new link id. Done
+/// inside one lock scope with the close, before the waiter runs again, the reread finds
+/// `Pending` with no close reason and the wait runs to its own deadline with `TimedOut`,
+/// as with `restart()`. After the id rotation the waiter's id filter goes deaf to that
+/// link's later events, so from here it falls back to the 250 ms poll; the deadline is
+/// still met within `DEADLINE_SLACK`.
+#[tokio::test]
+#[deny(clippy::await_holding_invalid_type)]
+async fn a_close_and_request_before_the_reread_leaves_the_wait_running_to_its_deadline() {
+    let transport = broadcasting("link-activation-closed-then-requested");
+    let link = transport.link(unknown_destination()).await.expect("pending link with broadcast on");
+    link.lock().await.set_establishment_timeout(ESTABLISHMENT_FAR);
+    let id_before = *link.lock().await.id();
+
+    let started = Instant::now();
+    let closer = Arc::clone(&link);
+    let closer_task = tokio::spawn(async move {
+        tokio::time::sleep(CLOSE_AT).await;
+        let mut guard = closer.lock().await;
+        guard.close();
+        assert_eq!(guard.status(), LinkStatus::Closed, "the close lands before the request");
+        let _ = guard.request();
+        guard.set_establishment_timeout(ESTABLISHMENT_FAR);
+        assert_eq!(guard.status(), LinkStatus::Pending, "request puts the link back to pending");
+        assert_eq!(guard.close_reason(), None, "request clears the close reason");
+        *guard.id()
+    });
+
+    let error = await_link_activation(&transport, &link, SHORT_WAIT)
+        .await
+        .expect_err("a pending link with no interface never activates");
+    let elapsed = started.elapsed();
+    let id_after = closer_task.await.expect("closer task");
+    assert_ne!(id_after, id_before, "a fresh request rotates the link id");
     assert_eq!(
         error.kind(),
         io::ErrorKind::TimedOut,

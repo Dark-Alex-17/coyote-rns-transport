@@ -25,7 +25,9 @@ pub async fn closed_event_for(
             Err(RecvError::Lagged(n)) => {
                 panic!("the out-link event receiver lagged by {n} event(s)")
             }
-            Err(RecvError::Closed) => panic!("the out-link event stream remains open"),
+            Err(RecvError::Closed) => {
+                panic!("the out-link event stream closed before the Closed event arrived")
+            }
         };
         if event.id == id && matches!(event.event, LinkEvent::Closed) {
             return event;

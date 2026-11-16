@@ -235,9 +235,11 @@ async fn shared_instance_probe10_posture_dropped_before_the_restart_still_resynt
     client.transport.set_connected_to_shared_instance(false).await;
 
     let (restarted, mut restarted_announces, _) = shared_instance_reconnect_restart(server).await;
-    let record =
-        shared_instance_probe10_await_debug_record(name, "reconnected, tunnel re-synthesized")
-            .await;
+    let record = shared_instance_probe10_await_debug_record(
+        name,
+        SHARED_INSTANCE_RECONNECT_RESYNTHESIZED_LINE,
+    )
+    .await;
     assert!(record.contains(&client.iface.to_string()), "the record names the iface: {record}");
     assert!(
         shared_instance_debug_records_containing(name, "tunnel not re-synthesized").is_empty(),

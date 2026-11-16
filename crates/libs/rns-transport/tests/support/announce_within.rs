@@ -10,7 +10,8 @@ use tokio::sync::broadcast::error::RecvError;
 use tokio::time::timeout;
 
 /// Waits up to `within` for the announce of `hash`; `Ok(elapsed)` when it arrived, `Err(())`
-/// when the window passed without it.
+/// when the window passed without it. A lagged receiver is skipped because an announce
+/// stream may legitimately lag.
 #[deny(clippy::await_holding_invalid_type)]
 pub async fn announce_within(
     announces: &mut broadcast::Receiver<AnnounceEvent>,

@@ -282,11 +282,19 @@ fn stop_daemon(mut daemon: Daemon) -> String {
         .args(["-INT", &daemon.child.id().to_string()])
         .status()
         .expect("send SIGINT to the daemon");
-    assert!(status.success(), "failed to signal the daemon with SIGINT");
+    assert!(
+        status.success(),
+        "failed to signal the daemon with SIGINT\n--- daemon log ---\n{}",
+        daemon.log_snapshot()
+    );
     let deadline = Instant::now() + WAIT;
     loop {
         if let Some(status) = daemon.child.try_wait().expect("wait for the daemon's exit") {
-            assert!(status.success(), "the daemon failed during shutdown: {status}");
+            assert!(
+                status.success(),
+                "the daemon failed during shutdown: {status}\n--- daemon log ---\n{}",
+                daemon.log_snapshot()
+            );
             break;
         }
         assert!(Instant::now() < deadline, "the daemon did not exit within {WAIT:?} of SIGINT");

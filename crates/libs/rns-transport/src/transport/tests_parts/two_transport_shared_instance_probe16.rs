@@ -117,7 +117,7 @@ async fn shared_instance_probe16_reconnect_without_its_disconnect_keeps_the_tabl
     let records: Vec<String> =
         shared_instance_records_for(name).into_iter().map(|(_, record)| record).collect();
     assert!(
-        records.iter().any(|record| record.contains("reconnected, tunnel re-synthesized")),
+        records.iter().any(|record| record.contains(SHARED_INSTANCE_RECONNECT_RESYNTHESIZED_LINE)),
         "the reconnect is served as a re-synthesis: {records:?}"
     );
     assert!(

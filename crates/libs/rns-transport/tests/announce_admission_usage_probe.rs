@@ -111,7 +111,7 @@ const CHILD_NAMES: Names = Names {
 };
 
 #[deny(clippy::await_holding_invalid_type)]
-async fn learn_announce(
+async fn expect_announce_within(
     what: &str,
     announces: &mut broadcast::Receiver<AnnounceEvent>,
     hash: &AddressHash,
@@ -252,8 +252,9 @@ async fn ordinary_fresh_interface_admits_two_announces_without_spacing() {
     tokio::time::sleep(BACK_TO_BACK).await;
     announce(&listener, &destinations[1].0).await;
 
-    let first = learn_announce("the connector learns d0", &mut announces, &destinations[0].1).await;
-    let second = learn_announce(
+    let first =
+        expect_announce_within("the connector learns d0", &mut announces, &destinations[0].1).await;
+    let second = expect_announce_within(
         "the connector learns d1, 100 ms after d0",
         &mut announces,
         &destinations[1].1,
@@ -289,8 +290,8 @@ async fn ordinary_fresh_interface_holds_the_third_announce_for_hold_plus_penalty
     let third_sent = Instant::now();
     announce(&listener, &destinations[2].0).await;
 
-    learn_announce("the connector learns d0", &mut announces, &destinations[0].1).await;
-    learn_announce("the connector learns d1", &mut announces, &destinations[1].1).await;
+    expect_announce_within("the connector learns d0", &mut announces, &destinations[0].1).await;
+    expect_announce_within("the connector learns d1", &mut announces, &destinations[1].1).await;
 
     let early = announce_within(&mut announces, &destinations[2].1, HELD).await;
     assert!(
@@ -458,8 +459,8 @@ async fn ordinary_interface_ic_overrides_shorten_the_hold() {
     let third_sent = Instant::now();
     announce(&listener, &destinations[2].0).await;
 
-    learn_announce("the connector learns d0", &mut announces, &destinations[0].1).await;
-    learn_announce("the connector learns d1", &mut announces, &destinations[1].1).await;
+    expect_announce_within("the connector learns d0", &mut announces, &destinations[0].1).await;
+    expect_announce_within("the connector learns d1", &mut announces, &destinations[1].1).await;
 
     let early = announce_within(&mut announces, &destinations[2].1, Duration::from_secs(1)).await;
     assert!(

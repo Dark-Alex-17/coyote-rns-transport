@@ -11,7 +11,8 @@ use tokio::time::timeout;
 
 /// Waits up to `within` for the announces of every hash in `expected`, in whatever order they
 /// arrive (a transport announces its destination map in map order, not registration order);
-/// returns the hashes still missing when the window passed.
+/// returns the hashes still missing when the window passed. A lagged receiver is skipped
+/// because an announce stream may legitimately lag.
 #[deny(clippy::await_holding_invalid_type)]
 pub async fn learn_all(
     announces: &mut broadcast::Receiver<AnnounceEvent>,

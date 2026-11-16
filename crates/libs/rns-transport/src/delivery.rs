@@ -114,9 +114,10 @@ pub async fn send_on_link_observed(
 }
 
 // The `Debug` names of `LinkCloseReason` (`Timeout`, `InitiatorClosed`,
-// `DestinationClosed`) are part of the error text, pinned by
-// tests/support/assert_closed_before_activation.rs (and its includers) and the
-// daemon's bridge remote-control link tests.
+// `DestinationClosed`) are part of the error text. `Timeout` and `InitiatorClosed`
+// are pinned by the includers of tests/support/assert_closed_before_activation.rs
+// and the daemon's bridge remote-control link tests; `DestinationClosed` only by
+// the README contract needle in the daemon's crate_readme_sections.rs.
 fn closed_before_activation(reason: Option<LinkCloseReason>) -> io::Error {
     let reason = reason.map_or_else(|| "unknown".to_string(), |reason| format!("{reason:?}"));
     io::Error::new(
@@ -174,8 +175,10 @@ pub async fn await_link_activation(
                 }
                 match event.event {
                     LinkEvent::Activated => return Ok(()),
-                    // The writer sets status and reason before publishing Closed,
-                    // so the loop head rereads them from the link.
+                    // A closed link still yields ConnectionAborted naming its reason within the
+                    // poll slice. The one reachable difference is Link::restart() under a wait
+                    // (no production caller): the wait stays alive instead of failing with a
+                    // stale reason. Pinned by tests/link_activation_closed_wake_probe.rs.
                     LinkEvent::Closed => continue,
                     _ => {}
                 }

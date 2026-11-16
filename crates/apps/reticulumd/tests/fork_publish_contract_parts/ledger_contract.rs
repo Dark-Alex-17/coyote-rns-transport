@@ -64,6 +64,27 @@ fn full_hash_contract_covers_the_newest_section_and_the_releases_from_0_15_1() {
     );
 }
 
+/// The rows for the two reconnect-arm probes read `tunnel opt-in, run
+/// hygiene`: the tunnel opt-in commit opted them in, and the run hygiene
+/// narrative has them read `SHARED_INSTANCE_RECONNECT_RESYNTHESIZED_LINE`.
+#[test]
+fn ledger_0_18_2_attributes_the_two_reconnect_arm_probes_to_both_patches() {
+    let ledger = read_repo_file("docs/fork/PATCHSET.md");
+    let section = ledger_section(&ledger, "0.18.2")
+        .expect("the `## 0.18.2` heading should open a ledger section");
+    for path in [
+        "crates/libs/rns-transport/src/transport/tests_parts/two_transport_shared_instance_probe10.rs",
+        "crates/libs/rns-transport/src/transport/tests_parts/two_transport_shared_instance_probe16.rs",
+    ] {
+        let row = format!("| `{path}` | tunnel opt-in, run hygiene |");
+        assert!(
+            section.contains(&row),
+            "the 0.18.2 table should attribute `{path}` to both the tunnel opt-in and the run \
+             hygiene patch; missing row: {row}"
+        );
+    }
+}
+
 /// Every backticked short hash a legend names, under any patch, must head a
 /// patch in its section, since each patch header lists every commit a rebase
 /// must re-apply. The release-patch-only check keeps running for the current

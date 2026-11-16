@@ -8,9 +8,9 @@
 //! re-pended link closes again under the SAME wait, by hand or by its own establishment
 //! timeout, and the wait still ends at that close within the poll slice instead of running
 //! to its deadline. `Link::request()` rotates the link id, so after it the waiter's event
-//! filter no longer matches the link; the status read every poll slice is what has to
-//! answer. The transport has broadcast on and no interface, so `Transport::link` hands back
-//! a pending link that nothing can ever activate.
+//! filter no longer matches the link; any event on the channel still wakes a reread of the
+//! link, and the 250 ms poll bounds the wait when none arrives. The transport has broadcast
+//! on and no interface, so `Transport::link` hands back a pending link nothing can activate.
 
 use std::sync::Arc;
 use std::time::{Duration, Instant};
@@ -42,15 +42,16 @@ const SECOND_CLOSE_AFTER: Duration = Duration::from_millis(600);
 /// A latency no wait may exceed after a close and still count as ending with it: the
 /// contract's poll slice (250 ms) with room for a loaded host.
 const CLOSE_BOUND: Duration = Duration::from_millis(1500);
-/// The maintenance job that closes a timed-out link runs once per second; a close by it
-/// lands within this of the establishment timeout, plus the poll slice.
-const TIMEOUT_CLOSE_BOUND: Duration = Duration::from_millis(2500);
+/// How late after `ESTABLISHMENT_SHORT` the 1 s maintenance tick may close the link on a
+/// loaded host, poll slice included: the 4 s `tests/link_activation_closed_probe.rs` allows.
+const TIMEOUT_CLOSE_BOUND: Duration = Duration::from_secs(4);
 /// How long the transport is given to stop.
 const WAIT: Duration = Duration::from_secs(15);
 
 /// A link closed and re-pended by `Link::request()` under the wait, then closed again by
 /// hand: the second close ends the wait with `ConnectionAborted` naming `InitiatorClosed`
-/// within the poll slice of that close, even though the link's id changed under the waiter.
+/// within the poll slice of that close. The rotated id keeps the waiter's event filter from
+/// matching the second `Closed` event, but any event wakes the reread and the poll bounds it.
 #[tokio::test]
 #[deny(clippy::await_holding_invalid_type)]
 async fn a_second_hand_close_after_a_request_repend_ends_the_wait_within_the_poll_slice() {
@@ -160,12 +161,19 @@ async fn a_repended_links_establishment_timeout_ends_the_wait_naming_timeout() {
     let closer = Arc::clone(&link);
     let closer_task = tokio::spawn(async move {
         tokio::time::sleep(REPEND_AT).await;
-        let mut guard = closer.lock().await;
-        guard.close();
-        let _ = guard.request();
-        guard.set_establishment_timeout(ESTABLISHMENT_SHORT);
-        assert_eq!(guard.status(), LinkStatus::Pending, "request puts the link back to pending");
-        Instant::now()
+        let before_repend = Instant::now();
+        {
+            let mut guard = closer.lock().await;
+            guard.close();
+            let _ = guard.request();
+            guard.set_establishment_timeout(ESTABLISHMENT_SHORT);
+            assert_eq!(
+                guard.status(),
+                LinkStatus::Pending,
+                "request puts the link back to pending"
+            );
+        }
+        before_repend
     });
 
     let error = await_link_activation(&transport, &link, LONG_WAIT)

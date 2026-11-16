@@ -1114,8 +1114,9 @@ of `0.18.1`:
 - One link request: a pending outbound link sends its link request once and
   is closed with `LinkCloseReason::Timeout` at its establishment timeout; the
   maintenance job no longer repeats a byte-identical request every 6 s
-  (`INTERVAL_OUTPUT_LINK_REPEAT` is gone), matching `RNS/Link.py:313-320` and
-  `:722-729`. Every duplicate filter dropped the repeat anyway.
+  (the private `INTERVAL_OUTPUT_LINK_REPEAT` is gone), matching
+  `RNS/Link.py:313-320` and `:722-729`. Every duplicate filter dropped the
+  repeat anyway.
 - The fail-fast wait: `delivery::await_link_activation` returns
   `io::ErrorKind::ConnectionAborted` with `link closed before activation:
   <reason>` as soon as the link reads `LinkStatus::Closed`, within the poll

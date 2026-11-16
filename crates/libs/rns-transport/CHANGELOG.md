@@ -260,7 +260,10 @@ Removed) bullet of its own, marked as such.
   of failing with a stale reason. Pinned by
   `tests/link_activation_closed_probe.rs`,
   `tests/link_activation_closed_other_link_probe.rs`,
-  `tests/link_activation_closed_wake_probe.rs` and
+  `tests/link_activation_closed_wake_probe.rs`,
+  `tests/link_activation_closed_repend_then_close_probe.rs` (a link
+  re-pended under the wait and closed a second time, by hand or by its own
+  establishment timeout, still ends the wait within the poll slice) and
   `tests/support/assert_closed_before_activation.rs`.
 
 ### Fixed

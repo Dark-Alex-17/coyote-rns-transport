@@ -1094,8 +1094,63 @@ full `refs/tags/coyote-rns-transport-v<version>` ref, and
 
 `docs/fork/PATCHSET.md` is the single per-release ledger of every file changed
 since the previous release, with the commit that changed it and the upstream
-site; earlier sections carry the earlier patches. What `0.18.1` carries on top
-of `0.18.0`:
+site; earlier sections carry the earlier patches. What `0.18.2` carries on top
+of `0.18.1`:
+
+- The tunnel opt-in: `SharedInstanceOptions::with_tunnel_synthesis` is a
+  `#[must_use]` builder, off by default; with it set
+  `Transport::attach_shared_instance` synthesizes a tunnel on the client
+  interface at attach and the reconnect consumer re-synthesizes it on every
+  reconnect. The default is Python's: `RNS/Interfaces/LocalInterface.py` has
+  no tunnel code, and `wants_tunnel` is set only on the network-facing
+  clients. The tunnel id is the hash of the transport public key and the
+  interface hash, which this crate derives from a per-process counter per
+  `InterfaceManager`, so two transports on one identity attaching at the same
+  ordinal produced one tunnel id, and the shared instance's reappeared-tunnel
+  branch (`RNS/Transport.py:2829`) re-pointed every path under it at the
+  newest connection. Opt in only when a single transport holds the identity
+  and wants its paths restored on a reconnect.
+  `Transport::synthesize_tunnel_on_interface` stays public.
+- One link request: a pending outbound link sends its link request once and
+  is closed with `LinkCloseReason::Timeout` at its establishment timeout; the
+  maintenance job no longer repeats a byte-identical request every 6 s
+  (`INTERVAL_OUTPUT_LINK_REPEAT` is gone), matching `RNS/Link.py:313-320` and
+  `:722-729`. Every duplicate filter dropped the repeat anyway.
+- The fail-fast wait: `delivery::await_link_activation` returns
+  `io::ErrorKind::ConnectionAborted` with `link closed before activation:
+  <reason>` as soon as the link reads `LinkStatus::Closed`, within the poll
+  slice; the reason is `Timeout`, `InitiatorClosed`, `DestinationClosed` or
+  `unknown`, and the `Closed` event wakes the reread. `TimedOut` at the
+  caller's deadline and `UnexpectedEof` on a closed event channel are
+  unchanged.
+- Announce admission: an interface flagged as the shared instance, the
+  client's connection and the children a shared instance holds per accepted
+  client alike, is never ingress-limited (`admit_announce_before_queue` in
+  `transport/announce.rs`; `RNS/Interfaces/LocalInterface.py:130`), and the
+  limiter follows RNS 1.5.2: the measured frequency reads 0 until more than
+  `IC_DEQUE_MIN_SAMPLE` = 2 samples exist, a burst ends only after a
+  sustained hold under the threshold, and `AnnounceRateLimit::default()`
+  reads the 1.5.2 constants (`burst_freq_new` 3.0 Hz, `burst_freq` 10.0 Hz,
+  `burst_hold` 15 s, `burst_penalty` 15 s, `held_release_interval` 5 s).
+- The Python-in-the-loop proof: `python_shared_instance_two_clients.rs` of
+  the reticulumd `python_channel_interop` binary runs two transports under
+  one identity as local clients of a live Python rnsd (RNS 1.5.2); under the
+  default a third client's link lands on the registering transport, and
+  with the opt-in on both, rnsd logs `Tunnel endpoint` reappeared and
+  `Restored path to` the first destination onto the second connection, and
+  the link never activates there.
+- Test-only hygiene: the probes share one harness under `tests/support/`
+  (raw-listener readers, shared-instance waiters, the
+  closed-before-activation text pin), unit pins that asserted less than
+  their names said were tightened, and further probes were adopted, the
+  last being `link_activation_closed_repend_then_close_probe.rs`.
+- For a consumer: pin `coyote-rns-transport = "0.18.2"`; there is nothing to
+  opt into: the defaults are the fix. A wait on a link that closes now fails
+  fast with `ConnectionAborted` instead of running to its deadline. A
+  consumer that relied on the 0.15.1 to 0.18.1 tunnel for path restore on
+  reconnect opts back in with `with_tunnel_synthesis(true)`.
+
+What `0.18.1` carries on top of `0.18.0`:
 
 - The dial-warn cadence: the failed-connect line of `TcpClient` and
   `LocalUnixClient` warns on the first failed attempt since the last

@@ -13,11 +13,12 @@
 //! The negative control is the RED proof that the positive case discriminates, run from
 //! outside the crate where the server's tunnel table is not visible: both opted in with
 //! `.with_tunnel_synthesis(true)`, the two attaches carrying one interface hash (the counter
-//! is per transport, so two first-interface attaches agree) and the first announced before the
-//! second attaches, the shared instance takes the reappeared branch and re-points the first's
-//! path at the newest connection (`RNS/Transport.py:2820-2868`): the third's link to the
-//! first's destination reaches the second, which registered no such destination, and the
-//! first's in-link events stay empty for 3 s while the third's out-link never activates.
+//! is per transport, so two attaches at the same ordinal in each transport's interface order
+//! agree) and the first announced before the second attaches, the shared instance takes the
+//! reappeared branch and re-points the first's path at the newest connection
+//! (`RNS/Transport.py:2820-2868`): the third's link to the first's destination reaches the
+//! second, which registered no such destination, and the first's in-link events stay empty
+//! for 3 s while the third's out-link never activates.
 
 use std::net::SocketAddr;
 use std::sync::Arc;
@@ -32,16 +33,24 @@ use rns_transport::rand_core::OsRng;
 use rns_transport::transport::{
     AnnounceEvent, SharedInstanceEndpoint, SharedInstanceOptions, Transport, TransportConfig,
 };
-use tokio::sync::broadcast::error::{RecvError, TryRecvError};
+use tokio::sync::broadcast::error::TryRecvError;
 use tokio::sync::{broadcast, Mutex};
 use tokio::time::timeout;
 
+#[path = "support/await_activated.rs"]
+mod await_activated;
 #[path = "support/free_loopback_port.rs"]
 mod free_loopback_port;
+#[path = "support/learn_announce.rs"]
+mod learn_announce;
+#[path = "support/wait_until_within.rs"]
+mod wait_until_within;
+use await_activated::await_activated;
 use free_loopback_port::free_loopback_port;
+use learn_announce::learn_announce;
+use wait_until_within::wait_until_within;
 
 const WAIT: Duration = Duration::from_secs(15);
-const POLL: Duration = Duration::from_millis(20);
 /// The secondary window of the negative control: one hop to the shared instance and one to a
 /// local client; a request that reaches the registering transport activates well inside it.
 const NO_LINK: Duration = Duration::from_secs(3);
@@ -68,15 +77,6 @@ struct Client {
     destination_hash: AddressHash,
 }
 
-#[deny(clippy::await_holding_invalid_type)]
-async fn wait_until(what: &str, mut condition: impl FnMut() -> bool) {
-    let deadline = Instant::now() + WAIT;
-    while !condition() {
-        assert!(Instant::now() < deadline, "timed out waiting for {what}");
-        tokio::time::sleep(POLL).await;
-    }
-}
-
 /// A transport-enabled node with a `TcpServer` on 127.0.0.1 whose listener is flagged as the
 /// shared instance, the way rnsd and reticulumd flag theirs.
 #[deny(clippy::await_holding_invalid_type)]
@@ -96,7 +96,7 @@ async fn flagged_shared_instance() -> (Transport, SocketAddr) {
         transport.iface_manager().lock().await.set_shared_instance(listener, true),
         "the listener is flagged as the shared instance"
     );
-    wait_until("the shared instance to listen", || {
+    wait_until_within("the shared instance to listen", WAIT, || {
         status.to_json()["listener_state"].as_str() == Some("listening")
     })
     .await;
@@ -156,52 +156,6 @@ async fn interface_hash(client: &Client) -> Option<Hash> {
     manager.full_hash(&client.iface)
 }
 
-#[deny(clippy::await_holding_invalid_type)]
-async fn learn_announce(
-    what: &str,
-    announces: &mut broadcast::Receiver<AnnounceEvent>,
-    hash: &AddressHash,
-) -> AnnounceEvent {
-    timeout(WAIT, async {
-        loop {
-            match announces.recv().await {
-                Ok(event) => {
-                    let address_hash = event.destination.lock().await.desc.address_hash;
-                    if address_hash == *hash {
-                        return event;
-                    }
-                }
-                Err(RecvError::Lagged(_)) => continue,
-                Err(RecvError::Closed) => panic!("{what}: announce channel closed"),
-            }
-        }
-    })
-    .await
-    .unwrap_or_else(|_| panic!("{what}: the announce did not arrive"))
-}
-
-#[deny(clippy::await_holding_invalid_type)]
-async fn await_activated(
-    events: &mut broadcast::Receiver<LinkEventData>,
-    link_id: AddressHash,
-    what: &str,
-) {
-    timeout(WAIT, async {
-        loop {
-            match events.recv().await {
-                Ok(event) if event.id == link_id && matches!(event.event, LinkEvent::Activated) => {
-                    return;
-                }
-                Ok(_) => {}
-                Err(RecvError::Lagged(_)) => continue,
-                Err(RecvError::Closed) => panic!("{what}: link event channel closed"),
-            }
-        }
-    })
-    .await
-    .unwrap_or_else(|_| panic!("timed out waiting for {what}"))
-}
-
 fn assert_no_in_link_event(events: &mut broadcast::Receiver<LinkEventData>, who: &str) {
     assert!(
         matches!(events.try_recv(), Err(TryRecvError::Empty)),
@@ -255,7 +209,7 @@ async fn default_attaches_under_one_identity_keep_each_link_on_the_registering_t
     let mut a =
         attach("one-identity-a", &identity, endpoint, SharedInstanceOptions::default()).await;
     register_and_announce(&mut a, "a").await;
-    learn_announce("c learns a", &mut c.announces, &a.destination_hash).await;
+    learn_announce("c learns a", &mut c.announces, &a.destination_hash, WAIT).await;
 
     // The second transport under the same identity attaches after a's path is filed.
     tokio::time::sleep(ANNOUNCE_SPACING).await;
@@ -263,19 +217,31 @@ async fn default_attaches_under_one_identity_keep_each_link_on_the_registering_t
         attach("one-identity-b", &identity, endpoint, SharedInstanceOptions::default()).await;
     register_and_announce(&mut b, "b").await;
     assert_ne!(a.destination_hash, b.destination_hash, "two distinct destinations");
-    learn_announce("c learns b", &mut c.announces, &b.destination_hash).await;
+    learn_announce("c learns b", &mut c.announces, &b.destination_hash, WAIT).await;
 
     let mut c_out = c.transport.out_link_events();
     let (_link_a, link_to_a) = open_link(&c, &a.destination_hash, "the link c -> a").await;
-    await_activated(&mut a.in_links, link_to_a, "the link to a's destination to activate on a")
+    await_activated(
+        &mut a.in_links,
+        link_to_a,
+        "the link to a's destination to activate on a",
+        WAIT,
+    )
+    .await;
+    await_activated(&mut c_out, link_to_a, "the link to a's destination to activate on c", WAIT)
         .await;
-    await_activated(&mut c_out, link_to_a, "the link to a's destination to activate on c").await;
     assert_no_in_link_event(&mut b.in_links, "b");
 
     let (_link_b, link_to_b) = open_link(&c, &b.destination_hash, "the link c -> b").await;
-    await_activated(&mut b.in_links, link_to_b, "the link to b's destination to activate on b")
+    await_activated(
+        &mut b.in_links,
+        link_to_b,
+        "the link to b's destination to activate on b",
+        WAIT,
+    )
+    .await;
+    await_activated(&mut c_out, link_to_b, "the link to b's destination to activate on c", WAIT)
         .await;
-    await_activated(&mut c_out, link_to_b, "the link to b's destination to activate on c").await;
     // a's stream carries only its own link's events.
     loop {
         match a.in_links.try_recv() {
@@ -308,7 +274,7 @@ async fn opted_in_attaches_under_one_identity_move_the_first_transports_path_to_
     .await;
     let mut a = attach("one-identity-on-a", &identity, endpoint, opted_in()).await;
     register_and_announce(&mut a, "a").await;
-    learn_announce("c learns a", &mut c.announces, &a.destination_hash).await;
+    learn_announce("c learns a", &mut c.announces, &a.destination_hash, WAIT).await;
 
     tokio::time::sleep(ANNOUNCE_SPACING).await;
     let mut b = attach("one-identity-on-b", &identity, endpoint, opted_in()).await;
@@ -318,7 +284,7 @@ async fn opted_in_attaches_under_one_identity_move_the_first_transports_path_to_
     let a_hash = interface_hash(&a).await;
     assert!(a_hash.is_some(), "a's attached interface is registered");
     assert_eq!(a_hash, interface_hash(&b).await, "both attaches carry one interface hash");
-    learn_announce("c learns b", &mut c.announces, &b.destination_hash).await;
+    learn_announce("c learns b", &mut c.announces, &b.destination_hash, WAIT).await;
 
     let mut c_out = c.transport.out_link_events();
     let (_link_a, link_to_a) = open_link(&c, &a.destination_hash, "the link c -> a").await;
@@ -381,11 +347,12 @@ async fn third_client_admits_two_local_client_announces_back_to_back() {
     register_and_announce(&mut b, "b").await;
     assert_ne!(a.destination_hash, b.destination_hash, "two distinct destinations");
     let started = Instant::now();
-    learn_announce("c learns a", &mut c.announces, &a.destination_hash).await;
+    learn_announce("c learns a", &mut c.announces, &a.destination_hash, WAIT).await;
     learn_announce(
         "c learns b, announced 100 ms after a (a Python local client holds neither)",
         &mut c.announces,
         &b.destination_hash,
+        WAIT,
     )
     .await;
     assert!(
@@ -396,9 +363,15 @@ async fn third_client_admits_two_local_client_announces_back_to_back() {
 
     let mut c_out = c.transport.out_link_events();
     let (_link_b, link_to_b) = open_link(&c, &b.destination_hash, "the link c -> b").await;
-    await_activated(&mut b.in_links, link_to_b, "the link to b's destination to activate on b")
+    await_activated(
+        &mut b.in_links,
+        link_to_b,
+        "the link to b's destination to activate on b",
+        WAIT,
+    )
+    .await;
+    await_activated(&mut c_out, link_to_b, "the link to b's destination to activate on c", WAIT)
         .await;
-    await_activated(&mut c_out, link_to_b, "the link to b's destination to activate on c").await;
     assert_no_in_link_event(&mut a.in_links, "a");
 
     stop_all(vec![a, b, c], shared).await;

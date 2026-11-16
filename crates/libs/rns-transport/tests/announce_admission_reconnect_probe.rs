@@ -29,6 +29,8 @@ use tokio::time::timeout;
 
 #[path = "support/announce.rs"]
 mod announce;
+#[path = "support/await_connected.rs"]
+mod await_connected;
 #[path = "support/free_loopback_port.rs"]
 mod free_loopback_port;
 #[path = "support/hold_log.rs"]
@@ -44,6 +46,7 @@ mod tcp_server_on;
 #[path = "support/wait_until_within.rs"]
 mod wait_until_within;
 use announce::announce;
+use await_connected::await_connected;
 use free_loopback_port::free_loopback_port;
 use hold_log::{holds_by, install_hold_logger};
 use learn_all::learn_all;
@@ -85,23 +88,6 @@ async fn next_event(
         .await
         .unwrap_or_else(|_| panic!("{what}: the state stream timed out"))
         .unwrap_or_else(|| panic!("{what}: the state stream ended"))
-}
-
-/// Reads the state stream until `Connected`; a client redialing while the port is still
-/// closed reports `DialFailed` and `Connecting` again first.
-#[deny(clippy::await_holding_invalid_type)]
-async fn await_connected(what: &str, events: &mut mpsc::Receiver<SharedInstanceEvent>) {
-    let deadline = Instant::now() + WAIT;
-    loop {
-        let remaining = deadline.saturating_duration_since(Instant::now());
-        match timeout(remaining, events.recv()).await {
-            Ok(Some(SharedInstanceEvent::Connected)) => return,
-            Ok(Some(SharedInstanceEvent::Connecting | SharedInstanceEvent::DialFailed { .. })) => {}
-            Ok(Some(other)) => panic!("{what}: unexpected {other:?} before `Connected`"),
-            Ok(None) => panic!("{what}: the state stream ended before `Connected`"),
-            Err(_) => panic!("{what}: `Connected` timed out"),
-        }
-    }
 }
 
 #[deny(clippy::await_holding_invalid_type)]
@@ -181,6 +167,7 @@ async fn reconnected_local_clients_still_admit_three_back_to_back_announces() {
         await_connected(
             &format!("{name}: the redial on the restarted instance"),
             &mut client.events,
+            WAIT,
         )
         .await;
     }

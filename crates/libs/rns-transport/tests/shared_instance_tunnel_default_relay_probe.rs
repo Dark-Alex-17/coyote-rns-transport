@@ -17,13 +17,12 @@
 //! rebroadcast, `RNS/Transport.py:2351`), and the listener flagged as the shared instance
 //! the way rnsd and reticulumd flag theirs, which reads the announce at zero hops and fans
 //! a local client's path-response announce out to every other local client at once
-//! (`RNS/Transport.py:2398-2427`).
+//! (`RNS/Transport.py:2400-2429`).
 
 use std::net::SocketAddr;
 use std::sync::Arc;
 use std::time::{Duration, Instant};
 
-use rns_transport::destination::link::{LinkEvent, LinkEventData};
 use rns_transport::destination::{DestinationName, SingleInputDestination};
 use rns_transport::hash::AddressHash;
 use rns_transport::identity::PrivateIdentity;
@@ -33,13 +32,21 @@ use rns_transport::transport::{
     AnnounceEvent, SharedInstanceEndpoint, SharedInstanceEvent, SharedInstanceOptions, Transport,
     TransportConfig,
 };
-use tokio::sync::broadcast::error::RecvError;
 use tokio::sync::{broadcast, mpsc, Mutex};
 use tokio::time::timeout;
 
+#[path = "support/await_activated.rs"]
+mod await_activated;
+use await_activated::await_activated;
+#[path = "support/await_connected.rs"]
+mod await_connected;
+use await_connected::await_connected;
 #[path = "support/free_loopback_port.rs"]
 mod free_loopback_port;
 use free_loopback_port::free_loopback_port;
+#[path = "support/learn_announce.rs"]
+mod learn_announce;
+use learn_announce::learn_announce;
 #[path = "support/next_event.rs"]
 mod next_event;
 use next_event::next_event;
@@ -91,24 +98,6 @@ async fn shared_instance_on(port: u16, flagged: bool) -> SharedInstance {
     })
     .await;
     SharedInstance { transport, endpoint: SocketAddr::from(([127, 0, 0, 1], port)), flagged }
-}
-
-/// Reads the state stream until `Connected`: a client that redials at once while the port
-/// is still closed reports `DialFailed` (and `Connecting` again) first, which is the stream
-/// doing its job, not a failure of the reconnect.
-#[deny(clippy::await_holding_invalid_type)]
-async fn await_connected(what: &str, events: &mut mpsc::Receiver<SharedInstanceEvent>) {
-    let deadline = Instant::now() + WAIT;
-    loop {
-        let remaining = deadline.saturating_duration_since(Instant::now());
-        match timeout(remaining, events.recv()).await {
-            Ok(Some(SharedInstanceEvent::Connected)) => return,
-            Ok(Some(SharedInstanceEvent::Connecting | SharedInstanceEvent::DialFailed { .. })) => {}
-            Ok(Some(other)) => panic!("{what}: unexpected {other:?} before `Connected`"),
-            Ok(None) => panic!("{what}: the state stream ended before `Connected`"),
-            Err(_) => panic!("{what}: `Connected` timed out"),
-        }
-    }
 }
 
 /// Attaches a fresh-identity client with `SharedInstanceOptions::default()` (plus the
@@ -172,52 +161,6 @@ async fn announce(client: &Client, flagged: bool) {
     }
 }
 
-#[deny(clippy::await_holding_invalid_type)]
-async fn learn_announce(
-    what: &str,
-    announces: &mut broadcast::Receiver<AnnounceEvent>,
-    hash: &AddressHash,
-) -> AnnounceEvent {
-    timeout(WAIT, async {
-        loop {
-            match announces.recv().await {
-                Ok(event) => {
-                    let address_hash = event.destination.lock().await.desc.address_hash;
-                    if address_hash == *hash {
-                        return event;
-                    }
-                }
-                Err(RecvError::Lagged(_)) => continue,
-                Err(RecvError::Closed) => panic!("{what}: announce channel closed"),
-            }
-        }
-    })
-    .await
-    .unwrap_or_else(|_| panic!("{what}: the announce did not arrive"))
-}
-
-#[deny(clippy::await_holding_invalid_type)]
-async fn await_activated(
-    events: &mut broadcast::Receiver<LinkEventData>,
-    link_id: AddressHash,
-    what: &str,
-) {
-    timeout(WAIT, async {
-        loop {
-            match events.recv().await {
-                Ok(event) if event.id == link_id && matches!(event.event, LinkEvent::Activated) => {
-                    return;
-                }
-                Ok(_) => {}
-                Err(RecvError::Lagged(_)) => continue,
-                Err(RecvError::Closed) => panic!("{what}: link event channel closed"),
-            }
-        }
-    })
-    .await
-    .unwrap_or_else(|_| panic!("timed out waiting for {what}"))
-}
-
 /// `from` opens a link to `to`'s destination; it activates on both ends.
 #[deny(clippy::await_holding_invalid_type)]
 async fn open_link_both_ends(from: &Client, to: &Client, what: &str) {
@@ -230,8 +173,10 @@ async fn open_link_both_ends(from: &Client, to: &Client, what: &str) {
         .unwrap_or_else(|| panic!("{what}: the destination was learned"));
     let link = from.transport.link(desc).await.unwrap_or_else(|err| panic!("{what}: {err:?}"));
     let link_id = *link.lock().await.id();
-    await_activated(&mut in_events, link_id, &format!("{what} to activate on the target")).await;
-    await_activated(&mut out_events, link_id, &format!("{what} to activate on the opener")).await;
+    await_activated(&mut in_events, link_id, &format!("{what} to activate on the target"), WAIT)
+        .await;
+    await_activated(&mut out_events, link_id, &format!("{what} to activate on the opener"), WAIT)
+        .await;
 }
 
 /// Each client announces; the other learns it, at one hop through a plain server (the
@@ -241,12 +186,20 @@ async fn open_link_both_ends(from: &Client, to: &Client, what: &str) {
 async fn announce_and_learn_both_ways(a: &mut Client, b: &mut Client, flagged: bool, round: &str) {
     announce(a, flagged).await;
     announce(b, flagged).await;
-    let at_b =
-        learn_announce(&format!("{round}: b learns a"), &mut b.announces, &a.destination_hash)
-            .await;
-    let at_a =
-        learn_announce(&format!("{round}: a learns b"), &mut a.announces, &b.destination_hash)
-            .await;
+    let at_b = learn_announce(
+        &format!("{round}: b learns a"),
+        &mut b.announces,
+        &a.destination_hash,
+        WAIT,
+    )
+    .await;
+    let at_a = learn_announce(
+        &format!("{round}: a learns b"),
+        &mut a.announces,
+        &b.destination_hash,
+        WAIT,
+    )
+    .await;
     if !flagged {
         assert_eq!(at_b.hops, 1, "{round}: b learns a's destination at one hop");
         assert_eq!(at_a.hops, 1, "{round}: a learns b's destination at one hop");
@@ -269,8 +222,8 @@ async fn reannounce_until_learned_both_ways(a: &mut Client, b: &mut Client, roun
         announce(a, false).await;
         announce(b, false).await;
         let learned = timeout(window, async {
-            let at_b = learn_announce(round, &mut b.announces, &a.destination_hash).await;
-            let at_a = learn_announce(round, &mut a.announces, &b.destination_hash).await;
+            let at_b = learn_announce(round, &mut b.announces, &a.destination_hash, WAIT).await;
+            let at_a = learn_announce(round, &mut a.announces, &b.destination_hash, WAIT).await;
             (at_b.hops, at_a.hops)
         })
         .await;
@@ -304,9 +257,13 @@ async fn default_clients_relay_and_survive_a_restart(flagged: bool) {
     assert_ne!(a.destination_hash, b.destination_hash, "two distinct destinations");
 
     announce_and_learn_both_ways(&mut a, &mut b, flagged, "first round").await;
-    let at_shared =
-        learn_announce("the shared instance learns a", &mut shared_announces, &a.destination_hash)
-            .await;
+    let at_shared = learn_announce(
+        "the shared instance learns a",
+        &mut shared_announces,
+        &a.destination_hash,
+        WAIT,
+    )
+    .await;
     // README "Attaching to a shared instance": the plain server reads a local client's
     // announce at one hop, a flagged listener at zero (`RNS/Transport.py:1938`).
     assert_eq!(at_shared.hops, u8::from(!shared.flagged), "the shared instance's hop count");
@@ -337,6 +294,7 @@ async fn default_clients_relay_and_survive_a_restart(flagged: bool) {
         await_connected(
             &format!("{name}: the redial on the restarted instance"),
             &mut client.events,
+            WAIT,
         )
         .await;
     }
@@ -346,6 +304,7 @@ async fn default_clients_relay_and_survive_a_restart(flagged: bool) {
         "the restarted instance learns a again",
         &mut restarted_announces,
         &a.destination_hash,
+        WAIT,
     )
     .await;
     assert!(reannounced_a.is_path_response, "the re-announce is a path response");
@@ -353,6 +312,7 @@ async fn default_clients_relay_and_survive_a_restart(flagged: bool) {
         "the restarted instance learns b again",
         &mut restarted_announces,
         &b.destination_hash,
+        WAIT,
     )
     .await;
     // A flagged shared instance fans that re-announce out to the other local client at once.
@@ -361,10 +321,20 @@ async fn default_clients_relay_and_survive_a_restart(flagged: bool) {
     // until it hears an announce again; the same with the tunnel opted in, see the module
     // doc), so on that shape the consumer announces again until the peer is learned.
     if flagged {
-        learn_announce("after the restart: b learns a", &mut b.announces, &a.destination_hash)
-            .await;
-        learn_announce("after the restart: a learns b", &mut a.announces, &b.destination_hash)
-            .await;
+        learn_announce(
+            "after the restart: b learns a",
+            &mut b.announces,
+            &a.destination_hash,
+            WAIT,
+        )
+        .await;
+        learn_announce(
+            "after the restart: a learns b",
+            &mut a.announces,
+            &b.destination_hash,
+            WAIT,
+        )
+        .await;
     } else {
         reannounce_until_learned_both_ways(&mut a, &mut b, "after the restart").await;
     }

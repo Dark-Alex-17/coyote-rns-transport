@@ -44,7 +44,8 @@ announce admission` patch is fork commits `be18658a`, `83e03e75`,
 `84ae2a5c`, `29d78171` and `3d887f3e`. The `run hygiene` patch is fork
 commits `863d7ba9`, `6707f86f`, `e4dfc449`, `655c44d1`, `477b9863`,
 `a111e152`, `a6b0b7f6`, `af24c666`, `ac65cba0`, `32aabfe5`, `c28dfd6f`,
-`43d56a61` and `98fb3075`.
+`43d56a61`, `98fb3075`, `9cc4782f`, `0a2ac538`, `d31d0559` and
+`f1973fb7`.
 
 | File | Patch |
 | --- | --- |
@@ -110,6 +111,7 @@ commits `863d7ba9`, `6707f86f`, `e4dfc449`, `655c44d1`, `477b9863`,
 | `crates/libs/rns-transport/tests/link_activation_closed_probe.rs` | activation close exit, run hygiene |
 | `crates/libs/rns-transport/tests/link_activation_closed_teardown_restart_probe.rs` | activation close exit, run hygiene |
 | `crates/libs/rns-transport/tests/link_activation_closed_usage_probe.rs` | activation close exit, run hygiene |
+| `crates/libs/rns-transport/tests/link_activation_closed_wake_probe.rs` | run hygiene |
 | `crates/libs/rns-transport/tests/link_activation_deadline_api.rs` | run hygiene |
 | `crates/libs/rns-transport/tests/outbound_outcome_api.rs` | run hygiene |
 | `crates/libs/rns-transport/tests/packets_in_scanner_pin.rs` | run hygiene |
@@ -120,7 +122,7 @@ commits `863d7ba9`, `6707f86f`, `e4dfc449`, `655c44d1`, `477b9863`,
 | `crates/libs/rns-transport/tests/pending_link_single_request_usage_probe.rs` | activation close exit, run hygiene |
 | `crates/libs/rns-transport/tests/request_receipt_readme.rs` | local client announce admission |
 | `crates/libs/rns-transport/tests/shared_instance_disconnect_reasons_api.rs` | tunnel opt-in, run hygiene |
-| `crates/libs/rns-transport/tests/shared_instance_one_identity_two_clients_probe.rs` | local client announce admission |
+| `crates/libs/rns-transport/tests/shared_instance_one_identity_two_clients_probe.rs` | local client announce admission, run hygiene |
 | `crates/libs/rns-transport/tests/shared_instance_tunnel_default_relay_probe.rs` | link request once, run hygiene |
 | `crates/libs/rns-transport/tests/shared_instance_tunnel_synthesis_api.rs` | tunnel opt-in, run hygiene |
 | `crates/libs/rns-transport/tests/shared_instance_tunnel_synthesis_probe.rs` | tunnel opt-in, run hygiene |
@@ -128,12 +130,15 @@ commits `863d7ba9`, `6707f86f`, `e4dfc449`, `655c44d1`, `477b9863`,
 | `crates/libs/rns-transport/tests/support/announce_within.rs` | run hygiene |
 | `crates/libs/rns-transport/tests/support/assert_closed_before_activation.rs` | run hygiene |
 | `crates/libs/rns-transport/tests/support/attach_with_events.rs` | run hygiene |
+| `crates/libs/rns-transport/tests/support/await_activated.rs` | run hygiene |
+| `crates/libs/rns-transport/tests/support/await_connected.rs` | run hygiene |
 | `crates/libs/rns-transport/tests/support/broadcasting.rs` | run hygiene |
 | `crates/libs/rns-transport/tests/support/close_orderly.rs` | tunnel opt-in |
 | `crates/libs/rns-transport/tests/support/closed_event_for.rs` | run hygiene |
 | `crates/libs/rns-transport/tests/support/hold_log.rs` | run hygiene |
 | `crates/libs/rns-transport/tests/support/initiator_on_a_silent_listener.rs` | run hygiene |
 | `crates/libs/rns-transport/tests/support/learn_all.rs` | run hygiene |
+| `crates/libs/rns-transport/tests/support/learn_announce.rs` | run hygiene |
 | `crates/libs/rns-transport/tests/support/link_requests_to.rs` | run hygiene |
 | `crates/libs/rns-transport/tests/support/next_event.rs` | run hygiene |
 | `crates/libs/rns-transport/tests/support/packets_in.rs` | run hygiene |
@@ -568,7 +573,8 @@ release arming observable.
 
 Fork commits `863d7ba9`, `6707f86f`, `e4dfc449`, `655c44d1`, `477b9863`,
 `a111e152`, `a6b0b7f6`, `af24c666`, `ac65cba0`, `32aabfe5`, `c28dfd6f`,
-`43d56a61` and `98fb3075`:
+`43d56a61`, `98fb3075`, `9cc4782f`, `0a2ac538`, `d31d0559` and
+`f1973fb7`:
 N5, run hygiene.
 Upstream site: the test files and shared helpers of the four patches above
 and the fork's own documentation; the one production edit is
@@ -600,14 +606,15 @@ link running to its own deadline or its own close). `e4dfc449` is the only
 production edit: `await_link_activation` no longer builds its error from
 the reason carried on the `LinkEvent::Closed` event; the event wakes the
 wait, which rereads `LinkStatus` and `close_reason` from the link, the
-same read every poll slice already makes. The only writer of `Closed` sets
-the reason before it publishes the event, so the reread returns the reason
-the event carried and no probe observes a change; the only reachable
-difference is a `Link::restart()` landing between the event and the
-reread, which now keeps the wait on the restarted link (restart has no
-production caller). What goes is the one path on which a reason the link
-did not hold could have been reported, and every activation probe keeps
-its timing bound. `655c44d1` moves the
+same read every poll slice already makes. The observable contract is
+unchanged: a closed link yields `ConnectionAborted` naming its reason
+within the poll slice, and every activation probe keeps its timing bound.
+The one reachable difference is `Link::restart()` under a wait, which is
+public but has no production caller: a link closed and restarted before
+the reread reads `Pending` with no reason, so the wait now stays alive to
+its own deadline instead of failing with a stale reason, pinned by
+`tests/link_activation_closed_wake_probe.rs` (adopted by `0a2ac538`
+below). `655c44d1` moves the
 shared-instance harness of the three `tests/announce_admission_*_probe.rs`
 files into `tests/support/hold_log.rs`, `wait_until_within.rs`,
 `learn_all.rs`, `tcp_server_on.rs`, `register_destinations.rs`,
@@ -629,8 +636,9 @@ and `close_orderly` from support and the relay probe uses
 `transport/tests_parts/`: one `SharedInstanceServer::tunnel_count`, whose
 rustdoc names the clear it still performs, replaces two helpers that each
 cleared the tunnel table to count it; the tunnel-default reconnect
-records are checked for their iface value; the storm restart
-pin runs on the default client and counts the "reconnected" word;
+records are checked for their iface value; the storm restart pin moves
+to the default client and counts the " reconnected" prefix both postures'
+lines share (`ac65cba0` and `9cc4782f` below sharpen it);
 `aged_pending_out_link_stays_quiet_until_closed_like_python` asserts
 `LinkStatus::Pending` inside the quiet window;
 `ingress_control_false_bypasses_unknown_announce_holding` reuses the
@@ -682,10 +690,14 @@ unknown announce is held before asserting that the known-destination
 repeat, and the path-response announce, are admitted (each goes red with
 the limiter's exemption disabled); the storm restart pin in
 `two_transport_shared_instance_storm.rs` counts the default client's exact
-line "reconnected, tunnel synthesis is off", so a degraded reconnect does
-not pass as a cycle; and the `tunnel_count` rustdoc gets back the clause
-that a call expecting zero leaves an empty table as it was. `32aabfe5`
-moves `tests/support/initiator_on_a_silent_listener.rs` to the `use
+line "reconnected, tunnel synthesis is off" (the storm pins the loss-free
+service and ordering of the drop and reconnect events per posture; the
+reconnect arms that depend on how the client registered are pinned by
+`two_transport_shared_instance_probe10.rs` and
+`two_transport_shared_instance_probe16.rs`); and the `tunnel_count`
+rustdoc gets back the clause that a call expecting zero leaves an empty
+table as it was. `32aabfe5` moves
+`tests/support/initiator_on_a_silent_listener.rs` to the `use
 super::` convention of its siblings, building its transport with
 `broadcasting`, and has its five includers declare the sibling modules;
 adds `tests/packets_in_scanner_pin.rs`, which feeds the shared scanner
@@ -718,6 +730,42 @@ teardown-restart probes now say the wait ends when the link reads
 reread; `tests/link_activation_closed_probe.rs` takes the shared
 exact-text pin in place of two `contains` checks; and `arm_ingress_hold`
 in `held_udp_announce_preserves_peer_sou.rs` primes through `admissions`.
+`9cc4782f` runs the restart storm over both tunnel postures:
+`shared_instance_storm_of_restarts_loses_no_event` in
+`two_transport_shared_instance_storm.rs` keeps the default client and
+counts the exact "reconnected, tunnel synthesis is off" line, and a
+`_with_tunnel_synthesis` twin on `shared_instance_reconnect_tunneled_client`
+counts "reconnected, tunnel re-synthesized", so six back-to-back
+re-syntheses are exercised again as they were before the pin moved to the
+default client; the two lines are the consts
+`SHARED_INSTANCE_RECONNECT_OFF_LINE` and
+`SHARED_INSTANCE_RECONNECT_RESYNTHESIZED_LINE` beside `tunnel_count` in
+`two_transport_shared_instance.rs`, and
+`two_transport_shared_instance_tunnel_default.rs` reads the first.
+`0a2ac538` adopts `tests/link_activation_closed_wake_probe.rs` from the
+review's usage probes: a hand close under the wait returns within 100 ms
+on at least five of six fresh links, so the `Closed` event wakes the
+reread rather than the 250 ms poll finding it; and `Link::close()`
+followed by `Link::restart()` in one lock scope before the reread leaves
+the wait running to its own deadline, `TimedOut`. The same commit has
+`closed_event_for`, the concurrent probe's `closed_events_for` and the
+usage probe's `closed_events_during` panic naming the lag when the
+broadcast receiver lagged, where `32aabfe5` had them continue: the probes
+pin that the event is published exactly once, which a skipped lag cannot
+show. `d31d0559` is a second comment-only edit to `delivery.rs`: the
+`LinkEvent::Closed => continue` arm now states the reachable difference
+(`Link::restart()` under a wait, no production caller, pinned by the wake
+probe), and the close-reason comment says `Timeout` and `InitiatorClosed`
+are pinned by the shared helper's includers and the daemon test while
+`DestinationClosed` is pinned only by the README contract needle.
+`f1973fb7` moves the last copied shared-instance waiters into
+`tests/support/await_connected.rs`, `learn_announce.rs` and
+`await_activated.rs`, each taking a caller-supplied `within`, replacing
+the copies in `tests/shared_instance_tunnel_default_relay_probe.rs`,
+`tests/shared_instance_one_identity_two_clients_probe.rs` and
+`tests/announce_admission_reconnect_probe.rs`; the one-identity probe
+takes `wait_until_within` and its header takes the "same ordinal"
+wording; and the relay probe cites `RNS/Transport.py:2400-2429`.
 
 ## 0.18.1 (upstream 0.14.0)
 

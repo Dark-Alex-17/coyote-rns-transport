@@ -186,28 +186,38 @@ Removed) bullet of its own, marked as such.
   `closed_event_for` bounds the whole wait by one deadline where the
   single-request probe's copy re-armed its timeout per event;
   `tests/packets_in_scanner_pin.rs` pins the scanner at the byte level on
-  doubled-flag, shared-flag and trailing-partial streams. The activation
-  probes share `tests/support/assert_closed_before_activation.rs`; the
-  announce-admission
+  doubled-flag, shared-flag and trailing-partial streams; the shared
+  `closed_event_for` and the two probes' local copies panic naming the lag
+  on a lagged broadcast receiver, since they pin "published once". The
+  activation probes share `tests/support/assert_closed_before_activation.rs`;
+  the announce-admission
   probes share `tests/support/hold_log.rs`, `tests/support/learn_all.rs`,
   `tests/support/tcp_server_on.rs`, `tests/support/register_destinations.rs`,
   `tests/support/announce.rs`, `tests/support/announce_within.rs`,
   `tests/support/stop_all.rs` and `tests/support/wait_until_within.rs`; the
   four shared-instance attach tests this run touched share
   `tests/support/next_event.rs`, `tests/support/attach_with_events.rs` and
-  `tests/support/serve_connected.rs`. Two probes are adopted:
+  `tests/support/serve_connected.rs`; the relay, one-identity and
+  reconnect probes share `tests/support/await_connected.rs`,
+  `tests/support/learn_announce.rs` and `tests/support/await_activated.rs`,
+  each taking a caller-supplied `within`. Three probes are adopted:
   `tests/link_activation_closed_other_link_probe.rs` (a `Closed` event for
   another link id does not end an activation wait; a neighbour's hand close
   or establishment-timeout close leaves the wait running to its own
-  deadline or its own close) and `tests/announce_admission_unix_probe.rs`
+  deadline or its own close), `tests/link_activation_closed_wake_probe.rs`
+  (a hand close under the wait returns within 100 ms on at least five of
+  six links, so the `Closed` event wakes the reread rather than the 250 ms
+  poll; a close and `Link::restart()` in one lock scope before the reread
+  leaves the wait running to its own deadline) and
+  `tests/announce_admission_unix_probe.rs`
   (Unix only; a flagged `LocalUnixServer` and its default-option clients
   never ingress-limit, an unflagged one holds the third of three announces
   100 ms apart). Unit pins are tightened: one
   `SharedInstanceServer::tunnel_count`, whose rustdoc names the clear it
   still performs, replaces two helpers that each cleared the tunnel table
   to count it, the tunnel-default reconnect records are checked for their
-  iface value, the storm restart pin runs on the default client and counts
-  its exact "reconnected, tunnel synthesis is off" line, the aged pending
+  iface value, the storm restart pin runs once per tunnel posture and
+  counts that posture's exact reconnect line, the aged pending
   link pin asserts `LinkStatus::Pending` inside its quiet window, the
   learned and path-response holding pins run
   `admit_announce_before_queue` under `hold_everything_rate_limit()` after
@@ -222,9 +232,13 @@ Removed) bullet of its own, marked as such.
   `tests/packets_in_scanner_pin.rs`,
   `tests/link_activation_closed_probe.rs`,
   `tests/link_activation_closed_other_link_probe.rs`,
+  `tests/link_activation_closed_wake_probe.rs`,
   `tests/announce_admission_usage_probe.rs`,
   `tests/announce_admission_unix_probe.rs`,
   `tests/shared_instance_tunnel_synthesis_probe.rs`,
+  `tests/shared_instance_tunnel_default_relay_probe.rs`,
+  `tests/support/await_connected.rs`, `tests/support/learn_announce.rs`,
+  `tests/support/await_activated.rs`,
   `transport/tests_parts/two_transport_shared_instance.rs`,
   `transport/tests_parts/two_transport_shared_instance_storm.rs`,
   `transport/tests_parts/held_udp_announce_preserves_peer_sou.rs`,
@@ -234,15 +248,16 @@ Removed) bullet of its own, marked as such.
 - Behaviour-neutral: `delivery::await_link_activation` (`delivery.rs`) no
   longer builds its error from the reason on the `LinkEvent::Closed` event;
   the event wakes the wait, which rereads `LinkStatus` and `close_reason`
-  from the link, the same read every poll slice makes. The one writer of
-  `Closed` sets the reason before it publishes, so the reread returns the
-  reason the event carried and no probe observes a change; the only
-  reachable difference is a `Link::restart()` landing between the event
-  and the reread, which now keeps the wait on the restarted link (restart
-  has no production caller). What goes is the one path on which a reason
-  the link did not hold could have been reported. Pinned by
+  from the link, the same read every poll slice makes. The observable
+  contract is unchanged: a closed link yields `ConnectionAborted` naming
+  its reason within the poll slice. The one reachable difference is
+  `Link::restart()` under a wait (public, no production caller): a link
+  closed and restarted before the reread reads `Pending` with no reason,
+  so the wait now stays alive to its own deadline instead of failing with
+  a stale reason. Pinned by
   `tests/link_activation_closed_probe.rs`,
-  `tests/link_activation_closed_other_link_probe.rs` and
+  `tests/link_activation_closed_other_link_probe.rs`,
+  `tests/link_activation_closed_wake_probe.rs` and
   `tests/support/assert_closed_before_activation.rs`.
 
 ### Fixed

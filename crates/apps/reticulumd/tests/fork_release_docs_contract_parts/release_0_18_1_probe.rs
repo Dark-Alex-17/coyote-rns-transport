@@ -1,31 +1,20 @@
 // Pins over the 0.18.1 release artefacts beyond what the release contracts
 // check. Those pin the heading date by shape, the absence of a `### Breaking`
 // subsection on a patch bump and the version by its sites; these pins hold
-// the heading to the day the release was cut and to the top of the ledger,
-// the subsection set a patch release carries, the connect-count items
-// `### Added` names, the cadence wording of the failed-connect bullet, the
-// patch digit and semver verdict the version bullet records, the CI-only
-// bullet for the lxmd smoke ports, and the README patch-list order with the
-// 0.18.1 block on top.
+// the heading to the day the release was cut, the subsection set a patch
+// release carries, the connect-count items `### Added` names, the cadence
+// wording of the failed-connect bullet, the patch digit and semver verdict
+// the version bullet records, the CI-only bullet for the lxmd smoke ports,
+// and the README patch-list order with the 0.18.1 block above the 0.18.0
+// and 0.17.0 blocks.
 
-/// The 0.18.1 heading carries the day the release was cut and is the first
-/// release heading of the CHANGELOG.
+/// The 0.18.1 heading carries the day the release was cut.
 #[test]
 fn release_0_18_1_heading_carries_the_release_date() {
     let changelog = read_repo_file("crates/libs/rns-transport/CHANGELOG.md");
-    let heading = "\n## 0.18.1 - 2026-11-03\n";
     assert!(
-        changelog.contains(heading),
+        changelog.contains("\n## 0.18.1 - 2026-11-03\n"),
         "the CHANGELOG should head the 0.18.1 section with its release date"
-    );
-    let first_release = changelog
-        .lines()
-        .find(|line| line.starts_with("## ") && line[3..].starts_with(|c: char| c.is_ascii_digit()))
-        .expect("the CHANGELOG should carry a release heading");
-    assert_eq!(
-        first_release,
-        heading.trim(),
-        "the 0.18.1 heading should be the first release heading of the CHANGELOG"
     );
 }
 

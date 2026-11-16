@@ -8,7 +8,7 @@ no library behaviour (a test-only change such as a fixture hardening or a
 test hygiene pass, release tooling, CI) is a Changed (or, for a deleted file,
 Removed) bullet of its own, marked as such.
 
-## Unreleased
+## 0.18.2 - 2026-11-16
 
 ### Added
 
@@ -68,6 +68,29 @@ Removed) bullet of its own, marked as such.
 
 ### Changed
 
+- The crate version is `0.18.2`; the discovery announce carries it in the
+  `TRANSPORT_VERS` field (`discovery/announce.rs`), so peers observe the fork
+  patch release through discovery. The bump is a patch one under the README
+  policy, as `0.15.1` and `0.18.1` were: every change since `0.18.1` is
+  either additive API a consumer need not opt into (the
+  `with_tunnel_synthesis` builder) or a change to default behaviour that
+  corrects it toward Python RNS (tunnel synthesis off by default, one link
+  request, the fail-fast activation wait, shared-instance announce admission
+  and the 1.5.2 limiter constants), with no public item removed or changed,
+  so there is no `### Breaking` subsection. `cargo semver-checks` against
+  `v0.18.1` reports 0 findings; additive changes are below
+  cargo-semver-checks' default lint level, so the patch-level run the
+  release check makes has nothing to report, and the release check runs it
+  as `tools/scripts/semver-major-findings-check.sh
+  coyote-rns-transport-v0.18.1 0`. The release contracts are pinned by
+  `crates/apps/reticulumd/tests/fork_publish_contract.rs` and
+  `fork_release_docs_contract.rs`; its
+  `fork_release_docs_contract_parts/release_0_18_2_probe.rs` pins the heading
+  date and its place as the first release heading, the subsection set
+  `### Added`, `### Changed`, `### Fixed` of this release with no
+  `### Breaking`, the opt-in builder under `### Added`, the patch digit and
+  the semver sentence above, the two `### Fixed` bullets by their opening
+  words, and the README patch-list order with the 0.18.2 block on top.
 - A pending outbound link now sends its link request once and is closed
   with `LinkCloseReason::Timeout` at its establishment timeout. The link
   maintenance job (`transport/jobs_parts/link_maintenance.rs`) no longer
@@ -265,6 +288,18 @@ Removed) bullet of its own, marked as such.
   re-pended under the wait and closed a second time, by hand or by its own
   establishment timeout, still ends the wait within the poll slice) and
   `tests/support/assert_closed_before_activation.rs`.
+- Release docs contract, test-only: `fork_release_docs_contract.rs` includes
+  its tests from `fork_release_docs_contract_parts/`
+  (`crate_readme_sections.rs`, `readme_patch_list.rs`,
+  `release_0_17_0_probe.rs`, `release_0_17_0_probe2.rs`,
+  `release_0_17_0_probe3.rs`, `release_0_17_0_probe4.rs`,
+  `release_0_18_0_probe.rs`, `release_0_18_1_probe.rs`,
+  `release_0_18_2_probe.rs`, `release_notes_breaking.rs` and
+  `request_layer_api_docs.rs`); the patch-list pin opens on the 0.18.2 block
+  and keeps the 0.18.1 block as a demoted twin with its needles shared
+  through a const, as the 0.18.0 and 0.17.0 blocks are; and the label pins
+  in `fork_publish_contract_parts/ledger_contract.rs` read `0.18.2` first,
+  with no `Unreleased` label, since a release tree carries no stub.
 
 ### Fixed
 

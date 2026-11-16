@@ -29,11 +29,11 @@ fn resolve_test_binary(name: &str, provided: Option<&str>) -> PathBuf {
 
     // Older cargos run the test executable from `target/<profile>/deps`, cargo 1.100 from
     // `target/<profile>/build/<crate>/<hash>/out`; the profile directory is the nearest
-    // ancestor that owns a `deps` directory.
+    // ancestor that owns a `build` or `deps` directory.
     let current_exe = std::env::current_exe().expect("current test executable path");
     let target_dir = current_exe
         .ancestors()
-        .find(|dir| dir.join("deps").is_dir())
+        .find(|dir| dir.join("build").is_dir() || dir.join("deps").is_dir())
         .expect("test executable should live under target/<profile>");
     let mut candidates = vec![target_dir.join(name)];
     if !std::env::consts::EXE_SUFFIX.is_empty() {

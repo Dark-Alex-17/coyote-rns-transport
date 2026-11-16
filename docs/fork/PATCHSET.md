@@ -46,8 +46,8 @@ commits `863d7ba9`, `6707f86f`, `e4dfc449`, `655c44d1`, `477b9863`,
 `a111e152`, `a6b0b7f6`, `af24c666`, `ac65cba0`, `32aabfe5`, `c28dfd6f`,
 `43d56a61`, `98fb3075`, `9cc4782f`, `0a2ac538`, `d31d0559`, `f1973fb7`,
 `3a95f2f3`, `5338f85a` and `01bea0f6`. The `release 0.18.2` patch carries
-no other id and is fork commits `4e5ab382`, `f19bf251`, `0d6654cb` and
-`a7611163`.
+no other id and is fork commits `4e5ab382`, `f19bf251`, `0d6654cb`,
+`a7611163` and `bd1a06c1`.
 
 | File | Patch |
 | --- | --- |
@@ -597,11 +597,12 @@ and the fork's own documentation; the one production edit is
 `crates/libs/rns-transport/src/delivery.rs`. The integration tests the four
 patches added had each grown a copy of the same harness; this patch moves
 those copies into `crates/libs/rns-transport/tests/support/`, tightens unit
-pins that asserted less than their names said, and adopts three probes
+pins that asserted less than their names said, and adopts four probes
 from the review's usage probes:
 `tests/link_activation_closed_other_link_probe.rs`,
-`tests/announce_admission_unix_probe.rs` and
-`tests/link_activation_closed_wake_probe.rs`.
+`tests/announce_admission_unix_probe.rs`,
+`tests/link_activation_closed_wake_probe.rs` and, last,
+`tests/link_activation_closed_repend_then_close_probe.rs`.
 `863d7ba9` moves the raw-listener harness of the
 five `tests/pending_link_single_request*_probe.rs` files into
 `tests/support/read_for.rs`, `packets_in.rs`, `link_requests_to.rs`,
@@ -820,9 +821,9 @@ poll slice answers; the wake probe pins the first half of the same
 exception. The CHANGELOG names it in the Pinned-by clause of the reread
 bullet.
 
-Fork commits `4e5ab382`, `f19bf251`, `0d6654cb` and `a7611163`: release
-0.18.2. The first bumps the crate version to 0.18.2 at every manifest and
-consumer-snippet site (`Cargo.toml`,
+Fork commits `4e5ab382`, `f19bf251`, `0d6654cb`, `a7611163` and `bd1a06c1`:
+release 0.18.2. The first bumps the crate version to 0.18.2 at every
+manifest and consumer-snippet site (`Cargo.toml`,
 `crates/libs/rns-transport/Cargo.toml`, `crates/apps/reticulumd/Cargo.toml`,
 `crates/apps/rns-tools/Cargo.toml`, the snippet in
 `crates/libs/rns-transport/README.md` and `docs/getting-started.md`) and in
@@ -876,11 +877,18 @@ order. The fourth adds
 pinning the `tunnel opt-in, run hygiene` cells of the two reconnect-arm
 probe rows; widens `TIMEOUT_CLOSE_BOUND` in
 `crates/libs/rns-transport/tests/link_activation_closed_repend_then_close_probe.rs`
-to the 4 s its sibling allows the maintenance tick, starts the re-pend
+to 4 s of slack after the 2 s establishment timeout, starts the re-pend
 clock before the lock that re-pends and says that any event wakes the
 reread; and has the README's one-link-request bullet call the removed
-constant private. The ledger commits that cite the four commits above
-touch only this file and the crate `CHANGELOG.md`.
+constant private. The fifth has the re-pend probe's `TIMEOUT_CLOSE_BOUND`
+comment say the 4 s is slack after the 2 s establishment timeout, looser
+than the sibling's 4 s total measured from link creation, gives the
+restart twin the `close_reason` assert its request twin makes, guards the
+0.18.2 probe's first-bullet read with `first()`, rewords the 0.18.1 probe's
+order pin rustdoc for the demoted block, and restores the two-mode
+sentence to the full-hash label pin's rustdoc. The ledger commits that
+cite the five commits above touch only this file and the crate
+`CHANGELOG.md`.
 
 ## 0.18.1 (upstream 0.14.0)
 

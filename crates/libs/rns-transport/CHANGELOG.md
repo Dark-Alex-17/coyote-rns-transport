@@ -88,9 +88,11 @@ Removed) bullet of its own, marked as such.
   `fork_release_docs_contract_parts/release_0_18_2_probe.rs` pins the heading
   date and its place as the first release heading, the subsection set
   `### Added`, `### Changed`, `### Fixed` of this release with no
-  `### Breaking`, the opt-in builder under `### Added`, the patch digit and
-  the semver sentence above, the two `### Fixed` bullets by their opening
-  words, and the README patch-list order with the 0.18.2 block on top.
+  `### Breaking`, the opt-in builder under `### Added`, the single-request
+  and fail-fast bullets under `### Changed` by their opening words, the
+  patch digit and the semver sentence above, the two `### Fixed` bullets by
+  their opening words, and the README patch-list order with the 0.18.2
+  block on top.
 - A pending outbound link now sends its link request once and is closed
   with `LinkCloseReason::Timeout` at its establishment timeout. The link
   maintenance job (`transport/jobs_parts/link_maintenance.rs`) no longer
@@ -302,7 +304,13 @@ Removed) bullet of its own, marked as such.
   keeps its date pin and no longer claims the first release heading, which
   `release_0_18_2_probe.rs` owns; and the label pins in
   `fork_publish_contract_parts/ledger_contract.rs` read `0.18.2` first,
-  with no `Unreleased` label, since a release tree carries no stub.
+  with no `Unreleased` label, since a release tree carries no stub, and the
+  same part's
+  `ledger_0_18_2_attributes_the_two_reconnect_arm_probes_to_both_patches`
+  pins the `tunnel opt-in, run hygiene` cells of the
+  `two_transport_shared_instance_probe10.rs` and
+  `two_transport_shared_instance_probe16.rs` rows of the 0.18.2 ledger
+  table.
 
 ### Fixed
 

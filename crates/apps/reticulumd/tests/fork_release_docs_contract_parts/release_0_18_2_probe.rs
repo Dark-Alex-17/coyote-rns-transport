@@ -89,10 +89,11 @@ fn release_0_18_2_version_bullet_records_the_patch_digit_and_the_semver_verdict(
     let changelog = read_repo_file("crates/libs/rns-transport/CHANGELOG.md");
     let section = changelog_release_section(&changelog, "0.18.2");
     let bullets = subsection_bullets(&section, "Changed");
+    let first = bullets.first().expect("the 0.18.2 `### Changed` subsection should carry bullets");
     assert!(
-        bullets[0].starts_with("- The crate version is `0.18.2`"),
+        first.starts_with("- The crate version is `0.18.2`"),
         "the version bullet heads `### Changed`, got {:?}",
-        bullets[0]
+        first
     );
     let bullet =
         joined_prose(&single_bullet_starting_with(&bullets, "- The crate version is `0.18.2`"));

@@ -42,8 +42,8 @@ const SECOND_CLOSE_AFTER: Duration = Duration::from_millis(600);
 /// A latency no wait may exceed after a close and still count as ending with it: the
 /// contract's poll slice (250 ms) with room for a loaded host.
 const CLOSE_BOUND: Duration = Duration::from_millis(1500);
-/// How late after `ESTABLISHMENT_SHORT` the 1 s maintenance tick may close the link on a
-/// loaded host, poll slice included: the 4 s `tests/link_activation_closed_probe.rs` allows.
+/// Slack after `ESTABLISHMENT_SHORT` for the 1 s maintenance tick and the poll slice on a
+/// loaded host; looser than `link_activation_closed_probe.rs`'s 4 s total from link creation.
 const TIMEOUT_CLOSE_BOUND: Duration = Duration::from_secs(4);
 /// How long the transport is given to stop.
 const WAIT: Duration = Duration::from_secs(15);
@@ -143,6 +143,7 @@ async fn a_second_hand_close_after_a_restart_repend_ends_the_wait_within_the_pol
          returned {latency:?} after the close"
     );
     assert_eq!(link.lock().await.status(), LinkStatus::Closed);
+    assert_eq!(link.lock().await.close_reason(), Some(LinkCloseReason::InitiatorClosed));
 
     timeout(WAIT, transport.stop()).await.expect("transport stop completes");
 }

@@ -8,6 +8,45 @@ no library behaviour (a test-only change such as a fixture hardening or a
 test hygiene pass, release tooling, CI) is a Changed (or, for a deleted file,
 Removed) bullet of its own, marked as such.
 
+## Unreleased
+
+### Added
+
+- `Transport::interface_peer_count(&AddressHash) -> Option<u64>`
+  (`transport/core_parts/interface_events.rs`), a fork-only twin of
+  `interface_connect_count` that reads the AutoInterface discovery peer
+  table length behind an interface: what Python reports as
+  `len(interface.peers)` in `RNS/Reticulum.py:1501-1503`, over the dict at
+  `RNS/Interfaces/AutoInterface.py:126`, and rnstatus prints at
+  `RNS/Utilities/rnstatus.py:555-556`. `None` collapses two cases: no
+  record carries the address, and the record carries no counter, which is
+  every TCP, UDP, serial, I2P and KISS carrier, the shared instance's
+  interface and a channel built with `InterfaceChannel::new`. A virtual
+  child registered on the AutoInterface's host channel answers its host's
+  count. Behind it, `InterfaceManager::set_peer_counter` (pub,
+  `iface_parts/interfacemanager_events.rs`) installs a counter on a host
+  and the virtual children already registered on it, a child registered
+  later copies it from the host, and `InterfaceManager::peer_count` reads
+  it; `AutoRuntimeStatusHandle::peer_counter` and `peer_count`
+  (`auto_runtime_parts/plan_builder.rs`) expose the counter
+  `from_startup_plan` mints beside the inner mutex, shared by every clone
+  of the handle; the spawn path adopts the handle's counter into the
+  discovery state and installs it on the bridge's host channel under one
+  manager lock (`autoruntimeplan_sections/peer_counter_wiring.rs`); and
+  `AutoPeerTable` (`iface/auto_parts/multicastaddresstype.rs`) publishes
+  its length into the counter with `Release` after every insert, expiry
+  and adopted-device removal. Additive, with no signature changes, so
+  cargo semver-checks reports nothing. Python exposes the count only
+  through rnstatus and its RPC; the fork also exposes it in-process.
+  Pinned by
+  `iface/auto_runtime_parts/tests_sections/auto_peer_count_pins.rs`
+  (manager-level `Some(0)` to `Some(1)` to `Some(0)` with a virtual child
+  sharing the host's count, the handle adopting direction, and a spawned
+  loopback runtime whose handle reads an admitted peer) and
+  `tests/interface_peer_count_api.rs` (`None` for a plain TCP client, the
+  shared instance and a bare channel; `Some(n)` and child sharing through
+  the public setter; `None` after stop).
+
 ## 0.18.2 - 2026-11-16
 
 ### Added

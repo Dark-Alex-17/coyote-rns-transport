@@ -26,6 +26,91 @@ parity rows this file plus the crate README `## Known divergences from
 Python RNS` are the parity ledger; `docs/status/*` matrices are not updated
 per fork task.
 
+## Unreleased (upstream 0.14.0)
+
+Every file changed since the `0.18.2` release and the patch each change
+belongs to. Patch ids: O1 is auto peer count. The `auto peer count` patch
+is fork commits `bc5a7e6c` and `457f50f1`.
+
+| File | Patch |
+| --- | --- |
+| `crates/apps/reticulumd/tests/fork_publish_contract_parts/ledger_contract.rs` | auto peer count |
+| `crates/libs/rns-transport/CHANGELOG.md` | auto peer count |
+| `crates/libs/rns-transport/src/iface/auto_parts/autodiscoverystate.rs` | auto peer count |
+| `crates/libs/rns-transport/src/iface/auto_parts/multicastaddresstype.rs` | auto peer count |
+| `crates/libs/rns-transport/src/iface/auto_runtime_parts/autoruntimeplan.rs` | auto peer count |
+| `crates/libs/rns-transport/src/iface/auto_runtime_parts/autoruntimeplan_sections/discovery_helpers.rs` | auto peer count |
+| `crates/libs/rns-transport/src/iface/auto_runtime_parts/autoruntimeplan_sections/peer_counter_wiring.rs` | auto peer count |
+| `crates/libs/rns-transport/src/iface/auto_runtime_parts/autoruntimeplan_sections/runtime_json.rs` | auto peer count |
+| `crates/libs/rns-transport/src/iface/auto_runtime_parts/module_prelude.rs` | auto peer count |
+| `crates/libs/rns-transport/src/iface/auto_runtime_parts/plan_builder.rs` | auto peer count |
+| `crates/libs/rns-transport/src/iface/auto_runtime_parts/tests.rs` | auto peer count |
+| `crates/libs/rns-transport/src/iface/auto_runtime_parts/tests_sections/auto_peer_count_pins.rs` | auto peer count |
+| `crates/libs/rns-transport/src/iface_parts/interfacemanager.rs` | auto peer count |
+| `crates/libs/rns-transport/src/iface_parts/interfacemanager_events.rs` | auto peer count |
+| `crates/libs/rns-transport/src/iface_parts/txmessagetype.rs` | auto peer count |
+| `crates/libs/rns-transport/src/transport/core_parts/interface_events.rs` | auto peer count |
+| `crates/libs/rns-transport/tests/interface_peer_count_api.rs` | auto peer count |
+| `docs/fork/PATCHSET.md` | auto peer count |
+
+Fork commits `bc5a7e6c` and `457f50f1`: O1, auto peer count.
+Upstream site: `InterfaceManager::register_virtual_iface` in
+`crates/libs/rns-transport/src/iface_parts/interfacemanager.rs` and the
+private `LocalInterface` record in
+`crates/libs/rns-transport/src/iface_parts/txmessagetype.rs`, which carried
+an online flag and a connected-streams counter per interface but nothing
+about discovery peers; `AutoPeerTable` in
+`crates/libs/rns-transport/src/iface/auto_parts/multicastaddresstype.rs`,
+which held the peers as a map readable only through the discovery state;
+`AutoRuntimeStatusHandle::from_startup_plan` in
+`crates/libs/rns-transport/src/iface/auto_runtime_parts/plan_builder.rs`;
+and the spawn in
+`crates/libs/rns-transport/src/iface/auto_runtime_parts/autoruntimeplan_sections/runtime_json.rs`,
+which built the discovery state and wrapped it in a mutex the runtime
+tasks alone could reach. Python reports the AutoInterface peer count as
+`len(interface.peers)` (`RNS/Reticulum.py:1501-1503`, over the dict at
+`RNS/Interfaces/AutoInterface.py:126`) and rnstatus prints it
+(`RNS/Utilities/rnstatus.py:555-556`); the fork had no way to read it
+outside the runtime. `bc5a7e6c` gives `AutoPeerTable` an
+`Arc<AtomicU64>` kept equal to its length, stored with `Release` after
+every `observe_peer` insert, `expire_stale` and `remove_by_ifname`, with
+`peer_counter` and `set_peer_counter` forwarded by `AutoDiscoveryState`;
+adds an optional peer counter to `LocalInterface`, which
+`InterfaceManager::set_peer_counter` (pub) installs on a host and the
+virtual children already registered on it, `register_virtual_iface`
+copies to later children, and `InterfaceManager::peer_count` and
+`Transport::interface_peer_count` read, `None` when no record carries the
+address or the record carries no counter (every TCP, UDP, serial, I2P and
+KISS carrier, the shared instance's interface and a channel built with
+`InterfaceChannel::new`); mints the counter in
+`AutoRuntimeStatusHandle::from_startup_plan` beside the inner mutex so
+every clone shares it, with `peer_counter` and `peer_count` accessors; and
+has the spawn adopt the handle's counter into the discovery state before
+wrapping it and install it on the bridge's host channel under one manager
+lock, in `peer_counter_wiring.rs`. The discovery helpers
+(`discovery_state`, `process_discovery_datagram`,
+`process_peer_data_datagram`) move from `runtime_json.rs` to
+`discovery_helpers.rs` so the spawn module stays under the module-size
+budget, and their `dead_code` allowances are dropped. The change is
+additive, so cargo semver-checks reports nothing. The same commit adds
+`tests_sections/auto_peer_count_pins.rs`, included from
+`auto_runtime_parts/tests.rs`: the host channel reads `Some(0)` once the
+counter is installed, `Some(1)` after an admitted discovery datagram and
+`Some(0)` again after the peer expires, a virtual child registered after
+the install reads the same, an uncounted channel reads `None`, a status
+handle whose counter the state adopts reads the same length, and a
+spawned loopback runtime publishes an admitted peer through its handle;
+and `tests/interface_peer_count_api.rs`, which reads `None` for a plain
+TCP client before and after the listener accepts, for the shared
+instance's interface and for a channel built with `InterfaceChannel::new`,
+`Some(n)` once the public setter installs a counter, both an earlier and a
+later virtual child sharing the host's count through the transport, and
+`None` for every address once the transport stops. `457f50f1` reopens the
+crate CHANGELOG with an `## Unreleased` section whose Added bullet
+documents `Transport::interface_peer_count` and the counter plumbing
+behind it, and extends the full-hash ledger pin in `ledger_contract.rs`
+to this reopened section beside the released ones.
+
 ## 0.18.2 (upstream 0.14.0)
 
 Every file changed since the `0.18.1` release and the patch each change

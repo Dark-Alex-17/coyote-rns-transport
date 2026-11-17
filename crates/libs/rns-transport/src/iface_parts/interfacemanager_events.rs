@@ -25,4 +25,33 @@ impl InterfaceManager {
             .find(|i| i.address == *address)
             .map(|i| i.connected_streams.load(Ordering::Acquire))
     }
+
+    /// Fork-only: installs the peer counter `peer_count` reads for `host`
+    /// and for every virtual child already registered on it; a child
+    /// registered later copies it from the host. The AutoInterface runtime
+    /// installs its discovery peer table's counter on its host channel; a
+    /// caller may install one on a channel it minted here. Returns `false`,
+    /// installing nothing, when no record carries `host`.
+    pub fn set_peer_counter(&mut self, host: &AddressHash, counter: Arc<AtomicU64>) -> bool {
+        let mut updated = false;
+        for iface in &mut self.ifaces {
+            if iface.address == *host || iface.parent == Some(*host) {
+                iface.peers = Some(counter.clone());
+                updated |= iface.address == *host;
+            }
+        }
+        updated
+    }
+
+    /// Fork-only: the AutoInterface discovery peer table length behind
+    /// `address`; a virtual child shares its host's counter. `None` both when
+    /// no record here carries the address and when the record carries no
+    /// counter, which is every interface kind other than an AutoInterface
+    /// host and its children unless `set_peer_counter` installed one.
+    pub fn peer_count(&self, address: &AddressHash) -> Option<u64> {
+        self.ifaces
+            .iter()
+            .find(|i| i.address == *address)
+            .and_then(|i| i.peers.as_ref().map(|peers| peers.load(Ordering::Acquire)))
+    }
 }

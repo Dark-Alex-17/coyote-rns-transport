@@ -278,6 +278,7 @@ pub struct AutoPeerJobRuntimeSummary {
 #[derive(Clone)]
 pub struct AutoRuntimeStatusHandle {
     inner: Arc<std::sync::Mutex<AutoRuntimeStatus>>,
+    peers: Arc<std::sync::atomic::AtomicU64>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]

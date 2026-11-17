@@ -194,7 +194,22 @@ impl AutoRuntimeStatusHandle {
                 peer_data_rx_closed_count: 0,
                 last_peer_data: None,
             })),
+            peers: Arc::new(std::sync::atomic::AtomicU64::new(0)),
         }
+    }
+
+    /// The counter the runtime publishes its discovery peer table length
+    /// into once spawned with this handle. Every clone of the handle shares
+    /// it; a handle never passed to a spawn keeps reading 0.
+    pub fn peer_counter(&self) -> Arc<std::sync::atomic::AtomicU64> {
+        Arc::clone(&self.peers)
+    }
+
+    /// The discovery peer table length the runtime spawned with this handle
+    /// last published, shared by every clone; 0 for a handle never passed to
+    /// a spawn.
+    pub fn peer_count(&self) -> u64 {
+        self.peers.load(std::sync::atomic::Ordering::Acquire)
     }
 
     #[allow(dead_code)]

@@ -359,6 +359,7 @@ struct LocalInterface {
     stop: CancellationToken,
     online: Arc<AtomicBool>,
     connected_streams: Arc<AtomicU64>,
+    peers: Option<Arc<AtomicU64>>,
     mtu: usize,
     role: IfaceRole,
     mode: InterfaceMode,

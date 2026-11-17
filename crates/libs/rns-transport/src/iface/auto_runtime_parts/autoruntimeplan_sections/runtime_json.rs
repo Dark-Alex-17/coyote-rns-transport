@@ -74,54 +74,6 @@ impl AutoRuntimePlan {
             .collect()
     }
 
-    #[allow(dead_code)]
-    pub fn discovery_state(&self) -> AutoDiscoveryState {
-        AutoDiscoveryState::from_timing(
-            self.adopted_devices.clone(),
-            AutoInterfaceTiming::for_platform(self.platform),
-        )
-    }
-
-    #[allow(dead_code)]
-    pub fn process_discovery_datagram(
-        &self,
-        state: &mut AutoDiscoveryState,
-        datagram: AutoDiscoveryDatagram,
-        now: core::time::Duration,
-    ) -> Result<Option<AutoProcessedDiscoveryDatagram>, AutoDiscoveryRejectReason> {
-        if now < self.startup_plan.initial_peering_wait {
-            return Ok(None);
-        }
-
-        let source_address = discovery_source_address(&datagram);
-        let event = state.observe_authenticated_discovery_packet(
-            &datagram.payload,
-            self.config.group_id.as_bytes(),
-            &source_address,
-            &datagram.ifname,
-            now,
-        )?;
-        Ok(Some(AutoProcessedDiscoveryDatagram { datagram, source_address, event }))
-    }
-
-    #[allow(dead_code)]
-    pub fn process_peer_data_datagram(
-        &self,
-        state: &mut AutoDiscoveryState,
-        dedupe: &mut AutoInboundPacketDeduplicator,
-        datagram: AutoPeerDataDatagram,
-        now: core::time::Duration,
-    ) -> Option<AutoProcessedPeerDataDatagram> {
-        if now < self.startup_plan.initial_peering_wait {
-            return None;
-        }
-
-        let peer_address = peer_data_source_address(&datagram);
-        let decision =
-            state.handle_spawned_peer_inbound(dedupe, &peer_address, &datagram.payload, now);
-        Some(AutoProcessedPeerDataDatagram { datagram, peer_address, decision })
-    }
-
     pub fn send_initial_peer_announces(
         &self,
         mut send: impl FnMut(&AutoPeerAnnounceDatagram) -> Result<(), String>,
@@ -319,7 +271,10 @@ impl AutoRuntimePlan {
         let bound_socket_count = sockets.len();
         let data_sockets = self.bind_data_sockets_with_native_scope_ids().await?;
         let data_socket_count = data_sockets.len();
-        let state = Arc::new(tokio::sync::Mutex::new(self.discovery_state()));
+        let mut state = self.discovery_state();
+        self.wire_peer_counter(&mut state, runtime_status.as_ref(), transport_bridge.as_ref())
+            .await;
+        let state = Arc::new(tokio::sync::Mutex::new(state));
         let dedupe = Arc::new(tokio::sync::Mutex::new(AutoInboundPacketDeduplicator::from_timing(
             AutoInterfaceTiming::for_platform(self.platform),
         )));

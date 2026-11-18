@@ -143,7 +143,20 @@ Removed) bullet of its own, marked as such.
   arm, the `Error + Send + Sync` bound, the `RpcEndpoint` variants behind a
   wildcard arm, the endpoint defaults per OS, the key parsing, the `Send`
   future, the closed-port `Connect` and the README recipe's lines run, the
-  test supplying the endpoint).
+  test supplying the endpoint), and by `python_shared_instance_rpc.rs` of
+  the reticulumd `python_channel_interop` binary (a live Python rnsd, RNS
+  1.5.2, is the shared instance with one `AutoInterface` configured in a
+  top-level `[interfaces]` section, `RNS/Reticulum.py:748-752`: the key
+  derived from its `storage/transport_identity` passes the listener's
+  handshake, and the first reply after the listener binds, served by
+  `rpc_loop` to the same request rnstatus sends, `RNS/Reticulum.py:1274-1334`,
+  `:1397-1402`, carries the `AutoInterface` entry online with `peers`
+  `Some(0)` and the `LocalServerInterface` entry with `peers` `None`,
+  `RNS/Reticulum.py:1501-1503`; a wrong key is `Authentication` and the
+  server goes on serving the next connection; a configured `rpc_key` is
+  honoured by `from_hex` and the identity-derived key is then refused,
+  `RNS/Reticulum.py:499-505`; and on Linux `for_instance` over the abstract
+  socket, `RNS/Reticulum.py:353-358`, reads the same).
 
 ## 0.18.2 - 2026-11-16
 

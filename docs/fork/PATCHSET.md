@@ -33,7 +33,9 @@ belongs to. Patch ids: O1 is auto peer count, O2 is rnsd rpc client. The
 `auto peer count` patch is fork commits `bc5a7e6c`, `457f50f1`, `5d8832e1`,
 `5d231b18`, `6c1b4008`, `33fc1137`, `ddf20ed9`, `34dda674`, `20077b93`,
 `72a2685a` and `c1c51fe2`. The `rnsd rpc client` patch is fork commits
-`e5fed58f`, `2b2d59c1`, `48ea789e`, `eb520fad` and `d3267e30`.
+`e5fed58f`, `2b2d59c1`, `48ea789e`, `eb520fad` and `d3267e30`. The
+`Python-in-the-loop rnsd rpc interop` patch carries no other id and is
+fork commits `8870d19f` and `0efdadfa`.
 
 | File | Patch |
 | --- | --- |
@@ -42,13 +44,16 @@ belongs to. Patch ids: O1 is auto peer count, O2 is rnsd rpc client. The
 | `crates/apps/reticulumd/src/bin/reticulumd/bootstrap_parts/module_core.rs` | auto peer count |
 | `crates/apps/reticulumd/tests/fork_publish_contract_parts/ledger_contract.rs` | auto peer count |
 | `crates/apps/reticulumd/tests/fork_release_docs_contract_parts/crate_readme_sections.rs` | rnsd rpc client |
-| `crates/apps/reticulumd/tests/fork_release_docs_contract_parts/readme_patch_list.rs` | auto peer count, rnsd rpc client |
+| `crates/apps/reticulumd/tests/fork_release_docs_contract_parts/readme_patch_list.rs` | auto peer count, rnsd rpc client, Python-in-the-loop rnsd rpc interop |
+| `crates/apps/reticulumd/tests/python_channel_interop.rs` | Python-in-the-loop rnsd rpc interop |
+| `crates/apps/reticulumd/tests/python_channel_interop_parts/python_shared_instance_live.rs` | Python-in-the-loop rnsd rpc interop |
+| `crates/apps/reticulumd/tests/python_channel_interop_parts/python_shared_instance_rpc.rs` | Python-in-the-loop rnsd rpc interop |
 | `crates/apps/rns-tools/src/bin/shared/rnstatus.rs` | auto peer count |
 | `crates/apps/rns-tools/tests/rnstatus_cli.rs` | auto peer count |
 | `crates/apps/rns-tools/tests/rnstatus_peers_cli.rs` | auto peer count |
-| `crates/libs/rns-transport/CHANGELOG.md` | auto peer count, rnsd rpc client |
+| `crates/libs/rns-transport/CHANGELOG.md` | auto peer count, rnsd rpc client, Python-in-the-loop rnsd rpc interop |
 | `crates/libs/rns-transport/Cargo.toml` | rnsd rpc client |
-| `crates/libs/rns-transport/README.md` | auto peer count, rnsd rpc client |
+| `crates/libs/rns-transport/README.md` | auto peer count, rnsd rpc client, Python-in-the-loop rnsd rpc interop |
 | `crates/libs/rns-transport/src/iface/auto_parts/autodiscoverystate.rs` | auto peer count |
 | `crates/libs/rns-transport/src/iface/auto_parts/multicastaddresstype.rs` | auto peer count |
 | `crates/libs/rns-transport/src/iface/auto_runtime_parts/autoruntimeplan.rs` | auto peer count |
@@ -76,7 +81,7 @@ belongs to. Patch ids: O1 is auto peer count, O2 is rnsd rpc client. The
 | `crates/libs/rns-transport/tests/interface_peer_count_api.rs` | auto peer count |
 | `crates/libs/rns-transport/tests/interface_peer_count_probe.rs` | auto peer count |
 | `crates/libs/rns-transport/tests/shared_instance_rpc_api.rs` | rnsd rpc client |
-| `docs/fork/PATCHSET.md` | auto peer count, rnsd rpc client |
+| `docs/fork/PATCHSET.md` | auto peer count, rnsd rpc client, Python-in-the-loop rnsd rpc interop |
 
 Fork commits `bc5a7e6c`, `457f50f1`, `5d8832e1`, `5d231b18`, `6c1b4008`,
 `33fc1137`, `ddf20ed9`, `34dda674`, `20077b93`, `72a2685a` and `c1c51fe2`:
@@ -292,6 +297,42 @@ and the empty `{}` digest prefix (now `Protocol`, not `UnsupportedDigest`),
 replaces the encoded-at-runtime request with the constant msgpack bytes of
 `{"get": "interface_stats"}`, folds the mock's reply override into a `Reply`
 enum, and states the four `non_exhaustive` items in the README and CHANGELOG.
+
+Fork commits `8870d19f` and `0efdadfa`: Python-in-the-loop rnsd rpc interop.
+A Python rnsd (RNS 1.5.2) is the shared instance on a free TCP port with
+one `AutoInterface` configured in a top-level `[interfaces]` section,
+which Python reads as the one place interfaces come from
+(`RNS/Reticulum.py:748-752`), and the reticulumd `python_channel_interop`
+binary reads its interface statistics through the O2 client:
+`crates/apps/reticulumd/tests/python_channel_interop_parts/python_shared_instance_rpc.rs`,
+included from `crates/apps/reticulumd/tests/python_channel_interop.rs`,
+waits for the `Started shared instance interface` line and for
+`storage/transport_identity` to appear, derives the default key from that
+file (`RNS/Reticulum.py:360-361`), and polls `interface_stats` with a
+refused dial and a reset mid-handshake retried for up to 15 s, since rnsd
+binds the listener only after `Transport.start`, itself after the
+AutoInterface's peering wait (`RNS/Reticulum.py:351-367`, `:1009`,
+`RNS/Interfaces/AutoInterface.py:327-348`). The first reply, served by
+`rpc_loop` to the request rnstatus sends (`RNS/Reticulum.py:1274-1334`,
+`:1397-1402`), carries the `AutoInterface` entry online with `peers`
+`Some(0)` and the `LocalServerInterface` entry with `peers` `None`
+(`RNS/Reticulum.py:1501-1503`); a wrong key is `RpcError::Authentication`
+and the server serves the next connection; a configured `rpc_key`
+(`RNS/Reticulum.py:499-505`) is honoured by `RpcKey::from_hex` and the
+identity-derived key is then refused; and on Linux a unix-type instance is
+read through `RpcEndpoint::for_instance` over the abstract socket, the
+control port unused (`RNS/Reticulum.py:353-358`, `:725-727`). The live
+harness `python_shared_instance_live.rs` gains `config_with_interfaces`,
+which appends a caller-written top-level section after `[logging]`,
+`with_reticulum_line`, and on Linux the unix instance's name. The
+AutoInterface takes a free `data_port`: the default `42671` is bound
+without address reuse (`RNS/Interfaces/AutoInterface.py:334-337`), so a
+host rnsd on it would keep the interface from starting; the discovery
+sockets set `SO_REUSEPORT` and keep their defaults, and a unique
+`group_id` keeps any other node from peering. `0efdadfa` names the proof
+in the README RPC section and adds it to the section's pin in
+`readme_patch_list.rs`.
+Upstream site: test files only.
 
 ## 0.18.2 (upstream 0.14.0)
 

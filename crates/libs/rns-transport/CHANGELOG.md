@@ -103,11 +103,10 @@ Removed) bullet of its own, marked as such.
   README's divergence register lists; `from_transport_identity_file` for
   Python's default key, the SHA-256 of the 64-byte transport identity
   private key, `RNS/Reticulum.py:360-361`; `Debug` prints
-  `RpcKey(redacted)`); `RpcError` (`#[non_exhaustive]`:
-  `Connect(io::Error)` for the dial itself, `Authentication`,
-  `Protocol(String)` for a malformed or oversized frame or an io error
-  after connect, `Decode(String)`, `UnsupportedDigest(String)`,
-  `InvalidKeyMaterial`, `Timeout`);
+  `RpcKey(redacted)`); `RpcError` (`Connect(io::Error)` for the dial
+  itself, `Authentication`, `Protocol(String)` for a malformed or oversized
+  frame or an io error after connect, `Decode(String)`,
+  `UnsupportedDigest(String)`, `InvalidKeyMaterial`, `Timeout`);
   `InterfaceStats { interfaces, raw }` and `InterfaceStat { name,
   short_name, kind, online, peers, clients, rxb, txb, raw }` decoded from
   the `get_interface_stats` dict (`RNS/Reticulum.py:1405-1628`; `kind` is
@@ -115,7 +114,11 @@ Removed) bullet of its own, marked as such.
   for an absent or nil key, `RNS/Reticulum.py:1409-1410` and
   `:1501-1503`); and `interface_stats(&endpoint, &key, timeout)`, one
   fresh connection per call with connect, handshake, request and reply
-  under the one budget. The handshake is the stdlib's mutual HMAC exchange
+  under the one budget. `RpcEndpoint`, `RpcError`, `InterfaceStats` and
+  `InterfaceStat` are `#[non_exhaustive]`: match the enums with a wildcard
+  arm and destructure the structs with `..`. The request is the constant
+  msgpack bytes of `{"get": "interface_stats"}` (`RNS/Reticulum.py:1400`).
+  The handshake is the stdlib's mutual HMAC exchange
   (`connection.py:917-1006`) over its signed 32-bit, optionally 64-bit,
   length-prefixed frames (`connection.py:427-458`): the client answers the
   server's challenge and then delivers its own, in the modern `{digest}`
@@ -130,16 +133,17 @@ Removed) bullet of its own, marked as such.
   `{md5}` digests, with the client's answer and challenge frames
   inspected; the wrong-key, bad-answer, unsupported-digest, truncated,
   oversized, silent and short-challenge failures; the key derivations and
-  the redacted `Debug`; the decode shape rules; the unix socket round
-  trips, the wide and negative frame headers and the digest lock; a legacy
-  answer to a modern challenge, the 16 MiB reply cap and a hand-built
-  big-endian frame header; and the stdlib known-answer vectors from
-  CPython's `connection.py:917-942`) and
+  the whitespace refusal, the redacted `Debug`; the decode shape rules; the
+  unix socket round trips, the wide and negative frame headers and the
+  digest lock; a legacy answer to a modern challenge, the 16 MiB reply cap,
+  a hand-built big-endian frame header and the empty `{}` digest prefix;
+  and the stdlib known-answer vectors from CPython's
+  `connection.py:917-942`) and
   `tests/shared_instance_rpc_api.rs` (the seven variants behind a wildcard
   arm, the `Error + Send + Sync` bound, the `RpcEndpoint` variants behind a
-  wildcard arm for its `non_exhaustive`, the endpoint defaults per OS, the
-  key parsing, the `Send` future, the closed-port `Connect` and the README
-  recipe's lines run, the test supplying the endpoint).
+  wildcard arm, the endpoint defaults per OS, the key parsing, the `Send`
+  future, the closed-port `Connect` and the README recipe's lines run, the
+  test supplying the endpoint).
 
 ## 0.18.2 - 2026-11-16
 

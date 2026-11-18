@@ -33,7 +33,7 @@ belongs to. Patch ids: O1 is auto peer count, O2 is rnsd rpc client. The
 `auto peer count` patch is fork commits `bc5a7e6c`, `457f50f1`, `5d8832e1`,
 `5d231b18`, `6c1b4008`, `33fc1137`, `ddf20ed9`, `34dda674`, `20077b93`,
 `72a2685a` and `c1c51fe2`. The `rnsd rpc client` patch is fork commits
-`e5fed58f`, `2b2d59c1`, `48ea789e` and `eb520fad`.
+`e5fed58f`, `2b2d59c1`, `48ea789e`, `eb520fad` and `d3267e30`.
 
 | File | Patch |
 | --- | --- |
@@ -217,8 +217,8 @@ record carrying `address`, asserts the host's absence and the child's
 auto `peers` to 4 so the UDP `peers=2` assertion stays discriminating,
 and adds the closed-queue clause to the CHANGELOG pin enumeration.
 
-Fork commits `e5fed58f`, `2b2d59c1`, `48ea789e` and `eb520fad`: O2, rnsd
-rpc client.
+Fork commits `e5fed58f`, `2b2d59c1`, `48ea789e`, `eb520fad` and `d3267e30`:
+O2, rnsd rpc client.
 Upstream site: the shared-instance client module
 `crates/libs/rns-transport/src/transport/shared_instance.rs`, beside which
 the new `transport::shared_instance_rpc` module (public, declared in
@@ -287,6 +287,11 @@ header; the README gains the stdlib client's always-`{sha256}` challenge
 and the dial-the-bound-endpoint sentence, and the key refusal moves out of
 the `Not divergences` bullet into its own divergence-register entry beside
 the legacy-form challenge.
+`d3267e30` pins the whitespace key refusal the divergence bullet advertises
+and the empty `{}` digest prefix (now `Protocol`, not `UnsupportedDigest`),
+replaces the encoded-at-runtime request with the constant msgpack bytes of
+`{"get": "interface_stats"}`, folds the mock's reply override into a `Reply`
+enum, and states the four `non_exhaustive` items in the README and CHANGELOG.
 
 ## 0.18.2 (upstream 0.14.0)
 

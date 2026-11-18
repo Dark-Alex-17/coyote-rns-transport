@@ -31,7 +31,7 @@ per fork task.
 Every file changed since the `0.18.2` release and the patch each change
 belongs to. Patch ids: O1 is auto peer count. The `auto peer count` patch
 is fork commits `bc5a7e6c`, `457f50f1`, `5d8832e1`, `5d231b18`, `6c1b4008`,
-`33fc1137` and `ddf20ed9`.
+`33fc1137`, `ddf20ed9` and `34dda674`.
 
 | File | Patch |
 | --- | --- |
@@ -64,7 +64,7 @@ is fork commits `bc5a7e6c`, `457f50f1`, `5d8832e1`, `5d231b18`, `6c1b4008`,
 | `docs/fork/PATCHSET.md` | auto peer count |
 
 Fork commits `bc5a7e6c`, `457f50f1`, `5d8832e1`, `5d231b18`, `6c1b4008`,
-`33fc1137` and `ddf20ed9`: O1, auto peer count.
+`33fc1137`, `ddf20ed9` and `34dda674`: O1, auto peer count.
 Upstream site: `InterfaceManager::register_virtual_iface` in
 `crates/libs/rns-transport/src/iface_parts/interfacemanager.rs` and the
 private `LocalInterface` record in
@@ -167,6 +167,15 @@ the handle still `1`) and the rns-tools `rnstatus_peers_cli` test
 when the key is absent, `peers=7` in the slot after `replaced=`), pins the
 changelog's spawn-adoption claim in `readme_patch_list.rs`, and tightens
 the pin comments, rustdoc wrapping, README qualifier and CHANGELOG cite.
+`34dda674` corrects the `interface_peer_count` rustdoc to name the prune
+paths that exist (`AutoDiscoveryRuntime::stop` never binds the host
+record's stop token, so only `stop_interface`, `stop`,
+`detach_shared_instance` or a send finding the stopped runtime's tx queue
+closed drops the record; no timer does) and pins it with a post-stop
+`cleanup()` pass in `auto_peer_count_pins.rs`, re-partitions the README and
+CHANGELOG `None` cases to match, adds the never-null `"peers"` clause to the
+divergence register, gates the probe's unix-only imports with `cfg(unix)`
+and asserts `peers` rides through the rnstatus `--json` passthrough.
 
 ## 0.18.2 (upstream 0.14.0)
 

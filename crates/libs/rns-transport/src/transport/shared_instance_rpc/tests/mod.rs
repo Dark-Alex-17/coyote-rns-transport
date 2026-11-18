@@ -3,7 +3,7 @@ use std::time::{Duration, Instant};
 
 use rmpv::Value;
 
-use super::handshake::Digest;
+use super::handshake::{mac, verify_mac, Digest};
 use super::*;
 
 mod mock_server;
@@ -318,6 +318,48 @@ fn for_instance_is_the_abstract_socket_on_linux() {
 #[test]
 fn for_instance_is_the_default_tcp_port_elsewhere() {
     assert_eq!(RpcEndpoint::for_instance("default"), RpcEndpoint::default_tcp());
+}
+
+// Vectors produced by CPython's multiprocessing.connection._create_response
+// (connection.py:917-942) with the key above; modern forms MAC the whole
+// prefixed message and the legacy form is the raw HMAC-MD5 of a 20-byte body.
+#[test]
+fn mac_matches_the_cpython_stdlib_vectors() {
+    let key = hex::decode(KEY_HEX).expect("hex");
+    let msg40: Vec<u8> = (0u8..40).collect();
+    let leg20: Vec<u8> = (0u8..20).collect();
+    let vectors = [
+        (
+            Digest::Sha256,
+            "7b7368613235367d0988643d19a1da3f98648ba4eec9b8b09b61d95da64bc38ba809c6b7e7bcaf3c",
+        ),
+        (
+            Digest::Sha384,
+            "7b7368613338347d258efc885620a24ad71c5d7dd232b7064c369203e7960dfa8c2a5588d69d6ded3fc5e41c4e861722b0e415c8f7852874",
+        ),
+        (
+            Digest::Sha3_256,
+            "7b736861335f3235367d9a4785174dcc662b9f374d29e2e045cfbb41d70cd8d00fcf89fdf6766df7819b",
+        ),
+        (
+            Digest::Sha3_384,
+            "7b736861335f3338347da0e8ca92ae090c74115c865a149931c06b1ea024715fc3184d9d771c8e3906d5b82cbf560ec563ae6f64dc67757d471d",
+        ),
+        (Digest::Md5, "7b6d64357d071a06d752d2e7b767cf0b345775467f"),
+    ];
+    for (digest, response_hex) in vectors {
+        let response = hex::decode(response_hex).expect("vector");
+        let prefix = digest.prefix();
+        assert_eq!(&response[..prefix.len()], prefix.as_slice(), "{digest:?}");
+        let expected = &response[prefix.len()..];
+        let message = [prefix.as_slice(), msg40.as_slice()].concat();
+        assert_eq!(mac(digest, &key, &message).expect("mac"), expected, "{digest:?}");
+        assert!(matches!(verify_mac(digest, &key, &message, expected), Ok(true)), "{digest:?}");
+    }
+
+    let legacy = hex::decode("7e57151ba744ee63c52e1497fbef19d0").expect("vector");
+    assert_eq!(mac(Digest::Md5, &key, &leg20).expect("mac"), legacy);
+    assert!(matches!(verify_mac(Digest::Md5, &key, &leg20, &legacy), Ok(true)));
 }
 
 fn decoded(value: Value) -> Result<InterfaceStats, RpcError> {

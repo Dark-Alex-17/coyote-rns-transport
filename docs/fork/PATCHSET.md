@@ -30,7 +30,7 @@ per fork task.
 
 Every file changed since the `0.18.2` release and the patch each change
 belongs to. Patch ids: O1 is auto peer count. The `auto peer count` patch
-is fork commits `bc5a7e6c` and `457f50f1`.
+is fork commits `bc5a7e6c`, `457f50f1` and `5d8832e1`.
 
 | File | Patch |
 | --- | --- |
@@ -53,7 +53,7 @@ is fork commits `bc5a7e6c` and `457f50f1`.
 | `crates/libs/rns-transport/tests/interface_peer_count_api.rs` | auto peer count |
 | `docs/fork/PATCHSET.md` | auto peer count |
 
-Fork commits `bc5a7e6c` and `457f50f1`: O1, auto peer count.
+Fork commits `bc5a7e6c`, `457f50f1` and `5d8832e1`: O1, auto peer count.
 Upstream site: `InterfaceManager::register_virtual_iface` in
 `crates/libs/rns-transport/src/iface_parts/interfacemanager.rs` and the
 private `LocalInterface` record in
@@ -80,9 +80,10 @@ adds an optional peer counter to `LocalInterface`, which
 virtual children already registered on it, `register_virtual_iface`
 copies to later children, and `InterfaceManager::peer_count` and
 `Transport::interface_peer_count` read, `None` when no record carries the
-address or the record carries no counter (every TCP, UDP, serial, I2P and
-KISS carrier, the shared instance's interface and a channel built with
-`InterfaceChannel::new`); mints the counter in
+address or the record carries no counter (every interface kind other than
+an AutoInterface host and its virtual children, the shared instance's
+interface and a channel built with `InterfaceChannel::new`); mints the
+counter in
 `AutoRuntimeStatusHandle::from_startup_plan` beside the inner mutex so
 every clone shares it, with `peer_counter` and `peer_count` accessors; and
 has the spawn adopt the handle's counter into the discovery state before
@@ -109,7 +110,15 @@ later virtual child sharing the host's count through the transport, and
 crate CHANGELOG with an `## Unreleased` section whose Added bullet
 documents `Transport::interface_peer_count` and the counter plumbing
 behind it, and extends the full-hash ledger pin in `ledger_contract.rs`
-to this reopened section beside the released ones.
+to this reopened section beside the released ones. `5d8832e1` adds a
+second spawned loopback pin to `auto_peer_count_pins.rs` that passes a
+transport runtime, so the spawn's install on the bridge's host record is
+itself proven (`Some(0)` after the spawn, `Some(1)` with the handle once a
+peer is admitted, the same through the bridge's virtual child, still
+`Some(1)` after stop), plus two table-level pins across `remove_by_ifname`
+and a counter swap; it makes `set_peer_counter` return `false` before
+touching any record when the host is missing, narrows the handle's
+`peer_counter` to the crate, and tightens the docs and CHANGELOG wording.
 
 ## 0.18.2 (upstream 0.14.0)
 

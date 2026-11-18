@@ -5,15 +5,12 @@
 //! admits a peer; the same through a clone; and still the last value after the runtime
 //! stops, the retention the rustdocs promise (nothing publishes 0 on stop).
 
+#[cfg(unix)]
 use std::time::Duration;
 #[cfg(unix)]
 use std::time::Instant;
 
-use rns_transport::iface::auto::{
-    AutoDataListenerBinding, AutoDiscoveryListenerBinding, AutoDiscoveryScope, AutoInterfaceConfig,
-    AutoInterfaceDeviceFilter, MulticastAddressType,
-};
-use rns_transport::iface::auto_runtime::{AutoRuntimePlan, AutoRuntimeStatusHandle};
+use rns_transport::iface::auto_runtime::AutoRuntimeStatusHandle;
 
 #[cfg(unix)]
 use rns_transport::iface::auto::peering_token;
@@ -25,52 +22,11 @@ use rns_transport::iface::IfaceRole;
 #[cfg(unix)]
 #[path = "support/client_transport.rs"]
 mod client_transport;
+#[path = "support/loopback_auto_plan.rs"]
+mod loopback_auto_plan;
+use loopback_auto_plan::loopback_auto_plan;
 
 const GROUP_ID: &str = "peers-json-probe";
-
-/// A plan with no adopted devices and no initial peering wait, so a datagram from
-/// 127.0.0.1 reads as a remote peer at once. Returns the plan and the unicast discovery
-/// port to send to.
-fn loopback_plan() -> (AutoRuntimePlan, u16) {
-    let data_reservation = std::net::UdpSocket::bind((std::net::Ipv4Addr::LOCALHOST, 0))
-        .expect("reserve data loopback UDP port");
-    let data_port = data_reservation.local_addr().expect("read data port").port();
-    let discovery_port = loop {
-        let reservation = std::net::UdpSocket::bind((std::net::Ipv4Addr::LOCALHOST, 0))
-            .expect("reserve discovery loopback UDP port");
-        let port = reservation.local_addr().expect("read discovery port").port();
-        if port != u16::MAX && port != data_port {
-            break port;
-        }
-    };
-    drop(data_reservation);
-    let config = AutoInterfaceConfig {
-        group_id: GROUP_ID.to_string(),
-        discovery_scope: AutoDiscoveryScope::Global,
-        multicast_address_type: MulticastAddressType::Permanent,
-        discovery_port,
-        data_port,
-    };
-    let filter = AutoInterfaceDeviceFilter { allowed: Vec::new(), ignored: Vec::new() };
-    let mut plan = AutoRuntimePlan::from_candidates(config, filter, Vec::new());
-    plan.startup_plan.initial_peering_wait = Duration::ZERO;
-    plan.startup_plan.discovery_listeners.push(AutoDiscoveryListenerBinding {
-        ifname: "lo".to_string(),
-        link_local_address: "127.0.0.1".to_string(),
-        unicast_bind_address: "127.0.0.1".to_string(),
-        unicast_bind_port: discovery_port,
-        multicast_group_address: "239.255.0.1".to_string(),
-        multicast_bind_address: "239.255.0.1".to_string(),
-        multicast_bind_port: discovery_port,
-    });
-    plan.startup_plan.data_listeners.push(AutoDataListenerBinding {
-        ifname: "lo".to_string(),
-        link_local_address: "127.0.0.1".to_string(),
-        bind_address: "127.0.0.1".to_string(),
-        bind_port: data_port,
-    });
-    (plan, discovery_port)
-}
 
 fn peers_key(handle: &AutoRuntimeStatusHandle) -> Option<u64> {
     let json = handle.to_json();
@@ -85,7 +41,7 @@ fn peers_key(handle: &AutoRuntimeStatusHandle) -> Option<u64> {
 /// `peer_count()`, on the handle and on a clone.
 #[test]
 fn a_fresh_handle_carries_peers_zero_in_its_json() {
-    let (plan, _) = loopback_plan();
+    let (plan, _) = loopback_auto_plan(GROUP_ID);
     let handle = AutoRuntimeStatusHandle::from_startup_plan(&plan.startup_plan);
     assert_eq!(peers_key(&handle), Some(0));
     assert_eq!(peers_key(&handle), Some(handle.peer_count()));
@@ -131,7 +87,7 @@ async fn send_peering_token(discovery_port: u16) {
 #[tokio::test]
 #[deny(clippy::await_holding_invalid_type)]
 async fn peers_json_tracks_the_transport_read_and_holds_its_last_value_after_stop() {
-    let (plan, discovery_port) = loopback_plan();
+    let (plan, discovery_port) = loopback_auto_plan(GROUP_ID);
     let transport = client_transport::client_transport("peers-json-probe");
     let manager = transport.iface_manager();
     let channel = manager.lock().await.new_channel_with_role(8, IfaceRole::Multicast);
@@ -191,7 +147,7 @@ async fn peers_json_tracks_the_transport_read_and_holds_its_last_value_after_sto
 #[cfg(unix)]
 #[tokio::test]
 async fn peers_json_follows_an_admitted_peer_without_a_transport_bridge() {
-    let (plan, discovery_port) = loopback_plan();
+    let (plan, discovery_port) = loopback_auto_plan(GROUP_ID);
     let handle = AutoRuntimeStatusHandle::from_startup_plan(&plan.startup_plan);
     let runtime = plan
         .spawn_discovery_runtime_with_native_scope_ids_and_transport(None, Some(handle.clone()))

@@ -45,6 +45,38 @@
         }
     }
 
+    /// A plan with one loopback discovery listener and one loopback data
+    /// listener on fresh ports, no adopted devices and no initial peering wait,
+    /// so a datagram from 127.0.0.1 is admitted as a remote peer at once.
+    /// Returns the plan and the unicast discovery port to send to.
+    #[cfg(unix)]
+    fn loopback_runtime_plan() -> (AutoRuntimePlan, u16) {
+        let data_reservation = std::net::UdpSocket::bind((std::net::Ipv4Addr::LOCALHOST, 0))
+            .expect("reserve data loopback UDP port");
+        let data_port = data_reservation.local_addr().expect("read data port").port();
+        let discovery_port = reserve_loopback_udp_port_below_max();
+        drop(data_reservation);
+        let mut plan = build_startup_plan_from_candidates(&auto_iface(), Vec::new())
+            .expect("startup plan");
+        plan.startup_plan.initial_peering_wait = core::time::Duration::ZERO;
+        plan.startup_plan.discovery_listeners.push(AutoDiscoveryListenerBinding {
+            ifname: "lo".to_string(),
+            link_local_address: "127.0.0.1".to_string(),
+            unicast_bind_address: "127.0.0.1".to_string(),
+            unicast_bind_port: discovery_port,
+            multicast_group_address: "239.255.0.1".to_string(),
+            multicast_bind_address: "239.255.0.1".to_string(),
+            multicast_bind_port: discovery_port,
+        });
+        plan.startup_plan.data_listeners.push(AutoDataListenerBinding {
+            ifname: "lo".to_string(),
+            link_local_address: "127.0.0.1".to_string(),
+            bind_address: "127.0.0.1".to_string(),
+            bind_port: data_port,
+        });
+        (plan, discovery_port)
+    }
+
     #[test]
     fn native_link_local_enumeration_returns_only_well_formed_candidates() {
         let candidates = enumerate_link_local_candidates().expect("enumerate host interfaces");
@@ -374,28 +406,7 @@
     #[cfg(unix)]
     #[tokio::test]
     async fn auto_runtime_stop_releases_loopback_sockets_for_restart() {
-        let data_reservation = std::net::UdpSocket::bind((std::net::Ipv4Addr::LOCALHOST, 0))
-            .expect("reserve data loopback UDP port");
-        let data_port = data_reservation.local_addr().expect("read data port").port();
-        let discovery_port = reserve_loopback_udp_port_below_max();
-        drop(data_reservation);
-        let mut plan = build_startup_plan_from_candidates(&auto_iface(), Vec::new())
-            .expect("startup plan");
-        plan.startup_plan.discovery_listeners.push(AutoDiscoveryListenerBinding {
-            ifname: "lo".to_string(),
-            link_local_address: "127.0.0.1".to_string(),
-            unicast_bind_address: "127.0.0.1".to_string(),
-            unicast_bind_port: discovery_port,
-            multicast_group_address: "239.255.0.1".to_string(),
-            multicast_bind_address: "239.255.0.1".to_string(),
-            multicast_bind_port: discovery_port,
-        });
-        plan.startup_plan.data_listeners.push(AutoDataListenerBinding {
-            ifname: "lo".to_string(),
-            link_local_address: "127.0.0.1".to_string(),
-            bind_address: "127.0.0.1".to_string(),
-            bind_port: data_port,
-        });
+        let (plan, _) = loopback_runtime_plan();
 
         let first = plan
             .spawn_discovery_runtime_with_native_scope_ids()

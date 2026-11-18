@@ -59,7 +59,8 @@ fn admit(
 async fn host_count_follows_a_public_discovery_state_through_add_refresh_and_expiry() {
     let transport = client_transport("peer-count-probe-state");
     let manager = transport.iface_manager();
-    let host = manager.lock().await.new_channel_with_role(8, IfaceRole::Multicast).address;
+    let host_channel = manager.lock().await.new_channel_with_role(8, IfaceRole::Multicast);
+    let host = host_channel.address;
     let child = manager
         .lock()
         .await
@@ -129,13 +130,14 @@ fn a_clone_of_the_discovery_state_shares_the_counter() {
 async fn two_hosts_keep_separate_counters() {
     let transport = client_transport("peer-count-probe-two-hosts");
     let manager = transport.iface_manager();
-    let (lan, wifi) = {
+    let (lan_channel, wifi_channel) = {
         let mut manager = manager.lock().await;
         (
-            manager.new_channel_with_role(8, IfaceRole::Multicast).address,
-            manager.new_channel_with_role(8, IfaceRole::Multicast).address,
+            manager.new_channel_with_role(8, IfaceRole::Multicast),
+            manager.new_channel_with_role(8, IfaceRole::Multicast),
         )
     };
+    let (lan, wifi) = (lan_channel.address, wifi_channel.address);
     let lan_peers = Arc::new(AtomicU64::new(3));
     assert!(manager.lock().await.set_peer_counter(&lan, Arc::clone(&lan_peers)));
     assert_eq!(transport.interface_peer_count(&lan).await, Some(3));
@@ -161,7 +163,8 @@ async fn two_hosts_keep_separate_counters() {
 async fn a_later_install_replaces_the_counter_on_host_and_children() {
     let transport = client_transport("peer-count-probe-reinstall");
     let manager = transport.iface_manager();
-    let host = manager.lock().await.new_channel_with_role(8, IfaceRole::Multicast).address;
+    let host_channel = manager.lock().await.new_channel_with_role(8, IfaceRole::Multicast);
+    let host = host_channel.address;
     let first = Arc::new(AtomicU64::new(1));
     assert!(manager.lock().await.set_peer_counter(&host, Arc::clone(&first)));
     let child = manager
@@ -192,7 +195,8 @@ async fn a_later_install_replaces_the_counter_on_host_and_children() {
 async fn stopping_a_child_keeps_the_host_count_and_stopping_the_host_reads_none() {
     let transport = client_transport("peer-count-probe-stop");
     let manager = transport.iface_manager();
-    let host = manager.lock().await.new_channel_with_role(8, IfaceRole::Multicast).address;
+    let host_channel = manager.lock().await.new_channel_with_role(8, IfaceRole::Multicast);
+    let host = host_channel.address;
     let counter = Arc::new(AtomicU64::new(2));
     assert!(manager.lock().await.set_peer_counter(&host, Arc::clone(&counter)));
     let child = manager
@@ -221,7 +225,8 @@ async fn stopping_a_child_keeps_the_host_count_and_stopping_the_host_reads_none(
 async fn an_install_aimed_at_a_child_address_touches_only_that_child() {
     let transport = client_transport("peer-count-probe-child-install");
     let manager = transport.iface_manager();
-    let host = manager.lock().await.new_channel_with_role(8, IfaceRole::Multicast).address;
+    let host_channel = manager.lock().await.new_channel_with_role(8, IfaceRole::Multicast);
+    let host = host_channel.address;
     let host_counter = Arc::new(AtomicU64::new(1));
     assert!(manager.lock().await.set_peer_counter(&host, Arc::clone(&host_counter)));
     let (first_child, second_child) = {

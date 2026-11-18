@@ -160,7 +160,8 @@ fn a_minted_channel_reads_its_counter_once_installed() {
 async fn virtual_children_share_the_host_count() {
     let transport = client_transport("peer-count-children");
     let manager = transport.iface_manager();
-    let host = manager.lock().await.new_channel(8).address;
+    let host_channel = manager.lock().await.new_channel(8);
+    let host = host_channel.address;
     let early_child = manager
         .lock()
         .await

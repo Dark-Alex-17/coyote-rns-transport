@@ -31,7 +31,7 @@ per fork task.
 Every file changed since the `0.18.2` release and the patch each change
 belongs to. Patch ids: O1 is auto peer count. The `auto peer count` patch
 is fork commits `bc5a7e6c`, `457f50f1`, `5d8832e1`, `5d231b18`, `6c1b4008`,
-`33fc1137`, `ddf20ed9`, `34dda674`, `20077b93` and `72a2685a`.
+`33fc1137`, `ddf20ed9`, `34dda674`, `20077b93`, `72a2685a` and `c1c51fe2`.
 
 | File | Patch |
 | --- | --- |
@@ -64,8 +64,8 @@ is fork commits `bc5a7e6c`, `457f50f1`, `5d8832e1`, `5d231b18`, `6c1b4008`,
 | `docs/fork/PATCHSET.md` | auto peer count |
 
 Fork commits `bc5a7e6c`, `457f50f1`, `5d8832e1`, `5d231b18`, `6c1b4008`,
-`33fc1137`, `ddf20ed9`, `34dda674`, `20077b93` and `72a2685a`: O1, auto peer
-count.
+`33fc1137`, `ddf20ed9`, `34dda674`, `20077b93`, `72a2685a` and `c1c51fe2`:
+O1, auto peer count.
 Upstream site: `InterfaceManager::register_virtual_iface` in
 `crates/libs/rns-transport/src/iface_parts/interfacemanager.rs` and the
 private `LocalInterface` record in
@@ -192,7 +192,15 @@ stopped. It pins the prune with a post-cleanup broadcast send in
 keeps `1`, adopts three `rnstatus_peers_cli` edge probes (a null `peers`
 treated like an absent key, a non-u64 value omitted, `u64::MAX` printed
 in full) into the CHANGELOG enumeration and re-wraps one over-long
-README line.
+README line. `c1c51fe2` reads the `RNS/Reticulum.py:1501-1503` cite
+exactly in the README divergence register and the null-`peers` test doc:
+Python emits `peers` only for an interface carrying a `peers` attribute
+and writes `None` only when that attribute is itself `None`, which no RNS
+1.5.2 interface does; it rewords `InterfaceManager::peer_count` to the
+record carrying `address`, asserts the host's absence and the child's
+`None` after the closed-queue prune, moves the rnstatus unit fixture's
+auto `peers` to 4 so the UDP `peers=2` assertion stays discriminating,
+and adds the closed-queue clause to the CHANGELOG pin enumeration.
 
 ## 0.18.2 (upstream 0.14.0)
 

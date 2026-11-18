@@ -75,7 +75,12 @@ impl Transport {
     /// rest), the shared instance's interface, and a channel minted here
     /// that no `InterfaceManager::set_peer_counter` call reached. Python
     /// exposes the count only through rnstatus and its RPC; the fork also
-    /// exposes it in-process here.
+    /// exposes it in-process here. Nothing publishes 0 when the AutoInterface
+    /// runtime stops: the counter keeps its last published value, so the read
+    /// keeps its last `Some(n)` until the manager prunes the host record
+    /// (`stop_interface`, or the manager's next cleanup pass once the
+    /// interface's stop token is cancelled), after which it reads `None`; a status
+    /// handle sharing the counter keeps reading `n` for as long as it lives.
     #[deny(clippy::await_holding_invalid_type)]
     pub async fn interface_peer_count(&self, iface: &AddressHash) -> Option<u64> {
         self.iface_manager.lock().await.peer_count(iface)

@@ -108,6 +108,21 @@ fn peer_table_publishes_its_length_into_a_newly_installed_counter() {
     assert_eq!(replaced.load(std::sync::atomic::Ordering::Acquire), 2);
 }
 
+/// The handle's JSON carries the counter as `peers`: 0 for a fresh handle,
+/// and whatever the shared counter holds afterwards.
+#[test]
+fn status_handle_json_carries_the_peer_count() {
+    let plan = loopback_software_auto_plan(core::time::Duration::from_millis(50));
+    let handle = AutoRuntimeStatusHandle::from_startup_plan(&plan.startup_plan);
+    assert_eq!(handle.to_json()["peers"].as_u64(), Some(0));
+
+    handle.peer_counter().store(3, std::sync::atomic::Ordering::Release);
+
+    assert_eq!(handle.peer_count(), 3);
+    assert_eq!(handle.to_json()["peers"].as_u64(), Some(3));
+    assert_eq!(handle.clone().to_json()["peers"].as_u64(), Some(3));
+}
+
 #[cfg(unix)]
 async fn wait_for_peer_count(handle: &AutoRuntimeStatusHandle, expected: u64) {
     let deadline = Instant::now() + core::time::Duration::from_secs(5);
@@ -187,6 +202,7 @@ async fn spawned_runtime_publishes_peer_count_through_status_handle() {
 
     wait_for_peer_count(&handle, 1).await;
     assert_eq!(handle.peer_count(), 1);
+    assert_eq!(handle.to_json()["peers"].as_u64(), Some(1));
     runtime.stop().await;
 }
 
@@ -239,9 +255,18 @@ async fn spawned_runtime_installs_peer_count_on_the_bridge_host_channel() {
     assert_eq!(manager.lock().await.peer_count(&child), Some(1));
 
     runtime.stop().await;
+    assert!(
+        manager.lock().await.interface_hashes().contains(&host),
+        "stop leaves the host record in the manager"
+    );
     assert_eq!(
         manager.lock().await.peer_count(&host),
         Some(1),
-        "stop leaves the host record and its counter in the manager"
+        "the host's counter holds its last value: stop does not zero it"
+    );
+    assert_eq!(
+        handle.peer_count(),
+        1,
+        "the handle reads the same counter, which stop does not zero"
     );
 }

@@ -48,7 +48,10 @@ impl InterfaceManager {
     /// `address`; a virtual child shares its host's counter. `None` both when
     /// no record here carries the address and when the record carries no
     /// counter, which is every interface kind other than an AutoInterface
-    /// host and its children unless `set_peer_counter` installed one.
+    /// host and its children unless `set_peer_counter` installed one. Nothing
+    /// publishes 0 when the AutoInterface runtime stops: the counter keeps its
+    /// last published value, so the read stays `Some(last)` until the host
+    /// record is pruned, after which it is `None`.
     pub fn peer_count(&self, address: &AddressHash) -> Option<u64> {
         self.ifaces
             .iter()

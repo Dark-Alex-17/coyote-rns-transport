@@ -4,6 +4,9 @@
 //! reverse (`:513-517`). A challenge body is either the modern
 //! `{digest}` + 40 random bytes or a legacy bare 20 bytes from a Python
 //! 3.11 or older server, and the answer form follows the challenge form.
+//! This client's own challenge mirrors the server's form too, where the
+//! stdlib client always challenges with `{sha256}` whatever form the server
+//! spoke (`connection.py:970`, `:976`).
 
 use hmac::digest::KeyInit;
 use hmac::{Hmac, Mac};

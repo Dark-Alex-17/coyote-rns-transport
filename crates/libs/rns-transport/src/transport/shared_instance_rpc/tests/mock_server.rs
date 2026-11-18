@@ -47,7 +47,15 @@ pub(super) enum Answer {
 /// What the server does once it has accepted.
 pub(super) enum Script {
     /// The full exchange: challenge, verify, answer, serve `reply`, close.
-    Exchange { form: ServerForm, key: Vec<u8>, answer: Answer, reply: Vec<u8> },
+    /// With `reply_header` set, the reply is that bare 4-byte header and
+    /// nothing after it.
+    Exchange {
+        form: ServerForm,
+        key: Vec<u8>,
+        answer: Answer,
+        reply: Vec<u8>,
+        reply_header: Option<i32>,
+    },
     /// One well-formed frame carrying `payload`, then close.
     Frame(Vec<u8>),
     /// `bytes` written as they are, then close.
@@ -64,6 +72,10 @@ pub(super) struct Observed {
     pub(super) challenge: Option<Vec<u8>>,
     pub(super) verdict: Option<Vec<u8>>,
     pub(super) request: Option<Vec<u8>>,
+    /// Whether the client hung up once the handshake failed, from one more
+    /// read after the `#FAILURE#` went either way: `Some(true)` is EOF,
+    /// `Some(false)` is more bytes or an error.
+    pub(super) after_failure: Option<bool>,
 }
 
 pub(super) struct MockServer {
@@ -107,11 +119,12 @@ where
 {
     let mut observed = Observed::default();
     match script {
-        Script::Exchange { form, key, answer, reply } => {
-            exchange(&mut stream, form, &key, answer, reply, &mut observed).await;
+        Script::Exchange { form, key, answer, reply, reply_header } => {
+            exchange(&mut stream, form, &key, answer, reply, reply_header, &mut observed).await;
         }
         Script::Frame(payload) => {
             send_frame(&mut stream, &payload).await.expect("send frame");
+            stream.shutdown().await.expect("shutdown after frame");
             drain(&mut stream).await;
         }
         Script::RawBytes(bytes) => {
@@ -138,12 +151,21 @@ where
     }
 }
 
+async fn client_hung_up<S>(stream: &mut S) -> bool
+where
+    S: AsyncRead + Unpin,
+{
+    let mut sink = [0u8; 16];
+    matches!(stream.read(&mut sink).await, Ok(0))
+}
+
 async fn exchange<S>(
     stream: &mut S,
     form: ServerForm,
     key: &[u8],
     answer: Answer,
     reply: Vec<u8>,
+    reply_header: Option<i32>,
     observed: &mut Observed,
 ) where
     S: AsyncRead + AsyncWrite + Unpin,
@@ -172,6 +194,7 @@ async fn exchange<S>(
     };
     if !verified {
         send_frame(stream, FAILURE).await.expect("send failure");
+        observed.after_failure = Some(client_hung_up(stream).await);
         return;
     }
     send_frame(stream, WELCOME).await.expect("send welcome");
@@ -205,13 +228,20 @@ async fn exchange<S>(
     let verdict = recv_frame(stream, AUTH_MAX).await.expect("recv verdict");
     observed.verdict = Some(verdict.clone());
     if verdict != WELCOME {
+        observed.after_failure = Some(client_hung_up(stream).await);
         return;
     }
 
     // rpc_loop (RNS/Reticulum.py:1277-1334)
     let request = recv_frame(stream, 1 << 20).await.expect("recv request");
     observed.request = Some(request);
-    send_frame(stream, &reply).await.expect("send reply");
+    match reply_header {
+        Some(header) => {
+            stream.write_all(&header.to_be_bytes()).await.expect("write reply header");
+            stream.shutdown().await.expect("shutdown after reply header");
+        }
+        None => send_frame(stream, &reply).await.expect("send reply"),
+    }
 }
 
 fn random(len: usize) -> Vec<u8> {

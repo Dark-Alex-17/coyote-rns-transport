@@ -461,8 +461,10 @@ fn crate_readme_rnsd_rpc_section_describes_the_client() {
         "the divergence register should name the RPC client:\n{divergences}"
     );
     let changelog = read_repo_file("crates/libs/rns-transport/CHANGELOG.md");
-    let changelog_section =
-        squash(changelog_section_naming(&changelog, "`transport::shared_instance_rpc`"));
+    let changelog_section = squash(changelog_section_naming(
+        &changelog,
+        "`transport::shared_instance_rpc` (`transport/shared_instance_rpc.rs`), a",
+    ));
     for claim in [
         "`interface_stats(&endpoint, &key, timeout)`",
         "`for_instance(name)`",

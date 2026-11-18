@@ -1,6 +1,7 @@
 //! The rnsd RPC client used from outside the crate, through
 //! `rns_transport::transport::shared_instance_rpc` only: `RpcError` has its seven
 //! variants and stays open to more, and is a `Send + Sync + 'static` error;
+//! `RpcEndpoint` has `Tcp` and, on unix, `Unix` and stays open to more,
 //! `RpcEndpoint::default_tcp()` is `127.0.0.1:37429` and `for_instance("default")` is the
 //! abstract unix socket `rns/default/rpc` on Linux and Android and `default_tcp()`
 //! elsewhere; `RpcKey::from_hex` accepts an even run of hex digits and refuses an empty,
@@ -45,6 +46,15 @@ fn error_label(err: &RpcError) -> &'static str {
     }
 }
 
+fn endpoint_label(endpoint: &RpcEndpoint) -> &'static str {
+    match endpoint {
+        RpcEndpoint::Tcp(_) => "tcp",
+        #[cfg(unix)]
+        RpcEndpoint::Unix(_) => "unix",
+        _ => "a later variant",
+    }
+}
+
 /// The README recipe's lines, from the identity file to the per-interface peer read; the
 /// test supplies the endpoint.
 async fn readme_recipe(configdir: &Path, endpoint: RpcEndpoint) -> Result<(), RpcError> {
@@ -58,12 +68,14 @@ async fn readme_recipe(configdir: &Path, endpoint: RpcEndpoint) -> Result<(), Rp
 }
 
 fn describe(stats: &InterfaceStats) {
-    for stat in &stats.interfaces {
+    // The `..` is what non_exhaustive demands of a destructure outside the crate.
+    let InterfaceStats { interfaces, raw, .. } = stats;
+    for stat in interfaces {
         let InterfaceStat { name, short_name, kind, online, peers, clients, rxb, txb, raw, .. } =
             stat;
         log::debug!("{name} {short_name} {kind} {online} {peers:?} {clients:?} {rxb} {txb} {raw}");
     }
-    log::debug!("{}", stats.raw);
+    log::debug!("{raw}");
 }
 
 #[test]
@@ -81,10 +93,9 @@ fn rpc_error_is_a_send_sync_error_with_seven_named_variants() {
 
 #[test]
 fn default_tcp_is_the_python_control_port() {
-    assert_eq!(
-        RpcEndpoint::default_tcp(),
-        RpcEndpoint::Tcp("127.0.0.1:37429".parse().expect("addr"))
-    );
+    let endpoint = RpcEndpoint::default_tcp();
+    assert_eq!(endpoint, RpcEndpoint::Tcp("127.0.0.1:37429".parse().expect("addr")));
+    assert_eq!(endpoint_label(&endpoint), "tcp");
 }
 
 #[cfg(any(target_os = "linux", target_os = "android"))]
@@ -93,6 +104,7 @@ fn for_instance_is_the_abstract_socket_on_linux() {
     use rns_transport::iface::local::LocalUnixEndpoint;
     let endpoint = RpcEndpoint::for_instance("default");
     assert_eq!(endpoint, RpcEndpoint::Unix(LocalUnixEndpoint::abstract_name("rns/default/rpc")));
+    assert_eq!(endpoint_label(&endpoint), "unix");
 }
 
 #[cfg(not(any(target_os = "linux", target_os = "android")))]

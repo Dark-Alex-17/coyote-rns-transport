@@ -78,7 +78,13 @@ fn canned_reply() -> Value {
 }
 
 fn exchange(form: ServerForm, answer: Answer) -> Script {
-    Script::Exchange { form, key: key().as_bytes().to_vec(), answer, reply: pack(&canned_reply()) }
+    Script::Exchange {
+        form,
+        key: key().as_bytes().to_vec(),
+        answer,
+        reply: pack(&canned_reply()),
+        reply_header: None,
+    }
 }
 
 async fn call(server: &MockServer) -> Result<InterfaceStats, RpcError> {
@@ -207,11 +213,12 @@ async fn wrong_key_is_authentication() {
         key: vec![0x42; 32],
         answer: Answer::Correct,
         reply: pack(&canned_reply()),
+        reply_header: None,
     })
     .await;
     assert!(matches!(call(&server).await, Err(RpcError::Authentication)));
     let observed = server.finish().await;
-    assert!(observed.challenge.is_none(), "the client stops at #FAILURE#");
+    assert_eq!(observed.after_failure, Some(true), "the client hangs up at #FAILURE#");
 }
 
 #[tokio::test]
@@ -221,7 +228,7 @@ async fn bad_server_answer_is_authentication_and_sends_failure() {
     assert!(matches!(call(&server).await, Err(RpcError::Authentication)));
     let observed = server.finish().await;
     assert_eq!(observed.verdict.as_deref(), Some(b"#FAILURE#".as_slice()));
-    assert!(observed.request.is_none());
+    assert_eq!(observed.after_failure, Some(true), "the client hangs up after #FAILURE#");
 }
 
 #[tokio::test]
@@ -244,7 +251,20 @@ async fn server_answer_in_another_digest_is_authentication() {
     let answer = observed.answer.as_ref().expect("answer");
     assert!(answer.starts_with(b"{sha256}"), "the client challenged in sha256: {answer:?}");
     assert_eq!(observed.verdict.as_deref(), Some(b"#FAILURE#".as_slice()));
-    assert!(observed.request.is_none());
+    assert_eq!(observed.after_failure, Some(true), "the client hangs up after #FAILURE#");
+}
+
+#[tokio::test]
+async fn server_answer_in_legacy_form_to_a_modern_challenge_is_authentication() {
+    let server = MockServer::spawn(exchange(
+        ServerForm::Modern(Digest::Sha256),
+        Answer::OtherDigest(Digest::Md5),
+    ))
+    .await;
+    assert!(matches!(call(&server).await, Err(RpcError::Authentication)));
+    let observed = server.finish().await;
+    assert_eq!(observed.verdict.as_deref(), Some(b"#FAILURE#".as_slice()));
+    assert_eq!(observed.after_failure, Some(true), "the client hangs up after #FAILURE#");
 }
 
 #[tokio::test]
@@ -265,6 +285,19 @@ async fn short_challenge_body_is_protocol() {
     frame.extend_from_slice(&[7u8; 10]);
     let server = MockServer::spawn(Script::Frame(frame)).await;
     assert!(matches!(call(&server).await, Err(RpcError::Protocol(_))));
+    server.finish().await;
+}
+
+#[tokio::test]
+async fn frame_header_is_big_endian() {
+    let mut bytes = 57i32.to_be_bytes().to_vec();
+    bytes.extend_from_slice(b"#CHALLENGE#{sha1}");
+    bytes.extend_from_slice(&[7u8; 40]);
+    let server = MockServer::spawn(Script::RawBytes(bytes)).await;
+    match call(&server).await {
+        Err(RpcError::UnsupportedDigest(name)) => assert_eq!(name, "sha1"),
+        other => panic!("expected UnsupportedDigest, got {other:?}"),
+    }
     server.finish().await;
 }
 
@@ -339,10 +372,30 @@ async fn reply_that_is_not_msgpack_is_decode() {
         key: key().as_bytes().to_vec(),
         answer: Answer::Correct,
         reply: vec![0xc1],
+        reply_header: None,
     })
     .await;
     assert!(matches!(call(&server).await, Err(RpcError::Decode(_))));
     server.finish().await;
+}
+
+#[tokio::test]
+async fn reply_over_the_cap_is_protocol() {
+    let server = MockServer::spawn(Script::Exchange {
+        form: ServerForm::Modern(Digest::Sha256),
+        key: key().as_bytes().to_vec(),
+        answer: Answer::Correct,
+        reply: Vec::new(),
+        reply_header: Some(16 * 1024 * 1024 + 1),
+    })
+    .await;
+    match call(&server).await {
+        Err(RpcError::Protocol(message)) => {
+            assert!(message.contains("exceeds cap"), "{message}");
+        }
+        other => panic!("expected the cap to reject the header, got {other:?}"),
+    }
+    assert_request(&server.finish().await);
 }
 
 #[tokio::test]
@@ -426,6 +479,10 @@ fn for_instance_is_the_default_tcp_port_elsewhere() {
 // Vectors produced by CPython's multiprocessing.connection._create_response
 // (connection.py:917-942) with the key above; modern forms MAC the whole
 // prefixed message and the legacy form is the raw HMAC-MD5 of a 20-byte body.
+// Regenerate under CPython 3.14 with
+//   from multiprocessing.connection import _create_response as r
+//   k = bytes.fromhex(KEY_HEX); r(k, b"{sha256}" + bytes(range(40))).hex()
+// and r(k, bytes(range(20))).hex() for the legacy vector.
 #[test]
 fn mac_matches_the_cpython_stdlib_vectors() {
     let key = hex::decode(KEY_HEX).expect("hex");
@@ -519,7 +576,7 @@ fn decode_rejects_a_negative_rxb() {
 }
 
 #[test]
-fn decode_rejects_a_top_level_that_is_not_a_map() {
+fn decode_rejects_a_malformed_top_level_or_entry() {
     assert!(matches!(decoded(Value::Array(vec![])), Err(RpcError::Decode(_))));
     assert!(matches!(decoded(map(vec![("rxb", Value::from(1))])), Err(RpcError::Decode(_))));
     assert!(matches!(

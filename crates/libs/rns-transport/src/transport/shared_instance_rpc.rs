@@ -44,8 +44,11 @@ pub enum RpcEndpoint {
     /// The TCP listener at the instance's `instance_control_port`
     /// (`RNS/Reticulum.py:296`, `:495`).
     Tcp(SocketAddr),
-    /// The abstract unix listener (`RNS/Reticulum.py:354`). Unix targets
-    /// only.
+    /// A unix-socket listener. Python binds the abstract name
+    /// `\0rns/{instance_name}/rpc` (`RNS/Reticulum.py:354`), which resolves
+    /// only on Linux and Android; elsewhere `LocalUnixEndpoint::tokio_path`
+    /// treats an `Abstract` endpoint as a relative filesystem path, so build
+    /// `Filesystem` endpoints there.
     #[cfg(unix)]
     Unix(LocalUnixEndpoint),
 }

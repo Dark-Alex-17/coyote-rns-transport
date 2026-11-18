@@ -925,8 +925,11 @@ unix socket `rns/<instance_name>/rpc`, which
 `RpcEndpoint::for_instance("default")` names; everywhere else, and for a
 `tcp`-type shared instance on Linux, the listener is
 `RpcEndpoint::Tcp(127.0.0.1:<instance_control_port>)`, `127.0.0.1:37429`
-by default (`RNS/Reticulum.py:296`, `:495-497`), which `RpcEndpoint::default_tcp()`
-returns. `RpcKey`'s `Debug` prints `RpcKey(redacted)`.
+by default (`RNS/Reticulum.py:296`, `:495-497`), which
+`RpcEndpoint::default_tcp()` returns. Dial the endpoint rnsd actually
+binds: an endpoint rnsd left unbound could be bound by another local
+process, which the mutual handshake limits to a failed call but which is
+still worth avoiding. `RpcKey`'s `Debug` prints `RpcKey(redacted)`.
 
 ```rust
 use std::time::Duration;
@@ -947,31 +950,32 @@ top-level map as `raw: rmpv::Value`; each `InterfaceStat` reads `name`,
 `peers` and `clients` as `Option<u64>` (`None` for an absent or nil key),
 `rxb`, `txb`, and its own map as `raw`. The call takes one fresh connection
 and runs connect, handshake, request and reply under the one `Duration`;
-`RpcError::Connect` is the dial failing, `RpcError::Authentication` a key the
-server rejects (or a server that fails our challenge), `Protocol` a malformed or
-oversized frame or an io error after connect, `Decode` an unexpected reply
-shape, `UnsupportedDigest` a
-challenge digest outside the stdlib's allowed set, `InvalidKeyMaterial` a
-key that cannot be parsed or derived, and `Timeout` the budget running out.
+`RpcError::Connect` is the dial failing, `RpcError::Authentication` a key
+the server rejects (or a server that fails our challenge), `Protocol` a
+malformed or oversized frame or an io error after connect, `Decode` an
+unexpected reply shape, `UnsupportedDigest` a challenge digest outside the
+stdlib's allowed set, `InvalidKeyMaterial` a key that cannot be parsed or
+derived, and `Timeout` the budget running out.
 The handshake is the stdlib's mutual HMAC exchange
 (`connection.py:917-1006`): the client answers the server's challenge and
 then delivers its own, in the modern `{digest}`-prefixed form a Python 3.12
 or later server speaks and in the legacy raw HMAC-MD5 form of a 3.11 or
-older one, following whichever form the server's challenge used. The
-client holds the server to the `{sha256}` it challenged with, where the
-stdlib would accept any allowed digest (`connection.py:956-959`);
-unreachable against a CPython server, whose `_create_response` echoes the
-challenge digest (`connection.py:928-942`). Pinned by
+older one, following whichever form the server's challenge used, where the
+stdlib client always challenges with `{sha256}` regardless of the server's
+form (`connection.py:970`, `:976`). The client holds the server to the
+`{sha256}` it challenged with, where the stdlib would accept any allowed
+digest (`connection.py:956-959`); unreachable against a CPython server,
+whose `_create_response` echoes the challenge digest
+(`connection.py:928-942`). Pinned by
 `src/transport/shared_instance_rpc/tests/mod.rs` (both handshake forms and
 the `{sha3_384}` and `{md5}` digests against a mock server, the wrong-key,
 bad-answer, unsupported-digest, truncated, oversized, silent and
 short-challenge failures, the unix socket round trips, the wide and
 negative frame headers, the digest lock and the stdlib known-answer vectors
 from `connection.py:917-942`, the key derivations and the decode shape
-rules) and
-`tests/shared_instance_rpc_api.rs` (the public surface, the `Send` future,
-the closed-port `Connect` and the recipe's lines, the test supplying the
-endpoint).
+rules) and `tests/shared_instance_rpc_api.rs` (the public surface, the
+`Send` future, the closed-port `Connect` and the recipe's lines, the test
+supplying the endpoint).
 
 ## Known divergences from Python RNS
 
@@ -1158,6 +1162,12 @@ parity ledger; the `docs/status/*` matrices are not updated per fork task.
   (`RNS/Interfaces/LocalInterface.py:130`). The formula and the release
   arming are inherited from upstream `reticulum-rs-transport`; the constants
   refresh and the sustained clock make the difference observable.
+- `RpcKey::from_hex` refuses the empty and whitespace-separated `rpc_key`
+  values `bytes.fromhex` accepts and Python runs the listener with
+  (`RNS/Reticulum.py:360-364`, `:499-505`), and
+  `transport::shared_instance_rpc` challenges a Python 3.11 or older
+  server in its legacy raw HMAC-MD5 form, where the stdlib client always
+  sends a `{sha256}` challenge (`connection.py:970`, `:976`).
 
 Not divergences:
 
@@ -1197,10 +1207,8 @@ Not divergences:
   `interface_stats` RPC; Python has no typed client, rnstatus reads the
   reply dict directly (`RNS/Utilities/rnstatus.py:555-556`,
   `RNS/Reticulum.py:1397-1402`), and the RPC server stays Python-only:
-  reticulumd hosts no `multiprocessing.connection` listener. The empty
-  and whitespace-separated `rpc_key` values Python accepts
-  (`RNS/Reticulum.py:360-364`, `:499-505`) are refused by
-  `RpcKey::from_hex`. API shape, except the key refusal.
+  reticulumd hosts no `multiprocessing.connection` listener. API shape,
+  not behaviour.
 
 ## Versioning and releases
 

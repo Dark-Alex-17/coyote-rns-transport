@@ -3,7 +3,8 @@ use std::time::{Duration, Instant};
 
 use rmpv::Value;
 
-use super::handshake::{mac, verify_mac, Digest};
+use super::framing::{recv_frame, send_frame};
+use super::handshake::{deliver_challenge, mac, verify_mac, ChallengeForm, Digest};
 use super::*;
 
 mod mock_server;
@@ -266,6 +267,43 @@ async fn server_answer_in_legacy_form_to_a_modern_challenge_is_authentication() 
     assert_eq!(observed.after_failure, Some(true), "the client hangs up after #FAILURE#");
 }
 
+/// A server that answers wrong and hangs up before reading the verdict
+/// still gets `Authentication` from the client, whatever became of the
+/// `#FAILURE#` write to the departed peer.
+#[tokio::test]
+async fn bad_server_answer_from_a_departed_server_is_still_authentication() {
+    let server =
+        MockServer::spawn(exchange(ServerForm::Modern(Digest::Sha256), Answer::WrongThenHangUp))
+            .await;
+    let result = call(&server).await;
+    assert!(matches!(result, Err(RpcError::Authentication)), "{result:?}");
+    let observed = server.finish().await;
+    assert_eq!(observed.verdict, None, "the server never read a verdict");
+}
+
+/// The `#FAILURE#` write itself failing does not change the verdict: over an
+/// in-memory pipe whose far end has already gone, the write is a broken
+/// pipe and `deliver_challenge` still returns `Authentication`.
+#[tokio::test]
+async fn failure_notice_on_a_broken_pipe_is_still_authentication() {
+    let (mut client, mut server) = tokio::io::duplex(1024);
+    let key = key();
+    let client_key = key.clone();
+    let client_task = tokio::spawn(async move {
+        deliver_challenge(&mut client, client_key.as_bytes(), ChallengeForm::Modern).await
+    });
+    let challenge = recv_frame(&mut server, 256).await.expect("recv challenge");
+    let body = challenge.strip_prefix(b"#CHALLENGE#").expect("challenge prefix");
+    let mut answer = b"{sha256}".to_vec();
+    answer.extend(mac(Digest::Sha256, key.as_bytes(), body).into_iter().map(|byte| !byte));
+    // The answer write completes without yielding, so the client cannot run
+    // between it and the drop: its #FAILURE# meets a pipe with no reader.
+    send_frame(&mut server, &answer).await.expect("send wrong answer");
+    drop(server);
+    let verdict = client_task.await.expect("client task");
+    assert!(matches!(verdict, Err(RpcError::Authentication)), "{verdict:?}");
+}
+
 #[tokio::test]
 async fn unknown_challenge_digest_is_unsupported_digest() {
     let mut frame = b"#CHALLENGE#{sha1}".to_vec();
@@ -516,13 +554,13 @@ fn mac_matches_the_cpython_stdlib_vectors() {
         assert_eq!(&response[..prefix.len()], prefix.as_slice(), "{digest:?}");
         let expected = &response[prefix.len()..];
         let message = [prefix.as_slice(), msg40.as_slice()].concat();
-        assert_eq!(mac(digest, &key, &message).expect("mac"), expected, "{digest:?}");
-        assert!(matches!(verify_mac(digest, &key, &message, expected), Ok(true)), "{digest:?}");
+        assert_eq!(mac(digest, &key, &message), expected, "{digest:?}");
+        assert!(verify_mac(digest, &key, &message, expected), "{digest:?}");
     }
 
     let legacy = hex::decode("7e57151ba744ee63c52e1497fbef19d0").expect("vector");
-    assert_eq!(mac(Digest::Md5, &key, &leg20).expect("mac"), legacy);
-    assert!(matches!(verify_mac(Digest::Md5, &key, &leg20, &legacy), Ok(true)));
+    assert_eq!(mac(Digest::Md5, &key, &leg20), legacy);
+    assert!(verify_mac(Digest::Md5, &key, &leg20, &legacy));
 }
 
 fn decoded(value: Value) -> Result<InterfaceStats, RpcError> {

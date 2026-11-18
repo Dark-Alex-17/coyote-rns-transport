@@ -83,8 +83,9 @@ impl Digest {
     }
 }
 
-/// `hmac.new(authkey, message, digest).digest()`.
-pub(super) fn mac(digest: Digest, key: &[u8], message: &[u8]) -> Result<Vec<u8>, RpcError> {
+/// `hmac.new(authkey, message, digest).digest()`; infallible, as HMAC takes
+/// a key of any length.
+pub(super) fn mac(digest: Digest, key: &[u8], message: &[u8]) -> Vec<u8> {
     match digest {
         Digest::Md5 => tag::<Hmac<md5::Md5>>(key, message),
         Digest::Sha256 => tag::<Hmac<sha2::Sha256>>(key, message),
@@ -96,12 +97,7 @@ pub(super) fn mac(digest: Digest, key: &[u8], message: &[u8]) -> Result<Vec<u8>,
 
 /// `hmac.compare_digest` over a fresh MAC (`connection.py:959-967`); a tag of
 /// the wrong length fails like a wrong tag.
-pub(super) fn verify_mac(
-    digest: Digest,
-    key: &[u8],
-    message: &[u8],
-    tag: &[u8],
-) -> Result<bool, RpcError> {
+pub(super) fn verify_mac(digest: Digest, key: &[u8], message: &[u8], tag: &[u8]) -> bool {
     match digest {
         Digest::Md5 => verify::<Hmac<md5::Md5>>(key, message, tag),
         Digest::Sha256 => verify::<Hmac<sha2::Sha256>>(key, message, tag),
@@ -111,18 +107,18 @@ pub(super) fn verify_mac(
     }
 }
 
-fn keyed<M: Mac + KeyInit>(key: &[u8], message: &[u8]) -> Result<M, RpcError> {
-    let mut mac = <M as Mac>::new_from_slice(key).map_err(|_| RpcError::InvalidKeyMaterial)?;
+fn keyed<M: Mac + KeyInit>(key: &[u8], message: &[u8]) -> M {
+    let mut mac = <M as Mac>::new_from_slice(key).expect("HMAC accepts any key length");
     mac.update(message);
-    Ok(mac)
+    mac
 }
 
-fn tag<M: Mac + KeyInit>(key: &[u8], message: &[u8]) -> Result<Vec<u8>, RpcError> {
-    Ok(keyed::<M>(key, message)?.finalize().into_bytes().to_vec())
+fn tag<M: Mac + KeyInit>(key: &[u8], message: &[u8]) -> Vec<u8> {
+    keyed::<M>(key, message).finalize().into_bytes().to_vec()
 }
 
-fn verify<M: Mac + KeyInit>(key: &[u8], message: &[u8], tag: &[u8]) -> Result<bool, RpcError> {
-    Ok(keyed::<M>(key, message)?.verify_slice(tag).is_ok())
+fn verify<M: Mac + KeyInit>(key: &[u8], message: &[u8], tag: &[u8]) -> bool {
+    keyed::<M>(key, message).verify_slice(tag).is_ok()
 }
 
 /// The two message shapes `_get_digest_name_and_payload` tells apart
@@ -189,10 +185,10 @@ where
         return Err(RpcError::Protocol(format!("challenge too short: {} bytes", body.len())));
     }
     let (form, response) = match parse_message(body) {
-        Ok(Message::Legacy) => (ChallengeForm::Legacy, mac(Digest::Md5, key, body)?),
+        Ok(Message::Legacy) => (ChallengeForm::Legacy, mac(Digest::Md5, key, body)),
         Ok(Message::Prefixed { digest, .. }) => {
             let mut response = digest.prefix();
-            response.extend(mac(digest, key, body)?);
+            response.extend(mac(digest, key, body));
             (ChallengeForm::Modern, response)
         }
         Err(PrefixError::Missing) => {
@@ -218,7 +214,9 @@ where
 /// HMAC-SHA256 over the whole body, prefix included. Python would also
 /// accept a response in a different allowed digest; this client holds the
 /// server to the digest it was challenged with. A response that does not
-/// verify is answered with `#FAILURE#` and is [`RpcError::Authentication`].
+/// verify is answered with `#FAILURE#` and is [`RpcError::Authentication`],
+/// whether or not the failure notice reaches a server that has already hung
+/// up.
 pub(super) async fn deliver_challenge<S>(
     stream: &mut S,
     key: &[u8],
@@ -247,17 +245,19 @@ where
     let response = recv_frame(stream, AUTH_FRAME_MAX_LEN).await?;
     let verified = match (form, parse_message(&response)) {
         (ChallengeForm::Legacy, Ok(Message::Legacy)) => {
-            verify_mac(Digest::Md5, key, &message, &response)?
+            verify_mac(Digest::Md5, key, &message, &response)
         }
         (ChallengeForm::Modern, Ok(Message::Prefixed { digest: answered, payload }))
             if answered == digest =>
         {
-            verify_mac(digest, key, &message, payload)?
+            verify_mac(digest, key, &message, payload)
         }
         _ => false,
     };
     if !verified {
-        send_frame(stream, FAILURE).await?;
+        if let Err(err) = send_frame(stream, FAILURE).await {
+            log::debug!("shared instance rpc: failure notice not delivered err={err}");
+        }
         return Err(RpcError::Authentication);
     }
     send_frame(stream, WELCOME).await

@@ -41,6 +41,10 @@ pub(super) enum Answer {
     Correct,
     /// The right shape with every MAC byte inverted.
     Wrong,
+    /// [`Answer::Wrong`], then the socket is closed before the client's
+    /// verdict is read, so the client's `#FAILURE#` meets a peer that is
+    /// already gone.
+    WrongThenHangUp,
     /// A correct MAC in a digest other than the one the client challenged
     /// with, which the stdlib would accept (`connection.py:956-959`).
     OtherDigest(Digest),
@@ -190,7 +194,7 @@ async fn exchange<S>(
         ServerForm::Legacy => Some(response.as_slice()),
     };
     let verified = match tag {
-        Some(tag) => verify_mac(digest, key, &message, tag).expect("verify"),
+        Some(tag) => verify_mac(digest, key, &message, tag),
         None => false,
     };
     if !verified {
@@ -215,10 +219,10 @@ async fn exchange<S>(
     };
     let digest = match answer {
         Answer::OtherDigest(other) => other,
-        Answer::Correct | Answer::Wrong => challenged,
+        Answer::Correct | Answer::Wrong | Answer::WrongThenHangUp => challenged,
     };
-    let mut tag = mac(digest, key, body).expect("mac");
-    if let Answer::Wrong = answer {
+    let mut tag = mac(digest, key, body);
+    if let Answer::Wrong | Answer::WrongThenHangUp = answer {
         for byte in &mut tag {
             *byte = !*byte;
         }
@@ -226,6 +230,10 @@ async fn exchange<S>(
     let mut response = if digest == Digest::Md5 { Vec::new() } else { digest.prefix() };
     response.extend(tag);
     send_frame(stream, &response).await.expect("send answer");
+    if let Answer::WrongThenHangUp = answer {
+        stream.shutdown().await.expect("shutdown before the verdict");
+        return;
+    }
     let verdict = recv_frame(stream, AUTH_MAX).await.expect("recv verdict");
     observed.verdict = Some(verdict.clone());
     if verdict != WELCOME {

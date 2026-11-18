@@ -35,7 +35,7 @@ belongs to. Patch ids: O1 is auto peer count, O2 is rnsd rpc client. The
 `72a2685a` and `c1c51fe2`. The `rnsd rpc client` patch is fork commits
 `e5fed58f`, `2b2d59c1`, `48ea789e`, `eb520fad` and `d3267e30`. The
 `Python-in-the-loop rnsd rpc interop` patch carries no other id and is
-fork commits `8870d19f` and `0efdadfa`.
+fork commits `8870d19f`, `0efdadfa` and `238abaa3`.
 
 | File | Patch |
 | --- | --- |
@@ -298,10 +298,11 @@ replaces the encoded-at-runtime request with the constant msgpack bytes of
 `{"get": "interface_stats"}`, folds the mock's reply override into a `Reply`
 enum, and states the four `non_exhaustive` items in the README and CHANGELOG.
 
-Fork commits `8870d19f` and `0efdadfa`: Python-in-the-loop rnsd rpc interop.
+Fork commits `8870d19f`, `0efdadfa` and `238abaa3`: Python-in-the-loop rnsd
+rpc interop.
 A Python rnsd (RNS 1.5.2) is the shared instance on a free TCP port with
-one `AutoInterface` configured in a top-level `[interfaces]` section,
-which Python reads as the one place interfaces come from
+one `AutoInterface` configured in a top-level `[interfaces]` section, the
+section Python reads configured interfaces from
 (`RNS/Reticulum.py:748-752`), and the reticulumd `python_channel_interop`
 binary reads its interface statistics through the O2 client:
 `crates/apps/reticulumd/tests/python_channel_interop_parts/python_shared_instance_rpc.rs`,
@@ -326,12 +327,17 @@ harness `python_shared_instance_live.rs` gains `config_with_interfaces`,
 which appends a caller-written top-level section after `[logging]`,
 `with_reticulum_line`, and on Linux the unix instance's name. The
 AutoInterface takes a free `data_port`: the default `42671` is bound
-without address reuse (`RNS/Interfaces/AutoInterface.py:334-337`), so a
-host rnsd on it would keep the interface from starting; the discovery
-sockets set `SO_REUSEPORT` and keep their defaults, and a unique
-`group_id` keeps any other node from peering. `0efdadfa` names the proof
-in the README RPC section and adds it to the section's pin in
-`readme_patch_list.rs`.
+without address reuse (`RNS/Interfaces/AutoInterface.py:334-337`) and the
+bind error reaches the interface catch-all that panics rnsd
+(`RNS/Reticulum.py:1120-1124`), so a host rnsd on it would take the whole
+instance down; the discovery sockets set `SO_REUSEPORT` and keep their
+defaults, and a unique `group_id` keeps any other node from peering.
+`0efdadfa` names the proof in the README RPC section and adds it to the
+section's pin in `readme_patch_list.rs`. `238abaa3` has the identity wait
+end when the file holds its 64 bytes rather than when it exists, since
+Python opens it and then writes it (`RNS/Identity.py:665-666`), and
+states the rnsd panic in the `data_port` comment and the configured-only
+reading of `[interfaces]` in the harness comment.
 Upstream site: test files only.
 
 ## 0.18.2 (upstream 0.14.0)

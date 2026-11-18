@@ -977,7 +977,17 @@ negative frame headers, the digest lock and the stdlib known-answer vectors
 from `connection.py:917-942`, the key derivations and the decode shape
 rules) and `tests/shared_instance_rpc_api.rs` (the public surface, the
 `Send` future, the closed-port `Connect` and the recipe's lines, the test
-supplying the endpoint).
+supplying the endpoint). The Python-in-the-loop proof is
+`crates/apps/reticulumd/tests/python_channel_interop_parts/python_shared_instance_rpc.rs`
+of the reticulumd `python_channel_interop` binary: a Python `rnsd` (RNS
+1.5.2) runs one `AutoInterface` beside its shared instance, the key derived
+from its `storage/transport_identity` passes the listener's handshake, the
+first reply after the listener binds (`RNS/Reticulum.py:363-367`, after
+`Transport.start`) carries the `AutoInterface` entry online with `peers`
+`Some(0)` and the `LocalServerInterface` entry with `peers` `None`, a wrong
+key is `RpcError::Authentication` and the server goes on serving, a
+configured `rpc_key` is honoured by `RpcKey::from_hex`, and on Linux
+`RpcEndpoint::for_instance` over the abstract socket reads the same.
 
 ## Known divergences from Python RNS
 

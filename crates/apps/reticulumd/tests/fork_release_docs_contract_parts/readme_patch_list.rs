@@ -429,9 +429,10 @@ fn crate_readme_shared_instance_section_describes_interface_peer_count() {
 /// the one call, the endpoint and key constructors a consumer reaches for,
 /// the authentication error, the default TCP listener and the abstract
 /// socket name, the Python lines the listener, the peer count and the
-/// stdlib handshake are read from, and the two test files that pin it; the
-/// divergence register names the module as fork-only and carries the key
-/// refusal as a real divergence, and the changelog section that carries the
+/// stdlib handshake are read from, the two test files that pin it and the
+/// Python-in-the-loop part that reads a live rnsd; the divergence register
+/// names the module as fork-only and carries the key refusal as a real
+/// divergence, and the changelog section that carries the
 /// bullet names the same constructors, the handshake lines and the same pin
 /// files.
 #[test]
@@ -451,6 +452,7 @@ fn crate_readme_rnsd_rpc_section_describes_the_client() {
         "`connection.py:917-1006`",
         "`src/transport/shared_instance_rpc/tests/mod.rs`",
         "`tests/shared_instance_rpc_api.rs`",
+        "`crates/apps/reticulumd/tests/python_channel_interop_parts/python_shared_instance_rpc.rs`",
     ] {
         assert!(
             section.contains(&squash(claim)),
@@ -481,6 +483,7 @@ fn crate_readme_rnsd_rpc_section_describes_the_client() {
         "`connection.py:917-1006`",
         "`src/transport/shared_instance_rpc/tests/mod.rs`",
         "`tests/shared_instance_rpc_api.rs`",
+        "`python_shared_instance_rpc.rs`",
     ] {
         assert!(changelog_section.contains(&squash(claim)), "the changelog should mention {claim}");
     }

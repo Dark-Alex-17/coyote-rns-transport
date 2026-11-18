@@ -36,13 +36,9 @@ fn shared_instance_rpc_free_udp_port() -> u16 {
 // The group id is unique per run so the host's own rnsd, or a leftover one,
 // cannot peer with this AutoInterface and raise its peer count.
 fn shared_instance_rpc_auto_interface_section() -> String {
-    let nanos = std::time::SystemTime::now()
-        .duration_since(std::time::UNIX_EPOCH)
-        .expect("clock after the epoch")
-        .as_nanos();
     format!(
-        "[interfaces]\n  [[{SHARED_INSTANCE_RPC_AUTO_INTERFACE_NAME}]]\n    type = AutoInterface\n    enabled = yes\n    group_id = coyote-live-{}-{nanos}\n    data_port = {}\n",
-        std::process::id(),
+        "[interfaces]\n  [[{SHARED_INSTANCE_RPC_AUTO_INTERFACE_NAME}]]\n    type = AutoInterface\n    enabled = yes\n    group_id = {}\n    data_port = {}\n",
+        live_run_tag(),
         shared_instance_rpc_free_udp_port()
     )
 }
@@ -51,7 +47,7 @@ fn shared_instance_rpc_auto_interface_section() -> String {
 // is dropped first and the kill gives the drain threads their EOF, as with
 // the siblings' locals; the tail prints rnsd's output when the test panics.
 struct SharedInstanceRpcRnsd {
-    _guard: ChildGuard,
+    guard: ChildGuard,
     _log: ProcessLogTail,
     identity_file: std::path::PathBuf,
 }
@@ -78,11 +74,7 @@ impl SharedInstanceRpcRnsd {
             line.contains("Started shared instance interface").then_some(())
         })
         .await;
-        Self {
-            _guard: guard,
-            _log: log,
-            identity_file: config_dir.join("storage/transport_identity"),
-        }
+        Self { guard, _log: log, identity_file: config_dir.join("storage/transport_identity") }
     }
 
     /// Python's default `authkey`, the SHA-256 of the transport identity
@@ -110,30 +102,46 @@ impl SharedInstanceRpcRnsd {
     /// log line and the AutoInterface's peering wait in `final_init`
     /// (`RNS/Reticulum.py:1009`, `RNS/Interfaces/AutoInterface.py:327-348`),
     /// so early dials are refused. The listener's backlog is one, so a dial
-    /// can also be reset mid-handshake; both are retried, anything else is
-    /// returned as the first reply.
+    /// can also be reset mid-handshake; both are retried until
+    /// `SHARED_INSTANCE_RPC_LISTENER` runs out, anything else is returned as
+    /// the first reply. An rnsd that has exited fails the poll at once with
+    /// its exit status instead of being dialled to the deadline.
     #[deny(clippy::await_holding_invalid_type)]
     async fn poll_interface_stats(
-        &self,
+        &mut self,
         endpoint: &RpcEndpoint,
         key: &RpcKey,
     ) -> Result<InterfaceStats, RpcError> {
-        let deadline = tokio::time::Instant::now() + SHARED_INSTANCE_RPC_LISTENER;
-        loop {
-            let result = interface_stats(endpoint, key, SHARED_INSTANCE_RPC_CALL).await;
-            let retry = match &result {
-                Err(RpcError::Connect(_)) => true,
-                Err(RpcError::Protocol(reason)) => reason.to_ascii_lowercase().contains("reset"),
-                _ => false,
-            };
-            if !retry {
-                return result;
+        let rnsd = self.guard.child.as_mut().expect("rnsd is held until drop");
+        let mut last_retried = None;
+        let poll = async {
+            loop {
+                let result = interface_stats(endpoint, key, SHARED_INSTANCE_RPC_CALL).await;
+                let retry = match &result {
+                    Err(RpcError::Connect(_)) => true,
+                    Err(RpcError::Protocol(reason)) => {
+                        reason.to_ascii_lowercase().contains("reset")
+                    }
+                    _ => false,
+                };
+                if !retry {
+                    return result;
+                }
+                if let Some(status) = rnsd.try_wait().expect("poll the rnsd child") {
+                    panic!(
+                        "rnsd exited with {status} before the rpc listener answered: {result:?}"
+                    );
+                }
+                last_retried = Some(result);
+                tokio::time::sleep(SHARED_INSTANCE_RPC_LISTENER_RETRY).await;
             }
-            assert!(
-                tokio::time::Instant::now() < deadline,
-                "the rpc listener never answered within {SHARED_INSTANCE_RPC_LISTENER:?}: {result:?}"
-            );
-            tokio::time::sleep(SHARED_INSTANCE_RPC_LISTENER_RETRY).await;
+        };
+        let outcome = tokio::time::timeout(SHARED_INSTANCE_RPC_LISTENER, poll).await;
+        match outcome {
+            Ok(result) => result,
+            Err(_) => panic!(
+                "the rpc listener never answered within {SHARED_INSTANCE_RPC_LISTENER:?}: {last_retried:?}"
+            ),
         }
     }
 }
@@ -178,6 +186,15 @@ fn assert_shared_instance_rpc_entries(stats: &InterfaceStats) {
         "no interfaces key in {:?}",
         stats.raw
     );
+    // The totals `get_interface_stats` sums over the interfaces
+    // (`RNS/Reticulum.py:1405-1628`) are integers, and each typed entry's
+    // byte counters are read from its own map.
+    assert!(stats.raw["rxb"].is_u64(), "no integer rxb total in {:?}", stats.raw);
+    assert!(stats.raw["txb"].is_u64(), "no integer txb total in {:?}", stats.raw);
+    for iface in &stats.interfaces {
+        assert_eq!(iface.raw["rxb"].as_u64(), Some(iface.rxb), "{iface:?}");
+        assert_eq!(iface.raw["txb"].as_u64(), Some(iface.txb), "{iface:?}");
+    }
 }
 
 #[deny(clippy::await_holding_invalid_type)]
@@ -188,7 +205,7 @@ async fn run_python_rnsd_shared_instance_rpc_reports_and_refuses(
 ) {
     let temp = tempfile::tempdir().expect("tempdir");
     let control_port = free_tcp_port();
-    let rnsd = SharedInstanceRpcRnsd::spawn(
+    let mut rnsd = SharedInstanceRpcRnsd::spawn(
         &instance,
         control_port,
         &temp.path().join(format!("{config_dir_name}-rnsd")),
@@ -218,7 +235,7 @@ async fn run_python_rnsd_shared_instance_rpc_reports_and_refuses(
 /// Proven: the default key derived from `storage/transport_identity`
 /// (`RNS/Reticulum.py:360-361`) passes the `multiprocessing` handshake, the
 /// reply decodes with the `AutoInterface` entry online at zero peers and the
-/// `LocalServerInterface` entry with a nil `peers` key
+/// `LocalServerInterface` entry with no `peers` key (read as `None`)
 /// (`RNS/Reticulum.py:1405-1566`), a wrong key is answered with `#FAILURE#`
 /// and surfaces as `RpcError::Authentication`, and the server goes on
 /// serving the next connection (`RNS/Reticulum.py:1274-1334`).
@@ -247,7 +264,7 @@ async fn python_rnsd_shared_instance_rpc_configured_key_is_honoured() {
     let instance = live_tcp_shared_instance()
         .with_reticulum_line(&format!("rpc_key = {SHARED_INSTANCE_RPC_CONFIGURED_KEY}"));
     let control_port = free_tcp_port();
-    let rnsd = SharedInstanceRpcRnsd::spawn(
+    let mut rnsd = SharedInstanceRpcRnsd::spawn(
         &instance,
         control_port,
         &temp.path().join("python-rnsd-shared-instance-rpc-key-rnsd"),

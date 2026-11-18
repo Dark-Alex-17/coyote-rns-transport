@@ -146,6 +146,16 @@ impl LiveSharedInstance {
     }
 }
 
+// A name no other run shares, for the identifiers (instance names, group
+// ids) a leftover rnsd or the host's own must not collide with.
+fn live_run_tag() -> String {
+    let nanos = std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .expect("clock after the epoch")
+        .as_nanos();
+    format!("coyote-live-{}-{nanos}", std::process::id())
+}
+
 fn live_tcp_shared_instance() -> LiveSharedInstance {
     let port = free_tcp_port();
     LiveSharedInstance {
@@ -161,11 +171,7 @@ fn live_tcp_shared_instance() -> LiveSharedInstance {
 // leftover rnsd cannot be mistaken for this one.
 #[cfg(target_os = "linux")]
 fn live_unix_shared_instance() -> LiveSharedInstance {
-    let nanos = std::time::SystemTime::now()
-        .duration_since(std::time::UNIX_EPOCH)
-        .expect("clock after the epoch")
-        .as_nanos();
-    let instance_name = format!("coyote-live-{}-{nanos}", std::process::id());
+    let instance_name = live_run_tag();
     LiveSharedInstance {
         instance_lines: format!("shared_instance_type = unix\ninstance_name = {instance_name}\n"),
         endpoint: SharedInstanceEndpoint::Unix(LocalUnixEndpoint::abstract_name(format!(

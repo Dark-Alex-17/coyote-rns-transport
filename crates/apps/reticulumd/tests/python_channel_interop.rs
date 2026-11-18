@@ -71,3 +71,5 @@ include!("python_channel_interop_parts/python_shared_instance_connect_count.rs")
 include!("python_channel_interop_parts/python_shared_instance_two_clients.rs");
 
 include!("python_channel_interop_parts/python_shared_instance_rpc.rs");
+
+include!("python_channel_interop_parts/python_shared_instance_rpc_probe.rs");

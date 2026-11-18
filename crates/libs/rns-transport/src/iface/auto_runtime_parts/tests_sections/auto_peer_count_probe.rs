@@ -1,11 +1,11 @@
 // Spawn-path peer counter behaviour beyond `auto_peer_count_pins.rs`: a spawn given a
-// transport bridge but NO status handle still installs the discovery state's own counter
-// on the bridge's host channel (the `unwrap_or_else(|| state.peer_counter())` arm); a
-// runtime left alone on loopback does not count itself as a peer; and the daemon path
-// takes the count back down to `Some(0)` through the real peer job once the admitted
-// peer times out, through the spawned runtime rather than a hand-driven
-// `expire_stale_peers`. Reuses `loopback_runtime_plan`, `send_loopback_peering_token`
-// and `wait_for_peer_count` from `auto_peer_count_pins.rs`.
+// transport bridge but no status handle still installs the discovery state's own counter
+// on the bridge's host channel (the `None => state.peer_counter()` arm of
+// `wire_peer_counter`); a runtime with no adopted devices stays at zero; and the daemon
+// path takes the count back down to `Some(0)` through the real peer job once the
+// admitted peer times out, through the spawned runtime rather than a hand-driven
+// `expire_stale_peers`. Reuses `loopback_runtime_plan`, `send_loopback_peering_token` and
+// `wait_for_peer_count` from `auto_peer_count_pins.rs`.
 
 #[cfg(unix)]
 async fn wait_for_manager_peer_count(
@@ -53,8 +53,9 @@ async fn spawn_without_a_handle_installs_the_state_counter_on_the_bridge_host() 
     runtime.stop().await;
 }
 
-/// A spawned runtime left alone on loopback for longer than its announce interval
-/// (1.6 s) does not admit itself as a peer: the handle keeps reading 0.
+/// A spawned runtime whose plan adopts no devices announces nothing, so nothing arrives
+/// on its own discovery listener and the handle stays at 0 across one announce
+/// interval.
 #[cfg(unix)]
 #[tokio::test]
 async fn spawned_runtime_alone_reads_zero_through_an_announce_interval() {
@@ -65,9 +66,11 @@ async fn spawned_runtime_alone_reads_zero_through_an_announce_interval() {
         .await
         .expect("start loopback AutoInterface runtime");
 
-    let until = Instant::now() + core::time::Duration::from_millis(2_500);
+    let timing = AutoInterfaceTiming::for_platform(plan.platform);
+    let until =
+        Instant::now() + timing.announce_interval + core::time::Duration::from_millis(500);
     while Instant::now() < until {
-        assert_eq!(handle.peer_count(), 0, "a runtime alone must not count itself");
+        assert_eq!(handle.peer_count(), 0, "a runtime with no adopted devices admits nobody");
         tokio::time::sleep(core::time::Duration::from_millis(100)).await;
     }
 

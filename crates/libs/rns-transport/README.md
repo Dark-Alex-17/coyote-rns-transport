@@ -788,8 +788,9 @@ discovery peer table behind it, what Python reports as
 `RNS/Interfaces/AutoInterface.py:126` and rnstatus prints at
 `RNS/Utilities/rnstatus.py:555-556`. `None` for every kind without peers
 (TCP, UDP, serial, KISS, RNode, pipe), the shared instance's interface and
-a channel built with `InterfaceChannel::new`; a virtual child answers its
-host's count. Below the transport, `InterfaceManager::peer_count(&address)`
+a channel built with `InterfaceChannel::new` that no
+`InterfaceManager::set_peer_counter` call reached; a virtual child answers
+its host's count. Below the transport, `InterfaceManager::peer_count(&address)`
 is the same read and `InterfaceManager::set_peer_counter` installs one on a
 host and the children registered on it, returning `false` and installing
 nothing when no record carries the host. The same count is read through

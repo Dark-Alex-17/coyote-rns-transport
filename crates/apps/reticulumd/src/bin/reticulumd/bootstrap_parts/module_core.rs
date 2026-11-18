@@ -1435,6 +1435,8 @@ mod tests {
             Some("carrier_lost")
         );
         assert_eq!(carrier_runtime["last_peer_job"]["peer_count_after"].as_u64(), Some(4));
+        // The handle never went through a spawn, so its counter reads 0 while the
+        // recorded peer job's peer_count_after carries 4.
         assert!(!carrier_runtime["peers"].is_null(), "the handle's peers key rides through");
         assert_eq!(carrier_runtime["peers"].as_u64(), Some(0));
         assert_eq!(carrier_runtime["peers"].as_u64(), Some(peer_count_reader.peer_count()));

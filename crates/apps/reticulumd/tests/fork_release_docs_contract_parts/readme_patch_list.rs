@@ -411,6 +411,7 @@ fn crate_readme_shared_instance_section_describes_interface_peer_count() {
         "`peers=",
         "`InterfaceManager::set_peer_counter`",
         "returns `false`",
+        "keeps the state's own when no handle is given",
         "`tests/interface_peer_count_probe.rs`",
         "`iface/auto_runtime_parts/tests_sections/auto_peer_count_probe.rs`",
         "`bootstrap_parts::module_core`",

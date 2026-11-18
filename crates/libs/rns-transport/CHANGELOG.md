@@ -68,10 +68,18 @@ Removed) bullet of its own, marked as such.
   spawn without a handle installing the state's counter on the bridge
   host; a spawned runtime alone reading zero across an announce interval;
   and an ignored slow test that waits out the 22 s peering timeout to read
-  the count back down), the reticulumd refresh pin
+  the count back down), `tests/auto_status_handle_peers_json_probe.rs` (an
+  external consumer reading the always-present `"peers"` key as u64: 0 on
+  a fresh handle, 1 together with the transport read once a loopback peer
+  is admitted, a clone agreeing, the JSON still 1 after stop while the
+  transport reads `Some(1)` until `stop_interface` prunes the host, then
+  `None` with the handle still 1), the reticulumd refresh pin
   (`bootstrap_parts::module_core`, the `peers` key riding through to
   `carrier_runtime`) and the rnstatus unit and CLI pins
-  (`src/bin/shared/rnstatus.rs` and the `rnstatus_cli` test).
+  (`src/bin/shared/rnstatus.rs`, the `rnstatus_cli` test and the rns-tools
+  `rnstatus_peers_cli` test: `peers=0` printed when the key is present
+  with zero, no `peers=` token on the auto line when the key is absent,
+  and `peers=7` in the slot between `replaced=` and `peer_data_admitted=`).
 
 ## 0.18.2 - 2026-11-16
 

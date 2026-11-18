@@ -27,29 +27,51 @@ Removed) bullet of its own, marked as such.
   child registered on the AutoInterface's host channel answers its host's
   count. Behind it, `InterfaceManager::set_peer_counter` (pub,
   `iface_parts/interfacemanager_events.rs`) installs a counter on a host
-  and the virtual children already registered on it, a child registered
+  and the virtual children already registered on it and returns `false`,
+  installing nothing, when no record carries the host; a child registered
   later copies it from the host, and `InterfaceManager::peer_count` reads
   it; `AutoRuntimeStatusHandle::peer_count`
   (`auto_runtime_parts/plan_builder.rs`) reads the counter
   `from_startup_plan` mints beside the inner mutex, shared by every clone
-  of the handle; the spawn path adopts the handle's counter into the
-  discovery state and installs it on the bridge's host channel under one
-  manager lock (`autoruntimeplan_sections/peer_counter_wiring.rs`); and
+  of the handle, and `AutoRuntimeStatusHandle::to_json()` carries the same
+  value under the `"peers"` key, always present, which reticulumd's status
+  refresher copies into `_runtime.auto.carrier_runtime` of
+  `daemon_status_ex` and rnstatus-rs (rns-tools
+  `src/bin/shared/rnstatus.rs`) renders as `peers=N` on the auto line; the
+  spawn path adopts the handle's counter into the discovery state, or
+  keeps the state's own when no handle is given, and installs it on the
+  bridge's host channel under one manager lock
+  (`autoruntimeplan_sections/peer_counter_wiring.rs`); and
   `AutoPeerTable` (`iface/auto_parts/multicastaddresstype.rs`) publishes
   its length into the counter with `Release` after every insert, expiry
-  and adopted-device removal. Additive, with no signature changes, so
-  cargo semver-checks reports nothing. Python exposes the count only
-  through rnstatus and its RPC; the fork also exposes it in-process.
-  Pinned by
+  and adopted-device removal. Nothing publishes 0 when the runtime stops:
+  the counter keeps its last value, so the manager read stays `Some(last)`
+  until the host record is pruned, then `None`, and a handle keeps reading
+  the last value. Additive, with no signature changes, so cargo
+  semver-checks reports nothing. Python exposes the count only through
+  rnstatus and its RPC; the fork also exposes it in-process. Pinned by
   `iface/auto_runtime_parts/tests_sections/auto_peer_count_pins.rs`
   (manager-level `Some(0)` to `Some(1)` to `Some(0)` with a virtual child
   sharing the host's count, the handle adopting direction, the table
-  counter across adopted-device removal and a counter swap, and spawned
-  loopback runtimes whose handle and bridge host channel read an admitted
-  peer) and
+  counter across adopted-device removal and a counter swap, the `"peers"`
+  key following the counter, and spawned loopback runtimes whose handle
+  and bridge host channel read an admitted peer and keep it after stop),
   `tests/interface_peer_count_api.rs` (`None` for a plain TCP client, the
   shared instance and a bare channel; `Some(n)` and child sharing through
-  the public setter; `None` after stop).
+  the public setter; `None` after stop),
+  `tests/interface_peer_count_probe.rs` (a public discovery state driving
+  a host count through add, refresh and expiry; a clone sharing the
+  counter; two hosts separate; a later install replacing host and
+  children; a stopped child keeping the host count while a stopped host
+  reads `None`; an install aimed at a child touching only that child),
+  `iface/auto_runtime_parts/tests_sections/auto_peer_count_probe.rs` (a
+  spawn without a handle installing the state's counter on the bridge
+  host; a spawned runtime alone reading zero across an announce interval;
+  and an ignored slow test that waits out the 22 s peering timeout to read
+  the count back down), the reticulumd refresh pin
+  (`bootstrap_parts::module_core`, the `peers` key riding through to
+  `carrier_runtime`) and the rnstatus unit and CLI pins
+  (`src/bin/shared/rnstatus.rs` and the `rnstatus_cli` test).
 
 ## 0.18.2 - 2026-11-16
 

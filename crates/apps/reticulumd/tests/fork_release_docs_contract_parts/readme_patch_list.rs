@@ -1,6 +1,7 @@
 // Crate README patch-list pins: the 0.18.2, 0.18.1, 0.18.0, 0.17.0 and 0.16.0
 // blocks and their order above the 0.15.1 history, and the Codex bullet whose
-// removal pointer the 0.16.0 release notes resolve.
+// removal pointer the 0.16.0 release notes resolve, plus the shared-instance
+// paragraph, register bullet and changelog bullet for the AutoInterface peer count.
 
 /// The Codex review workflow was removed after 0.15.1, so the README register
 /// that records 0.15.0 adding it must say so in the same bullet: a reader of
@@ -365,5 +366,57 @@ fn readme_patch_list_opens_with_the_0_18_2_block_and_keeps_the_0_18_1_paragraph(
             block_0_18_2.contains(needle),
             "the README 0.18.2 block should say {needle:?}:\n{block_0_18_2}"
         );
+    }
+}
+
+/// The shared-instance section describes the peer count the way the
+/// AutoInterface keeps it: the transport getter, the manager read and the
+/// status handle underneath, the always-present JSON key, the Python lines
+/// it mirrors and the public-API test files that pin it; the divergence
+/// register names the count as fork-only, and the changelog section that
+/// carries the bullet names the key, the rnstatus rendering, the setter's
+/// `false` path and the probe, reticulumd and rnstatus pins.
+#[test]
+fn crate_readme_shared_instance_section_describes_interface_peer_count() {
+    let readme = read_repo_file("crates/libs/rns-transport/README.md");
+    let section = squash(crate_readme_section(&readme, "Attaching to a shared instance"));
+    for claim in [
+        "`Transport::interface_peer_count(&iface)`",
+        "`InterfaceManager::peer_count(&address)`",
+        "`AutoRuntimeStatusHandle::peer_count()`",
+        "`\"peers\"`",
+        "`RNS/Reticulum.py:1501-1503`",
+        "`RNS/Interfaces/AutoInterface.py:126`",
+        "`RNS/Utilities/rnstatus.py:555-556`",
+        "`tests/interface_peer_count_api.rs`",
+        "`tests/interface_peer_count_probe.rs`",
+    ] {
+        assert!(
+            section.contains(&squash(claim)),
+            "the shared-instance section should mention {claim}:\n{section}"
+        );
+    }
+    let divergences = crate_readme_section(&readme, "Known divergences from Python RNS");
+    assert!(
+        divergences.contains("`Transport::interface_peer_count()`"),
+        "the divergence register should name the peer count:\n{divergences}"
+    );
+    let changelog = read_repo_file("crates/libs/rns-transport/CHANGELOG.md");
+    let changelog_section = squash(changelog_section_naming(
+        &changelog,
+        "`Transport::interface_peer_count(&AddressHash) -> Option<u64>`",
+    ));
+    for claim in [
+        "`\"peers\"`",
+        "`peers=",
+        "`InterfaceManager::set_peer_counter`",
+        "returns `false`",
+        "`tests/interface_peer_count_probe.rs`",
+        "`iface/auto_runtime_parts/tests_sections/auto_peer_count_probe.rs`",
+        "`bootstrap_parts::module_core`",
+        "`src/bin/shared/rnstatus.rs`",
+        "`rnstatus_cli` test",
+    ] {
+        assert!(changelog_section.contains(&squash(claim)), "the changelog should mention {claim}");
     }
 }

@@ -781,6 +781,31 @@ ending `(attempt 1)` with the rest at debug, then
 `connected to <endpoint> after N failed attempt(s)` at info once rnsd is
 back, and reads `Some(2)` on the same port.
 
+`Transport::interface_peer_count(&iface)` returns `Option<u64>` for an
+in-process `lan` or `auto` interface: the length of the AutoInterface
+discovery peer table behind it, what Python reports as
+`len(interface.peers)` in `RNS/Reticulum.py:1501-1503` over the dict at
+`RNS/Interfaces/AutoInterface.py:126` and rnstatus prints at
+`RNS/Utilities/rnstatus.py:555-556`. `None` for every kind without peers
+(TCP, UDP, serial, KISS, RNode, pipe), the shared instance's interface and
+a channel built with `InterfaceChannel::new`; a virtual child answers its
+host's count. Below the transport, `InterfaceManager::peer_count(&address)`
+is the same read and `InterfaceManager::set_peer_counter` installs one on a
+host and the children registered on it, returning `false` and installing
+nothing when no record carries the host. The same count is read through
+`AutoRuntimeStatusHandle::peer_count()` and the `"peers"` key, always
+present, of `AutoRuntimeStatusHandle::to_json()`, which reticulumd copies
+into `_runtime.auto.carrier_runtime` of `daemon_status_ex` and rnstatus-rs
+prints as `peers=N` on the auto line; the spawn adopts the handle's counter
+or keeps the state's own when no handle is given. Nothing publishes 0 on
+stop: the manager read keeps its last `Some(n)` until the host record is
+pruned, then `None`, and a handle keeps the last value for as long as it
+lives. Python exposes the count only through rnstatus and its RPC. Pinned
+by `tests/interface_peer_count_api.rs`,
+`tests/interface_peer_count_probe.rs`,
+`iface/auto_runtime_parts/tests_sections/auto_peer_count_pins.rs` and
+`iface/auto_runtime_parts/tests_sections/auto_peer_count_probe.rs`.
+
 A `Tcp` endpoint whose address is not loopback is refused with
 `RnsError::SharedInstanceEndpointNotLoopback` before any lock is taken, with
 one warning, since Python's `LocalClientInterface` connects to `127.0.0.1`
@@ -1074,6 +1099,11 @@ Not divergences:
   `attempts` and no count of established streams
   (`RNS/Interfaces/TCPInterface.py:270-298`, `:274-277`). API shape, not
   behaviour.
+- `Transport::interface_peer_count()` is a fork-only in-process read of the
+  AutoInterface discovery peer table length; Python exposes the count only
+  through rnstatus and its RPC (`RNS/Reticulum.py:1501-1503`,
+  `RNS/Interfaces/AutoInterface.py:126`,
+  `RNS/Utilities/rnstatus.py:555-556`). API shape, not behaviour.
 
 ## Versioning and releases
 

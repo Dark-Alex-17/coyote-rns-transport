@@ -30,12 +30,18 @@ per fork task.
 
 Every file changed since the `0.18.2` release and the patch each change
 belongs to. Patch ids: O1 is auto peer count. The `auto peer count` patch
-is fork commits `bc5a7e6c`, `457f50f1` and `5d8832e1`.
+is fork commits `bc5a7e6c`, `457f50f1`, `5d8832e1`, `5d231b18`, `6c1b4008`
+and `33fc1137`.
 
 | File | Patch |
 | --- | --- |
+| `crates/apps/reticulumd/src/bin/reticulumd/bootstrap_parts/module_core.rs` | auto peer count |
 | `crates/apps/reticulumd/tests/fork_publish_contract_parts/ledger_contract.rs` | auto peer count |
+| `crates/apps/reticulumd/tests/fork_release_docs_contract_parts/readme_patch_list.rs` | auto peer count |
+| `crates/apps/rns-tools/src/bin/shared/rnstatus.rs` | auto peer count |
+| `crates/apps/rns-tools/tests/rnstatus_cli.rs` | auto peer count |
 | `crates/libs/rns-transport/CHANGELOG.md` | auto peer count |
+| `crates/libs/rns-transport/README.md` | auto peer count |
 | `crates/libs/rns-transport/src/iface/auto_parts/autodiscoverystate.rs` | auto peer count |
 | `crates/libs/rns-transport/src/iface/auto_parts/multicastaddresstype.rs` | auto peer count |
 | `crates/libs/rns-transport/src/iface/auto_runtime_parts/autoruntimeplan.rs` | auto peer count |
@@ -46,14 +52,17 @@ is fork commits `bc5a7e6c`, `457f50f1` and `5d8832e1`.
 | `crates/libs/rns-transport/src/iface/auto_runtime_parts/plan_builder.rs` | auto peer count |
 | `crates/libs/rns-transport/src/iface/auto_runtime_parts/tests.rs` | auto peer count |
 | `crates/libs/rns-transport/src/iface/auto_runtime_parts/tests_sections/auto_peer_count_pins.rs` | auto peer count |
+| `crates/libs/rns-transport/src/iface/auto_runtime_parts/tests_sections/auto_peer_count_probe.rs` | auto peer count |
 | `crates/libs/rns-transport/src/iface_parts/interfacemanager.rs` | auto peer count |
 | `crates/libs/rns-transport/src/iface_parts/interfacemanager_events.rs` | auto peer count |
 | `crates/libs/rns-transport/src/iface_parts/txmessagetype.rs` | auto peer count |
 | `crates/libs/rns-transport/src/transport/core_parts/interface_events.rs` | auto peer count |
 | `crates/libs/rns-transport/tests/interface_peer_count_api.rs` | auto peer count |
+| `crates/libs/rns-transport/tests/interface_peer_count_probe.rs` | auto peer count |
 | `docs/fork/PATCHSET.md` | auto peer count |
 
-Fork commits `bc5a7e6c`, `457f50f1` and `5d8832e1`: O1, auto peer count.
+Fork commits `bc5a7e6c`, `457f50f1`, `5d8832e1`, `5d231b18`, `6c1b4008` and
+`33fc1137`: O1, auto peer count.
 Upstream site: `InterfaceManager::register_virtual_iface` in
 `crates/libs/rns-transport/src/iface_parts/interfacemanager.rs` and the
 private `LocalInterface` record in
@@ -119,6 +128,29 @@ peer is admitted, the same through the bridge's virtual child, still
 and a counter swap; it makes `set_peer_counter` return `false` before
 touching any record when the host is missing, narrows the handle's
 `peer_counter` to the crate, and tightens the docs and CHANGELOG wording.
+`5d231b18` adds a `"peers"` key, always present and equal to `peer_count`,
+beside `last_peer_job` in `AutoRuntimeStatusHandle::to_json` in
+`plan_builder.rs`, which reticulumd's status refresher already copies into
+`_runtime.auto.carrier_runtime` of `daemon_status_ex` and which rnstatus-rs
+(`crates/apps/rns-tools/src/bin/shared/rnstatus.rs`) prints as `peers=N`
+on the auto line through its existing optional-u64 helper; it pins the key
+riding through the refresh in `bootstrap_parts/module_core.rs`, documents
+last-value retention after stop on `Transport::interface_peer_count`,
+`InterfaceManager::peer_count` and `AutoRuntimeStatusHandle::peer_count`,
+and splits the post-stop pin so the handle's last value and the manager's
+`None` after pruning are asserted separately. `6c1b4008` adopts nine
+spec-first probes, six in `tests/interface_peer_count_probe.rs` (a public
+discovery state driving a host count through add, refresh and expiry, a
+clone sharing the counter, two hosts kept separate, a later install
+replacing host and children, a stopped child keeping the host count while
+a stopped host reads `None`, an install aimed at a child touching only that
+child) and three in `tests_sections/auto_peer_count_probe.rs` (a spawn
+without a handle installing the state's counter on the bridge host, a
+spawned runtime alone reading zero across an announce interval, and an
+ignored slow expiry test). `33fc1137` adds the README shared-instance
+paragraph and divergence-register bullet for the count, extends the
+CHANGELOG Added bullet with the key, the `false` path, the spawn adoption
+and the stop behaviour, and pins both in `readme_patch_list.rs`.
 
 ## 0.18.2 (upstream 0.14.0)
 

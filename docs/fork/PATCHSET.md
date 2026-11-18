@@ -31,7 +31,7 @@ per fork task.
 Every file changed since the `0.18.2` release and the patch each change
 belongs to. Patch ids: O1 is auto peer count. The `auto peer count` patch
 is fork commits `bc5a7e6c`, `457f50f1`, `5d8832e1`, `5d231b18`, `6c1b4008`,
-`33fc1137`, `ddf20ed9`, `34dda674` and `20077b93`.
+`33fc1137`, `ddf20ed9`, `34dda674`, `20077b93` and `72a2685a`.
 
 | File | Patch |
 | --- | --- |
@@ -64,7 +64,8 @@ is fork commits `bc5a7e6c`, `457f50f1`, `5d8832e1`, `5d231b18`, `6c1b4008`,
 | `docs/fork/PATCHSET.md` | auto peer count |
 
 Fork commits `bc5a7e6c`, `457f50f1`, `5d8832e1`, `5d231b18`, `6c1b4008`,
-`33fc1137`, `ddf20ed9`, `34dda674` and `20077b93`: O1, auto peer count.
+`33fc1137`, `ddf20ed9`, `34dda674`, `20077b93` and `72a2685a`: O1, auto peer
+count.
 Upstream site: `InterfaceManager::register_virtual_iface` in
 `crates/libs/rns-transport/src/iface_parts/interfacemanager.rs` and the
 private `LocalInterface` record in
@@ -168,17 +169,30 @@ when the key is absent, `peers=7` in the slot after `replaced=`), pins the
 changelog's spawn-adoption claim in `readme_patch_list.rs`, and tightens
 the pin comments, rustdoc wrapping, README qualifier and CHANGELOG cite.
 `34dda674` corrects the `interface_peer_count` rustdoc to name the prune
-paths that exist (`AutoDiscoveryRuntime::stop` never binds the host
-record's stop token, so only `stop_interface`, `stop` or a send finding
-the stopped runtime's tx queue closed drops the record; no timer does)
-and pins it with a post-stop `cleanup()` pass in `auto_peer_count_pins.rs`,
-re-partitions the README and CHANGELOG `None` cases to match, adds the
-never-null `"peers"` clause to the divergence register, gates the probe's
-unix-only imports with `cfg(unix)` and asserts `peers` rides through the
-rnstatus `--json` passthrough.
+paths it found (`AutoDiscoveryRuntime::stop` never binds the host record's
+stop token, so `stop_interface`, `stop` and `detach_shared_instance` cancel
+it and a send finding the stopped runtime's tx queue closed drops the
+record; "no timer does") and pins the surviving record with a post-stop
+`cleanup()` pass in `auto_peer_count_pins.rs`, re-partitions the README
+and CHANGELOG `None` cases to match, adds the never-null `"peers"` clause
+to the divergence register, gates the probe's unix-only imports with
+`cfg(unix)` and asserts `peers` rides through the rnstatus `--json`
+passthrough.
 `20077b93` drops `detach_shared_instance` from that list: the shared
 instance's interface is a TCP or unix client, never an AutoInterface host,
-so detaching it cannot reach the host record.
+so detaching it cannot reach the host record. `72a2685a` corrects the
+timer claim: the announce-retransmit job's `release_queued_announces` also
+calls `cleanup_closed_tx_queues` when a released announce meets a closed
+queue, and that pass retains on `!tx_send.is_closed()`, so any send or
+queued-announce release that observes one closed queue drops every
+closed-queue record at once; the rustdoc now names `Transport::stop`
+explicitly and says no pass drops the record merely because the runtime
+stopped. It pins the prune with a post-cleanup broadcast send in
+`auto_peer_count_pins.rs` that reads `None` for the host while the handle
+keeps `1`, adopts three `rnstatus_peers_cli` edge probes (a null `peers`
+treated like an absent key, a non-u64 value omitted, `u64::MAX` printed
+in full) into the CHANGELOG enumeration and re-wraps one over-long
+README line.
 
 ## 0.18.2 (upstream 0.14.0)
 

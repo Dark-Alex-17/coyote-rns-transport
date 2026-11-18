@@ -986,8 +986,9 @@ first reply after the listener binds (`RNS/Reticulum.py:363-367`, after
 `Transport.start`) carries the `AutoInterface` entry online with `peers`
 `Some(0)` and the `LocalServerInterface` entry with `peers` `None`, a wrong
 key is `RpcError::Authentication` and the server goes on serving, a
-configured `rpc_key` is honoured by `RpcKey::from_hex`, and on Linux
-`RpcEndpoint::for_instance` over the abstract socket reads the same.
+configured `rpc_key` is honoured by `RpcKey::from_hex` with the
+identity-derived key then refused, and on Linux `RpcEndpoint::for_instance`
+over the abstract socket reads the same.
 
 ## Known divergences from Python RNS
 

@@ -150,8 +150,8 @@ fn shared_instance_rpc_entry<'a>(stats: &'a InterfaceStats, kind: &str) -> &'a I
 /// address was found (`RNS/Reticulum.py:1008`,
 /// `RNS/Interfaces/AutoInterface.py:350`), and nobody shares its group id,
 /// so its entry is present with zero peers. The shared instance's own
-/// `LocalServerInterface` has no `peers` attribute, so that key is nil
-/// (`RNS/Reticulum.py:1501-1503`), and it starts with no clients
+/// `LocalServerInterface` has no `peers` attribute, so the key is left out
+/// of its entry (`RNS/Reticulum.py:1501-1503`), and it starts with no clients
 /// (`RNS/Interfaces/LocalInterface.py:363`, `:371`, `:486-487`).
 fn assert_shared_instance_rpc_entries(stats: &InterfaceStats) {
     for iface in &stats.interfaces {

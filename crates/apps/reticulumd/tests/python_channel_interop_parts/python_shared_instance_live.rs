@@ -112,9 +112,17 @@ fn python_json_line<'a>(keys: &'a [&'a str]) -> impl Fn(&str) -> Option<serde_js
 struct LiveSharedInstance {
     instance_lines: String,
     endpoint: SharedInstanceEndpoint,
+    #[cfg(target_os = "linux")]
+    instance_name: Option<String>,
 }
 
 impl LiveSharedInstance {
+    fn with_reticulum_line(mut self, line: &str) -> Self {
+        self.instance_lines.push_str(line);
+        self.instance_lines.push('\n');
+        self
+    }
+
     fn config(&self, control_port: u16) -> String {
         format!(
             "[reticulum]\n\
@@ -129,6 +137,13 @@ impl LiveSharedInstance {
             self.instance_lines
         )
     }
+
+    // `interfaces` is appended as written, so it must open with its own
+    // top-level `[interfaces]` header: Python reads interfaces from that
+    // section alone (RNS/Reticulum.py:748-752).
+    fn config_with_interfaces(&self, control_port: u16, interfaces: &str) -> String {
+        format!("{}{interfaces}", self.config(control_port))
+    }
 }
 
 fn live_tcp_shared_instance() -> LiveSharedInstance {
@@ -136,6 +151,8 @@ fn live_tcp_shared_instance() -> LiveSharedInstance {
     LiveSharedInstance {
         instance_lines: format!("shared_instance_type = tcp\nshared_instance_port = {port}\n"),
         endpoint: SharedInstanceEndpoint::Tcp(SocketAddr::from(([127, 0, 0, 1], port))),
+        #[cfg(target_os = "linux")]
+        instance_name: None,
     }
 }
 
@@ -154,6 +171,7 @@ fn live_unix_shared_instance() -> LiveSharedInstance {
         endpoint: SharedInstanceEndpoint::Unix(LocalUnixEndpoint::abstract_name(format!(
             "rns/{instance_name}"
         ))),
+        instance_name: Some(instance_name),
     }
 }
 

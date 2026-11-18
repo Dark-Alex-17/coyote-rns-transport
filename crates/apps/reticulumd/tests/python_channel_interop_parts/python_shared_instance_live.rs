@@ -139,8 +139,8 @@ impl LiveSharedInstance {
     }
 
     // `interfaces` is appended as written, so it must open with its own
-    // top-level `[interfaces]` header: Python reads interfaces from that
-    // section alone (RNS/Reticulum.py:748-752).
+    // top-level `[interfaces]` header, the section Python reads configured
+    // interfaces from (RNS/Reticulum.py:748-752).
     fn config_with_interfaces(&self, control_port: u16, interfaces: &str) -> String {
         format!("{}{interfaces}", self.config(control_port))
     }

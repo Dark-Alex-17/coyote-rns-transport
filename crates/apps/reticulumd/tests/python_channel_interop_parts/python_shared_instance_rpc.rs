@@ -19,10 +19,12 @@ const SHARED_INSTANCE_RPC_CONFIGURED_KEY: &str =
     "c0ffee00c0ffee00c0ffee00c0ffee00c0ffee00c0ffee00c0ffee00c0ffee00";
 
 // The AutoInterface's data socket is bound without address reuse
-// (`RNS/Interfaces/AutoInterface.py:334-337`), so a host rnsd on the default
-// data port would make the interface fail to start; the discovery sockets
-// set `SO_REUSEPORT` and keep their default. A port free on the IPv6
-// wildcard is free on every link-local address the interface adopts.
+// (`RNS/Interfaces/AutoInterface.py:334-337`) and the bind error reaches the
+// catch-all that panics rnsd (`RNS/Reticulum.py:1120-1124`), so a host rnsd
+// on the default data port would take the whole instance down; the
+// discovery sockets set `SO_REUSEPORT` and keep their default. A port free
+// on the IPv6 wildcard is free on every link-local address the interface
+// adopts.
 fn shared_instance_rpc_free_udp_port() -> u16 {
     std::net::UdpSocket::bind("[::]:0")
         .expect("bind ephemeral udp port")
@@ -85,14 +87,16 @@ impl SharedInstanceRpcRnsd {
 
     /// Python's default `authkey`, the SHA-256 of the transport identity
     /// `Transport.start` writes to `<configdir>/storage/transport_identity`
-    /// (`RNS/Transport.py:320-327`, `RNS/Reticulum.py:360-361`).
+    /// (`RNS/Transport.py:320-327`, `RNS/Reticulum.py:360-361`). The file is
+    /// opened and then written (`RNS/Identity.py:665-666`), so it is read
+    /// only once it holds the 64 bytes.
     #[deny(clippy::await_holding_invalid_type)]
     async fn identity_key(&self) -> RpcKey {
         let deadline = tokio::time::Instant::now() + SHARED_INSTANCE_RPC_IDENTITY_FILE;
-        while !self.identity_file.exists() {
+        while fs::metadata(&self.identity_file).map(|meta| meta.len()).unwrap_or(0) != 64 {
             assert!(
                 tokio::time::Instant::now() < deadline,
-                "{} never appeared",
+                "{} never held the 64-byte identity",
                 self.identity_file.display()
             );
             tokio::time::sleep(SHARED_INSTANCE_RPC_IDENTITY_POLL).await;

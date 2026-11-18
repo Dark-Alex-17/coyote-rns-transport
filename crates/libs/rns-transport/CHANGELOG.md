@@ -86,6 +86,51 @@ Removed) bullet of its own, marked as such.
   `peers=7` in the slot after `replaced=`, a null `peers` treated like an
   absent key, a non-u64 value (a string, a negative number or a float)
   omitted, and a `u64::MAX` count printed in full).
+- `transport::shared_instance_rpc` (`transport/shared_instance_rpc.rs`), a
+  fork-only client of the rnsd shared instance's RPC listener, the
+  `multiprocessing.connection.Listener` a Python shared instance opens at
+  `RNS/Reticulum.py:363-367` and serves from `rpc_loop`
+  (`RNS/Reticulum.py:1274-1334`), for the one call rnstatus makes
+  (`RNS/Reticulum.py:1397-1402`). Six public items: `RpcEndpoint` (`Tcp`,
+  and `Unix` on unix targets, with `default_tcp()` = `127.0.0.1:37429` and
+  `for_instance(name)` = the abstract socket `rns/{name}/rpc` on Linux and
+  Android, `default_tcp()` elsewhere, after `use_af_unix` at
+  `RNS/Reticulum.py:353-358` and `:725-727`); `RpcKey` (`from_hex` for a
+  configured `rpc_key`, `RNS/Reticulum.py:499-505`, refusing an empty, odd
+  or non-hex string; `from_transport_identity_file` for Python's default
+  key, the SHA-256 of the 64-byte transport identity private key,
+  `RNS/Reticulum.py:360-361`; `Debug` prints `RpcKey(redacted)`);
+  `RpcError` (`#[non_exhaustive]`: `Connect(io::Error)` for the dial
+  itself, `Authentication`, `Protocol(String)` for a malformed or
+  oversized frame or an io error after connect, `Decode(String)`,
+  `UnsupportedDigest(String)`, `InvalidKeyMaterial`, `Timeout`);
+  `InterfaceStats { interfaces, raw }` and `InterfaceStat { name,
+  short_name, kind, online, peers, clients, rxb, txb, raw }` decoded from
+  the `get_interface_stats` dict (`RNS/Reticulum.py:1405-1628`; `kind` is
+  Python's `type`, `online` its `status`, `peers` and `clients` read `None`
+  for an absent or nil key, `RNS/Reticulum.py:1409-1410` and
+  `:1501-1503`); and `interface_stats(&endpoint, &key, timeout)`, one
+  fresh connection per call with connect, handshake, request and reply
+  under the one budget. The handshake is the stdlib's mutual HMAC exchange
+  (`connection.py:917-1006`) over its signed 32-bit, optionally 64-bit,
+  length-prefixed frames (`connection.py:427-458`): the client answers the
+  server's challenge and then delivers its own, in the modern `{digest}`
+  form (md5, sha256, sha384, sha3_256, sha3_384 accepted; the client
+  challenges with sha256) or the legacy raw HMAC-MD5 form of a Python 3.11
+  or older server, following the server's form; every auth frame is capped
+  at 256 bytes and the reply at 16 MiB before allocation. Additive, with
+  no signature changes, so cargo semver-checks reports nothing. New
+  dependencies `md-5` and `sha3` for the digest table. Pinned by
+  `src/transport/shared_instance_rpc/tests/mod.rs` (a TCP-loopback mock
+  server speaking the server half in both forms and the `{sha3_384}` and
+  `{md5}` digests, with the client's answer and challenge frames
+  inspected; the wrong-key, bad-answer, unsupported-digest, truncated,
+  oversized, silent and short-challenge failures; the key derivations and
+  the redacted `Debug`; the decode shape rules) and
+  `tests/shared_instance_rpc_api.rs` (the seven variants behind a wildcard
+  arm, the `Error + Send + Sync` bound, the endpoint defaults per OS, the
+  key parsing, the `Send` future, the closed-port `Connect` and the README
+  recipe run verbatim).
 
 ## 0.18.2 - 2026-11-16
 

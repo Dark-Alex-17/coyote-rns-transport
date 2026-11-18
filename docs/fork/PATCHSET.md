@@ -29,20 +29,26 @@ per fork task.
 ## Unreleased (upstream 0.14.0)
 
 Every file changed since the `0.18.2` release and the patch each change
-belongs to. Patch ids: O1 is auto peer count. The `auto peer count` patch
-is fork commits `bc5a7e6c`, `457f50f1`, `5d8832e1`, `5d231b18`, `6c1b4008`,
-`33fc1137`, `ddf20ed9`, `34dda674`, `20077b93`, `72a2685a` and `c1c51fe2`.
+belongs to. Patch ids: O1 is auto peer count, O2 is rnsd rpc client. The
+`auto peer count` patch is fork commits `bc5a7e6c`, `457f50f1`, `5d8832e1`,
+`5d231b18`, `6c1b4008`, `33fc1137`, `ddf20ed9`, `34dda674`, `20077b93`,
+`72a2685a` and `c1c51fe2`. The `rnsd rpc client` patch is fork commit
+`e5fed58f`.
 
 | File | Patch |
 | --- | --- |
+| `Cargo.lock` | rnsd rpc client |
+| `Cargo.toml` | rnsd rpc client |
 | `crates/apps/reticulumd/src/bin/reticulumd/bootstrap_parts/module_core.rs` | auto peer count |
 | `crates/apps/reticulumd/tests/fork_publish_contract_parts/ledger_contract.rs` | auto peer count |
+| `crates/apps/reticulumd/tests/fork_release_docs_contract_parts/crate_readme_sections.rs` | rnsd rpc client |
 | `crates/apps/reticulumd/tests/fork_release_docs_contract_parts/readme_patch_list.rs` | auto peer count |
 | `crates/apps/rns-tools/src/bin/shared/rnstatus.rs` | auto peer count |
 | `crates/apps/rns-tools/tests/rnstatus_cli.rs` | auto peer count |
 | `crates/apps/rns-tools/tests/rnstatus_peers_cli.rs` | auto peer count |
-| `crates/libs/rns-transport/CHANGELOG.md` | auto peer count |
-| `crates/libs/rns-transport/README.md` | auto peer count |
+| `crates/libs/rns-transport/CHANGELOG.md` | auto peer count, rnsd rpc client |
+| `crates/libs/rns-transport/Cargo.toml` | rnsd rpc client |
+| `crates/libs/rns-transport/README.md` | auto peer count, rnsd rpc client |
 | `crates/libs/rns-transport/src/iface/auto_parts/autodiscoverystate.rs` | auto peer count |
 | `crates/libs/rns-transport/src/iface/auto_parts/multicastaddresstype.rs` | auto peer count |
 | `crates/libs/rns-transport/src/iface/auto_runtime_parts/autoruntimeplan.rs` | auto peer count |
@@ -54,14 +60,23 @@ is fork commits `bc5a7e6c`, `457f50f1`, `5d8832e1`, `5d231b18`, `6c1b4008`,
 | `crates/libs/rns-transport/src/iface/auto_runtime_parts/tests.rs` | auto peer count |
 | `crates/libs/rns-transport/src/iface/auto_runtime_parts/tests_sections/auto_peer_count_pins.rs` | auto peer count |
 | `crates/libs/rns-transport/src/iface/auto_runtime_parts/tests_sections/auto_peer_count_probe.rs` | auto peer count |
+| `crates/libs/rns-transport/src/iface/local.rs` | rnsd rpc client |
 | `crates/libs/rns-transport/src/iface_parts/interfacemanager.rs` | auto peer count |
 | `crates/libs/rns-transport/src/iface_parts/interfacemanager_events.rs` | auto peer count |
 | `crates/libs/rns-transport/src/iface_parts/txmessagetype.rs` | auto peer count |
 | `crates/libs/rns-transport/src/transport/core_parts/interface_events.rs` | auto peer count |
+| `crates/libs/rns-transport/src/transport/mod.rs` | rnsd rpc client |
+| `crates/libs/rns-transport/src/transport/shared_instance_rpc.rs` | rnsd rpc client |
+| `crates/libs/rns-transport/src/transport/shared_instance_rpc/decode.rs` | rnsd rpc client |
+| `crates/libs/rns-transport/src/transport/shared_instance_rpc/framing.rs` | rnsd rpc client |
+| `crates/libs/rns-transport/src/transport/shared_instance_rpc/handshake.rs` | rnsd rpc client |
+| `crates/libs/rns-transport/src/transport/shared_instance_rpc/tests/mock_server.rs` | rnsd rpc client |
+| `crates/libs/rns-transport/src/transport/shared_instance_rpc/tests/mod.rs` | rnsd rpc client |
 | `crates/libs/rns-transport/tests/auto_status_handle_peers_json_probe.rs` | auto peer count |
 | `crates/libs/rns-transport/tests/interface_peer_count_api.rs` | auto peer count |
 | `crates/libs/rns-transport/tests/interface_peer_count_probe.rs` | auto peer count |
-| `docs/fork/PATCHSET.md` | auto peer count |
+| `crates/libs/rns-transport/tests/shared_instance_rpc_api.rs` | rnsd rpc client |
+| `docs/fork/PATCHSET.md` | auto peer count, rnsd rpc client |
 
 Fork commits `bc5a7e6c`, `457f50f1`, `5d8832e1`, `5d231b18`, `6c1b4008`,
 `33fc1137`, `ddf20ed9`, `34dda674`, `20077b93`, `72a2685a` and `c1c51fe2`:
@@ -201,6 +216,53 @@ record carrying `address`, asserts the host's absence and the child's
 `None` after the closed-queue prune, moves the rnstatus unit fixture's
 auto `peers` to 4 so the UDP `peers=2` assertion stays discriminating,
 and adds the closed-queue clause to the CHANGELOG pin enumeration.
+
+Fork commit `e5fed58f`: O2, rnsd rpc client.
+Upstream site: the shared-instance client module
+`crates/libs/rns-transport/src/transport/shared_instance.rs`, beside which
+the new `transport::shared_instance_rpc` module (public, declared in
+`crates/libs/rns-transport/src/transport/mod.rs`) is placed, and
+`LocalUnixEndpoint::tokio_path` in
+`crates/libs/rns-transport/src/iface/local.rs`, private until now and
+widened to `pub(crate)` so the RPC client can dial the abstract socket the
+way the unix interface client does. A Python shared instance opens a
+`multiprocessing.connection.Listener` beside its interface socket
+(`RNS/Reticulum.py:363-367`) and serves rnstatus's `interface_stats` query
+from `rpc_loop` (`RNS/Reticulum.py:1274-1334`, the client side at
+`:1397-1402`); the fork had no way to read a running rnsd's interface
+table, peer counts included (`RNS/Reticulum.py:1501-1503`), from Rust.
+`e5fed58f` adds `shared_instance_rpc.rs` with `RpcEndpoint` (`Tcp`, and
+`Unix` on unix targets; `default_tcp()` is `127.0.0.1:37429` and
+`for_instance(name)` is the abstract socket `rns/{name}/rpc` on Linux and
+Android, `default_tcp()` elsewhere, mirroring `use_af_unix` at
+`RNS/Reticulum.py:353-358` and `:725-727`), `RpcKey` (`from_hex` for a
+configured `rpc_key`, `RNS/Reticulum.py:499-505`;
+`from_transport_identity_file` for the default SHA-256 of the 64-byte
+private key, `:360-361`; a redacting `Debug`), the seven-variant
+`RpcError`, `InterfaceStats` and `InterfaceStat` with typed fields and the
+raw msgpack beside them, and `interface_stats(endpoint, key, timeout)`,
+one fresh connection under one budget. The private submodules carry the
+stdlib wire protocol: `framing.rs` reads and writes the signed 32-bit,
+optionally 64-bit, length-prefixed frame of `connection.py:427-458` with
+the length checked against a cap before allocation; `handshake.rs` runs
+the client half of the mutual HMAC exchange (`connection.py:557-559`,
+`:917-1006`), answering the server's challenge in the modern `{digest}`
+form or the legacy raw HMAC-MD5 form and delivering its own in the same
+form, over a `Digest` table of the stdlib's five allowed digests (hence
+the two new workspace dependencies `md-5` and `sha3`); `decode.rs` maps
+the reply dict (`RNS/Reticulum.py:1405-1628`) onto the structs, with
+`peers` and `clients` reading `None` for an absent or nil key. The change
+is additive, so cargo semver-checks reports nothing. The same commit adds
+the in-crate tests under `shared_instance_rpc/tests/` (a TCP-loopback mock
+server speaking the server half of the handshake, parameterised on the
+modern and legacy forms, with the client's frames recorded; the
+wrong-key, bad-answer, unsupported-digest, truncated, oversized, silent
+and short-challenge failures; the key derivations; the decode shape
+rules), the black-box `tests/shared_instance_rpc_api.rs` (the public
+surface, the `Send` future, the closed-port `Connect` and the README
+recipe verbatim), the README section `## Reading rnsd's interface
+statistics` with its divergence-register bullet, and the new API test's
+entry in the README snippet pin list of `crate_readme_sections.rs`.
 
 ## 0.18.2 (upstream 0.14.0)
 

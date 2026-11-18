@@ -233,13 +233,16 @@ impl AutoDiscoveryState {
 
     /// The counter the peer table keeps equal to `peer_count()`; hand it to
     /// `InterfaceManager::set_peer_counter` so the host channel's
-    /// `peer_count` tracks this state without holding it.
+    /// `peer_count` tracks this state without holding it. A `Clone` of the
+    /// state shares the counter, so two live clones write it in turn.
     pub fn peer_counter(&self) -> alloc::sync::Arc<core::sync::atomic::AtomicU64> {
         self.peers.peer_counter()
     }
 
     /// Replaces the table's counter with `counter`, publishing the current
-    /// `peer_count()` into it at once.
+    /// `peer_count()` into it at once. Counters returned by earlier
+    /// `peer_counter()` calls stop tracking the table; install the counter
+    /// before sharing it.
     pub fn set_peer_counter(&mut self, counter: alloc::sync::Arc<core::sync::atomic::AtomicU64>) {
         self.peers.set_peer_counter(counter);
     }

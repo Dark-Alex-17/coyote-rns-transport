@@ -33,14 +33,15 @@ impl InterfaceManager {
     /// caller may install one on a channel it minted here. Returns `false`,
     /// installing nothing, when no record carries `host`.
     pub fn set_peer_counter(&mut self, host: &AddressHash, counter: Arc<AtomicU64>) -> bool {
-        let mut updated = false;
+        if !self.ifaces.iter().any(|i| i.address == *host) {
+            return false;
+        }
         for iface in &mut self.ifaces {
             if iface.address == *host || iface.parent == Some(*host) {
                 iface.peers = Some(counter.clone());
-                updated |= iface.address == *host;
             }
         }
-        updated
+        true
     }
 
     /// Fork-only: the AutoInterface discovery peer table length behind

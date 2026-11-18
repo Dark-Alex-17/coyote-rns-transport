@@ -201,7 +201,7 @@ impl AutoRuntimeStatusHandle {
     /// The counter the runtime publishes its discovery peer table length
     /// into once spawned with this handle. Every clone of the handle shares
     /// it; a handle never passed to a spawn keeps reading 0.
-    pub fn peer_counter(&self) -> Arc<std::sync::atomic::AtomicU64> {
+    pub(crate) fn peer_counter(&self) -> Arc<std::sync::atomic::AtomicU64> {
         Arc::clone(&self.peers)
     }
 

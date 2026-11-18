@@ -2,7 +2,10 @@ impl AutoRuntimePlan {
     /// Points the status handle (when one is given) and the transport
     /// bridge's host channel at the same peer counter the discovery state
     /// writes, so `AutoRuntimeStatusHandle::peer_count` and
-    /// `InterfaceManager::peer_count` read the live peer table length.
+    /// `InterfaceManager::peer_count` read the live peer table length. Runs
+    /// before the receive loops start, so no peer child exists on the host
+    /// yet; every child registered afterwards copies the counter from the
+    /// host.
     async fn wire_peer_counter(
         &self,
         state: &mut AutoDiscoveryState,

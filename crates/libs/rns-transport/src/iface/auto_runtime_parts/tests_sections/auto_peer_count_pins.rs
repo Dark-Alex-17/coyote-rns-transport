@@ -67,6 +67,47 @@ fn host_and_virtual_child_read_the_discovery_peer_table_length() {
     assert_eq!(manager.peer_count(&uncounted.address), None);
 }
 
+fn two_peer_table() -> crate::iface::auto::AutoPeerTable {
+    let mut peers = crate::iface::auto::AutoPeerTable::new(
+        core::time::Duration::from_secs(22),
+        core::time::Duration::from_millis(5_200),
+    );
+    peers.observe_peer("fe80::1", "eth0", core::time::Duration::from_secs(10));
+    peers.observe_peer("fe80::2", "wlan0", core::time::Duration::from_secs(10));
+    assert_eq!(peers.peer_counter().load(std::sync::atomic::Ordering::Acquire), 2);
+    peers
+}
+
+/// Removing an adopted device's peers lowers the counter with the table,
+/// the same as expiry does.
+#[test]
+fn peer_table_counter_drops_when_a_device_is_removed() {
+    let mut peers = two_peer_table();
+    let counter = peers.peer_counter();
+
+    let removed = peers.remove_by_ifname("eth0");
+
+    assert_eq!(removed.len(), 1);
+    assert_eq!(peers.len(), 1);
+    assert_eq!(counter.load(std::sync::atomic::Ordering::Acquire), 1);
+}
+
+/// A counter installed on a populated table reads the table's length at
+/// once, whatever it held before; the counter it replaces stops tracking.
+#[test]
+fn peer_table_publishes_its_length_into_a_newly_installed_counter() {
+    let mut peers = two_peer_table();
+    let replaced = peers.peer_counter();
+    let installed = Arc::new(std::sync::atomic::AtomicU64::new(99));
+
+    peers.set_peer_counter(Arc::clone(&installed));
+
+    assert_eq!(installed.load(std::sync::atomic::Ordering::Acquire), 2);
+    peers.observe_peer("fe80::3", "eth0", core::time::Duration::from_secs(11));
+    assert_eq!(installed.load(std::sync::atomic::Ordering::Acquire), 3);
+    assert_eq!(replaced.load(std::sync::atomic::Ordering::Acquire), 2);
+}
+
 #[cfg(unix)]
 async fn wait_for_peer_count(handle: &AutoRuntimeStatusHandle, expected: u64) {
     let deadline = Instant::now() + core::time::Duration::from_secs(5);
@@ -83,11 +124,12 @@ async fn wait_for_peer_count(handle: &AutoRuntimeStatusHandle, expected: u64) {
     }
 }
 
-/// A handle passed to the spawn reads the peer the runtime admits from a
-/// real loopback discovery socket, without any other hook into the state.
+/// A plan with one loopback discovery listener and one loopback data
+/// listener on fresh ports, no adopted devices and no initial peering wait,
+/// so a datagram from 127.0.0.1 is admitted as a remote peer at once.
+/// Returns the plan and the unicast discovery port to send to.
 #[cfg(unix)]
-#[tokio::test]
-async fn spawned_runtime_publishes_peer_count_through_status_handle() {
+fn loopback_runtime_plan() -> (AutoRuntimePlan, u16) {
     let data_reservation = std::net::UdpSocket::bind((std::net::Ipv4Addr::LOCALHOST, 0))
         .expect("reserve data loopback UDP port");
     let data_port = data_reservation.local_addr().expect("read data port").port();
@@ -111,6 +153,27 @@ async fn spawned_runtime_publishes_peer_count_through_status_handle() {
         bind_address: "127.0.0.1".to_string(),
         bind_port: data_port,
     });
+    (plan, discovery_port)
+}
+
+#[cfg(unix)]
+async fn send_loopback_peering_token(plan: &AutoRuntimePlan, discovery_port: u16) {
+    let peer_socket = tokio::net::UdpSocket::bind((std::net::Ipv4Addr::LOCALHOST, 0))
+        .await
+        .expect("bind loopback peer socket");
+    let token = crate::iface::auto::peering_token(plan.config.group_id.as_bytes(), "127.0.0.1");
+    peer_socket
+        .send_to(&token, (std::net::Ipv4Addr::LOCALHOST, discovery_port))
+        .await
+        .expect("send peering token to the unicast discovery socket");
+}
+
+/// A handle passed to the spawn reads the peer the runtime admits from a
+/// real loopback discovery socket, without any other hook into the state.
+#[cfg(unix)]
+#[tokio::test]
+async fn spawned_runtime_publishes_peer_count_through_status_handle() {
+    let (plan, discovery_port) = loopback_runtime_plan();
 
     let handle = AutoRuntimeStatusHandle::from_startup_plan(&plan.startup_plan);
     assert_eq!(handle.peer_count(), 0);
@@ -120,16 +183,65 @@ async fn spawned_runtime_publishes_peer_count_through_status_handle() {
         .expect("start loopback AutoInterface runtime");
     assert_eq!(handle.peer_count(), 0);
 
-    let peer_socket = tokio::net::UdpSocket::bind((std::net::Ipv4Addr::LOCALHOST, 0))
-        .await
-        .expect("bind loopback peer socket");
-    let token = crate::iface::auto::peering_token(plan.config.group_id.as_bytes(), "127.0.0.1");
-    peer_socket
-        .send_to(&token, (std::net::Ipv4Addr::LOCALHOST, discovery_port))
-        .await
-        .expect("send peering token to the unicast discovery socket");
+    send_loopback_peering_token(&plan, discovery_port).await;
 
     wait_for_peer_count(&handle, 1).await;
     assert_eq!(handle.peer_count(), 1);
     runtime.stop().await;
+}
+
+/// Spawning with a transport runtime installs the handle's counter on the
+/// bridge's host channel, the one route by which
+/// `Transport::interface_peer_count` answers `Some` in the daemon: the host
+/// reads `Some(0)` right after the spawn, `Some(1)` with the handle once a
+/// peer is admitted, the same through the virtual child the bridge
+/// registers for that peer, and still `Some(1)` after stop, which leaves the
+/// manager's host record alone.
+#[cfg(unix)]
+#[tokio::test]
+async fn spawned_runtime_installs_peer_count_on_the_bridge_host_channel() {
+    let (plan, discovery_port) = loopback_runtime_plan();
+    let manager = Arc::new(tokio::sync::Mutex::new(InterfaceManager::new(8)));
+    let channel = manager.lock().await.new_channel_with_role(8, IfaceRole::Multicast);
+    let host = channel.address;
+    let transport_runtime =
+        AutoInterfaceTransportRuntime::from_channel(channel, Arc::clone(&manager));
+    assert_eq!(manager.lock().await.peer_count(&host), None);
+
+    let handle = AutoRuntimeStatusHandle::from_startup_plan(&plan.startup_plan);
+    let runtime = plan
+        .spawn_discovery_runtime_with_native_scope_ids_and_transport(
+            Some(transport_runtime),
+            Some(handle.clone()),
+        )
+        .await
+        .expect("start loopback AutoInterface runtime with a transport bridge");
+    assert_eq!(manager.lock().await.peer_count(&host), Some(0));
+    assert_eq!(handle.peer_count(), 0);
+
+    send_loopback_peering_token(&plan, discovery_port).await;
+
+    wait_for_peer_count(&handle, 1).await;
+    assert_eq!(manager.lock().await.peer_count(&host), Some(1));
+
+    let deadline = Instant::now() + core::time::Duration::from_secs(5);
+    let child = loop {
+        let registered = manager.lock().await.interface_hashes();
+        if let Some(child) = registered.into_iter().find(|address| *address != host) {
+            break child;
+        }
+        assert!(
+            Instant::now() < deadline,
+            "timed out waiting for the bridge to register the admitted peer's child"
+        );
+        tokio::time::sleep(core::time::Duration::from_millis(20)).await;
+    };
+    assert_eq!(manager.lock().await.peer_count(&child), Some(1));
+
+    runtime.stop().await;
+    assert_eq!(
+        manager.lock().await.peer_count(&host),
+        Some(1),
+        "stop leaves the host record and its counter in the manager"
+    );
 }

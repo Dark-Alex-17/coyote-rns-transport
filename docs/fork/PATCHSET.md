@@ -30,8 +30,8 @@ per fork task.
 
 Every file changed since the `0.18.2` release and the patch each change
 belongs to. Patch ids: O1 is auto peer count. The `auto peer count` patch
-is fork commits `bc5a7e6c`, `457f50f1`, `5d8832e1`, `5d231b18`, `6c1b4008`
-and `33fc1137`.
+is fork commits `bc5a7e6c`, `457f50f1`, `5d8832e1`, `5d231b18`, `6c1b4008`,
+`33fc1137` and `ddf20ed9`.
 
 | File | Patch |
 | --- | --- |
@@ -40,6 +40,7 @@ and `33fc1137`.
 | `crates/apps/reticulumd/tests/fork_release_docs_contract_parts/readme_patch_list.rs` | auto peer count |
 | `crates/apps/rns-tools/src/bin/shared/rnstatus.rs` | auto peer count |
 | `crates/apps/rns-tools/tests/rnstatus_cli.rs` | auto peer count |
+| `crates/apps/rns-tools/tests/rnstatus_peers_cli.rs` | auto peer count |
 | `crates/libs/rns-transport/CHANGELOG.md` | auto peer count |
 | `crates/libs/rns-transport/README.md` | auto peer count |
 | `crates/libs/rns-transport/src/iface/auto_parts/autodiscoverystate.rs` | auto peer count |
@@ -57,12 +58,13 @@ and `33fc1137`.
 | `crates/libs/rns-transport/src/iface_parts/interfacemanager_events.rs` | auto peer count |
 | `crates/libs/rns-transport/src/iface_parts/txmessagetype.rs` | auto peer count |
 | `crates/libs/rns-transport/src/transport/core_parts/interface_events.rs` | auto peer count |
+| `crates/libs/rns-transport/tests/auto_status_handle_peers_json_probe.rs` | auto peer count |
 | `crates/libs/rns-transport/tests/interface_peer_count_api.rs` | auto peer count |
 | `crates/libs/rns-transport/tests/interface_peer_count_probe.rs` | auto peer count |
 | `docs/fork/PATCHSET.md` | auto peer count |
 
-Fork commits `bc5a7e6c`, `457f50f1`, `5d8832e1`, `5d231b18`, `6c1b4008` and
-`33fc1137`: O1, auto peer count.
+Fork commits `bc5a7e6c`, `457f50f1`, `5d8832e1`, `5d231b18`, `6c1b4008`,
+`33fc1137` and `ddf20ed9`: O1, auto peer count.
 Upstream site: `InterfaceManager::register_virtual_iface` in
 `crates/libs/rns-transport/src/iface_parts/interfacemanager.rs` and the
 private `LocalInterface` record in
@@ -137,10 +139,14 @@ on the auto line through its existing optional-u64 helper; it pins the key
 riding through the refresh in `bootstrap_parts/module_core.rs`, documents
 last-value retention after stop on `Transport::interface_peer_count`,
 `InterfaceManager::peer_count` and `AutoRuntimeStatusHandle::peer_count`,
-and splits the post-stop pin so the handle's last value and the manager's
-`None` after pruning are asserted separately. `6c1b4008` adopts nine
-spec-first probes, six in `tests/interface_peer_count_probe.rs` (a public
-discovery state driving a host count through add, refresh and expiry, a
+and extends the post-stop pin in `auto_peer_count_pins.rs` so that after
+`runtime.stop()` the host record is asserted to survive in the manager's
+`interface_hashes` and the counter to hold its last value (the manager
+`Some(1)`, the handle `1`); the pruned record's `None` through
+`stop_interface` is pinned separately in
+`tests/interface_peer_count_probe.rs`. `6c1b4008` adopts nine probes, six
+in `tests/interface_peer_count_probe.rs` (a public discovery state driving
+a host count through add, refresh and expiry, a
 clone sharing the counter, two hosts kept separate, a later install
 replacing host and children, a stopped child keeping the host count while
 a stopped host reads `None`, an install aimed at a child touching only that
@@ -150,7 +156,17 @@ spawned runtime alone reading zero across an announce interval, and an
 ignored slow expiry test). `33fc1137` adds the README shared-instance
 paragraph and divergence-register bullet for the count, extends the
 CHANGELOG Added bullet with the key, the `false` path, the spawn adoption
-and the stop behaviour, and pins both in `readme_patch_list.rs`.
+and the stop behaviour, and pins both in `readme_patch_list.rs`. `ddf20ed9`
+adopts two consumer probes, `tests/auto_status_handle_peers_json_probe.rs`
+(the `"peers"` key read from outside the crate as u64: `0` on a fresh
+handle, `1` together with `Transport::interface_peer_count` once a loopback
+peer is admitted, a clone agreeing, still `1` after stop while the transport
+reads `Some(1)` until `stop_interface` prunes the host, then `None` with
+the handle still `1`) and the rns-tools `rnstatus_peers_cli` test
+(`peers=0` printed when the key is present with zero, no `peers=` token
+when the key is absent, `peers=7` in the slot after `replaced=`), pins the
+changelog's spawn-adoption claim in `readme_patch_list.rs`, and tightens
+the pin comments, rustdoc wrapping, README qualifier and CHANGELOG cite.
 
 ## 0.18.2 (upstream 0.14.0)
 

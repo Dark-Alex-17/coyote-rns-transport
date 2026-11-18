@@ -1114,6 +1114,7 @@ fn crate_readme_rust_snippets_are_pinned_verbatim_by_the_api_tests() {
         "crates/libs/rns-transport/tests/request_receipt_api.rs",
         "crates/libs/rns-transport/tests/shared_instance_api.rs",
         "crates/libs/rns-transport/tests/destination_desc_api.rs",
+        "crates/libs/rns-transport/tests/shared_instance_rpc_api.rs",
     ]
     .iter()
     .map(|path| read_repo_file(path))

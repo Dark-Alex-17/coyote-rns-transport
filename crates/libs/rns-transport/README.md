@@ -896,6 +896,71 @@ while let Some(event) = events.recv().await {
 verbatim too: it reads `Connecting` then `Connected` against the in-process
 shared instance and sees the stream end on the detach.
 
+## Reading rnsd's interface statistics
+
+A Python shared instance opens a `multiprocessing.connection.Listener`
+beside its interface socket (`RNS/Reticulum.py:363-367`) and serves
+rnstatus's queries from `rpc_loop` (`RNS/Reticulum.py:1274-1334`): one
+connection, one msgpack request, one reply, then the server closes.
+`transport::shared_instance_rpc` is a fork-only client of that listener for
+the `interface_stats` call, the dict `get_interface_stats` builds
+(`RNS/Reticulum.py:1405-1628`) with one map per interface
+(`RNS/Reticulum.py:1527-1566`), where `peers` is `len(interface.peers)` for
+an interface that has a peer table (`RNS/Reticulum.py:1501-1503`) and
+`clients` is the client count or `None` (`:1409-1410`). The listener exists
+only on a shared instance; a client-posture program attached to one has
+nothing to connect to in its own process.
+
+The key is the listener's `authkey`: by default the SHA-256 of the 64-byte
+transport identity private key (`RNS/Reticulum.py:360-361`), which
+`RpcKey::from_transport_identity_file(configdir/storage/transport_identity)`
+derives from the same file rnsd reads; a configured `rpc_key`
+(`RNS/Reticulum.py:499-505`) is `RpcKey::from_hex`. The endpoint follows
+`use_af_unix` (`RNS/Reticulum.py:353-358`, `:725-727`): on Linux and
+Android a shared instance of any type but `tcp` listens on the abstract
+unix socket `rns/<instance_name>/rpc`, which
+`RpcEndpoint::for_instance("default")` names; everywhere else, and for a
+`tcp`-type shared instance on Linux, the listener is
+`RpcEndpoint::Tcp(127.0.0.1:<instance_control_port>)`, 37429
+by default (`RNS/Reticulum.py:295-303`), which `RpcEndpoint::default_tcp()`
+returns. `RpcKey`'s `Debug` prints `RpcKey(redacted)`.
+
+```rust
+use std::time::Duration;
+
+use rns_transport::transport::shared_instance_rpc::{interface_stats, RpcEndpoint, RpcKey};
+
+let key = RpcKey::from_transport_identity_file(&configdir.join("storage/transport_identity"))?;
+let endpoint = RpcEndpoint::for_instance("default");
+let stats = interface_stats(&endpoint, &key, Duration::from_secs(5)).await?;
+for iface in stats.interfaces.iter().filter(|iface| iface.kind == "AutoInterface") {
+    log::info!("{} peers={:?} online={}", iface.short_name, iface.peers, iface.online);
+}
+```
+
+`InterfaceStats` carries `interfaces: Vec<InterfaceStat>` and the whole
+top-level map as `raw: rmpv::Value`; each `InterfaceStat` reads `name`,
+`short_name`, `kind` (Python's `type`), `online` (Python's `status`),
+`peers` and `clients` as `Option<u64>` (`None` for an absent or nil key),
+`rxb`, `txb`, and its own map as `raw`. The call takes one fresh connection
+and runs connect, handshake, request and reply under the one `Duration`;
+`RpcError::Connect` is the dial failing, `Authentication` a key the server
+rejects (or a server that fails our challenge), `Protocol` a malformed or
+oversized frame, `Decode` an unexpected reply shape, `UnsupportedDigest` a
+challenge digest outside the stdlib's allowed set, `InvalidKeyMaterial` a
+key that cannot be parsed or derived, and `Timeout` the budget running out.
+The handshake is the stdlib's mutual HMAC exchange
+(`connection.py:917-1006`): the client answers the server's challenge and
+then delivers its own, in the modern `{digest}`-prefixed form a Python 3.12
+or later server speaks and in the legacy raw HMAC-MD5 form of a 3.11 or
+older one, following whichever form the server's challenge used. Pinned by
+`src/transport/shared_instance_rpc/tests/mod.rs` (both handshake forms and
+the `{sha3_384}` and `{md5}` digests against a mock server, the wrong-key,
+bad-answer, unsupported-digest, truncated, oversized, silent and
+short-challenge failures, the key derivations and the decode shape rules) and
+`tests/shared_instance_rpc_api.rs` (the public surface, the `Send` future,
+the closed-port `Connect` and the snippet above).
+
 ## Known divergences from Python RNS
 
 Where this crate is known to behave differently from RNS 1.5.2. Each entry
@@ -1116,6 +1181,12 @@ Not divergences:
   `None` only for a `peers` attribute set to `None` (`:1502-1503`), which
   no RNS 1.5.2 interface does (`RNS/Interfaces/AutoInterface.py:126`).
   API shape, not behaviour.
+- `transport::shared_instance_rpc` is a fork-only typed client of the rnsd
+  `interface_stats` RPC; Python has no typed client, rnstatus reads the
+  reply dict directly (`RNS/Utilities/rnstatus.py:555-556`,
+  `RNS/Reticulum.py:1397-1402`), and the RPC server stays Python-only:
+  reticulumd grows no `multiprocessing.connection` listener in this
+  release. API shape, not behaviour.
 
 ## Versioning and releases
 

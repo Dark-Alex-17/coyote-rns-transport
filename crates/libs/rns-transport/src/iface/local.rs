@@ -68,7 +68,7 @@ impl LocalUnixEndpoint {
         }
     }
 
-    fn tokio_path(&self) -> PathBuf {
+    pub(crate) fn tokio_path(&self) -> PathBuf {
         match self {
             Self::Filesystem(path) => path.clone(),
             Self::Abstract(name) => abstract_socket_path(name),

@@ -443,6 +443,9 @@ mod resource_wire;
 // shared_instance: endpoint, options and connection-state events for attaching as a
 // shared-instance client.
 mod shared_instance;
+// shared_instance_rpc: client for the rnsd shared instance's multiprocessing RPC
+// (interface_stats).
+pub mod shared_instance_rpc;
 pub use crate::iface::events::{
     DialFailure, DialFailureKind, DisconnectReason, InterfaceEvent, InterfaceEventKind,
 };

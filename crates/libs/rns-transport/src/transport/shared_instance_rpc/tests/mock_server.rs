@@ -46,7 +46,10 @@ pub(super) enum Answer {
     /// already gone.
     WrongThenHangUp,
     /// A correct MAC in a digest other than the one the client challenged
-    /// with, which the stdlib would accept (`connection.py:956-959`).
+    /// with, which the stdlib would accept (`connection.py:956-959`). An
+    /// `OtherDigest(Digest::Md5)` goes out as a bare 16-byte tag, the legacy
+    /// answer shape, so it doubles as a legacy-form answer to a modern
+    /// challenge.
     OtherDigest(Digest),
 }
 

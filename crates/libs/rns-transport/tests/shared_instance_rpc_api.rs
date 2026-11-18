@@ -102,6 +102,8 @@ fn default_tcp_is_the_python_control_port() {
 #[test]
 fn for_instance_is_the_abstract_socket_on_linux() {
     use rns_transport::iface::local::LocalUnixEndpoint;
+    // The README recipe and its docs pin grep for this exact spelling of
+    // `RpcEndpoint::for_instance("default")`; a rename moves with them.
     let endpoint = RpcEndpoint::for_instance("default");
     assert_eq!(endpoint, RpcEndpoint::Unix(LocalUnixEndpoint::abstract_name("rns/default/rpc")));
     assert_eq!(endpoint_label(&endpoint), "unix");
@@ -110,6 +112,8 @@ fn for_instance_is_the_abstract_socket_on_linux() {
 #[cfg(not(any(target_os = "linux", target_os = "android")))]
 #[test]
 fn for_instance_is_the_default_tcp_port_elsewhere() {
+    // The README recipe and its docs pin grep for this exact spelling of
+    // `RpcEndpoint::for_instance("default")`; a rename moves with them.
     let endpoint = RpcEndpoint::for_instance("default");
     assert_eq!(endpoint, RpcEndpoint::default_tcp());
 }
@@ -123,7 +127,7 @@ fn hex_key_parses_even_hex_and_redacts_debug() {
     assert!(!debug.contains("0011"), "{debug}");
     let clone = key.clone();
     assert!(format!("{clone:?}").contains("redacted"));
-    for bad in ["", "abc", "xyz", "ab cd", " abcd"] {
+    for bad in ["", "abc", "xyz", "ab cd", " abcd", "ab cd "] {
         assert!(matches!(RpcKey::from_hex(bad), Err(RpcError::InvalidKeyMaterial)), "{bad:?}");
     }
 }

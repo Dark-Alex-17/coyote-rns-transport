@@ -316,6 +316,35 @@ async fn unknown_challenge_digest_is_unsupported_digest() {
     server.finish().await;
 }
 
+/// `_get_digest_name_and_payload` looks for the closing brace with
+/// `message.find(b'}', 1, _MAX_DIGEST_LEN + 2)` (`connection.py:906-907`):
+/// an eight-letter name closes at index 9, the last index in the window, and
+/// is read as a digest name.
+#[tokio::test]
+async fn eight_letter_challenge_digest_is_read_as_a_name() {
+    let mut frame = b"#CHALLENGE#{sha1xxxx}".to_vec();
+    frame.extend_from_slice(&[7u8; 40]);
+    let server = MockServer::spawn(Script::Frame(frame)).await;
+    match call(&server).await {
+        Err(RpcError::UnsupportedDigest(name)) => assert_eq!(name, "sha1xxxx"),
+        other => panic!("expected UnsupportedDigest, got {other:?}"),
+    }
+    server.finish().await;
+}
+
+/// A nine-letter name closes at index 10, one past the window
+/// (`connection.py:906-907`), so there is no digest prefix at all and
+/// Python raises `AuthenticationError('unsupported message length')`.
+#[tokio::test]
+async fn nine_letter_challenge_digest_is_protocol() {
+    let mut frame = b"#CHALLENGE#{sha3_3840}".to_vec();
+    frame.extend_from_slice(&[7u8; 40]);
+    let server = MockServer::spawn(Script::Frame(frame)).await;
+    let result = call(&server).await;
+    assert!(matches!(result, Err(RpcError::Protocol(_))), "{result:?}");
+    server.finish().await;
+}
+
 #[tokio::test]
 async fn short_challenge_body_is_protocol() {
     let mut frame = b"#CHALLENGE#".to_vec();
@@ -479,7 +508,7 @@ fn identity_file_of_the_wrong_length_or_unreadable_is_invalid_key_material() {
 
 #[test]
 fn hex_key_rejects_empty_odd_and_non_hex() {
-    for bad in ["", "abc", "zz", "0g", "ab cd", " abcd"] {
+    for bad in ["", "abc", "zz", "0g", "ab cd", " abcd", "ab cd "] {
         assert!(matches!(RpcKey::from_hex(bad), Err(RpcError::InvalidKeyMaterial)), "{bad:?}");
     }
     assert_eq!(RpcKey::from_hex("ab").expect("one byte").as_bytes(), &[0xab]);
@@ -505,6 +534,8 @@ fn default_tcp_is_the_python_control_port() {
 #[cfg(any(target_os = "linux", target_os = "android"))]
 #[test]
 fn for_instance_is_the_abstract_socket_on_linux() {
+    // The README recipe and its docs pin grep for this exact spelling of
+    // `RpcEndpoint::for_instance("default")`; a rename moves with them.
     assert_eq!(
         RpcEndpoint::for_instance("default"),
         RpcEndpoint::Unix(LocalUnixEndpoint::abstract_name("rns/default/rpc"))
@@ -514,6 +545,8 @@ fn for_instance_is_the_abstract_socket_on_linux() {
 #[cfg(not(any(target_os = "linux", target_os = "android")))]
 #[test]
 fn for_instance_is_the_default_tcp_port_elsewhere() {
+    // The README recipe and its docs pin grep for this exact spelling of
+    // `RpcEndpoint::for_instance("default")`; a rename moves with them.
     assert_eq!(RpcEndpoint::for_instance("default"), RpcEndpoint::default_tcp());
 }
 

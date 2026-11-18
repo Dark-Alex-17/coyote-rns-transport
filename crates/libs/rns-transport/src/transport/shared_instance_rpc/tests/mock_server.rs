@@ -2,8 +2,10 @@
 //! (`connection.py:513-517`: `deliver_challenge`, then `answer_challenge`),
 //! followed by rnsd's one request and one reply (`RNS/Reticulum.py:1277-1334`),
 //! on a TCP loopback listener or a unix socket, with the frames the client
-//! sent recorded for the tests to inspect. The frame and MAC helpers are the
-//! module's own.
+//! sent recorded for the tests to inspect. Framing and MACs reuse the
+//! client's own `framing` and `handshake` helpers, so a shared mistake would
+//! cancel out here; the hand-built header tests and the CPython vectors in
+//! `mod.rs` are what keep them honest.
 
 use std::net::SocketAddr;
 #[cfg(unix)]
@@ -44,18 +46,18 @@ pub(super) enum Answer {
     OtherDigest(Digest),
 }
 
+/// What the server sends after the request.
+pub(super) enum Reply {
+    /// A well-formed frame carrying the payload.
+    Frame(Vec<u8>),
+    /// A bare 4-byte header and nothing after it.
+    BareHeader(i32),
+}
+
 /// What the server does once it has accepted.
 pub(super) enum Script {
     /// The full exchange: challenge, verify, answer, serve `reply`, close.
-    /// With `reply_header` set, the reply is that bare 4-byte header and
-    /// nothing after it.
-    Exchange {
-        form: ServerForm,
-        key: Vec<u8>,
-        answer: Answer,
-        reply: Vec<u8>,
-        reply_header: Option<i32>,
-    },
+    Exchange { form: ServerForm, key: Vec<u8>, answer: Answer, reply: Reply },
     /// One well-formed frame carrying `payload`, then close.
     Frame(Vec<u8>),
     /// `bytes` written as they are, then close.
@@ -119,8 +121,8 @@ where
 {
     let mut observed = Observed::default();
     match script {
-        Script::Exchange { form, key, answer, reply, reply_header } => {
-            exchange(&mut stream, form, &key, answer, reply, reply_header, &mut observed).await;
+        Script::Exchange { form, key, answer, reply } => {
+            exchange(&mut stream, form, &key, answer, reply, &mut observed).await;
         }
         Script::Frame(payload) => {
             send_frame(&mut stream, &payload).await.expect("send frame");
@@ -164,8 +166,7 @@ async fn exchange<S>(
     form: ServerForm,
     key: &[u8],
     answer: Answer,
-    reply: Vec<u8>,
-    reply_header: Option<i32>,
+    reply: Reply,
     observed: &mut Observed,
 ) where
     S: AsyncRead + AsyncWrite + Unpin,
@@ -235,12 +236,12 @@ async fn exchange<S>(
     // rpc_loop (RNS/Reticulum.py:1277-1334)
     let request = recv_frame(stream, 1 << 20).await.expect("recv request");
     observed.request = Some(request);
-    match reply_header {
-        Some(header) => {
+    match reply {
+        Reply::Frame(payload) => send_frame(stream, &payload).await.expect("send reply"),
+        Reply::BareHeader(header) => {
             stream.write_all(&header.to_be_bytes()).await.expect("write reply header");
             stream.shutdown().await.expect("shutdown after reply header");
         }
-        None => send_frame(stream, &reply).await.expect("send reply"),
     }
 }
 

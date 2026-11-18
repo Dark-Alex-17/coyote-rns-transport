@@ -123,7 +123,7 @@ fn hex_key_parses_even_hex_and_redacts_debug() {
     assert!(!debug.contains("0011"), "{debug}");
     let clone = key.clone();
     assert!(format!("{clone:?}").contains("redacted"));
-    for bad in ["", "abc", "xyz"] {
+    for bad in ["", "abc", "xyz", "ab cd", " abcd"] {
         assert!(matches!(RpcKey::from_hex(bad), Err(RpcError::InvalidKeyMaterial)), "{bad:?}");
     }
 }

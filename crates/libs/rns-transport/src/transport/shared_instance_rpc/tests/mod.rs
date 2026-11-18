@@ -7,7 +7,7 @@ use super::handshake::{mac, verify_mac, Digest};
 use super::*;
 
 mod mock_server;
-use mock_server::{Answer, MockServer, Script, ServerForm};
+use mock_server::{Answer, MockServer, Reply, Script, ServerForm};
 
 const WAIT: Duration = Duration::from_secs(5);
 const KEY_HEX: &str = "000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f";
@@ -82,8 +82,7 @@ fn exchange(form: ServerForm, answer: Answer) -> Script {
         form,
         key: key().as_bytes().to_vec(),
         answer,
-        reply: pack(&canned_reply()),
-        reply_header: None,
+        reply: Reply::Frame(pack(&canned_reply())),
     }
 }
 
@@ -212,8 +211,7 @@ async fn wrong_key_is_authentication() {
         form: ServerForm::Modern(Digest::Sha256),
         key: vec![0x42; 32],
         answer: Answer::Correct,
-        reply: pack(&canned_reply()),
-        reply_header: None,
+        reply: Reply::Frame(pack(&canned_reply())),
     })
     .await;
     assert!(matches!(call(&server).await, Err(RpcError::Authentication)));
@@ -237,6 +235,7 @@ async fn legacy_server_with_bad_answer_is_authentication() {
     assert!(matches!(call(&server).await, Err(RpcError::Authentication)));
     let observed = server.finish().await;
     assert_eq!(observed.verdict.as_deref(), Some(b"#FAILURE#".as_slice()));
+    assert_eq!(observed.after_failure, Some(true), "the client hangs up after #FAILURE#");
 }
 
 #[tokio::test]
@@ -358,11 +357,17 @@ async fn first_frame_that_is_not_a_challenge_is_protocol() {
 
 #[tokio::test]
 async fn challenge_without_digest_prefix_is_protocol() {
-    let mut frame = b"#CHALLENGE#".to_vec();
-    frame.extend_from_slice(&[7u8; 30]);
-    let server = MockServer::spawn(Script::Frame(frame)).await;
-    assert!(matches!(call(&server).await, Err(RpcError::Protocol(_))));
-    server.finish().await;
+    for prefix in [b"#CHALLENGE#".as_slice(), b"#CHALLENGE#{}"] {
+        let mut frame = prefix.to_vec();
+        frame.extend_from_slice(&[7u8; 30]);
+        let server = MockServer::spawn(Script::Frame(frame)).await;
+        assert!(
+            matches!(call(&server).await, Err(RpcError::Protocol(_))),
+            "{}",
+            prefix.escape_ascii()
+        );
+        server.finish().await;
+    }
 }
 
 #[tokio::test]
@@ -371,8 +376,7 @@ async fn reply_that_is_not_msgpack_is_decode() {
         form: ServerForm::Modern(Digest::Sha256),
         key: key().as_bytes().to_vec(),
         answer: Answer::Correct,
-        reply: vec![0xc1],
-        reply_header: None,
+        reply: Reply::Frame(vec![0xc1]),
     })
     .await;
     assert!(matches!(call(&server).await, Err(RpcError::Decode(_))));
@@ -385,8 +389,7 @@ async fn reply_over_the_cap_is_protocol() {
         form: ServerForm::Modern(Digest::Sha256),
         key: key().as_bytes().to_vec(),
         answer: Answer::Correct,
-        reply: Vec::new(),
-        reply_header: Some(16 * 1024 * 1024 + 1),
+        reply: Reply::BareHeader(16 * 1024 * 1024 + 1),
     })
     .await;
     match call(&server).await {
@@ -438,7 +441,7 @@ fn identity_file_of_the_wrong_length_or_unreadable_is_invalid_key_material() {
 
 #[test]
 fn hex_key_rejects_empty_odd_and_non_hex() {
-    for bad in ["", "abc", "zz", "0g"] {
+    for bad in ["", "abc", "zz", "0g", "ab cd", " abcd"] {
         assert!(matches!(RpcKey::from_hex(bad), Err(RpcError::InvalidKeyMaterial)), "{bad:?}");
     }
     assert_eq!(RpcKey::from_hex("ab").expect("one byte").as_bytes(), &[0xab]);

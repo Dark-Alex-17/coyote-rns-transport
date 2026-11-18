@@ -430,9 +430,10 @@ fn crate_readme_shared_instance_section_describes_interface_peer_count() {
 /// the authentication error, the default TCP listener and the abstract
 /// socket name, the Python lines the listener, the peer count and the
 /// stdlib handshake are read from, and the two test files that pin it; the
-/// divergence register names the module as fork-only, and the changelog
-/// section that carries the bullet names the same constructors, the
-/// handshake lines and the same pin files.
+/// divergence register names the module as fork-only and carries the key
+/// refusal as a real divergence, and the changelog section that carries the
+/// bullet names the same constructors, the handshake lines and the same pin
+/// files.
 #[test]
 fn crate_readme_rnsd_rpc_section_describes_the_client() {
     let readme = read_repo_file("crates/libs/rns-transport/README.md");
@@ -444,6 +445,7 @@ fn crate_readme_rnsd_rpc_section_describes_the_client() {
         "`RpcError::Authentication`",
         "`127.0.0.1:37429`",
         "`rns/<instance_name>/rpc`",
+        "`#[non_exhaustive]`",
         "`RNS/Reticulum.py:1274-1334`",
         "`RNS/Reticulum.py:1501-1503`",
         "`connection.py:917-1006`",
@@ -459,6 +461,10 @@ fn crate_readme_rnsd_rpc_section_describes_the_client() {
     assert!(
         divergences.contains("`transport::shared_instance_rpc`"),
         "the divergence register should name the RPC client:\n{divergences}"
+    );
+    assert!(
+        divergences.contains("`RpcKey::from_hex` refuses"),
+        "the divergence register should carry the key refusal:\n{divergences}"
     );
     let changelog = read_repo_file("crates/libs/rns-transport/CHANGELOG.md");
     let changelog_section = squash(changelog_section_naming(

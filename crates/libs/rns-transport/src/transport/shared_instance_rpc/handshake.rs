@@ -143,7 +143,8 @@ enum PrefixError {
 
 /// `_get_digest_name_and_payload` (`connection.py:891-914`): the legacy
 /// lengths first, then a `{digest}` whose closing brace sits within the
-/// first ten bytes (`message.find(b'}', 1, _MAX_DIGEST_LEN + 2)`).
+/// first ten bytes (`message.find(b'}', 1, _MAX_DIGEST_LEN + 2)`). An empty
+/// name (`{}`) is no prefix at all, not an unsupported digest.
 fn parse_message(message: &[u8]) -> Result<Message<'_>, PrefixError> {
     if message.len() == MD5ONLY_MESSAGE_LENGTH || message.len() == MD5_DIGEST_LEN {
         return Ok(Message::Legacy);
@@ -158,6 +159,9 @@ fn parse_message(message: &[u8]) -> Result<Message<'_>, PrefixError> {
         .position(|byte| *byte == b'}')
         .map(|offset| offset + 1)
         .ok_or(PrefixError::Missing)?;
+    if close == 1 {
+        return Err(PrefixError::Missing);
+    }
     let name = &message[1..close];
     match Digest::parse(name) {
         Some(digest) => Ok(Message::Prefixed { digest, payload: &message[close + 1..] }),

@@ -948,14 +948,16 @@ for iface in stats.interfaces.iter().filter(|iface| iface.kind == "AutoInterface
 top-level map as `raw: rmpv::Value`; each `InterfaceStat` reads `name`,
 `short_name`, `kind` (Python's `type`), `online` (Python's `status`),
 `peers` and `clients` as `Option<u64>` (`None` for an absent or nil key),
-`rxb`, `txb`, and its own map as `raw`. The call takes one fresh connection
-and runs connect, handshake, request and reply under the one `Duration`;
-`RpcError::Connect` is the dial failing, `RpcError::Authentication` a key
-the server rejects (or a server that fails our challenge), `Protocol` a
-malformed or oversized frame or an io error after connect, `Decode` an
-unexpected reply shape, `UnsupportedDigest` a challenge digest outside the
-stdlib's allowed set, `InvalidKeyMaterial` a key that cannot be parsed or
-derived, and `Timeout` the budget running out.
+`rxb`, `txb`, and its own map as `raw`. `RpcEndpoint`, `RpcError`,
+`InterfaceStats` and `InterfaceStat` are `#[non_exhaustive]`: match the
+enums with a wildcard arm and destructure the structs with `..`. The call
+takes one fresh connection and runs connect, handshake, request and reply
+under the one `Duration`; `RpcError::Connect` is the dial failing,
+`RpcError::Authentication` a key the server rejects (or a server that fails
+our challenge), `Protocol` a malformed or oversized frame or an io error
+after connect, `Decode` an unexpected reply shape, `UnsupportedDigest` a
+challenge digest outside the stdlib's allowed set, `InvalidKeyMaterial` a
+key that cannot be parsed or derived, and `Timeout` the budget running out.
 The handshake is the stdlib's mutual HMAC exchange
 (`connection.py:917-1006`): the client answers the server's challenge and
 then delivers its own, in the modern `{digest}`-prefixed form a Python 3.12

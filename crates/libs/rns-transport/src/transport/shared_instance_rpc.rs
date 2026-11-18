@@ -33,6 +33,11 @@ const DEFAULT_CONTROL_PORT: u16 = 37429;
 /// handshake itself.
 const REPLY_MAX_LEN: usize = 16 * 1024 * 1024;
 
+/// `mp.packb({"get": "interface_stats"})` (`RNS/Reticulum.py:1400`): a
+/// msgpack fixmap of one entry, the fixstr `get` to the fixstr
+/// `interface_stats`.
+const INTERFACE_STATS_REQUEST: &[u8] = b"\x81\xa3get\xafinterface_stats";
+
 /// Where the shared instance's RPC listener is. Python binds
 /// `("127.0.0.1", local_control_port)` unless `use_af_unix` is set, in which
 /// case it binds the abstract socket `\0rns/{instance_name}/rpc`
@@ -244,19 +249,9 @@ where
 {
     let form = handshake::answer_challenge(&mut stream, key.as_bytes()).await?;
     handshake::deliver_challenge(&mut stream, key.as_bytes(), form).await?;
-    framing::send_frame(&mut stream, &interface_stats_request()?).await?;
+    framing::send_frame(&mut stream, INTERFACE_STATS_REQUEST).await?;
     let reply = framing::recv_frame(&mut stream, REPLY_MAX_LEN).await?;
     let value = rmpv::decode::read_value(&mut reply.as_slice())
         .map_err(|err| RpcError::Decode(err.to_string()))?;
     decode::interface_stats(value)
-}
-
-/// `mp.packb({"get": "interface_stats"})` (`RNS/Reticulum.py:1400`).
-fn interface_stats_request() -> Result<Vec<u8>, RpcError> {
-    let request =
-        rmpv::Value::Map(vec![(rmpv::Value::from("get"), rmpv::Value::from("interface_stats"))]);
-    let mut packed = Vec::new();
-    rmpv::encode::write_value(&mut packed, &request)
-        .map_err(|err| RpcError::Protocol(format!("request did not encode: {err}")))?;
-    Ok(packed)
 }

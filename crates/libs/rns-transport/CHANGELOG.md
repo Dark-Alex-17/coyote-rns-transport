@@ -90,22 +90,24 @@ Removed) bullet of its own, marked as such.
   fork-only client of the rnsd shared instance's RPC listener, the
   `multiprocessing.connection.Listener` a Python shared instance opens at
   `RNS/Reticulum.py:363-367` and serves from `rpc_loop`
-  (`RNS/Reticulum.py:1274-1334`), for the one call rnstatus makes
-  (`RNS/Reticulum.py:1397-1402`). Six public items: `RpcEndpoint` (`Tcp`,
-  and `Unix` on unix targets, with `default_tcp()` = `127.0.0.1:37429` and
-  `for_instance(name)` = the abstract socket `rns/{name}/rpc` on Linux and
-  Android, `default_tcp()` elsewhere, after `use_af_unix` at
-  `RNS/Reticulum.py:353-358` and `:725-727`); `RpcKey` (`from_hex` for a
-  configured `rpc_key`, `RNS/Reticulum.py:499-505`, taking the hex digits
-  `bytes.fromhex` accepts without its whitespace tolerance and refusing an
-  empty key where Python would run the listener with an empty `authkey`,
-  `RNS/Reticulum.py:360-364`; `from_transport_identity_file` for Python's default
-  key, the SHA-256 of the 64-byte transport identity private key,
-  `RNS/Reticulum.py:360-361`; `Debug` prints `RpcKey(redacted)`);
-  `RpcError` (`#[non_exhaustive]`: `Connect(io::Error)` for the dial
-  itself, `Authentication`, `Protocol(String)` for a malformed or
-  oversized frame or an io error after connect, `Decode(String)`,
-  `UnsupportedDigest(String)`, `InvalidKeyMaterial`, `Timeout`);
+  (`RNS/Reticulum.py:1274-1334`), for the `interface_stats` call rnstatus
+  makes (`RNS/Reticulum.py:1397-1402`). Six public items: `RpcEndpoint`
+  (`Tcp`, and `Unix` on unix targets, with `default_tcp()` =
+  `127.0.0.1:37429` and `for_instance(name)` = the abstract socket
+  `rns/{name}/rpc` on Linux and Android, `default_tcp()` elsewhere, after
+  `use_af_unix` at `RNS/Reticulum.py:353-358` and `:725-727`); `RpcKey`
+  (`from_hex` for a configured `rpc_key`, `RNS/Reticulum.py:499-505`,
+  taking the hex digits `bytes.fromhex` accepts without its whitespace
+  tolerance and refusing an empty key where Python would run the listener
+  with an empty `authkey`, `RNS/Reticulum.py:360-364`, a refusal the
+  README's divergence register lists; `from_transport_identity_file` for
+  Python's default key, the SHA-256 of the 64-byte transport identity
+  private key, `RNS/Reticulum.py:360-361`; `Debug` prints
+  `RpcKey(redacted)`); `RpcError` (`#[non_exhaustive]`:
+  `Connect(io::Error)` for the dial itself, `Authentication`,
+  `Protocol(String)` for a malformed or oversized frame or an io error
+  after connect, `Decode(String)`, `UnsupportedDigest(String)`,
+  `InvalidKeyMaterial`, `Timeout`);
   `InterfaceStats { interfaces, raw }` and `InterfaceStat { name,
   short_name, kind, online, peers, clients, rxb, txb, raw }` decoded from
   the `get_interface_stats` dict (`RNS/Reticulum.py:1405-1628`; `kind` is
@@ -129,10 +131,13 @@ Removed) bullet of its own, marked as such.
   inspected; the wrong-key, bad-answer, unsupported-digest, truncated,
   oversized, silent and short-challenge failures; the key derivations and
   the redacted `Debug`; the decode shape rules; the unix socket round
-  trips, the wide and negative frame headers and the digest lock; and the stdlib
-  known-answer vectors from CPython's `connection.py:917-942`) and
+  trips, the wide and negative frame headers and the digest lock; a legacy
+  answer to a modern challenge, the 16 MiB reply cap and a hand-built
+  big-endian frame header; and the stdlib known-answer vectors from
+  CPython's `connection.py:917-942`) and
   `tests/shared_instance_rpc_api.rs` (the seven variants behind a wildcard
-  arm, the `Error + Send + Sync` bound, the endpoint defaults per OS, the
+  arm, the `Error + Send + Sync` bound, the `RpcEndpoint` variants behind a
+  wildcard arm for its `non_exhaustive`, the endpoint defaults per OS, the
   key parsing, the `Send` future, the closed-port `Connect` and the README
   recipe's lines run, the test supplying the endpoint).
 

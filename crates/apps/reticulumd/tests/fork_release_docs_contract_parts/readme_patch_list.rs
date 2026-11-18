@@ -390,6 +390,8 @@ fn crate_readme_shared_instance_section_describes_interface_peer_count() {
         "`RNS/Utilities/rnstatus.py:555-556`",
         "`tests/interface_peer_count_api.rs`",
         "`tests/interface_peer_count_probe.rs`",
+        "`tests/auto_status_handle_peers_json_probe.rs`",
+        "`rnstatus_peers_cli`",
     ] {
         assert!(
             section.contains(&squash(claim)),

@@ -319,6 +319,10 @@ fn rnstatus_fetches_daemon_status_and_renders_interface_runtime_state() {
     assert_eq!(value["identity_hash"], "0123456789abcdef0123456789abcdef");
     assert_eq!(value["interfaces"][0]["settings"]["_runtime"]["startup_status"], "failed");
     assert_eq!(
+        value["interfaces"][1]["settings"]["_runtime"]["auto"]["carrier_runtime"]["peers"],
+        1
+    );
+    assert_eq!(
         value["interfaces"][3]["settings"]["_runtime"]["tcp"]["stream_status"]["connected_streams"],
         5
     );

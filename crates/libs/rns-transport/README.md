@@ -782,15 +782,17 @@ ending `(attempt 1)` with the rest at debug, then
 back, and reads `Some(2)` on the same port.
 
 `Transport::interface_peer_count(&iface)` returns `Option<u64>` for an
-in-process `lan` or `auto` interface: the length of the AutoInterface
+in-process `auto` interface (the AutoInterface): the length of the
 discovery peer table behind it, what Python reports as
 `len(interface.peers)` in `RNS/Reticulum.py:1501-1503` over the dict at
 `RNS/Interfaces/AutoInterface.py:126` and rnstatus prints at
-`RNS/Utilities/rnstatus.py:555-556`. `None` for every kind without peers
-(TCP, UDP, serial, KISS, RNode, pipe), the shared instance's interface and
-a channel built with `InterfaceChannel::new` that no
-`InterfaceManager::set_peer_counter` call reached; a virtual child answers
-its host's count. Below the transport, `InterfaceManager::peer_count(&address)`
+`RNS/Utilities/rnstatus.py:555-556`. `None` when no record carries the
+address (never minted, built with `InterfaceChannel::new` as tests do, or
+stopped and pruned) and when the record carries no counter: every kind
+other than an AutoInterface host and its children (TCP, UDP, serial, KISS,
+RNode, pipe), the shared instance's interface, and a manager-minted channel
+that no `InterfaceManager::set_peer_counter` call reached; a virtual child
+answers its host's count. Below the transport, `InterfaceManager::peer_count(&address)`
 is the same read and `InterfaceManager::set_peer_counter` installs one on a
 host and the children registered on it, returning `false` and installing
 nothing when no record carries the host. The same count is read through
@@ -804,8 +806,10 @@ pruned, then `None`, and a handle keeps the last value for as long as it
 lives. Python exposes the count only through rnstatus and its RPC. Pinned
 by `tests/interface_peer_count_api.rs`,
 `tests/interface_peer_count_probe.rs`,
-`iface/auto_runtime_parts/tests_sections/auto_peer_count_pins.rs` and
-`iface/auto_runtime_parts/tests_sections/auto_peer_count_probe.rs`.
+`tests/auto_status_handle_peers_json_probe.rs`,
+`iface/auto_runtime_parts/tests_sections/auto_peer_count_pins.rs`,
+`iface/auto_runtime_parts/tests_sections/auto_peer_count_probe.rs` and the
+rns-tools `rnstatus_peers_cli` test.
 
 A `Tcp` endpoint whose address is not loopback is refused with
 `RnsError::SharedInstanceEndpointNotLoopback` before any lock is taken, with
@@ -1104,7 +1108,11 @@ Not divergences:
   AutoInterface discovery peer table length; Python exposes the count only
   through rnstatus and its RPC (`RNS/Reticulum.py:1501-1503`,
   `RNS/Interfaces/AutoInterface.py:126`,
-  `RNS/Utilities/rnstatus.py:555-556`). API shape, not behaviour.
+  `RNS/Utilities/rnstatus.py:555-556`). The `"peers"` key of
+  `AutoRuntimeStatusHandle::to_json()` is always present and never null,
+  where Python's `interface_stats` sets `peers` to `None` for an
+  interface without a peer table (`RNS/Reticulum.py:1501-1503`). API
+  shape, not behaviour.
 
 ## Versioning and releases
 

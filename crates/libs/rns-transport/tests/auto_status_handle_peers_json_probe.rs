@@ -5,14 +5,18 @@
 //! admits a peer; the same through a clone; and still the last value after the runtime
 //! stops, the retention the rustdocs promise (nothing publishes 0 on stop).
 
-use std::time::{Duration, Instant};
+use std::time::Duration;
+#[cfg(unix)]
+use std::time::Instant;
 
 use rns_transport::iface::auto::{
-    peering_token, AutoDataListenerBinding, AutoDiscoveryListenerBinding, AutoDiscoveryScope,
-    AutoInterfaceConfig, AutoInterfaceDeviceFilter, MulticastAddressType,
+    AutoDataListenerBinding, AutoDiscoveryListenerBinding, AutoDiscoveryScope, AutoInterfaceConfig,
+    AutoInterfaceDeviceFilter, MulticastAddressType,
 };
 use rns_transport::iface::auto_runtime::{AutoRuntimePlan, AutoRuntimeStatusHandle};
 
+#[cfg(unix)]
+use rns_transport::iface::auto::peering_token;
 #[cfg(unix)]
 use rns_transport::iface::auto_runtime::AutoInterfaceTransportRuntime;
 #[cfg(unix)]

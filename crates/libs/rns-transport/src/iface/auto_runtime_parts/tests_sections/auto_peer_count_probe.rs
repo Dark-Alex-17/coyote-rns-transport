@@ -67,8 +67,7 @@ async fn spawned_runtime_alone_reads_zero_through_an_announce_interval() {
         .expect("start loopback AutoInterface runtime");
 
     let timing = AutoInterfaceTiming::for_platform(plan.platform);
-    let until =
-        Instant::now() + timing.announce_interval + core::time::Duration::from_millis(500);
+    let until = Instant::now() + timing.announce_interval + core::time::Duration::from_millis(500);
     while Instant::now() < until {
         assert_eq!(handle.peer_count(), 0, "a runtime with no adopted devices admits nobody");
         tokio::time::sleep(core::time::Duration::from_millis(100)).await;

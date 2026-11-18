@@ -77,11 +77,13 @@ impl Transport {
     /// exposes the count only through rnstatus and its RPC; the fork also
     /// exposes it in-process here. Nothing publishes 0 when the AutoInterface
     /// runtime stops: the counter keeps its last published value, so the read
-    /// keeps its last `Some(n)` until the manager prunes the host record
-    /// (`stop_interface`, or the manager's next cleanup pass once the
-    /// interface's stop token is cancelled), after which it reads `None`; a
-    /// status handle sharing the counter keeps reading `n` for as long as it
-    /// lives.
+    /// keeps its last `Some(n)` until the manager prunes the host record,
+    /// which `AutoDiscoveryRuntime::stop` itself does not do: the runtime
+    /// never binds the record's stop token. `stop_interface`, `stop` and
+    /// `detach_shared_instance` cancel that token, and a send that finds the
+    /// stopped runtime's tx queue closed drops the record; no timer does.
+    /// After the prune the read is `None`; a status handle sharing the
+    /// counter keeps reading `n` for as long as it lives.
     #[deny(clippy::await_holding_invalid_type)]
     pub async fn interface_peer_count(&self, iface: &AddressHash) -> Option<u64> {
         self.iface_manager.lock().await.peer_count(iface)

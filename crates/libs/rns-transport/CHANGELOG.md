@@ -19,14 +19,15 @@ Removed) bullet of its own, marked as such.
   `len(interface.peers)` in `RNS/Reticulum.py:1501-1503`, over the dict at
   `RNS/Interfaces/AutoInterface.py:126`, and rnstatus prints at
   `RNS/Utilities/rnstatus.py:555-556`. `None` collapses two cases: no
-  record carries the address, and the record carries no counter, which is
-  every interface kind other than an AutoInterface host and its virtual
-  children (TCP, UDP, serial, KISS, RNode, pipe and the rest), the shared
-  instance's interface, and a channel built with `InterfaceChannel::new`
-  that no `InterfaceManager::set_peer_counter` call reached. A virtual
-  child registered on the AutoInterface's host channel answers its host's
-  count. Behind it, `InterfaceManager::set_peer_counter` (pub,
-  `iface_parts/interfacemanager_events.rs`) installs a counter on a host
+  record carries the address (never minted, built with
+  `InterfaceChannel::new` as tests do, or stopped and pruned), and the
+  record carries no counter, which is every interface kind other than an
+  AutoInterface host and its virtual children (TCP, UDP, serial, KISS,
+  RNode, pipe and the rest), the shared instance's interface, and a
+  manager-minted channel that no `InterfaceManager::set_peer_counter` call
+  reached. A virtual child registered on the AutoInterface's host channel
+  answers its host's count. Behind it, `InterfaceManager::set_peer_counter`
+  (pub, `iface_parts/interfacemanager_events.rs`) installs a counter on a host
   and the virtual children already registered on it and returns `false`,
   installing nothing, when no record carries the host; a child registered
   later copies it from the host, and `InterfaceManager::peer_count` reads
@@ -79,7 +80,7 @@ Removed) bullet of its own, marked as such.
   (`src/bin/shared/rnstatus.rs`, the `rnstatus_cli` test and the rns-tools
   `rnstatus_peers_cli` test: `peers=0` printed when the key is present
   with zero, no `peers=` token on the auto line when the key is absent,
-  and `peers=7` in the slot between `replaced=` and `peer_data_admitted=`).
+  and `peers=7` in the slot after `replaced=`).
 
 ## 0.18.2 - 2026-11-16
 

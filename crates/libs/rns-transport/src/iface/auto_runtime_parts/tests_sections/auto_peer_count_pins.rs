@@ -212,7 +212,8 @@ async fn spawned_runtime_publishes_peer_count_through_status_handle() {
 /// reads `Some(0)` right after the spawn, `Some(1)` with the handle once a
 /// peer is admitted, the same through the virtual child the bridge
 /// registers for that peer, and still `Some(1)` after stop, which leaves the
-/// manager's host record alone.
+/// manager's host record alone: the runtime never binds the record's stop
+/// token, so a cleanup pass keeps the record too.
 #[cfg(unix)]
 #[tokio::test]
 async fn spawned_runtime_installs_peer_count_on_the_bridge_host_channel() {
@@ -268,5 +269,16 @@ async fn spawned_runtime_installs_peer_count_on_the_bridge_host_channel() {
         handle.peer_count(),
         1,
         "the handle reads the same counter, which stop does not zero"
+    );
+
+    manager.lock().await.cleanup();
+    assert!(
+        manager.lock().await.interface_hashes().contains(&host),
+        "a cleanup pass does not drop a host whose stop token was never cancelled"
+    );
+    assert_eq!(
+        manager.lock().await.peer_count(&host),
+        Some(1),
+        "a cleanup pass does not drop a host whose stop token was never cancelled"
     );
 }

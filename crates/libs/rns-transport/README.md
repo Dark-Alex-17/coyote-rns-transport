@@ -795,7 +795,7 @@ that no `InterfaceManager::set_peer_counter` call reached; a virtual child
 answers its host's count. Below the transport,
 `InterfaceManager::peer_count(&address)` is the same read and
 `InterfaceManager::set_peer_counter` installs one on a host and the
-children registered on it, returning `false` and installing nothing when
+children registered on it, and returns `false`, installing nothing, when
 no record carries the host. The same count is read through
 `AutoRuntimeStatusHandle::peer_count()` and the `"peers"` key, always
 present, of `AutoRuntimeStatusHandle::to_json()`, which reticulumd copies
@@ -918,7 +918,9 @@ derives from the same file rnsd reads; a configured `rpc_key`
 (`RNS/Reticulum.py:499-505`) is `RpcKey::from_hex`, which takes the hex
 digits `bytes.fromhex` accepts, without its whitespace tolerance, and
 refuses an empty key where Python would run the listener with an empty
-`authkey` (`RNS/Reticulum.py:360-364`). The endpoint follows
+`authkey` (`RNS/Reticulum.py:360-364`). The HMAC accepts a key of any
+length, so the key's strength is its length: give a configured `rpc_key`
+at least 16 bytes (32 hex digits). The endpoint follows
 `use_af_unix` (`RNS/Reticulum.py:353-358`, `:725-727`): on Linux and
 Android a shared instance of any type but `tcp` listens on the abstract
 unix socket `rns/<instance_name>/rpc`, which
@@ -926,7 +928,9 @@ unix socket `rns/<instance_name>/rpc`, which
 `tcp`-type shared instance on Linux, the listener is
 `RpcEndpoint::Tcp(127.0.0.1:<instance_control_port>)`, `127.0.0.1:37429`
 by default (`RNS/Reticulum.py:296`, `:495-497`), which
-`RpcEndpoint::default_tcp()` returns. Dial the endpoint rnsd actually
+`RpcEndpoint::default_tcp()` returns and which `RpcEndpoint::for_instance`
+returns on every platform other than Linux and Android, whatever the
+name. Dial the endpoint rnsd actually
 binds: an endpoint rnsd left unbound could be bound by another local
 process, which the mutual handshake limits to a failed call but which is
 still worth avoiding. `RpcKey`'s `Debug` prints `RpcKey(redacted)`.
@@ -1214,14 +1218,22 @@ Not divergences:
   where Python's `interface_stats` emits `peers` only for an interface
   that carries a `peers` attribute (`RNS/Reticulum.py:1501`) and writes
   `None` only for a `peers` attribute set to `None` (`:1502-1503`), which
-  no RNS 1.5.2 interface does (`RNS/Interfaces/AutoInterface.py:126`).
+  no RNS 1.5.2 interface does (`RNS/Interfaces/AutoInterface.py:126`,
+  `RNS/Interfaces/WeaveInterface.py:867`, the two interfaces that carry
+  one).
   API shape, not behaviour.
 - `transport::shared_instance_rpc` is a fork-only typed client of the rnsd
   `interface_stats` RPC; Python has no typed client, rnstatus reads the
   reply dict directly (`RNS/Utilities/rnstatus.py:555-556`,
   `RNS/Reticulum.py:1397-1402`), and the RPC server stays Python-only:
-  reticulumd hosts no `multiprocessing.connection` listener. API shape,
-  not behaviour.
+  reticulumd hosts no `multiprocessing.connection` listener in this batch.
+  API shape, not behaviour.
+- `RpcEndpoint::Tcp` dials the address it is given, loopback or not, as
+  Python's own `multiprocessing.connection.Client` does in rnstatus
+  (`RNS/Reticulum.py:1397-1402`); the loopback guard that
+  `attach_shared_instance` puts on a `SharedInstanceEndpoint::Tcp` unless
+  `SharedInstanceOptions::allow_remote_endpoint(true)` is set has no twin
+  on the RPC client. API shape, not behaviour.
 
 ## Versioning and releases
 

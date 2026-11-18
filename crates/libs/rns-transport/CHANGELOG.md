@@ -61,7 +61,7 @@ Removed) bullet of its own, marked as such.
   closed tx queue while the handle keeps the last value),
   `tests/interface_peer_count_api.rs` (`None` for a plain TCP client, the
   shared instance and a bare channel; `Some(n)` and child sharing through
-  the public setter; `None` after stop),
+  the public setter; `None` after `Transport::stop` prunes every record),
   `tests/interface_peer_count_probe.rs` (a public discovery state driving
   a host count through add, refresh and expiry; a clone sharing the
   counter; two hosts separate; a later install replacing host and
@@ -156,7 +156,14 @@ Removed) bullet of its own, marked as such.
   server goes on serving the next connection; a configured `rpc_key` is
   honoured by `from_hex` and the identity-derived key is then refused,
   `RNS/Reticulum.py:499-505`; and on Linux `for_instance` over the abstract
-  socket, `RNS/Reticulum.py:353-358`, reads the same).
+  socket, `RNS/Reticulum.py:353-358`, reads the same), and by
+  `python_shared_instance_rpc_probe.rs` of the same binary (Python's own
+  `multiprocessing.connection.Client`, the client rnstatus uses, read as
+  an independent oracle of the same listener and agreeing with the typed
+  reply on the interface set, kinds, online flags, peer and client
+  counts; the typed fields as projections of the raw per-interface maps;
+  three back-to-back reads agreeing; and a zero budget surfacing as
+  `Timeout`, never a hang).
 
 ## 0.18.2 - 2026-11-16
 

@@ -126,9 +126,10 @@ fn rnstatus_prints_the_peer_count_the_daemon_reports() {
 /// Python's `interface_stats` emits `peers` only for an interface that carries a
 /// `peers` attribute (`RNS/Reticulum.py:1501`) and writes `None` only for a `peers`
 /// attribute set to `None` (`:1502-1503`), which no RNS 1.5.2 interface does
-/// (`RNS/Interfaces/AutoInterface.py:126`). reticulumd never emits null either, but
-/// a daemon that did must not break the rendering: the run succeeds and the token is
-/// left off the auto line, the same as an absent key.
+/// (`RNS/Interfaces/AutoInterface.py:126`, `RNS/Interfaces/WeaveInterface.py:867`, the
+/// two interfaces that carry one). reticulumd never emits null either, but a daemon
+/// that did must not break the rendering: the run succeeds and the token is left off
+/// the auto line, the same as an absent key.
 #[test]
 fn rnstatus_treats_a_null_peers_key_like_an_absent_one() {
     let stdout = rnstatus_human_output(daemon_status_with_auto_runtime(json!({

@@ -374,53 +374,64 @@ fn readme_patch_list_opens_with_the_0_18_2_block_and_keeps_the_0_18_1_paragraph(
 /// AutoInterface keeps it: the transport getter, the manager read and the
 /// status handle underneath, the always-present JSON key, the Python lines
 /// it mirrors and the public-API test files that pin it; the divergence
-/// register names the count as fork-only, and the changelog section that
-/// carries the bullet names the key, the rnstatus rendering, the setter's
-/// `false` path and the probe, reticulumd and rnstatus pins.
+/// register names the count as fork-only under `Not divergences:` (API
+/// shape, not behaviour), and the changelog section that carries the
+/// bullet makes the same claims, each document in its own spelling of the
+/// signatures.
 #[test]
 fn crate_readme_shared_instance_section_describes_interface_peer_count() {
     let readme = read_repo_file("crates/libs/rns-transport/README.md");
     let section = squash(crate_readme_section(&readme, "Attaching to a shared instance"));
-    for claim in [
-        "`Transport::interface_peer_count(&iface)`",
-        "`InterfaceManager::peer_count(&address)`",
-        "`AutoRuntimeStatusHandle::peer_count()`",
+    let shared_claims = [
+        "`InterfaceManager::set_peer_counter`",
+        "returns `false`",
         "`\"peers\"`",
+        "`peers=",
+        "keeps the state's own when no handle is given",
         "`RNS/Reticulum.py:1501-1503`",
         "`RNS/Interfaces/AutoInterface.py:126`",
         "`RNS/Utilities/rnstatus.py:555-556`",
         "`tests/interface_peer_count_api.rs`",
         "`tests/interface_peer_count_probe.rs`",
         "`tests/auto_status_handle_peers_json_probe.rs`",
+        "`iface/auto_runtime_parts/tests_sections/auto_peer_count_pins.rs`",
+        "`iface/auto_runtime_parts/tests_sections/auto_peer_count_probe.rs`",
         "`rnstatus_peers_cli`",
-    ] {
+    ];
+    for claim in shared_claims.into_iter().chain([
+        "`Transport::interface_peer_count(&iface)`",
+        "`InterfaceManager::peer_count(&address)`",
+        "`AutoRuntimeStatusHandle::peer_count()`",
+    ]) {
         assert!(
             section.contains(&squash(claim)),
             "the shared-instance section should mention {claim}:\n{section}"
         );
     }
     let divergences = crate_readme_section(&readme, "Known divergences from Python RNS");
+    let (real, api_shape) = divergences
+        .split_once("\nNot divergences:\n")
+        .expect("the register separates API-shape facts under `Not divergences:`");
     assert!(
-        divergences.contains("`Transport::interface_peer_count()`"),
-        "the divergence register should name the peer count:\n{divergences}"
+        api_shape.contains("`Transport::interface_peer_count()`"),
+        "the peer count is API shape, listed below the marker:\n{api_shape}"
+    );
+    assert!(
+        !real.contains("`Transport::interface_peer_count()`"),
+        "the peer count is not a behaviour divergence:\n{real}"
     );
     let changelog = read_repo_file("crates/libs/rns-transport/CHANGELOG.md");
     let changelog_section = squash(changelog_section_naming(
         &changelog,
         "`Transport::interface_peer_count(&AddressHash) -> Option<u64>`",
     ));
-    for claim in [
-        "`\"peers\"`",
-        "`peers=",
-        "`InterfaceManager::set_peer_counter`",
-        "returns `false`",
-        "keeps the state's own when no handle is given",
-        "`tests/interface_peer_count_probe.rs`",
-        "`iface/auto_runtime_parts/tests_sections/auto_peer_count_probe.rs`",
+    for claim in shared_claims.into_iter().chain([
+        "`InterfaceManager::peer_count` reads",
+        "`AutoRuntimeStatusHandle::peer_count`",
         "`bootstrap_parts::module_core`",
         "`src/bin/shared/rnstatus.rs`",
         "`rnstatus_cli` test",
-    ] {
+    ]) {
         assert!(changelog_section.contains(&squash(claim)), "the changelog should mention {claim}");
     }
 }
@@ -431,10 +442,10 @@ fn crate_readme_shared_instance_section_describes_interface_peer_count() {
 /// socket name, the Python lines the listener, the peer count and the
 /// stdlib handshake are read from, the two test files that pin it and the
 /// Python-in-the-loop part that reads a live rnsd; the divergence register
-/// names the module as fork-only and carries the key refusal as a real
-/// divergence, and the changelog section that carries the
-/// bullet names the same constructors, the handshake lines and the same pin
-/// files.
+/// names the module as fork-only below the `Not divergences:` marker (API
+/// shape) and carries the key refusal above it as a real divergence, and
+/// the changelog section that carries the bullet names the same
+/// constructors, the handshake lines and the same pin files.
 #[test]
 fn crate_readme_rnsd_rpc_section_describes_the_client() {
     let readme = read_repo_file("crates/libs/rns-transport/README.md");
@@ -460,13 +471,20 @@ fn crate_readme_rnsd_rpc_section_describes_the_client() {
         );
     }
     let divergences = crate_readme_section(&readme, "Known divergences from Python RNS");
+    let (real, api_shape) = divergences
+        .split_once("\nNot divergences:\n")
+        .expect("the register separates API-shape facts under `Not divergences:`");
     assert!(
-        divergences.contains("`transport::shared_instance_rpc`"),
-        "the divergence register should name the RPC client:\n{divergences}"
+        api_shape.contains("`transport::shared_instance_rpc` is a fork-only typed client"),
+        "the typed client is API shape, listed below the marker:\n{api_shape}"
     );
     assert!(
-        divergences.contains("`RpcKey::from_hex` refuses"),
-        "the divergence register should carry the key refusal:\n{divergences}"
+        real.contains("`RpcKey::from_hex` refuses"),
+        "the key refusal is a real divergence, listed above the marker:\n{real}"
+    );
+    assert!(
+        !api_shape.contains("`RpcKey::from_hex` refuses"),
+        "the key refusal does not repeat below the marker:\n{api_shape}"
     );
     let changelog = read_repo_file("crates/libs/rns-transport/CHANGELOG.md");
     let changelog_section = squash(changelog_section_naming(

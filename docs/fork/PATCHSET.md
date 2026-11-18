@@ -35,7 +35,7 @@ belongs to. Patch ids: O1 is auto peer count, O2 is rnsd rpc client. The
 `72a2685a` and `c1c51fe2`. The `rnsd rpc client` patch is fork commits
 `e5fed58f`, `2b2d59c1`, `48ea789e`, `eb520fad` and `d3267e30`. The
 `Python-in-the-loop rnsd rpc interop` patch carries no other id and is
-fork commits `8870d19f`, `0efdadfa` and `238abaa3`.
+fork commits `8870d19f`, `0efdadfa`, `238abaa3` and `839769d2`.
 
 | File | Patch |
 | --- | --- |
@@ -298,8 +298,8 @@ replaces the encoded-at-runtime request with the constant msgpack bytes of
 `{"get": "interface_stats"}`, folds the mock's reply override into a `Reply`
 enum, and states the four `non_exhaustive` items in the README and CHANGELOG.
 
-Fork commits `8870d19f`, `0efdadfa` and `238abaa3`: Python-in-the-loop rnsd
-rpc interop.
+Fork commits `8870d19f`, `0efdadfa`, `238abaa3` and `839769d2`:
+Python-in-the-loop rnsd rpc interop.
 A Python rnsd (RNS 1.5.2) is the shared instance on a free TCP port with
 one `AutoInterface` configured in a top-level `[interfaces]` section, the
 section Python reads configured interfaces from
@@ -337,7 +337,10 @@ section's pin in `readme_patch_list.rs`. `238abaa3` has the identity wait
 end when the file holds its 64 bytes rather than when it exists, since
 Python opens it and then writes it (`RNS/Identity.py:665-666`), and
 states the rnsd panic in the `data_port` comment and the configured-only
-reading of `[interfaces]` in the harness comment.
+reading of `[interfaces]` in the harness comment. `839769d2` has the
+entry doc say the `LocalServerInterface` entry carries no `peers` key at
+all, rather than a nil one, and the README sentence say the
+identity-derived key is refused once `rpc_key` is configured.
 Upstream site: test files only.
 
 ## 0.18.2 (upstream 0.14.0)

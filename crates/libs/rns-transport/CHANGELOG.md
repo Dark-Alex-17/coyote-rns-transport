@@ -126,7 +126,8 @@ Removed) bullet of its own, marked as such.
   `{md5}` digests, with the client's answer and challenge frames
   inspected; the wrong-key, bad-answer, unsupported-digest, truncated,
   oversized, silent and short-challenge failures; the key derivations and
-  the redacted `Debug`; the decode shape rules) and
+  the redacted `Debug`; the decode shape rules; and the stdlib
+  known-answer vectors from CPython's `connection.py:917-942`) and
   `tests/shared_instance_rpc_api.rs` (the seven variants behind a wildcard
   arm, the `Error + Send + Sync` bound, the endpoint defaults per OS, the
   key parsing, the `Send` future, the closed-port `Connect` and the README

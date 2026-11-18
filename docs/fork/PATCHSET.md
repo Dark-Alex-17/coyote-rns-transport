@@ -32,8 +32,8 @@ Every file changed since the `0.18.2` release and the patch each change
 belongs to. Patch ids: O1 is auto peer count, O2 is rnsd rpc client. The
 `auto peer count` patch is fork commits `bc5a7e6c`, `457f50f1`, `5d8832e1`,
 `5d231b18`, `6c1b4008`, `33fc1137`, `ddf20ed9`, `34dda674`, `20077b93`,
-`72a2685a` and `c1c51fe2`. The `rnsd rpc client` patch is fork commit
-`e5fed58f`.
+`72a2685a` and `c1c51fe2`. The `rnsd rpc client` patch is fork commits
+`e5fed58f` and `2b2d59c1`.
 
 | File | Patch |
 | --- | --- |
@@ -217,7 +217,7 @@ record carrying `address`, asserts the host's absence and the child's
 auto `peers` to 4 so the UDP `peers=2` assertion stays discriminating,
 and adds the closed-queue clause to the CHANGELOG pin enumeration.
 
-Fork commit `e5fed58f`: O2, rnsd rpc client.
+Fork commits `e5fed58f` and `2b2d59c1`: O2, rnsd rpc client.
 Upstream site: the shared-instance client module
 `crates/libs/rns-transport/src/transport/shared_instance.rs`, beside which
 the new `transport::shared_instance_rpc` module (public, declared in
@@ -263,6 +263,11 @@ surface, the `Send` future, the closed-port `Connect` and the README
 recipe verbatim), the README section `## Reading rnsd's interface
 statistics` with its divergence-register bullet, and the new API test's
 entry in the README snippet pin list of `crate_readme_sections.rs`.
+`2b2d59c1` adds a known-answer test to `shared_instance_rpc/tests/mod.rs`
+that pins the `Digest` table's MACs and prefixes, modern and legacy, to
+vectors produced by CPython's `_create_response` (`connection.py:917-942`),
+so the Python side of the exchange is asserted independently of our own
+server fixture.
 
 ## 0.18.2 (upstream 0.14.0)
 

@@ -792,10 +792,11 @@ stopped and pruned) and when the record carries no counter: every kind
 other than an AutoInterface host and its children (TCP, UDP, serial, KISS,
 RNode, pipe), the shared instance's interface, and a manager-minted channel
 that no `InterfaceManager::set_peer_counter` call reached; a virtual child
-answers its host's count. Below the transport, `InterfaceManager::peer_count(&address)`
-is the same read and `InterfaceManager::set_peer_counter` installs one on a
-host and the children registered on it, returning `false` and installing
-nothing when no record carries the host. The same count is read through
+answers its host's count. Below the transport,
+`InterfaceManager::peer_count(&address)` is the same read and
+`InterfaceManager::set_peer_counter` installs one on a host and the
+children registered on it, returning `false` and installing nothing when
+no record carries the host. The same count is read through
 `AutoRuntimeStatusHandle::peer_count()` and the `"peers"` key, always
 present, of `AutoRuntimeStatusHandle::to_json()`, which reticulumd copies
 into `_runtime.auto.carrier_runtime` of `daemon_status_ex` and rnstatus-rs

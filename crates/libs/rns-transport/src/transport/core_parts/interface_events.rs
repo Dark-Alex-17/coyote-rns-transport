@@ -79,9 +79,11 @@ impl Transport {
     /// runtime stops: the counter keeps its last published value, so the read
     /// keeps its last `Some(n)` until the manager prunes the host record,
     /// which `AutoDiscoveryRuntime::stop` itself does not do: the runtime
-    /// never binds the record's stop token. `stop_interface` and `stop`
-    /// cancel that token, and a send that finds the stopped runtime's tx
-    /// queue closed drops the record; no timer does.
+    /// never binds the record's stop token. `stop_interface` and
+    /// `Transport::stop` cancel that token; otherwise the record goes when
+    /// the manager's send path or the announce job's queued-announce
+    /// release observes a closed tx queue, which drops every closed-queue
+    /// record at once. No pass drops it merely because the runtime stopped.
     /// After the prune the read is `None`; a status handle sharing the
     /// counter keeps reading `n` for as long as it lives.
     #[deny(clippy::await_holding_invalid_type)]

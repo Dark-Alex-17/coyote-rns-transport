@@ -123,6 +123,46 @@ fn rnstatus_prints_the_peer_count_the_daemon_reports() {
     assert!(line.contains("replaced=0 peers=7"), "auto line: {line}");
 }
 
+/// Python's `interface_stats` sets `peers` to `None` for an interface without a peer
+/// table (`RNS/Reticulum.py:1501-1503`); reticulumd never emits null, but a daemon
+/// that did must not break the rendering: the run succeeds and the token is left off
+/// the auto line, the same as an absent key.
+#[test]
+fn rnstatus_treats_a_null_peers_key_like_an_absent_one() {
+    let stdout = rnstatus_human_output(daemon_status_with_auto_runtime(json!({
+        "peers": Value::Null,
+        "peer_data_admitted_count": 0
+    })));
+    let line = auto_line(&stdout);
+    assert!(line.contains("replaced=0 peer_data_admitted=0"), "auto line: {line}");
+    assert!(!line.contains("peers="), "null peers must not print a token: {line}");
+}
+
+/// A non-numeric `peers` value (a string, or a negative number) is not a count the
+/// summary can print: the run still succeeds and the token is omitted.
+#[test]
+fn rnstatus_omits_the_peers_token_for_a_non_u64_value() {
+    for bad in [json!("3"), json!(-1), json!(1.5)] {
+        let stdout = rnstatus_human_output(daemon_status_with_auto_runtime(json!({
+            "peers": bad,
+            "peer_data_admitted_count": 0
+        })));
+        let line = auto_line(&stdout);
+        assert!(line.contains("replaced=0 peer_data_admitted=0"), "auto line: {line}");
+        assert!(!line.contains("peers="), "non-u64 peers {bad} must not print a token: {line}");
+    }
+}
+
+/// The count is a u64 end to end: the largest value survives the msgpack RPC frame
+/// and prints in full.
+#[test]
+fn rnstatus_prints_a_u64_max_peer_count_in_full() {
+    let stdout =
+        rnstatus_human_output(daemon_status_with_auto_runtime(json!({ "peers": u64::MAX })));
+    let line = auto_line(&stdout);
+    assert!(line.contains("peers=18446744073709551615"), "auto line: {line}");
+}
+
 fn http_body(request: &[u8]) -> &[u8] {
     let marker = b"\r\n\r\n";
     let start = request

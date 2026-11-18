@@ -74,13 +74,16 @@ Removed) bullet of its own, marked as such.
   a fresh handle, 1 together with the transport read once a loopback peer
   is admitted, a clone agreeing, the JSON still 1 after stop while the
   transport reads `Some(1)` until `stop_interface` prunes the host, then
-  `None` with the handle still 1), the reticulumd refresh pin
-  (`bootstrap_parts::module_core`, the `peers` key riding through to
+  `None` with the handle still 1, and the key following an admitted peer
+  on a handle spawned without a transport bridge), the reticulumd refresh
+  pin (`bootstrap_parts::module_core`, the `peers` key riding through to
   `carrier_runtime`) and the rnstatus unit and CLI pins
   (`src/bin/shared/rnstatus.rs`, the `rnstatus_cli` test and the rns-tools
   `rnstatus_peers_cli` test: `peers=0` printed when the key is present
   with zero, no `peers=` token on the auto line when the key is absent,
-  and `peers=7` in the slot after `replaced=`).
+  `peers=7` in the slot after `replaced=`, a null `peers` treated like an
+  absent key, a non-u64 value (a string, a negative number or a float)
+  omitted, and a `u64::MAX` count printed in full).
 
 ## 0.18.2 - 2026-11-16
 

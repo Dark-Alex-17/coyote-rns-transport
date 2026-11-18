@@ -213,7 +213,9 @@ async fn spawned_runtime_publishes_peer_count_through_status_handle() {
 /// peer is admitted, the same through the virtual child the bridge
 /// registers for that peer, and still `Some(1)` after stop, which leaves the
 /// manager's host record alone: the runtime never binds the record's stop
-/// token, so a cleanup pass keeps the record too.
+/// token, so a cleanup pass keeps the record too. The record goes when a
+/// dispatch observes the stopped runtime's closed tx queue; the read is
+/// `None` from then on while the handle keeps the last value.
 #[cfg(unix)]
 #[tokio::test]
 async fn spawned_runtime_installs_peer_count_on_the_bridge_host_channel() {
@@ -279,6 +281,21 @@ async fn spawned_runtime_installs_peer_count_on_the_bridge_host_channel() {
     assert_eq!(
         manager.lock().await.peer_count(&host),
         Some(1),
-        "a cleanup pass does not drop a host whose stop token was never cancelled"
+        "after a cleanup pass the surviving host still reads its last value"
     );
+
+    manager
+        .lock()
+        .await
+        .send(TxMessage {
+            tx_type: TxMessageType::Broadcast(None),
+            packet: test_packet(b"after-stop", 0x66),
+        })
+        .await;
+    assert_eq!(
+        manager.lock().await.peer_count(&host),
+        None,
+        "a dispatch that observes the closed tx queue drops the host record"
+    );
+    assert_eq!(handle.peer_count(), 1, "the handle keeps the last value after the prune");
 }

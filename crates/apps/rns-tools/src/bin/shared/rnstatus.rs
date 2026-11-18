@@ -1339,7 +1339,7 @@ mod tests {
                                     "adopted_add_count": 2,
                                     "adopted_remove_count": 1,
                                     "link_local_replacement_count": 1,
-                                    "peers": 2,
+                                    "peers": 4,
                                     "peer_data_admitted_count": 3,
                                     "peer_data_duplicate_count": 1,
                                     "peer_data_unknown_count": 2,
@@ -1817,7 +1817,7 @@ mod tests {
         assert!(output.contains("added=2"));
         assert!(output.contains("removed=1"));
         assert!(output.contains("replaced=1"));
-        assert!(output.contains("replaced=1 peers=2 peer_data_admitted=3"));
+        assert!(output.contains("replaced=1 peers=4 peer_data_admitted=3"));
         assert!(output.contains("peer_data_admitted=3"));
         assert!(output.contains("peer_data_dup=1"));
         assert!(output.contains("peer_data_unknown=2"));

@@ -56,7 +56,9 @@ Removed) bullet of its own, marked as such.
   sharing the host's count, the handle adopting direction, the table
   counter across adopted-device removal and a counter swap, the `"peers"`
   key following the counter, and spawned loopback runtimes whose handle
-  and bridge host channel read an admitted peer and keep it after stop),
+  and bridge host channel read an admitted peer and keep it after stop,
+  and the host reading `None` once a send observes the stopped runtime's
+  closed tx queue while the handle keeps the last value),
   `tests/interface_peer_count_api.rs` (`None` for a plain TCP client, the
   shared instance and a bare channel; `Some(n)` and child sharing through
   the public setter; `None` after stop),

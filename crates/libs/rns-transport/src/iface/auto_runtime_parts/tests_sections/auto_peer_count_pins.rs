@@ -297,5 +297,14 @@ async fn spawned_runtime_installs_peer_count_on_the_bridge_host_channel() {
         None,
         "a dispatch that observes the closed tx queue drops the host record"
     );
+    assert!(
+        !manager.lock().await.interface_hashes().contains(&host),
+        "the closed-queue pass drops the host record itself"
+    );
+    assert_eq!(
+        manager.lock().await.peer_count(&child),
+        None,
+        "the child sharing the closed queue goes with the host"
+    );
     assert_eq!(handle.peer_count(), 1, "the handle keeps the last value after the prune");
 }

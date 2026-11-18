@@ -1111,9 +1111,11 @@ Not divergences:
   `RNS/Interfaces/AutoInterface.py:126`,
   `RNS/Utilities/rnstatus.py:555-556`). The `"peers"` key of
   `AutoRuntimeStatusHandle::to_json()` is always present and never null,
-  where Python's `interface_stats` sets `peers` to `None` for an
-  interface without a peer table (`RNS/Reticulum.py:1501-1503`). API
-  shape, not behaviour.
+  where Python's `interface_stats` emits `peers` only for an interface
+  that carries a `peers` attribute (`RNS/Reticulum.py:1501`) and writes
+  `None` only for a `peers` attribute set to `None` (`:1502-1503`), which
+  no RNS 1.5.2 interface does (`RNS/Interfaces/AutoInterface.py:126`).
+  API shape, not behaviour.
 
 ## Versioning and releases
 

@@ -50,8 +50,8 @@ impl InterfaceManager {
     /// counter, which is every interface kind other than an AutoInterface
     /// host and its children unless `set_peer_counter` installed one. Nothing
     /// publishes 0 when the AutoInterface runtime stops: the counter keeps its
-    /// last published value, so the read stays `Some(last)` until the host
-    /// record is pruned, after which it is `None`.
+    /// last published value, so the read stays `Some(last)` until the record
+    /// carrying `address` is pruned, after which it is `None`.
     pub fn peer_count(&self, address: &AddressHash) -> Option<u64> {
         self.ifaces
             .iter()

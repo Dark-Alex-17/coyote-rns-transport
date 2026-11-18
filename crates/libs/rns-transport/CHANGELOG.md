@@ -96,8 +96,10 @@ Removed) bullet of its own, marked as such.
   `for_instance(name)` = the abstract socket `rns/{name}/rpc` on Linux and
   Android, `default_tcp()` elsewhere, after `use_af_unix` at
   `RNS/Reticulum.py:353-358` and `:725-727`); `RpcKey` (`from_hex` for a
-  configured `rpc_key`, `RNS/Reticulum.py:499-505`, refusing an empty, odd
-  or non-hex string; `from_transport_identity_file` for Python's default
+  configured `rpc_key`, `RNS/Reticulum.py:499-505`, taking the hex digits
+  `bytes.fromhex` accepts without its whitespace tolerance and refusing an
+  empty key where Python would run the listener with an empty `authkey`,
+  `RNS/Reticulum.py:360-364`; `from_transport_identity_file` for Python's default
   key, the SHA-256 of the 64-byte transport identity private key,
   `RNS/Reticulum.py:360-361`; `Debug` prints `RpcKey(redacted)`);
   `RpcError` (`#[non_exhaustive]`: `Connect(io::Error)` for the dial
@@ -126,12 +128,13 @@ Removed) bullet of its own, marked as such.
   `{md5}` digests, with the client's answer and challenge frames
   inspected; the wrong-key, bad-answer, unsupported-digest, truncated,
   oversized, silent and short-challenge failures; the key derivations and
-  the redacted `Debug`; the decode shape rules; and the stdlib
+  the redacted `Debug`; the decode shape rules; the unix socket round
+  trips, the wide and negative frame headers and the digest lock; and the stdlib
   known-answer vectors from CPython's `connection.py:917-942`) and
   `tests/shared_instance_rpc_api.rs` (the seven variants behind a wildcard
   arm, the `Error + Send + Sync` bound, the endpoint defaults per OS, the
   key parsing, the `Send` future, the closed-port `Connect` and the README
-  recipe run verbatim).
+  recipe's lines run, the test supplying the endpoint).
 
 ## 0.18.2 - 2026-11-16
 

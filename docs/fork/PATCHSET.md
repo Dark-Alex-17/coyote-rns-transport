@@ -33,7 +33,7 @@ belongs to. Patch ids: O1 is auto peer count, O2 is rnsd rpc client. The
 `auto peer count` patch is fork commits `bc5a7e6c`, `457f50f1`, `5d8832e1`,
 `5d231b18`, `6c1b4008`, `33fc1137`, `ddf20ed9`, `34dda674`, `20077b93`,
 `72a2685a` and `c1c51fe2`. The `rnsd rpc client` patch is fork commits
-`e5fed58f` and `2b2d59c1`.
+`e5fed58f`, `2b2d59c1` and `48ea789e`.
 
 | File | Patch |
 | --- | --- |
@@ -42,7 +42,7 @@ belongs to. Patch ids: O1 is auto peer count, O2 is rnsd rpc client. The
 | `crates/apps/reticulumd/src/bin/reticulumd/bootstrap_parts/module_core.rs` | auto peer count |
 | `crates/apps/reticulumd/tests/fork_publish_contract_parts/ledger_contract.rs` | auto peer count |
 | `crates/apps/reticulumd/tests/fork_release_docs_contract_parts/crate_readme_sections.rs` | rnsd rpc client |
-| `crates/apps/reticulumd/tests/fork_release_docs_contract_parts/readme_patch_list.rs` | auto peer count |
+| `crates/apps/reticulumd/tests/fork_release_docs_contract_parts/readme_patch_list.rs` | auto peer count, rnsd rpc client |
 | `crates/apps/rns-tools/src/bin/shared/rnstatus.rs` | auto peer count |
 | `crates/apps/rns-tools/tests/rnstatus_cli.rs` | auto peer count |
 | `crates/apps/rns-tools/tests/rnstatus_peers_cli.rs` | auto peer count |
@@ -217,7 +217,7 @@ record carrying `address`, asserts the host's absence and the child's
 auto `peers` to 4 so the UDP `peers=2` assertion stays discriminating,
 and adds the closed-queue clause to the CHANGELOG pin enumeration.
 
-Fork commits `e5fed58f` and `2b2d59c1`: O2, rnsd rpc client.
+Fork commits `e5fed58f`, `2b2d59c1` and `48ea789e`: O2, rnsd rpc client.
 Upstream site: the shared-instance client module
 `crates/libs/rns-transport/src/transport/shared_instance.rs`, beside which
 the new `transport::shared_instance_rpc` module (public, declared in
@@ -268,6 +268,16 @@ that pins the `Digest` table's MACs and prefixes, modern and legacy, to
 vectors produced by CPython's `_create_response` (`connection.py:917-942`),
 so the Python side of the exchange is asserted independently of our own
 server fixture.
+`48ea789e` gives the mock server a unix listener and pins the `Unix`
+connect arm over a filesystem socket and, on Linux and Android, the
+abstract name; pins the wide (`-1`) and negative frame headers, a
+non-challenge first frame, a prefix-less challenge body and an undecodable
+reply; pins the digest lock (a correct MAC under a digest other than the
+one challenged is refused); escapes the server's digest name in
+`UnsupportedDigest`; moves the authentication-failure warn from
+`handshake.rs` to the caller, where it names the endpoint and never the
+key; and adds the README prose pin for the section to `readme_patch_list.rs`,
+beside the peer-count pin, with the `from_hex` and recipe wording tightened.
 
 ## 0.18.2 (upstream 0.14.0)
 

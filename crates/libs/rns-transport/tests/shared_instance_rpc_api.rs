@@ -8,7 +8,7 @@
 //! leaks bytes through `Debug`; `InterfaceStat` and `InterfaceStats` are `Clone + Debug +
 //! PartialEq` values whose fields are read by name; the `interface_stats` future is
 //! `Send`; and a call against a closed loopback port is `Err(RpcError::Connect(_))` well
-//! inside its budget. The README recipe's lines run here verbatim.
+//! inside its budget. The README recipe's lines run here; the test supplies the endpoint.
 
 use std::error::Error;
 use std::fmt::Debug;
@@ -45,7 +45,8 @@ fn error_label(err: &RpcError) -> &'static str {
     }
 }
 
-/// The README recipe, verbatim, from the identity file to the per-interface peer read.
+/// The README recipe's lines, from the identity file to the per-interface peer read; the
+/// test supplies the endpoint.
 async fn readme_recipe(configdir: &Path, endpoint: RpcEndpoint) -> Result<(), RpcError> {
     let key = RpcKey::from_transport_identity_file(&configdir.join("storage/transport_identity"))?;
     let stats = interface_stats(&endpoint, &key, Duration::from_secs(5)).await?;
@@ -80,7 +81,10 @@ fn rpc_error_is_a_send_sync_error_with_seven_named_variants() {
 
 #[test]
 fn default_tcp_is_the_python_control_port() {
-    assert_eq!(RpcEndpoint::default_tcp(), RpcEndpoint::Tcp("127.0.0.1:37429".parse().unwrap()));
+    assert_eq!(
+        RpcEndpoint::default_tcp(),
+        RpcEndpoint::Tcp("127.0.0.1:37429".parse().expect("addr"))
+    );
 }
 
 #[cfg(any(target_os = "linux", target_os = "android"))]

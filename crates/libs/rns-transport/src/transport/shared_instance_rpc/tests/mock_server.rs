@@ -1,14 +1,19 @@
 //! The server side of the handshake from the stdlib spec
 //! (`connection.py:513-517`: `deliver_challenge`, then `answer_challenge`),
 //! followed by rnsd's one request and one reply (`RNS/Reticulum.py:1277-1334`),
-//! on a TCP loopback listener, with the frames the client sent recorded for
-//! the tests to inspect. The frame and MAC helpers are the module's own.
+//! on a TCP loopback listener or a unix socket, with the frames the client
+//! sent recorded for the tests to inspect. The frame and MAC helpers are the
+//! module's own.
 
 use std::net::SocketAddr;
+#[cfg(unix)]
+use std::path::Path;
 
 use rand_core::{OsRng, RngCore};
-use tokio::io::AsyncWriteExt;
-use tokio::net::{TcpListener, TcpStream};
+use tokio::io::{AsyncRead, AsyncReadExt, AsyncWrite, AsyncWriteExt};
+use tokio::net::TcpListener;
+#[cfg(unix)]
+use tokio::net::UnixListener;
 use tokio::task::JoinHandle;
 
 use super::super::framing::{recv_frame, send_frame};
@@ -34,6 +39,9 @@ pub(super) enum Answer {
     Correct,
     /// The right shape with every MAC byte inverted.
     Wrong,
+    /// A correct MAC in a digest other than the one the client challenged
+    /// with, which the stdlib would accept (`connection.py:956-959`).
+    OtherDigest(Digest),
 }
 
 /// What the server does once it has accepted.
@@ -59,7 +67,7 @@ pub(super) struct Observed {
 }
 
 pub(super) struct MockServer {
-    addr: SocketAddr,
+    addr: Option<SocketAddr>,
     task: JoinHandle<Observed>,
 }
 
@@ -71,11 +79,21 @@ impl MockServer {
             let (stream, _) = listener.accept().await.expect("accept");
             serve(stream, script).await
         });
-        Self { addr, task }
+        Self { addr: Some(addr), task }
+    }
+
+    #[cfg(unix)]
+    pub(super) fn spawn_unix(path: &Path, script: Script) -> Self {
+        let listener = UnixListener::bind(path).expect("bind unix socket");
+        let task = tokio::spawn(async move {
+            let (stream, _) = listener.accept().await.expect("accept");
+            serve(stream, script).await
+        });
+        Self { addr: None, task }
     }
 
     pub(super) fn addr(&self) -> SocketAddr {
-        self.addr
+        self.addr.expect("a tcp listener")
     }
 
     pub(super) async fn finish(self) -> Observed {
@@ -83,7 +101,10 @@ impl MockServer {
     }
 }
 
-async fn serve(mut stream: TcpStream, script: Script) -> Observed {
+async fn serve<S>(mut stream: S, script: Script) -> Observed
+where
+    S: AsyncRead + AsyncWrite + Unpin,
+{
     let mut observed = Observed::default();
     match script {
         Script::Exchange { form, key, answer, reply } => {
@@ -105,23 +126,28 @@ async fn serve(mut stream: TcpStream, script: Script) -> Observed {
 
 /// Reads until the client closes, so the client sees no reset while it is
 /// still writing.
-async fn drain(stream: &mut TcpStream) {
+async fn drain<S>(stream: &mut S)
+where
+    S: AsyncRead + Unpin,
+{
     let mut sink = [0u8; 256];
-    while let Ok(read) = tokio::io::AsyncReadExt::read(stream, &mut sink).await {
+    while let Ok(read) = stream.read(&mut sink).await {
         if read == 0 {
             break;
         }
     }
 }
 
-async fn exchange(
-    stream: &mut TcpStream,
+async fn exchange<S>(
+    stream: &mut S,
     form: ServerForm,
     key: &[u8],
     answer: Answer,
     reply: Vec<u8>,
     observed: &mut Observed,
-) {
+) where
+    S: AsyncRead + AsyncWrite + Unpin,
+{
     // deliver_challenge (connection.py:970-988)
     let (digest, message) = match form {
         ServerForm::Modern(digest) => {
@@ -154,7 +180,7 @@ async fn exchange(
     let challenge = recv_frame(stream, AUTH_MAX).await.expect("recv challenge");
     observed.challenge = Some(challenge.clone());
     let body = challenge.strip_prefix(CHALLENGE).expect("challenge prefix");
-    let digest = if body.len() == 20 {
+    let challenged = if body.len() == 20 {
         Digest::Md5
     } else {
         let close = body.iter().position(|byte| *byte == b'}').expect("digest prefix");
@@ -162,6 +188,10 @@ async fn exchange(
             b"sha256" => Digest::Sha256,
             other => panic!("unexpected client digest {:?}", String::from_utf8_lossy(other)),
         }
+    };
+    let digest = match answer {
+        Answer::OtherDigest(other) => other,
+        Answer::Correct | Answer::Wrong => challenged,
     };
     let mut tag = mac(digest, key, body).expect("mac");
     if let Answer::Wrong = answer {

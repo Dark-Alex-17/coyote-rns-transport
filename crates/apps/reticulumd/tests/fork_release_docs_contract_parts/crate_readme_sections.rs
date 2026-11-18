@@ -1124,8 +1124,8 @@ fn crate_readme_rust_snippets_are_pinned_verbatim_by_the_api_tests() {
 
     let snippets = rust_snippets(&readme);
     assert!(
-        snippets.len() >= 7,
-        "the README should carry the consumer, handler, request, outcome, link-opening, shared-instance and shared-instance state snippets, found {}",
+        snippets.len() >= 8,
+        "the README should carry the consumer, handler, request, outcome, link-opening, shared-instance, shared-instance state and rnsd RPC snippets, found {}",
         snippets.len()
     );
 

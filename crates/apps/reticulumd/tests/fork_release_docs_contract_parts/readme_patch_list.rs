@@ -1,7 +1,8 @@
 // Crate README patch-list pins: the 0.18.2, 0.18.1, 0.18.0, 0.17.0 and 0.16.0
 // blocks and their order above the 0.15.1 history, and the Codex bullet whose
 // removal pointer the 0.16.0 release notes resolve, plus the shared-instance
-// paragraph, register bullet and changelog bullet for the AutoInterface peer count.
+// paragraph, register bullet and changelog bullet for the AutoInterface peer
+// count and the same three for the rnsd RPC client.
 
 /// The Codex review workflow was removed after 0.15.1, so the README register
 /// that records 0.15.0 adding it must say so in the same bullet: a reader of
@@ -419,6 +420,59 @@ fn crate_readme_shared_instance_section_describes_interface_peer_count() {
         "`bootstrap_parts::module_core`",
         "`src/bin/shared/rnstatus.rs`",
         "`rnstatus_cli` test",
+    ] {
+        assert!(changelog_section.contains(&squash(claim)), "the changelog should mention {claim}");
+    }
+}
+
+/// The rnsd RPC section describes the client the way the code presents it:
+/// the one call, the endpoint and key constructors a consumer reaches for,
+/// the authentication error, the default TCP listener and the abstract
+/// socket name, the Python lines the listener, the peer count and the
+/// stdlib handshake are read from, and the two test files that pin it; the
+/// divergence register names the module as fork-only, and the changelog
+/// section that carries the bullet names the same constructors, the
+/// handshake lines and the same pin files.
+#[test]
+fn crate_readme_rnsd_rpc_section_describes_the_client() {
+    let readme = read_repo_file("crates/libs/rns-transport/README.md");
+    let section = squash(crate_readme_section(&readme, "Reading rnsd's interface statistics"));
+    for claim in [
+        "`interface_stats`",
+        "`RpcEndpoint::for_instance(\"default\")`",
+        "`RpcKey::from_transport_identity_file(",
+        "`RpcError::Authentication`",
+        "`127.0.0.1:37429`",
+        "`rns/<instance_name>/rpc`",
+        "`RNS/Reticulum.py:1274-1334`",
+        "`RNS/Reticulum.py:1501-1503`",
+        "`connection.py:917-1006`",
+        "`src/transport/shared_instance_rpc/tests/mod.rs`",
+        "`tests/shared_instance_rpc_api.rs`",
+    ] {
+        assert!(
+            section.contains(&squash(claim)),
+            "the rnsd RPC section should mention {claim}:\n{section}"
+        );
+    }
+    let divergences = crate_readme_section(&readme, "Known divergences from Python RNS");
+    assert!(
+        divergences.contains("`transport::shared_instance_rpc`"),
+        "the divergence register should name the RPC client:\n{divergences}"
+    );
+    let changelog = read_repo_file("crates/libs/rns-transport/CHANGELOG.md");
+    let changelog_section =
+        squash(changelog_section_naming(&changelog, "`transport::shared_instance_rpc`"));
+    for claim in [
+        "`interface_stats(&endpoint, &key, timeout)`",
+        "`for_instance(name)`",
+        "`from_transport_identity_file`",
+        "`Authentication`",
+        "`127.0.0.1:37429`",
+        "`RNS/Reticulum.py:1274-1334`",
+        "`connection.py:917-1006`",
+        "`src/transport/shared_instance_rpc/tests/mod.rs`",
+        "`tests/shared_instance_rpc_api.rs`",
     ] {
         assert!(changelog_section.contains(&squash(claim)), "the changelog should mention {claim}");
     }

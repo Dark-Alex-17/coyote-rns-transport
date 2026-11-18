@@ -158,7 +158,7 @@ fn parse_message(message: &[u8]) -> Result<Message<'_>, PrefixError> {
     let name = &message[1..close];
     match Digest::parse(name) {
         Some(digest) => Ok(Message::Prefixed { digest, payload: &message[close + 1..] }),
-        None => Err(PrefixError::Unsupported(String::from_utf8_lossy(name).into_owned())),
+        None => Err(PrefixError::Unsupported(name.escape_ascii().to_string())),
     }
 }
 
@@ -250,11 +250,6 @@ where
         _ => false,
     };
     if !verified {
-        log::warn!(
-            "shared instance rpc server failed our challenge digest={} response_len={}",
-            digest.name(),
-            response.len()
-        );
         send_frame(stream, FAILURE).await?;
         return Err(RpcError::Authentication);
     }

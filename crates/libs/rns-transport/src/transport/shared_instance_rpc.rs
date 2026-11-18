@@ -88,10 +88,11 @@ fn instance_rpc_endpoint(_name: &str) -> RpcEndpoint {
 pub struct RpcKey(Vec<u8>);
 
 impl RpcKey {
-    /// A configured `rpc_key`, parsed the way `bytes.fromhex` parses it
-    /// (`RNS/Reticulum.py:499-505`): any even number of hex digits.
-    /// An empty string, an odd length or a non-hex character is
-    /// [`RpcError::InvalidKeyMaterial`].
+    /// A configured `rpc_key` (`RNS/Reticulum.py:499-505`): the hex digits
+    /// `bytes.fromhex` accepts, without its whitespace tolerance. An empty
+    /// string, an odd length or a non-hex character is
+    /// [`RpcError::InvalidKeyMaterial`]; Python keeps an empty key and runs
+    /// the listener with an empty `authkey` (`RNS/Reticulum.py:360-364`).
     pub fn from_hex(hex: &str) -> Result<Self, RpcError> {
         let bytes = hex::decode(hex).map_err(|_| RpcError::InvalidKeyMaterial)?;
         if bytes.is_empty() {
@@ -212,7 +213,7 @@ pub async fn interface_stats(
 }
 
 async fn call(endpoint: &RpcEndpoint, key: &RpcKey) -> Result<InterfaceStats, RpcError> {
-    match endpoint {
+    let result = match endpoint {
         RpcEndpoint::Tcp(addr) => {
             let stream = TcpStream::connect(addr).await.map_err(RpcError::Connect)?;
             exchange(stream, key).await
@@ -222,7 +223,16 @@ async fn call(endpoint: &RpcEndpoint, key: &RpcKey) -> Result<InterfaceStats, Rp
             let stream = UnixStream::connect(unix.tokio_path()).await.map_err(RpcError::Connect)?;
             exchange(stream, key).await
         }
+    };
+    if let Err(RpcError::Authentication) = &result {
+        let label = match endpoint {
+            RpcEndpoint::Tcp(addr) => addr.to_string(),
+            #[cfg(unix)]
+            RpcEndpoint::Unix(unix) => unix.label(),
+        };
+        log::warn!("shared instance rpc authentication failed endpoint={}", label);
     }
+    result
 }
 
 async fn exchange<S>(mut stream: S, key: &RpcKey) -> Result<InterfaceStats, RpcError>

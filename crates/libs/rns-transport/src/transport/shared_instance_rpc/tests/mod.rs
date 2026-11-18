@@ -139,13 +139,40 @@ async fn legacy_md5_server_round_trip() {
     let observed = server.finish().await;
     let answer = observed.answer.as_ref().expect("answer");
     assert_eq!(answer.len(), 16, "a legacy answer is the bare HMAC-MD5: {answer:?}");
-    assert_ne!(answer.first(), Some(&b'{'));
     let challenge = observed.challenge.as_ref().expect("challenge");
     let body = challenge.strip_prefix(b"#CHALLENGE#").expect("challenge prefix");
     assert_eq!(body.len(), 20, "a legacy challenge is 20 bare bytes: {body:?}");
-    assert_ne!(body.first(), Some(&b'{'));
     assert_eq!(observed.verdict.as_deref(), Some(b"#WELCOME#".as_slice()));
     assert_request(&observed);
+}
+
+#[cfg(unix)]
+#[tokio::test]
+async fn filesystem_unix_socket_round_trip() {
+    let dir = tempfile::tempdir().expect("tempdir");
+    let path = dir.path().join("rpc");
+    let server = MockServer::spawn_unix(
+        &path,
+        exchange(ServerForm::Modern(Digest::Sha256), Answer::Correct),
+    );
+    let endpoint = RpcEndpoint::Unix(LocalUnixEndpoint::Filesystem(path));
+    let stats = interface_stats(&endpoint, &key(), WAIT).await.expect("interface_stats");
+    assert_decoded(&stats);
+    assert_request(&server.finish().await);
+}
+
+#[cfg(any(target_os = "linux", target_os = "android"))]
+#[tokio::test]
+async fn abstract_unix_socket_round_trip() {
+    let unix = LocalUnixEndpoint::abstract_name(format!("coyote-rpc-test-{}", std::process::id()));
+    let server = MockServer::spawn_unix(
+        &unix.tokio_path(),
+        exchange(ServerForm::Modern(Digest::Sha256), Answer::Correct),
+    );
+    let stats =
+        interface_stats(&RpcEndpoint::Unix(unix), &key(), WAIT).await.expect("interface_stats");
+    assert_decoded(&stats);
+    assert_request(&server.finish().await);
 }
 
 #[tokio::test]
@@ -206,6 +233,21 @@ async fn legacy_server_with_bad_answer_is_authentication() {
 }
 
 #[tokio::test]
+async fn server_answer_in_another_digest_is_authentication() {
+    let server = MockServer::spawn(exchange(
+        ServerForm::Modern(Digest::Sha256),
+        Answer::OtherDigest(Digest::Sha384),
+    ))
+    .await;
+    assert!(matches!(call(&server).await, Err(RpcError::Authentication)));
+    let observed = server.finish().await;
+    let answer = observed.answer.as_ref().expect("answer");
+    assert!(answer.starts_with(b"{sha256}"), "the client challenged in sha256: {answer:?}");
+    assert_eq!(observed.verdict.as_deref(), Some(b"#FAILURE#".as_slice()));
+    assert!(observed.request.is_none());
+}
+
+#[tokio::test]
 async fn unknown_challenge_digest_is_unsupported_digest() {
     let mut frame = b"#CHALLENGE#{sha1}".to_vec();
     frame.extend_from_slice(&[7u8; 40]);
@@ -239,6 +281,67 @@ async fn truncated_frame_is_protocol() {
 async fn oversized_auth_frame_is_protocol() {
     let server = MockServer::spawn(Script::RawBytes(300i32.to_be_bytes().to_vec())).await;
     assert!(matches!(call(&server).await, Err(RpcError::Protocol(_))));
+    server.finish().await;
+}
+
+#[tokio::test]
+async fn wide_frame_header_carries_a_u64_length() {
+    let mut payload = b"#CHALLENGE#{sha1}".to_vec();
+    payload.extend_from_slice(&[7u8; 40]);
+    let mut bytes = (-1i32).to_be_bytes().to_vec();
+    let len = u64::try_from(payload.len()).expect("length");
+    bytes.extend_from_slice(&len.to_be_bytes());
+    bytes.extend_from_slice(&payload);
+    let server = MockServer::spawn(Script::RawBytes(bytes)).await;
+    match call(&server).await {
+        Err(RpcError::UnsupportedDigest(name)) => assert_eq!(name, "sha1"),
+        other => panic!("expected UnsupportedDigest, got {other:?}"),
+    }
+    server.finish().await;
+}
+
+#[tokio::test]
+async fn oversized_wide_auth_frame_is_protocol() {
+    let mut bytes = (-1i32).to_be_bytes().to_vec();
+    bytes.extend_from_slice(&300u64.to_be_bytes());
+    let server = MockServer::spawn(Script::RawBytes(bytes)).await;
+    assert!(matches!(call(&server).await, Err(RpcError::Protocol(_))));
+    server.finish().await;
+}
+
+#[tokio::test]
+async fn negative_frame_length_is_protocol() {
+    let server = MockServer::spawn(Script::RawBytes((-2i32).to_be_bytes().to_vec())).await;
+    assert!(matches!(call(&server).await, Err(RpcError::Protocol(_))));
+    server.finish().await;
+}
+
+#[tokio::test]
+async fn first_frame_that_is_not_a_challenge_is_protocol() {
+    let server = MockServer::spawn(Script::Frame(b"#WELCOME#".to_vec())).await;
+    assert!(matches!(call(&server).await, Err(RpcError::Protocol(_))));
+    server.finish().await;
+}
+
+#[tokio::test]
+async fn challenge_without_digest_prefix_is_protocol() {
+    let mut frame = b"#CHALLENGE#".to_vec();
+    frame.extend_from_slice(&[7u8; 30]);
+    let server = MockServer::spawn(Script::Frame(frame)).await;
+    assert!(matches!(call(&server).await, Err(RpcError::Protocol(_))));
+    server.finish().await;
+}
+
+#[tokio::test]
+async fn reply_that_is_not_msgpack_is_decode() {
+    let server = MockServer::spawn(Script::Exchange {
+        form: ServerForm::Modern(Digest::Sha256),
+        key: key().as_bytes().to_vec(),
+        answer: Answer::Correct,
+        reply: vec![0xc1],
+    })
+    .await;
+    assert!(matches!(call(&server).await, Err(RpcError::Decode(_))));
     server.finish().await;
 }
 

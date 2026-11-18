@@ -915,14 +915,17 @@ The key is the listener's `authkey`: by default the SHA-256 of the 64-byte
 transport identity private key (`RNS/Reticulum.py:360-361`), which
 `RpcKey::from_transport_identity_file(configdir/storage/transport_identity)`
 derives from the same file rnsd reads; a configured `rpc_key`
-(`RNS/Reticulum.py:499-505`) is `RpcKey::from_hex`. The endpoint follows
+(`RNS/Reticulum.py:499-505`) is `RpcKey::from_hex`, which takes the hex
+digits `bytes.fromhex` accepts, without its whitespace tolerance, and
+refuses an empty key where Python would run the listener with an empty
+`authkey` (`RNS/Reticulum.py:360-364`). The endpoint follows
 `use_af_unix` (`RNS/Reticulum.py:353-358`, `:725-727`): on Linux and
 Android a shared instance of any type but `tcp` listens on the abstract
 unix socket `rns/<instance_name>/rpc`, which
 `RpcEndpoint::for_instance("default")` names; everywhere else, and for a
 `tcp`-type shared instance on Linux, the listener is
-`RpcEndpoint::Tcp(127.0.0.1:<instance_control_port>)`, 37429
-by default (`RNS/Reticulum.py:295-303`), which `RpcEndpoint::default_tcp()`
+`RpcEndpoint::Tcp(127.0.0.1:<instance_control_port>)`, `127.0.0.1:37429`
+by default (`RNS/Reticulum.py:296`, `:495-497`), which `RpcEndpoint::default_tcp()`
 returns. `RpcKey`'s `Debug` prints `RpcKey(redacted)`.
 
 ```rust
@@ -944,22 +947,31 @@ top-level map as `raw: rmpv::Value`; each `InterfaceStat` reads `name`,
 `peers` and `clients` as `Option<u64>` (`None` for an absent or nil key),
 `rxb`, `txb`, and its own map as `raw`. The call takes one fresh connection
 and runs connect, handshake, request and reply under the one `Duration`;
-`RpcError::Connect` is the dial failing, `Authentication` a key the server
-rejects (or a server that fails our challenge), `Protocol` a malformed or
-oversized frame, `Decode` an unexpected reply shape, `UnsupportedDigest` a
+`RpcError::Connect` is the dial failing, `RpcError::Authentication` a key the
+server rejects (or a server that fails our challenge), `Protocol` a malformed or
+oversized frame or an io error after connect, `Decode` an unexpected reply
+shape, `UnsupportedDigest` a
 challenge digest outside the stdlib's allowed set, `InvalidKeyMaterial` a
 key that cannot be parsed or derived, and `Timeout` the budget running out.
 The handshake is the stdlib's mutual HMAC exchange
 (`connection.py:917-1006`): the client answers the server's challenge and
 then delivers its own, in the modern `{digest}`-prefixed form a Python 3.12
 or later server speaks and in the legacy raw HMAC-MD5 form of a 3.11 or
-older one, following whichever form the server's challenge used. Pinned by
+older one, following whichever form the server's challenge used. The
+client holds the server to the `{sha256}` it challenged with, where the
+stdlib would accept any allowed digest (`connection.py:956-959`);
+unreachable against a CPython server, whose `_create_response` echoes the
+challenge digest (`connection.py:928-942`). Pinned by
 `src/transport/shared_instance_rpc/tests/mod.rs` (both handshake forms and
 the `{sha3_384}` and `{md5}` digests against a mock server, the wrong-key,
 bad-answer, unsupported-digest, truncated, oversized, silent and
-short-challenge failures, the key derivations and the decode shape rules) and
+short-challenge failures, the unix socket round trips, the wide and
+negative frame headers, the digest lock and the stdlib known-answer vectors
+from `connection.py:917-942`, the key derivations and the decode shape
+rules) and
 `tests/shared_instance_rpc_api.rs` (the public surface, the `Send` future,
-the closed-port `Connect` and the snippet above).
+the closed-port `Connect` and the recipe's lines, the test supplying the
+endpoint).
 
 ## Known divergences from Python RNS
 
@@ -1185,8 +1197,10 @@ Not divergences:
   `interface_stats` RPC; Python has no typed client, rnstatus reads the
   reply dict directly (`RNS/Utilities/rnstatus.py:555-556`,
   `RNS/Reticulum.py:1397-1402`), and the RPC server stays Python-only:
-  reticulumd grows no `multiprocessing.connection` listener in this
-  release. API shape, not behaviour.
+  reticulumd hosts no `multiprocessing.connection` listener. The empty
+  and whitespace-separated `rpc_key` values Python accepts
+  (`RNS/Reticulum.py:360-364`, `:499-505`) are refused by
+  `RpcKey::from_hex`. API shape, except the key refusal.
 
 ## Versioning and releases
 

@@ -193,9 +193,7 @@ async fn probe_python_rnsd_shared_instance_rpc_repeated_reads_agree_and_zero_bud
     assert!(started.elapsed() < Duration::from_secs(2), "zero budget took {:?}", started.elapsed());
 
     // The listener keeps serving after the abandoned dial.
-    let after = rnsd
-        .poll_interface_stats(&endpoint, &key)
-        .await
-        .expect("serves after the timed-out dial");
+    let after =
+        rnsd.poll_interface_stats(&endpoint, &key).await.expect("serves after the timed-out dial");
     assert_eq!(view(&after), first_view);
 }

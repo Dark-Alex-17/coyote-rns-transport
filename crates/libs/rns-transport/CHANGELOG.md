@@ -205,7 +205,12 @@ Removed) bullet of its own, marked as such.
   (`RNS/Destination.py:308`), a fresh emission. The accessor is path-table
   state: `expire_path` removes it, `deregister_destination` leaves it
   standing. Pinned by `tests/announce_emitted_api.rs`,
-  `transport/tests_parts/two_transport_loopback_announce_emitted.rs` and
+  `transport/tests_parts/two_transport_loopback_announce_emitted.rs`,
+  `tests/announce_emitted_probe.rs` (a peer that joins after the
+  destination announced hears only the relay's path response: it carries
+  the original blob and second, older than the request clock, the same
+  again after an expire, no second event for a known blob at an equal
+  second, and the newest announce once the destination re-announces) and
   `python_channel_interop_parts/python_shared_instance_announce_emitted.rs`
   of the reticulumd `python_channel_interop` binary (a live Python rnsd,
   RNS 1.5.2, is the shared instance that relays and replays).

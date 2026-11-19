@@ -187,7 +187,6 @@ Removed) bullet of its own, marked as such.
   one-byte and a sixteen-byte `authkey`, both passing the handshake through
   `from_hex`, and refusing a wrong key with its own `#FAILURE#`, read as
   `Authentication`).
-
 - `AnnounceEvent::emitted`, `AnnounceEvent::random_blob` and
   `Transport::latest_announce_emitted(&AddressHash) -> Option<u64>`:
   the emission time of an announce in whole seconds of the emitter's

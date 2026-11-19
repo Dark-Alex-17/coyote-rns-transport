@@ -52,6 +52,12 @@ struct SharedInstanceRpcRnsd {
     identity_file: std::path::PathBuf,
 }
 
+fn shared_instance_rpc_rnsd_exited(
+    rnsd: &mut std::process::Child,
+) -> Option<std::process::ExitStatus> {
+    rnsd.try_wait().expect("poll the rnsd child")
+}
+
 impl SharedInstanceRpcRnsd {
     #[deny(clippy::await_holding_invalid_type)]
     async fn spawn(
@@ -81,18 +87,26 @@ impl SharedInstanceRpcRnsd {
     /// `Transport.start` writes to `<configdir>/storage/transport_identity`
     /// (`RNS/Transport.py:320-327`, `RNS/Reticulum.py:360-361`). The file is
     /// opened and then written (`RNS/Identity.py:665-666`), so it is read
-    /// only once it holds the 64 bytes.
+    /// only once it holds the 64 bytes. An rnsd that has exited fails the
+    /// poll at once with its exit status instead of being watched to the
+    /// deadline.
     #[deny(clippy::await_holding_invalid_type)]
-    async fn identity_key(&self) -> RpcKey {
-        let deadline = tokio::time::Instant::now() + SHARED_INSTANCE_RPC_IDENTITY_FILE;
-        while fs::metadata(&self.identity_file).map(|meta| meta.len()).unwrap_or(0) != 64 {
-            assert!(
-                tokio::time::Instant::now() < deadline,
-                "{} never held the 64-byte identity",
-                self.identity_file.display()
-            );
-            tokio::time::sleep(SHARED_INSTANCE_RPC_IDENTITY_POLL).await;
-        }
+    async fn identity_key(&mut self) -> RpcKey {
+        let rnsd = self.guard.child.as_mut().expect("rnsd is held until drop");
+        let identity_file = &self.identity_file;
+        let poll = async {
+            while fs::metadata(identity_file).map(|meta| meta.len()).unwrap_or(0) != 64 {
+                if let Some(status) = shared_instance_rpc_rnsd_exited(rnsd) {
+                    panic!("rnsd exited with {status} before writing {}", identity_file.display());
+                }
+                tokio::time::sleep(SHARED_INSTANCE_RPC_IDENTITY_POLL).await;
+            }
+        };
+        assert!(
+            tokio::time::timeout(SHARED_INSTANCE_RPC_IDENTITY_FILE, poll).await.is_ok(),
+            "{} never held the 64-byte identity",
+            identity_file.display()
+        );
         RpcKey::from_transport_identity_file(&self.identity_file)
             .expect("rpc key from the transport identity")
     }
@@ -127,7 +141,7 @@ impl SharedInstanceRpcRnsd {
                 if !retry {
                     return result;
                 }
-                if let Some(status) = rnsd.try_wait().expect("poll the rnsd child") {
+                if let Some(status) = shared_instance_rpc_rnsd_exited(rnsd) {
                     panic!(
                         "rnsd exited with {status} before the rpc listener answered: {result:?}"
                     );

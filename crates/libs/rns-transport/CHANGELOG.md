@@ -71,7 +71,8 @@ Removed) bullet of its own, marked as such.
   spawn without a handle installing the state's counter on the bridge
   host; a spawned runtime alone reading zero across an announce interval;
   and an ignored slow test that waits out the 22 s peering timeout to read
-  the count back down), `tests/auto_status_handle_peers_json_probe.rs` (an
+  the count back down, run by the hil `auto-peer-count-timeout` case),
+  `tests/auto_status_handle_peers_json_probe.rs` (an
   external consumer reading the always-present `"peers"` key as u64: 0 on
   a fresh handle, 1 together with the transport read once a loopback peer
   is admitted, a clone agreeing, the JSON still 1 after stop while the
@@ -159,8 +160,8 @@ Removed) bullet of its own, marked as such.
   exercised against CPython's own `multiprocessing.connection` server in
   `tests/shared_instance_rpc_departed_server_python_probe.rs`, whose reset
   mode, `SO_LINGER 0`, makes the `#FAILURE#` write fail outright), and by
-  `python_shared_instance_rpc.rs` of
-  the reticulumd `python_channel_interop` binary (a live Python rnsd, RNS
+  `python_shared_instance_rpc.rs` of the reticulumd `python_channel_interop`
+  binary (a live Python rnsd, RNS
   1.5.2, is the shared instance with one `AutoInterface` configured in a
   top-level `[interfaces]` section, `RNS/Reticulum.py:748-752`: the key
   derived from its `storage/transport_identity` passes the listener's
@@ -181,11 +182,11 @@ Removed) bullet of its own, marked as such.
   three back-to-back reads agreeing; and a zero budget returning at once,
   as `Timeout` or as the reply when the loopback exchange beats the
   timer's first tick, never a hang), and by
-  `python_stdlib_listener_rpc_probe.rs`
-  of the same binary (CPython's own `multiprocessing.connection.Listener`,
-  the class rnsd opens, run with a one-byte and a sixteen-byte `authkey`,
-  both passing the handshake through `from_hex`, and refusing a wrong key
-  with its own `#FAILURE#`, read as `Authentication`).
+  `python_stdlib_listener_rpc_probe.rs` of the same binary (CPython's own
+  `multiprocessing.connection.Listener`, the class rnsd opens, run with a
+  one-byte and a sixteen-byte `authkey`, both passing the handshake through
+  `from_hex`, and refusing a wrong key with its own `#FAILURE#`, read as
+  `Authentication`).
 
 ## 0.18.2 - 2026-11-16
 

@@ -122,8 +122,9 @@ async fn serve_one(mut stream: TcpStream, key: Vec<u8>, server: Server) -> Seen 
     }
     send_frame(&mut stream, &[DIGEST_PREFIX, tag.as_slice()].concat()).await.expect("send answer");
     if server == Server::WrongThenDepart {
-        // A plain close, as `Connection.close()` is: a reset would discard the answer
-        // still queued on the client's side and turn this into a read failure.
+        // A plain close, as `Connection.close()` is. The reset variant lives in
+        // `shared_instance_rpc_departed_server_python_probe.rs`, where the client's
+        // `#FAILURE#` write, not its read, is what fails.
         stream.shutdown().await.expect("shutdown before the verdict");
         drop(stream);
         return seen;

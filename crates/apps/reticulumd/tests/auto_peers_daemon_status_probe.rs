@@ -123,16 +123,17 @@ fn reserve_two_tcp_ports() -> (u16, u16) {
 }
 
 fn reserve_two_udp_ports() -> (u16, u16) {
-    // The daemon derives the unicast discovery port as `discovery_port + 1`.
+    let data = UdpSocket::bind(("127.0.0.1", 0)).expect("reserve data port");
+    let data_port = data.local_addr().expect("read data port").port();
+    // The daemon derives the unicast discovery port as `discovery_port + 1`, so that
+    // port must exist and must not be the data port, which the daemon binds plainly.
     let (discovery, discovery_port) = loop {
         let discovery = UdpSocket::bind(("127.0.0.1", 0)).expect("reserve discovery port");
         let port = discovery.local_addr().expect("read discovery port").port();
-        if port != u16::MAX {
+        if port != u16::MAX && port + 1 != data_port {
             break (discovery, port);
         }
     };
-    let data = UdpSocket::bind(("127.0.0.1", 0)).expect("reserve data port");
-    let data_port = data.local_addr().expect("read data port").port();
     drop((discovery, data));
     (discovery_port, data_port)
 }

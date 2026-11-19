@@ -32,11 +32,11 @@ Every file changed since the `0.18.2` release and the patch each change
 belongs to. Patch ids: O1 is auto peer count, O2 is rnsd rpc client. The
 `auto peer count` patch is fork commits `bc5a7e6c`, `457f50f1`, `5d8832e1`,
 `5d231b18`, `6c1b4008`, `33fc1137`, `ddf20ed9`, `34dda674`, `20077b93`,
-`72a2685a`, `c1c51fe2`, `4ff8b5ea`, `5b08f985`, `48b58e6a`, `430007e4` and
-`d891381b`, `1f895be2` and `8c203fa6`.
+`72a2685a`, `c1c51fe2`, `4ff8b5ea`, `5b08f985`, `48b58e6a`, `430007e4`,
+`d891381b`, `1f895be2`, `8c203fa6` and `e6924ccf`.
 The `rnsd rpc client` patch is fork commits `e5fed58f`, `2b2d59c1`,
 `48ea789e`, `eb520fad`, `d3267e30`, `1cd75940`, `70d36e15`, `48b58e6a`,
-`276ff531`, `430007e4`, `b73b592b` and `8c203fa6`. The
+`276ff531`, `430007e4`, `b73b592b`, `8c203fa6` and `e6924ccf`. The
 `Python-in-the-loop rnsd rpc interop` patch carries no other id and is
 fork commits `8870d19f`, `0efdadfa`, `238abaa3`, `839769d2`, `8a07c374`,
 `48b58e6a`, `276ff531`, `430007e4`, `18ec48d6`, `a2484437`, `1f895be2` and
@@ -99,8 +99,8 @@ fork commits `8870d19f`, `0efdadfa`, `238abaa3`, `839769d2`, `8a07c374`,
 
 Fork commits `bc5a7e6c`, `457f50f1`, `5d8832e1`, `5d231b18`, `6c1b4008`,
 `33fc1137`, `ddf20ed9`, `34dda674`, `20077b93`, `72a2685a`, `c1c51fe2`,
-`4ff8b5ea`, `5b08f985`, `48b58e6a`, `430007e4`, `d891381b`, `1f895be2` and
-`8c203fa6`:
+`4ff8b5ea`, `5b08f985`, `48b58e6a`, `430007e4`, `d891381b`, `1f895be2`,
+`8c203fa6` and `e6924ccf`:
 O1, auto peer count.
 Upstream site: `InterfaceManager::register_virtual_iface` in
 `crates/libs/rns-transport/src/iface_parts/interfacemanager.rs` and the
@@ -271,11 +271,13 @@ discovery port below `u16::MAX`, since the daemon derives the unicast
 discovery port one above it. `8c203fa6` has the peer count probe header
 name `core_tests.rs` as the home of `loopback_runtime_plan`, and runs the
 register checks of `readme_patch_list.rs` on whitespace-squashed halves
-like its sibling claims.
+like its sibling claims. `e6924ccf` has the probe's reservation loop also
+reject a discovery port one below the data port, since the daemon binds
+the derived unicast discovery port reusably and the data port plainly.
 
 Fork commits `e5fed58f`, `2b2d59c1`, `48ea789e`, `eb520fad`, `d3267e30`,
-`1cd75940`, `70d36e15`, `48b58e6a`, `276ff531`, `430007e4`, `b73b592b` and
-`8c203fa6`:
+`1cd75940`, `70d36e15`, `48b58e6a`, `276ff531`, `430007e4`, `b73b592b`,
+`8c203fa6` and `e6924ccf`:
 O2, rnsd rpc client.
 Upstream site: the shared-instance client module
 `crates/libs/rns-transport/src/transport/shared_instance.rs`, beside which
@@ -402,7 +404,9 @@ ignored, as the crate's other stdlib-only Python helpers are not.
 and the pin of record, holds both to it in `readme_patch_list.rs`, gives
 `RpcError::Protocol` the carve-out its `Authentication` sibling carries,
 and in the README register says "as of this release" and reflows two
-orphan lines.
+orphan lines. `e6924ccf` has the Rust FIN mock's comment point at the
+CPython probe for the reset variant, where the client's `#FAILURE#` write
+and not its read is what fails.
 
 Fork commits `8870d19f`, `0efdadfa`, `238abaa3`, `839769d2`, `8a07c374`,
 `48b58e6a`, `276ff531`, `430007e4`, `18ec48d6`, `a2484437`, `1f895be2` and

@@ -30,7 +30,7 @@ per fork task.
 
 Every file changed since the `0.18.3` release and the patch each change
 belongs to. Patch ids: P1 is readme fork framing. The `readme fork framing`
-patch is fork commit `edb4258e`.
+patch is fork commits `edb4258e` and `a7688b50`.
 
 | File | Patch |
 | --- | --- |
@@ -40,26 +40,29 @@ patch is fork commit `edb4258e`.
 | `crates/libs/rns-transport/README.md` | readme fork framing |
 | `docs/fork/PATCHSET.md` | readme fork framing |
 
-Fork commit `edb4258e`: P1, readme fork framing.
+Fork commits `edb4258e` and `a7688b50`: P1, readme fork framing. Docs only,
+no library change.
 Upstream site: the repository `README.md`, which upstream writes as the
 LXMF-rs workspace landing page, and the crate README
 `crates/libs/rns-transport/README.md`, which upstream does not carry (the
 fork added it with the rename). The crate README's `## What this is` now
-opens with what Coyote is, then says under `### Why the fork exists` what
-transport surface Coyote's mesh needs that upstream does not expose and
-that the fork started as upstream `0.14.0` plus the link-close patch, lists
-under `### What differs from upstream` the fork-only surface by theme with a
-link to the section that documents each item, and moves the versioning
-policy, unchanged, under `### How it tracks upstream` with pointers to
-upstream, the rebase recipe and the licence. The repository README replaces
-upstream's title, badges and workspace intro with the fork's title, badges
-for the fork's release, crate and docs, a dependency snippet and pointers to
-the crate README, `docs/fork/PATCHSET.md` and the crate `CHANGELOG.md`, and
-keeps upstream's workspace documentation, headings unchanged, under an
-`## Upstream LXMF-rs` heading. The crate `CHANGELOG.md` reopens
-`## Unreleased` with a docs-only Changed bullet, and `ledger_contract.rs`
-extends the full-hash ledger pin to the reopened section. Docs only, no
-library change.
+opens with a one-line account of Coyote and its `.mesh` feature, then says
+under `### Why the fork exists` what transport surface Coyote's mesh needs
+that upstream does not expose and that the fork started as upstream `0.14.0`
+plus the link-close patch, lists under `### What differs from upstream` the
+fork-only surface by theme with a link to the section that documents each
+item, and moves the versioning policy, unchanged, under
+`### How it tracks upstream` with pointers to upstream, the rebase recipe and
+the licence. The repository README replaces upstream's title, badges and
+workspace intro with the fork's title, a release badge that reads the
+`coyote-rns-transport-v*` tags beside the crate and docs badges, and pointers
+to the crate README's `## What this is`, `## Consumer` and `## Patch list`, to
+`docs/fork/PATCHSET.md` and to the crate `CHANGELOG.md`; it keeps upstream's
+workspace documentation, headings unchanged, under an `## Upstream LXMF-rs`
+heading whose attribution names the `## Main packages` row the fork updated.
+The crate `CHANGELOG.md` reopens `## Unreleased` with a docs-only Changed
+bullet, and `ledger_contract.rs` extends the full-hash ledger pin to the
+reopened section.
 
 ## 0.18.3 (upstream 0.14.0)
 

@@ -490,9 +490,11 @@ reverse of `destination_desc`: `Transport::expire_path` removes it and
 `tests/announce_emitted_api.rs`,
 `transport/tests_parts/two_transport_loopback_announce_emitted.rs` (the
 clock bracket, the strictly newer re-announce, the relayed path response
-keeping the blob, the destination's own response emitting afresh) and the
-reticulumd live part `python_shared_instance_announce_emitted.rs`, where a
-Python rnsd is the relay.
+keeping the blob, the destination's own response emitting afresh),
+`tests/announce_emitted_probe.rs` (a late joiner hearing the original blob
+and second in the relay's path response) and the reticulumd live part
+`python_shared_instance_announce_emitted.rs`, where a Python rnsd is the
+relay.
 
 `Transport::set_resource_accept_hook` installs a `ResourceAcceptHook`, an
 `Arc<dyn Fn(&ResourceAdvertisement, &LinkId, Option<&Identity>) -> bool +

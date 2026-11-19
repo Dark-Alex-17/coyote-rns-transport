@@ -71,8 +71,10 @@ Removed) bullet of its own, marked as such.
   spawn without a handle installing the state's counter on the bridge
   host; a spawned runtime alone reading zero across an announce interval;
   and an ignored slow test that waits out the 22 s peering timeout to read
-  the count back down, run by the hil `auto-peer-count-timeout` case),
-  `tests/auto_status_handle_peers_json_probe.rs` (an
+  the count back down, run by the hil `auto-peer-count-timeout` case of
+  `tests/hil/cases/core.toml`, whose case names
+  `fork_publish_contract_parts/hil_core_case_names_probe.rs` pins to the lib
+  tests they run), `tests/auto_status_handle_peers_json_probe.rs` (an
   external consumer reading the always-present `"peers"` key as u64: 0 on
   a fresh handle, 1 together with the transport read once a loopback peer
   is admitted, a clone agreeing, the JSON still 1 after stop while the

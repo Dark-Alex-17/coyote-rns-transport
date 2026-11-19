@@ -117,8 +117,8 @@ fn release_0_18_1_version_bullet_records_the_patch_digit_and_the_semver_verdict(
 }
 
 /// The README patch list runs 0.18.1, then 0.18.0, then 0.17.0: the 0.18.1
-/// block sits above the 0.18.0 and 0.17.0 blocks in that order; the 0.18.2
-/// block opens the list.
+/// block sits above the 0.18.0 and 0.17.0 blocks in that order; a newer
+/// block opens the list, pinned by that release's probe.
 #[test]
 fn release_0_18_1_readme_patch_list_runs_newest_first() {
     let readme = read_repo_file("crates/libs/rns-transport/README.md");

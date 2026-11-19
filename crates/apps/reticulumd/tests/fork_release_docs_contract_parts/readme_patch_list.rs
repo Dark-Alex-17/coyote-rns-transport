@@ -589,7 +589,7 @@ fn crate_readme_rnsd_rpc_section_describes_the_client() {
 /// it is decoded from, the relay replaying the stored bytes under the
 /// path-response flag against the destination emitting afresh, the
 /// accessor's `None` and `Some(0)` shapes and the path-table calls that
-/// drop or keep it, and the three test files that pin it, in a paragraph
+/// drop or keep it, and the four test files that pin it, in a paragraph
 /// that follows the `is_path_response` one; the divergence register names
 /// the fields as fork-only under `Not divergences:` (API shape, not
 /// behaviour), and the changelog section that carries the bullet makes the
@@ -610,6 +610,7 @@ fn crate_readme_announce_section_describes_announce_emitted() {
         "`Some(0)` for an entry without blobs",
         "`tests/announce_emitted_api.rs`",
         "`transport/tests_parts/two_transport_loopback_announce_emitted.rs`",
+        "`tests/announce_emitted_probe.rs`",
     ];
     for claim in shared_claims.into_iter().chain([
         "`Transport::latest_announce_emitted` returns `Option<u64>`",

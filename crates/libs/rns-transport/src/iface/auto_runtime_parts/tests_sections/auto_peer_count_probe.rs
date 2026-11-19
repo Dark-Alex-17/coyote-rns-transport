@@ -79,10 +79,12 @@ async fn spawned_runtime_alone_reads_zero_through_an_announce_interval() {
 /// The daemon path's expiry: after one admitted loopback peer stops announcing, the
 /// peer job (every 4 s) expires it at the platform peering timeout (22 s), and both the
 /// handle and the bridge's host channel read 0 again. Slow by construction (about 30 s);
-/// the peering timeout is platform timing, not a plan field.
+/// the peering timeout is platform timing, not a plan field. Ignored here and run by
+/// the hil core case `auto-peer-count-timeout` (`tests/hil/cases/core.toml`) at the pr,
+/// nightly and release levels.
 #[cfg(unix)]
 #[tokio::test]
-#[ignore = "slow: waits out the 22 s platform peering timeout"]
+#[ignore = "slow (about 30 s): run by the hil core case auto-peer-count-timeout"]
 async fn spawned_runtime_counts_down_when_the_admitted_peer_times_out() {
     let (plan, discovery_port) = loopback_runtime_plan();
     let manager = Arc::new(tokio::sync::Mutex::new(InterfaceManager::new(8)));

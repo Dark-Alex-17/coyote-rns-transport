@@ -151,7 +151,8 @@ pub enum RpcError {
     #[error("shared instance rpc authentication failed")]
     Authentication,
     /// A malformed or oversized frame, or an io error after the connection
-    /// was established.
+    /// was established, except a failed write of the `#FAILURE#` notice,
+    /// which stays `Authentication`.
     #[error("shared instance rpc protocol error: {0}")]
     Protocol(String),
     /// The reply was not the msgpack shape `get_interface_stats` builds.

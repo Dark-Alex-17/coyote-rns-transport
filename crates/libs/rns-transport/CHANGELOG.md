@@ -151,8 +151,15 @@ Removed) bullet of its own, marked as such.
   `tests/shared_instance_rpc_departed_server.rs` (a stdlib-faithful mock
   on a loopback socket: an honest server serves the reply, a one-byte and
   a 200-byte key pass the handshake, and a server that answers our
-  challenge wrong and hangs up at once is `Authentication` every time,
-  never `Protocol`), and by `python_shared_instance_rpc.rs` of
+  challenge wrong and closes with a FIN at once reads as `Authentication`
+  every time; the write-error arm itself, a `#FAILURE#` notice the client
+  cannot deliver, is pinned by
+  `failure_notice_on_a_broken_pipe_is_still_authentication` in
+  `src/transport/shared_instance_rpc/tests/mod.rs`, the pin of record, and
+  exercised against CPython's own `multiprocessing.connection` server in
+  `tests/shared_instance_rpc_departed_server_python_probe.rs`, whose reset
+  mode, `SO_LINGER 0`, makes the `#FAILURE#` write fail outright), and by
+  `python_shared_instance_rpc.rs` of
   the reticulumd `python_channel_interop` binary (a live Python rnsd, RNS
   1.5.2, is the shared instance with one `AutoInterface` configured in a
   top-level `[interfaces]` section, `RNS/Reticulum.py:748-752`: the key

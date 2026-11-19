@@ -4,8 +4,8 @@
 // `wire_peer_counter`); a runtime with no adopted devices stays at zero; and the daemon
 // path takes the count back down to `Some(0)` through the real peer job once the
 // admitted peer times out, through the spawned runtime rather than a hand-driven
-// `expire_stale_peers`. Reuses `loopback_runtime_plan`, `send_loopback_peering_token` and
-// `wait_for_peer_count` from `auto_peer_count_pins.rs`.
+// `expire_stale_peers`. Reuses `loopback_runtime_plan` from `core_tests.rs` and
+// `send_loopback_peering_token` and `wait_for_peer_count` from `auto_peer_count_pins.rs`.
 
 #[cfg(unix)]
 async fn wait_for_manager_peer_count(

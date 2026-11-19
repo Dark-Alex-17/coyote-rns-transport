@@ -414,11 +414,11 @@ fn crate_readme_shared_instance_section_describes_interface_peer_count() {
         .split_once("\nNot divergences:\n")
         .expect("the register separates API-shape facts under `Not divergences:`");
     assert!(
-        api_shape.contains("`Transport::interface_peer_count()`"),
+        squash(api_shape).contains(&squash("`Transport::interface_peer_count()`")),
         "the peer count is API shape, listed below the marker:\n{api_shape}"
     );
     assert!(
-        !real.contains("`Transport::interface_peer_count()`"),
+        !squash(real).contains(&squash("`Transport::interface_peer_count()`")),
         "the peer count is not a behaviour divergence:\n{real}"
     );
     let changelog = read_repo_file("crates/libs/rns-transport/CHANGELOG.md");
@@ -441,8 +441,9 @@ fn crate_readme_shared_instance_section_describes_interface_peer_count() {
 /// the one call, the endpoint and key constructors a consumer reaches for,
 /// the authentication error, the default TCP listener and the abstract
 /// socket name, the Python lines the listener, the peer count and the
-/// stdlib handshake are read from, the three test files that pin it and
-/// the Python-in-the-loop parts that read a live rnsd and CPython's own
+/// stdlib handshake are read from, the four test files that pin it, the
+/// in-crate test that pins the failed `#FAILURE#` write and the
+/// Python-in-the-loop parts that read a live rnsd and CPython's own
 /// listener; the divergence register
 /// names the module as fork-only below the `Not divergences:` marker (API
 /// shape) and carries the key refusal above it as a real divergence, and
@@ -464,8 +465,10 @@ fn crate_readme_rnsd_rpc_section_describes_the_client() {
         "`RNS/Reticulum.py:1501-1503`",
         "`connection.py:917-1006`",
         "`src/transport/shared_instance_rpc/tests/mod.rs`",
+        "`failure_notice_on_a_broken_pipe_is_still_authentication`",
         "`tests/shared_instance_rpc_api.rs`",
         "`tests/shared_instance_rpc_departed_server.rs`",
+        "`tests/shared_instance_rpc_departed_server_python_probe.rs`",
         "`crates/apps/reticulumd/tests/python_channel_interop_parts/python_shared_instance_rpc.rs`",
         "`python_shared_instance_rpc_probe.rs`",
         "`python_stdlib_listener_rpc_probe.rs`",
@@ -480,15 +483,16 @@ fn crate_readme_rnsd_rpc_section_describes_the_client() {
         .split_once("\nNot divergences:\n")
         .expect("the register separates API-shape facts under `Not divergences:`");
     assert!(
-        api_shape.contains("`transport::shared_instance_rpc` is a fork-only typed client"),
+        squash(api_shape)
+            .contains(&squash("`transport::shared_instance_rpc` is a fork-only typed client")),
         "the typed client is API shape, listed below the marker:\n{api_shape}"
     );
     assert!(
-        real.contains("`RpcKey::from_hex` refuses"),
+        squash(real).contains(&squash("`RpcKey::from_hex` refuses")),
         "the key refusal is a real divergence, listed above the marker:\n{real}"
     );
     assert!(
-        !api_shape.contains("`RpcKey::from_hex` refuses"),
+        !squash(api_shape).contains(&squash("`RpcKey::from_hex` refuses")),
         "the key refusal does not repeat below the marker:\n{api_shape}"
     );
     let changelog = read_repo_file("crates/libs/rns-transport/CHANGELOG.md");
@@ -505,8 +509,10 @@ fn crate_readme_rnsd_rpc_section_describes_the_client() {
         "`RNS/Reticulum.py:1274-1334`",
         "`connection.py:917-1006`",
         "`src/transport/shared_instance_rpc/tests/mod.rs`",
+        "`failure_notice_on_a_broken_pipe_is_still_authentication`",
         "`tests/shared_instance_rpc_api.rs`",
         "`tests/shared_instance_rpc_departed_server.rs`",
+        "`tests/shared_instance_rpc_departed_server_python_probe.rs`",
         "`python_shared_instance_rpc.rs`",
         "`python_shared_instance_rpc_probe.rs`",
         "`python_stdlib_listener_rpc_probe.rs`",

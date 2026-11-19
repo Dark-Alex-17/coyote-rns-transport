@@ -932,10 +932,10 @@ the abstract unix socket `rns/<instance_name>/rpc`, which
 by default (`RNS/Reticulum.py:296`, `:495-497`), which
 `RpcEndpoint::default_tcp()` returns and which `RpcEndpoint::for_instance`
 returns on every platform other than Linux and Android, whatever the
-name. Dial the endpoint rnsd actually
-binds: an endpoint rnsd left unbound could be bound by another local
-process, which the mutual handshake limits to a failed call but which is
-still worth avoiding. `RpcKey`'s `Debug` prints `RpcKey(redacted)`.
+name. Dial the endpoint rnsd actually binds: an endpoint rnsd left unbound
+could be bound by another local process, which the mutual handshake limits
+to a failed call but which is still worth avoiding. `RpcKey`'s `Debug`
+prints `RpcKey(redacted)`.
 
 ```rust
 use std::time::Duration;
@@ -988,8 +988,15 @@ rules) and `tests/shared_instance_rpc_api.rs` (the public surface, the
 supplying the endpoint) and `tests/shared_instance_rpc_departed_server.rs`
 (a stdlib-faithful mock on a loopback socket: an honest server serves the
 reply, a one-byte and a 200-byte key pass the handshake, and a server that
-answers our challenge wrong and hangs up at once is `Authentication` every
-time, never `Protocol`). The Python-in-the-loop proof is
+answers our challenge wrong and closes with a FIN at once reads as
+`Authentication` every time). The write-error arm itself, a `#FAILURE#`
+notice the client cannot deliver, is pinned by
+`failure_notice_on_a_broken_pipe_is_still_authentication` in
+`src/transport/shared_instance_rpc/tests/mod.rs` (the pin of record) and
+exercised against CPython's own `multiprocessing.connection` server in
+`tests/shared_instance_rpc_departed_server_python_probe.rs`, whose reset
+mode (`SO_LINGER 0`) makes the `#FAILURE#` write fail outright. The
+Python-in-the-loop proof is
 `crates/apps/reticulumd/tests/python_channel_interop_parts/python_shared_instance_rpc.rs`
 of the reticulumd `python_channel_interop` binary: a Python `rnsd` (RNS
 1.5.2) runs one `AutoInterface` beside its shared instance, the key derived
@@ -1233,14 +1240,13 @@ Not divergences:
   `None` only for a `peers` attribute set to `None` (`:1502-1503`), which
   no RNS 1.5.2 interface does (`RNS/Interfaces/AutoInterface.py:126`,
   `RNS/Interfaces/WeaveInterface.py:867`, the two interfaces that carry
-  one).
-  API shape, not behaviour.
+  one). API shape, not behaviour.
 - `transport::shared_instance_rpc` is a fork-only typed client of the rnsd
   `interface_stats` RPC; Python has no typed client, rnstatus reads the
   reply dict directly (`RNS/Utilities/rnstatus.py:555-556`,
   `RNS/Reticulum.py:1397-1402`), and the RPC server stays Python-only:
-  reticulumd hosts no `multiprocessing.connection` listener in this batch.
-  API shape, not behaviour.
+  reticulumd hosts no `multiprocessing.connection` listener as of this
+  release. API shape, not behaviour.
 - `RpcEndpoint::Tcp` dials the address it is given, loopback or not, as
   Python's own `multiprocessing.connection.Client` does in rnstatus
   (`RNS/Reticulum.py:1397-1402`); the loopback guard that

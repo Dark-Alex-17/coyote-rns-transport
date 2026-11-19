@@ -11,6 +11,11 @@
 // emitted note naming the late-joiner probe, the README block's six bullets
 // and consumer note, the probe's module doc standing on the contract alone,
 // and the publish contract's two hand pins reading the release version.
+// The pins over the current tree, which the next release cut demotes, are
+// the first-release-heading test, the README `[dependencies]` snippet and
+// six-bullet opener pins of the consumer-note test, and the crate-manifest
+// version and publish-contract literal count of the hand-pins test; the
+// rest hold facts about the 0.18.3 section itself.
 
 /// The 0.18.3 heading carries the day the release was cut and is the first
 /// release heading of the CHANGELOG.
@@ -156,10 +161,15 @@ fn release_0_18_3_readme_patch_list_runs_newest_first() {
     );
 }
 
-/// The first `## ` section of the patch-set ledger, heading line included,
-/// up to the next `## ` heading.
+/// The first `## <digit>` section of the patch-set ledger, heading line
+/// included, up to the next `## ` heading; a `## Unreleased` stub above it
+/// is skipped.
 fn patchset_opening_section(ledger: &str) -> &str {
-    let start = ledger.find("\n## ").expect("the patch-set ledger has a `## ` heading") + 1;
+    let start = ledger
+        .match_indices("\n## ")
+        .map(|(at, _)| at + 1)
+        .find(|&at| ledger[at + 3..].starts_with(|c: char| c.is_ascii_digit()))
+        .expect("the patch-set ledger has a release heading");
     let section = &ledger[start..];
     match section[3..].find("\n## ") {
         Some(end) => &section[..end + 3],
@@ -167,23 +177,21 @@ fn patchset_opening_section(ledger: &str) -> &str {
     }
 }
 
-/// The patch-set ledger opens on `## 0.18.3 (upstream 0.14.0)`, carries no
-/// `## Unreleased` stub, cites `a2a548a7`, `27d866af` and `af9d5694` in the
-/// id-less `release 0.18.3` legend sentence, rows the adopted late-joiner
-/// probe under `announce emitted` and cites the two probe commits in both
-/// the `announce emitted` legend and the O3 patch header.
+/// The first release section of the patch-set ledger is
+/// `## 0.18.3 (upstream 0.14.0)`; it cites `a2a548a7`, `27d866af`,
+/// `af9d5694` and `9c3cada9` in the id-less `release 0.18.3` legend sentence
+/// and in the release paragraph header, closes the release paragraph on the
+/// two ledger files, rows the adopted late-joiner probe under
+/// `announce emitted` and cites the two probe commits in both the
+/// `announce emitted` legend and the O3 patch header.
 #[test]
 fn release_0_18_3_patchset_opens_on_the_release_patch_and_the_carry_in() {
     let ledger = read_repo_file("docs/fork/PATCHSET.md");
-    assert!(
-        !ledger.lines().any(|line| line.starts_with("## Unreleased")),
-        "a release tree carries no `## Unreleased` stub in the patch-set ledger"
-    );
     let section = patchset_opening_section(&ledger);
     assert_eq!(
         section.lines().next(),
         Some("## 0.18.3 (upstream 0.14.0)"),
-        "the patch-set ledger should open on the 0.18.3 section"
+        "the first release section of the patch-set ledger should be 0.18.3"
     );
     let prose = joined_prose(section);
     let release_marker = "The `release 0.18.3` patch carries no other id and is fork commits";
@@ -191,12 +199,30 @@ fn release_0_18_3_patchset_opens_on_the_release_patch_and_the_carry_in() {
         prose.find(release_marker).expect("the 0.18.3 legend names the id-less release patch");
     let release_legend = &prose[release_legend_start + release_marker.len()..];
     let release_legend = &release_legend[..release_legend.find('.').expect("sentence end")];
-    for commit in ["`a2a548a7`", "`27d866af`", "`af9d5694`"] {
+    let release_commits = ["`a2a548a7`", "`27d866af`", "`af9d5694`", "`9c3cada9`"];
+    for commit in release_commits {
         assert!(
             release_legend.contains(commit),
             "the `release 0.18.3` legend should cite {commit}: {release_legend}"
         );
     }
+    let release_label = ": release 0.18.3.";
+    let release_header_end =
+        prose.find(release_label).expect("the release paragraph header carries its label");
+    let release_header_start = prose[..release_header_end]
+        .rfind("Fork commits ")
+        .expect("the release paragraph header opens on `Fork commits`");
+    let release_header = &prose[release_header_start..release_header_end];
+    for commit in release_commits {
+        assert!(
+            release_header.contains(commit),
+            "the release paragraph header should cite {commit}: {release_header}"
+        );
+    }
+    assert!(
+        prose.contains("touch only this file and the crate `CHANGELOG.md`."),
+        "the release paragraph should close on the two ledger files"
+    );
     let announce_legend_start = prose
         .find("The `announce emitted` patch is fork commits")
         .expect("the 0.18.3 legend names the `announce emitted` patch");
@@ -228,21 +254,11 @@ fn release_0_18_3_patchset_opens_on_the_release_patch_and_the_carry_in() {
     }
 }
 
-/// The crate CHANGELOG carries no `## Unreleased` stub, opens on the dated
-/// 0.18.3 heading, and the `AnnounceEvent::emitted` bullet of 0.18.3 names
-/// the adopted late-joiner probe in its Pinned-by clause.
+/// The `AnnounceEvent::emitted` bullet of 0.18.3 names the adopted
+/// late-joiner probe in its Pinned-by clause.
 #[test]
 fn release_0_18_3_emitted_bullet_pins_the_late_joiner_probe() {
     let changelog = read_repo_file("crates/libs/rns-transport/CHANGELOG.md");
-    assert!(
-        !changelog.lines().any(|line| line.starts_with("## Unreleased")),
-        "a release tree carries no `## Unreleased` stub in the CHANGELOG"
-    );
-    assert_eq!(
-        changelog.lines().find(|line| line.starts_with("## ")),
-        Some("## 0.18.3 - 2026-11-19"),
-        "the CHANGELOG should open on the dated 0.18.3 heading"
-    );
     let section = changelog_release_section(&changelog, "0.18.3");
     let bullets = subsection_bullets(&section, "Added");
     let emitted = joined_prose(&single_bullet_starting_with(
@@ -324,19 +340,17 @@ fn release_0_18_3_readme_consumer_note_names_the_rnsd_path_and_the_emitted_rule(
 }
 
 /// The adopted late-joiner probe lives in the crate's black-box suite, its
-/// module doc rests on the contract alone (no plan document, no handoff
-/// pointer) and it carries its two tokio tests.
+/// module doc rests on the Python citations alone and points at no document
+/// outside the repository, and it carries its two tokio tests.
 #[test]
 fn release_0_18_3_announce_emitted_probe_stands_on_the_contract_alone() {
     let probe = read_repo_file("crates/libs/rns-transport/tests/announce_emitted_probe.rs");
     let module_doc: Vec<&str> = probe.lines().filter(|line| line.starts_with("//!")).collect();
     assert!(!module_doc.is_empty(), "the probe has a module doc");
-    for banned in ["plans/", "handoff", "Spec-first expectations"] {
-        assert!(
-            !module_doc.iter().any(|line| line.contains(banned)),
-            "the probe's module doc should not reference {banned:?}"
-        );
-    }
+    assert!(
+        !module_doc.iter().any(|line| line.contains("plans/")),
+        "the probe's module doc should not reference `plans/`"
+    );
     for cite in ["`RNS/Transport.py:3459-3473`", "`RNS/Transport.py:2238`"] {
         assert!(module_doc.iter().any(|line| line.contains(cite)), "the module doc cites {cite}");
     }

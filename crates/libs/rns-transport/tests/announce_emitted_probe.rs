@@ -43,10 +43,12 @@ const WAIT: Duration = Duration::from_secs(15);
 /// Long enough for a relay on loopback to answer a path request many times over; used only
 /// for the negative "no second event" check.
 const QUIET: Duration = Duration::from_secs(2);
-/// Equal hops need a strictly newer emission second (`RNS/Transport.py:2238`); the relay's
-/// single rebroadcast also lands within `PATHFINDER_RETRY_WINDOW` (500 ms) of the announce,
-/// so by the time this has elapsed the late joiner can only ever hear a path response.
+/// Equal hops need a strictly newer emission second (`RNS/Transport.py:2238`).
 const NEXT_SECOND: Duration = Duration::from_millis(1100);
+/// The relay's single rebroadcast fires on the first 1 s announce-retransmit tick after a
+/// deadline drawn from 0..500 ms, so it has landed by about 1.5 s after the announce. The
+/// late joiner attaches only after that, so it can only ever hear a path response.
+const PAST_REBROADCAST: Duration = Duration::from_millis(1700);
 
 struct Relay {
     transport: Transport,
@@ -145,16 +147,17 @@ async fn late_joiner_hears_the_original_emission_in_the_relayed_path_response() 
     assert_eq!(blob_emitted(&at_relay.random_blob), at_relay.emitted);
     assert_eq!(relay.transport.latest_announce_emitted(&hash).await, Some(at_relay.emitted));
 
-    // Move into a later second so "replay time" and "emission time" are distinguishable,
-    // and past the relay's one rebroadcast so B can only hear a path response.
-    tokio::time::sleep_until((announced_at + NEXT_SECOND).into()).await;
+    // Wait out the relay's one rebroadcast so B can only hear a path response; this also
+    // moves into a later second, so "replay time" and "emission time" are distinguishable.
+    tokio::time::sleep_until((announced_at + PAST_REBROADCAST).into()).await;
     let (b, mut b_announces) = connector("announce-emitted-probe-b", relay.port).await;
     await_accepted(&relay, 2).await;
     assert_eq!(b.latest_announce_emitted(&hash).await, None, "B never heard A");
 
     let request_clock = clock_secs();
     assert!(request_clock > at_relay.emitted, "the clock moved past the emission second");
-    b.request_path(&hash, None, None).await;
+    let trace = b.request_path(&hash, None, None).await;
+    assert!(trace.sent_ifaces >= 1, "B's path request left on an interface: {trace:?}");
     let replayed = learn_announce("B's first path response", &mut b_announces, &hash, WAIT).await;
 
     assert!(replayed.is_path_response, "B's first announce for A is the relay's answer");
@@ -189,7 +192,7 @@ async fn late_joiner_hears_the_original_emission_in_the_relayed_path_response() 
 
     // A re-announces in a later second: B hears it unsolicited, strictly newer; every
     // accessor follows the max; and the relay now replays the newest announce.
-    tokio::time::sleep_until((announced_at + 2 * NEXT_SECOND).into()).await;
+    tokio::time::sleep_until((announced_at + PAST_REBROADCAST + NEXT_SECOND).into()).await;
     let packet = destination.lock().await.announce(OsRng, None).expect("valid announce packet");
     a.send_packet(packet).await;
     let second = learn_announce("A's re-announce at B", &mut b_announces, &hash, WAIT).await;
@@ -256,7 +259,8 @@ async fn own_path_responses_in_later_seconds_are_distinct_fresh_emissions() {
     assert_eq!(b.latest_announce_emitted(&hash).await, None);
 
     let before = clock_secs();
-    b.request_path(&hash, None, None).await;
+    let trace = b.request_path(&hash, None, None).await;
+    assert!(trace.sent_ifaces >= 1, "B's path request left on an interface: {trace:?}");
     let first_at = Instant::now();
     let first = learn_announce("own response 1", &mut b_announces, &hash, WAIT).await;
     let after = clock_secs();

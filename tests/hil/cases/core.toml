@@ -152,3 +152,16 @@ failure_class = "FAIL_PROTOCOL"
 [cases.command]
 program = "cargo"
 args = ["test", "-p", "coyote-rns-transport", "--lib", "channel_retry_exhaustion_sends_link_close_and_fails_pending_messages", "--", "--nocapture"]
+
+[[cases]]
+id = "auto-peer-count-timeout"
+suite = "core"
+description = "A spawned AutoInterface runtime counts an admitted peer back down once the platform peering timeout expires it."
+levels = ["pr", "nightly", "release"]
+profiles = ["virtual"]
+timeout_secs = 300
+failure_class = "FAIL_PROTOCOL"
+
+[cases.command]
+program = "cargo"
+args = ["test", "-p", "coyote-rns-transport", "--lib", "spawned_runtime_counts_down_when_the_admitted_peer_times_out", "--", "--ignored", "--nocapture"]

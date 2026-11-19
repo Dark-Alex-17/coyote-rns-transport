@@ -33,10 +33,10 @@ belongs to. Patch ids: O1 is auto peer count, O2 is rnsd rpc client. The
 `auto peer count` patch is fork commits `bc5a7e6c`, `457f50f1`, `5d8832e1`,
 `5d231b18`, `6c1b4008`, `33fc1137`, `ddf20ed9`, `34dda674`, `20077b93`,
 `72a2685a`, `c1c51fe2`, `4ff8b5ea`, `5b08f985`, `48b58e6a`, `430007e4`,
-`d891381b`, `1f895be2`, `8c203fa6` and `e6924ccf`.
+`d891381b`, `1f895be2`, `8c203fa6`, `e6924ccf`, `e8d406b8` and `5fb81662`.
 The `rnsd rpc client` patch is fork commits `e5fed58f`, `2b2d59c1`,
 `48ea789e`, `eb520fad`, `d3267e30`, `1cd75940`, `70d36e15`, `48b58e6a`,
-`276ff531`, `430007e4`, `b73b592b`, `8c203fa6` and `e6924ccf`. The
+`276ff531`, `430007e4`, `b73b592b`, `8c203fa6`, `e6924ccf` and `e2504f94`. The
 `Python-in-the-loop rnsd rpc interop` patch carries no other id and is
 fork commits `8870d19f`, `0efdadfa`, `238abaa3`, `839769d2`, `8a07c374`,
 `48b58e6a`, `276ff531`, `430007e4`, `18ec48d6`, `a2484437`, `1f895be2` and
@@ -48,6 +48,8 @@ fork commits `8870d19f`, `0efdadfa`, `238abaa3`, `839769d2`, `8a07c374`,
 | `Cargo.toml` | rnsd rpc client |
 | `crates/apps/reticulumd/src/bin/reticulumd/bootstrap_parts/module_core.rs` | auto peer count |
 | `crates/apps/reticulumd/tests/auto_peers_daemon_status_probe.rs` | auto peer count |
+| `crates/apps/reticulumd/tests/fork_publish_contract.rs` | auto peer count |
+| `crates/apps/reticulumd/tests/fork_publish_contract_parts/hil_core_case_names_probe.rs` | auto peer count |
 | `crates/apps/reticulumd/tests/fork_publish_contract_parts/ledger_contract.rs` | auto peer count |
 | `crates/apps/reticulumd/tests/fork_release_docs_contract_parts/crate_readme_sections.rs` | rnsd rpc client |
 | `crates/apps/reticulumd/tests/fork_release_docs_contract_parts/readme_patch_list.rs` | auto peer count, rnsd rpc client, Python-in-the-loop rnsd rpc interop |
@@ -100,7 +102,7 @@ fork commits `8870d19f`, `0efdadfa`, `238abaa3`, `839769d2`, `8a07c374`,
 Fork commits `bc5a7e6c`, `457f50f1`, `5d8832e1`, `5d231b18`, `6c1b4008`,
 `33fc1137`, `ddf20ed9`, `34dda674`, `20077b93`, `72a2685a`, `c1c51fe2`,
 `4ff8b5ea`, `5b08f985`, `48b58e6a`, `430007e4`, `d891381b`, `1f895be2`,
-`8c203fa6` and `e6924ccf`:
+`8c203fa6`, `e6924ccf`, `e8d406b8` and `5fb81662`:
 O1, auto peer count.
 Upstream site: `InterfaceManager::register_virtual_iface` in
 `crates/libs/rns-transport/src/iface_parts/interfacemanager.rs` and the
@@ -274,10 +276,19 @@ register checks of `readme_patch_list.rs` on whitespace-squashed halves
 like its sibling claims. `e6924ccf` has the probe's reservation loop also
 reject a discovery port one below the data port, since the daemon binds
 the derived unicast discovery port reusably and the data port plainly.
+`e8d406b8` has the slow test's ignore reason name its runner, `slow
+(about 30 s): run by the hil core case auto-peer-count-timeout`, with the
+matrix file and levels in its doc comment. `5fb81662` adds
+`fork_publish_contract_parts/hil_core_case_names_probe.rs`, included from
+`fork_publish_contract.rs`: every `core.toml` case running `cargo test -p
+coyote-rns-transport --lib <name>` must name a `fn` defined under the
+crate's sources (`cargo test` exits 0 on a filter that matches nothing),
+and a case that runs an ignored test must be named by that test's ignore
+reason.
 
 Fork commits `e5fed58f`, `2b2d59c1`, `48ea789e`, `eb520fad`, `d3267e30`,
 `1cd75940`, `70d36e15`, `48b58e6a`, `276ff531`, `430007e4`, `b73b592b`,
-`8c203fa6` and `e6924ccf`:
+`8c203fa6`, `e6924ccf` and `e2504f94`:
 O2, rnsd rpc client.
 Upstream site: the shared-instance client module
 `crates/libs/rns-transport/src/transport/shared_instance.rs`, beside which
@@ -406,7 +417,10 @@ and the pin of record, holds both to it in `readme_patch_list.rs`, gives
 and in the README register says "as of this release" and reflows two
 orphan lines. `e6924ccf` has the Rust FIN mock's comment point at the
 CPython probe for the reset variant, where the client's `#FAILURE#` write
-and not its read is what fails.
+and not its read is what fails. `e2504f94` keeps that probe's reset test
+off Windows, where WinSock drops the receive queue on a reset and the
+client's read of the wrong answer fails first, reading as `Protocol`: a
+platform rendering of the reset, not a client defect.
 
 Fork commits `8870d19f`, `0efdadfa`, `238abaa3`, `839769d2`, `8a07c374`,
 `48b58e6a`, `276ff531`, `430007e4`, `18ec48d6`, `a2484437`, `1f895be2` and

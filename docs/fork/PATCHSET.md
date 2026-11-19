@@ -33,13 +33,14 @@ belongs to. Patch ids: O1 is auto peer count, O2 is rnsd rpc client. The
 `auto peer count` patch is fork commits `bc5a7e6c`, `457f50f1`, `5d8832e1`,
 `5d231b18`, `6c1b4008`, `33fc1137`, `ddf20ed9`, `34dda674`, `20077b93`,
 `72a2685a`, `c1c51fe2`, `4ff8b5ea`, `5b08f985`, `48b58e6a`, `430007e4` and
-`d891381b`.
+`d891381b`, `1f895be2` and `8c203fa6`.
 The `rnsd rpc client` patch is fork commits `e5fed58f`, `2b2d59c1`,
 `48ea789e`, `eb520fad`, `d3267e30`, `1cd75940`, `70d36e15`, `48b58e6a`,
-`276ff531` and `430007e4`. The
+`276ff531`, `430007e4`, `b73b592b` and `8c203fa6`. The
 `Python-in-the-loop rnsd rpc interop` patch carries no other id and is
 fork commits `8870d19f`, `0efdadfa`, `238abaa3`, `839769d2`, `8a07c374`,
-`48b58e6a`, `276ff531`, `430007e4`, `18ec48d6` and `a2484437`.
+`48b58e6a`, `276ff531`, `430007e4`, `18ec48d6`, `a2484437`, `1f895be2` and
+`8c203fa6`.
 
 | File | Patch |
 | --- | --- |
@@ -91,13 +92,15 @@ fork commits `8870d19f`, `0efdadfa`, `238abaa3`, `839769d2`, `8a07c374`,
 | `crates/libs/rns-transport/tests/interface_peer_count_probe.rs` | auto peer count |
 | `crates/libs/rns-transport/tests/shared_instance_rpc_api.rs` | rnsd rpc client |
 | `crates/libs/rns-transport/tests/shared_instance_rpc_departed_server.rs` | rnsd rpc client |
+| `crates/libs/rns-transport/tests/shared_instance_rpc_departed_server_python_probe.rs` | rnsd rpc client |
 | `crates/libs/rns-transport/tests/support/loopback_auto_plan.rs` | auto peer count |
 | `docs/fork/PATCHSET.md` | auto peer count, rnsd rpc client, Python-in-the-loop rnsd rpc interop |
 | `tests/hil/cases/core.toml` | auto peer count |
 
 Fork commits `bc5a7e6c`, `457f50f1`, `5d8832e1`, `5d231b18`, `6c1b4008`,
 `33fc1137`, `ddf20ed9`, `34dda674`, `20077b93`, `72a2685a`, `c1c51fe2`,
-`4ff8b5ea`, `5b08f985`, `48b58e6a`, `430007e4` and `d891381b`:
+`4ff8b5ea`, `5b08f985`, `48b58e6a`, `430007e4`, `d891381b`, `1f895be2` and
+`8c203fa6`:
 O1, auto peer count.
 Upstream site: `InterfaceManager::register_virtual_iface` in
 `crates/libs/rns-transport/src/iface_parts/interfacemanager.rs` and the
@@ -263,10 +266,16 @@ onto the function. `d891381b` gives the slow
 runner: the `auto-peer-count-timeout` case of `tests/hil/cases/core.toml`
 (suite `core`, virtual profile, pr, nightly and release levels) runs it
 with `--ignored`, as the hil `python-channel-interop` case runs the
-Python-checkout ignores.
+Python-checkout ignores. `1f895be2` has the daemon status probe reserve a
+discovery port below `u16::MAX`, since the daemon derives the unicast
+discovery port one above it. `8c203fa6` has the peer count probe header
+name `core_tests.rs` as the home of `loopback_runtime_plan`, and runs the
+register checks of `readme_patch_list.rs` on whitespace-squashed halves
+like its sibling claims.
 
 Fork commits `e5fed58f`, `2b2d59c1`, `48ea789e`, `eb520fad`, `d3267e30`,
-`1cd75940`, `70d36e15`, `48b58e6a`, `276ff531` and `430007e4`:
+`1cd75940`, `70d36e15`, `48b58e6a`, `276ff531`, `430007e4`, `b73b592b` and
+`8c203fa6`:
 O2, rnsd rpc client.
 Upstream site: the shared-instance client module
 `crates/libs/rns-transport/src/transport/shared_instance.rs`, beside which
@@ -376,10 +385,28 @@ name. `430007e4` has the README, the CHANGELOG and the
 that has already hung up stays `Authentication`, names randomness beside
 length in the `rpc_key` sentence, lists the departed-server test beside
 `tests/shared_instance_rpc_api.rs`, and puts the undelivered-notice debug
-line in the module's key=value style.
+line in the module's key=value style. `b73b592b` adds
+`tests/shared_instance_rpc_departed_server_python_probe.rs`: CPython's own
+`multiprocessing.connection` `deliver_challenge` and `answer_challenge`
+serve a raw loopback socket in three modes, honest (serves the reply), a
+FIN after a wrong answer and a reset (`SO_LINGER 0`) after a wrong answer,
+the last two reading as `Authentication` twelve times out of twelve; the
+reset makes the `#FAILURE#` write fail outright (EPIPE on every round),
+which a FIN never does on loopback, so the Rust FIN mock's header now
+calls itself a departed-server exercise and names the in-crate duplex test
+`failure_notice_on_a_broken_pipe_is_still_authentication` as the pin of
+record; that test declares the current-thread flavor its comment relied
+on. Needs `python3` (or `LXMF_PYTHON_BIN`), stdlib only, and is not
+ignored, as the crate's other stdlib-only Python helpers are not.
+`8c203fa6` has the README and CHANGELOG say the same about the FIN mock
+and the pin of record, holds both to it in `readme_patch_list.rs`, gives
+`RpcError::Protocol` the carve-out its `Authentication` sibling carries,
+and in the README register says "as of this release" and reflows two
+orphan lines.
 
 Fork commits `8870d19f`, `0efdadfa`, `238abaa3`, `839769d2`, `8a07c374`,
-`48b58e6a`, `276ff531`, `430007e4`, `18ec48d6` and `a2484437`:
+`48b58e6a`, `276ff531`, `430007e4`, `18ec48d6`, `a2484437`, `1f895be2` and
+`8c203fa6`:
 Python-in-the-loop rnsd rpc interop.
 A Python rnsd (RNS 1.5.2) is the shared instance on a free TCP port with
 one `AutoInterface` configured in a top-level `[interfaces]` section, the
@@ -449,7 +476,11 @@ it also has the two probe parts name `std::process` paths in full and the
 read after the abandoned zero-budget dial go through the reset-tolerant
 poll. `430007e4` names the listener probe in the README and CHANGELOG
 Python-in-the-loop clauses and the `readme_patch_list.rs` claim lists;
-`18ec48d6` folds that poll call onto rustfmt's line.
+`18ec48d6` folds that poll call onto rustfmt's line. `1f895be2` has
+`identity_key` poll under one timeout and `try_wait` the rnsd child on
+every miss through the helper `poll_interface_stats` shares, failing at
+once with the exit status. `8c203fa6` lists the CPython probe beside the
+Python-in-the-loop parts in the README and CHANGELOG claim lists.
 Upstream site: test files only.
 
 ## 0.18.2 (upstream 0.14.0)

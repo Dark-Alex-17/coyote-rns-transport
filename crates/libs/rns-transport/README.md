@@ -28,7 +28,7 @@ when the rebase breaks the fork's public API, the next patch digit otherwise.
 
 ```toml
 [dependencies]
-coyote-rns-transport = "0.18.2"
+coyote-rns-transport = "0.18.3"
 ```
 
 ```rust

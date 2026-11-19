@@ -45,8 +45,8 @@ commits `02cc9498`, `21e11504`, `10f5e695`, `30994a51`, `7ea62b00`,
 `79cee904`, `6236b9e1` and `92fe44fd`. The `Python-in-the-loop announce
 emitted interop` patch carries no other id and is fork commits `30249310`
 and `10f5e695`. The `release 0.18.3` patch carries no other id and is fork
-commits `a2a548a7`, `27d866af`, `af9d5694`, `9c3cada9`, `844b8c7e` and
-`92fe44fd`.
+commits `a2a548a7`, `27d866af`, `af9d5694`, `9c3cada9`, `844b8c7e`,
+`92fe44fd` and `384d685e`.
 
 | File | Patch |
 | --- | --- |
@@ -61,6 +61,7 @@ commits `a2a548a7`, `27d866af`, `af9d5694`, `9c3cada9`, `844b8c7e` and
 | `crates/apps/reticulumd/tests/fork_release_docs_contract.rs` | release 0.18.3 |
 | `crates/apps/reticulumd/tests/fork_release_docs_contract_parts/crate_readme_sections.rs` | rnsd rpc client |
 | `crates/apps/reticulumd/tests/fork_release_docs_contract_parts/readme_patch_list.rs` | auto peer count, rnsd rpc client, Python-in-the-loop rnsd rpc interop, announce emitted, release 0.18.3 |
+| `crates/apps/reticulumd/tests/fork_release_docs_contract_parts/release_0_18_1_probe.rs` | release 0.18.3 |
 | `crates/apps/reticulumd/tests/fork_release_docs_contract_parts/release_0_18_2_probe.rs` | release 0.18.3 |
 | `crates/apps/reticulumd/tests/fork_release_docs_contract_parts/release_0_18_3_probe.rs` | release 0.18.3 |
 | `crates/apps/reticulumd/tests/fork_release_docs_contract_parts/request_layer_api_docs.rs` | announce emitted |
@@ -615,8 +616,8 @@ a different blob. `10f5e695` names the live part in the README pin
 clause.
 Upstream site: test files only.
 
-Fork commits `a2a548a7`, `27d866af`, `af9d5694`, `9c3cada9`, `844b8c7e` and
-`92fe44fd`:
+Fork commits `a2a548a7`, `27d866af`, `af9d5694`, `9c3cada9`, `844b8c7e`,
+`92fe44fd` and `384d685e`:
 release 0.18.3. The first bumps the crate version to 0.18.3 at every
 manifest and consumer-snippet site (`Cargo.toml`,
 `crates/libs/rns-transport/Cargo.toml`, `crates/apps/reticulumd/Cargo.toml`,
@@ -681,8 +682,14 @@ header and closing sentence. The sixth pins that tolerance with a synthetic
 stub in both ledgers, names the adopted probe in repository terms, reads the
 O3 header from the joined prose, and corrects two doc comments, the 0.18.2
 probe's list-opener remark and the inclusive retry window in
-`announce_emitted_probe.rs`. The ledger commits that cite the six commits
-above touch only this file and the crate `CHANGELOG.md`.
+`announce_emitted_probe.rs`. The seventh names
+`tests/announce_emitted_probe.rs` in the README announce paragraph's pin
+list and its `readme_patch_list.rs` claim set, names
+`tests/hil/cases/core.toml` and
+`fork_publish_contract_parts/hil_core_case_names_probe.rs` in the
+peer-count release note, and drops the 0.18.1 probe's remark that the
+0.18.2 block opens the list. The ledger commits that cite the seven
+commits above touch only this file and the crate `CHANGELOG.md`.
 
 ## 0.18.2 (upstream 0.14.0)
 

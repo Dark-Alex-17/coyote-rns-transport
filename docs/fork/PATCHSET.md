@@ -38,7 +38,7 @@ The `rnsd rpc client` patch is fork commits `e5fed58f`, `2b2d59c1`,
 `276ff531` and `430007e4`. The
 `Python-in-the-loop rnsd rpc interop` patch carries no other id and is
 fork commits `8870d19f`, `0efdadfa`, `238abaa3`, `839769d2`, `8a07c374`,
-`48b58e6a`, `276ff531`, `430007e4` and `18ec48d6`.
+`48b58e6a`, `276ff531`, `430007e4`, `18ec48d6` and `a2484437`.
 
 | File | Patch |
 | --- | --- |
@@ -372,7 +372,7 @@ length in the `rpc_key` sentence, lists the departed-server test beside
 line in the module's key=value style.
 
 Fork commits `8870d19f`, `0efdadfa`, `238abaa3`, `839769d2`, `8a07c374`,
-`48b58e6a`, `276ff531`, `430007e4` and `18ec48d6`:
+`48b58e6a`, `276ff531`, `430007e4`, `18ec48d6` and `a2484437`:
 Python-in-the-loop rnsd rpc interop.
 A Python rnsd (RNS 1.5.2) is the shared instance on a free TCP port with
 one `AutoInterface` configured in a top-level `[interfaces]` section, the
@@ -427,7 +427,9 @@ typed entry's byte counters against its raw map, hoists the shared
 `python_channel_interop.rs`: Python's own `multiprocessing.connection.Client`
 (`RNS/Reticulum.py:1397-1402`) reads the same listener as an independent
 oracle and agrees with the typed reply; the typed fields are projections
-of the raw maps; three reads agree; a zero budget is `Timeout`. `48b58e6a`
+of the raw maps; three reads agree; a zero budget returns at once, as
+`Timeout` or as the reply when the loopback exchange beats the timer's
+first tick (`a2484437`, after one run in six saw the reply). `48b58e6a`
 names the probe part in the CHANGELOG's Python-in-the-loop clause.
 `276ff531` adds `python_stdlib_listener_rpc_probe.rs`, included from
 `python_channel_interop.rs`: CPython's own

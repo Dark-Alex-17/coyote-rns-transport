@@ -5,7 +5,12 @@
 // the subsection set a purely additive patch release carries, the three
 // items `### Added` names, the patch digit and semver verdict the version
 // bullet records, the twelve release-docs parts the restated include-set
-// bullet lists, and the README patch-list order with the 0.18.3 block on top.
+// bullet lists, the README patch-list order with the 0.18.3 block on top,
+// and the usage pins a consumer reads cold: the patch-set ledger opening on
+// this release with the release patch and the carry-in probe cited, the
+// emitted note naming the late-joiner probe, the README block's six bullets
+// and consumer note, the probe's module doc standing on the contract alone,
+// and the publish contract's two hand pins reading the release version.
 
 /// The 0.18.3 heading carries the day the release was cut and is the first
 /// release heading of the CHANGELOG.
@@ -149,4 +154,216 @@ fn release_0_18_3_readme_patch_list_runs_newest_first() {
         positions.windows(2).all(|pair| pair[0] < pair[1]),
         "the README patch list should run 0.18.3, 0.18.2, 0.18.1, got offsets {positions:?}"
     );
+}
+
+/// The first `## ` section of the patch-set ledger, heading line included,
+/// up to the next `## ` heading.
+fn patchset_opening_section(ledger: &str) -> &str {
+    let start = ledger.find("\n## ").expect("the patch-set ledger has a `## ` heading") + 1;
+    let section = &ledger[start..];
+    match section[3..].find("\n## ") {
+        Some(end) => &section[..end + 3],
+        None => section,
+    }
+}
+
+/// The patch-set ledger opens on `## 0.18.3 (upstream 0.14.0)`, carries no
+/// `## Unreleased` stub, cites `a2a548a7`, `27d866af` and `af9d5694` in the
+/// id-less `release 0.18.3` legend sentence, rows the adopted late-joiner
+/// probe under `announce emitted` and cites the two probe commits in both
+/// the `announce emitted` legend and the O3 patch header.
+#[test]
+fn release_0_18_3_patchset_opens_on_the_release_patch_and_the_carry_in() {
+    let ledger = read_repo_file("docs/fork/PATCHSET.md");
+    assert!(
+        !ledger.lines().any(|line| line.starts_with("## Unreleased")),
+        "a release tree carries no `## Unreleased` stub in the patch-set ledger"
+    );
+    let section = patchset_opening_section(&ledger);
+    assert_eq!(
+        section.lines().next(),
+        Some("## 0.18.3 (upstream 0.14.0)"),
+        "the patch-set ledger should open on the 0.18.3 section"
+    );
+    let prose = joined_prose(section);
+    let release_marker = "The `release 0.18.3` patch carries no other id and is fork commits";
+    let release_legend_start =
+        prose.find(release_marker).expect("the 0.18.3 legend names the id-less release patch");
+    let release_legend = &prose[release_legend_start + release_marker.len()..];
+    let release_legend = &release_legend[..release_legend.find('.').expect("sentence end")];
+    for commit in ["`a2a548a7`", "`27d866af`", "`af9d5694`"] {
+        assert!(
+            release_legend.contains(commit),
+            "the `release 0.18.3` legend should cite {commit}: {release_legend}"
+        );
+    }
+    let announce_legend_start = prose
+        .find("The `announce emitted` patch is fork commits")
+        .expect("the 0.18.3 legend names the `announce emitted` patch");
+    let announce_legend = &prose[announce_legend_start..];
+    let announce_legend = &announce_legend[..announce_legend.find('.').expect("sentence end")];
+    for commit in ["`79cee904`", "`6236b9e1`"] {
+        assert!(
+            announce_legend.contains(commit),
+            "the `announce emitted` legend should cite {commit}: {announce_legend}"
+        );
+    }
+    assert!(
+        section.lines().any(|line| {
+            line
+            == "| `crates/libs/rns-transport/tests/announce_emitted_probe.rs` | announce emitted |"
+        }),
+        "the 0.18.3 table should row the adopted probe under `announce emitted`"
+    );
+    let o3_header_start = section
+        .find("Fork commits `02cc9498`, `21e11504`, `10f5e695`, `30994a51`, `7ea62b00`,")
+        .expect("the O3 patch header");
+    let o3_header = &section[o3_header_start..];
+    let o3_header = &o3_header[..o3_header.find("O3, announce emitted.").expect("O3 label")];
+    for commit in ["`79cee904`", "`6236b9e1`"] {
+        assert!(
+            o3_header.contains(commit),
+            "the O3 patch header should cite {commit}: {o3_header}"
+        );
+    }
+}
+
+/// The crate CHANGELOG carries no `## Unreleased` stub, opens on the dated
+/// 0.18.3 heading, and the `AnnounceEvent::emitted` bullet of 0.18.3 names
+/// the adopted late-joiner probe in its Pinned-by clause.
+#[test]
+fn release_0_18_3_emitted_bullet_pins_the_late_joiner_probe() {
+    let changelog = read_repo_file("crates/libs/rns-transport/CHANGELOG.md");
+    assert!(
+        !changelog.lines().any(|line| line.starts_with("## Unreleased")),
+        "a release tree carries no `## Unreleased` stub in the CHANGELOG"
+    );
+    assert_eq!(
+        changelog.lines().find(|line| line.starts_with("## ")),
+        Some("## 0.18.3 - 2026-11-19"),
+        "the CHANGELOG should open on the dated 0.18.3 heading"
+    );
+    let section = changelog_release_section(&changelog, "0.18.3");
+    let bullets = subsection_bullets(&section, "Added");
+    let emitted = joined_prose(&single_bullet_starting_with(
+        &bullets,
+        "- `AnnounceEvent::emitted`, `AnnounceEvent::random_blob`",
+    ));
+    let pinned_by = emitted.find("Pinned by").expect("the emitted bullet has a Pinned-by clause");
+    assert!(
+        emitted[pinned_by..].contains("`tests/announce_emitted_probe.rs`"),
+        "the Pinned-by clause should name the adopted probe: {}",
+        &emitted[pinned_by..]
+    );
+}
+
+/// The README 0.18.3 patch-list block carries one bullet per shipped change
+/// (six, the consumer note last) and the consumer note spells out the rnsd
+/// path: the `for_instance` endpoint on Linux or Android, the TCP endpoint
+/// with the default control port elsewhere, the identity-derived key from
+/// `<configdir>/storage/transport_identity`, the `kind` filter and the rule
+/// to compare against `emitted`, never arrival; the dependency snippet pins
+/// the release and no 0.18.2 snippet survives.
+#[test]
+fn release_0_18_3_readme_consumer_note_names_the_rnsd_path_and_the_emitted_rule() {
+    let readme = read_repo_file("crates/libs/rns-transport/README.md");
+    let marker = "What `0.18.3` carries on top";
+    let at = readme.find(marker).expect("the README patch list has the 0.18.3 block");
+    let block = &readme[at + marker.len()..];
+    let block =
+        &block[..block.find("\nWhat `0.18.2` carries on top").expect("the 0.18.2 block follows")];
+    assert!(
+        joined_prose(block).starts_with("of `0.18.2`:"),
+        "the 0.18.3 marker sentence names the 0.18.2 baseline"
+    );
+    let bullets: Vec<String> =
+        top_level_bullets(block).iter().map(|bullet| joined_prose(bullet)).collect();
+    assert_eq!(
+        bullets.len(),
+        6,
+        "the 0.18.3 block carries one bullet per shipped change: peer count, rpc client, announce \
+         emission, Python proofs, hygiene and the consumer note; got {bullets:#?}"
+    );
+    let openers = [
+        "- The auto peer count:",
+        "- The rnsd RPC client:",
+        "- Announce emission:",
+        "- The Python-in-the-loop proofs:",
+        "- Test-only hygiene:",
+        "- For a consumer: pin `coyote-rns-transport = \"0.18.3\"`;",
+    ];
+    for (bullet, opener) in bullets.iter().zip(openers) {
+        assert!(bullet.starts_with(opener), "expected a bullet opening {opener:?}, got {bullet:?}");
+    }
+    let consumer = &bullets[5];
+    for needle in [
+        "there is nothing to opt into",
+        "`Transport::interface_peer_count`",
+        "`transport::shared_instance_rpc::interface_stats`",
+        "`RpcEndpoint::for_instance(\"default\")`",
+        "Linux or Android",
+        "`RpcEndpoint::Tcp(127.0.0.1:<instance_control_port>)`",
+        "37429",
+        "`RpcKey::from_transport_identity_file`",
+        "`<configdir>/storage/transport_identity`",
+        "`kind == \"AutoInterface\"`",
+        "`AnnounceEvent::emitted`",
+        "never against the arrival time",
+    ] {
+        assert!(consumer.contains(needle), "the consumer note should say {needle:?}: {consumer}");
+    }
+    let snippet = "coyote-rns-transport = \"0.18.3\"";
+    assert!(
+        readme.contains(&format!("[dependencies]\n{snippet}\n")),
+        "the README dependency snippet should pin {snippet:?}"
+    );
+    assert!(
+        !readme.contains("[dependencies]\ncoyote-rns-transport = \"0.18.2\""),
+        "the README dependency snippet should no longer pin 0.18.2"
+    );
+}
+
+/// The adopted late-joiner probe lives in the crate's black-box suite, its
+/// module doc rests on the contract alone (no plan document, no handoff
+/// pointer) and it carries its two tokio tests.
+#[test]
+fn release_0_18_3_announce_emitted_probe_stands_on_the_contract_alone() {
+    let probe = read_repo_file("crates/libs/rns-transport/tests/announce_emitted_probe.rs");
+    let module_doc: Vec<&str> = probe.lines().filter(|line| line.starts_with("//!")).collect();
+    assert!(!module_doc.is_empty(), "the probe has a module doc");
+    for banned in ["plans/", "handoff", "Spec-first expectations"] {
+        assert!(
+            !module_doc.iter().any(|line| line.contains(banned)),
+            "the probe's module doc should not reference {banned:?}"
+        );
+    }
+    for cite in ["`RNS/Transport.py:3459-3473`", "`RNS/Transport.py:2238`"] {
+        assert!(module_doc.iter().any(|line| line.contains(cite)), "the module doc cites {cite}");
+    }
+    assert_eq!(
+        probe.matches("#[tokio::test]").count(),
+        2,
+        "the adopted probe carries its two late-joiner tests"
+    );
+}
+
+/// The publish contract's two hand pins (the bare version and the manifest
+/// line) read the release version with no stale 0.18.2 pin beside them, the
+/// crate manifest declares it, and the root `VERSION` file stays.
+#[test]
+fn release_0_18_3_publish_contract_hand_pins_read_the_release_version() {
+    let contract = read_repo_file("crates/apps/reticulumd/tests/fork_publish_contract.rs");
+    assert!(
+        contract.lines().count() <= 1200,
+        "fork_publish_contract.rs stays within the 1200-line test policy"
+    );
+    let pins: Vec<&str> = contract.lines().filter(|line| line.contains("0.18.3")).collect();
+    assert_eq!(pins.len(), 2, "the publish contract carries its two hand pins, got {pins:?}");
+    assert!(
+        !contract.contains("0.18.2\""),
+        "no stale 0.18.2 hand pin survives in the publish contract"
+    );
+    let manifest = read_repo_file("crates/libs/rns-transport/Cargo.toml");
+    assert!(manifest.contains("\nversion = \"0.18.3\"\n"), "the crate manifest declares 0.18.3");
+    assert_eq!(read_repo_file("VERSION").trim(), "0.14.0", "the root VERSION file stays");
 }

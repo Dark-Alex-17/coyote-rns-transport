@@ -520,3 +520,78 @@ fn crate_readme_rnsd_rpc_section_describes_the_client() {
         assert!(changelog_section.contains(&squash(claim)), "the changelog should mention {claim}");
     }
 }
+
+/// The announce section describes the emission second the way the code
+/// carries it: the two event fields, the blob slice and the Python lines
+/// it is decoded from, the relay replaying the stored bytes under the
+/// path-response flag against the destination emitting afresh, the
+/// accessor's `None` and `Some(0)` shapes and the path-table calls that
+/// drop or keep it, and the three test files that pin it, in a paragraph
+/// that follows the `is_path_response` one; the divergence register names
+/// the fields as fork-only under `Not divergences:` (API shape, not
+/// behaviour), and the changelog section that carries the bullet makes the
+/// same claims with the accessor's full signature.
+#[test]
+fn crate_readme_announce_section_describes_announce_emitted() {
+    let readme = read_repo_file("crates/libs/rns-transport/README.md");
+    let section = squash(crate_readme_section(&readme, "Opening links and admitting resources"));
+    let shared_claims = [
+        "`AnnounceEvent::emitted`",
+        "`AnnounceEvent::random_blob`",
+        "`RNS/Transport.py:2217`",
+        "`RNS/Transport.py:3459-3473`",
+        "`RNS/Destination.py:308`",
+        "`RNS/Transport.py:3729`",
+        "`timebase_from_random_blobs`",
+        "`None` without a path table entry",
+        "`Some(0)` for an entry without blobs",
+        "`tests/announce_emitted_api.rs`",
+        "`transport/tests_parts/two_transport_loopback_announce_emitted.rs`",
+    ];
+    for claim in shared_claims.into_iter().chain([
+        "`Transport::latest_announce_emitted` returns `Option<u64>`",
+        "`Transport::expire_path` removes it",
+        "`Transport::deregister_destination` leaves it standing",
+        "`python_shared_instance_announce_emitted.rs`",
+    ]) {
+        assert!(
+            section.contains(&squash(claim)),
+            "the announce section should mention {claim}:\n{section}"
+        );
+    }
+    let path_response_at = section
+        .find(&squash("`AnnounceEvent::is_path_response` is true"))
+        .expect("the section opens the flag paragraph before the emission one");
+    let emitted_at = section
+        .find(&squash("`AnnounceEvent::emitted` is"))
+        .expect("the section opens the emission paragraph");
+    assert!(
+        path_response_at < emitted_at,
+        "the emission paragraph follows the `is_path_response` one:\n{section}"
+    );
+    let divergences = crate_readme_section(&readme, "Known divergences from Python RNS");
+    let (real, api_shape) = divergences
+        .split_once("\nNot divergences:\n")
+        .expect("the register separates API-shape facts under `Not divergences:`");
+    assert!(
+        squash(api_shape)
+            .contains(&squash("`AnnounceEvent::emitted` and `AnnounceEvent::random_blob`")),
+        "the emission fields are API shape, listed below the marker:\n{api_shape}"
+    );
+    assert!(
+        !squash(real).contains(&squash("`AnnounceEvent::emitted` and `AnnounceEvent::random_blob`")),
+        "the emission fields are not a behaviour divergence:\n{real}"
+    );
+    let changelog = read_repo_file("crates/libs/rns-transport/CHANGELOG.md");
+    let changelog_section = squash(changelog_section_naming(
+        &changelog,
+        "`Transport::latest_announce_emitted(&AddressHash) -> Option<u64>`",
+    ));
+    for claim in shared_claims.into_iter().chain([
+        "`expire_path` removes it",
+        "`deregister_destination` leaves it standing",
+        "`python_channel_interop_parts/python_shared_instance_announce_emitted.rs`",
+    ]) {
+        assert!(changelog_section.contains(&squash(claim)), "the changelog should mention {claim}");
+    }
+}

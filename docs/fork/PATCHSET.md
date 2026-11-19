@@ -42,10 +42,11 @@ carries no other id and is fork commits `8870d19f`, `0efdadfa`, `238abaa3`,
 `839769d2`, `8a07c374`, `48b58e6a`, `276ff531`, `430007e4`, `18ec48d6`,
 `a2484437`, `1f895be2` and `8c203fa6`. The `announce emitted` patch is fork
 commits `02cc9498`, `21e11504`, `10f5e695`, `30994a51`, `7ea62b00`,
-`79cee904` and `6236b9e1`. The `Python-in-the-loop announce emitted interop`
-patch carries no other id and is fork commits `30249310` and `10f5e695`. The
-`release 0.18.3` patch carries no other id and is fork commits `a2a548a7`,
-`27d866af`, `af9d5694`, `9c3cada9` and `844b8c7e`.
+`79cee904`, `6236b9e1` and `92fe44fd`. The `Python-in-the-loop announce
+emitted interop` patch carries no other id and is fork commits `30249310`
+and `10f5e695`. The `release 0.18.3` patch carries no other id and is fork
+commits `a2a548a7`, `27d866af`, `af9d5694`, `9c3cada9`, `844b8c7e` and
+`92fe44fd`.
 
 | File | Patch |
 | --- | --- |
@@ -522,7 +523,7 @@ Python-in-the-loop parts in the README and CHANGELOG claim lists.
 Upstream site: test files only.
 
 Fork commits `02cc9498`, `21e11504`, `10f5e695`, `30994a51`, `7ea62b00`,
-`79cee904` and `6236b9e1`:
+`79cee904`, `6236b9e1` and `92fe44fd`:
 O3, announce emitted.
 Upstream site: `AnnounceEvent` in
 `crates/libs/rns-transport/src/transport/mod.rs`, which carried the
@@ -588,7 +589,8 @@ re-announces; the CHANGELOG names it in the Pinned-by clause of the bullet.
 rebroadcast tick has passed (the first 1 s retransmit tick after a 0..500 ms
 deadline, so about 1.5 s), splitting that wait from the strictly-later-second
 one, and asserts the first path request's dispatch trace reached an
-interface in each test.
+interface in each test. `92fe44fd` writes the retry window inclusive in the
+probe's doc.
 
 Fork commits `30249310` and `10f5e695`:
 Python-in-the-loop announce emitted interop.
@@ -613,7 +615,8 @@ a different blob. `10f5e695` names the live part in the README pin
 clause.
 Upstream site: test files only.
 
-Fork commits `a2a548a7`, `27d866af`, `af9d5694`, `9c3cada9` and `844b8c7e`:
+Fork commits `a2a548a7`, `27d866af`, `af9d5694`, `9c3cada9`, `844b8c7e` and
+`92fe44fd`:
 release 0.18.3. The first bumps the crate version to 0.18.3 at every
 manifest and consumer-snippet site (`Cargo.toml`,
 `crates/libs/rns-transport/Cargo.toml`, `crates/apps/reticulumd/Cargo.toml`,
@@ -674,7 +677,11 @@ hand pins reading `0.18.3`. The fifth makes those pins read the first
 release section through the same digit filter the heading pin uses, so a
 reopened `## Unreleased` stub above it leaves them standing, names the
 adoption commit in the release-legend pin, and pins the release paragraph
-header and closing sentence. The ledger commits that cite the five commits
+header and closing sentence. The sixth pins that tolerance with a synthetic
+stub in both ledgers, names the adopted probe in repository terms, reads the
+O3 header from the joined prose, and corrects two doc comments, the 0.18.2
+probe's list-opener remark and the inclusive retry window in
+`announce_emitted_probe.rs`. The ledger commits that cite the six commits
 above touch only this file and the crate `CHANGELOG.md`.
 
 ## 0.18.2 (upstream 0.14.0)

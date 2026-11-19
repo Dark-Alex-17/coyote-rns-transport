@@ -30,7 +30,7 @@ per fork task.
 
 Every file changed since the `0.18.3` release and the patch each change
 belongs to. Patch ids: P1 is readme fork framing. The `readme fork framing`
-patch is fork commits `edb4258e`, `a7688b50` and `6e1a7457`.
+patch is fork commits `edb4258e`, `a7688b50`, `6e1a7457` and `b8a0c07d`.
 
 | File | Patch |
 | --- | --- |
@@ -40,8 +40,8 @@ patch is fork commits `edb4258e`, `a7688b50` and `6e1a7457`.
 | `crates/libs/rns-transport/README.md` | readme fork framing |
 | `docs/fork/PATCHSET.md` | readme fork framing |
 
-Fork commits `edb4258e`, `a7688b50` and `6e1a7457`: P1, readme fork framing.
-Docs only, no library change.
+Fork commits `edb4258e`, `a7688b50`, `6e1a7457` and `b8a0c07d`: P1, readme
+fork framing. Docs only, no library change.
 Upstream site: the repository `README.md`, which upstream writes as the
 LXMF-rs workspace landing page, and the crate README
 `crates/libs/rns-transport/README.md`, which upstream does not carry (the

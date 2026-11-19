@@ -284,7 +284,7 @@ async fn bad_server_answer_from_a_departed_server_is_still_authentication() {
 /// The `#FAILURE#` write itself failing does not change the verdict: over an
 /// in-memory pipe whose far end has already gone, the write is a broken
 /// pipe and `deliver_challenge` still returns `Authentication`.
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn failure_notice_on_a_broken_pipe_is_still_authentication() {
     let (mut client, mut server) = tokio::io::duplex(1024);
     let key = key();

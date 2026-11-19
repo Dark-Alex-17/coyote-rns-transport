@@ -1,13 +1,16 @@
 //! The rnsd RPC client, through `rns_transport::transport::shared_instance_rpc` only,
 //! against a stdlib-faithful mock listener on a real loopback socket speaking the
 //! Python 3.12+ `{sha256}` form (`connection.py:917-1006`): a server that passes our
-//! answer, then answers our own challenge wrong and hangs up at once (a FIN, as a Python
-//! `Connection.close()` is, so the client's `#FAILURE#` meets a peer that has already
-//! gone) is `Err(RpcError::Authentication)` every time and well inside the budget, never
-//! `Protocol`; the same mock answering honestly serves the reply, so the refusal is the
-//! server's doing and not the mock's framing. A one-byte key and a 200-byte key (longer
-//! than the SHA-256 block) pass the same handshake: the HMAC takes a key of any length,
-//! as the README says.
+//! answer, then answers our own challenge wrong and closes with a FIN at once (as a
+//! Python `Connection.close()` does) reads as `Err(RpcError::Authentication)` every time
+//! and well inside the budget; the same mock answering honestly serves the reply, so the
+//! refusal is the server's doing and not the mock's framing. On loopback a FIN never
+//! makes the client's `#FAILURE#` write fail, so this is a departed-server exercise and
+//! not the pin of the write-error arm: that arm is pinned by the in-crate duplex test
+//! `failure_notice_on_a_broken_pipe_is_still_authentication` and exercised against
+//! CPython's reset in `shared_instance_rpc_departed_server_python_probe.rs`. A one-byte
+//! key and a 200-byte key (longer than the SHA-256 block) pass the same handshake: the
+//! HMAC takes a key of any length, as the README says.
 
 use std::time::{Duration, Instant};
 
@@ -203,7 +206,10 @@ async fn wrong_answer_from_a_departed_server_is_authentication_every_time() {
         let elapsed = started.elapsed();
         let seen = task.await.expect("mock task");
         assert!(seen.client_answer_ok, "round {round}: {seen:?}");
-        assert_eq!(seen.verdict, None, "round {round}: the server read no verdict: {seen:?}");
+        assert_eq!(
+            seen.verdict, None,
+            "round {round}: WrongThenDepart reads no verdict by construction: {seen:?}"
+        );
         assert!(
             matches!(result, Err(RpcError::Authentication)),
             "round {round}: expected Authentication, got {result:?}"

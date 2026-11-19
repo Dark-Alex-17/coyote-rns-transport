@@ -2,8 +2,8 @@
 // `Transport::latest_announce_emitted`: the event carries the emitter's emission second
 // and the blob that encodes it, a re-announce is strictly newer, a transport relay replays
 // the stored blob unchanged as a path response, and a destination answering a path request
-// itself emits afresh. Helpers come from the sibling `tests_parts` files included into
-// this module.
+// itself emits afresh. A path table entry without blobs answers `Some(0)`. Helpers come
+// from the sibling `tests_parts` files included into this module.
 
 /// Whole seconds of the local clock, the reading `SingleInputDestination::announce`
 /// stamps into the random blob (`now_secs().floor()`).
@@ -164,4 +164,35 @@ async fn own_path_response_is_a_fresh_emission() {
         connector.transport.latest_announce_emitted(&address_hash).await,
         Some(event.emitted)
     );
+}
+
+/// A restored cache entry whose decoded blob list is empty is the production shape of a
+/// path without blobs; `restore_tunnel_path` builds the same entry. Python's
+/// `timebase_from_random_blobs([])` is 0 (`RNS/Transport.py:3729`), so the accessor
+/// answers `Some(0)` rather than `None` while the entry stands.
+#[tokio::test]
+#[deny(clippy::await_holding_invalid_type)]
+async fn latest_announce_emitted_is_zero_for_a_path_without_blobs() {
+    let identity = PrivateIdentity::new_from_rand(OsRng);
+    let transport = Transport::new(TransportConfig::new("blob-less", &identity, false));
+    let destination = AddressHash::new_from_hash(&Hash::new_from_slice(b"announce-blob-less"));
+    let next_hop = AddressHash::new_from_hash(&Hash::new_from_slice(b"next-hop"));
+    let iface = *transport.iface_manager().lock().await.new_channel(16).address();
+
+    {
+        let handler = transport.get_handler();
+        let mut handler = handler.lock().await;
+        assert!(handler.path_table.restore_tunnel_path(
+            destination,
+            next_hop,
+            1,
+            iface,
+            Hash::new_from_slice(b"packet"),
+            std::time::Instant::now(),
+        ));
+    }
+
+    assert_eq!(transport.latest_announce_emitted(&destination).await, Some(0));
+    assert!(transport.expire_path(&destination).await, "the path table entry is removed");
+    assert_eq!(transport.latest_announce_emitted(&destination).await, None);
 }

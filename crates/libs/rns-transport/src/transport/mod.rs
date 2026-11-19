@@ -225,8 +225,9 @@ pub struct AnnounceEvent {
     /// fresh emission.
     pub emitted: u64,
     /// The 10-byte random blob the announce carried: 5 random bytes, then
-    /// the 5-byte big-endian emission second. The same bytes the path table
-    /// keeps per destination.
+    /// the 5-byte big-endian emission second (`RNS/Transport.py:2217`). One
+    /// of the blobs the path table keeps for the destination;
+    /// [`Transport::latest_announce_emitted`] reads the newest.
     pub random_blob: [u8; crate::destination::RAND_HASH_LENGTH],
 }
 

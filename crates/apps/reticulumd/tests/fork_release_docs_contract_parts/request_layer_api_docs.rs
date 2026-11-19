@@ -36,6 +36,21 @@ fn request_layer_public_items_cite_python_or_say_fork_only() {
             ItemKind::Field { owner: "AnnounceEvent" },
             "is_path_response",
         ),
+        (
+            "crates/libs/rns-transport/src/transport/mod.rs",
+            ItemKind::Field { owner: "AnnounceEvent" },
+            "emitted",
+        ),
+        (
+            "crates/libs/rns-transport/src/transport/mod.rs",
+            ItemKind::Field { owner: "AnnounceEvent" },
+            "random_blob",
+        ),
+        (
+            "crates/libs/rns-transport/src/transport/links_parts/transport_sections/close_channel.rs",
+            ItemKind::Method,
+            "latest_announce_emitted",
+        ),
         ("crates/libs/rns-transport/src/transport/mod.rs", ItemKind::Method, "link_id"),
         ("crates/libs/rns-transport/src/transport/mod.rs", ItemKind::Method, "is_sent"),
         (
@@ -301,12 +316,13 @@ fn request_layer_public_items_cite_python_or_say_fork_only() {
 /// consumer builds and reads it through methods alone: a brace body has no
 /// `pub <ident>:` member and a one-line tuple body has no `pub ` between its
 /// parentheses. The set of structs found is pinned to the expected names so a
-/// new or renamed public struct shows up here. Two fork-new fields in upstream
+/// new or renamed public struct shows up here. The fork-new fields in upstream
 /// structs are checked by name: `DeliveryReceipt::link_id` must be private.
 /// `AnnounceEvent` predates the fork and exposes every field, so its
-/// `is_path_response` follows that shape and is asserted public, together
-/// with the `#[non_exhaustive]` attribute that keeps the public field from
-/// breaking out-of-crate struct literals.
+/// fork-added `is_path_response`, `emitted` and `random_blob` follow that
+/// shape and are asserted public, together with the `#[non_exhaustive]`
+/// attribute that keeps the public fields from breaking out-of-crate struct
+/// literals.
 #[test]
 fn fork_new_public_structs_keep_their_fields_private() {
     let expected = [
@@ -391,13 +407,15 @@ fn fork_new_public_structs_keep_their_fields_private() {
         link_id + 1,
         lines[link_id].trim()
     );
-    let is_path_response = field_line("AnnounceEvent", "is_path_response");
-    assert!(
-        is_pub_field(lines[is_path_response].trim_start()),
-        "{file}:{}: `AnnounceEvent::is_path_response` should be public like the struct's upstream fields, got `{}`",
-        is_path_response + 1,
-        lines[is_path_response].trim()
-    );
+    for name in ["is_path_response", "emitted", "random_blob"] {
+        let field = field_line("AnnounceEvent", name);
+        assert!(
+            is_pub_field(lines[field].trim_start()),
+            "{file}:{}: `AnnounceEvent::{name}` should be public like the struct's upstream fields, got `{}`",
+            field + 1,
+            lines[field].trim()
+        );
+    }
     let definition = source
         .find("pub struct AnnounceEvent ")
         .unwrap_or_else(|| panic!("{file} should define `AnnounceEvent`"));

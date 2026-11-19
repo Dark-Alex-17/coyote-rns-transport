@@ -4,7 +4,8 @@
 //! the announce and reads the emission second off the event. The field is bracketed by
 //! clock reads around the announce, the blob's last five bytes encode it big-endian, the
 //! accessor returns the same second for the learned address and `None` for an unknown one,
-//! and a re-announce a second later is strictly newer under a different blob.
+//! and a re-announce a second later is strictly newer under a different blob. The accessor
+//! is path-table state: `deregister_destination` leaves it standing, `expire_path` removes it.
 
 use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
 
@@ -130,6 +131,7 @@ async fn announce_event_exposes_the_emission_second_and_the_blob_that_encodes_it
         "emitted {} lies in the clock bracket {before}..={after}",
         first.emitted
     );
+    // Pins the public field's type as seen from outside the crate.
     let blob: [u8; RAND_HASH_LENGTH] = first.random_blob;
     assert_eq!(blob_emitted(&blob), first.emitted, "the blob encodes emitted");
     assert_eq!(
@@ -161,6 +163,15 @@ async fn announce_event_exposes_the_emission_second_and_the_blob_that_encodes_it
         Some(second.emitted),
         "the newest blob on file is the re-announce"
     );
+
+    assert!(connector.deregister_destination(&destination_hash).await, "the desc is removed");
+    assert_eq!(
+        connector.latest_announce_emitted(&destination_hash).await,
+        Some(second.emitted),
+        "dropping the desc leaves the path table entry standing"
+    );
+    assert!(connector.expire_path(&destination_hash).await, "the path table entry is removed");
+    assert_eq!(connector.latest_announce_emitted(&destination_hash).await, None);
 
     timeout(WAIT, connector.stop()).await.expect("connector stop completes");
     timeout(WAIT, listener.transport.stop()).await.expect("listener stop completes");

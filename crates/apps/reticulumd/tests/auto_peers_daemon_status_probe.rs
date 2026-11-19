@@ -21,9 +21,10 @@ const INTERFACE_NAME: &str = "auto-peers-probe";
 
 /// A daemon booted for one test: its storage, config and the RPC port it listens on.
 struct ProbeDaemon {
+    // Fields drop in declaration order: the daemon must die before its storage directory goes.
+    child: Daemon,
     _temp: tempfile::TempDir,
     rpc_port: u16,
-    child: Daemon,
 }
 
 fn boot_lonely_auto_daemon() -> ProbeDaemon {
@@ -45,7 +46,7 @@ fn boot_lonely_auto_daemon() -> ProbeDaemon {
     .expect("write the daemon config");
     let (transport_port, rpc_port) = reserve_two_tcp_ports();
     let child = start_daemon(temp.path(), &storage, &config, transport_port, rpc_port);
-    ProbeDaemon { _temp: temp, rpc_port, child }
+    ProbeDaemon { child, _temp: temp, rpc_port }
 }
 
 /// Polls `daemon_status_ex` until the auto interface's `carrier_runtime` object is
@@ -97,7 +98,12 @@ fn daemon_status_ex_carries_the_auto_peers_key_at_zero_for_a_lonely_auto_interfa
     thread::sleep(Duration::from_millis(2300));
     let again = rpc_status(daemon.rpc_port).expect("second daemon_status_ex");
     let again = auto_record(&again).expect("auto interface record on the second read");
-    assert_eq!(again["settings"]["_runtime"]["auto"]["carrier_runtime"]["peers"].as_u64(), Some(0));
+    let again = &again["settings"]["_runtime"]["auto"]["carrier_runtime"];
+    assert_eq!(
+        again["peers"].as_u64(),
+        Some(0),
+        "a lonely AutoInterface still reports zero peers a tick later: {again}"
+    );
 }
 
 fn auto_record(status: &Value) -> Option<&Value> {

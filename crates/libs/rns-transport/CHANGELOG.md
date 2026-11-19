@@ -85,7 +85,9 @@ Removed) bullet of its own, marked as such.
   with zero, no `peers=` token on the auto line when the key is absent,
   `peers=7` in the slot after `replaced=`, a null `peers` treated like an
   absent key, a non-u64 value (a string, a negative number or a float)
-  omitted, and a `u64::MAX` count printed in full).
+  omitted, and a `u64::MAX` count printed in full), and by the reticulumd
+  `auto_peers_daemon_status_probe` test (a real reticulumd with one auto
+  interface answering `daemon_status_ex` with `peers` present and `0`).
 - `transport::shared_instance_rpc` (`transport/shared_instance_rpc.rs`), a
   fork-only client of the rnsd shared instance's RPC listener, the
   `multiprocessing.connection.Listener` a Python shared instance opens at
@@ -105,8 +107,10 @@ Removed) bullet of its own, marked as such.
   private key, `RNS/Reticulum.py:360-361`; `Debug` prints
   `RpcKey(redacted)`); `RpcError` (`Connect(io::Error)` for the dial
   itself, `Authentication`, `Protocol(String)` for a malformed or oversized
-  frame or an io error after connect, `Decode(String)`,
-  `UnsupportedDigest(String)`, `InvalidKeyMaterial`, `Timeout`);
+  frame or an io error after connect (except the failure notice to a
+  server that has already hung up, which stays `Authentication`),
+  `Decode(String)`, `UnsupportedDigest(String)`, `InvalidKeyMaterial`,
+  `Timeout`);
   `InterfaceStats { interfaces, raw }` and `InterfaceStat { name,
   short_name, kind, online, peers, clients, rxb, txb, raw }` decoded from
   the `get_interface_stats` dict (`RNS/Reticulum.py:1405-1628`; `kind` is
@@ -143,7 +147,12 @@ Removed) bullet of its own, marked as such.
   arm, the `Error + Send + Sync` bound, the `RpcEndpoint` variants behind a
   wildcard arm, the endpoint defaults per OS, the key parsing, the `Send`
   future, the closed-port `Connect` and the README recipe's lines run, the
-  test supplying the endpoint), and by `python_shared_instance_rpc.rs` of
+  test supplying the endpoint),
+  `tests/shared_instance_rpc_departed_server.rs` (a stdlib-faithful mock
+  on a loopback socket: an honest server serves the reply, a one-byte and
+  a 200-byte key pass the handshake, and a server that answers our
+  challenge wrong and hangs up at once is `Authentication` every time,
+  never `Protocol`), and by `python_shared_instance_rpc.rs` of
   the reticulumd `python_channel_interop` binary (a live Python rnsd, RNS
   1.5.2, is the shared instance with one `AutoInterface` configured in a
   top-level `[interfaces]` section, `RNS/Reticulum.py:748-752`: the key
@@ -163,7 +172,11 @@ Removed) bullet of its own, marked as such.
   reply on the interface set, kinds, online flags, peer and client
   counts; the typed fields as projections of the raw per-interface maps;
   three back-to-back reads agreeing; and a zero budget surfacing as
-  `Timeout`, never a hang).
+  `Timeout`, never a hang), and by `python_stdlib_listener_rpc_probe.rs`
+  of the same binary (CPython's own `multiprocessing.connection.Listener`,
+  the class rnsd opens, run with a one-byte and a sixteen-byte `authkey`,
+  both passing the handshake through `from_hex`, and refusing a wrong key
+  with its own `#FAILURE#`, read as `Authentication`).
 
 ## 0.18.2 - 2026-11-16
 

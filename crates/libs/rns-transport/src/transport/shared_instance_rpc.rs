@@ -146,7 +146,8 @@ pub enum RpcError {
     Connect(#[source] std::io::Error),
     /// The server rejected our answer to its challenge with `#FAILURE#`
     /// (anything but `#WELCOME#`), or its answer to our challenge did not
-    /// verify, in which case we sent `#FAILURE#` ourselves.
+    /// verify, in which case we attempt to send `#FAILURE#` ourselves (a
+    /// notice a server that has already hung up never reads).
     #[error("shared instance rpc authentication failed")]
     Authentication,
     /// A malformed or oversized frame, or an io error after the connection

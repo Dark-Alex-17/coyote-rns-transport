@@ -809,8 +809,10 @@ by `tests/interface_peer_count_api.rs`,
 `tests/interface_peer_count_probe.rs`,
 `tests/auto_status_handle_peers_json_probe.rs`,
 `iface/auto_runtime_parts/tests_sections/auto_peer_count_pins.rs`,
-`iface/auto_runtime_parts/tests_sections/auto_peer_count_probe.rs` and the
-rns-tools `rnstatus_peers_cli` test.
+`iface/auto_runtime_parts/tests_sections/auto_peer_count_probe.rs`, the
+rns-tools `rnstatus_peers_cli` test and the reticulumd
+`auto_peers_daemon_status_probe` test (a real daemon with one auto
+interface answering `daemon_status_ex` with `peers` present and `0`).
 
 A `Tcp` endpoint whose address is not loopback is refused with
 `RnsError::SharedInstanceEndpointNotLoopback` before any lock is taken, with
@@ -919,11 +921,11 @@ derives from the same file rnsd reads; a configured `rpc_key`
 digits `bytes.fromhex` accepts, without its whitespace tolerance, and
 refuses an empty key where Python would run the listener with an empty
 `authkey` (`RNS/Reticulum.py:360-364`). The HMAC accepts a key of any
-length, so the key's strength is its length: give a configured `rpc_key`
-at least 16 bytes (32 hex digits). The endpoint follows
-`use_af_unix` (`RNS/Reticulum.py:353-358`, `:725-727`): on Linux and
-Android a shared instance of any type but `tcp` listens on the abstract
-unix socket `rns/<instance_name>/rpc`, which
+length, so a configured `rpc_key` is only as strong as its length and
+randomness: give it at least 16 random bytes (32 hex digits). The
+endpoint follows `use_af_unix` (`RNS/Reticulum.py:353-358`, `:725-727`):
+on Linux and Android a shared instance of any type but `tcp` listens on
+the abstract unix socket `rns/<instance_name>/rpc`, which
 `RpcEndpoint::for_instance("default")` names; everywhere else, and for a
 `tcp`-type shared instance on Linux, the listener is
 `RpcEndpoint::Tcp(127.0.0.1:<instance_control_port>)`, `127.0.0.1:37429`
@@ -959,9 +961,11 @@ takes one fresh connection and runs connect, handshake, request and reply
 under the one `Duration`; `RpcError::Connect` is the dial failing,
 `RpcError::Authentication` a key the server rejects (or a server that fails
 our challenge), `Protocol` a malformed or oversized frame or an io error
-after connect, `Decode` an unexpected reply shape, `UnsupportedDigest` a
-challenge digest outside the stdlib's allowed set, `InvalidKeyMaterial` a
-key that cannot be parsed or derived, and `Timeout` the budget running out.
+after connect (except the failure notice to a server that has already hung
+up, which stays `Authentication`), `Decode` an unexpected reply shape,
+`UnsupportedDigest` a challenge digest outside the stdlib's allowed set,
+`InvalidKeyMaterial` a key that cannot be parsed or derived, and `Timeout`
+the budget running out.
 The handshake is the stdlib's mutual HMAC exchange
 (`connection.py:917-1006`): the client answers the server's challenge and
 then delivers its own, in the modern `{digest}`-prefixed form a Python 3.12
@@ -981,7 +985,11 @@ negative frame headers, the digest lock and the stdlib known-answer vectors
 from `connection.py:917-942`, the key derivations and the decode shape
 rules) and `tests/shared_instance_rpc_api.rs` (the public surface, the
 `Send` future, the closed-port `Connect` and the recipe's lines, the test
-supplying the endpoint). The Python-in-the-loop proof is
+supplying the endpoint) and `tests/shared_instance_rpc_departed_server.rs`
+(a stdlib-faithful mock on a loopback socket: an honest server serves the
+reply, a one-byte and a 200-byte key pass the handshake, and a server that
+answers our challenge wrong and hangs up at once is `Authentication` every
+time, never `Protocol`). The Python-in-the-loop proof is
 `crates/apps/reticulumd/tests/python_channel_interop_parts/python_shared_instance_rpc.rs`
 of the reticulumd `python_channel_interop` binary: a Python `rnsd` (RNS
 1.5.2) runs one `AutoInterface` beside its shared instance, the key derived
@@ -992,7 +1000,12 @@ first reply after the listener binds (`RNS/Reticulum.py:363-367`, after
 key is `RpcError::Authentication` and the server goes on serving, a
 configured `rpc_key` is honoured by `RpcKey::from_hex` with the
 identity-derived key then refused, and on Linux `RpcEndpoint::for_instance`
-over the abstract socket reads the same.
+over the abstract socket reads the same. Beside it,
+`python_shared_instance_rpc_probe.rs` reads the same listener through
+Python's own `multiprocessing.connection.Client`, an independent oracle
+agreeing with the typed reply, and `python_stdlib_listener_rpc_probe.rs`
+runs CPython's own `multiprocessing.connection.Listener`, which takes a
+one-byte and a sixteen-byte key and refuses a wrong one.
 
 ## Known divergences from Python RNS
 

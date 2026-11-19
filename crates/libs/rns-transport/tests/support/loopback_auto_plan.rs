@@ -1,8 +1,7 @@
 //! An AutoInterface plan with one loopback discovery listener and one loopback data
 //! listener on fresh ports, no adopted devices and no initial peering wait, so a datagram
 //! from 127.0.0.1 reads as a remote peer at once; shared by the integration tests that
-//! spawn a loopback AutoInterface runtime. Returns the plan and the unicast discovery
-//! port to send to.
+//! spawn a loopback AutoInterface runtime.
 
 use std::time::Duration;
 
@@ -12,6 +11,7 @@ use rns_transport::iface::auto::{
 };
 use rns_transport::iface::auto_runtime::AutoRuntimePlan;
 
+/// Returns the plan and the unicast discovery port to send to.
 pub fn loopback_auto_plan(group_id: &str) -> (AutoRuntimePlan, u16) {
     let data_reservation = std::net::UdpSocket::bind((std::net::Ipv4Addr::LOCALHOST, 0))
         .expect("reserve data loopback UDP port");

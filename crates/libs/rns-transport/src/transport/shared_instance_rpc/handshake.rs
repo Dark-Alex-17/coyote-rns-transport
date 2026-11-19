@@ -256,7 +256,7 @@ where
     };
     if !verified {
         if let Err(err) = send_frame(stream, FAILURE).await {
-            log::debug!("shared instance rpc: failure notice not delivered err={err}");
+            log::debug!("shared instance rpc failure notice not delivered err={err}");
         }
         return Err(RpcError::Authentication);
     }

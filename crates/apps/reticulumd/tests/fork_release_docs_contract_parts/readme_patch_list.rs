@@ -397,6 +397,7 @@ fn crate_readme_shared_instance_section_describes_interface_peer_count() {
         "`iface/auto_runtime_parts/tests_sections/auto_peer_count_pins.rs`",
         "`iface/auto_runtime_parts/tests_sections/auto_peer_count_probe.rs`",
         "`rnstatus_peers_cli`",
+        "`auto_peers_daemon_status_probe`",
     ];
     for claim in shared_claims.into_iter().chain([
         "`Transport::interface_peer_count(&iface)`",
@@ -440,8 +441,9 @@ fn crate_readme_shared_instance_section_describes_interface_peer_count() {
 /// the one call, the endpoint and key constructors a consumer reaches for,
 /// the authentication error, the default TCP listener and the abstract
 /// socket name, the Python lines the listener, the peer count and the
-/// stdlib handshake are read from, the two test files that pin it and the
-/// Python-in-the-loop part that reads a live rnsd; the divergence register
+/// stdlib handshake are read from, the three test files that pin it and
+/// the Python-in-the-loop parts that read a live rnsd and CPython's own
+/// listener; the divergence register
 /// names the module as fork-only below the `Not divergences:` marker (API
 /// shape) and carries the key refusal above it as a real divergence, and
 /// the changelog section that carries the bullet names the same
@@ -463,7 +465,10 @@ fn crate_readme_rnsd_rpc_section_describes_the_client() {
         "`connection.py:917-1006`",
         "`src/transport/shared_instance_rpc/tests/mod.rs`",
         "`tests/shared_instance_rpc_api.rs`",
+        "`tests/shared_instance_rpc_departed_server.rs`",
         "`crates/apps/reticulumd/tests/python_channel_interop_parts/python_shared_instance_rpc.rs`",
+        "`python_shared_instance_rpc_probe.rs`",
+        "`python_stdlib_listener_rpc_probe.rs`",
     ] {
         assert!(
             section.contains(&squash(claim)),
@@ -501,7 +506,10 @@ fn crate_readme_rnsd_rpc_section_describes_the_client() {
         "`connection.py:917-1006`",
         "`src/transport/shared_instance_rpc/tests/mod.rs`",
         "`tests/shared_instance_rpc_api.rs`",
+        "`tests/shared_instance_rpc_departed_server.rs`",
         "`python_shared_instance_rpc.rs`",
+        "`python_shared_instance_rpc_probe.rs`",
+        "`python_stdlib_listener_rpc_probe.rs`",
     ] {
         assert!(changelog_section.contains(&squash(claim)), "the changelog should mention {claim}");
     }

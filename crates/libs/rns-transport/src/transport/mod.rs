@@ -217,6 +217,18 @@ pub struct AnnounceEvent {
     /// [`Transport::recv_announces`] and carries the flag. The flag is
     /// asserted by the peer that sent the announce, not verified locally.
     pub is_path_response: bool,
+    /// Emission time in whole seconds of the emitter's clock, decoded from
+    /// bytes 5..10 of the random blob (`RNS/Transport.py:2217`,
+    /// `RNS/Transport.py:3725-3726`). A transport relay replaying its stored
+    /// announce as a path response keeps it; a destination answering a path
+    /// request itself builds a fresh announce, so its own response is a
+    /// fresh emission.
+    pub emitted: u64,
+    /// The 10-byte random blob the announce carried: 5 random bytes, then
+    /// the 5-byte big-endian emission second (`RNS/Transport.py:2217`). One
+    /// of the blobs the path table keeps for the destination;
+    /// [`Transport::latest_announce_emitted`] reads the newest.
+    pub random_blob: [u8; crate::destination::RAND_HASH_LENGTH],
 }
 
 /// Shared transport state behind one `tokio::sync::Mutex`. The guard spans
@@ -443,6 +455,9 @@ mod resource_wire;
 // shared_instance: endpoint, options and connection-state events for attaching as a
 // shared-instance client.
 mod shared_instance;
+// shared_instance_rpc: client for the rnsd shared instance's multiprocessing RPC
+// (interface_stats).
+pub mod shared_instance_rpc;
 pub use crate::iface::events::{
     DialFailure, DialFailureKind, DisconnectReason, InterfaceEvent, InterfaceEventKind,
 };

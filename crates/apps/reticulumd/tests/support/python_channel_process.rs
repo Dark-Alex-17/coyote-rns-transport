@@ -32,6 +32,14 @@ struct PythonChannelClientConfig<'a> {
 }
 
 impl PythonChannelInteropPaths {
+    pub(super) fn python_bin(&self) -> &str {
+        &self.python_bin
+    }
+
+    pub(super) fn reticulum_py_repo(&self) -> &Path {
+        &self.reticulum_py_repo
+    }
+
     pub(super) fn resource_boundary_probe(&self) -> std::process::Output {
         Command::new(&self.python_bin)
             .arg("-u")

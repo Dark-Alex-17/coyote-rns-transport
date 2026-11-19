@@ -57,4 +57,31 @@ impl Transport {
     pub async fn interface_connect_count(&self, iface: &AddressHash) -> Option<u64> {
         self.iface_manager.lock().await.connected_streams(iface)
     }
+
+    /// Fork-only: how many peers the AutoInterface on `iface` currently
+    /// holds in its discovery peer table, what Python reports as
+    /// `len(interface.peers)` (`RNS/Reticulum.py:1501-1503`, over the dict
+    /// at `RNS/Interfaces/AutoInterface.py:126`) and rnstatus prints
+    /// (`RNS/Utilities/rnstatus.py:555-556`). The count rises as peers
+    /// authenticate and falls as the peer job expires them or an adopted
+    /// device is removed with its peers, so two reads may differ with no
+    /// event in between. A virtual child registered on the AutoInterface's
+    /// host channel answers its host's count. `None` collapses two cases:
+    /// no record in this transport's interface manager carries the address
+    /// (never minted, built with `InterfaceChannel::new` as tests do, or
+    /// already stopped and pruned), and the record carries no counter,
+    /// which is every interface kind other than an AutoInterface host and
+    /// its virtual children (TCP, UDP, serial, KISS, RNode, pipe and the
+    /// rest), the shared instance's interface, and a channel minted here
+    /// that no `InterfaceManager::set_peer_counter` call reached. Python
+    /// exposes the count only through rnstatus and its RPC; the fork also
+    /// exposes it in-process here. Nothing publishes 0 when the AutoInterface
+    /// runtime stops: the read keeps its last `Some(n)` until the manager
+    /// prunes the host record (`stop_interface`, `Transport::stop`, or the
+    /// next send that observes the closed queue), then `None`; a status
+    /// handle sharing the counter keeps reading `n` for as long as it lives.
+    #[deny(clippy::await_holding_invalid_type)]
+    pub async fn interface_peer_count(&self, iface: &AddressHash) -> Option<u64> {
+        self.iface_manager.lock().await.peer_count(iface)
+    }
 }

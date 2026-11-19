@@ -26,6 +26,671 @@ parity rows this file plus the crate README `## Known divergences from
 Python RNS` are the parity ledger; `docs/status/*` matrices are not updated
 per fork task.
 
+## 0.18.3 (upstream 0.14.0)
+
+Every file changed since the `0.18.2` release and the patch each change
+belongs to. Patch ids: O1 is auto peer count, O2 is rnsd rpc client, O3 is
+announce emitted. The `auto peer count` patch is fork commits `bc5a7e6c`,
+`457f50f1`, `5d8832e1`, `5d231b18`, `6c1b4008`, `33fc1137`, `ddf20ed9`,
+`34dda674`, `20077b93`, `72a2685a`, `c1c51fe2`, `4ff8b5ea`, `5b08f985`,
+`48b58e6a`, `430007e4`, `d891381b`, `1f895be2`, `8c203fa6`, `e6924ccf`,
+`e8d406b8` and `5fb81662`. The `rnsd rpc client` patch is fork commits
+`e5fed58f`, `2b2d59c1`, `48ea789e`, `eb520fad`, `d3267e30`, `1cd75940`,
+`70d36e15`, `48b58e6a`, `276ff531`, `430007e4`, `b73b592b`, `8c203fa6`,
+`e6924ccf` and `e2504f94`. The `Python-in-the-loop rnsd rpc interop` patch
+carries no other id and is fork commits `8870d19f`, `0efdadfa`, `238abaa3`,
+`839769d2`, `8a07c374`, `48b58e6a`, `276ff531`, `430007e4`, `18ec48d6`,
+`a2484437`, `1f895be2` and `8c203fa6`. The `announce emitted` patch is fork
+commits `02cc9498`, `21e11504`, `10f5e695`, `30994a51`, `7ea62b00`,
+`79cee904`, `6236b9e1` and `92fe44fd`. The `Python-in-the-loop announce
+emitted interop` patch carries no other id and is fork commits `30249310`
+and `10f5e695`. The `release 0.18.3` patch carries no other id and is fork
+commits `a2a548a7`, `27d866af`, `af9d5694`, `9c3cada9`, `844b8c7e`,
+`92fe44fd` and `384d685e`.
+
+| File | Patch |
+| --- | --- |
+| `Cargo.lock` | rnsd rpc client, release 0.18.3 |
+| `Cargo.toml` | rnsd rpc client, release 0.18.3 |
+| `crates/apps/reticulumd/Cargo.toml` | release 0.18.3 |
+| `crates/apps/reticulumd/src/bin/reticulumd/bootstrap_parts/module_core.rs` | auto peer count |
+| `crates/apps/reticulumd/tests/auto_peers_daemon_status_probe.rs` | auto peer count |
+| `crates/apps/reticulumd/tests/fork_publish_contract.rs` | auto peer count, release 0.18.3 |
+| `crates/apps/reticulumd/tests/fork_publish_contract_parts/hil_core_case_names_probe.rs` | auto peer count |
+| `crates/apps/reticulumd/tests/fork_publish_contract_parts/ledger_contract.rs` | auto peer count, release 0.18.3 |
+| `crates/apps/reticulumd/tests/fork_release_docs_contract.rs` | release 0.18.3 |
+| `crates/apps/reticulumd/tests/fork_release_docs_contract_parts/crate_readme_sections.rs` | rnsd rpc client |
+| `crates/apps/reticulumd/tests/fork_release_docs_contract_parts/readme_patch_list.rs` | auto peer count, rnsd rpc client, Python-in-the-loop rnsd rpc interop, announce emitted, release 0.18.3 |
+| `crates/apps/reticulumd/tests/fork_release_docs_contract_parts/release_0_18_1_probe.rs` | release 0.18.3 |
+| `crates/apps/reticulumd/tests/fork_release_docs_contract_parts/release_0_18_2_probe.rs` | release 0.18.3 |
+| `crates/apps/reticulumd/tests/fork_release_docs_contract_parts/release_0_18_3_probe.rs` | release 0.18.3 |
+| `crates/apps/reticulumd/tests/fork_release_docs_contract_parts/request_layer_api_docs.rs` | announce emitted |
+| `crates/apps/reticulumd/tests/python_channel_interop.rs` | Python-in-the-loop rnsd rpc interop, Python-in-the-loop announce emitted interop |
+| `crates/apps/reticulumd/tests/python_channel_interop_parts/python_shared_instance_announce_emitted.rs` | Python-in-the-loop announce emitted interop |
+| `crates/apps/reticulumd/tests/python_channel_interop_parts/python_shared_instance_live.rs` | Python-in-the-loop rnsd rpc interop |
+| `crates/apps/reticulumd/tests/python_channel_interop_parts/python_shared_instance_rpc.rs` | Python-in-the-loop rnsd rpc interop |
+| `crates/apps/reticulumd/tests/python_channel_interop_parts/python_shared_instance_rpc_probe.rs` | Python-in-the-loop rnsd rpc interop |
+| `crates/apps/reticulumd/tests/python_channel_interop_parts/python_stdlib_listener_rpc_probe.rs` | Python-in-the-loop rnsd rpc interop |
+| `crates/apps/reticulumd/tests/support/python_channel_process.rs` | Python-in-the-loop rnsd rpc interop |
+| `crates/apps/rns-tools/Cargo.toml` | release 0.18.3 |
+| `crates/apps/rns-tools/src/bin/shared/rnstatus.rs` | auto peer count |
+| `crates/apps/rns-tools/tests/rnstatus_cli.rs` | auto peer count |
+| `crates/apps/rns-tools/tests/rnstatus_peers_cli.rs` | auto peer count |
+| `crates/libs/rns-transport/CHANGELOG.md` | auto peer count, rnsd rpc client, Python-in-the-loop rnsd rpc interop, announce emitted, Python-in-the-loop announce emitted interop, release 0.18.3 |
+| `crates/libs/rns-transport/Cargo.toml` | rnsd rpc client, release 0.18.3 |
+| `crates/libs/rns-transport/README.md` | auto peer count, rnsd rpc client, Python-in-the-loop rnsd rpc interop, announce emitted, Python-in-the-loop announce emitted interop, release 0.18.3 |
+| `crates/libs/rns-transport/fuzz/Cargo.lock` | release 0.18.3 |
+| `crates/libs/rns-transport/src/iface/auto_parts/autodiscoverystate.rs` | auto peer count |
+| `crates/libs/rns-transport/src/iface/auto_parts/multicastaddresstype.rs` | auto peer count |
+| `crates/libs/rns-transport/src/iface/auto_runtime_parts/autoruntimeplan.rs` | auto peer count |
+| `crates/libs/rns-transport/src/iface/auto_runtime_parts/autoruntimeplan_sections/discovery_helpers.rs` | auto peer count |
+| `crates/libs/rns-transport/src/iface/auto_runtime_parts/autoruntimeplan_sections/peer_counter_wiring.rs` | auto peer count |
+| `crates/libs/rns-transport/src/iface/auto_runtime_parts/autoruntimeplan_sections/runtime_json.rs` | auto peer count |
+| `crates/libs/rns-transport/src/iface/auto_runtime_parts/module_prelude.rs` | auto peer count |
+| `crates/libs/rns-transport/src/iface/auto_runtime_parts/plan_builder.rs` | auto peer count |
+| `crates/libs/rns-transport/src/iface/auto_runtime_parts/tests.rs` | auto peer count |
+| `crates/libs/rns-transport/src/iface/auto_runtime_parts/tests_sections/auto_peer_count_pins.rs` | auto peer count |
+| `crates/libs/rns-transport/src/iface/auto_runtime_parts/tests_sections/auto_peer_count_probe.rs` | auto peer count |
+| `crates/libs/rns-transport/src/iface/auto_runtime_parts/tests_sections/core_tests.rs` | auto peer count |
+| `crates/libs/rns-transport/src/iface/local.rs` | rnsd rpc client |
+| `crates/libs/rns-transport/src/iface_parts/interfacemanager.rs` | auto peer count |
+| `crates/libs/rns-transport/src/iface_parts/interfacemanager_events.rs` | auto peer count |
+| `crates/libs/rns-transport/src/iface_parts/txmessagetype.rs` | auto peer count |
+| `crates/libs/rns-transport/src/transport/announce.rs` | announce emitted |
+| `crates/libs/rns-transport/src/transport/core_parts/interface_events.rs` | auto peer count |
+| `crates/libs/rns-transport/src/transport/links_parts/transport_sections/close_channel.rs` | announce emitted |
+| `crates/libs/rns-transport/src/transport/mod.rs` | rnsd rpc client, announce emitted |
+| `crates/libs/rns-transport/src/transport/shared_instance_rpc.rs` | rnsd rpc client |
+| `crates/libs/rns-transport/src/transport/shared_instance_rpc/decode.rs` | rnsd rpc client |
+| `crates/libs/rns-transport/src/transport/shared_instance_rpc/framing.rs` | rnsd rpc client |
+| `crates/libs/rns-transport/src/transport/shared_instance_rpc/handshake.rs` | rnsd rpc client |
+| `crates/libs/rns-transport/src/transport/shared_instance_rpc/tests/mock_server.rs` | rnsd rpc client |
+| `crates/libs/rns-transport/src/transport/shared_instance_rpc/tests/mod.rs` | rnsd rpc client |
+| `crates/libs/rns-transport/src/transport/tests.rs` | announce emitted |
+| `crates/libs/rns-transport/src/transport/tests_parts/two_transport_loopback_announce_emitted.rs` | announce emitted |
+| `crates/libs/rns-transport/tests/announce_emitted_api.rs` | announce emitted |
+| `crates/libs/rns-transport/tests/announce_emitted_probe.rs` | announce emitted |
+| `crates/libs/rns-transport/tests/auto_status_handle_peers_json_probe.rs` | auto peer count |
+| `crates/libs/rns-transport/tests/interface_peer_count_api.rs` | auto peer count |
+| `crates/libs/rns-transport/tests/interface_peer_count_probe.rs` | auto peer count |
+| `crates/libs/rns-transport/tests/shared_instance_rpc_api.rs` | rnsd rpc client |
+| `crates/libs/rns-transport/tests/shared_instance_rpc_departed_server.rs` | rnsd rpc client |
+| `crates/libs/rns-transport/tests/shared_instance_rpc_departed_server_python_probe.rs` | rnsd rpc client |
+| `crates/libs/rns-transport/tests/support/loopback_auto_plan.rs` | auto peer count |
+| `docs/fork/PATCHSET.md` | auto peer count, rnsd rpc client, Python-in-the-loop rnsd rpc interop, announce emitted, Python-in-the-loop announce emitted interop, release 0.18.3 |
+| `docs/getting-started.md` | release 0.18.3 |
+| `tests/hil/cases/core.toml` | auto peer count |
+
+Fork commits `bc5a7e6c`, `457f50f1`, `5d8832e1`, `5d231b18`, `6c1b4008`,
+`33fc1137`, `ddf20ed9`, `34dda674`, `20077b93`, `72a2685a`, `c1c51fe2`,
+`4ff8b5ea`, `5b08f985`, `48b58e6a`, `430007e4`, `d891381b`, `1f895be2`,
+`8c203fa6`, `e6924ccf`, `e8d406b8` and `5fb81662`:
+O1, auto peer count.
+Upstream site: `InterfaceManager::register_virtual_iface` in
+`crates/libs/rns-transport/src/iface_parts/interfacemanager.rs` and the
+private `LocalInterface` record in
+`crates/libs/rns-transport/src/iface_parts/txmessagetype.rs`, which carried
+an online flag and a connected-streams counter per interface but nothing
+about discovery peers; `AutoPeerTable` in
+`crates/libs/rns-transport/src/iface/auto_parts/multicastaddresstype.rs`,
+which held the peers as a map readable only through the discovery state;
+`AutoRuntimeStatusHandle::from_startup_plan` in
+`crates/libs/rns-transport/src/iface/auto_runtime_parts/plan_builder.rs`;
+and the spawn in
+`crates/libs/rns-transport/src/iface/auto_runtime_parts/autoruntimeplan_sections/runtime_json.rs`,
+which built the discovery state and wrapped it in a mutex the runtime
+tasks alone could reach. Python reports the AutoInterface peer count as
+`len(interface.peers)` (`RNS/Reticulum.py:1501-1503`, over the dict at
+`RNS/Interfaces/AutoInterface.py:126`) and rnstatus prints it
+(`RNS/Utilities/rnstatus.py:555-556`); the fork had no way to read it
+outside the runtime. `bc5a7e6c` gives `AutoPeerTable` an
+`Arc<AtomicU64>` kept equal to its length, stored with `Release` after
+every `observe_peer` insert, `expire_stale` and `remove_by_ifname`, with
+`peer_counter` and `set_peer_counter` forwarded by `AutoDiscoveryState`;
+adds an optional peer counter to `LocalInterface`, which
+`InterfaceManager::set_peer_counter` (pub) installs on a host and the
+virtual children already registered on it, `register_virtual_iface`
+copies to later children, and `InterfaceManager::peer_count` and
+`Transport::interface_peer_count` read, `None` when no record carries the
+address or the record carries no counter (every interface kind other than
+an AutoInterface host and its virtual children, the shared instance's
+interface and a channel built with `InterfaceChannel::new`); mints the
+counter in
+`AutoRuntimeStatusHandle::from_startup_plan` beside the inner mutex so
+every clone shares it, with `peer_counter` and `peer_count` accessors; and
+has the spawn adopt the handle's counter into the discovery state before
+wrapping it and install it on the bridge's host channel under one manager
+lock, in `peer_counter_wiring.rs`. The discovery helpers
+(`discovery_state`, `process_discovery_datagram`,
+`process_peer_data_datagram`) move from `runtime_json.rs` to
+`discovery_helpers.rs` so the spawn module stays under the module-size
+budget, and their `dead_code` allowances are dropped. The change is
+additive, so cargo semver-checks reports nothing. The same commit adds
+`tests_sections/auto_peer_count_pins.rs`, included from
+`auto_runtime_parts/tests.rs`: the host channel reads `Some(0)` once the
+counter is installed, `Some(1)` after an admitted discovery datagram and
+`Some(0)` again after the peer expires, a virtual child registered after
+the install reads the same, an uncounted channel reads `None`, a status
+handle whose counter the state adopts reads the same length, and a
+spawned loopback runtime publishes an admitted peer through its handle;
+and `tests/interface_peer_count_api.rs`, which reads `None` for a plain
+TCP client before and after the listener accepts, for the shared
+instance's interface and for a channel built with `InterfaceChannel::new`,
+`Some(n)` once the public setter installs a counter, both an earlier and a
+later virtual child sharing the host's count through the transport, and
+`None` for every address once the transport stops. `457f50f1` reopens the
+crate CHANGELOG with an `## Unreleased` section whose Added bullet
+documents `Transport::interface_peer_count` and the counter plumbing
+behind it, and extends the full-hash ledger pin in `ledger_contract.rs`
+to this reopened section beside the released ones. `5d8832e1` adds a
+second spawned loopback pin to `auto_peer_count_pins.rs` that passes a
+transport runtime, so the spawn's install on the bridge's host record is
+itself proven (`Some(0)` after the spawn, `Some(1)` with the handle once a
+peer is admitted, the same through the bridge's virtual child, still
+`Some(1)` after stop), plus two table-level pins across `remove_by_ifname`
+and a counter swap; it makes `set_peer_counter` return `false` before
+touching any record when the host is missing, narrows the handle's
+`peer_counter` to the crate, and tightens the docs and CHANGELOG wording.
+`5d231b18` adds a `"peers"` key, always present and equal to `peer_count`,
+beside `last_peer_job` in `AutoRuntimeStatusHandle::to_json` in
+`plan_builder.rs`, which reticulumd's status refresher already copies into
+`_runtime.auto.carrier_runtime` of `daemon_status_ex` and which rnstatus-rs
+(`crates/apps/rns-tools/src/bin/shared/rnstatus.rs`) prints as `peers=N`
+on the auto line through its existing optional-u64 helper; it pins the key
+riding through the refresh in `bootstrap_parts/module_core.rs`, documents
+last-value retention after stop on `Transport::interface_peer_count`,
+`InterfaceManager::peer_count` and `AutoRuntimeStatusHandle::peer_count`,
+and extends the post-stop pin in `auto_peer_count_pins.rs` so that after
+`runtime.stop()` the host record is asserted to survive in the manager's
+`interface_hashes` and the counter to hold its last value (the manager
+`Some(1)`, the handle `1`); the pruned record's `None` through
+`stop_interface` is pinned separately in
+`tests/interface_peer_count_probe.rs`. `6c1b4008` adopts nine probes, six
+in `tests/interface_peer_count_probe.rs` (a public discovery state driving
+a host count through add, refresh and expiry, a
+clone sharing the counter, two hosts kept separate, a later install
+replacing host and children, a stopped child keeping the host count while
+a stopped host reads `None`, an install aimed at a child touching only that
+child) and three in `tests_sections/auto_peer_count_probe.rs` (a spawn
+without a handle installing the state's counter on the bridge host, a
+spawned runtime alone reading zero across an announce interval, and an
+ignored slow expiry test). `33fc1137` adds the README shared-instance
+paragraph and divergence-register bullet for the count, extends the
+CHANGELOG Added bullet with the key, the `false` path, the spawn adoption
+and the stop behaviour, and pins both in `readme_patch_list.rs`. `ddf20ed9`
+adopts two consumer probes, `tests/auto_status_handle_peers_json_probe.rs`
+(the `"peers"` key read from outside the crate as u64: `0` on a fresh
+handle, `1` together with `Transport::interface_peer_count` once a loopback
+peer is admitted, a clone agreeing, still `1` after stop while the transport
+reads `Some(1)` until `stop_interface` prunes the host, then `None` with
+the handle still `1`) and the rns-tools `rnstatus_peers_cli` test
+(`peers=0` printed when the key is present with zero, no `peers=` token
+when the key is absent, `peers=7` in the slot after `replaced=`), pins the
+changelog's spawn-adoption claim in `readme_patch_list.rs`, and tightens
+the pin comments, rustdoc wrapping, README qualifier and CHANGELOG cite.
+`34dda674` corrects the `interface_peer_count` rustdoc to name the prune
+paths it found (`AutoDiscoveryRuntime::stop` never binds the host record's
+stop token, so `stop_interface`, `stop` and `detach_shared_instance` cancel
+it and a send finding the stopped runtime's tx queue closed drops the
+record; "no timer does") and pins the surviving record with a post-stop
+`cleanup()` pass in `auto_peer_count_pins.rs`, re-partitions the README
+and CHANGELOG `None` cases to match, adds the never-null `"peers"` clause
+to the divergence register, gates the probe's unix-only imports with
+`cfg(unix)` and asserts `peers` rides through the rnstatus `--json`
+passthrough.
+`20077b93` drops `detach_shared_instance` from that list: the shared
+instance's interface is a TCP or unix client, never an AutoInterface host,
+so detaching it cannot reach the host record. `72a2685a` corrects the
+timer claim: the announce-retransmit job's `release_queued_announces` also
+calls `cleanup_closed_tx_queues` when a released announce meets a closed
+queue, and that pass retains on `!tx_send.is_closed()`, so any send or
+queued-announce release that observes one closed queue drops every
+closed-queue record at once; the rustdoc now names `Transport::stop`
+explicitly and says no pass drops the record merely because the runtime
+stopped. It pins the prune with a post-cleanup broadcast send in
+`auto_peer_count_pins.rs` that reads `None` for the host while the handle
+keeps `1`, adopts three `rnstatus_peers_cli` edge probes (a null `peers`
+treated like an absent key, a non-u64 value omitted, `u64::MAX` printed
+in full) into the CHANGELOG enumeration and re-wraps one over-long
+README line. `c1c51fe2` reads the `RNS/Reticulum.py:1501-1503` cite
+exactly in the README divergence register and the null-`peers` test doc:
+Python emits `peers` only for an interface carrying a `peers` attribute
+and writes `None` only when that attribute is itself `None`, which no RNS
+1.5.2 interface does; it rewords `InterfaceManager::peer_count` to the
+record carrying `address`, asserts the host's absence and the child's
+`None` after the closed-queue prune, moves the rnstatus unit fixture's
+auto `peers` to 4 so the UDP `peers=2` assertion stays discriminating,
+and adds the closed-queue clause to the CHANGELOG pin enumeration.
+`4ff8b5ea` hoists the three copies of the loopback AutoInterface plan
+builder into one in-crate `loopback_runtime_plan` in
+`tests_sections/core_tests.rs`, shared by the restart test and the peer
+count pins, and one black-box `tests/support/loopback_auto_plan.rs`
+included by `tests/auto_status_handle_peers_json_probe.rs`, and binds
+every host `InterfaceChannel` the peer count tests mint for the test's
+lifetime, so the manager's closed-queue cleanup cannot prune the record
+mid-test. `5b08f985` adopts `tests/auto_peers_daemon_status_probe.rs`: a
+real reticulumd booted with one `type = "auto"` interface answers
+`daemon_status_ex` with the `"peers"` key under
+`interfaces[].settings._runtime.auto.carrier_runtime`, present and `0`,
+steady across a refresh tick. `48b58e6a` makes the README and CHANGELOG
+pin lists in `readme_patch_list.rs` share one claim set, splits the
+register assertion at the `Not divergences:` marker so the peer count is
+checked below it, cites `RNS/Interfaces/WeaveInterface.py:867` beside
+`AutoInterface.py:126` as the other interface with a `peers` attribute in
+the README register and the `rnstatus_peers_cli` test doc, names
+`Transport::stop` as the prune in the CHANGELOG's api pin clause, and
+trims the `interface_peer_count` rustdoc's prune mechanics to the
+observable rule. `430007e4` has the `ProbeDaemon` of
+`auto_peers_daemon_status_probe.rs` drop its daemon before its storage
+directory and print the record from its steady-state assertion, names the
+probe in the README and CHANGELOG pin lists and the `readme_patch_list.rs`
+claim set, and moves the `loopback_auto_plan` contract from the module doc
+onto the function. `d891381b` gives the slow
+`spawned_runtime_counts_down_when_the_admitted_peer_times_out` pin a
+runner: the `auto-peer-count-timeout` case of `tests/hil/cases/core.toml`
+(suite `core`, virtual profile, pr, nightly and release levels) runs it
+with `--ignored`, as the hil `python-channel-interop` case runs the
+Python-checkout ignores. `1f895be2` has the daemon status probe reserve a
+discovery port below `u16::MAX`, since the daemon derives the unicast
+discovery port one above it. `8c203fa6` has the peer count probe header
+name `core_tests.rs` as the home of `loopback_runtime_plan`, and runs the
+register checks of `readme_patch_list.rs` on whitespace-squashed halves
+like its sibling claims. `e6924ccf` has the probe's reservation loop also
+reject a discovery port one below the data port, since the daemon binds
+the derived unicast discovery port reusably and the data port plainly.
+`e8d406b8` has the slow test's ignore reason name its runner, `slow
+(about 30 s): run by the hil core case auto-peer-count-timeout`, with the
+matrix file and levels in its doc comment. `5fb81662` adds
+`fork_publish_contract_parts/hil_core_case_names_probe.rs`, included from
+`fork_publish_contract.rs`: every `core.toml` case running `cargo test -p
+coyote-rns-transport --lib <name>` must name a `fn` defined under the
+crate's sources (`cargo test` exits 0 on a filter that matches nothing),
+and a case that runs an ignored test must be named by that test's ignore
+reason.
+
+Fork commits `e5fed58f`, `2b2d59c1`, `48ea789e`, `eb520fad`, `d3267e30`,
+`1cd75940`, `70d36e15`, `48b58e6a`, `276ff531`, `430007e4`, `b73b592b`,
+`8c203fa6`, `e6924ccf` and `e2504f94`:
+O2, rnsd rpc client.
+Upstream site: the shared-instance client module
+`crates/libs/rns-transport/src/transport/shared_instance.rs`, beside which
+the new `transport::shared_instance_rpc` module (public, declared in
+`crates/libs/rns-transport/src/transport/mod.rs`) is placed, and
+`LocalUnixEndpoint::tokio_path` in
+`crates/libs/rns-transport/src/iface/local.rs`, private until now and
+widened to `pub(crate)` so the RPC client can dial the abstract socket the
+way the unix interface client does. A Python shared instance opens a
+`multiprocessing.connection.Listener` beside its interface socket
+(`RNS/Reticulum.py:363-367`) and serves rnstatus's `interface_stats` query
+from `rpc_loop` (`RNS/Reticulum.py:1274-1334`, the client side at
+`:1397-1402`); the fork had no way to read a running rnsd's interface
+table, peer counts included (`RNS/Reticulum.py:1501-1503`), from Rust.
+`e5fed58f` adds `shared_instance_rpc.rs` with `RpcEndpoint` (`Tcp`, and
+`Unix` on unix targets; `default_tcp()` is `127.0.0.1:37429` and
+`for_instance(name)` is the abstract socket `rns/{name}/rpc` on Linux and
+Android, `default_tcp()` elsewhere, mirroring `use_af_unix` at
+`RNS/Reticulum.py:353-358` and `:725-727`), `RpcKey` (`from_hex` for a
+configured `rpc_key`, `RNS/Reticulum.py:499-505`;
+`from_transport_identity_file` for the default SHA-256 of the 64-byte
+private key, `:360-361`; a redacting `Debug`), the seven-variant
+`RpcError`, `InterfaceStats` and `InterfaceStat` with typed fields and the
+raw msgpack beside them, and `interface_stats(endpoint, key, timeout)`,
+one fresh connection under one budget. The private submodules carry the
+stdlib wire protocol: `framing.rs` reads and writes the signed 32-bit,
+optionally 64-bit, length-prefixed frame of `connection.py:427-458` with
+the length checked against a cap before allocation; `handshake.rs` runs
+the client half of the mutual HMAC exchange (`connection.py:557-559`,
+`:917-1006`), answering the server's challenge in the modern `{digest}`
+form or the legacy raw HMAC-MD5 form and delivering its own in the same
+form, over a `Digest` table of the stdlib's five allowed digests (hence
+the two new workspace dependencies `md-5` and `sha3`); `decode.rs` maps
+the reply dict (`RNS/Reticulum.py:1405-1628`) onto the structs, with
+`peers` and `clients` reading `None` for an absent or nil key. The change
+is additive, so cargo semver-checks reports nothing. The same commit adds
+the in-crate tests under `shared_instance_rpc/tests/` (a TCP-loopback mock
+server speaking the server half of the handshake, parameterised on the
+modern and legacy forms, with the client's frames recorded; the
+wrong-key, bad-answer, unsupported-digest, truncated, oversized, silent
+and short-challenge failures; the key derivations; the decode shape
+rules), the black-box `tests/shared_instance_rpc_api.rs` (the public
+surface, the `Send` future, the closed-port `Connect` and the README
+recipe verbatim), the README section `## Reading rnsd's interface
+statistics` with its divergence-register bullet, and the new API test's
+entry in the README snippet pin list of `crate_readme_sections.rs`.
+`2b2d59c1` adds a known-answer test to `shared_instance_rpc/tests/mod.rs`
+that pins the `Digest` table's MACs and prefixes, modern and legacy, to
+vectors produced by CPython's `_create_response` (`connection.py:917-942`),
+so the Python side of the exchange is asserted independently of our own
+server fixture.
+`48ea789e` gives the mock server a unix listener and pins the `Unix`
+connect arm over a filesystem socket and, on Linux and Android, the
+abstract name; pins the wide (`-1`) and negative frame headers, a
+non-challenge first frame, a prefix-less challenge body and an undecodable
+reply; pins the digest lock (a correct MAC under a digest other than the
+one challenged is refused); escapes the server's digest name in
+`UnsupportedDigest`; moves the authentication-failure warn from
+`handshake.rs` to the caller, where it names the endpoint and never the
+key; and adds the README prose pin for the section to `readme_patch_list.rs`,
+beside the peer-count pin, with the `from_hex` and recipe wording tightened.
+`eb520fad` pins `RpcEndpoint`'s `non_exhaustive` with a wildcard-arm match
+in the API test, replaces the mock server's absence-of-request assertions
+with an observed hang-up after `#FAILURE#`, and pins a legacy answer to a
+modern challenge, the 16 MiB reply cap and a hand-built big-endian frame
+header; the README gains the stdlib client's always-`{sha256}` challenge
+and the dial-the-bound-endpoint sentence, and the key refusal moves out of
+the `Not divergences` bullet into its own divergence-register entry beside
+the legacy-form challenge.
+`d3267e30` pins the whitespace key refusal the divergence bullet advertises
+and the empty `{}` digest prefix (now `Protocol`, not `UnsupportedDigest`),
+replaces the encoded-at-runtime request with the constant msgpack bytes of
+`{"get": "interface_stats"}`, folds the mock's reply override into a `Reply`
+enum, and states the four `non_exhaustive` items in the README and CHANGELOG.
+`1cd75940` has `deliver_challenge` return `RpcError::Authentication` even
+when the `#FAILURE#` notice cannot be written to a server that has already
+hung up (the write error is logged at debug), where it previously
+surfaced that io error as `Protocol`, and drops the unreachable
+`InvalidKeyMaterial` arm from the HMAC helpers, since hmac 0.12
+`new_from_slice` accepts a key of any length; `mac`, `verify_mac` and the
+generic helpers are now infallible. Pinned by a mock `Answer::WrongThenHangUp`
+and an in-memory duplex whose far end is dropped before the notice.
+`70d36e15` pins the `{digest}` window edge of `parse_message` (an
+eight-letter name is `UnsupportedDigest`, a nine-letter one `Protocol`,
+`connection.py:906-907`), adds the even-length `"ab cd "` vector so the
+whitespace refusal is reached past the odd-length check, and documents
+that `Answer::OtherDigest(Digest::Md5)` goes out in the legacy shape.
+`48b58e6a` moves the register assertions in `readme_patch_list.rs` to the
+`Not divergences:` split (the typed client below the marker, the key
+refusal above it) and adds to the README: `for_instance` returning
+`default_tcp()` off Linux and Android, a 16-byte floor for a configured
+`rpc_key`, "in this batch" on the Python-only server statement, and the
+loopback-guard asymmetry between `attach_shared_instance` and
+`RpcEndpoint::Tcp`, which dials the address given as rnstatus's own
+`multiprocessing.connection.Client` does (`RNS/Reticulum.py:1397-1402`).
+`276ff531` adds `tests/shared_instance_rpc_departed_server.rs`, a
+stdlib-faithful mock on a loopback socket: an honest server serves the
+reply, a one-byte and a 200-byte key pass the handshake, and a server that
+answers our challenge wrong and closes at once (a FIN, as a Python
+`Connection.close()` is) reads as `Authentication` sixteen times out of
+sixteen; pins `mac` and `verify_mac` round-tripping a one-byte and a
+200-byte key on every digest, so the dropped `InvalidKeyMaterial` arm is
+shown unreachable rather than turned into a panic; and asserts
+`for_instance` returns `default_tcp()` off Linux and Android whatever the
+name. `430007e4` has the README, the CHANGELOG and the
+`RpcError::Authentication` rustdoc say that the failure notice to a server
+that has already hung up stays `Authentication`, names randomness beside
+length in the `rpc_key` sentence, lists the departed-server test beside
+`tests/shared_instance_rpc_api.rs`, and puts the undelivered-notice debug
+line in the module's key=value style. `b73b592b` adds
+`tests/shared_instance_rpc_departed_server_python_probe.rs`: CPython's own
+`multiprocessing.connection` `deliver_challenge` and `answer_challenge`
+serve a raw loopback socket in three modes, honest (serves the reply), a
+FIN after a wrong answer and a reset (`SO_LINGER 0`) after a wrong answer,
+the last two reading as `Authentication` twelve times out of twelve; the
+reset makes the `#FAILURE#` write fail outright (EPIPE on every round),
+which a FIN never does on loopback, so the Rust FIN mock's header now
+calls itself a departed-server exercise and names the in-crate duplex test
+`failure_notice_on_a_broken_pipe_is_still_authentication` as the pin of
+record; that test declares the current-thread flavor its comment relied
+on. Needs `python3` (or `LXMF_PYTHON_BIN`), stdlib only, and is not
+ignored, as the crate's other stdlib-only Python helpers are not.
+`8c203fa6` has the README and CHANGELOG say the same about the FIN mock
+and the pin of record, holds both to it in `readme_patch_list.rs`, gives
+`RpcError::Protocol` the carve-out its `Authentication` sibling carries,
+and in the README register says "as of this release" and reflows two
+orphan lines. `e6924ccf` has the Rust FIN mock's comment point at the
+CPython probe for the reset variant, where the client's `#FAILURE#` write
+and not its read is what fails. `e2504f94` keeps that probe's reset test
+off Windows, where WinSock drops the receive queue on a reset and the
+client's read of the wrong answer fails first, reading as `Protocol`: a
+platform rendering of the reset, not a client defect.
+
+Fork commits `8870d19f`, `0efdadfa`, `238abaa3`, `839769d2`, `8a07c374`,
+`48b58e6a`, `276ff531`, `430007e4`, `18ec48d6`, `a2484437`, `1f895be2` and
+`8c203fa6`:
+Python-in-the-loop rnsd rpc interop.
+A Python rnsd (RNS 1.5.2) is the shared instance on a free TCP port with
+one `AutoInterface` configured in a top-level `[interfaces]` section, the
+section Python reads configured interfaces from
+(`RNS/Reticulum.py:748-752`), and the reticulumd `python_channel_interop`
+binary reads its interface statistics through the O2 client:
+`crates/apps/reticulumd/tests/python_channel_interop_parts/python_shared_instance_rpc.rs`,
+included from `crates/apps/reticulumd/tests/python_channel_interop.rs`,
+waits for the `Started shared instance interface` line and for
+`storage/transport_identity` to hold its 64 bytes, derives the default key
+from that file (`RNS/Reticulum.py:360-361`), and polls `interface_stats` with a
+refused dial and a reset mid-handshake retried for up to 15 s, since rnsd
+binds the listener only after `Transport.start`, itself after the
+AutoInterface's peering wait (`RNS/Reticulum.py:351-367`, `:1009`,
+`RNS/Interfaces/AutoInterface.py:327-348`). The first reply, served by
+`rpc_loop` to the request rnstatus sends (`RNS/Reticulum.py:1274-1334`,
+`:1397-1402`), carries the `AutoInterface` entry online with `peers`
+`Some(0)` and the `LocalServerInterface` entry with `peers` `None`
+(`RNS/Reticulum.py:1501-1503`); a wrong key is `RpcError::Authentication`
+and the server serves the next connection; a configured `rpc_key`
+(`RNS/Reticulum.py:499-505`) is honoured by `RpcKey::from_hex` and the
+identity-derived key is then refused; and on Linux a unix-type instance is
+read through `RpcEndpoint::for_instance` over the abstract socket, the
+control port unused (`RNS/Reticulum.py:353-358`, `:725-727`). The live
+harness `python_shared_instance_live.rs` gains `config_with_interfaces`,
+which appends a caller-written top-level section after `[logging]`,
+`with_reticulum_line`, and on Linux the unix instance's name. The
+AutoInterface takes a free `data_port`: the default `42671` is bound
+without address reuse (`RNS/Interfaces/AutoInterface.py:334-337`) and the
+bind error reaches the interface catch-all that panics rnsd
+(`RNS/Reticulum.py:1120-1124`), so a host rnsd on it would take the whole
+instance down; the discovery sockets set `SO_REUSEPORT` and keep their
+defaults, and a unique `group_id` keeps any other node from peering.
+`0efdadfa` names the proof in the README RPC section and adds it to the
+section's pin in `readme_patch_list.rs`. `238abaa3` has the identity wait
+end when the file holds its 64 bytes rather than when it exists, since
+Python opens it and then writes it (`RNS/Identity.py:665-666`), and
+states the rnsd panic in the `data_port` comment and the configured-only
+reading of `[interfaces]` in the harness comment. `839769d2` has the
+entry doc say the `LocalServerInterface` entry carries no `peers` key at
+all, rather than a nil one, and the README sentence say the
+identity-derived key is refused once `rpc_key` is configured.
+`8a07c374` has the poll `try_wait` the rnsd child on every retry and fail
+at once with its exit status, runs the whole poll under one
+`tokio::time::timeout`, pins the integer `rxb`/`txb` totals and each
+typed entry's byte counters against its raw map, hoists the shared
+`coyote-live-<pid>-<nanos>` tag into `live_run_tag()` in
+`python_shared_instance_live.rs`, exposes `python_bin()` and
+`reticulum_py_repo()` on `PythonChannelInteropPaths` in
+`tests/support/python_channel_process.rs`, and adds
+`python_shared_instance_rpc_probe.rs`, included from
+`python_channel_interop.rs`: Python's own `multiprocessing.connection.Client`
+(`RNS/Reticulum.py:1397-1402`) reads the same listener as an independent
+oracle and agrees with the typed reply; the typed fields are projections
+of the raw maps; three reads agree; a zero budget returns at once, as
+`Timeout` or as the reply when the loopback exchange beats the timer's
+first tick (`a2484437`, after one run in six saw the reply). `48b58e6a`
+names the probe part in the CHANGELOG's Python-in-the-loop clause.
+`276ff531` adds `python_stdlib_listener_rpc_probe.rs`, included from
+`python_channel_interop.rs`: CPython's own
+`multiprocessing.connection.Listener`, the class rnsd opens
+(`RNS/Reticulum.py:363-367`), run on its own with a one-byte and a
+sixteen-byte `authkey` and a canned `get_interface_stats`-shaped reply,
+takes both keys through `RpcKey::from_hex`, refuses a wrong one with its
+own `#FAILURE#` read as `Authentication`, and serves the next correct dial;
+it also has the two probe parts name `std::process` paths in full and the
+read after the abandoned zero-budget dial go through the reset-tolerant
+poll. `430007e4` names the listener probe in the README and CHANGELOG
+Python-in-the-loop clauses and the `readme_patch_list.rs` claim lists;
+`18ec48d6` folds that poll call onto rustfmt's line. `1f895be2` has
+`identity_key` poll under one timeout and `try_wait` the rnsd child on
+every miss through the helper `poll_interface_stats` shares, failing at
+once with the exit status. `8c203fa6` lists the CPython probe beside the
+Python-in-the-loop parts in the README and CHANGELOG claim lists.
+Upstream site: test files only.
+
+Fork commits `02cc9498`, `21e11504`, `10f5e695`, `30994a51`, `7ea62b00`,
+`79cee904`, `6236b9e1` and `92fe44fd`:
+O3, announce emitted.
+Upstream site: `AnnounceEvent` in
+`crates/libs/rns-transport/src/transport/mod.rs`, which carried the
+destination, the app data, the ratchet, the name hash, the hops, the
+interface and the path-response flag but not the emission second or the
+random blob the announce arrived with; its single construction site in
+`crates/libs/rns-transport/src/transport/announce.rs`, which read the blob
+only to feed the path table; and the timebase helpers
+`random_blob_timebase` and `newest_random_blob_timebase` in
+`crates/libs/rns-transport/src/transport/path_table_codec.rs`, which fed
+path replacement alone and reached no public surface. Python decodes the
+emission second of every announce from bytes 5..10 of its random blob,
+big-endian (`RNS/Transport.py:2217`, `:3725-3726`), keeps the blobs per
+destination in its path table and takes the newest as the path's timebase,
+0 for an empty list (`RNS/Transport.py:3729`), and replaces a path at equal
+hops only when the new announce's second is strictly later
+(`RNS/Transport.py:2238`); a transport node answering a path request from
+its path table replays the cached announce bytes with the hops set from
+the table (`RNS/Transport.py:3459-3473`), so the relayed response carries
+the original blob and second, where a destination answering itself builds
+a fresh announce under the path-response context (`RNS/Destination.py:308`).
+The fork had the second only inside the path table. `02cc9498` adds
+`emitted: u64` and `random_blob: [u8; RAND_HASH_LENGTH]` to
+`AnnounceEvent`, filled at the construction site from the announce's
+blob, and `Transport::latest_announce_emitted(&AddressHash) -> Option<u64>`
+in
+`crates/libs/rns-transport/src/transport/links_parts/transport_sections/close_channel.rs`,
+the newest second among the path table's blobs for the destination, `None`
+without an entry and `Some(0)` for an entry without blobs; the value is
+path-table state, so `expire_path` removes it and `deregister_destination`
+leaves it standing, the reverse of `destination_desc`. `21e11504` pins it
+in
+`crates/libs/rns-transport/src/transport/tests_parts/two_transport_loopback_announce_emitted.rs`,
+included from `crates/libs/rns-transport/src/transport/tests.rs` (the
+second lies in the clock bracket around the announce and the blob encodes
+it, a re-announce in the next wall-clock second is strictly newer under a
+different blob, a transport relay between two connectors answers a path
+request with the original blob and second under `is_path_response`, and a
+destination registered without announcing answers one with a fresh
+emission inside the request bracket), and in the black-box twin
+`crates/libs/rns-transport/tests/announce_emitted_api.rs`. `10f5e695`
+documents the fields and the accessor in the README after the
+`is_path_response` paragraph and names them under `Not divergences`.
+`30994a51` rows the two fields and the accessor in the cite contract
+`crates/apps/reticulumd/tests/fork_release_docs_contract_parts/request_layer_api_docs.rs`
+(which caught the blob field's missing Python cite, now
+`RNS/Transport.py:2217`), asserts the two fields public beside
+`is_path_response`, pins the blob-less `Some(0)` through the test-only
+`restore_tunnel_path` fixture, and walks `deregister_destination` (standing)
+then `expire_path` (`None`) in the black-box twin. `7ea62b00` pins the
+README paragraph in `readme_patch_list.rs`: the fields, the accessor's
+`None` and `Some(0)` shapes, the Python cites and the three pin files, its
+place after the `is_path_response` paragraph, the register split under
+`Not divergences:`, and the same claims in the CHANGELOG bullet. `79cee904`
+adopts `crates/libs/rns-transport/tests/announce_emitted_probe.rs`, written
+against the contract alone: a `TcpClient` that attaches to a transport
+relay after the destination announced hears only the relay's path
+response, which carries the original blob and second, older than the
+request clock, the same again after an expire, no second event for a known
+blob at an equal second, and the newest announce once the destination
+re-announces; the CHANGELOG names it in the Pinned-by clause of the bullet.
+`6236b9e1` makes the late joiner attach only after the relay's single
+rebroadcast tick has passed (the first 1 s retransmit tick after a 0..500 ms
+deadline, so about 1.5 s), splitting that wait from the strictly-later-second
+one, and asserts the first path request's dispatch trace reached an
+interface in each test. `92fe44fd` writes the retry window inclusive in the
+probe's doc.
+
+Fork commits `30249310` and `10f5e695`:
+Python-in-the-loop announce emitted interop.
+A Python rnsd (RNS 1.5.2) is the shared instance, on the live harness's
+unchanged config with `enable_transport = no`: a shared instance answers a
+local client's path request from its path table regardless of that
+setting (`RNS/Transport.py:3459`). `30249310` adds
+`crates/apps/reticulumd/tests/python_channel_interop_parts/python_shared_instance_announce_emitted.rs`,
+included from `crates/apps/reticulumd/tests/python_channel_interop.rs`:
+two transports attach as local clients, B before A, since rnsd relays a
+local client's announce only to the local clients registered when it
+reads it (`RNS/Transport.py:2400-2429`); A's attach announces, and B's
+event is unsolicited with `emitted` equal to bytes 5..10 of its
+`random_blob` inside the clock bracket around the attach; B expires the
+path, reads `None` from `latest_announce_emitted`, requests the path, and
+once rnsd logs `Answering path request` with `path is known` hears the
+same blob and second under `PATH_RESPONSE`, rnsd having replayed the
+cached bytes (`RNS/Transport.py:3459-3473`); a re-announce by A after the
+second boundary, which rnsd files at equal hops only when strictly later
+(`RNS/Transport.py:2238`), reaches B with a strictly greater `emitted` and
+a different blob. `10f5e695` names the live part in the README pin
+clause.
+Upstream site: test files only.
+
+Fork commits `a2a548a7`, `27d866af`, `af9d5694`, `9c3cada9`, `844b8c7e`,
+`92fe44fd` and `384d685e`:
+release 0.18.3. The first bumps the crate version to 0.18.3 at every
+manifest and consumer-snippet site (`Cargo.toml`,
+`crates/libs/rns-transport/Cargo.toml`, `crates/apps/reticulumd/Cargo.toml`,
+`crates/apps/rns-tools/Cargo.toml`, the snippet in
+`crates/libs/rns-transport/README.md` and `docs/getting-started.md`) and in
+`Cargo.lock` and `crates/libs/rns-transport/fuzz/Cargo.lock`, where the
+fuzz lock also picks up the `md-5`, `sha3` and `keccak` packages the rnsd
+rpc client added, and retargets the two version pins in
+`crates/apps/reticulumd/tests/fork_publish_contract.rs` to `0.18.3`; the
+root `VERSION` file stays. The second adds the 0.18.3 paragraph to the
+`## Patch list` of `crates/libs/rns-transport/README.md`, folding it into
+the intro sentence and leaving the 0.18.2 block as a standalone paragraph
+with its bullets unchanged; its six bullets are the auto peer count with
+its manager, status-handle and rnstatus readings, the rnsd rpc client with
+its two handshake forms and new dependencies, announce emission with the
+relayed path response keeping the original second, the Python-in-the-loop
+proofs against a live rnsd and CPython's own connection module, the
+test-only hygiene, and the consumer note (pin 0.18.3, nothing to opt into,
+the in-process and rnsd paths to the peer count, compare against
+`emitted` rather than arrival). The third promotes `## Unreleased` to
+`## 0.18.3 - 2026-11-19` in the crate `CHANGELOG.md` with a `### Changed`
+subsection of two bullets, a version bullet at its head (the announce
+field, the patch-bump reasoning with no `### Breaking` as every change is
+additive API a consumer need not opt into, the `cargo semver-checks` result
+of 0 findings against `v0.18.2` with the gate that runs it,
+`tools/scripts/semver-major-findings-check.sh coyote-rns-transport-v0.18.2 0`,
+and the contract tests that pin the release) and a restated test-only
+bullet for the release docs contract parts naming all twelve; it retargets
+the promotion-sensitive pins to the literal 0.18.3 label:
+`crates/apps/reticulumd/tests/fork_publish_contract_parts/ledger_contract.rs`
+expects the full-hash contract to cover `0.18.3`, `0.18.2`, `0.18.1`,
+`0.18.0`, `0.17.0`, `0.16.0` and `0.15.1` with no `Unreleased` label and
+the bullet-cite contract the same seven, and
+`crates/apps/reticulumd/tests/fork_release_docs_contract_parts/readme_patch_list.rs`
+gains a 0.18.3 twin
+(`readme_patch_list_opens_with_the_0_18_3_block_and_keeps_the_0_18_2_paragraph`)
+asserting that the 0.18.3 block opens the list, the 0.18.3, 0.18.2, 0.18.1
+order and the 0.18.3 items, while the 0.18.2 test
+(`readme_patch_list_keeps_the_0_18_2_block_above_the_0_18_1_paragraph`)
+keeps its order and its needles through a shared const and one assert in
+the same file takes rustfmt's layout; it demotes the first-release-heading
+assertion out of
+`crates/apps/reticulumd/tests/fork_release_docs_contract_parts/release_0_18_2_probe.rs`,
+which keeps its date pin; and it adds
+`crates/apps/reticulumd/tests/fork_release_docs_contract_parts/release_0_18_3_probe.rs`,
+included from `crates/apps/reticulumd/tests/fork_release_docs_contract.rs`,
+which pins the heading date and its place as the first release heading,
+the subsection set `### Added`, `### Changed` and nothing else (so no
+`### Breaking` and no `### Fixed`), the three `### Added` items by their
+names, the patch digit and semver sentence of the version bullet, the
+twelve parts the include-set bullet names, and the README patch-list
+order. The fourth folds into `release_0_18_3_probe.rs` the usage pins a
+consumer reads cold: the ledger opening on this section with the release
+patch and the probe commits attributed, the `AnnounceEvent::emitted` note
+naming the late-joiner probe, the README block's six bullets and consumer
+note, the probe's module doc standing on the contract alone, and the two
+hand pins reading `0.18.3`. The fifth makes those pins read the first
+release section through the same digit filter the heading pin uses, so a
+reopened `## Unreleased` stub above it leaves them standing, names the
+adoption commit in the release-legend pin, and pins the release paragraph
+header and closing sentence. The sixth pins that tolerance with a synthetic
+stub in both ledgers, names the adopted probe in repository terms, reads the
+O3 header from the joined prose, and corrects two doc comments, the 0.18.2
+probe's list-opener remark and the inclusive retry window in
+`announce_emitted_probe.rs`. The seventh names
+`tests/announce_emitted_probe.rs` in the README announce paragraph's pin
+list and its `readme_patch_list.rs` claim set, names
+`tests/hil/cases/core.toml` and
+`fork_publish_contract_parts/hil_core_case_names_probe.rs` in the
+peer-count release note, and drops the 0.18.1 probe's remark that the
+0.18.2 block opens the list. The ledger commits that cite the seven
+commits above touch only this file and the crate `CHANGELOG.md`.
+
 ## 0.18.2 (upstream 0.14.0)
 
 Every file changed since the `0.18.1` release and the patch each change

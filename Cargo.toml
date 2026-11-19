@@ -111,7 +111,7 @@ lxmf-runtime = { version = "0.14.0", path = "crates/libs/lxmf-runtime" }
 reticulum-rs = { version = "0.14.0", path = "crates/libs/reticulum-rs" }
 rns-core = { package = "reticulum-rs-core", version = "0.14.0", path = "crates/libs/rns-core" }
 rns-rpc = { package = "reticulum-rs-rpc", version = "0.14.0", path = "crates/libs/rns-rpc" }
-rns-transport = { package = "coyote-rns-transport", version = "0.18.2", path = "crates/libs/rns-transport" }
+rns-transport = { package = "coyote-rns-transport", version = "0.18.3", path = "crates/libs/rns-transport" }
 aes = "0.8.4"
 base64 = "0.22"
 cbc = "0.1.2"
@@ -137,7 +137,9 @@ ciborium = "0.2.2"
 crossbeam-channel = "=0.5.17"
 tempfile = "3"
 shlex = "2.0.1"
+md-5 = "0.10"
 sha2 = "0.10"
+sha3 = "0.10"
 toml = "0.8"
 tokio = { version = "1.44.2", features = ["full"] }
 tokio-rustls = "0.26.2"

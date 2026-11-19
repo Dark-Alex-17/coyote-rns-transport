@@ -444,4 +444,19 @@ impl Transport {
         let destination = destination.lock().await;
         Some(destination.desc)
     }
+
+    /// Returns the newest emission second among the random blobs the path
+    /// table holds for `destination`, as `timebase_from_random_blobs`
+    /// computes it (`RNS/Transport.py:3729`). `None` when the path table has
+    /// no entry; `Some(0)` for an entry without blobs, as Python returns 0
+    /// for an empty list. This is path-table state: `expire_path` removes it
+    /// while `deregister_destination` leaves it standing, the reverse of
+    /// `destination_desc`. Fork-only accessor.
+    pub async fn latest_announce_emitted(&self, destination: &AddressHash) -> Option<u64> {
+        let handler = self.handler.lock().await;
+        handler.path_table.get(destination)?;
+        Some(super::path_table::newest_random_blob_timebase(
+            &handler.path_table.random_blobs_for(destination),
+        ))
+    }
 }

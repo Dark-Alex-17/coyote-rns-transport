@@ -8,6 +8,256 @@ no library behaviour (a test-only change such as a fixture hardening or a
 test hygiene pass, release tooling, CI) is a Changed (or, for a deleted file,
 Removed) bullet of its own, marked as such.
 
+## 0.18.3 - 2026-11-19
+
+### Added
+
+- `Transport::interface_peer_count(&AddressHash) -> Option<u64>`
+  (`transport/core_parts/interface_events.rs`), a fork-only twin of
+  `interface_connect_count` that reads the AutoInterface discovery peer
+  table length behind an interface: what Python reports as
+  `len(interface.peers)` in `RNS/Reticulum.py:1501-1503`, over the dict at
+  `RNS/Interfaces/AutoInterface.py:126`, and rnstatus prints at
+  `RNS/Utilities/rnstatus.py:555-556`. `None` collapses two cases: no
+  record carries the address (never minted, built with
+  `InterfaceChannel::new` as tests do, or stopped and pruned), and the
+  record carries no counter, which is every interface kind other than an
+  AutoInterface host and its virtual children (TCP, UDP, serial, KISS,
+  RNode, pipe and the rest), the shared instance's interface, and a
+  manager-minted channel that no `InterfaceManager::set_peer_counter` call
+  reached. A virtual child registered on the AutoInterface's host channel
+  answers its host's count. Behind it, `InterfaceManager::set_peer_counter`
+  (pub, `iface_parts/interfacemanager_events.rs`) installs a counter on a host
+  and the virtual children already registered on it and returns `false`,
+  installing nothing, when no record carries the host; a child registered
+  later copies it from the host, and `InterfaceManager::peer_count` reads
+  it; `AutoRuntimeStatusHandle::peer_count`
+  (`auto_runtime_parts/plan_builder.rs`) reads the counter
+  `from_startup_plan` mints beside the inner mutex, shared by every clone
+  of the handle, and `AutoRuntimeStatusHandle::to_json()` carries the same
+  value under the `"peers"` key, always present, which reticulumd's status
+  refresher copies into `_runtime.auto.carrier_runtime` of
+  `daemon_status_ex` and rnstatus-rs (rns-tools
+  `src/bin/shared/rnstatus.rs`) renders as `peers=N` on the auto line; the
+  spawn path adopts the handle's counter into the discovery state, or
+  keeps the state's own when no handle is given, and installs it on the
+  bridge's host channel under one manager lock
+  (`autoruntimeplan_sections/peer_counter_wiring.rs`); and
+  `AutoPeerTable` (`iface/auto_parts/multicastaddresstype.rs`) publishes
+  its length into the counter with `Release` after every insert, expiry
+  and adopted-device removal. Nothing publishes 0 when the runtime stops:
+  the counter keeps its last value, so the manager read stays `Some(last)`
+  until the host record is pruned, then `None`, and a handle keeps reading
+  the last value. Additive, with no signature changes, so cargo
+  semver-checks reports nothing. Python exposes the count only through
+  rnstatus and its RPC; the fork also exposes it in-process. Pinned by
+  `iface/auto_runtime_parts/tests_sections/auto_peer_count_pins.rs`
+  (manager-level `Some(0)` to `Some(1)` to `Some(0)` with a virtual child
+  sharing the host's count, the handle adopting direction, the table
+  counter across adopted-device removal and a counter swap, the `"peers"`
+  key following the counter, and spawned loopback runtimes whose handle
+  and bridge host channel read an admitted peer and keep it after stop,
+  and the host reading `None` once a send observes the stopped runtime's
+  closed tx queue while the handle keeps the last value),
+  `tests/interface_peer_count_api.rs` (`None` for a plain TCP client, the
+  shared instance and a bare channel; `Some(n)` and child sharing through
+  the public setter; `None` after `Transport::stop` prunes every record),
+  `tests/interface_peer_count_probe.rs` (a public discovery state driving
+  a host count through add, refresh and expiry; a clone sharing the
+  counter; two hosts separate; a later install replacing host and
+  children; a stopped child keeping the host count while a stopped host
+  reads `None`; an install aimed at a child touching only that child),
+  `iface/auto_runtime_parts/tests_sections/auto_peer_count_probe.rs` (a
+  spawn without a handle installing the state's counter on the bridge
+  host; a spawned runtime alone reading zero across an announce interval;
+  and an ignored slow test that waits out the 22 s peering timeout to read
+  the count back down, run by the hil `auto-peer-count-timeout` case of
+  `tests/hil/cases/core.toml`, whose case names
+  `fork_publish_contract_parts/hil_core_case_names_probe.rs` pins to the lib
+  tests they run), `tests/auto_status_handle_peers_json_probe.rs` (an
+  external consumer reading the always-present `"peers"` key as u64: 0 on
+  a fresh handle, 1 together with the transport read once a loopback peer
+  is admitted, a clone agreeing, the JSON still 1 after stop while the
+  transport reads `Some(1)` until `stop_interface` prunes the host, then
+  `None` with the handle still 1, and the key following an admitted peer
+  on a handle spawned without a transport bridge), the reticulumd refresh
+  pin (`bootstrap_parts::module_core`, the `peers` key riding through to
+  `carrier_runtime`) and the rnstatus unit and CLI pins
+  (`src/bin/shared/rnstatus.rs`, the `rnstatus_cli` test and the rns-tools
+  `rnstatus_peers_cli` test: `peers=0` printed when the key is present
+  with zero, no `peers=` token on the auto line when the key is absent,
+  `peers=7` in the slot after `replaced=`, a null `peers` treated like an
+  absent key, a non-u64 value (a string, a negative number or a float)
+  omitted, and a `u64::MAX` count printed in full), and by the reticulumd
+  `auto_peers_daemon_status_probe` test (a real reticulumd with one auto
+  interface answering `daemon_status_ex` with `peers` present and `0`).
+- `transport::shared_instance_rpc` (`transport/shared_instance_rpc.rs`), a
+  fork-only client of the rnsd shared instance's RPC listener, the
+  `multiprocessing.connection.Listener` a Python shared instance opens at
+  `RNS/Reticulum.py:363-367` and serves from `rpc_loop`
+  (`RNS/Reticulum.py:1274-1334`), for the `interface_stats` call rnstatus
+  makes (`RNS/Reticulum.py:1397-1402`). Six public items: `RpcEndpoint`
+  (`Tcp`, and `Unix` on unix targets, with `default_tcp()` =
+  `127.0.0.1:37429` and `for_instance(name)` = the abstract socket
+  `rns/{name}/rpc` on Linux and Android, `default_tcp()` elsewhere, after
+  `use_af_unix` at `RNS/Reticulum.py:353-358` and `:725-727`); `RpcKey`
+  (`from_hex` for a configured `rpc_key`, `RNS/Reticulum.py:499-505`,
+  taking the hex digits `bytes.fromhex` accepts without its whitespace
+  tolerance and refusing an empty key where Python would run the listener
+  with an empty `authkey`, `RNS/Reticulum.py:360-364`, a refusal the
+  README's divergence register lists; `from_transport_identity_file` for
+  Python's default key, the SHA-256 of the 64-byte transport identity
+  private key, `RNS/Reticulum.py:360-361`; `Debug` prints
+  `RpcKey(redacted)`); `RpcError` (`Connect(io::Error)` for the dial
+  itself, `Authentication`, `Protocol(String)` for a malformed or oversized
+  frame or an io error after connect (except the failure notice to a
+  server that has already hung up, which stays `Authentication`),
+  `Decode(String)`, `UnsupportedDigest(String)`, `InvalidKeyMaterial`,
+  `Timeout`);
+  `InterfaceStats { interfaces, raw }` and `InterfaceStat { name,
+  short_name, kind, online, peers, clients, rxb, txb, raw }` decoded from
+  the `get_interface_stats` dict (`RNS/Reticulum.py:1405-1628`; `kind` is
+  Python's `type`, `online` its `status`, `peers` and `clients` read `None`
+  for an absent or nil key, `RNS/Reticulum.py:1409-1410` and
+  `:1501-1503`); and `interface_stats(&endpoint, &key, timeout)`, one
+  fresh connection per call with connect, handshake, request and reply
+  under the one budget. `RpcEndpoint`, `RpcError`, `InterfaceStats` and
+  `InterfaceStat` are `#[non_exhaustive]`: match the enums with a wildcard
+  arm and destructure the structs with `..`. The request is the constant
+  msgpack bytes of `{"get": "interface_stats"}` (`RNS/Reticulum.py:1400`).
+  The handshake is the stdlib's mutual HMAC exchange
+  (`connection.py:917-1006`) over its signed 32-bit, optionally 64-bit,
+  length-prefixed frames (`connection.py:427-458`): the client answers the
+  server's challenge and then delivers its own, in the modern `{digest}`
+  form (md5, sha256, sha384, sha3_256, sha3_384 accepted; the client
+  challenges with sha256) or the legacy raw HMAC-MD5 form of a Python 3.11
+  or older server, following the server's form; every auth frame is capped
+  at 256 bytes and the reply at 16 MiB before allocation. Additive, with
+  no signature changes, so cargo semver-checks reports nothing. New
+  dependencies `md-5` and `sha3` for the digest table. Pinned by
+  `src/transport/shared_instance_rpc/tests/mod.rs` (a TCP-loopback mock
+  server speaking the server half in both forms and the `{sha3_384}` and
+  `{md5}` digests, with the client's answer and challenge frames
+  inspected; the wrong-key, bad-answer, unsupported-digest, truncated,
+  oversized, silent and short-challenge failures; the key derivations and
+  the whitespace refusal, the redacted `Debug`; the decode shape rules; the
+  unix socket round trips, the wide and negative frame headers and the
+  digest lock; a legacy answer to a modern challenge, the 16 MiB reply cap,
+  a hand-built big-endian frame header and the empty `{}` digest prefix;
+  and the stdlib known-answer vectors from CPython's
+  `connection.py:917-942`) and
+  `tests/shared_instance_rpc_api.rs` (the seven variants behind a wildcard
+  arm, the `Error + Send + Sync` bound, the `RpcEndpoint` variants behind a
+  wildcard arm, the endpoint defaults per OS, the key parsing, the `Send`
+  future, the closed-port `Connect` and the README recipe's lines run, the
+  test supplying the endpoint),
+  `tests/shared_instance_rpc_departed_server.rs` (a stdlib-faithful mock
+  on a loopback socket: an honest server serves the reply, a one-byte and
+  a 200-byte key pass the handshake, and a server that answers our
+  challenge wrong and closes with a FIN at once reads as `Authentication`
+  every time; the write-error arm itself, a `#FAILURE#` notice the client
+  cannot deliver, is pinned by
+  `failure_notice_on_a_broken_pipe_is_still_authentication` in
+  `src/transport/shared_instance_rpc/tests/mod.rs`, the pin of record, and
+  exercised against CPython's own `multiprocessing.connection` server in
+  `tests/shared_instance_rpc_departed_server_python_probe.rs`, whose reset
+  mode, `SO_LINGER 0`, makes the `#FAILURE#` write fail outright), and by
+  `python_shared_instance_rpc.rs` of the reticulumd `python_channel_interop`
+  binary (a live Python rnsd, RNS
+  1.5.2, is the shared instance with one `AutoInterface` configured in a
+  top-level `[interfaces]` section, `RNS/Reticulum.py:748-752`: the key
+  derived from its `storage/transport_identity` passes the listener's
+  handshake, and the first reply after the listener binds, served by
+  `rpc_loop` to the same request rnstatus sends, `RNS/Reticulum.py:1274-1334`,
+  `:1397-1402`, carries the `AutoInterface` entry online with `peers`
+  `Some(0)` and the `LocalServerInterface` entry with `peers` `None`,
+  `RNS/Reticulum.py:1501-1503`; a wrong key is `Authentication` and the
+  server goes on serving the next connection; a configured `rpc_key` is
+  honoured by `from_hex` and the identity-derived key is then refused,
+  `RNS/Reticulum.py:499-505`; and on Linux `for_instance` over the abstract
+  socket, `RNS/Reticulum.py:353-358`, reads the same), and by
+  `python_shared_instance_rpc_probe.rs` of the same binary (Python's own
+  `multiprocessing.connection.Client`, the client rnstatus uses, read as
+  an independent oracle of the same listener and agreeing with the typed
+  reply on the interface set, kinds, online flags, peer and client
+  counts; the typed fields as projections of the raw per-interface maps;
+  three back-to-back reads agreeing; and a zero budget returning at once,
+  as `Timeout` or as the reply when the loopback exchange beats the
+  timer's first tick, never a hang), and by
+  `python_stdlib_listener_rpc_probe.rs` of the same binary (CPython's own
+  `multiprocessing.connection.Listener`, the class rnsd opens, run with a
+  one-byte and a sixteen-byte `authkey`, both passing the handshake through
+  `from_hex`, and refusing a wrong key with its own `#FAILURE#`, read as
+  `Authentication`).
+- `AnnounceEvent::emitted`, `AnnounceEvent::random_blob` and
+  `Transport::latest_announce_emitted(&AddressHash) -> Option<u64>`:
+  the emission time of an announce in whole seconds of the emitter's
+  clock, the 10-byte random blob it was decoded from (5 random bytes, then
+  the emission second big-endian in bytes 5..10, `RNS/Transport.py:2217`,
+  `:3725-3726`), and the newest emission second among the random blobs the
+  path table holds for a destination, as Python's
+  `timebase_from_random_blobs` computes it (`RNS/Transport.py:3729`):
+  `None` without a path table entry, `Some(0)` for an entry without blobs,
+  as that function returns 0 for an empty list. A transport relay
+  answering a path request from its stored announce replays the bytes
+  unchanged (`RNS/Transport.py:3459-3473`), so the event carries the
+  original blob and second under `is_path_response`; a destination
+  answering a path request itself builds a fresh announce
+  (`RNS/Destination.py:308`), a fresh emission. The accessor is path-table
+  state: `expire_path` removes it, `deregister_destination` leaves it
+  standing. Pinned by `tests/announce_emitted_api.rs`,
+  `transport/tests_parts/two_transport_loopback_announce_emitted.rs`,
+  `tests/announce_emitted_probe.rs` (a peer that joins after the
+  destination announced hears only the relay's path response: it carries
+  the original blob and second, older than the request clock, the same
+  again after an expire, no second event for a known blob at an equal
+  second, and the newest announce once the destination re-announces) and
+  `python_channel_interop_parts/python_shared_instance_announce_emitted.rs`
+  of the reticulumd `python_channel_interop` binary (a live Python rnsd,
+  RNS 1.5.2, is the shared instance that relays and replays).
+
+### Changed
+
+- The crate version is `0.18.3`; the discovery announce carries it in the
+  `TRANSPORT_VERS` field (`discovery/announce.rs`), so peers observe the fork
+  patch release through discovery. The bump is a patch one under the README
+  policy, as `0.15.1`, `0.18.1` and `0.18.2` were: every change since
+  `0.18.2` is additive API a consumer need not opt into (the
+  `interface_peer_count` read, the `shared_instance_rpc` client, and the
+  `emitted` and `random_blob` fields with `latest_announce_emitted`), with
+  no public item removed or changed, so there is no `### Breaking`
+  subsection. `cargo semver-checks` against `v0.18.2` reports 0 findings;
+  additive changes are below cargo-semver-checks' default lint level, so
+  the patch-level run the release check makes has nothing to report, and
+  the release check runs it as `tools/scripts/semver-major-findings-check.sh
+  coyote-rns-transport-v0.18.2 0`. The release contracts are pinned by
+  `crates/apps/reticulumd/tests/fork_publish_contract.rs` and
+  `fork_release_docs_contract.rs`; its
+  `fork_release_docs_contract_parts/release_0_18_3_probe.rs` pins the heading
+  date and its place as the first release heading, the subsection set
+  `### Added`, `### Changed` of this release with no `### Breaking` and no
+  `### Fixed`, the three `### Added` items by their names, the patch digit
+  and the semver sentence above, the twelve parts the include-set bullet
+  names, the README patch-list order with the 0.18.3 block on top, and the
+  usage pins a consumer reads cold: the ledger's release patch and probe
+  attribution, the README consumer note and the publish contract's two hand
+  pins reading `0.18.3`.
+- Release docs contract, test-only: `fork_release_docs_contract.rs` includes
+  its tests from `fork_release_docs_contract_parts/`
+  (`crate_readme_sections.rs`, `readme_patch_list.rs`,
+  `release_0_17_0_probe.rs`, `release_0_17_0_probe2.rs`,
+  `release_0_17_0_probe3.rs`, `release_0_17_0_probe4.rs`,
+  `release_0_18_0_probe.rs`, `release_0_18_1_probe.rs`,
+  `release_0_18_2_probe.rs`, `release_0_18_3_probe.rs`,
+  `release_notes_breaking.rs` and `request_layer_api_docs.rs`); the
+  patch-list pin opens on the 0.18.3 block and keeps the 0.18.2 block as a
+  demoted twin with its needles shared through a const, as the 0.18.1,
+  0.18.0 and 0.17.0 blocks are; the 0.18.2 probe keeps its date pin and no
+  longer claims the first release heading, which `release_0_18_3_probe.rs`
+  owns; and the label pins in `fork_publish_contract_parts/ledger_contract.rs`
+  read `0.18.3` first, with no `Unreleased` label, since a release tree
+  carries no stub.
+
 ## 0.18.2 - 2026-11-16
 
 ### Added

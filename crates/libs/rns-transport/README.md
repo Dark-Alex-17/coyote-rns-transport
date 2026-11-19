@@ -28,7 +28,7 @@ when the rebase breaks the fork's public API, the next patch digit otherwise.
 
 ```toml
 [dependencies]
-coyote-rns-transport = "0.18.2"
+coyote-rns-transport = "0.18.3"
 ```
 
 ```rust
@@ -470,6 +470,32 @@ transport sent, so it is information about the announce, not a check. Every
 announce reaches `Transport::recv_announces()`; a consumer that wants
 Python's default filters on the flag itself (see Known divergences).
 
+`AnnounceEvent::emitted` is the announce's emission time in whole seconds of
+the emitter's clock, and `AnnounceEvent::random_blob` the 10-byte random
+blob the announce carried: 5 random bytes, then the emission second
+big-endian in bytes 5..10, the slice Python decodes it from
+(`RNS/Transport.py:2217`, `:3725-3726`). A transport relay answering a path
+request from its stored announce replays those bytes unchanged
+(`RNS/Transport.py:3459-3473`), so the event it produces carries the
+original blob and second under `is_path_response`; a destination answering
+a path request itself builds a fresh announce (`RNS/Destination.py:308`),
+so its own response is a fresh emission. `Transport::latest_announce_emitted`
+returns `Option<u64>`, the newest emission second among the random blobs
+the path table holds for the destination, as Python's
+`timebase_from_random_blobs` computes it (`RNS/Transport.py:3729`): `None`
+without a path table entry, `Some(0)` for an entry without blobs, as that
+function returns 0 for an empty list. The value is path-table state, the
+reverse of `destination_desc`: `Transport::expire_path` removes it and
+`Transport::deregister_destination` leaves it standing. Pinned by
+`tests/announce_emitted_api.rs`,
+`transport/tests_parts/two_transport_loopback_announce_emitted.rs` (the
+clock bracket, the strictly newer re-announce, the relayed path response
+keeping the blob, the destination's own response emitting afresh),
+`tests/announce_emitted_probe.rs` (a late joiner hearing the original blob
+and second in the relay's path response) and the reticulumd live part
+`python_shared_instance_announce_emitted.rs`, where a Python rnsd is the
+relay.
+
 `Transport::set_resource_accept_hook` installs a `ResourceAcceptHook`, an
 `Arc<dyn Fn(&ResourceAdvertisement, &LinkId, Option<&Identity>) -> bool +
 Send + Sync>`, consulted from then on for every inbound plain resource
@@ -781,6 +807,39 @@ ending `(attempt 1)` with the rest at debug, then
 `connected to <endpoint> after N failed attempt(s)` at info once rnsd is
 back, and reads `Some(2)` on the same port.
 
+`Transport::interface_peer_count(&iface)` returns `Option<u64>` for an
+in-process `auto` interface (the AutoInterface): the length of the
+discovery peer table behind it, what Python reports as
+`len(interface.peers)` in `RNS/Reticulum.py:1501-1503` over the dict at
+`RNS/Interfaces/AutoInterface.py:126` and rnstatus prints at
+`RNS/Utilities/rnstatus.py:555-556`. `None` when no record carries the
+address (never minted, built with `InterfaceChannel::new` as tests do, or
+stopped and pruned) and when the record carries no counter: every kind
+other than an AutoInterface host and its children (TCP, UDP, serial, KISS,
+RNode, pipe), the shared instance's interface, and a manager-minted channel
+that no `InterfaceManager::set_peer_counter` call reached; a virtual child
+answers its host's count. Below the transport,
+`InterfaceManager::peer_count(&address)` is the same read and
+`InterfaceManager::set_peer_counter` installs one on a host and the
+children registered on it, and returns `false`, installing nothing, when
+no record carries the host. The same count is read through
+`AutoRuntimeStatusHandle::peer_count()` and the `"peers"` key, always
+present, of `AutoRuntimeStatusHandle::to_json()`, which reticulumd copies
+into `_runtime.auto.carrier_runtime` of `daemon_status_ex` and rnstatus-rs
+prints as `peers=N` on the auto line; the spawn adopts the handle's counter
+or keeps the state's own when no handle is given. Nothing publishes 0 on
+stop: the manager read keeps its last `Some(n)` until the host record is
+pruned, then `None`, and a handle keeps the last value for as long as it
+lives. Python exposes the count only through rnstatus and its RPC. Pinned
+by `tests/interface_peer_count_api.rs`,
+`tests/interface_peer_count_probe.rs`,
+`tests/auto_status_handle_peers_json_probe.rs`,
+`iface/auto_runtime_parts/tests_sections/auto_peer_count_pins.rs`,
+`iface/auto_runtime_parts/tests_sections/auto_peer_count_probe.rs`, the
+rns-tools `rnstatus_peers_cli` test and the reticulumd
+`auto_peers_daemon_status_probe` test (a real daemon with one auto
+interface answering `daemon_status_ex` with `peers` present and `0`).
+
 A `Tcp` endpoint whose address is not loopback is refused with
 `RnsError::SharedInstanceEndpointNotLoopback` before any lock is taken, with
 one warning, since Python's `LocalClientInterface` connects to `127.0.0.1`
@@ -864,6 +923,122 @@ while let Some(event) = events.recv().await {
 `crates/libs/rns-transport/tests/shared_instance_api.rs` runs this snippet
 verbatim too: it reads `Connecting` then `Connected` against the in-process
 shared instance and sees the stream end on the detach.
+
+## Reading rnsd's interface statistics
+
+A Python shared instance opens a `multiprocessing.connection.Listener`
+beside its interface socket (`RNS/Reticulum.py:363-367`) and serves
+rnstatus's queries from `rpc_loop` (`RNS/Reticulum.py:1274-1334`): one
+connection, one msgpack request, one reply, then the server closes.
+`transport::shared_instance_rpc` is a fork-only client of that listener for
+the `interface_stats` call, the dict `get_interface_stats` builds
+(`RNS/Reticulum.py:1405-1628`) with one map per interface
+(`RNS/Reticulum.py:1527-1566`), where `peers` is `len(interface.peers)` for
+an interface that has a peer table (`RNS/Reticulum.py:1501-1503`) and
+`clients` is the client count or `None` (`:1409-1410`). The listener exists
+only on a shared instance; a client-posture program attached to one has
+nothing to connect to in its own process.
+
+The key is the listener's `authkey`: by default the SHA-256 of the 64-byte
+transport identity private key (`RNS/Reticulum.py:360-361`), which
+`RpcKey::from_transport_identity_file(configdir/storage/transport_identity)`
+derives from the same file rnsd reads; a configured `rpc_key`
+(`RNS/Reticulum.py:499-505`) is `RpcKey::from_hex`, which takes the hex
+digits `bytes.fromhex` accepts, without its whitespace tolerance, and
+refuses an empty key where Python would run the listener with an empty
+`authkey` (`RNS/Reticulum.py:360-364`). The HMAC accepts a key of any
+length, so a configured `rpc_key` is only as strong as its length and
+randomness: give it at least 16 random bytes (32 hex digits). The
+endpoint follows `use_af_unix` (`RNS/Reticulum.py:353-358`, `:725-727`):
+on Linux and Android a shared instance of any type but `tcp` listens on
+the abstract unix socket `rns/<instance_name>/rpc`, which
+`RpcEndpoint::for_instance("default")` names; everywhere else, and for a
+`tcp`-type shared instance on Linux, the listener is
+`RpcEndpoint::Tcp(127.0.0.1:<instance_control_port>)`, `127.0.0.1:37429`
+by default (`RNS/Reticulum.py:296`, `:495-497`), which
+`RpcEndpoint::default_tcp()` returns and which `RpcEndpoint::for_instance`
+returns on every platform other than Linux and Android, whatever the
+name. Dial the endpoint rnsd actually binds: an endpoint rnsd left unbound
+could be bound by another local process, which the mutual handshake limits
+to a failed call but which is still worth avoiding. `RpcKey`'s `Debug`
+prints `RpcKey(redacted)`.
+
+```rust
+use std::time::Duration;
+
+use rns_transport::transport::shared_instance_rpc::{interface_stats, RpcEndpoint, RpcKey};
+
+let key = RpcKey::from_transport_identity_file(&configdir.join("storage/transport_identity"))?;
+let endpoint = RpcEndpoint::for_instance("default");
+let stats = interface_stats(&endpoint, &key, Duration::from_secs(5)).await?;
+for iface in stats.interfaces.iter().filter(|iface| iface.kind == "AutoInterface") {
+    log::info!("{} peers={:?} online={}", iface.short_name, iface.peers, iface.online);
+}
+```
+
+`InterfaceStats` carries `interfaces: Vec<InterfaceStat>` and the whole
+top-level map as `raw: rmpv::Value`; each `InterfaceStat` reads `name`,
+`short_name`, `kind` (Python's `type`), `online` (Python's `status`),
+`peers` and `clients` as `Option<u64>` (`None` for an absent or nil key),
+`rxb`, `txb`, and its own map as `raw`. `RpcEndpoint`, `RpcError`,
+`InterfaceStats` and `InterfaceStat` are `#[non_exhaustive]`: match the
+enums with a wildcard arm and destructure the structs with `..`. The call
+takes one fresh connection and runs connect, handshake, request and reply
+under the one `Duration`; `RpcError::Connect` is the dial failing,
+`RpcError::Authentication` a key the server rejects (or a server that fails
+our challenge), `Protocol` a malformed or oversized frame or an io error
+after connect (except the failure notice to a server that has already hung
+up, which stays `Authentication`), `Decode` an unexpected reply shape,
+`UnsupportedDigest` a challenge digest outside the stdlib's allowed set,
+`InvalidKeyMaterial` a key that cannot be parsed or derived, and `Timeout`
+the budget running out.
+The handshake is the stdlib's mutual HMAC exchange
+(`connection.py:917-1006`): the client answers the server's challenge and
+then delivers its own, in the modern `{digest}`-prefixed form a Python 3.12
+or later server speaks and in the legacy raw HMAC-MD5 form of a 3.11 or
+older one, following whichever form the server's challenge used, where the
+stdlib client always challenges with `{sha256}` regardless of the server's
+form (`connection.py:970`, `:976`). The client holds the server to the
+`{sha256}` it challenged with, where the stdlib would accept any allowed
+digest (`connection.py:956-959`); unreachable against a CPython server,
+whose `_create_response` echoes the challenge digest
+(`connection.py:928-942`). Pinned by
+`src/transport/shared_instance_rpc/tests/mod.rs` (both handshake forms and
+the `{sha3_384}` and `{md5}` digests against a mock server, the wrong-key,
+bad-answer, unsupported-digest, truncated, oversized, silent and
+short-challenge failures, the unix socket round trips, the wide and
+negative frame headers, the digest lock and the stdlib known-answer vectors
+from `connection.py:917-942`, the key derivations and the decode shape
+rules) and `tests/shared_instance_rpc_api.rs` (the public surface, the
+`Send` future, the closed-port `Connect` and the recipe's lines, the test
+supplying the endpoint) and `tests/shared_instance_rpc_departed_server.rs`
+(a stdlib-faithful mock on a loopback socket: an honest server serves the
+reply, a one-byte and a 200-byte key pass the handshake, and a server that
+answers our challenge wrong and closes with a FIN at once reads as
+`Authentication` every time). The write-error arm itself, a `#FAILURE#`
+notice the client cannot deliver, is pinned by
+`failure_notice_on_a_broken_pipe_is_still_authentication` in
+`src/transport/shared_instance_rpc/tests/mod.rs` (the pin of record) and
+exercised against CPython's own `multiprocessing.connection` server in
+`tests/shared_instance_rpc_departed_server_python_probe.rs`, whose reset
+mode (`SO_LINGER 0`) makes the `#FAILURE#` write fail outright. The
+Python-in-the-loop proof is
+`crates/apps/reticulumd/tests/python_channel_interop_parts/python_shared_instance_rpc.rs`
+of the reticulumd `python_channel_interop` binary: a Python `rnsd` (RNS
+1.5.2) runs one `AutoInterface` beside its shared instance, the key derived
+from its `storage/transport_identity` passes the listener's handshake, the
+first reply after the listener binds (`RNS/Reticulum.py:363-367`, after
+`Transport.start`) carries the `AutoInterface` entry online with `peers`
+`Some(0)` and the `LocalServerInterface` entry with `peers` `None`, a wrong
+key is `RpcError::Authentication` and the server goes on serving, a
+configured `rpc_key` is honoured by `RpcKey::from_hex` with the
+identity-derived key then refused, and on Linux `RpcEndpoint::for_instance`
+over the abstract socket reads the same. Beside it,
+`python_shared_instance_rpc_probe.rs` reads the same listener through
+Python's own `multiprocessing.connection.Client`, an independent oracle
+agreeing with the typed reply, and `python_stdlib_listener_rpc_probe.rs`
+runs CPython's own `multiprocessing.connection.Listener`, which takes a
+one-byte and a sixteen-byte key and refuses a wrong one.
 
 ## Known divergences from Python RNS
 
@@ -1050,6 +1225,12 @@ parity ledger; the `docs/status/*` matrices are not updated per fork task.
   (`RNS/Interfaces/LocalInterface.py:130`). The formula and the release
   arming are inherited from upstream `reticulum-rs-transport`; the constants
   refresh and the sustained clock make the difference observable.
+- `RpcKey::from_hex` refuses the empty and whitespace-separated `rpc_key`
+  values `bytes.fromhex` accepts and Python runs the listener with
+  (`RNS/Reticulum.py:360-364`, `:499-505`), and
+  `transport::shared_instance_rpc` challenges a Python 3.11 or older
+  server in its legacy raw HMAC-MD5 form, where the stdlib client always
+  sends a `{sha256}` challenge (`connection.py:970`, `:976`).
 
 Not divergences:
 
@@ -1059,6 +1240,11 @@ Not divergences:
 - `is_path_response` repeats the peer's packet context
   (`RNS/Transport.py:2524-2528`) and is not matched against any path request
   this transport sent: information, not a check.
+- `AnnounceEvent::emitted` and `AnnounceEvent::random_blob` are the bytes
+  Python already carries in every announce and keeps in its path table
+  (`RNS/Transport.py:2217`, `:3725-3729`); the fork exposes them in-process,
+  Python's announce handlers take no argument for them. API shape, not
+  behaviour.
 - A Channel frame is proved (`RNS/Link.py:1147-1151`) but posts no
   `PacketProven`: its hash is never recorded. A fact of this crate's API.
 - The 1024-slot request dispatch queue is a resource limit; Python has no
@@ -1074,6 +1260,30 @@ Not divergences:
   `attempts` and no count of established streams
   (`RNS/Interfaces/TCPInterface.py:270-298`, `:274-277`). API shape, not
   behaviour.
+- `Transport::interface_peer_count()` is a fork-only in-process read of the
+  AutoInterface discovery peer table length; Python exposes the count only
+  through rnstatus and its RPC (`RNS/Reticulum.py:1501-1503`,
+  `RNS/Interfaces/AutoInterface.py:126`,
+  `RNS/Utilities/rnstatus.py:555-556`). The `"peers"` key of
+  `AutoRuntimeStatusHandle::to_json()` is always present and never null,
+  where Python's `interface_stats` emits `peers` only for an interface
+  that carries a `peers` attribute (`RNS/Reticulum.py:1501`) and writes
+  `None` only for a `peers` attribute set to `None` (`:1502-1503`), which
+  no RNS 1.5.2 interface does (`RNS/Interfaces/AutoInterface.py:126`,
+  `RNS/Interfaces/WeaveInterface.py:867`, the two interfaces that carry
+  one). API shape, not behaviour.
+- `transport::shared_instance_rpc` is a fork-only typed client of the rnsd
+  `interface_stats` RPC; Python has no typed client, rnstatus reads the
+  reply dict directly (`RNS/Utilities/rnstatus.py:555-556`,
+  `RNS/Reticulum.py:1397-1402`), and the RPC server stays Python-only:
+  reticulumd hosts no `multiprocessing.connection` listener as of this
+  release. API shape, not behaviour.
+- `RpcEndpoint::Tcp` dials the address it is given, loopback or not, as
+  Python's own `multiprocessing.connection.Client` does in rnstatus
+  (`RNS/Reticulum.py:1397-1402`); the loopback guard that
+  `attach_shared_instance` puts on a `SharedInstanceEndpoint::Tcp` unless
+  `SharedInstanceOptions::allow_remote_endpoint(true)` is set has no twin
+  on the RPC client. API shape, not behaviour.
 
 ## Versioning and releases
 
@@ -1094,8 +1304,78 @@ full `refs/tags/coyote-rns-transport-v<version>` ref, and
 
 `docs/fork/PATCHSET.md` is the single per-release ledger of every file changed
 since the previous release, with the commit that changed it and the upstream
-site; earlier sections carry the earlier patches. What `0.18.2` carries on top
-of `0.18.1`:
+site; earlier sections carry the earlier patches. What `0.18.3` carries on top
+of `0.18.2`:
+
+- The auto peer count: `Transport::interface_peer_count(&AddressHash) ->
+  Option<u64>` reads the AutoInterface discovery peer table behind an
+  in-process `auto` interface, what Python reports as `len(interface.peers)`
+  (`RNS/Reticulum.py:1501-1503`) and rnstatus prints
+  (`RNS/Utilities/rnstatus.py:555-556`); `None` for an interface that tracks
+  no peers (TCP, UDP, serial, KISS, RNode, pipe and the shared instance's)
+  and for an address no record carries. Below the transport,
+  `InterfaceManager::set_peer_counter` installs the counter on a host and
+  the virtual children registered on it and `InterfaceManager::peer_count`
+  reads it; `AutoRuntimeStatusHandle::peer_count()` and the always-present
+  `"peers"` key of its JSON carry the same value, which reticulumd's
+  `daemon_status_ex` copies under `_runtime.auto.carrier_runtime` and
+  rnstatus-rs prints as `peers=N` on the auto line.
+- The rnsd RPC client: `transport::shared_instance_rpc` (`RpcEndpoint`,
+  `RpcKey`, `RpcError`, `InterfaceStats`, `InterfaceStat` and
+  `interface_stats`) dials the `multiprocessing.connection` listener a
+  Python shared instance serves rnstatus from (`RNS/Reticulum.py:363-367`,
+  `:1274-1334`) and reads the `interface_stats` reply as typed
+  per-interface rows beside the raw msgpack. The handshake is the stdlib's
+  mutual HMAC exchange over its length-prefixed frames, in the modern
+  `{digest}` form and the legacy raw HMAC-MD5 form of a Python 3.11 or
+  older server, following the server's form; the key is `RpcKey::from_hex`
+  for a configured `rpc_key` or `RpcKey::from_transport_identity_file` for
+  Python's default. New dependencies `md-5` and `sha3` carry the digest
+  table.
+- Announce emission: `AnnounceEvent::emitted` is the emission second of an
+  announce in the emitter's clock and `AnnounceEvent::random_blob` the
+  10-byte blob it was decoded from, bytes 5..10 big-endian
+  (`RNS/Transport.py:2217`, `:3725-3726`);
+  `Transport::latest_announce_emitted(&AddressHash) -> Option<u64>` is the
+  newest second among the path table's blobs for a destination, as
+  `timebase_from_random_blobs` computes it (`RNS/Transport.py:3729`):
+  `None` without an entry, `Some(0)` for an entry without blobs. A
+  transport relay answering a path request replays its stored announce
+  (`RNS/Transport.py:3459-3473`), so the event carries the original blob
+  and second under `is_path_response`.
+- The Python-in-the-loop proofs: `python_shared_instance_rpc.rs`,
+  `python_shared_instance_rpc_probe.rs`,
+  `python_stdlib_listener_rpc_probe.rs` and
+  `python_shared_instance_announce_emitted.rs` of the reticulumd
+  `python_channel_interop` binary run against a live Python rnsd (RNS
+  1.5.2): the identity-derived key passes its listener's handshake and the
+  reply carries the `AutoInterface` entry with `peers` `Some(0)`, Python's
+  own `multiprocessing.connection.Client` and `Listener` agree with the
+  typed client, and rnsd replays a cached announce's blob and second to a
+  late-joining local client's path request. Beside them,
+  `tests/shared_instance_rpc_departed_server_python_probe.rs` runs the
+  client against CPython's own connection module.
+- Test-only hygiene: the hil core case `auto-peer-count-timeout` runs the
+  ignored slow test that waits out the 22 s peering timeout, the
+  `hil_core_case_names_probe.rs` contract pins the case names, the
+  departed-server mocks pin the `Authentication` reading of a server that
+  hangs up, and further probes were adopted, the last being
+  `announce_emitted_probe.rs`.
+- For a consumer: pin `coyote-rns-transport = "0.18.3"`; there is nothing to
+  opt into. Read `Transport::interface_peer_count` for an in-process auto
+  interface; for the rnsd path call
+  `transport::shared_instance_rpc::interface_stats` with
+  `RpcEndpoint::for_instance("default")` on a Linux or Android shared
+  instance of unix type and
+  `RpcEndpoint::Tcp(127.0.0.1:<instance_control_port>)` (37429 by default)
+  elsewhere, with `RpcKey::from_transport_identity_file` on
+  `<configdir>/storage/transport_identity`, and read `peers` off the entries
+  whose `kind == "AutoInterface"`. Compare a timestamp an announce
+  carries in its app data, such as a farewell's sent time, against
+  `AnnounceEvent::emitted`, never against the arrival time: a relayed path
+  response arrives now but was emitted then.
+
+What `0.18.2` carries on top of `0.18.1`:
 
 - The tunnel opt-in: `SharedInstanceOptions::with_tunnel_synthesis` is a
   `#[must_use]` builder, off by default; with it set

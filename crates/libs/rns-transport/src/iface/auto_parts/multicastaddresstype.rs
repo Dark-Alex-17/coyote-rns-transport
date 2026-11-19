@@ -87,6 +87,10 @@ pub struct AutoPeerTable {
     peers: BTreeMap<String, AutoPeer>,
     peering_timeout: core::time::Duration,
     reverse_peering_interval: core::time::Duration,
+    /// Kept equal to `peers.len()` after every change, so a holder of the
+    /// `Arc` reads the count without the table. A `Clone` of the table shares
+    /// the counter; the runtime never clones the live state.
+    peers_len: alloc::sync::Arc<core::sync::atomic::AtomicU64>,
 }
 
 impl AutoPeerTable {
@@ -94,7 +98,28 @@ impl AutoPeerTable {
         peering_timeout: core::time::Duration,
         reverse_peering_interval: core::time::Duration,
     ) -> Self {
-        Self { peers: BTreeMap::new(), peering_timeout, reverse_peering_interval }
+        Self {
+            peers: BTreeMap::new(),
+            peering_timeout,
+            reverse_peering_interval,
+            peers_len: alloc::sync::Arc::new(core::sync::atomic::AtomicU64::new(0)),
+        }
+    }
+
+    pub(crate) fn peer_counter(&self) -> alloc::sync::Arc<core::sync::atomic::AtomicU64> {
+        alloc::sync::Arc::clone(&self.peers_len)
+    }
+
+    pub(crate) fn set_peer_counter(
+        &mut self,
+        counter: alloc::sync::Arc<core::sync::atomic::AtomicU64>,
+    ) {
+        self.peers_len = counter;
+        self.publish_len();
+    }
+
+    fn publish_len(&self) {
+        self.peers_len.store(self.peers.len() as u64, core::sync::atomic::Ordering::Release);
     }
 
     pub fn observe_peer(
@@ -118,6 +143,7 @@ impl AutoPeerTable {
                 last_outbound_at: now,
             },
         );
+        self.publish_len();
         AutoPeerEvent::Added
     }
 
@@ -147,7 +173,9 @@ impl AutoPeerTable {
                 (now > peer.last_heard_at + self.peering_timeout).then_some(address.clone())
             })
             .collect::<Vec<_>>();
-        stale.into_iter().filter_map(|address| self.peers.remove(&address)).collect()
+        let expired = stale.into_iter().filter_map(|address| self.peers.remove(&address)).collect();
+        self.publish_len();
+        expired
     }
 
     pub fn stale_peers(&self, now: core::time::Duration) -> Vec<AutoPeer> {
@@ -188,7 +216,10 @@ impl AutoPeerTable {
             .iter()
             .filter_map(|(address, peer)| (peer.ifname == ifname).then_some(address.clone()))
             .collect::<Vec<_>>();
-        removed.into_iter().filter_map(|address| self.peers.remove(&address)).collect()
+        let removed =
+            removed.into_iter().filter_map(|address| self.peers.remove(&address)).collect();
+        self.publish_len();
+        removed
     }
 }
 

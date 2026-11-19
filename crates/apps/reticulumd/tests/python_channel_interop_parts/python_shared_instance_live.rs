@@ -112,9 +112,17 @@ fn python_json_line<'a>(keys: &'a [&'a str]) -> impl Fn(&str) -> Option<serde_js
 struct LiveSharedInstance {
     instance_lines: String,
     endpoint: SharedInstanceEndpoint,
+    #[cfg(target_os = "linux")]
+    instance_name: Option<String>,
 }
 
 impl LiveSharedInstance {
+    fn with_reticulum_line(mut self, line: &str) -> Self {
+        self.instance_lines.push_str(line);
+        self.instance_lines.push('\n');
+        self
+    }
+
     fn config(&self, control_port: u16) -> String {
         format!(
             "[reticulum]\n\
@@ -129,6 +137,23 @@ impl LiveSharedInstance {
             self.instance_lines
         )
     }
+
+    // `interfaces` is appended as written, so it must open with its own
+    // top-level `[interfaces]` header, the section Python reads configured
+    // interfaces from (RNS/Reticulum.py:748-752).
+    fn config_with_interfaces(&self, control_port: u16, interfaces: &str) -> String {
+        format!("{}{interfaces}", self.config(control_port))
+    }
+}
+
+// A name no other run shares, for the identifiers (instance names, group
+// ids) a leftover rnsd or the host's own must not collide with.
+fn live_run_tag() -> String {
+    let nanos = std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .expect("clock after the epoch")
+        .as_nanos();
+    format!("coyote-live-{}-{nanos}", std::process::id())
 }
 
 fn live_tcp_shared_instance() -> LiveSharedInstance {
@@ -136,6 +161,8 @@ fn live_tcp_shared_instance() -> LiveSharedInstance {
     LiveSharedInstance {
         instance_lines: format!("shared_instance_type = tcp\nshared_instance_port = {port}\n"),
         endpoint: SharedInstanceEndpoint::Tcp(SocketAddr::from(([127, 0, 0, 1], port))),
+        #[cfg(target_os = "linux")]
+        instance_name: None,
     }
 }
 
@@ -144,16 +171,13 @@ fn live_tcp_shared_instance() -> LiveSharedInstance {
 // leftover rnsd cannot be mistaken for this one.
 #[cfg(target_os = "linux")]
 fn live_unix_shared_instance() -> LiveSharedInstance {
-    let nanos = std::time::SystemTime::now()
-        .duration_since(std::time::UNIX_EPOCH)
-        .expect("clock after the epoch")
-        .as_nanos();
-    let instance_name = format!("coyote-live-{}-{nanos}", std::process::id());
+    let instance_name = live_run_tag();
     LiveSharedInstance {
         instance_lines: format!("shared_instance_type = unix\ninstance_name = {instance_name}\n"),
         endpoint: SharedInstanceEndpoint::Unix(LocalUnixEndpoint::abstract_name(format!(
             "rns/{instance_name}"
         ))),
+        instance_name: Some(instance_name),
     }
 }
 

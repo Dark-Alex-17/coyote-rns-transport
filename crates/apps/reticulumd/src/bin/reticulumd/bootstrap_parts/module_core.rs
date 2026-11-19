@@ -1402,6 +1402,7 @@ mod tests {
             carrier_events,
             peer_count_after: 4,
         });
+        let peer_count_reader = status.clone();
         let refresh = transport_startup::AutoRuntimeRefresh { runtime_iface, status };
 
         assert_eq!(refresh_auto_runtime_status_once(&daemon, &[refresh]), 1);
@@ -1434,6 +1435,11 @@ mod tests {
             Some("carrier_lost")
         );
         assert_eq!(carrier_runtime["last_peer_job"]["peer_count_after"].as_u64(), Some(4));
+        // The handle never went through a spawn, so its counter reads 0 while the
+        // recorded peer job's peer_count_after carries 4.
+        assert!(!carrier_runtime["peers"].is_null(), "the handle's peers key rides through");
+        assert_eq!(carrier_runtime["peers"].as_u64(), Some(0));
+        assert_eq!(carrier_runtime["peers"].as_u64(), Some(peer_count_reader.peer_count()));
     }
 
     #[test]

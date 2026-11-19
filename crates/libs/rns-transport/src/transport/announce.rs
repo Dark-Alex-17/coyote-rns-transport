@@ -1,5 +1,5 @@
 use super::announce_limits::{AnnounceLimitAction, IngressInterface};
-use super::path_table::AnnouncePolicyInput;
+use super::path_table::{random_blob_timebase, AnnouncePolicyInput};
 use super::*;
 use crate::identity::Identity;
 use crate::packet::{Header, HeaderType, PropagationType};
@@ -346,6 +346,8 @@ async fn process_announce<'a>(
                 hops: packet.header.hops,
                 interface,
                 is_path_response: packet.context == PacketContext::PathResponse,
+                emitted: random_blob_timebase(&announce.random_blob),
+                random_blob: announce.random_blob,
             })
             .is_err()
     {

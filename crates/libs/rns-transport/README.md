@@ -2,27 +2,26 @@
 
 ## What this is
 
-Coyote's published fork of the upstream `reticulum-rs-transport` crate from
+[Coyote](https://github.com/Dark-Alex-17/coyote) is an LLM runtime and agent
+CLI whose `.mesh` feature connects Coyote instances over Reticulum. This crate
+is Coyote's published fork of the upstream `reticulum-rs-transport` crate from
 [LXMF-rs](https://github.com/FreeTAKTeam/LXMF-rs): the transport, link,
 interface, receipt, and resource layers of the Reticulum network stack.
 
-[Coyote](https://github.com/Dark-Alex-17/coyote) is an LLM runtime and agent
-CLI; its `.mesh` feature connects Coyote instances over Reticulum: LXMF
-messaging between peers, a LAN AutoInterface, and a local `rnsd` the sessions
-attach to as shared-instance clients.
-
 ### Why the fork exists
 
-Coyote's mesh needs transport surface upstream `reticulum-rs-transport` does
-not expose: the resolved description of an announced destination, what became
-of a request's response, a responder's size caps, the shared-instance client's
-connection state and tunnel opt-in, an interface's connect and peer counts, an
-rnsd RPC client for its interface statistics, and the emission time of an
-announce, plus a handful of behaviour fixes. Publishing the fork lets Coyote
-pin it from crates.io instead of a git dependency. The fork started as
-upstream `0.14.0` plus one patch, the removed `println!` of the
-`link: close <id>` line (the `log::warn!` beside it already records the
-close); everything since is in the ledgers named below.
+Coyote's mesh (LXMF messaging between peers, a LAN AutoInterface, and a local
+`rnsd` the sessions attach to as shared-instance clients) needs transport
+surface upstream `reticulum-rs-transport` does not expose: the resolved
+description of an announced destination, what became of a request's response,
+a responder's size caps, the shared-instance client's connection state and
+tunnel opt-in, an interface's connect and peer counts, an rnsd RPC client for
+its interface statistics, and the emission time of an announce, plus a handful
+of behaviour fixes. Publishing the fork lets Coyote pin it from crates.io
+instead of a git dependency. The fork started as upstream `0.14.0` plus one
+patch, the removed `println!` of the `link: close <id>` line (the `log::warn!`
+beside it already records the close); everything since is in the ledgers named
+below.
 
 ### What differs from upstream
 
@@ -38,11 +37,11 @@ theme, each with the section that documents it:
   `RequestAllow` and `RequestResponse`; the responder caps
   `set_max_request_size` and `set_max_response_size`; response outcome
   tracking through `InboundRequest::track_outcome` and `into_parts`,
-  `ResponseOutcomeReceiver` and `ResponseOutcome`.
+  `ResponseOutcomeReceiver` and `ResponseOutcome`; `Transport::send_response`
+  and `Transport::send_response_resource`.
 - [Sending requests](#sending-requests): `Transport::request`,
   `RequestOptions` (with `with_max_response_size`), `RequestReceipt` and
-  `RequestError`; `Transport::send_response` and
-  `Transport::send_response_resource`.
+  `RequestError`.
 - [Delivery proofs on a link](#delivery-proofs-on-a-link): `ProofStrategy`,
   `Link::set_proof_strategy`, `Link::set_proof_requested_callback` with the
   `ProofRequestedHandler` trait,

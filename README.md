@@ -1,6 +1,6 @@
 # coyote-rns-transport: Coyote's fork of LXMF-rs
 
-[![Latest release](https://img.shields.io/github/v/release/Dark-Alex-17/coyote-rns-transport?sort=semver)](https://github.com/Dark-Alex-17/coyote-rns-transport/releases/latest)
+[![Latest release](https://img.shields.io/github/v/tag/Dark-Alex-17/coyote-rns-transport?filter=coyote-rns-transport-v*&label=release)](https://github.com/Dark-Alex-17/coyote-rns-transport/tags)
 [![Crates.io](https://img.shields.io/crates/v/coyote-rns-transport)](https://crates.io/crates/coyote-rns-transport)
 [![Documentation](https://docs.rs/coyote-rns-transport/badge.svg)](https://docs.rs/coyote-rns-transport)
 [![License](https://img.shields.io/badge/license-EPL--2.0-blue.svg)](LICENSE)
@@ -13,15 +13,11 @@ surface [Coyote](https://github.com/Dark-Alex-17/coyote)'s `.mesh` feature
 needs and upstream does not expose, published so Coyote can pin it from
 crates.io.
 
-```toml
-[dependencies]
-coyote-rns-transport = "0.18.3"
-```
-
 The crate [README](crates/libs/rns-transport/README.md) says why the fork
 exists and what differs from upstream under
-[What this is](crates/libs/rns-transport/README.md#what-this-is), and
-summarises each release under
+[What this is](crates/libs/rns-transport/README.md#what-this-is), gives the
+dependency line under [Consumer](crates/libs/rns-transport/README.md#consumer),
+and summarises each release under
 [Patch list](crates/libs/rns-transport/README.md#patch-list).
 `docs/fork/PATCHSET.md` is the per-file, per-commit ledger behind that
 summary, and `crates/libs/rns-transport/CHANGELOG.md` is the release notes.
@@ -29,9 +25,9 @@ summary, and `crates/libs/rns-transport/CHANGELOG.md` is the release notes.
 ## Upstream LXMF-rs
 
 The rest of this README is upstream's workspace documentation at the fork's
-baseline; see the
-[upstream repo](https://github.com/FreeTAKTeam/LXMF-rs) for current upstream
-status.
+baseline, with the transport row of `## Main packages` updated for the fork;
+see the [upstream repo](https://github.com/FreeTAKTeam/LXMF-rs) for current
+upstream status.
 
 <!-- performance-summary:start -->
 ## Measured performance

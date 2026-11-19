@@ -470,6 +470,30 @@ transport sent, so it is information about the announce, not a check. Every
 announce reaches `Transport::recv_announces()`; a consumer that wants
 Python's default filters on the flag itself (see Known divergences).
 
+`AnnounceEvent::emitted` is the announce's emission time in whole seconds of
+the emitter's clock, and `AnnounceEvent::random_blob` the 10-byte random
+blob the announce carried: 5 random bytes, then the emission second
+big-endian in bytes 5..10, the slice Python decodes it from
+(`RNS/Transport.py:2217`, `:3725-3726`). A transport relay answering a path
+request from its stored announce replays those bytes unchanged
+(`RNS/Transport.py:3459-3473`), so the event it produces carries the
+original blob and second under `is_path_response`; a destination answering
+a path request itself builds a fresh announce (`RNS/Destination.py:308`),
+so its own response is a fresh emission. `Transport::latest_announce_emitted`
+returns `Option<u64>`, the newest emission second among the random blobs
+the path table holds for the destination, as Python's
+`timebase_from_random_blobs` computes it (`RNS/Transport.py:3729`): `None`
+without a path table entry, `Some(0)` for an entry without blobs, as that
+function returns 0 for an empty list. The value is path-table state, the
+reverse of `destination_desc`: `Transport::expire_path` removes it and
+`Transport::deregister_destination` leaves it standing. Pinned by
+`tests/announce_emitted_api.rs`,
+`transport/tests_parts/two_transport_loopback_announce_emitted.rs` (the
+clock bracket, the strictly newer re-announce, the relayed path response
+keeping the blob, the destination's own response emitting afresh) and the
+reticulumd live part `python_shared_instance_announce_emitted.rs`, where a
+Python rnsd is the relay.
+
 `Transport::set_resource_accept_hook` installs a `ResourceAcceptHook`, an
 `Arc<dyn Fn(&ResourceAdvertisement, &LinkId, Option<&Identity>) -> bool +
 Send + Sync>`, consulted from then on for every inbound plain resource
@@ -1214,6 +1238,11 @@ Not divergences:
 - `is_path_response` repeats the peer's packet context
   (`RNS/Transport.py:2524-2528`) and is not matched against any path request
   this transport sent: information, not a check.
+- `AnnounceEvent::emitted` and `AnnounceEvent::random_blob` are the bytes
+  Python already carries in every announce and keeps in its path table
+  (`RNS/Transport.py:2217`, `:3725-3729`); the fork exposes them in-process,
+  Python's announce handlers take no argument for them. API shape, not
+  behaviour.
 - A Channel frame is proved (`RNS/Link.py:1147-1151`) but posts no
   `PacketProven`: its hash is never recorded. A fact of this crate's API.
 - The 1024-slot request dispatch queue is a resource limit; Python has no

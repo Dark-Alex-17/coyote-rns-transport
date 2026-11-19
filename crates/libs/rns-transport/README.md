@@ -12,16 +12,16 @@ interface, receipt, and resource layers of the Reticulum network stack.
 
 Coyote's mesh (LXMF messaging between peers, a LAN AutoInterface, and a local
 `rnsd` the sessions attach to as shared-instance clients) needs transport
-surface upstream `reticulum-rs-transport` does not expose: the resolved
-description of an announced destination, what became of a request's response,
-a responder's size caps, the shared-instance client's connection state and
-tunnel opt-in, an interface's connect and peer counts, an rnsd RPC client for
-its interface statistics, and the emission time of an announce, plus a handful
-of behaviour fixes. Publishing the fork lets Coyote pin it from crates.io
-instead of a git dependency. The fork started as upstream `0.14.0` plus one
-patch, the removed `println!` of the `link: close <id>` line (the `log::warn!`
-beside it already records the close); everything since is in the ledgers named
-below.
+surface upstream `reticulum-rs-transport` does not expose: link request
+handlers and what became of the response they sent, the resolved description
+of an announced destination, a responder's size caps, the shared-instance
+client's connection state and tunnel opt-in, an interface's connect and peer
+counts, an rnsd RPC client for its interface statistics, and the emission time
+of an announce, plus a handful of behaviour fixes. Publishing the fork lets
+Coyote pin it from crates.io instead of a git dependency. The fork started as
+upstream `0.14.0` plus one patch, the removed `println!` of the
+`link: close <id>` line (the `log::warn!` beside it already records the
+close); everything since is in the ledgers named below.
 
 ### What differs from upstream
 
@@ -34,32 +34,29 @@ theme, each with the section that documents it:
 - [Request handlers](#request-handlers):
   `SingleInputDestination::register_request_handler` and
   `deregister_request_handler`, the `RequestHandler` trait, `InboundRequest`,
-  `RequestAllow` and `RequestResponse`; the responder caps
-  `set_max_request_size` and `set_max_response_size`; response outcome
-  tracking through `InboundRequest::track_outcome` and `into_parts`,
-  `ResponseOutcomeReceiver` and `ResponseOutcome`; `Transport::send_response`
-  and `Transport::send_response_resource`.
+  `RequestAllow` and `RequestResponse`; the responder cap
+  `set_max_response_size`; response outcome tracking through
+  `InboundRequest::track_outcome` and `into_parts`, `ResponseOutcomeReceiver`
+  and `ResponseOutcome`.
 - [Sending requests](#sending-requests): `Transport::request`,
   `RequestOptions` (with `with_max_response_size`), `RequestReceipt` and
   `RequestError`.
-- [Delivery proofs on a link](#delivery-proofs-on-a-link): `ProofStrategy`,
-  `Link::set_proof_strategy`, `Link::set_proof_requested_callback` with the
-  `ProofRequestedHandler` trait,
-  `SingleInputDestination::set_link_proof_strategy`,
+- [Delivery proofs on a link](#delivery-proofs-on-a-link):
+  `Link::set_proof_strategy` and `Link::set_proof_requested_callback`,
+  per-link settings of upstream's `ProofStrategy` and
+  `ProofRequestedHandler`; `SingleInputDestination::set_link_proof_strategy`;
   `LinkEvent::PacketProven` and `Transport::prove_link_packet`.
 - [Outbound resource outcomes](#outbound-resource-outcomes):
   `Transport::send_resource_with_outcome`,
   `send_request_resource_with_outcome` and
   `send_response_resource_with_outcome`, `OutboundOutcome`, `OutboundResult`
-  and `OutboundFailure`; `Transport::cancel_resource`.
+  and `OutboundFailure`.
 - [Opening links and admitting resources](#opening-links-and-admitting-resources):
   `Transport::destination_desc` and `Transport::resolve_destination` (the
   resolved description of an announced destination, held or fetched),
-  `Transport::await_path`, `Link::set_establishment_timeout`,
   `Transport::set_resource_accept_hook` and `AnnounceEvent::is_path_response`;
   in the announce paragraph of the same section, the emission time of an
-  announce: `AnnounceEvent::emitted`, `AnnounceEvent::random_blob` and
-  `Transport::latest_announce_emitted`.
+  announce: `AnnounceEvent::emitted` and `Transport::latest_announce_emitted`.
 - [Attaching to a shared instance](#attaching-to-a-shared-instance):
   `Transport::attach_shared_instance`, `detach_shared_instance` and
   `shared_instance`, `SharedInstanceEndpoint`, `SharedInstanceOptions`

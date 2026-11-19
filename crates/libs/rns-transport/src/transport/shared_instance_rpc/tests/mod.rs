@@ -297,7 +297,8 @@ async fn failure_notice_on_a_broken_pipe_is_still_authentication() {
     let mut answer = b"{sha256}".to_vec();
     answer.extend(mac(Digest::Sha256, key.as_bytes(), body).into_iter().map(|byte| !byte));
     // The answer write completes without yielding, so the client cannot run
-    // between it and the drop: its #FAILURE# meets a pipe with no reader.
+    // between it and the drop (on the current-thread test runtime): its
+    // #FAILURE# meets a pipe with no reader.
     send_frame(&mut server, &answer).await.expect("send wrong answer");
     drop(server);
     let verdict = client_task.await.expect("client task");
@@ -594,6 +595,29 @@ fn mac_matches_the_cpython_stdlib_vectors() {
     let legacy = hex::decode("7e57151ba744ee63c52e1497fbef19d0").expect("vector");
     assert_eq!(mac(Digest::Md5, &key, &leg20), legacy);
     assert!(verify_mac(Digest::Md5, &key, &leg20, &legacy));
+}
+
+// hmac's `new_from_slice` takes a key of any length, so `from_hex` is the
+// only place a configured `rpc_key` can be `InvalidKeyMaterial`: a one-byte
+// key and one longer than every digest's block size both tag and verify.
+#[test]
+fn mac_and_verify_mac_take_a_key_of_any_length() {
+    let message = b"#CHALLENGE#{sha256}a key of any length";
+    let long_key: Vec<u8> = (0..200u32).map(|i| (i * 7 % 251) as u8).collect();
+    for digest in [Digest::Md5, Digest::Sha256, Digest::Sha384, Digest::Sha3_256, Digest::Sha3_384]
+    {
+        for key in [&[0xab_u8][..], long_key.as_slice()] {
+            let tag = mac(digest, key, message);
+            assert!(verify_mac(digest, key, message, &tag), "{digest:?} key_len={}", key.len());
+            let mut flipped = tag.clone();
+            flipped[0] ^= 0x01;
+            assert!(
+                !verify_mac(digest, key, message, &flipped),
+                "{digest:?} key_len={}",
+                key.len()
+            );
+        }
+    }
 }
 
 fn decoded(value: Value) -> Result<InterfaceStats, RpcError> {

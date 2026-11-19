@@ -116,6 +116,10 @@ fn for_instance_is_the_default_tcp_port_elsewhere() {
     // `RpcEndpoint::for_instance("default")`; a rename moves with them.
     let endpoint = RpcEndpoint::for_instance("default");
     assert_eq!(endpoint, RpcEndpoint::default_tcp());
+    // "whatever the name": the README promises default_tcp() off Linux and Android for any
+    // instance name.
+    assert_eq!(RpcEndpoint::for_instance("probe-other-name"), RpcEndpoint::default_tcp());
+    assert_eq!(RpcEndpoint::for_instance(""), RpcEndpoint::default_tcp());
 }
 
 #[test]

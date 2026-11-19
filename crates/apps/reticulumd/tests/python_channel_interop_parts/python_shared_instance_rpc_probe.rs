@@ -50,13 +50,13 @@ fn shared_instance_rpc_probe_python_view(
     control_port: u16,
 ) -> Vec<serde_json::Value> {
     let paths = python_channel_interop_paths();
-    let output = Command::new(paths.python_bin())
+    let output = std::process::Command::new(paths.python_bin())
         .arg("-c")
         .arg(SHARED_INSTANCE_RPC_PROBE_PYTHON_CLIENT)
         .arg(identity_file)
         .arg(control_port.to_string())
         .env("PYTHONPATH", paths.reticulum_py_repo())
-        .stdin(Stdio::null())
+        .stdin(std::process::Stdio::null())
         .output()
         .expect("run the python rpc client");
     assert!(
@@ -193,7 +193,8 @@ async fn probe_python_rnsd_shared_instance_rpc_repeated_reads_agree_and_zero_bud
     assert!(started.elapsed() < Duration::from_secs(2), "zero budget took {:?}", started.elapsed());
 
     // The listener keeps serving after the abandoned dial.
-    let after = interface_stats(&endpoint, &key, SHARED_INSTANCE_RPC_CALL)
+    let after = rnsd
+        .poll_interface_stats(&endpoint, &key)
         .await
         .expect("serves after the timed-out dial");
     assert_eq!(view(&after), first_view);

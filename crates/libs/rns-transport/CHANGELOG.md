@@ -171,8 +171,10 @@ Removed) bullet of its own, marked as such.
   an independent oracle of the same listener and agreeing with the typed
   reply on the interface set, kinds, online flags, peer and client
   counts; the typed fields as projections of the raw per-interface maps;
-  three back-to-back reads agreeing; and a zero budget surfacing as
-  `Timeout`, never a hang), and by `python_stdlib_listener_rpc_probe.rs`
+  three back-to-back reads agreeing; and a zero budget returning at once,
+  as `Timeout` or as the reply when the loopback exchange beats the
+  timer's first tick, never a hang), and by
+  `python_stdlib_listener_rpc_probe.rs`
   of the same binary (CPython's own `multiprocessing.connection.Listener`,
   the class rnsd opens, run with a one-byte and a sixteen-byte `authkey`,
   both passing the handshake through `from_hex`, and refusing a wrong key

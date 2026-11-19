@@ -13,8 +13,11 @@
 //    top-level `interfaces` array has one map per typed entry;
 //  * the read is idempotent: three back-to-back calls agree on the interface
 //    set (each call is a fresh connection, the server closes after one reply);
-//  * a zero budget is `RpcError::Timeout`, never a hang: the whole call runs
-//    under the one `Duration`.
+//  * a zero budget returns at once, never a hang: the whole call runs under
+//    the one `Duration`, so the answer is `RpcError::Timeout`, or the reply
+//    itself when the loopback exchange completes before the timer's first
+//    tick (`tokio::time::timeout` polls the call before the deadline on
+//    every wake).
 
 const SHARED_INSTANCE_RPC_PROBE_PYTHON_CLIENT: &str = r#"
 import json, sys
@@ -155,10 +158,11 @@ async fn probe_python_rnsd_shared_instance_rpc_matches_pythons_own_client_view()
 /// Reading is idempotent and bounded: three back-to-back calls (each a
 /// fresh connection, the server closing after one reply,
 /// `RNS/Reticulum.py:1274-1334`) agree on the interface set, and a zero
-/// budget surfaces as `RpcError::Timeout` rather than hanging.
+/// budget returns at once, as `RpcError::Timeout` or as the reply when the
+/// loopback exchange beats the timer's first tick, rather than hanging.
 #[tokio::test]
 #[ignore = "requires local Python Reticulum checkout"]
-async fn probe_python_rnsd_shared_instance_rpc_repeated_reads_agree_and_zero_budget_times_out() {
+async fn probe_python_rnsd_shared_instance_rpc_repeated_reads_agree_and_zero_budget_returns() {
     let _interop_guard = python_interop_guard().await;
     let temp = tempfile::tempdir().expect("tempdir");
     let instance = live_tcp_shared_instance();
@@ -189,7 +193,11 @@ async fn probe_python_rnsd_shared_instance_rpc_repeated_reads_agree_and_zero_bud
 
     let started = tokio::time::Instant::now();
     let zero = interface_stats(&endpoint, &key, Duration::ZERO).await;
-    assert!(matches!(zero, Err(RpcError::Timeout)), "{zero:?}");
+    match &zero {
+        Err(RpcError::Timeout) => {}
+        Ok(stats) => assert_eq!(view(stats), first_view, "a reply under a zero budget"),
+        Err(other) => panic!("zero budget: expected Timeout or the reply, got {other:?}"),
+    }
     assert!(started.elapsed() < Duration::from_secs(2), "zero budget took {:?}", started.elapsed());
 
     // The listener keeps serving after the abandoned dial.

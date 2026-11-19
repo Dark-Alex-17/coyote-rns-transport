@@ -1,8 +1,8 @@
-// Crate README patch-list pins: the 0.18.2, 0.18.1, 0.18.0, 0.17.0 and 0.16.0
-// blocks and their order above the 0.15.1 history, and the Codex bullet whose
-// removal pointer the 0.16.0 release notes resolve, plus the shared-instance
-// paragraph, register bullet and changelog bullet for the AutoInterface peer
-// count and the same three for the rnsd RPC client.
+// Crate README patch-list pins: the 0.18.3, 0.18.2, 0.18.1, 0.18.0, 0.17.0
+// and 0.16.0 blocks and their order above the 0.15.1 history, and the Codex
+// bullet whose removal pointer the 0.16.0 release notes resolve, plus the
+// shared-instance paragraph, register bullet and changelog bullet for the
+// AutoInterface peer count and the same three for the rnsd RPC client.
 
 /// The Codex review workflow was removed after 0.15.1, so the README register
 /// that records 0.15.0 adding it must say so in the same bullet: a reader of
@@ -309,13 +309,36 @@ fn readme_patch_list_keeps_the_0_18_1_block_above_the_0_18_0_paragraph() {
     }
 }
 
-/// The README patch list opens with the 0.18.2 block, which names every item
-/// of the release (the tunnel opt-in, the one link request, the fail-fast
-/// wait, the announce admission, the Python-in-the-loop proof, the test-only
-/// hygiene and the consumer pin), and runs 0.18.1, then 0.18.0 below it; the
-/// demoted blocks' content is pinned by the tests above.
+/// What the README's 0.18.2 patch-list block says, one needle per item.
+const README_0_18_2_BLOCK_NEEDLES: [&str; 19] = [
+    "SharedInstanceOptions::with_tunnel_synthesis",
+    "RNS/Interfaces/LocalInterface.py",
+    "RNS/Transport.py:2829",
+    "Transport::synthesize_tunnel_on_interface",
+    "LinkCloseReason::Timeout",
+    "INTERVAL_OUTPUT_LINK_REPEAT",
+    "delivery::await_link_activation",
+    "io::ErrorKind::ConnectionAborted",
+    "link closed before activation:",
+    "admit_announce_before_queue",
+    "IC_DEQUE_MIN_SAMPLE",
+    "burst_freq_new",
+    "python_shared_instance_two_clients.rs",
+    "Tunnel endpoint",
+    "Restored path to",
+    "tests/support/",
+    "link_activation_closed_repend_then_close_probe.rs",
+    "coyote-rns-transport = \"0.18.2\"",
+    "nothing to opt into",
+];
+
+/// The demoted 0.18.2 block sits above the 0.18.1 and 0.18.0 blocks as
+/// history: it still names every item of the release (the tunnel opt-in, the
+/// one link request, the fail-fast wait, the announce admission, the
+/// Python-in-the-loop proof, the test-only hygiene and the consumer pin); the
+/// demoted 0.18.1 block's content is pinned by the test above.
 #[test]
-fn readme_patch_list_opens_with_the_0_18_2_block_and_keeps_the_0_18_1_paragraph() {
+fn readme_patch_list_keeps_the_0_18_2_block_above_the_0_18_1_paragraph() {
     let readme = read_repo_file("crates/libs/rns-transport/README.md");
     let patch_list = crate_readme_section(&readme, "Patch list")
         .split_whitespace()
@@ -324,14 +347,8 @@ fn readme_patch_list_opens_with_the_0_18_2_block_and_keeps_the_0_18_1_paragraph(
     let marker_0_18_2 = "What `0.18.2` carries on top of `0.18.1`:";
     let marker_0_18_1 = "What `0.18.1` carries on top of `0.18.0`:";
     let marker_0_18_0 = "What `0.18.0` carries on top of `0.17.0`:";
-    let at_0_18_2 = patch_list
-        .find(marker_0_18_2)
-        .expect("the README patch list should open with the 0.18.2 block");
-    assert_eq!(
-        patch_list.find("What `"),
-        Some(at_0_18_2),
-        "the README patch list should open with the 0.18.2 block, not another release's"
-    );
+    let at_0_18_2 =
+        patch_list.find(marker_0_18_2).expect("the README patch list should keep the 0.18.2 block");
     let at_0_18_1 =
         patch_list.find(marker_0_18_1).expect("the README patch list should keep the 0.18.1 block");
     let at_0_18_0 =
@@ -342,30 +359,76 @@ fn readme_patch_list_opens_with_the_0_18_2_block_and_keeps_the_0_18_1_paragraph(
     );
 
     let block_0_18_2 = &patch_list[at_0_18_2..at_0_18_1];
+    for needle in README_0_18_2_BLOCK_NEEDLES {
+        assert!(
+            block_0_18_2.contains(needle),
+            "the README 0.18.2 block should still say {needle:?}:\n{block_0_18_2}"
+        );
+    }
+}
+
+/// The README patch list opens with the 0.18.3 block, which names every item
+/// of the release (the auto peer count, the rnsd RPC client, announce
+/// emission, the Python-in-the-loop proofs, the test-only hygiene and the
+/// consumer pin), and runs 0.18.2, then 0.18.1 below it; the demoted blocks'
+/// content is pinned by the tests above.
+#[test]
+fn readme_patch_list_opens_with_the_0_18_3_block_and_keeps_the_0_18_2_paragraph() {
+    let readme = read_repo_file("crates/libs/rns-transport/README.md");
+    let patch_list = crate_readme_section(&readme, "Patch list")
+        .split_whitespace()
+        .collect::<Vec<_>>()
+        .join(" ");
+    let marker_0_18_3 = "What `0.18.3` carries on top of `0.18.2`:";
+    let marker_0_18_2 = "What `0.18.2` carries on top of `0.18.1`:";
+    let marker_0_18_1 = "What `0.18.1` carries on top of `0.18.0`:";
+    let at_0_18_3 = patch_list
+        .find(marker_0_18_3)
+        .expect("the README patch list should open with the 0.18.3 block");
+    assert_eq!(
+        patch_list.find("What `"),
+        Some(at_0_18_3),
+        "the README patch list should open with the 0.18.3 block, not another release's"
+    );
+    let at_0_18_2 =
+        patch_list.find(marker_0_18_2).expect("the README patch list should keep the 0.18.2 block");
+    let at_0_18_1 =
+        patch_list.find(marker_0_18_1).expect("the README patch list should keep the 0.18.1 block");
+    assert!(
+        at_0_18_3 < at_0_18_2 && at_0_18_2 < at_0_18_1,
+        "the README patch list should run 0.18.3, then 0.18.2, then 0.18.1"
+    );
+
+    let block_0_18_3 = &patch_list[at_0_18_3..at_0_18_2];
     for needle in [
-        "SharedInstanceOptions::with_tunnel_synthesis",
-        "RNS/Interfaces/LocalInterface.py",
-        "RNS/Transport.py:2829",
-        "Transport::synthesize_tunnel_on_interface",
-        "LinkCloseReason::Timeout",
-        "INTERVAL_OUTPUT_LINK_REPEAT",
-        "delivery::await_link_activation",
-        "io::ErrorKind::ConnectionAborted",
-        "link closed before activation:",
-        "admit_announce_before_queue",
-        "IC_DEQUE_MIN_SAMPLE",
-        "burst_freq_new",
-        "python_shared_instance_two_clients.rs",
-        "Tunnel endpoint",
-        "Restored path to",
-        "tests/support/",
-        "link_activation_closed_repend_then_close_probe.rs",
-        "coyote-rns-transport = \"0.18.2\"",
+        "Transport::interface_peer_count",
+        "RNS/Reticulum.py:1501-1503",
+        "InterfaceManager::set_peer_counter",
+        "AutoRuntimeStatusHandle::peer_count()",
+        "peers=N",
+        "transport::shared_instance_rpc",
+        "multiprocessing.connection",
+        "RpcKey::from_transport_identity_file",
+        "md-5",
+        "AnnounceEvent::emitted",
+        "AnnounceEvent::random_blob",
+        "Transport::latest_announce_emitted",
+        "RNS/Transport.py:3459-3473",
+        "python_shared_instance_rpc.rs",
+        "python_stdlib_listener_rpc_probe.rs",
+        "python_shared_instance_announce_emitted.rs",
+        "shared_instance_rpc_departed_server_python_probe.rs",
+        "auto-peer-count-timeout",
+        "hil_core_case_names_probe.rs",
+        "announce_emitted_probe.rs",
+        "coyote-rns-transport = \"0.18.3\"",
+        "RpcEndpoint::for_instance(\"default\")",
+        "kind == \"AutoInterface\"",
         "nothing to opt into",
     ] {
         assert!(
-            block_0_18_2.contains(needle),
-            "the README 0.18.2 block should say {needle:?}:\n{block_0_18_2}"
+            block_0_18_3.contains(needle),
+            "the README 0.18.3 block should say {needle:?}:\n{block_0_18_3}"
         );
     }
 }
@@ -579,7 +642,8 @@ fn crate_readme_announce_section_describes_announce_emitted() {
         "the emission fields are API shape, listed below the marker:\n{api_shape}"
     );
     assert!(
-        !squash(real).contains(&squash("`AnnounceEvent::emitted` and `AnnounceEvent::random_blob`")),
+        !squash(real)
+            .contains(&squash("`AnnounceEvent::emitted` and `AnnounceEvent::random_blob`")),
         "the emission fields are not a behaviour divergence:\n{real}"
     );
     let changelog = read_repo_file("crates/libs/rns-transport/CHANGELOG.md");

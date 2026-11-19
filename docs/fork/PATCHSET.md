@@ -41,9 +41,9 @@ announce emitted. The `auto peer count` patch is fork commits `bc5a7e6c`,
 carries no other id and is fork commits `8870d19f`, `0efdadfa`, `238abaa3`,
 `839769d2`, `8a07c374`, `48b58e6a`, `276ff531`, `430007e4`, `18ec48d6`,
 `a2484437`, `1f895be2` and `8c203fa6`. The `announce emitted` patch is fork
-commits `02cc9498`, `21e11504`, `10f5e695`, `30994a51`, `7ea62b00` and
-`79cee904`. The `Python-in-the-loop announce emitted interop` patch carries
-no other id and is fork commits `30249310` and `10f5e695`. The
+commits `02cc9498`, `21e11504`, `10f5e695`, `30994a51`, `7ea62b00`,
+`79cee904` and `6236b9e1`. The `Python-in-the-loop announce emitted interop`
+patch carries no other id and is fork commits `30249310` and `10f5e695`. The
 `release 0.18.3` patch carries no other id and is fork commits `a2a548a7`,
 `27d866af` and `af9d5694`.
 
@@ -521,8 +521,8 @@ once with the exit status. `8c203fa6` lists the CPython probe beside the
 Python-in-the-loop parts in the README and CHANGELOG claim lists.
 Upstream site: test files only.
 
-Fork commits `02cc9498`, `21e11504`, `10f5e695`, `30994a51`, `7ea62b00` and
-`79cee904`:
+Fork commits `02cc9498`, `21e11504`, `10f5e695`, `30994a51`, `7ea62b00`,
+`79cee904` and `6236b9e1`:
 O3, announce emitted.
 Upstream site: `AnnounceEvent` in
 `crates/libs/rns-transport/src/transport/mod.rs`, which carried the
@@ -584,6 +584,11 @@ response, which carries the original blob and second, older than the
 request clock, the same again after an expire, no second event for a known
 blob at an equal second, and the newest announce once the destination
 re-announces; the CHANGELOG names it in the Pinned-by clause of the bullet.
+`6236b9e1` makes the late joiner attach only after the relay's single
+rebroadcast tick has passed (the first 1 s retransmit tick after a 0..500 ms
+deadline, so about 1.5 s), splitting that wait from the strictly-later-second
+one, and asserts the first path request's dispatch trace reached an
+interface in each test.
 
 Fork commits `30249310` and `10f5e695`:
 Python-in-the-loop announce emitted interop.

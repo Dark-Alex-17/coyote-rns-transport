@@ -236,8 +236,8 @@ Removed) bullet of its own, marked as such.
   date and its place as the first release heading, the subsection set
   `### Added`, `### Changed` of this release with no `### Breaking` and no
   `### Fixed`, the three `### Added` items by their names, the patch digit
-  and the semver sentence above, and the README patch-list order with the
-  0.18.3 block on top.
+  and the semver sentence above, the twelve parts the include-set bullet
+  names, and the README patch-list order with the 0.18.3 block on top.
 - Release docs contract, test-only: `fork_release_docs_contract.rs` includes
   its tests from `fork_release_docs_contract_parts/`
   (`crate_readme_sections.rs`, `readme_patch_list.rs`,

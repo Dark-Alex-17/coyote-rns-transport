@@ -6,10 +6,84 @@ Coyote's published fork of the upstream `reticulum-rs-transport` crate from
 [LXMF-rs](https://github.com/FreeTAKTeam/LXMF-rs): the transport, link,
 interface, receipt, and resource layers of the Reticulum network stack.
 
-Apart from the patch list below and the API breaks `CHANGELOG.md` lists under
-`### Breaking`, only the package name changes: the library target stays
-`rns_transport`, so every `use rns_transport::...` path written against
-upstream resolves unchanged against this crate.
+[Coyote](https://github.com/Dark-Alex-17/coyote) is an LLM runtime and agent
+CLI; its `.mesh` feature connects Coyote instances over Reticulum: LXMF
+messaging between peers, a LAN AutoInterface, and a local `rnsd` the sessions
+attach to as shared-instance clients.
+
+### Why the fork exists
+
+Coyote's mesh needs transport surface upstream `reticulum-rs-transport` does
+not expose: the resolved description of an announced destination, what became
+of a request's response, a responder's size caps, the shared-instance client's
+connection state and tunnel opt-in, an interface's connect and peer counts, an
+rnsd RPC client for its interface statistics, and the emission time of an
+announce, plus a handful of behaviour fixes. Publishing the fork lets Coyote
+pin it from crates.io instead of a git dependency. The fork started as
+upstream `0.14.0` plus one patch, the removed `println!` of the
+`link: close <id>` line (the `log::warn!` beside it already records the
+close); everything since is in the ledgers named below.
+
+### What differs from upstream
+
+Apart from the [patch list](#patch-list) and the API breaks `CHANGELOG.md`
+lists under `### Breaking`, only the package name changes: the library target
+stays `rns_transport`, so every `use rns_transport::...` path written against
+upstream resolves unchanged against this crate. The fork-only surface, by
+theme, each with the section that documents it:
+
+- [Request handlers](#request-handlers):
+  `SingleInputDestination::register_request_handler` and
+  `deregister_request_handler`, the `RequestHandler` trait, `InboundRequest`,
+  `RequestAllow` and `RequestResponse`; the responder caps
+  `set_max_request_size` and `set_max_response_size`; response outcome
+  tracking through `InboundRequest::track_outcome` and `into_parts`,
+  `ResponseOutcomeReceiver` and `ResponseOutcome`.
+- [Sending requests](#sending-requests): `Transport::request`,
+  `RequestOptions` (with `with_max_response_size`), `RequestReceipt` and
+  `RequestError`; `Transport::send_response` and
+  `Transport::send_response_resource`.
+- [Delivery proofs on a link](#delivery-proofs-on-a-link): `ProofStrategy`,
+  `Link::set_proof_strategy`, `Link::set_proof_requested_callback` with the
+  `ProofRequestedHandler` trait,
+  `SingleInputDestination::set_link_proof_strategy`,
+  `LinkEvent::PacketProven` and `Transport::prove_link_packet`.
+- [Outbound resource outcomes](#outbound-resource-outcomes):
+  `Transport::send_resource_with_outcome`,
+  `send_request_resource_with_outcome` and
+  `send_response_resource_with_outcome`, `OutboundOutcome`, `OutboundResult`
+  and `OutboundFailure`; `Transport::cancel_resource`.
+- [Opening links and admitting resources](#opening-links-and-admitting-resources):
+  `Transport::destination_desc` and `Transport::resolve_destination` (the
+  resolved description of an announced destination, held or fetched),
+  `Transport::await_path`, `Link::set_establishment_timeout`,
+  `Transport::set_resource_accept_hook` and `AnnounceEvent::is_path_response`;
+  in the announce paragraph of the same section, the emission time of an
+  announce: `AnnounceEvent::emitted`, `AnnounceEvent::random_blob` and
+  `Transport::latest_announce_emitted`.
+- [Attaching to a shared instance](#attaching-to-a-shared-instance):
+  `Transport::attach_shared_instance`, `detach_shared_instance` and
+  `shared_instance`, `SharedInstanceEndpoint`, `SharedInstanceOptions`
+  (`with_state_events`, `with_first_connect_timeout`,
+  `with_disconnect_reasons`, `with_tunnel_synthesis` and
+  `allow_remote_endpoint`) and `SharedInstanceEvent`;
+  `Transport::announce_destinations_to_shared_instance`;
+  `Transport::interface_events` with `InterfaceEvent` and
+  `InterfaceEventKind`; `Transport::interface_connect_count` and
+  `Transport::interface_peer_count`.
+- [Reading rnsd's interface statistics](#reading-rnsds-interface-statistics):
+  `interface_stats`, `RpcEndpoint`, `RpcKey`, `InterfaceStats`,
+  `InterfaceStat` and `RpcError` in
+  `rns_transport::transport::shared_instance_rpc`, the client side of rnsd's
+  `get_interface_stats` RPC.
+
+The [Patch list](#patch-list) is the per-release summary of what each release
+changed and why, with `docs/fork/PATCHSET.md` as the per-file, per-commit
+ledger behind it;
+[Known divergences from Python RNS](#known-divergences-from-python-rns) is the
+parity ledger; the API breaks are under `### Breaking` in `CHANGELOG.md`.
+
+### How it tracks upstream
 
 The version follows cargo semver relative to the upstream baseline. `0.14.0`
 is upstream `0.14.0` renamed, with the link-close patch applied. A fork
@@ -23,6 +97,10 @@ minor, and its `### Breaking` says so in place of a list. When upstream ships a
 release the fork is rebased onto it and takes the first version above both the
 upstream number and the fork's last published number: the next minor digit
 when the rebase breaks the fork's public API, the next patch digit otherwise.
+
+Upstream is [LXMF-rs](https://github.com/FreeTAKTeam/LXMF-rs); the
+[Rebase recipe](#rebase-recipe) is how a new upstream release is taken onto
+the fork. The licence is upstream's, see [Licence](#licence).
 
 ## Consumer
 

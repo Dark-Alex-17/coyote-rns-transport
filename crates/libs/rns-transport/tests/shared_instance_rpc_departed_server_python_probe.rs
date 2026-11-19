@@ -137,7 +137,11 @@ async fn stdlib_server_answering_wrong_then_closing_is_authentication_every_time
 }
 
 /// A reset (`SO_LINGER 0`) right after the wrong answer, so the client's `#FAILURE#`
-/// write fails outright rather than landing in a buffer nobody reads.
+/// write fails outright rather than landing in a buffer nobody reads. Not on Windows:
+/// WinSock drops the receive queue on a reset, so there the client's read of the wrong
+/// answer fails first and the call is `Protocol`, a platform rendering of the reset
+/// rather than a client defect.
+#[cfg(not(windows))]
 #[tokio::test]
 async fn stdlib_server_answering_wrong_then_resetting_is_authentication_every_time() {
     every_round_is_authentication("rst").await;

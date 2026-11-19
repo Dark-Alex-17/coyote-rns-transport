@@ -29,18 +29,21 @@ per fork task.
 ## Unreleased (upstream 0.14.0)
 
 Every file changed since the `0.18.2` release and the patch each change
-belongs to. Patch ids: O1 is auto peer count, O2 is rnsd rpc client. The
-`auto peer count` patch is fork commits `bc5a7e6c`, `457f50f1`, `5d8832e1`,
-`5d231b18`, `6c1b4008`, `33fc1137`, `ddf20ed9`, `34dda674`, `20077b93`,
-`72a2685a`, `c1c51fe2`, `4ff8b5ea`, `5b08f985`, `48b58e6a`, `430007e4`,
-`d891381b`, `1f895be2`, `8c203fa6`, `e6924ccf`, `e8d406b8` and `5fb81662`.
-The `rnsd rpc client` patch is fork commits `e5fed58f`, `2b2d59c1`,
-`48ea789e`, `eb520fad`, `d3267e30`, `1cd75940`, `70d36e15`, `48b58e6a`,
-`276ff531`, `430007e4`, `b73b592b`, `8c203fa6`, `e6924ccf` and `e2504f94`. The
-`Python-in-the-loop rnsd rpc interop` patch carries no other id and is
-fork commits `8870d19f`, `0efdadfa`, `238abaa3`, `839769d2`, `8a07c374`,
-`48b58e6a`, `276ff531`, `430007e4`, `18ec48d6`, `a2484437`, `1f895be2` and
-`8c203fa6`.
+belongs to. Patch ids: O1 is auto peer count, O2 is rnsd rpc client, O3 is
+announce emitted. The `auto peer count` patch is fork commits `bc5a7e6c`,
+`457f50f1`, `5d8832e1`, `5d231b18`, `6c1b4008`, `33fc1137`, `ddf20ed9`,
+`34dda674`, `20077b93`, `72a2685a`, `c1c51fe2`, `4ff8b5ea`, `5b08f985`,
+`48b58e6a`, `430007e4`, `d891381b`, `1f895be2`, `8c203fa6`, `e6924ccf`,
+`e8d406b8` and `5fb81662`. The `rnsd rpc client` patch is fork commits
+`e5fed58f`, `2b2d59c1`, `48ea789e`, `eb520fad`, `d3267e30`, `1cd75940`,
+`70d36e15`, `48b58e6a`, `276ff531`, `430007e4`, `b73b592b`, `8c203fa6`,
+`e6924ccf` and `e2504f94`. The `Python-in-the-loop rnsd rpc interop` patch
+carries no other id and is fork commits `8870d19f`, `0efdadfa`, `238abaa3`,
+`839769d2`, `8a07c374`, `48b58e6a`, `276ff531`, `430007e4`, `18ec48d6`,
+`a2484437`, `1f895be2` and `8c203fa6`. The `announce emitted` patch is fork
+commits `02cc9498`, `21e11504` and `10f5e695`. The `Python-in-the-loop
+announce emitted interop` patch carries no other id and is fork commits
+`30249310` and `10f5e695`.
 
 | File | Patch |
 | --- | --- |
@@ -53,7 +56,8 @@ fork commits `8870d19f`, `0efdadfa`, `238abaa3`, `839769d2`, `8a07c374`,
 | `crates/apps/reticulumd/tests/fork_publish_contract_parts/ledger_contract.rs` | auto peer count |
 | `crates/apps/reticulumd/tests/fork_release_docs_contract_parts/crate_readme_sections.rs` | rnsd rpc client |
 | `crates/apps/reticulumd/tests/fork_release_docs_contract_parts/readme_patch_list.rs` | auto peer count, rnsd rpc client, Python-in-the-loop rnsd rpc interop |
-| `crates/apps/reticulumd/tests/python_channel_interop.rs` | Python-in-the-loop rnsd rpc interop |
+| `crates/apps/reticulumd/tests/python_channel_interop.rs` | Python-in-the-loop rnsd rpc interop, Python-in-the-loop announce emitted interop |
+| `crates/apps/reticulumd/tests/python_channel_interop_parts/python_shared_instance_announce_emitted.rs` | Python-in-the-loop announce emitted interop |
 | `crates/apps/reticulumd/tests/python_channel_interop_parts/python_shared_instance_live.rs` | Python-in-the-loop rnsd rpc interop |
 | `crates/apps/reticulumd/tests/python_channel_interop_parts/python_shared_instance_rpc.rs` | Python-in-the-loop rnsd rpc interop |
 | `crates/apps/reticulumd/tests/python_channel_interop_parts/python_shared_instance_rpc_probe.rs` | Python-in-the-loop rnsd rpc interop |
@@ -62,9 +66,9 @@ fork commits `8870d19f`, `0efdadfa`, `238abaa3`, `839769d2`, `8a07c374`,
 | `crates/apps/rns-tools/src/bin/shared/rnstatus.rs` | auto peer count |
 | `crates/apps/rns-tools/tests/rnstatus_cli.rs` | auto peer count |
 | `crates/apps/rns-tools/tests/rnstatus_peers_cli.rs` | auto peer count |
-| `crates/libs/rns-transport/CHANGELOG.md` | auto peer count, rnsd rpc client, Python-in-the-loop rnsd rpc interop |
+| `crates/libs/rns-transport/CHANGELOG.md` | auto peer count, rnsd rpc client, Python-in-the-loop rnsd rpc interop, announce emitted, Python-in-the-loop announce emitted interop |
 | `crates/libs/rns-transport/Cargo.toml` | rnsd rpc client |
-| `crates/libs/rns-transport/README.md` | auto peer count, rnsd rpc client, Python-in-the-loop rnsd rpc interop |
+| `crates/libs/rns-transport/README.md` | auto peer count, rnsd rpc client, Python-in-the-loop rnsd rpc interop, announce emitted, Python-in-the-loop announce emitted interop |
 | `crates/libs/rns-transport/src/iface/auto_parts/autodiscoverystate.rs` | auto peer count |
 | `crates/libs/rns-transport/src/iface/auto_parts/multicastaddresstype.rs` | auto peer count |
 | `crates/libs/rns-transport/src/iface/auto_runtime_parts/autoruntimeplan.rs` | auto peer count |
@@ -81,14 +85,19 @@ fork commits `8870d19f`, `0efdadfa`, `238abaa3`, `839769d2`, `8a07c374`,
 | `crates/libs/rns-transport/src/iface_parts/interfacemanager.rs` | auto peer count |
 | `crates/libs/rns-transport/src/iface_parts/interfacemanager_events.rs` | auto peer count |
 | `crates/libs/rns-transport/src/iface_parts/txmessagetype.rs` | auto peer count |
+| `crates/libs/rns-transport/src/transport/announce.rs` | announce emitted |
 | `crates/libs/rns-transport/src/transport/core_parts/interface_events.rs` | auto peer count |
-| `crates/libs/rns-transport/src/transport/mod.rs` | rnsd rpc client |
+| `crates/libs/rns-transport/src/transport/links_parts/transport_sections/close_channel.rs` | announce emitted |
+| `crates/libs/rns-transport/src/transport/mod.rs` | rnsd rpc client, announce emitted |
 | `crates/libs/rns-transport/src/transport/shared_instance_rpc.rs` | rnsd rpc client |
 | `crates/libs/rns-transport/src/transport/shared_instance_rpc/decode.rs` | rnsd rpc client |
 | `crates/libs/rns-transport/src/transport/shared_instance_rpc/framing.rs` | rnsd rpc client |
 | `crates/libs/rns-transport/src/transport/shared_instance_rpc/handshake.rs` | rnsd rpc client |
 | `crates/libs/rns-transport/src/transport/shared_instance_rpc/tests/mock_server.rs` | rnsd rpc client |
 | `crates/libs/rns-transport/src/transport/shared_instance_rpc/tests/mod.rs` | rnsd rpc client |
+| `crates/libs/rns-transport/src/transport/tests.rs` | announce emitted |
+| `crates/libs/rns-transport/src/transport/tests_parts/two_transport_loopback_announce_emitted.rs` | announce emitted |
+| `crates/libs/rns-transport/tests/announce_emitted_api.rs` | announce emitted |
 | `crates/libs/rns-transport/tests/auto_status_handle_peers_json_probe.rs` | auto peer count |
 | `crates/libs/rns-transport/tests/interface_peer_count_api.rs` | auto peer count |
 | `crates/libs/rns-transport/tests/interface_peer_count_probe.rs` | auto peer count |
@@ -96,7 +105,7 @@ fork commits `8870d19f`, `0efdadfa`, `238abaa3`, `839769d2`, `8a07c374`,
 | `crates/libs/rns-transport/tests/shared_instance_rpc_departed_server.rs` | rnsd rpc client |
 | `crates/libs/rns-transport/tests/shared_instance_rpc_departed_server_python_probe.rs` | rnsd rpc client |
 | `crates/libs/rns-transport/tests/support/loopback_auto_plan.rs` | auto peer count |
-| `docs/fork/PATCHSET.md` | auto peer count, rnsd rpc client, Python-in-the-loop rnsd rpc interop |
+| `docs/fork/PATCHSET.md` | auto peer count, rnsd rpc client, Python-in-the-loop rnsd rpc interop, announce emitted, Python-in-the-loop announce emitted interop |
 | `tests/hil/cases/core.toml` | auto peer count |
 
 Fork commits `bc5a7e6c`, `457f50f1`, `5d8832e1`, `5d231b18`, `6c1b4008`,
@@ -499,6 +508,74 @@ Python-in-the-loop clauses and the `readme_patch_list.rs` claim lists;
 every miss through the helper `poll_interface_stats` shares, failing at
 once with the exit status. `8c203fa6` lists the CPython probe beside the
 Python-in-the-loop parts in the README and CHANGELOG claim lists.
+Upstream site: test files only.
+
+Fork commits `02cc9498`, `21e11504` and `10f5e695`:
+O3, announce emitted.
+Upstream site: `AnnounceEvent` in
+`crates/libs/rns-transport/src/transport/mod.rs`, which carried the
+destination, the app data, the ratchet, the name hash, the hops, the
+interface and the path-response flag but not the emission second or the
+random blob the announce arrived with; its single construction site in
+`crates/libs/rns-transport/src/transport/announce.rs`, which read the blob
+only to feed the path table; and the timebase helpers
+`random_blob_timebase` and `newest_random_blob_timebase` in
+`crates/libs/rns-transport/src/transport/path_table_codec.rs`, which fed
+path replacement alone and reached no public surface. Python decodes the
+emission second of every announce from bytes 5..10 of its random blob,
+big-endian (`RNS/Transport.py:2217`, `:3725-3726`), keeps the blobs per
+destination in its path table and takes the newest as the path's timebase,
+0 for an empty list (`RNS/Transport.py:3729`), and replaces a path at equal
+hops only when the new announce's second is strictly later
+(`RNS/Transport.py:2238`); a transport node answering a path request from
+its path table replays the cached announce bytes with the hops set from
+the table (`RNS/Transport.py:3459-3473`), so the relayed response carries
+the original blob and second, where a destination answering itself builds
+a fresh announce under the path-response context (`RNS/Destination.py:308`).
+The fork had the second only inside the path table. `02cc9498` adds
+`emitted: u64` and `random_blob: [u8; RAND_HASH_LENGTH]` to
+`AnnounceEvent`, filled at the construction site from the announce's
+blob, and `Transport::latest_announce_emitted(&AddressHash) -> Option<u64>`
+in
+`crates/libs/rns-transport/src/transport/links_parts/transport_sections/close_channel.rs`,
+the newest second among the path table's blobs for the destination, `None`
+without an entry and `Some(0)` for an entry without blobs; the value is
+path-table state, so `expire_path` removes it and `deregister_destination`
+leaves it standing, the reverse of `destination_desc`. `21e11504` pins it
+in
+`crates/libs/rns-transport/src/transport/tests_parts/two_transport_loopback_announce_emitted.rs`,
+included from `crates/libs/rns-transport/src/transport/tests.rs` (the
+second lies in the clock bracket around the announce and the blob encodes
+it, a re-announce in the next wall-clock second is strictly newer under a
+different blob, a transport relay between two connectors answers a path
+request with the original blob and second under `is_path_response`, and a
+destination registered without announcing answers one with a fresh
+emission inside the request bracket), and in the black-box twin
+`crates/libs/rns-transport/tests/announce_emitted_api.rs`. `10f5e695`
+documents the fields and the accessor in the README after the
+`is_path_response` paragraph and names them under `Not divergences`.
+
+Fork commits `30249310` and `10f5e695`:
+Python-in-the-loop announce emitted interop.
+A Python rnsd (RNS 1.5.2) is the shared instance, on the live harness's
+unchanged config with `enable_transport = no`: a shared instance answers a
+local client's path request from its path table regardless of that
+setting (`RNS/Transport.py:3459`). `30249310` adds
+`crates/apps/reticulumd/tests/python_channel_interop_parts/python_shared_instance_announce_emitted.rs`,
+included from `crates/apps/reticulumd/tests/python_channel_interop.rs`:
+two transports attach as local clients, B before A, since rnsd relays a
+local client's announce only to the local clients registered when it
+reads it (`RNS/Transport.py:2400-2429`); A's attach announces, and B's
+event is unsolicited with `emitted` equal to bytes 5..10 of its
+`random_blob` inside the clock bracket around the attach; B expires the
+path, reads `None` from `latest_announce_emitted`, requests the path, and
+once rnsd logs `Answering path request` with `path is known` hears the
+same blob and second under `PATH_RESPONSE`, rnsd having replayed the
+cached bytes (`RNS/Transport.py:3459-3473`); a re-announce by A after the
+second boundary, which rnsd files at equal hops only when strictly later
+(`RNS/Transport.py:2238`), reaches B with a strictly greater `emitted` and
+a different blob. `10f5e695` names the live part in the README pin
+clause.
 Upstream site: test files only.
 
 ## 0.18.2 (upstream 0.14.0)

@@ -188,6 +188,28 @@ Removed) bullet of its own, marked as such.
   `from_hex`, and refusing a wrong key with its own `#FAILURE#`, read as
   `Authentication`).
 
+- `AnnounceEvent::emitted`, `AnnounceEvent::random_blob` and
+  `Transport::latest_announce_emitted(&AddressHash) -> Option<u64>`:
+  the emission time of an announce in whole seconds of the emitter's
+  clock, the 10-byte random blob it was decoded from (5 random bytes, then
+  the emission second big-endian in bytes 5..10, `RNS/Transport.py:2217`,
+  `:3725-3726`), and the newest emission second among the random blobs the
+  path table holds for a destination, as Python's
+  `timebase_from_random_blobs` computes it (`RNS/Transport.py:3729`):
+  `None` without a path table entry, `Some(0)` for an entry without blobs,
+  as that function returns 0 for an empty list. A transport relay
+  answering a path request from its stored announce replays the bytes
+  unchanged (`RNS/Transport.py:3459-3473`), so the event carries the
+  original blob and second under `is_path_response`; a destination
+  answering a path request itself builds a fresh announce
+  (`RNS/Destination.py:308`), a fresh emission. The accessor is path-table
+  state: `expire_path` removes it, `deregister_destination` leaves it
+  standing. Pinned by `tests/announce_emitted_api.rs`,
+  `transport/tests_parts/two_transport_loopback_announce_emitted.rs` and
+  `python_channel_interop_parts/python_shared_instance_announce_emitted.rs`
+  of the reticulumd `python_channel_interop` binary (a live Python rnsd,
+  RNS 1.5.2, is the shared instance that relays and replays).
+
 ## 0.18.2 - 2026-11-16
 
 ### Added

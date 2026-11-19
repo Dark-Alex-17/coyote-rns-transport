@@ -7,15 +7,24 @@
 // bullet records, the twelve release-docs parts the restated include-set
 // bullet lists, the README patch-list order with the 0.18.3 block on top,
 // and the usage pins a consumer reads cold: the patch-set ledger opening on
-// this release with the release patch and the carry-in probe cited, the
+// this release with the release patch and the adopted probe cited, the
 // emitted note naming the late-joiner probe, the README block's six bullets
 // and consumer note, the probe's module doc standing on the contract alone,
 // and the publish contract's two hand pins reading the release version.
 // The pins over the current tree, which the next release cut demotes, are
-// the first-release-heading test, the README `[dependencies]` snippet and
-// six-bullet opener pins of the consumer-note test, and the crate-manifest
-// version and publish-contract literal count of the hand-pins test; the
-// rest hold facts about the 0.18.3 section itself.
+// the first-release-heading test, the ledger-opening assertion of the
+// patch-set test, the README `[dependencies]` snippet and six-bullet opener
+// pins of the consumer-note test, and the crate-manifest version and
+// publish-contract literal count of the hand-pins test; the rest hold facts
+// about the 0.18.3 section itself.
+
+/// The first `## <digit>` heading line of the CHANGELOG; a `## Unreleased`
+/// stub above it is skipped.
+fn first_release_heading(changelog: &str) -> Option<&str> {
+    changelog
+        .lines()
+        .find(|line| line.starts_with("## ") && line[3..].starts_with(|c: char| c.is_ascii_digit()))
+}
 
 /// The 0.18.3 heading carries the day the release was cut and is the first
 /// release heading of the CHANGELOG.
@@ -27,10 +36,8 @@ fn release_0_18_3_heading_carries_the_release_date() {
         changelog.contains(heading),
         "the CHANGELOG should head the 0.18.3 section with its release date"
     );
-    let first_release = changelog
-        .lines()
-        .find(|line| line.starts_with("## ") && line[3..].starts_with(|c: char| c.is_ascii_digit()))
-        .expect("the CHANGELOG should carry a release heading");
+    let first_release =
+        first_release_heading(&changelog).expect("the CHANGELOG should carry a release heading");
     assert_eq!(
         first_release,
         heading.trim(),
@@ -177,6 +184,29 @@ fn patchset_opening_section(ledger: &str) -> &str {
     }
 }
 
+/// A reopened `## Unreleased` stub above the release section in either
+/// ledger is skipped: the patch-set slice opens on the first `## <digit>`
+/// heading and runs to the next heading, and the CHANGELOG first-release
+/// filter lands on the dated heading below the stub.
+#[test]
+fn release_0_18_3_patchset_opening_section_skips_an_unreleased_stub() {
+    let ledger = "# Patch set\n\nintro\n\n## Unreleased (upstream 0.14.0)\n\nwip\n\n\
+                  ## 0.18.3 (upstream 0.14.0)\n\nbody\n\n## 0.18.2 (upstream 0.14.0)\n\nolder\n";
+    let section = patchset_opening_section(ledger);
+    assert!(section.starts_with("## 0.18.3 (upstream 0.14.0)\n"), "got {section:?}");
+    assert!(section.contains("body"), "the section keeps its own body: {section:?}");
+    assert!(!section.contains("wip"), "the stub body is left out: {section:?}");
+    assert!(!section.contains("older"), "the next section is left out: {section:?}");
+
+    let changelog =
+        "# Changelog\n\n## Unreleased\n\n## 0.18.3 - 2026-11-19\n\n## 0.18.2 - 2026-11-16\n";
+    assert_eq!(
+        first_release_heading(changelog),
+        Some("## 0.18.3 - 2026-11-19"),
+        "the first-release filter skips the stub"
+    );
+}
+
 /// The first release section of the patch-set ledger is
 /// `## 0.18.3 (upstream 0.14.0)`; it cites `a2a548a7`, `27d866af`,
 /// `af9d5694` and `9c3cada9` in the id-less `release 0.18.3` legend sentence
@@ -185,7 +215,7 @@ fn patchset_opening_section(ledger: &str) -> &str {
 /// `announce emitted` and cites the two probe commits in both the
 /// `announce emitted` legend and the O3 patch header.
 #[test]
-fn release_0_18_3_patchset_opens_on_the_release_patch_and_the_carry_in() {
+fn release_0_18_3_patchset_opens_on_the_release_patch_and_the_adopted_probe() {
     let ledger = read_repo_file("docs/fork/PATCHSET.md");
     let section = patchset_opening_section(&ledger);
     assert_eq!(
@@ -241,10 +271,8 @@ fn release_0_18_3_patchset_opens_on_the_release_patch_and_the_carry_in() {
         }),
         "the 0.18.3 table should row the adopted probe under `announce emitted`"
     );
-    let o3_header_start = section
-        .find("Fork commits `02cc9498`, `21e11504`, `10f5e695`, `30994a51`, `7ea62b00`,")
-        .expect("the O3 patch header");
-    let o3_header = &section[o3_header_start..];
+    let o3_header_start = prose.find("Fork commits `02cc9498`").expect("the O3 patch header");
+    let o3_header = &prose[o3_header_start..];
     let o3_header = &o3_header[..o3_header.find("O3, announce emitted.").expect("O3 label")];
     for commit in ["`79cee904`", "`6236b9e1`"] {
         assert!(

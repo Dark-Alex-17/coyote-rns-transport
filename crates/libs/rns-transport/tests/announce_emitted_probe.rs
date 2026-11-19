@@ -46,7 +46,7 @@ const QUIET: Duration = Duration::from_secs(2);
 /// Equal hops need a strictly newer emission second (`RNS/Transport.py:2238`).
 const NEXT_SECOND: Duration = Duration::from_millis(1100);
 /// The relay's single rebroadcast fires on the first 1 s announce-retransmit tick after a
-/// deadline drawn from 0..500 ms, so it has landed by about 1.5 s after the announce. The
+/// deadline drawn from 0..=500 ms, so it has landed by about 1.5 s after the announce. The
 /// late joiner attaches only after that, so it can only ever hear a path response.
 const PAST_REBROADCAST: Duration = Duration::from_millis(1700);
 

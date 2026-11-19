@@ -117,8 +117,8 @@ fn release_0_18_2_fixed_names_the_tunnel_collision_and_the_announce_admission() 
 }
 
 /// The README patch list runs 0.18.2, then 0.18.1, then 0.18.0: the 0.18.2
-/// block sits above the 0.18.1 and 0.18.0 blocks in that order; the 0.18.3
-/// block opens the list.
+/// block sits above the 0.18.1 and 0.18.0 blocks in that order; a newer
+/// block opens the list, pinned by that release's probe.
 #[test]
 fn release_0_18_2_readme_patch_list_runs_newest_first() {
     let readme = read_repo_file("crates/libs/rns-transport/README.md");

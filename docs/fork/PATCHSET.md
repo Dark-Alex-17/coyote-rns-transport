@@ -38,7 +38,7 @@ The `rnsd rpc client` patch is fork commits `e5fed58f`, `2b2d59c1`,
 `276ff531` and `430007e4`. The
 `Python-in-the-loop rnsd rpc interop` patch carries no other id and is
 fork commits `8870d19f`, `0efdadfa`, `238abaa3`, `839769d2`, `8a07c374`,
-`48b58e6a`, `276ff531` and `430007e4`.
+`48b58e6a`, `276ff531`, `430007e4` and `18ec48d6`.
 
 | File | Patch |
 | --- | --- |
@@ -372,7 +372,7 @@ length in the `rpc_key` sentence, lists the departed-server test beside
 line in the module's key=value style.
 
 Fork commits `8870d19f`, `0efdadfa`, `238abaa3`, `839769d2`, `8a07c374`,
-`48b58e6a`, `276ff531` and `430007e4`:
+`48b58e6a`, `276ff531`, `430007e4` and `18ec48d6`:
 Python-in-the-loop rnsd rpc interop.
 A Python rnsd (RNS 1.5.2) is the shared instance on a free TCP port with
 one `AutoInterface` configured in a top-level `[interfaces]` section, the
@@ -439,7 +439,8 @@ own `#FAILURE#` read as `Authentication`, and serves the next correct dial;
 it also has the two probe parts name `std::process` paths in full and the
 read after the abandoned zero-budget dial go through the reset-tolerant
 poll. `430007e4` names the listener probe in the README and CHANGELOG
-Python-in-the-loop clauses and the `readme_patch_list.rs` claim lists.
+Python-in-the-loop clauses and the `readme_patch_list.rs` claim lists;
+`18ec48d6` folds that poll call onto rustfmt's line.
 Upstream site: test files only.
 
 ## 0.18.2 (upstream 0.14.0)

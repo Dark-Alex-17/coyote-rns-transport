@@ -32,12 +32,13 @@ Every file changed since the `0.18.2` release and the patch each change
 belongs to. Patch ids: O1 is auto peer count, O2 is rnsd rpc client. The
 `auto peer count` patch is fork commits `bc5a7e6c`, `457f50f1`, `5d8832e1`,
 `5d231b18`, `6c1b4008`, `33fc1137`, `ddf20ed9`, `34dda674`, `20077b93`,
-`72a2685a`, `c1c51fe2`, `4ff8b5ea`, `5b08f985` and `48b58e6a`. The `rnsd
-rpc client` patch is fork commits `e5fed58f`, `2b2d59c1`, `48ea789e`,
-`eb520fad`, `d3267e30`, `1cd75940`, `70d36e15` and `48b58e6a`. The
+`72a2685a`, `c1c51fe2`, `4ff8b5ea`, `5b08f985`, `48b58e6a` and `430007e4`.
+The `rnsd rpc client` patch is fork commits `e5fed58f`, `2b2d59c1`,
+`48ea789e`, `eb520fad`, `d3267e30`, `1cd75940`, `70d36e15`, `48b58e6a`,
+`276ff531` and `430007e4`. The
 `Python-in-the-loop rnsd rpc interop` patch carries no other id and is
-fork commits `8870d19f`, `0efdadfa`, `238abaa3`, `839769d2`, `8a07c374`
-and `48b58e6a`.
+fork commits `8870d19f`, `0efdadfa`, `238abaa3`, `839769d2`, `8a07c374`,
+`48b58e6a`, `276ff531` and `430007e4`.
 
 | File | Patch |
 | --- | --- |
@@ -52,6 +53,7 @@ and `48b58e6a`.
 | `crates/apps/reticulumd/tests/python_channel_interop_parts/python_shared_instance_live.rs` | Python-in-the-loop rnsd rpc interop |
 | `crates/apps/reticulumd/tests/python_channel_interop_parts/python_shared_instance_rpc.rs` | Python-in-the-loop rnsd rpc interop |
 | `crates/apps/reticulumd/tests/python_channel_interop_parts/python_shared_instance_rpc_probe.rs` | Python-in-the-loop rnsd rpc interop |
+| `crates/apps/reticulumd/tests/python_channel_interop_parts/python_stdlib_listener_rpc_probe.rs` | Python-in-the-loop rnsd rpc interop |
 | `crates/apps/reticulumd/tests/support/python_channel_process.rs` | Python-in-the-loop rnsd rpc interop |
 | `crates/apps/rns-tools/src/bin/shared/rnstatus.rs` | auto peer count |
 | `crates/apps/rns-tools/tests/rnstatus_cli.rs` | auto peer count |
@@ -87,12 +89,13 @@ and `48b58e6a`.
 | `crates/libs/rns-transport/tests/interface_peer_count_api.rs` | auto peer count |
 | `crates/libs/rns-transport/tests/interface_peer_count_probe.rs` | auto peer count |
 | `crates/libs/rns-transport/tests/shared_instance_rpc_api.rs` | rnsd rpc client |
+| `crates/libs/rns-transport/tests/shared_instance_rpc_departed_server.rs` | rnsd rpc client |
 | `crates/libs/rns-transport/tests/support/loopback_auto_plan.rs` | auto peer count |
 | `docs/fork/PATCHSET.md` | auto peer count, rnsd rpc client, Python-in-the-loop rnsd rpc interop |
 
 Fork commits `bc5a7e6c`, `457f50f1`, `5d8832e1`, `5d231b18`, `6c1b4008`,
 `33fc1137`, `ddf20ed9`, `34dda674`, `20077b93`, `72a2685a`, `c1c51fe2`,
-`4ff8b5ea`, `5b08f985` and `48b58e6a`:
+`4ff8b5ea`, `5b08f985`, `48b58e6a` and `430007e4`:
 O1, auto peer count.
 Upstream site: `InterfaceManager::register_virtual_iface` in
 `crates/libs/rns-transport/src/iface_parts/interfacemanager.rs` and the
@@ -248,10 +251,15 @@ checked below it, cites `RNS/Interfaces/WeaveInterface.py:867` beside
 the README register and the `rnstatus_peers_cli` test doc, names
 `Transport::stop` as the prune in the CHANGELOG's api pin clause, and
 trims the `interface_peer_count` rustdoc's prune mechanics to the
-observable rule.
+observable rule. `430007e4` has the `ProbeDaemon` of
+`auto_peers_daemon_status_probe.rs` drop its daemon before its storage
+directory and print the record from its steady-state assertion, names the
+probe in the README and CHANGELOG pin lists and the `readme_patch_list.rs`
+claim set, and moves the `loopback_auto_plan` contract from the module doc
+onto the function.
 
 Fork commits `e5fed58f`, `2b2d59c1`, `48ea789e`, `eb520fad`, `d3267e30`,
-`1cd75940`, `70d36e15` and `48b58e6a`:
+`1cd75940`, `70d36e15`, `48b58e6a`, `276ff531` and `430007e4`:
 O2, rnsd rpc client.
 Upstream site: the shared-instance client module
 `crates/libs/rns-transport/src/transport/shared_instance.rs`, beside which
@@ -347,9 +355,24 @@ refusal above it) and adds to the README: `for_instance` returning
 loopback-guard asymmetry between `attach_shared_instance` and
 `RpcEndpoint::Tcp`, which dials the address given as rnstatus's own
 `multiprocessing.connection.Client` does (`RNS/Reticulum.py:1397-1402`).
+`276ff531` adds `tests/shared_instance_rpc_departed_server.rs`, a
+stdlib-faithful mock on a loopback socket: an honest server serves the
+reply, a one-byte and a 200-byte key pass the handshake, and a server that
+answers our challenge wrong and closes at once (a FIN, as a Python
+`Connection.close()` is) reads as `Authentication` sixteen times out of
+sixteen; pins `mac` and `verify_mac` round-tripping a one-byte and a
+200-byte key on every digest, so the dropped `InvalidKeyMaterial` arm is
+shown unreachable rather than turned into a panic; and asserts
+`for_instance` returns `default_tcp()` off Linux and Android whatever the
+name. `430007e4` has the README, the CHANGELOG and the
+`RpcError::Authentication` rustdoc say that the failure notice to a server
+that has already hung up stays `Authentication`, names randomness beside
+length in the `rpc_key` sentence, lists the departed-server test beside
+`tests/shared_instance_rpc_api.rs`, and puts the undelivered-notice debug
+line in the module's key=value style.
 
-Fork commits `8870d19f`, `0efdadfa`, `238abaa3`, `839769d2`, `8a07c374`
-and `48b58e6a`:
+Fork commits `8870d19f`, `0efdadfa`, `238abaa3`, `839769d2`, `8a07c374`,
+`48b58e6a`, `276ff531` and `430007e4`:
 Python-in-the-loop rnsd rpc interop.
 A Python rnsd (RNS 1.5.2) is the shared instance on a free TCP port with
 one `AutoInterface` configured in a top-level `[interfaces]` section, the
@@ -359,8 +382,8 @@ binary reads its interface statistics through the O2 client:
 `crates/apps/reticulumd/tests/python_channel_interop_parts/python_shared_instance_rpc.rs`,
 included from `crates/apps/reticulumd/tests/python_channel_interop.rs`,
 waits for the `Started shared instance interface` line and for
-`storage/transport_identity` to hold its 64 bytes, derives the default key from that
-file (`RNS/Reticulum.py:360-361`), and polls `interface_stats` with a
+`storage/transport_identity` to hold its 64 bytes, derives the default key
+from that file (`RNS/Reticulum.py:360-361`), and polls `interface_stats` with a
 refused dial and a reset mid-handshake retried for up to 15 s, since rnsd
 binds the listener only after `Transport.start`, itself after the
 AutoInterface's peering wait (`RNS/Reticulum.py:351-367`, `:1009`,
@@ -406,6 +429,17 @@ typed entry's byte counters against its raw map, hoists the shared
 oracle and agrees with the typed reply; the typed fields are projections
 of the raw maps; three reads agree; a zero budget is `Timeout`. `48b58e6a`
 names the probe part in the CHANGELOG's Python-in-the-loop clause.
+`276ff531` adds `python_stdlib_listener_rpc_probe.rs`, included from
+`python_channel_interop.rs`: CPython's own
+`multiprocessing.connection.Listener`, the class rnsd opens
+(`RNS/Reticulum.py:363-367`), run on its own with a one-byte and a
+sixteen-byte `authkey` and a canned `get_interface_stats`-shaped reply,
+takes both keys through `RpcKey::from_hex`, refuses a wrong one with its
+own `#FAILURE#` read as `Authentication`, and serves the next correct dial;
+it also has the two probe parts name `std::process` paths in full and the
+read after the abandoned zero-budget dial go through the reset-tolerant
+poll. `430007e4` names the listener probe in the README and CHANGELOG
+Python-in-the-loop clauses and the `readme_patch_list.rs` claim lists.
 Upstream site: test files only.
 
 ## 0.18.2 (upstream 0.14.0)

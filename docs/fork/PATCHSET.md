@@ -26,7 +26,7 @@ parity rows this file plus the crate README `## Known divergences from
 Python RNS` are the parity ledger; `docs/status/*` matrices are not updated
 per fork task.
 
-## Unreleased (upstream 0.14.0)
+## 0.18.3 (upstream 0.14.0)
 
 Every file changed since the `0.18.2` release and the patch each change
 belongs to. Patch ids: O1 is auto peer count, O2 is rnsd rpc client, O3 is
@@ -41,21 +41,27 @@ announce emitted. The `auto peer count` patch is fork commits `bc5a7e6c`,
 carries no other id and is fork commits `8870d19f`, `0efdadfa`, `238abaa3`,
 `839769d2`, `8a07c374`, `48b58e6a`, `276ff531`, `430007e4`, `18ec48d6`,
 `a2484437`, `1f895be2` and `8c203fa6`. The `announce emitted` patch is fork
-commits `02cc9498`, `21e11504`, `10f5e695`, `30994a51` and `7ea62b00`. The
-`Python-in-the-loop announce emitted interop` patch carries no other id and
-is fork commits `30249310` and `10f5e695`.
+commits `02cc9498`, `21e11504`, `10f5e695`, `30994a51`, `7ea62b00` and
+`79cee904`. The `Python-in-the-loop announce emitted interop` patch carries
+no other id and is fork commits `30249310` and `10f5e695`. The
+`release 0.18.3` patch carries no other id and is fork commits `a2a548a7`,
+`27d866af` and `af9d5694`.
 
 | File | Patch |
 | --- | --- |
-| `Cargo.lock` | rnsd rpc client |
-| `Cargo.toml` | rnsd rpc client |
+| `Cargo.lock` | rnsd rpc client, release 0.18.3 |
+| `Cargo.toml` | rnsd rpc client, release 0.18.3 |
+| `crates/apps/reticulumd/Cargo.toml` | release 0.18.3 |
 | `crates/apps/reticulumd/src/bin/reticulumd/bootstrap_parts/module_core.rs` | auto peer count |
 | `crates/apps/reticulumd/tests/auto_peers_daemon_status_probe.rs` | auto peer count |
-| `crates/apps/reticulumd/tests/fork_publish_contract.rs` | auto peer count |
+| `crates/apps/reticulumd/tests/fork_publish_contract.rs` | auto peer count, release 0.18.3 |
 | `crates/apps/reticulumd/tests/fork_publish_contract_parts/hil_core_case_names_probe.rs` | auto peer count |
-| `crates/apps/reticulumd/tests/fork_publish_contract_parts/ledger_contract.rs` | auto peer count |
+| `crates/apps/reticulumd/tests/fork_publish_contract_parts/ledger_contract.rs` | auto peer count, release 0.18.3 |
+| `crates/apps/reticulumd/tests/fork_release_docs_contract.rs` | release 0.18.3 |
 | `crates/apps/reticulumd/tests/fork_release_docs_contract_parts/crate_readme_sections.rs` | rnsd rpc client |
-| `crates/apps/reticulumd/tests/fork_release_docs_contract_parts/readme_patch_list.rs` | auto peer count, rnsd rpc client, Python-in-the-loop rnsd rpc interop, announce emitted |
+| `crates/apps/reticulumd/tests/fork_release_docs_contract_parts/readme_patch_list.rs` | auto peer count, rnsd rpc client, Python-in-the-loop rnsd rpc interop, announce emitted, release 0.18.3 |
+| `crates/apps/reticulumd/tests/fork_release_docs_contract_parts/release_0_18_2_probe.rs` | release 0.18.3 |
+| `crates/apps/reticulumd/tests/fork_release_docs_contract_parts/release_0_18_3_probe.rs` | release 0.18.3 |
 | `crates/apps/reticulumd/tests/fork_release_docs_contract_parts/request_layer_api_docs.rs` | announce emitted |
 | `crates/apps/reticulumd/tests/python_channel_interop.rs` | Python-in-the-loop rnsd rpc interop, Python-in-the-loop announce emitted interop |
 | `crates/apps/reticulumd/tests/python_channel_interop_parts/python_shared_instance_announce_emitted.rs` | Python-in-the-loop announce emitted interop |
@@ -64,12 +70,14 @@ is fork commits `30249310` and `10f5e695`.
 | `crates/apps/reticulumd/tests/python_channel_interop_parts/python_shared_instance_rpc_probe.rs` | Python-in-the-loop rnsd rpc interop |
 | `crates/apps/reticulumd/tests/python_channel_interop_parts/python_stdlib_listener_rpc_probe.rs` | Python-in-the-loop rnsd rpc interop |
 | `crates/apps/reticulumd/tests/support/python_channel_process.rs` | Python-in-the-loop rnsd rpc interop |
+| `crates/apps/rns-tools/Cargo.toml` | release 0.18.3 |
 | `crates/apps/rns-tools/src/bin/shared/rnstatus.rs` | auto peer count |
 | `crates/apps/rns-tools/tests/rnstatus_cli.rs` | auto peer count |
 | `crates/apps/rns-tools/tests/rnstatus_peers_cli.rs` | auto peer count |
-| `crates/libs/rns-transport/CHANGELOG.md` | auto peer count, rnsd rpc client, Python-in-the-loop rnsd rpc interop, announce emitted, Python-in-the-loop announce emitted interop |
-| `crates/libs/rns-transport/Cargo.toml` | rnsd rpc client |
-| `crates/libs/rns-transport/README.md` | auto peer count, rnsd rpc client, Python-in-the-loop rnsd rpc interop, announce emitted, Python-in-the-loop announce emitted interop |
+| `crates/libs/rns-transport/CHANGELOG.md` | auto peer count, rnsd rpc client, Python-in-the-loop rnsd rpc interop, announce emitted, Python-in-the-loop announce emitted interop, release 0.18.3 |
+| `crates/libs/rns-transport/Cargo.toml` | rnsd rpc client, release 0.18.3 |
+| `crates/libs/rns-transport/README.md` | auto peer count, rnsd rpc client, Python-in-the-loop rnsd rpc interop, announce emitted, Python-in-the-loop announce emitted interop, release 0.18.3 |
+| `crates/libs/rns-transport/fuzz/Cargo.lock` | release 0.18.3 |
 | `crates/libs/rns-transport/src/iface/auto_parts/autodiscoverystate.rs` | auto peer count |
 | `crates/libs/rns-transport/src/iface/auto_parts/multicastaddresstype.rs` | auto peer count |
 | `crates/libs/rns-transport/src/iface/auto_runtime_parts/autoruntimeplan.rs` | auto peer count |
@@ -99,6 +107,7 @@ is fork commits `30249310` and `10f5e695`.
 | `crates/libs/rns-transport/src/transport/tests.rs` | announce emitted |
 | `crates/libs/rns-transport/src/transport/tests_parts/two_transport_loopback_announce_emitted.rs` | announce emitted |
 | `crates/libs/rns-transport/tests/announce_emitted_api.rs` | announce emitted |
+| `crates/libs/rns-transport/tests/announce_emitted_probe.rs` | announce emitted |
 | `crates/libs/rns-transport/tests/auto_status_handle_peers_json_probe.rs` | auto peer count |
 | `crates/libs/rns-transport/tests/interface_peer_count_api.rs` | auto peer count |
 | `crates/libs/rns-transport/tests/interface_peer_count_probe.rs` | auto peer count |
@@ -106,7 +115,8 @@ is fork commits `30249310` and `10f5e695`.
 | `crates/libs/rns-transport/tests/shared_instance_rpc_departed_server.rs` | rnsd rpc client |
 | `crates/libs/rns-transport/tests/shared_instance_rpc_departed_server_python_probe.rs` | rnsd rpc client |
 | `crates/libs/rns-transport/tests/support/loopback_auto_plan.rs` | auto peer count |
-| `docs/fork/PATCHSET.md` | auto peer count, rnsd rpc client, Python-in-the-loop rnsd rpc interop, announce emitted, Python-in-the-loop announce emitted interop |
+| `docs/fork/PATCHSET.md` | auto peer count, rnsd rpc client, Python-in-the-loop rnsd rpc interop, announce emitted, Python-in-the-loop announce emitted interop, release 0.18.3 |
+| `docs/getting-started.md` | release 0.18.3 |
 | `tests/hil/cases/core.toml` | auto peer count |
 
 Fork commits `bc5a7e6c`, `457f50f1`, `5d8832e1`, `5d231b18`, `6c1b4008`,
@@ -511,7 +521,8 @@ once with the exit status. `8c203fa6` lists the CPython probe beside the
 Python-in-the-loop parts in the README and CHANGELOG claim lists.
 Upstream site: test files only.
 
-Fork commits `02cc9498`, `21e11504`, `10f5e695`, `30994a51` and `7ea62b00`:
+Fork commits `02cc9498`, `21e11504`, `10f5e695`, `30994a51`, `7ea62b00` and
+`79cee904`:
 O3, announce emitted.
 Upstream site: `AnnounceEvent` in
 `crates/libs/rns-transport/src/transport/mod.rs`, which carried the
@@ -565,7 +576,14 @@ then `expire_path` (`None`) in the black-box twin. `7ea62b00` pins the
 README paragraph in `readme_patch_list.rs`: the fields, the accessor's
 `None` and `Some(0)` shapes, the Python cites and the three pin files, its
 place after the `is_path_response` paragraph, the register split under
-`Not divergences:`, and the same claims in the CHANGELOG bullet.
+`Not divergences:`, and the same claims in the CHANGELOG bullet. `79cee904`
+adopts `crates/libs/rns-transport/tests/announce_emitted_probe.rs`, written
+against the contract alone: a `TcpClient` that attaches to a transport
+relay after the destination announced hears only the relay's path
+response, which carries the original blob and second, older than the
+request clock, the same again after an expire, no second event for a known
+blob at an equal second, and the newest announce once the destination
+re-announces; the CHANGELOG names it in the Pinned-by clause of the bullet.
 
 Fork commits `30249310` and `10f5e695`:
 Python-in-the-loop announce emitted interop.
@@ -589,6 +607,61 @@ second boundary, which rnsd files at equal hops only when strictly later
 a different blob. `10f5e695` names the live part in the README pin
 clause.
 Upstream site: test files only.
+
+Fork commits `a2a548a7`, `27d866af` and `af9d5694`: release 0.18.3. The
+first bumps the crate version to 0.18.3 at every manifest and
+consumer-snippet site (`Cargo.toml`,
+`crates/libs/rns-transport/Cargo.toml`, `crates/apps/reticulumd/Cargo.toml`,
+`crates/apps/rns-tools/Cargo.toml`, the snippet in
+`crates/libs/rns-transport/README.md` and `docs/getting-started.md`) and in
+`Cargo.lock` and `crates/libs/rns-transport/fuzz/Cargo.lock`, where the
+fuzz lock also picks up the `md-5`, `sha3` and `keccak` packages the rnsd
+rpc client added, and retargets the two version pins in
+`crates/apps/reticulumd/tests/fork_publish_contract.rs` to `0.18.3`; the
+root `VERSION` file stays. The second adds the 0.18.3 paragraph to the
+`## Patch list` of `crates/libs/rns-transport/README.md`, folding it into
+the intro sentence and leaving the 0.18.2 block as a standalone paragraph
+with its bullets unchanged; its six bullets are the auto peer count with
+its manager, status-handle and rnstatus readings, the rnsd rpc client with
+its two handshake forms and new dependencies, announce emission with the
+relayed path response keeping the original second, the Python-in-the-loop
+proofs against a live rnsd and CPython's own connection module, the
+test-only hygiene, and the consumer note (pin 0.18.3, nothing to opt into,
+the in-process and rnsd paths to the peer count, compare against
+`emitted` rather than arrival). The third promotes `## Unreleased` to
+`## 0.18.3 - 2026-11-19` in the crate `CHANGELOG.md` with a `### Changed`
+subsection of two bullets, a version bullet at its head (the announce
+field, the patch-bump reasoning with no `### Breaking` as every change is
+additive API a consumer need not opt into, the `cargo semver-checks` result
+of 0 findings against `v0.18.2` with the gate that runs it,
+`tools/scripts/semver-major-findings-check.sh coyote-rns-transport-v0.18.2 0`,
+and the contract tests that pin the release) and a restated test-only
+bullet for the release docs contract parts naming all twelve; it retargets
+the promotion-sensitive pins to the literal 0.18.3 label:
+`crates/apps/reticulumd/tests/fork_publish_contract_parts/ledger_contract.rs`
+expects the full-hash contract to cover `0.18.3`, `0.18.2`, `0.18.1`,
+`0.18.0`, `0.17.0`, `0.16.0` and `0.15.1` with no `Unreleased` label and
+the bullet-cite contract the same seven, and
+`crates/apps/reticulumd/tests/fork_release_docs_contract_parts/readme_patch_list.rs`
+gains a 0.18.3 twin
+(`readme_patch_list_opens_with_the_0_18_3_block_and_keeps_the_0_18_2_paragraph`)
+asserting that the 0.18.3 block opens the list, the 0.18.3, 0.18.2, 0.18.1
+order and the 0.18.3 items, while the 0.18.2 test
+(`readme_patch_list_keeps_the_0_18_2_block_above_the_0_18_1_paragraph`)
+keeps its order and its needles through a shared const and one assert in
+the same file takes rustfmt's layout; it demotes the first-release-heading
+assertion out of
+`crates/apps/reticulumd/tests/fork_release_docs_contract_parts/release_0_18_2_probe.rs`,
+which keeps its date pin; and it adds
+`crates/apps/reticulumd/tests/fork_release_docs_contract_parts/release_0_18_3_probe.rs`,
+included from `crates/apps/reticulumd/tests/fork_release_docs_contract.rs`,
+which pins the heading date and its place as the first release heading,
+the subsection set `### Added`, `### Changed` and nothing else (so no
+`### Breaking` and no `### Fixed`), the three `### Added` items by their
+names, the patch digit and semver sentence of the version bullet, the
+twelve parts the include-set bullet names, and the README patch-list
+order. The ledger commit that cites the three commits above touches only
+this file.
 
 ## 0.18.2 (upstream 0.14.0)
 

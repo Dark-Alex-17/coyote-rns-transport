@@ -14,22 +14,23 @@ Coyote's mesh (LXMF messaging between peers, a LAN AutoInterface, and a local
 `rnsd` the sessions attach to as shared-instance clients) needs transport
 surface upstream `reticulum-rs-transport` does not expose: link request
 handlers and what became of the response they sent, the resolved description
-of an announced destination, a responder's size caps, the shared-instance
-client's connection state and tunnel opt-in, an interface's connect and peer
-counts, an rnsd RPC client for its interface statistics, and the emission time
-of an announce, plus a handful of behaviour fixes. Publishing the fork lets
-Coyote pin it from crates.io instead of a git dependency. The fork started as
-upstream `0.14.0` plus one patch, the removed `println!` of the
-`link: close <id>` line (the `log::warn!` beside it already records the
-close); everything since is in the ledgers named below.
+of an announced destination, a responder's cap on the size of the response it
+sends, the shared-instance client's connection state and tunnel opt-in, an
+interface's connect and peer counts, an rnsd RPC client for its interface
+statistics, and the emission time of an announce, plus a handful of behaviour
+fixes. Publishing the fork lets Coyote pin it from crates.io instead of a git
+dependency. The fork started as upstream `0.14.0` plus one patch, the removed
+`println!` of the `link: close <id>` line (the `log::warn!` beside it already
+records the close); everything since is in the ledgers named below.
 
 ### What differs from upstream
 
 Apart from the [patch list](#patch-list) and the API breaks `CHANGELOG.md`
 lists under `### Breaking`, only the package name changes: the library target
 stays `rns_transport`, so every `use rns_transport::...` path written against
-upstream resolves unchanged against this crate. The fork-only surface, by
-theme, each with the section that documents it:
+upstream resolves unchanged against this crate. The fork-only surface the
+sections below document, by theme (the smaller additions with no section of
+their own are in the [Patch list](#patch-list)):
 
 - [Request handlers](#request-handlers):
   `SingleInputDestination::register_request_handler` and

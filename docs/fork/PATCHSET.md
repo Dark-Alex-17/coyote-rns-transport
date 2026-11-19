@@ -32,7 +32,8 @@ Every file changed since the `0.18.2` release and the patch each change
 belongs to. Patch ids: O1 is auto peer count, O2 is rnsd rpc client. The
 `auto peer count` patch is fork commits `bc5a7e6c`, `457f50f1`, `5d8832e1`,
 `5d231b18`, `6c1b4008`, `33fc1137`, `ddf20ed9`, `34dda674`, `20077b93`,
-`72a2685a`, `c1c51fe2`, `4ff8b5ea`, `5b08f985`, `48b58e6a` and `430007e4`.
+`72a2685a`, `c1c51fe2`, `4ff8b5ea`, `5b08f985`, `48b58e6a`, `430007e4` and
+`d891381b`.
 The `rnsd rpc client` patch is fork commits `e5fed58f`, `2b2d59c1`,
 `48ea789e`, `eb520fad`, `d3267e30`, `1cd75940`, `70d36e15`, `48b58e6a`,
 `276ff531` and `430007e4`. The
@@ -92,10 +93,11 @@ fork commits `8870d19f`, `0efdadfa`, `238abaa3`, `839769d2`, `8a07c374`,
 | `crates/libs/rns-transport/tests/shared_instance_rpc_departed_server.rs` | rnsd rpc client |
 | `crates/libs/rns-transport/tests/support/loopback_auto_plan.rs` | auto peer count |
 | `docs/fork/PATCHSET.md` | auto peer count, rnsd rpc client, Python-in-the-loop rnsd rpc interop |
+| `tests/hil/cases/core.toml` | auto peer count |
 
 Fork commits `bc5a7e6c`, `457f50f1`, `5d8832e1`, `5d231b18`, `6c1b4008`,
 `33fc1137`, `ddf20ed9`, `34dda674`, `20077b93`, `72a2685a`, `c1c51fe2`,
-`4ff8b5ea`, `5b08f985`, `48b58e6a` and `430007e4`:
+`4ff8b5ea`, `5b08f985`, `48b58e6a`, `430007e4` and `d891381b`:
 O1, auto peer count.
 Upstream site: `InterfaceManager::register_virtual_iface` in
 `crates/libs/rns-transport/src/iface_parts/interfacemanager.rs` and the
@@ -256,7 +258,12 @@ observable rule. `430007e4` has the `ProbeDaemon` of
 directory and print the record from its steady-state assertion, names the
 probe in the README and CHANGELOG pin lists and the `readme_patch_list.rs`
 claim set, and moves the `loopback_auto_plan` contract from the module doc
-onto the function.
+onto the function. `d891381b` gives the slow
+`spawned_runtime_counts_down_when_the_admitted_peer_times_out` pin a
+runner: the `auto-peer-count-timeout` case of `tests/hil/cases/core.toml`
+(suite `core`, virtual profile, pr, nightly and release levels) runs it
+with `--ignored`, as the hil `python-channel-interop` case runs the
+Python-checkout ignores.
 
 Fork commits `e5fed58f`, `2b2d59c1`, `48ea789e`, `eb520fad`, `d3267e30`,
 `1cd75940`, `70d36e15`, `48b58e6a`, `276ff531` and `430007e4`:

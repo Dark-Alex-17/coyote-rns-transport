@@ -41,9 +41,9 @@ announce emitted. The `auto peer count` patch is fork commits `bc5a7e6c`,
 carries no other id and is fork commits `8870d19f`, `0efdadfa`, `238abaa3`,
 `839769d2`, `8a07c374`, `48b58e6a`, `276ff531`, `430007e4`, `18ec48d6`,
 `a2484437`, `1f895be2` and `8c203fa6`. The `announce emitted` patch is fork
-commits `02cc9498`, `21e11504` and `10f5e695`. The `Python-in-the-loop
-announce emitted interop` patch carries no other id and is fork commits
-`30249310` and `10f5e695`.
+commits `02cc9498`, `21e11504`, `10f5e695` and `30994a51`. The
+`Python-in-the-loop announce emitted interop` patch carries no other id and
+is fork commits `30249310` and `10f5e695`.
 
 | File | Patch |
 | --- | --- |
@@ -56,6 +56,7 @@ announce emitted interop` patch carries no other id and is fork commits
 | `crates/apps/reticulumd/tests/fork_publish_contract_parts/ledger_contract.rs` | auto peer count |
 | `crates/apps/reticulumd/tests/fork_release_docs_contract_parts/crate_readme_sections.rs` | rnsd rpc client |
 | `crates/apps/reticulumd/tests/fork_release_docs_contract_parts/readme_patch_list.rs` | auto peer count, rnsd rpc client, Python-in-the-loop rnsd rpc interop |
+| `crates/apps/reticulumd/tests/fork_release_docs_contract_parts/request_layer_api_docs.rs` | announce emitted |
 | `crates/apps/reticulumd/tests/python_channel_interop.rs` | Python-in-the-loop rnsd rpc interop, Python-in-the-loop announce emitted interop |
 | `crates/apps/reticulumd/tests/python_channel_interop_parts/python_shared_instance_announce_emitted.rs` | Python-in-the-loop announce emitted interop |
 | `crates/apps/reticulumd/tests/python_channel_interop_parts/python_shared_instance_live.rs` | Python-in-the-loop rnsd rpc interop |
@@ -510,7 +511,7 @@ once with the exit status. `8c203fa6` lists the CPython probe beside the
 Python-in-the-loop parts in the README and CHANGELOG claim lists.
 Upstream site: test files only.
 
-Fork commits `02cc9498`, `21e11504` and `10f5e695`:
+Fork commits `02cc9498`, `21e11504`, `10f5e695` and `30994a51`:
 O3, announce emitted.
 Upstream site: `AnnounceEvent` in
 `crates/libs/rns-transport/src/transport/mod.rs`, which carried the
@@ -554,6 +555,13 @@ emission inside the request bracket), and in the black-box twin
 `crates/libs/rns-transport/tests/announce_emitted_api.rs`. `10f5e695`
 documents the fields and the accessor in the README after the
 `is_path_response` paragraph and names them under `Not divergences`.
+`30994a51` rows the two fields and the accessor in the cite contract
+`crates/apps/reticulumd/tests/fork_release_docs_contract_parts/request_layer_api_docs.rs`
+(which caught the blob field's missing Python cite, now
+`RNS/Transport.py:2217`), asserts the two fields public beside
+`is_path_response`, pins the blob-less `Some(0)` through the test-only
+`restore_tunnel_path` fixture, and walks `deregister_destination` (standing)
+then `expire_path` (`None`) in the black-box twin.
 
 Fork commits `30249310` and `10f5e695`:
 Python-in-the-loop announce emitted interop.

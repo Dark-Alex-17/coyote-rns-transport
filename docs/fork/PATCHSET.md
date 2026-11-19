@@ -26,6 +26,47 @@ parity rows this file plus the crate README `## Known divergences from
 Python RNS` are the parity ledger; `docs/status/*` matrices are not updated
 per fork task.
 
+## Unreleased (upstream 0.14.0)
+
+Every file changed since the `0.18.3` release and the patch each change
+belongs to. Patch ids: P1 is readme fork framing. The `readme fork framing`
+patch is fork commits `edb4258e`, `a7688b50`, `6e1a7457` and `b8a0c07d`.
+
+| File | Patch |
+| --- | --- |
+| `README.md` | readme fork framing |
+| `crates/apps/reticulumd/tests/fork_publish_contract_parts/ledger_contract.rs` | readme fork framing |
+| `crates/libs/rns-transport/CHANGELOG.md` | readme fork framing |
+| `crates/libs/rns-transport/README.md` | readme fork framing |
+| `docs/fork/PATCHSET.md` | readme fork framing |
+
+Fork commits `edb4258e`, `a7688b50`, `6e1a7457` and `b8a0c07d`: P1, readme
+fork framing. Docs only, no library change.
+Upstream site: the repository `README.md`, which upstream writes as the
+LXMF-rs workspace landing page, and the crate README
+`crates/libs/rns-transport/README.md`, which upstream does not carry (the
+fork added it with the rename). The crate README's `## What this is` now
+opens with a one-line account of Coyote and its `.mesh` feature, then says
+under `### Why the fork exists` what transport surface Coyote's mesh needs
+that upstream does not expose and that the fork started as upstream `0.14.0`
+plus the link-close patch, lists under `### What differs from upstream` the
+fork-only surface by theme, each name checked absent from the upstream
+`0.14.0` baseline, with a link to the section that documents it, and moves
+the versioning policy, unchanged, under `### How it tracks upstream` with
+pointers to upstream, the rebase recipe and the licence. The repository README
+replaces upstream's title, badges and workspace intro, and folds the
+fork-added `## Coyote fork` section that followed them, into the fork's title,
+a release badge that reads the `coyote-rns-transport-v*` tags beside the crate
+and docs badges, a licence badge that reads the dual
+`EPL-2.0 OR GPL-2.0-or-later` licence, and pointers to the crate README's
+`## What this is`, `## Consumer` and `## Patch list`, to
+`docs/fork/PATCHSET.md` and to the crate `CHANGELOG.md`; it keeps upstream's
+workspace documentation, headings unchanged, under an `## Upstream LXMF-rs`
+heading whose attribution names the `## Main packages` row the fork updated.
+The crate `CHANGELOG.md` reopens `## Unreleased` with a docs-only Changed
+bullet, and `ledger_contract.rs` extends the full-hash ledger pin to the
+reopened section.
+
 ## 0.18.3 (upstream 0.14.0)
 
 Every file changed since the `0.18.2` release and the patch each change

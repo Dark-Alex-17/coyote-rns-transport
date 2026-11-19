@@ -1,22 +1,35 @@
-# LXMF-rs — Reticulum and LXMF in Rust
+# coyote-rns-transport: Coyote's fork of LXMF-rs
 
-[![Latest release](https://img.shields.io/github/v/release/FreeTAKTeam/LXMF-rs?sort=semver)](https://github.com/FreeTAKTeam/LXMF-rs/releases/latest)
-[![Crates.io](https://img.shields.io/crates/v/lxmf)](https://crates.io/crates/lxmf)
-[![Documentation](https://docs.rs/lxmf/badge.svg)](https://docs.rs/lxmf)
-[![License](https://img.shields.io/badge/license-EPL--2.0-blue.svg)](LICENSE)
-[![Ask DeepWiki](https://deepwiki.com/badge.svg)](https://deepwiki.com/FreeTAKTeam/LXMF-rs)
+[![Latest release](https://img.shields.io/github/v/tag/Dark-Alex-17/coyote-rns-transport?filter=coyote-rns-transport-v*&label=release)](https://github.com/Dark-Alex-17/coyote-rns-transport/tags)
+[![Crates.io](https://img.shields.io/crates/v/coyote-rns-transport)](https://crates.io/crates/coyote-rns-transport)
+[![Documentation](https://docs.rs/coyote-rns-transport/badge.svg)](https://docs.rs/coyote-rns-transport)
+[![License](https://img.shields.io/badge/license-EPL--2.0%20OR%20GPL--2.0--or--later-blue.svg)](LICENSE)
 
-LXMF-rs is a Rust implementation of the
-[Reticulum](https://reticulum.network/) networking stack and the
-[LXMF](https://github.com/markqvist/LXMF) messaging stack. The workspace
-provides reusable libraries, a typed SDK, host daemons and command-line tools,
-plus embedded and FFI surfaces.
+This repository is Coyote's fork of
+[FreeTAKTeam/LXMF-rs](https://github.com/FreeTAKTeam/LXMF-rs), the Rust
+implementation of Reticulum and LXMF. It publishes one crate,
+`coyote-rns-transport`: upstream's `reticulum-rs-transport` plus the transport
+surface [Coyote](https://github.com/Dark-Alex-17/coyote)'s `.mesh` feature
+needs and upstream does not expose, published so Coyote can pin it from
+crates.io.
 
-## Coyote fork
+The crate [README](crates/libs/rns-transport/README.md) says why the fork
+exists and what differs from upstream under
+[What this is](crates/libs/rns-transport/README.md#what-this-is), gives the
+dependency line under [Consumer](crates/libs/rns-transport/README.md#consumer),
+and summarises each release under
+[Patch list](crates/libs/rns-transport/README.md#patch-list).
+[`docs/fork/PATCHSET.md`](docs/fork/PATCHSET.md) is the per-file, per-commit
+ledger behind that summary, and
+[`crates/libs/rns-transport/CHANGELOG.md`](crates/libs/rns-transport/CHANGELOG.md)
+is the release notes.
 
-This repository is Coyote's fork of LXMF-rs. It publishes a single crate,
-`coyote-rns-transport`, which is upstream's `reticulum-rs-transport` plus a
-small patch list; see [its README](crates/libs/rns-transport/README.md).
+## Upstream LXMF-rs
+
+The rest of this README is upstream's workspace documentation at the fork's
+baseline, with the transport row of `## Main packages` updated for the fork;
+see the [upstream repo](https://github.com/FreeTAKTeam/LXMF-rs) for current
+upstream status.
 
 <!-- performance-summary:start -->
 ## Measured performance

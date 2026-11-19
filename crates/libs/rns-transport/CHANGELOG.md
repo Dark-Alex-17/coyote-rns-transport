@@ -8,6 +8,21 @@ no library behaviour (a test-only change such as a fixture hardening or a
 test hygiene pass, release tooling, CI) is a Changed (or, for a deleted file,
 Removed) bullet of its own, marked as such.
 
+## Unreleased
+
+### Changed
+
+- README fork framing, docs only, no library change: the crate README's
+  `## What this is` now says what Coyote is, why this fork of upstream
+  `reticulum-rs-transport` exists and what differs from upstream, by theme,
+  each item linked to the section that documents it, and moves the
+  versioning policy under a `### How it tracks upstream` subsection; the
+  repository README leads with the fork (title, badges and intro name this
+  repository and `coyote-rns-transport`) and keeps upstream's workspace
+  documentation under an `## Upstream LXMF-rs` heading. The full-hash
+  ledger pin in `ledger_contract.rs` admits the reopened `## Unreleased`
+  section of `docs/fork/PATCHSET.md`.
+
 ## 0.18.3 - 2026-11-19
 
 ### Added

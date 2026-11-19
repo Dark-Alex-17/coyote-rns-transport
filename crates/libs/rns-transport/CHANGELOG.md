@@ -237,7 +237,10 @@ Removed) bullet of its own, marked as such.
   `### Added`, `### Changed` of this release with no `### Breaking` and no
   `### Fixed`, the three `### Added` items by their names, the patch digit
   and the semver sentence above, the twelve parts the include-set bullet
-  names, and the README patch-list order with the 0.18.3 block on top.
+  names, the README patch-list order with the 0.18.3 block on top, and the
+  usage pins a consumer reads cold: the ledger's release patch and probe
+  attribution, the README consumer note and the publish contract's two hand
+  pins reading `0.18.3`.
 - Release docs contract, test-only: `fork_release_docs_contract.rs` includes
   its tests from `fork_release_docs_contract_parts/`
   (`crate_readme_sections.rs`, `readme_patch_list.rs`,

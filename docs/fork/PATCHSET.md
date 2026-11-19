@@ -45,7 +45,7 @@ commits `02cc9498`, `21e11504`, `10f5e695`, `30994a51`, `7ea62b00`,
 `79cee904` and `6236b9e1`. The `Python-in-the-loop announce emitted interop`
 patch carries no other id and is fork commits `30249310` and `10f5e695`. The
 `release 0.18.3` patch carries no other id and is fork commits `a2a548a7`,
-`27d866af` and `af9d5694`.
+`27d866af`, `af9d5694` and `9c3cada9`.
 
 | File | Patch |
 | --- | --- |
@@ -613,8 +613,8 @@ a different blob. `10f5e695` names the live part in the README pin
 clause.
 Upstream site: test files only.
 
-Fork commits `a2a548a7`, `27d866af` and `af9d5694`: release 0.18.3. The
-first bumps the crate version to 0.18.3 at every manifest and
+Fork commits `a2a548a7`, `27d866af`, `af9d5694` and `9c3cada9`: release
+0.18.3. The first bumps the crate version to 0.18.3 at every manifest and
 consumer-snippet site (`Cargo.toml`,
 `crates/libs/rns-transport/Cargo.toml`, `crates/apps/reticulumd/Cargo.toml`,
 `crates/apps/rns-tools/Cargo.toml`, the snippet in
@@ -665,8 +665,13 @@ the subsection set `### Added`, `### Changed` and nothing else (so no
 `### Breaking` and no `### Fixed`), the three `### Added` items by their
 names, the patch digit and semver sentence of the version bullet, the
 twelve parts the include-set bullet names, and the README patch-list
-order. The ledger commit that cites the three commits above touches only
-this file.
+order. The fourth folds into `release_0_18_3_probe.rs` the usage pins a
+consumer reads cold: the ledger opening on this section with the release
+patch and the probe commits attributed, the `AnnounceEvent::emitted` note
+naming the late-joiner probe, the README block's six bullets and consumer
+note, the probe's module doc standing on the contract alone, and the two
+hand pins reading `0.18.3`. The ledger commits that cite the four commits
+above touch only this file and the crate `CHANGELOG.md`.
 
 ## 0.18.2 (upstream 0.14.0)
 

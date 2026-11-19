@@ -1302,8 +1302,78 @@ full `refs/tags/coyote-rns-transport-v<version>` ref, and
 
 `docs/fork/PATCHSET.md` is the single per-release ledger of every file changed
 since the previous release, with the commit that changed it and the upstream
-site; earlier sections carry the earlier patches. What `0.18.2` carries on top
-of `0.18.1`:
+site; earlier sections carry the earlier patches. What `0.18.3` carries on top
+of `0.18.2`:
+
+- The auto peer count: `Transport::interface_peer_count(&AddressHash) ->
+  Option<u64>` reads the AutoInterface discovery peer table behind an
+  in-process `auto` interface, what Python reports as `len(interface.peers)`
+  (`RNS/Reticulum.py:1501-1503`) and rnstatus prints
+  (`RNS/Utilities/rnstatus.py:555-556`); `None` for an interface that tracks
+  no peers (TCP, UDP, serial, KISS, RNode, pipe and the shared instance's)
+  and for an address no record carries. Below the transport,
+  `InterfaceManager::set_peer_counter` installs the counter on a host and
+  the virtual children registered on it and `InterfaceManager::peer_count`
+  reads it; `AutoRuntimeStatusHandle::peer_count()` and the always-present
+  `"peers"` key of its JSON carry the same value, which reticulumd's
+  `daemon_status_ex` copies under `_runtime.auto.carrier_runtime` and
+  rnstatus-rs prints as `peers=N` on the auto line.
+- The rnsd RPC client: `transport::shared_instance_rpc` (`RpcEndpoint`,
+  `RpcKey`, `RpcError`, `InterfaceStats`, `InterfaceStat` and
+  `interface_stats`) dials the `multiprocessing.connection` listener a
+  Python shared instance serves rnstatus from (`RNS/Reticulum.py:363-367`,
+  `:1274-1334`) and reads the `interface_stats` reply as typed
+  per-interface rows beside the raw msgpack. The handshake is the stdlib's
+  mutual HMAC exchange over its length-prefixed frames, in the modern
+  `{digest}` form and the legacy raw HMAC-MD5 form of a Python 3.11 or
+  older server, following the server's form; the key is `RpcKey::from_hex`
+  for a configured `rpc_key` or `RpcKey::from_transport_identity_file` for
+  Python's default. New dependencies `md-5` and `sha3` carry the digest
+  table.
+- Announce emission: `AnnounceEvent::emitted` is the emission second of an
+  announce in the emitter's clock and `AnnounceEvent::random_blob` the
+  10-byte blob it was decoded from, bytes 5..10 big-endian
+  (`RNS/Transport.py:2217`, `:3725-3726`);
+  `Transport::latest_announce_emitted(&AddressHash) -> Option<u64>` is the
+  newest second among the path table's blobs for a destination, as
+  `timebase_from_random_blobs` computes it (`RNS/Transport.py:3729`):
+  `None` without an entry, `Some(0)` for an entry without blobs. A
+  transport relay answering a path request replays its stored announce
+  (`RNS/Transport.py:3459-3473`), so the event carries the original blob
+  and second under `is_path_response`.
+- The Python-in-the-loop proofs: `python_shared_instance_rpc.rs`,
+  `python_shared_instance_rpc_probe.rs`,
+  `python_stdlib_listener_rpc_probe.rs` and
+  `python_shared_instance_announce_emitted.rs` of the reticulumd
+  `python_channel_interop` binary run against a live Python rnsd (RNS
+  1.5.2): the identity-derived key passes its listener's handshake and the
+  reply carries the `AutoInterface` entry with `peers` `Some(0)`, Python's
+  own `multiprocessing.connection.Client` and `Listener` agree with the
+  typed client, and rnsd replays a cached announce's blob and second to a
+  late-joining local client's path request. Beside them,
+  `tests/shared_instance_rpc_departed_server_python_probe.rs` runs the
+  client against CPython's own connection module.
+- Test-only hygiene: the hil core case `auto-peer-count-timeout` runs the
+  ignored slow test that waits out the 22 s peering timeout, the
+  `hil_core_case_names_probe.rs` contract pins the case names, the
+  departed-server mocks pin the `Authentication` reading of a server that
+  hangs up, and further probes were adopted, the last being
+  `announce_emitted_probe.rs`.
+- For a consumer: pin `coyote-rns-transport = "0.18.3"`; there is nothing to
+  opt into. Read `Transport::interface_peer_count` for an in-process auto
+  interface; for the rnsd path call
+  `transport::shared_instance_rpc::interface_stats` with
+  `RpcEndpoint::for_instance("default")` on a Linux or Android shared
+  instance of unix type and
+  `RpcEndpoint::Tcp(127.0.0.1:<instance_control_port>)` (37429 by default)
+  elsewhere, with `RpcKey::from_transport_identity_file` on
+  `<configdir>/storage/transport_identity`, and read `peers` off the entries
+  whose `kind == "AutoInterface"`. Compare a timestamp an announce
+  carries in its app data, such as a farewell's sent time, against
+  `AnnounceEvent::emitted`, never against the arrival time: a relayed path
+  response arrives now but was emitted then.
+
+What `0.18.2` carries on top of `0.18.1`:
 
 - The tunnel opt-in: `SharedInstanceOptions::with_tunnel_synthesis` is a
   `#[must_use]` builder, off by default; with it set

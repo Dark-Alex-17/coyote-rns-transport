@@ -20,7 +20,9 @@ const SHARED_INSTANCE_RPC_CONFIGURED_KEY: &str =
 
 // The retry set of the crate README: an io kind behind `Io` or `Connect`
 // that a dial landing on rnsd's serial `rpc_loop` (`RNS/Reticulum.py:1274-1334`,
-// backlog one at `:364`) or a server departing mid-call can produce.
+// whose `Listener` at `:364` keeps the stdlib default `backlog=1` of
+// `multiprocessing.connection` `Listener.__init__`) or a server departing
+// mid-call can produce.
 fn shared_instance_rpc_retryable(err: &RpcError) -> bool {
     use std::io::ErrorKind::{BrokenPipe, ConnectionAborted, ConnectionReset, UnexpectedEof};
     matches!(err.io_kind(), Some(ConnectionReset | ConnectionAborted | BrokenPipe | UnexpectedEof))

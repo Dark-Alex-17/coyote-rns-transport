@@ -9,7 +9,11 @@
 //! server that completes the whole handshake and reads the request but hangs up with a
 //! FIN instead of a reply, the same accept-then-close over a unix socket, a `backlog=1`
 //! listener that never accepts under four concurrent dials (the rnsd `rpc_loop` shape the
-//! README describes, without Python), and a unix path nobody listens on.
+//! README describes, without Python), and a unix path nobody listens on. The round-2
+//! additions are the bytes-wrong edges a consumer meets from outside the crate (an
+//! oversized, a negative and an empty frame header, all `Protocol` with no io kind), a
+//! server that resets instead of closing before its first byte, and a unix socket file
+//! that exists with nobody behind it (`Connect` of kind `ConnectionRefused`).
 
 use std::error::Error;
 use std::time::{Duration, Instant};
@@ -216,11 +220,14 @@ async fn missing_unix_path_is_connect_with_a_non_retryable_io_kind() {
     }
 }
 
-/// The rnsd `rpc_loop` shape without Python: a `backlog=1` listener that never accepts,
-/// four concurrent dials under a short budget. Whatever the kernel does with the overflow
-/// (queue it, drop the SYN, or reset it at `connect()` as macOS does), a consumer must be
-/// able to classify every outcome by `Timeout` or `io_kind()` alone: never `Protocol`,
-/// never `Authentication`, never `ConnectionRefused`.
+/// The rnsd `rpc_loop` shape without Python: a listener at the stdlib default `backlog=1`
+/// that never accepts, four concurrent dials under a short budget. Whatever the kernel
+/// does with the overflow (queue it, drop the SYN, or reset it at `connect()` as macOS
+/// does), a consumer must be able to classify every outcome by `Timeout` or `io_kind()`
+/// alone: never `Protocol`, never `Authentication`, never `ConnectionRefused`. Not on
+/// Windows: Winsock answers a SYN past the backlog with a RST, which the dial reads as
+/// `ConnectionRefused`, a platform rendering of the overflow rather than a client defect.
+#[cfg(not(windows))]
 #[tokio::test]
 async fn backlog_one_listener_overflow_is_timeout_or_a_retryable_kind_on_either_variant() {
     use socket2::{Domain, Protocol, Socket, Type};
@@ -258,4 +265,138 @@ async fn backlog_one_listener_overflow_is_timeout_or_a_retryable_kind_on_either_
     }
     eprintln!("backlog=1 overflow outcomes: {kinds:?}");
     drop(socket);
+}
+
+/// A listener that writes `bytes` to the first client and then holds the socket until
+/// the client leaves, so the client sees exactly those bytes and nothing else.
+async fn server_writing_then_holding(bytes: Vec<u8>) -> (RpcEndpoint, tokio::task::JoinHandle<()>) {
+    let (listener, endpoint) = loopback_listener().await;
+    let server = tokio::spawn(async move {
+        let (mut stream, _) = listener.accept().await.expect("accept");
+        stream.write_all(&bytes).await.expect("write");
+        stream.flush().await.expect("flush");
+        let mut sink = [0u8; 256];
+        while let Ok(n) = stream.read(&mut sink).await {
+            if n == 0 {
+                break;
+            }
+        }
+    });
+    (endpoint, server)
+}
+
+/// The README's `Protocol`: the bytes were wrong, no io kind, no retry, and the verdict is
+/// quick (a bad length must be rejected on the header, not waited out to the budget).
+fn assert_protocol_without_io_kind(result: &Result<impl std::fmt::Debug, RpcError>, what: &str) {
+    match result {
+        Err(err @ RpcError::Protocol(_)) => {
+            assert_eq!(err.io_kind(), None, "{what}: {err:?}");
+            assert!(!retryable(err), "{what}: {err:?}");
+        }
+        other => panic!("{what}: expected RpcError::Protocol, got {other:?}"),
+    }
+}
+
+/// A frame header announcing `i32::MAX` bytes is an oversized frame: `Protocol`, no io
+/// kind, rejected before any payload read, so well inside the budget.
+#[tokio::test]
+async fn oversized_frame_header_is_protocol_without_an_io_kind() {
+    let (endpoint, server) = server_writing_then_holding(i32::MAX.to_be_bytes().to_vec()).await;
+    let started = Instant::now();
+    let result = interface_stats(&endpoint, &key(), WAIT).await;
+    assert_protocol_without_io_kind(&result, "oversized header");
+    assert!(started.elapsed() < Duration::from_secs(2), "{:?}", started.elapsed());
+    server.await.expect("server task");
+}
+
+/// A negative frame header other than the stdlib's `-1` wide marker
+/// (`connection.py _recv_bytes`: `-1` means "an 8-byte `!Q` length follows") is a bad
+/// length: `Protocol`, no io kind.
+#[tokio::test]
+async fn negative_frame_header_is_protocol_without_an_io_kind() {
+    let (endpoint, server) = server_writing_then_holding((-2i32).to_be_bytes().to_vec()).await;
+    let started = Instant::now();
+    let result = interface_stats(&endpoint, &key(), WAIT).await;
+    assert_protocol_without_io_kind(&result, "negative header");
+    assert!(started.elapsed() < Duration::from_secs(2), "{:?}", started.elapsed());
+    server.await.expect("server task");
+}
+
+/// The wide form of an oversized frame: the `-1` marker followed by a `u64::MAX` length.
+/// Still `Protocol`, no io kind, rejected on the header.
+#[tokio::test]
+async fn oversized_wide_frame_header_is_protocol_without_an_io_kind() {
+    let mut bytes = (-1i32).to_be_bytes().to_vec();
+    bytes.extend_from_slice(&u64::MAX.to_be_bytes());
+    let (endpoint, server) = server_writing_then_holding(bytes).await;
+    let started = Instant::now();
+    let result = interface_stats(&endpoint, &key(), WAIT).await;
+    assert_protocol_without_io_kind(&result, "oversized wide header");
+    assert!(started.elapsed() < Duration::from_secs(2), "{:?}", started.elapsed());
+    server.await.expect("server task");
+}
+
+/// An empty frame where the challenge should be is an unexpected handshake token:
+/// `Protocol`, no io kind.
+#[tokio::test]
+async fn empty_challenge_frame_is_protocol_without_an_io_kind() {
+    let (endpoint, server) = server_writing_then_holding(frame(b"")).await;
+    let started = Instant::now();
+    let result = interface_stats(&endpoint, &key(), WAIT).await;
+    assert_protocol_without_io_kind(&result, "empty challenge frame");
+    assert!(started.elapsed() < Duration::from_secs(2), "{:?}", started.elapsed());
+    server.await.expect("server task");
+}
+
+/// The handoff's literal ask: a server that accepts and then closes mid-handshake, here
+/// with a reset (`SO_LINGER 0`) rather than a FIN, before it has written a byte. The
+/// client's first read meets the reset or EOF; either way the call is `Io` of a kind in
+/// the retry set, never `Protocol` or `Authentication`.
+#[tokio::test]
+async fn accept_then_reset_before_any_byte_is_io_retryable() {
+    let (listener, endpoint) = loopback_listener().await;
+    let server = tokio::spawn(async move {
+        let (stream, _) = listener.accept().await.expect("accept");
+        socket2::SockRef::from(&stream).set_linger(Some(Duration::ZERO)).expect("linger zero");
+        drop(stream);
+    });
+    let started = Instant::now();
+    let result = interface_stats(&endpoint, &key(), WAIT).await;
+    assert_io_retryable(&result, "accept then RST");
+    let kind = result.as_ref().err().and_then(RpcError::io_kind);
+    eprintln!("accept then RST: {kind:?}");
+    assert!(
+        matches!(
+            kind,
+            Some(std::io::ErrorKind::ConnectionReset | std::io::ErrorKind::UnexpectedEof)
+        ),
+        "{result:?}"
+    );
+    assert!(started.elapsed() < Duration::from_secs(2), "{:?}", started.elapsed());
+    server.await.expect("server task");
+}
+
+/// A unix socket file that exists with no listener behind it: the dial fails, `Connect`,
+/// and `io_kind()` reads `ConnectionRefused` just as on a closed TCP port, so the
+/// not-yet-listening case is told apart from a retryable kind on either endpoint type.
+#[cfg(unix)]
+#[tokio::test]
+async fn unix_socket_file_with_no_listener_is_connect_connection_refused() {
+    let dir = tempfile::tempdir().expect("tempdir");
+    let path = dir.path().join("stale.sock");
+    // Bind, then drop the listener: the file stays, nobody accepts.
+    let listener = tokio::net::UnixListener::bind(&path).expect("bind unix");
+    drop(listener);
+    assert!(path.exists(), "the socket file must survive the listener");
+    let endpoint = RpcEndpoint::Unix(LocalUnixEndpoint::filesystem(path));
+    let started = Instant::now();
+    let result = interface_stats(&endpoint, &key(), WAIT).await;
+    match &result {
+        Err(err @ RpcError::Connect(_)) => {
+            assert_eq!(err.io_kind(), Some(std::io::ErrorKind::ConnectionRefused), "{err:?}");
+            assert!(!retryable(err), "{err:?}");
+        }
+        other => panic!("expected Connect, got {other:?}"),
+    }
+    assert!(started.elapsed() < Duration::from_secs(2), "{:?}", started.elapsed());
 }

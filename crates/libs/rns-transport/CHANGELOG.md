@@ -17,17 +17,21 @@ Removed) bullet of its own, marked as such.
   (`transport/shared_instance_rpc.rs`), carrying every io failure after the
   dial succeeded: a failed write or flush, a short read, EOF during the
   handshake or the reply, raised in `shared_instance_rpc/framing.rs`.
-  These moved out of `Protocol`, which now means only a malformed or
-  oversized frame, so a matcher on `Protocol(_)` that looked for a reset
-  in the message text must move to `Io` or to the new
+  These moved out of `Protocol`, which now means only wrong bytes (a bad
+  length, an oversized frame, or an unexpected handshake token), so a
+  matcher on `Protocol(_)` that looked for a reset in the message text
+  must move to `Io` or to the new
   `RpcError::io_kind() -> Option<std::io::ErrorKind>`, which returns the
   kind behind `Io` and `Connect` and `None` otherwise. The kinds worth
-  retrying after a short delay are `ConnectionReset`, `ConnectionAborted`,
+  retrying, with bounded attempts and a short backoff since the library
+  itself never retries, are `ConnectionReset`, `ConnectionAborted`,
   `BrokenPipe` and `UnexpectedEof`: rnsd serves dials serially on
-  `rpc_loop` (`RNS/Reticulum.py:1274-1334`) behind a `backlog=1` listener
-  (`RNS/Reticulum.py:364`), and macOS resets an overflowed dial at
-  `connect()`, so the kind can also arrive on `Connect`; `Connect` with
-  `ConnectionRefused` stays outside the retry set. The
+  `rpc_loop` (`RNS/Reticulum.py:1274-1334`) behind a `Listener`
+  (`RNS/Reticulum.py:364`) left at the default `backlog=1` of the stdlib
+  `multiprocessing.connection` `Listener.__init__`, and macOS resets an
+  overflowed dial before `connect()` returns, so the kind can also
+  arrive on `Connect`; `Connect` with `ConnectionRefused` stays outside the
+  retry set (Windows renders a full backlog that way too). The
   `#FAILURE#` write to a departed server stays `Authentication`. Pinned by
   `shared_instance_rpc/tests/mod.rs`
   (`Script::Close` and the re-pinned `truncated_frame_is_io_unexpected_eof`,
@@ -42,8 +46,11 @@ Removed) bullet of its own, marked as such.
   `tests/shared_instance_rpc_io_kind_probe.rs` (a valid challenge then a
   FIN is `Io`, never `Authentication`; an honest handshake then a FIN
   instead of a reply; the unix-socket close-at-once twin; a missing unix
-  path as `Connect` of kind `NotFound`; a `backlog=1` listener under four
-  dials yielding only `Timeout` or a retryable kind),
+  path as `Connect` of kind `NotFound` and a stale socket file as `Connect`
+  of kind `ConnectionRefused`; a `backlog=1` listener under four dials
+  yielding only `Timeout` or a retryable kind, off Windows; an
+  accept-then-RST before any byte as `Io`; the oversized, wide, negative
+  and empty frame headers as `Protocol` with no io kind),
   `tests/shared_instance_rpc_departed_server_python_probe.rs`
   (`honest_rst`: a CPython server resetting after the request is `Io` of
   kind `ConnectionReset`), the hil poll

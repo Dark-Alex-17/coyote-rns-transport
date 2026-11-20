@@ -150,7 +150,7 @@ pub enum RpcError {
     /// notice a server that has already hung up never reads).
     #[error("shared instance rpc authentication failed")]
     Authentication,
-    /// A malformed or oversized frame: a bad length, an oversized frame, an
+    /// The bytes were wrong: a bad length, an oversized frame, or an
     /// unexpected handshake token.
     #[error("shared instance rpc protocol error: {0}")]
     Protocol(String),
@@ -162,15 +162,18 @@ pub enum RpcError {
     /// The kinds worth retrying are `ConnectionReset`, `ConnectionAborted`,
     /// `BrokenPipe` and `UnexpectedEof` (and [`RpcError::Timeout`]): rnsd
     /// serves RPC dials one at a time on `rpc_loop`
-    /// (`RNS/Reticulum.py:1274-1334`) behind a `Listener` with `backlog=1`
-    /// (`RNS/Reticulum.py:364`), so a dial that lands while another is served
-    /// may be queued, dropped or reset, and a server that departs mid-call
-    /// renders as one of those kinds; a retry after a short delay usually
-    /// succeeds. Any other kind is not transient; surface it rather than
-    /// retry. Some kernels (macOS) reset the overflowed dial before
-    /// `connect()` returns, so the same kind can arrive on
-    /// [`RpcError::Connect`]; [`RpcError::io_kind`] reads both, which is why
-    /// a retrying caller matches the kind, not the variant.
+    /// (`RNS/Reticulum.py:1274-1334`) behind a `Listener`
+    /// (`RNS/Reticulum.py:364`) left at the stdlib default `backlog=1`
+    /// (`multiprocessing/connection.py`, `Listener.__init__`), so a dial that
+    /// lands while another is served may be queued, dropped or reset, and a
+    /// server that departs mid-call renders as one of those kinds (a peer
+    /// that accepts and hangs up at once yields `UnexpectedEof` within
+    /// microseconds). This library never retries; a caller that does should
+    /// bound its attempts and back off briefly between them. Any other kind
+    /// is not transient; surface it rather than retry. Some kernels (macOS)
+    /// reset the overflowed dial before `connect()` returns, so the same kind
+    /// can arrive on [`RpcError::Connect`]; [`RpcError::io_kind`] reads both,
+    /// which is why a retrying caller matches the kind, not the variant.
     #[error("shared instance rpc io error after connect: {0}")]
     Io(#[source] std::io::Error),
     /// The reply was not the msgpack shape `get_interface_stats` builds.
@@ -191,11 +194,13 @@ pub enum RpcError {
 
 impl RpcError {
     /// The io error kind behind an [`RpcError::Io`] or [`RpcError::Connect`],
-    /// `None` for every other variant. A `Connect` is usually
-    /// `ConnectionRefused` (the listener is not bound yet), which is outside
-    /// the retry set, so a caller that waits for a listener to bind keeps its
-    /// own `Connect` arm; a `Connect` whose kind is `ConnectionReset` is the
-    /// overflowed dial of the [`RpcError::Io`] docs and worth the same retry.
+    /// `None` for every other variant. The kinds worth a retry are
+    /// `ConnectionReset`, `ConnectionAborted`, `BrokenPipe` and
+    /// `UnexpectedEof` (the [`RpcError::Io`] docs say why);
+    /// `Connect(ConnectionRefused)` is the listener not being there and is
+    /// not one of them, so a caller that waits for a listener to bind keeps
+    /// its own `Connect` arm, while a `Connect` whose kind is
+    /// `ConnectionReset` is the overflowed dial and worth the same retry.
     #[must_use]
     pub fn io_kind(&self) -> Option<std::io::ErrorKind> {
         match self {

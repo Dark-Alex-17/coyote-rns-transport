@@ -1061,29 +1061,37 @@ enums with a wildcard arm and destructure the structs with `..`. The call
 takes one fresh connection and runs connect, handshake, request and reply
 under the one `Duration`; `RpcError::Connect` is the dial failing,
 `RpcError::Authentication` a key the server rejects (or a server that fails
-our challenge), `Protocol` a malformed or oversized frame, `Io` an io error
-after connect, EOF included (except the failure notice to a server that has
-already hung up, which stays `Authentication`), `Decode` an unexpected
-reply shape, `UnsupportedDigest` a challenge digest outside the stdlib's
-allowed set, `InvalidKeyMaterial` a key that cannot be parsed or derived,
-and `Timeout` the budget running out.
+our challenge), `Protocol` wrong bytes (a bad length, an oversized frame,
+or an unexpected handshake token), `Io` an io error after connect, EOF
+included (except the failure notice to a server that has already hung up,
+which stays `Authentication`), `Decode` an unexpected reply shape,
+`UnsupportedDigest` a challenge digest outside the stdlib's allowed set,
+`InvalidKeyMaterial` a key that cannot be parsed or derived, and `Timeout`
+the budget running out.
 
 `RpcError::io_kind()` returns the `std::io::ErrorKind` behind `Io` and
 `Connect` (`None` for every other variant), and the kinds worth a retry
-after a short delay are `ConnectionReset`, `ConnectionAborted`,
-`BrokenPipe` and `UnexpectedEof`, beside `Timeout`: rnsd serves RPC dials
-one at a time on `rpc_loop` (`RNS/Reticulum.py:1274-1334`) behind a
-`Listener` with `backlog=1` (`RNS/Reticulum.py:364`), so a dial that lands
+are `ConnectionReset`, `ConnectionAborted`, `BrokenPipe` and
+`UnexpectedEof`, beside `Timeout`: rnsd serves RPC dials one at a time on
+`rpc_loop` (`RNS/Reticulum.py:1274-1334`) behind a `Listener`
+(`RNS/Reticulum.py:364`) left at the stdlib default `backlog=1`
+(`multiprocessing/connection.py`, `Listener.__init__`), so a dial that lands
 while another is being served may be queued, dropped or reset, and a server
-departing mid-call renders as one of those kinds. Where the reset lands
+departing mid-call renders as one of those kinds. The library never
+retries; a caller that does should bound its attempts and back off briefly
+between them, since a peer that accepts and hangs up at once answers with
+`UnexpectedEof` within microseconds. Where the reset lands
 depends on the kernel: once `connect()` has returned it is `Io`, whereas
 macOS resets the overflowed dial before `connect()` has completed, so there
 it arrives as `Connect` with the `ConnectionReset` kind, which is why a
 caller matches the kind through `io_kind()` rather than the variant.
-`Connect` with `ConnectionRefused` stays the listener not being there (rnsd
-binds it only after `Transport.start`, `RNS/Reticulum.py:363-367`) and is
-outside the retry set, so a caller waiting for a listener to bind keeps its
-own `Connect` arm; everything else is a report, not a retry. Pinned by
+`Connect` with `ConnectionRefused` stays the listener not being there on
+unix (rnsd binds it only after `Transport.start`, `RNS/Reticulum.py:363-367`)
+and is outside the retry set, so a caller waiting for a listener to bind
+keeps its own `Connect` arm; Windows also renders a full listen backlog as
+`ConnectionRefused`, so a caller there may fold it into the retry set once
+its own poll has seen the listener answer. Everything else is a report,
+not a retry. Pinned by
 `server_that_closes_at_once_is_io_unexpected_eof`,
 `truncated_frame_is_io_unexpected_eof`,
 `send_frame_to_a_dropped_peer_is_io_broken_pipe` (the write side) and
@@ -1098,7 +1106,10 @@ reset-after-the-challenge loopback servers in
 `tests/shared_instance_rpc_io_kind_probe.rs` (a valid challenge then a FIN
 is `Io`, never `Authentication`; an honest handshake then a FIN instead of
 a reply; the unix-socket close-at-once twin; a unix path nobody listens on
-as `Connect` of kind `NotFound`; a `backlog=1` listener under four dials),
+as `Connect` of kind `NotFound` and a stale socket file as `Connect` of
+kind `ConnectionRefused`; a `backlog=1` listener under four dials, off
+Windows; an accept-then-RST before any byte; the oversized, wide, negative
+and empty frame headers as `Protocol` with no io kind),
 the CPython `honest_rst` mode
 (`stdlib_server_resetting_after_the_request_is_io_connection_reset_every_time`)
 in `tests/shared_instance_rpc_departed_server_python_probe.rs`, and the

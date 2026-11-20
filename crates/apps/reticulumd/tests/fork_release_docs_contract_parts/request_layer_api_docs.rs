@@ -465,3 +465,47 @@ fn enums_the_docs_call_non_exhaustive_carry_the_attribute() {
         );
     }
 }
+
+/// The retry set a caller reads off `RpcError::io_kind()` is spelled the
+/// same way in the four places a consumer meets it: the `io_kind` rustdoc
+/// block itself (the hover text), the `Io` variant's rustdoc, the README's
+/// rnsd RPC section and the CHANGELOG bullet that introduced the variant;
+/// each names all four kinds, and all but the variant's own rustdoc tell
+/// `ConnectionRefused` apart from them.
+#[test]
+fn rpc_error_io_kind_rustdoc_names_the_retryable_kinds_like_the_docs() {
+    let kinds = ["`ConnectionReset`", "`ConnectionAborted`", "`BrokenPipe`", "`UnexpectedEof`"];
+    let file = "crates/libs/rns-transport/src/transport/shared_instance_rpc.rs";
+    let source = read_repo_file(file);
+    let impl_start = source.find("impl RpcError {").expect("the inherent impl of RpcError");
+    let accessor = source[impl_start..]
+        .find("pub fn io_kind(")
+        .map(|offset| impl_start + offset)
+        .expect("io_kind in the RpcError impl");
+    let io_kind_rustdoc = squash(&doc_comment_text(&source[impl_start..accessor]));
+    let variant_start = source.find("Io(#[source] std::io::Error)").expect("the Io variant");
+    let variant_rustdoc = squash(&doc_comment_text(
+        &source[source.find("Protocol(String),").expect("Protocol")..variant_start],
+    ));
+    let readme = read_repo_file("crates/libs/rns-transport/README.md");
+    let section = squash(crate_readme_section(&readme, "Reading rnsd's interface statistics"));
+    let changelog = read_repo_file("crates/libs/rns-transport/CHANGELOG.md");
+    let changelog_section =
+        squash(changelog_section_naming(&changelog, "`RpcError::Io(std::io::Error)`"));
+    for (what, text, tells_refused_apart) in [
+        ("io_kind rustdoc", &io_kind_rustdoc, true),
+        ("Io rustdoc", &variant_rustdoc, false),
+        ("README rnsd RPC section", &section, true),
+        ("CHANGELOG bullet", &changelog_section, true),
+    ] {
+        for kind in kinds {
+            assert!(text.contains(kind), "the {what} should name {kind}");
+        }
+        if tells_refused_apart {
+            assert!(
+                text.contains("ConnectionRefused"),
+                "the {what} should tell ConnectionRefused apart from the retry set"
+            );
+        }
+    }
+}

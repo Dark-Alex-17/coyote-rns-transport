@@ -32,8 +32,9 @@ Every file changed since the `0.18.3` release and the patch each change
 belongs to. Patch ids: P1 is readme fork framing, P2 is rpc io error. The
 `readme fork framing` patch is fork commits `edb4258e`, `a7688b50`,
 `6e1a7457` and `b8a0c07d`. The `rpc io error` patch is fork commits
-`8547983a` and `29cc16d6`. The `Python-in-the-loop rpc io error interop`
-patch carries no other id and is fork commits `94d41512` and `29cc16d6`.
+`8547983a`, `29cc16d6` and `f2813179`. The `Python-in-the-loop rpc io error
+interop` patch carries no other id and is fork commits `94d41512`,
+`29cc16d6` and `f2813179`.
 
 | File | Patch |
 | --- | --- |
@@ -79,7 +80,7 @@ The crate `CHANGELOG.md` reopens `## Unreleased` with a docs-only Changed
 bullet, and `ledger_contract.rs` extends the full-hash ledger pin to the
 reopened section.
 
-Fork commits `8547983a` and `29cc16d6`: P2, rpc io error.
+Fork commits `8547983a`, `29cc16d6` and `f2813179`: P2, rpc io error.
 Upstream site: the fork-added rnsd RPC client
 `crates/libs/rns-transport/src/transport/shared_instance_rpc.rs` (O2 of
 `## 0.18.3`) and its framing helper `shared_instance_rpc/framing.rs`;
@@ -119,10 +120,19 @@ caller retries through `io_kind()` and why, that macOS resets an overflowed
 dial before `connect()` completes so the kind can also arrive on
 `Connect`, and that `ConnectionRefused` stays outside the retry set, and
 the CHANGELOG `## Unreleased` opens with an Added bullet that says io
-failures moved out of `Protocol`.
+failures moved out of `Protocol`. `f2813179` widens the black-box twin
+with the README's retry rule as a consumer writes it over every variant
+and loopback servers that write garbage, stay silent, hang up mid-frame or
+reset after a whole challenge, and brings the `Io` and `io_kind()` rustdoc
+onto the README's account: a `Connect` is usually `ConnectionRefused`,
+outside the retry set, while a `ConnectionReset` on `Connect` is the
+overflowed dial some kernels reset before `connect()` returns, worth the
+same retry as on `Io`; the CPython probe's header now names the `Io`
+rustdoc as the carve-out's home, and the README and CHANGELOG pin clauses
+name the new pins.
 
-Fork commits `94d41512` and `29cc16d6`: Python-in-the-loop rpc io error
-interop. `94d41512` rehomes the hil poll in
+Fork commits `94d41512`, `29cc16d6` and `f2813179`: Python-in-the-loop rpc
+io error interop. `94d41512` rehomes the hil poll in
 `crates/apps/reticulumd/tests/python_channel_interop_parts/python_shared_instance_rpc.rs`
 from the `reset` text match on `Protocol` onto `io_kind()` over the
 retryable kinds, keeping its `Connect` arm for the listener rnsd binds only
@@ -136,7 +146,8 @@ failure to be `Timeout` or a retryable kind, on `Io` or on `Connect`
 `Protocol`, `Connect` with `ConnectionRefused` or `Authentication`; on this
 host every round lost exactly one dial to a `ConnectionReset`, split
 between `Io` and `Connect`. `29cc16d6` names the part in the README's pin
-clause and the CHANGELOG bullet.
+clause and the CHANGELOG bullet. `f2813179` places the `Io` boundary in the
+part's header at `connect()` returning, where the library draws it.
 
 ## 0.18.3 (upstream 0.14.0)
 

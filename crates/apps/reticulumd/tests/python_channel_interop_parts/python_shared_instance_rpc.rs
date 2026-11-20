@@ -4,6 +4,8 @@
 // rnsd runs, here its own `LocalServerInterface` and one `AutoInterface`
 // from a top-level `[interfaces]` section (`RNS/Reticulum.py:748-752`).
 
+use std::io::ErrorKind::{BrokenPipe, ConnectionAborted, ConnectionReset, UnexpectedEof};
+
 use rns_transport::transport::shared_instance_rpc::{
     interface_stats, InterfaceStat, InterfaceStats, RpcEndpoint, RpcError, RpcKey,
 };
@@ -115,8 +117,12 @@ impl SharedInstanceRpcRnsd {
     /// (`RNS/Reticulum.py:351-367`), which runs after the shared instance
     /// log line and the AutoInterface's peering wait in `final_init`
     /// (`RNS/Reticulum.py:1009`, `RNS/Interfaces/AutoInterface.py:327-348`),
-    /// so early dials are refused. The listener's backlog is one, so a dial
-    /// can also be reset mid-handshake; both are retried until
+    /// so early dials are refused. The listener's backlog is one and rnsd
+    /// serves one dial at a time on `rpc_loop` (`RNS/Reticulum.py:1274-1334`),
+    /// so a dial that lands while another is served can be queued, dropped
+    /// or reset; an io error of a retryable kind (`ConnectionReset`,
+    /// `ConnectionAborted`, `BrokenPipe`, `UnexpectedEof`, read via
+    /// `io_kind()`) is retried like a refused connect until
     /// `SHARED_INSTANCE_RPC_LISTENER` runs out, anything else is returned as
     /// the first reply. An rnsd that has exited fails the poll at once with
     /// its exit status instead of being dialled to the deadline.
@@ -133,9 +139,10 @@ impl SharedInstanceRpcRnsd {
                 let result = interface_stats(endpoint, key, SHARED_INSTANCE_RPC_CALL).await;
                 let retry = match &result {
                     Err(RpcError::Connect(_)) => true,
-                    Err(RpcError::Protocol(reason)) => {
-                        reason.to_ascii_lowercase().contains("reset")
-                    }
+                    Err(err @ RpcError::Io(_)) => matches!(
+                        err.io_kind(),
+                        Some(ConnectionReset | ConnectionAborted | BrokenPipe | UnexpectedEof)
+                    ),
                     _ => false,
                 };
                 if !retry {

@@ -32,9 +32,9 @@ Every file changed since the `0.18.3` release and the patch each change
 belongs to. Patch ids: P1 is readme fork framing, P2 is rpc io error. The
 `readme fork framing` patch is fork commits `edb4258e`, `a7688b50`,
 `6e1a7457` and `b8a0c07d`. The `rpc io error` patch is fork commits
-`8547983a`, `29cc16d6` and `f2813179`. The `Python-in-the-loop rpc io error
-interop` patch carries no other id and is fork commits `94d41512`,
-`29cc16d6` and `f2813179`.
+`8547983a`, `29cc16d6`, `f2813179` and `df674bea`. The `Python-in-the-loop
+rpc io error interop` patch carries no other id and is fork commits
+`94d41512`, `29cc16d6`, `f2813179` and `df674bea`.
 
 | File | Patch |
 | --- | --- |
@@ -51,6 +51,7 @@ interop` patch carries no other id and is fork commits `94d41512`,
 | `crates/libs/rns-transport/src/transport/shared_instance_rpc/tests/mod.rs` | rpc io error |
 | `crates/libs/rns-transport/tests/shared_instance_rpc_api.rs` | rpc io error |
 | `crates/libs/rns-transport/tests/shared_instance_rpc_departed_server_python_probe.rs` | rpc io error |
+| `crates/libs/rns-transport/tests/shared_instance_rpc_io_kind_probe.rs` | rpc io error |
 | `docs/fork/PATCHSET.md` | readme fork framing, rpc io error, Python-in-the-loop rpc io error interop |
 
 Fork commits `edb4258e`, `a7688b50`, `6e1a7457` and `b8a0c07d`: P1, readme
@@ -80,7 +81,8 @@ The crate `CHANGELOG.md` reopens `## Unreleased` with a docs-only Changed
 bullet, and `ledger_contract.rs` extends the full-hash ledger pin to the
 reopened section.
 
-Fork commits `8547983a`, `29cc16d6` and `f2813179`: P2, rpc io error.
+Fork commits `8547983a`, `29cc16d6`, `f2813179` and `df674bea`: P2, rpc io
+error.
 Upstream site: the fork-added rnsd RPC client
 `crates/libs/rns-transport/src/transport/shared_instance_rpc.rs` (O2 of
 `## 0.18.3`) and its framing helper `shared_instance_rpc/framing.rs`;
@@ -129,10 +131,25 @@ outside the retry set, while a `ConnectionReset` on `Connect` is the
 overflowed dial some kernels reset before `connect()` returns, worth the
 same retry as on `Io`; the CPython probe's header now names the `Io`
 rustdoc as the carve-out's home, and the README and CHANGELOG pin clauses
-name the new pins.
+name the new pins. `df674bea` pins the write side of `framing.rs`
+deterministically (`send_frame` to a dropped duplex peer is `Io` of kind
+`BrokenPipe`) and EOF at the reply stage (a 48-byte reply header then a
+FIN, after the handshake and the request went through), folds the two
+EOF assertions into one helper, renames the in-crate `io_kind()` pin after
+its black-box twin, drops the oversized-header pin the garbage-and-oversized
+pin subsumes, makes the mid-frame black-box pin assert the `Io` variant,
+marks `io_kind()` `#[must_use]`, says in the `Io` rustdoc that a
+non-retryable kind is surfaced rather than retried, hoists the CPython
+fixture's `SO_LINGER 0` close into one `reset(conn)`, and adds
+`tests/shared_instance_rpc_io_kind_probe.rs`, the README's promise held from
+outside the crate: a valid challenge then a FIN is `Io` and never
+`Authentication`, an honest handshake then a FIN instead of a reply is
+`Io` of kind `UnexpectedEof`, the unix-socket close-at-once twin, a unix
+path nobody listens on as `Connect` of kind `NotFound`, and a `backlog=1`
+listener under four dials yielding only `Timeout` or a retryable kind.
 
-Fork commits `94d41512`, `29cc16d6` and `f2813179`: Python-in-the-loop rpc
-io error interop. `94d41512` rehomes the hil poll in
+Fork commits `94d41512`, `29cc16d6`, `f2813179` and `df674bea`:
+Python-in-the-loop rpc io error interop. `94d41512` rehomes the hil poll in
 `crates/apps/reticulumd/tests/python_channel_interop_parts/python_shared_instance_rpc.rs`
 from the `reset` text match on `Protocol` onto `io_kind()` over the
 retryable kinds, keeping its `Connect` arm for the listener rnsd binds only
@@ -148,6 +165,9 @@ host every round lost exactly one dial to a `ConnectionReset`, split
 between `Io` and `Connect`. `29cc16d6` names the part in the README's pin
 clause and the CHANGELOG bullet. `f2813179` places the `Io` boundary in the
 part's header at `connect()` returning, where the library draws it.
+`df674bea` moves the retry set into one `shared_instance_rpc_retryable`
+helper the poll and the part's classifier share, checks every reply of a
+round, and names rnsd's exit status before a panic on a dead fixture.
 
 ## 0.18.3 (upstream 0.14.0)
 

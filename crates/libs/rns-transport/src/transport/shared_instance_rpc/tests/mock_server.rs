@@ -72,6 +72,10 @@ pub(super) enum Script {
     /// Accept and hold the connection without writing until the client
     /// goes away.
     Silent,
+    /// Accept, then shut the socket down at once without writing, so the
+    /// client's first read meets EOF; no drain, since the client never
+    /// writes before its first read.
+    Close,
 }
 
 /// Every frame the client sent, in order, as the server read them.
@@ -142,6 +146,7 @@ where
             drain(&mut stream).await;
         }
         Script::Silent => drain(&mut stream).await,
+        Script::Close => stream.shutdown().await.expect("shutdown at once"),
     }
     observed
 }

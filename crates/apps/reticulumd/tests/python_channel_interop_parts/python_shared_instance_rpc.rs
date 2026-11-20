@@ -18,6 +18,16 @@ const SHARED_INSTANCE_RPC_AUTO_INTERFACE_NAME: &str = "coyote-live-auto";
 const SHARED_INSTANCE_RPC_CONFIGURED_KEY: &str =
     "c0ffee00c0ffee00c0ffee00c0ffee00c0ffee00c0ffee00c0ffee00c0ffee00";
 
+// The retry set of the crate README: an io kind behind `Io` or `Connect`
+// that a dial landing on rnsd's serial `rpc_loop` (`RNS/Reticulum.py:1274-1334`,
+// whose `Listener` at `:364` keeps the stdlib default `backlog=1` of
+// `multiprocessing.connection` `Listener.__init__`) or a server departing
+// mid-call can produce.
+fn shared_instance_rpc_retryable(err: &RpcError) -> bool {
+    use std::io::ErrorKind::{BrokenPipe, ConnectionAborted, ConnectionReset, UnexpectedEof};
+    matches!(err.io_kind(), Some(ConnectionReset | ConnectionAborted | BrokenPipe | UnexpectedEof))
+}
+
 // The AutoInterface's data socket is bound without address reuse
 // (`RNS/Interfaces/AutoInterface.py:334-337`) and the bind error reaches the
 // catch-all that panics rnsd (`RNS/Reticulum.py:1120-1124`), so a host rnsd
@@ -111,12 +121,26 @@ impl SharedInstanceRpcRnsd {
             .expect("rpc key from the transport identity")
     }
 
+    /// Fails at once, naming rnsd's exit status and `context`, when the
+    /// fixture has exited; a dead rnsd otherwise reads as a refused dial.
+    #[cfg(unix)]
+    fn assert_running(&mut self, context: &str) {
+        let rnsd = self.guard.child.as_mut().expect("rnsd is held until drop");
+        if let Some(status) = shared_instance_rpc_rnsd_exited(rnsd) {
+            panic!("rnsd exited with {status}: {context}");
+        }
+    }
+
     /// rnsd binds the RPC listener only after `Transport.start`
     /// (`RNS/Reticulum.py:351-367`), which runs after the shared instance
     /// log line and the AutoInterface's peering wait in `final_init`
     /// (`RNS/Reticulum.py:1009`, `RNS/Interfaces/AutoInterface.py:327-348`),
-    /// so early dials are refused. The listener's backlog is one, so a dial
-    /// can also be reset mid-handshake; both are retried until
+    /// so early dials are refused. The listener's backlog is one and rnsd
+    /// serves one dial at a time on `rpc_loop` (`RNS/Reticulum.py:1274-1334`),
+    /// so a dial that lands while another is served can be queued, dropped
+    /// or reset; an io error of a retryable kind (`ConnectionReset`,
+    /// `ConnectionAborted`, `BrokenPipe`, `UnexpectedEof`, read via
+    /// `io_kind()`) is retried like a refused connect until
     /// `SHARED_INSTANCE_RPC_LISTENER` runs out, anything else is returned as
     /// the first reply. An rnsd that has exited fails the poll at once with
     /// its exit status instead of being dialled to the deadline.
@@ -133,9 +157,7 @@ impl SharedInstanceRpcRnsd {
                 let result = interface_stats(endpoint, key, SHARED_INSTANCE_RPC_CALL).await;
                 let retry = match &result {
                     Err(RpcError::Connect(_)) => true,
-                    Err(RpcError::Protocol(reason)) => {
-                        reason.to_ascii_lowercase().contains("reset")
-                    }
+                    Err(err @ RpcError::Io(_)) => shared_instance_rpc_retryable(err),
                     _ => false,
                 };
                 if !retry {

@@ -103,7 +103,7 @@ the fork. The licence is upstream's, see [Licence](#licence).
 
 ```toml
 [dependencies]
-coyote-rns-transport = "0.18.3"
+coyote-rns-transport = "0.18.4"
 ```
 
 ```rust
@@ -1061,12 +1061,71 @@ enums with a wildcard arm and destructure the structs with `..`. The call
 takes one fresh connection and runs connect, handshake, request and reply
 under the one `Duration`; `RpcError::Connect` is the dial failing,
 `RpcError::Authentication` a key the server rejects (or a server that fails
-our challenge), `Protocol` a malformed or oversized frame or an io error
-after connect (except the failure notice to a server that has already hung
-up, which stays `Authentication`), `Decode` an unexpected reply shape,
+our challenge), `Protocol` wrong bytes (a bad length, an oversized frame,
+or an unexpected handshake token), `Io` an io error after connect, EOF
+included (except the failure notice to a server that has already hung up,
+which stays `Authentication`), `Decode` an unexpected reply shape,
 `UnsupportedDigest` a challenge digest outside the stdlib's allowed set,
 `InvalidKeyMaterial` a key that cannot be parsed or derived, and `Timeout`
 the budget running out.
+
+`RpcError::io_kind()` returns the `std::io::ErrorKind` behind `Io` and
+`Connect` (`None` for every other variant), and the kinds worth a retry
+are `ConnectionReset`, `ConnectionAborted`, `BrokenPipe` and
+`UnexpectedEof`, beside `Timeout`: rnsd serves RPC dials one at a time on
+`rpc_loop` (`RNS/Reticulum.py:1274-1334`) behind a `Listener`
+(`RNS/Reticulum.py:364`) left at the stdlib default `backlog=1`
+(`multiprocessing/connection.py`, `Listener.__init__`), so a dial that lands
+while another is being served may be queued, dropped or reset, and a server
+departing mid-call renders as one of those kinds. The library never
+retries; a caller that does should bound its attempts and back off briefly
+between them, since a peer that accepts and hangs up at once answers with
+`UnexpectedEof` within microseconds. Where the reset lands
+depends on the kernel: once `connect()` has returned it is `Io`, whereas
+macOS resets the overflowed dial before `connect()` has completed, so there
+it arrives as `Connect` with the `ConnectionReset` kind, which is why a
+caller matches the kind through `io_kind()` rather than the variant.
+`Connect` with `ConnectionRefused` stays the listener not being there on
+unix (rnsd binds it only after `Transport.start`, `RNS/Reticulum.py:363-367`)
+and is outside the retry set, so a caller waiting for a listener to bind
+keeps its own `Connect` arm; Windows also renders a full listen backlog as
+`ConnectionRefused`, so a caller there may fold it into the retry set once
+its own poll has seen the listener answer. Everything else is a report,
+not a retry. Pinned by
+`server_that_closes_at_once_is_io_unexpected_eof`,
+`truncated_frame_is_io_unexpected_eof`,
+`send_frame_to_a_dropped_peer_is_io_broken_pipe` (the write side) and
+`reply_cut_short_after_its_header_is_io_unexpected_eof` (EOF at the reply
+stage) in `src/transport/shared_instance_rpc/tests/mod.rs`,
+`server_that_hangs_up_at_once_is_io`,
+`closed_port_connect_has_the_refused_io_kind`,
+`io_kind_is_some_for_exactly_io_and_connect` (the retry rule above as a
+consumer writes it) and the garbage, silent, mid-frame and
+reset-after-the-challenge loopback servers (the last `Io` or `Connect` of a
+retryable kind, since on macOS the reset can land before the dial's
+`connect()` returns) in
+`tests/shared_instance_rpc_api.rs`, the departed servers of
+`tests/shared_instance_rpc_io_kind_probe.rs` (a valid challenge then a FIN
+is `Io`, never `Authentication`; an honest handshake then a FIN instead of
+a reply; the unix-socket close-at-once twin; a unix path nobody listens on
+as `Connect` of kind `NotFound` and a stale socket file as `Connect` of
+kind `ConnectionRefused`; a `backlog=1` listener under four dials, off
+Windows; an accept-then-RST before any byte as `Io` or `Connect` of a
+retryable kind; the oversized, wide, negative and empty frame headers as
+`Protocol` with no io kind; and the stage boundaries a retrying caller must
+not confuse: a half-written header then silence as `Timeout`, a
+non-`#WELCOME#` verdict after a correct answer as `Authentication`, an
+oversized reply header after an honest handshake as `Protocol`, a
+well-framed reply of the wrong shape as `Decode`, and an honest handshake
+then a reset instead of a reply as `Io` of a retryable kind),
+the CPython `honest_rst` mode
+(`stdlib_server_resetting_after_the_request_is_io_connection_reset_every_time`)
+in `tests/shared_instance_rpc_departed_server_python_probe.rs`, off Windows, and the
+live three-concurrent-dial part
+`crates/apps/reticulumd/tests/python_channel_interop_parts/python_shared_instance_rpc_io.rs`
+against rnsd (RNS 1.5.2), whose every failure must be `Timeout` or a
+retryable kind.
+
 The handshake is the stdlib's mutual HMAC exchange
 (`connection.py:917-1006`): the client answers the server's challenge and
 then delivers its own, in the modern `{digest}`-prefixed form a Python 3.12
@@ -1080,7 +1139,7 @@ whose `_create_response` echoes the challenge digest
 (`connection.py:928-942`). Pinned by
 `src/transport/shared_instance_rpc/tests/mod.rs` (both handshake forms and
 the `{sha3_384}` and `{md5}` digests against a mock server, the wrong-key,
-bad-answer, unsupported-digest, truncated, oversized, silent and
+bad-answer, unsupported-digest, oversized, silent and
 short-challenge failures, the unix socket round trips, the wide and
 negative frame headers, the digest lock and the stdlib known-answer vectors
 from `connection.py:917-942`, the key derivations and the decode shape
@@ -1096,7 +1155,9 @@ notice the client cannot deliver, is pinned by
 `src/transport/shared_instance_rpc/tests/mod.rs` (the pin of record) and
 exercised against CPython's own `multiprocessing.connection` server in
 `tests/shared_instance_rpc_departed_server_python_probe.rs`, whose reset
-mode (`SO_LINGER 0`) makes the `#FAILURE#` write fail outright. The
+mode (`SO_LINGER 0`) makes the `#FAILURE#` write fail outright and whose
+`honest_rst` mode resets after reading the request so the reply read is
+`Io` of kind `ConnectionReset` (both off Windows, whose linger layout differs). The
 Python-in-the-loop proof is
 `crates/apps/reticulumd/tests/python_channel_interop_parts/python_shared_instance_rpc.rs`
 of the reticulumd `python_channel_interop` binary: a Python `rnsd` (RNS
@@ -1379,8 +1440,53 @@ full `refs/tags/coyote-rns-transport-v<version>` ref, and
 
 `docs/fork/PATCHSET.md` is the single per-release ledger of every file changed
 since the previous release, with the commit that changed it and the upstream
-site; earlier sections carry the earlier patches. What `0.18.3` carries on top
-of `0.18.2`:
+site; earlier sections carry the earlier patches. What `0.18.4` carries on top
+of `0.18.3`:
+
+- The rpc io error: `RpcError::Io(std::io::Error)` on the
+  `#[non_exhaustive]` `transport::shared_instance_rpc::RpcError` carries
+  every io failure after the dial succeeded (a failed write or flush, a
+  short read, EOF during the handshake or the reply); `Protocol` now means
+  only wrong bytes. `RpcError::io_kind() -> Option<std::io::ErrorKind>`
+  returns the kind behind `Io` and `Connect`, and the kinds worth a retry
+  are `ConnectionReset`, `ConnectionAborted`, `BrokenPipe` and
+  `UnexpectedEof`, beside `Timeout`: rnsd serves dials serially on
+  `rpc_loop` (`RNS/Reticulum.py:1274-1334`) behind a `Listener`
+  (`RNS/Reticulum.py:364`) left at the stdlib default `backlog=1`. The
+  library never retries; a caller that does bounds its attempts and backs
+  off briefly between them. On macOS the reset of an overflowed or
+  same-tick-dropped dial can land before `connect()` returns and then
+  arrives as `Connect` of kind `ConnectionReset`, which is why a caller
+  matches the kind through `io_kind()` rather than the variant. `Connect`
+  with `ConnectionRefused` stays outside the retry set, and the `#FAILURE#`
+  write to a departed server stays `Authentication`.
+- The README fork framing, docs only, no library change: the crate
+  README's `## What this is` says what Coyote is, why the fork exists and
+  what differs from upstream, by theme, and moves the versioning policy
+  under `### How it tracks upstream`; the repository README leads with the
+  fork and keeps upstream's workspace documentation under
+  `## Upstream LXMF-rs`.
+- The Python-in-the-loop proof: `python_shared_instance_rpc_io.rs` of the
+  reticulumd `python_channel_interop` binary runs three concurrent dials
+  against a live Python rnsd (RNS 1.5.2); every failure is `Timeout` or a
+  retryable kind, never `Protocol`, `Authentication` or
+  `ConnectionRefused`, and the hil poll `python_shared_instance_rpc.rs`
+  retries through `io_kind()`. Beside them,
+  `tests/shared_instance_rpc_departed_server_python_probe.rs` runs the
+  `honest_rst` mode (a CPython server resetting after the request is `Io`
+  of kind `ConnectionReset`, off Windows), and the black-box
+  `tests/shared_instance_rpc_io_kind_probe.rs` and
+  `tests/shared_instance_rpc_api.rs` pin the variants and their kinds.
+- For a consumer: pin `coyote-rns-transport = "0.18.4"`; there is nothing
+  to opt into. Replace any text match on `RpcError::Protocol` for a reset
+  with `io_kind()` over both `Io` and `Connect` (`ConnectionReset`,
+  `ConnectionAborted`, `BrokenPipe` or `UnexpectedEof`), keep a `Connect`
+  arm reading `ConnectionRefused` for a listener not yet bound, and bound
+  the attempts with a short backoff between them. The only observable
+  change for an existing matcher is an io failure after connect surfacing
+  as `Io` instead of `Protocol`.
+
+What `0.18.3` carries on top of `0.18.2`:
 
 - The auto peer count: `Transport::interface_peer_count(&AddressHash) ->
   Option<u64>` reads the AutoInterface discovery peer table behind an

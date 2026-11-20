@@ -1,8 +1,8 @@
-// Crate README patch-list pins: the 0.18.3, 0.18.2, 0.18.1, 0.18.0, 0.17.0
-// and 0.16.0 blocks and their order above the 0.15.1 history, and the Codex
-// bullet whose removal pointer the 0.16.0 release notes resolve, plus the
-// shared-instance paragraph, register bullet and changelog bullet for the
-// AutoInterface peer count and the same three for the rnsd RPC client.
+// Crate README patch-list pins: the 0.18.4, 0.18.3, 0.18.2, 0.18.1, 0.18.0,
+// 0.17.0 and 0.16.0 blocks and their order above the 0.15.1 history, and the
+// Codex bullet whose removal pointer the 0.16.0 release notes resolve, plus
+// the shared-instance paragraph, register bullet and changelog bullet for
+// the AutoInterface peer count and the same three for the rnsd RPC client.
 
 /// The Codex review workflow was removed after 0.15.1, so the README register
 /// that records 0.15.0 adding it must say so in the same bullet: a reader of
@@ -367,13 +367,41 @@ fn readme_patch_list_keeps_the_0_18_2_block_above_the_0_18_1_paragraph() {
     }
 }
 
-/// The README patch list opens with the 0.18.3 block, which names every item
-/// of the release (the auto peer count, the rnsd RPC client, announce
-/// emission, the Python-in-the-loop proofs, the test-only hygiene and the
-/// consumer pin), and runs 0.18.2, then 0.18.1 below it; the demoted blocks'
-/// content is pinned by the tests above.
+/// What the README's 0.18.3 patch-list block says, one needle per item.
+const README_0_18_3_BLOCK_NEEDLES: [&str; 24] = [
+    "Transport::interface_peer_count",
+    "RNS/Reticulum.py:1501-1503",
+    "InterfaceManager::set_peer_counter",
+    "AutoRuntimeStatusHandle::peer_count()",
+    "peers=N",
+    "transport::shared_instance_rpc",
+    "multiprocessing.connection",
+    "RpcKey::from_transport_identity_file",
+    "md-5",
+    "AnnounceEvent::emitted",
+    "AnnounceEvent::random_blob",
+    "Transport::latest_announce_emitted",
+    "RNS/Transport.py:3459-3473",
+    "python_shared_instance_rpc.rs",
+    "python_stdlib_listener_rpc_probe.rs",
+    "python_shared_instance_announce_emitted.rs",
+    "shared_instance_rpc_departed_server_python_probe.rs",
+    "auto-peer-count-timeout",
+    "hil_core_case_names_probe.rs",
+    "announce_emitted_probe.rs",
+    "coyote-rns-transport = \"0.18.3\"",
+    "RpcEndpoint::for_instance(\"default\")",
+    "kind == \"AutoInterface\"",
+    "nothing to opt into",
+];
+
+/// The demoted 0.18.3 block sits above the 0.18.2 and 0.18.1 blocks as
+/// history: it still names every item of the release (the auto peer count,
+/// the rnsd RPC client, announce emission, the Python-in-the-loop proofs, the
+/// test-only hygiene and the consumer pin); the demoted 0.18.2 block's
+/// content is pinned by the test above.
 #[test]
-fn readme_patch_list_opens_with_the_0_18_3_block_and_keeps_the_0_18_2_paragraph() {
+fn readme_patch_list_keeps_the_0_18_3_block_above_the_0_18_2_paragraph() {
     let readme = read_repo_file("crates/libs/rns-transport/README.md");
     let patch_list = crate_readme_section(&readme, "Patch list")
         .split_whitespace()
@@ -382,14 +410,8 @@ fn readme_patch_list_opens_with_the_0_18_3_block_and_keeps_the_0_18_2_paragraph(
     let marker_0_18_3 = "What `0.18.3` carries on top of `0.18.2`:";
     let marker_0_18_2 = "What `0.18.2` carries on top of `0.18.1`:";
     let marker_0_18_1 = "What `0.18.1` carries on top of `0.18.0`:";
-    let at_0_18_3 = patch_list
-        .find(marker_0_18_3)
-        .expect("the README patch list should open with the 0.18.3 block");
-    assert_eq!(
-        patch_list.find("What `"),
-        Some(at_0_18_3),
-        "the README patch list should open with the 0.18.3 block, not another release's"
-    );
+    let at_0_18_3 =
+        patch_list.find(marker_0_18_3).expect("the README patch list should keep the 0.18.3 block");
     let at_0_18_2 =
         patch_list.find(marker_0_18_2).expect("the README patch list should keep the 0.18.2 block");
     let at_0_18_1 =
@@ -400,35 +422,70 @@ fn readme_patch_list_opens_with_the_0_18_3_block_and_keeps_the_0_18_2_paragraph(
     );
 
     let block_0_18_3 = &patch_list[at_0_18_3..at_0_18_2];
+    for needle in README_0_18_3_BLOCK_NEEDLES {
+        assert!(
+            block_0_18_3.contains(needle),
+            "the README 0.18.3 block should still say {needle:?}:\n{block_0_18_3}"
+        );
+    }
+}
+
+/// The README patch list opens with the 0.18.4 block, which names every item
+/// of the release (the rpc io error with its retry contract, the README fork
+/// framing, the Python-in-the-loop proof and the consumer pin), and runs
+/// 0.18.3, then 0.18.2 below it; the demoted blocks' content is pinned by
+/// the tests above.
+#[test]
+fn readme_patch_list_opens_with_the_0_18_4_block_and_keeps_the_0_18_3_paragraph() {
+    let readme = read_repo_file("crates/libs/rns-transport/README.md");
+    let patch_list = crate_readme_section(&readme, "Patch list")
+        .split_whitespace()
+        .collect::<Vec<_>>()
+        .join(" ");
+    let marker_0_18_4 = "What `0.18.4` carries on top of `0.18.3`:";
+    let marker_0_18_3 = "What `0.18.3` carries on top of `0.18.2`:";
+    let marker_0_18_2 = "What `0.18.2` carries on top of `0.18.1`:";
+    let at_0_18_4 = patch_list
+        .find(marker_0_18_4)
+        .expect("the README patch list should open with the 0.18.4 block");
+    assert_eq!(
+        patch_list.find("What `"),
+        Some(at_0_18_4),
+        "the README patch list should open with the 0.18.4 block, not another release's"
+    );
+    let at_0_18_3 =
+        patch_list.find(marker_0_18_3).expect("the README patch list should keep the 0.18.3 block");
+    let at_0_18_2 =
+        patch_list.find(marker_0_18_2).expect("the README patch list should keep the 0.18.2 block");
+    assert!(
+        at_0_18_4 < at_0_18_3 && at_0_18_3 < at_0_18_2,
+        "the README patch list should run 0.18.4, then 0.18.3, then 0.18.2"
+    );
+
+    let block_0_18_4 = &patch_list[at_0_18_4..at_0_18_3];
     for needle in [
-        "Transport::interface_peer_count",
-        "RNS/Reticulum.py:1501-1503",
-        "InterfaceManager::set_peer_counter",
-        "AutoRuntimeStatusHandle::peer_count()",
-        "peers=N",
-        "transport::shared_instance_rpc",
-        "multiprocessing.connection",
-        "RpcKey::from_transport_identity_file",
-        "md-5",
-        "AnnounceEvent::emitted",
-        "AnnounceEvent::random_blob",
-        "Transport::latest_announce_emitted",
-        "RNS/Transport.py:3459-3473",
-        "python_shared_instance_rpc.rs",
-        "python_stdlib_listener_rpc_probe.rs",
-        "python_shared_instance_announce_emitted.rs",
-        "shared_instance_rpc_departed_server_python_probe.rs",
-        "auto-peer-count-timeout",
-        "hil_core_case_names_probe.rs",
-        "announce_emitted_probe.rs",
-        "coyote-rns-transport = \"0.18.3\"",
-        "RpcEndpoint::for_instance(\"default\")",
-        "kind == \"AutoInterface\"",
+        "RpcError::Io(std::io::Error)",
+        "io_kind()",
+        "ConnectionReset",
+        "ConnectionAborted",
+        "BrokenPipe",
+        "UnexpectedEof",
+        "backlog=1",
+        "RNS/Reticulum.py:1274-1334",
+        "### How it tracks upstream",
+        "## Upstream LXMF-rs",
+        "python_shared_instance_rpc_io.rs",
+        "honest_rst",
+        "shared_instance_rpc_io_kind_probe.rs",
+        "shared_instance_rpc_api.rs",
+        "coyote-rns-transport = \"0.18.4\"",
+        "ConnectionRefused",
+        "`Io` instead of `Protocol`",
         "nothing to opt into",
     ] {
         assert!(
-            block_0_18_3.contains(needle),
-            "the README 0.18.3 block should say {needle:?}:\n{block_0_18_3}"
+            block_0_18_4.contains(needle),
+            "the README 0.18.4 block should say {needle:?}:\n{block_0_18_4}"
         );
     }
 }

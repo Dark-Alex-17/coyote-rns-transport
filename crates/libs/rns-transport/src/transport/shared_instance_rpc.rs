@@ -113,8 +113,9 @@ impl RpcKey {
     /// `<configdir>/storage/transport_identity` (`RNS/Reticulum.py:360-361`,
     /// `Identity.full_hash`). A file of any other length is
     /// [`RpcError::InvalidKeyMaterial`]; so is an unreadable file, with the
-    /// io error logged at warn level, since the error enum carries no io
-    /// variant for a path that never reached the network.
+    /// io error logged at warn level; [`RpcError::Io`] is reserved for
+    /// failures after the dial and [`RpcError::Connect`] for the dial itself,
+    /// and a local file that never reached the network fits neither.
     pub fn from_transport_identity_file(path: &Path) -> Result<Self, RpcError> {
         let private_key = std::fs::read(path).map_err(|err| {
             log::warn!("transport identity unreadable path={} err={}", path.display(), err);
@@ -141,7 +142,9 @@ impl fmt::Debug for RpcKey {
 #[non_exhaustive]
 #[derive(Debug, thiserror::Error)]
 pub enum RpcError {
-    /// The TCP or unix connect itself failed; nothing was exchanged.
+    /// The TCP or unix connect itself failed; nothing was exchanged. A
+    /// `ConnectionReset` kind here is the overflowed dial (see
+    /// [`RpcError::Io`]); read it through [`RpcError::io_kind`].
     #[error("connect failed: {0}")]
     Connect(#[source] std::io::Error),
     /// The server rejected our answer to its challenge with `#FAILURE#`
@@ -150,11 +153,32 @@ pub enum RpcError {
     /// notice a server that has already hung up never reads).
     #[error("shared instance rpc authentication failed")]
     Authentication,
-    /// A malformed or oversized frame, or an io error after the connection
-    /// was established, except a failed write of the `#FAILURE#` notice,
-    /// which stays `Authentication`.
+    /// The bytes were wrong: a bad length, an oversized frame, or an
+    /// unexpected handshake token.
     #[error("shared instance rpc protocol error: {0}")]
     Protocol(String),
+    /// Every io failure after the dial succeeded (a failed write or flush, a
+    /// short read, EOF during the handshake or the reply), except the failed
+    /// write of the `#FAILURE#` notice to a server that already hung up,
+    /// which stays [`RpcError::Authentication`].
+    ///
+    /// The kinds worth retrying are `ConnectionReset`, `ConnectionAborted`,
+    /// `BrokenPipe` and `UnexpectedEof` (and [`RpcError::Timeout`]): rnsd
+    /// serves RPC dials one at a time on `rpc_loop`
+    /// (`RNS/Reticulum.py:1274-1334`) behind a `Listener`
+    /// (`RNS/Reticulum.py:364`) left at the stdlib default `backlog=1`
+    /// (`multiprocessing/connection.py`, `Listener.__init__`), so a dial that
+    /// lands while another is served may be queued, dropped or reset, and a
+    /// server that departs mid-call renders as one of those kinds (a peer
+    /// that accepts and hangs up at once yields `UnexpectedEof` within
+    /// microseconds). This library never retries; a caller that does should
+    /// bound its attempts and back off briefly between them. Any other kind
+    /// is not transient; surface it rather than retry. Some kernels (macOS)
+    /// reset the overflowed dial before `connect()` returns, so the same kind
+    /// can arrive on [`RpcError::Connect`]; [`RpcError::io_kind`] reads both,
+    /// which is why a retrying caller matches the kind, not the variant.
+    #[error("shared instance rpc io error after connect: {0}")]
+    Io(#[source] std::io::Error),
     /// The reply was not the msgpack shape `get_interface_stats` builds.
     #[error("shared instance rpc reply did not decode: {0}")]
     Decode(String),
@@ -169,6 +193,27 @@ pub enum RpcError {
     /// The whole call, connect included, outran the caller's budget.
     #[error("shared instance rpc call timed out")]
     Timeout,
+}
+
+impl RpcError {
+    /// The io error kind behind an [`RpcError::Io`] or [`RpcError::Connect`],
+    /// `None` for every other variant. The kinds worth a retry are
+    /// `ConnectionReset`, `ConnectionAborted`, `BrokenPipe` and
+    /// `UnexpectedEof` (the [`RpcError::Io`] docs say why);
+    /// `Connect(ConnectionRefused)` is the listener not being there and is
+    /// not one of them, so a caller that waits for a listener to bind keeps
+    /// its own `Connect` arm, while a `Connect` whose kind is
+    /// `ConnectionReset` is the overflowed dial and worth the same retry (on
+    /// unix; Windows renders a full listen backlog as `ConnectionRefused`
+    /// too). [`RpcError::Timeout`] is also worth a retry but has no kind;
+    /// test for it by variant.
+    #[must_use]
+    pub fn io_kind(&self) -> Option<std::io::ErrorKind> {
+        match self {
+            Self::Io(err) | Self::Connect(err) => Some(err.kind()),
+            _ => None,
+        }
+    }
 }
 
 /// The decoded `interface_stats` reply (`RNS/Reticulum.py:1405-1628`).

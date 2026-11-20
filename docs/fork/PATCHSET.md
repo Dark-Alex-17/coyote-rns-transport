@@ -26,19 +26,49 @@ parity rows this file plus the crate README `## Known divergences from
 Python RNS` are the parity ledger; `docs/status/*` matrices are not updated
 per fork task.
 
-## Unreleased (upstream 0.14.0)
+## 0.18.4 (upstream 0.14.0)
 
 Every file changed since the `0.18.3` release and the patch each change
-belongs to. Patch ids: P1 is readme fork framing. The `readme fork framing`
-patch is fork commits `edb4258e`, `a7688b50`, `6e1a7457` and `b8a0c07d`.
+belongs to. Patch ids: P1 is readme fork framing, P2 is rpc io error. The
+`readme fork framing` patch is fork commits `edb4258e`, `a7688b50`,
+`6e1a7457` and `b8a0c07d`. The `rpc io error` patch is fork commits
+`8547983a`, `29cc16d6`, `f2813179`, `df674bea`, `6f19155e`, `c31add6e`,
+`9a0eb46a` and `a58b664e`. The `Python-in-the-loop rpc io error interop`
+patch carries no other id and is fork commits `94d41512`, `29cc16d6`,
+`f2813179`, `df674bea` and `6f19155e`. The `release 0.18.4` patch carries
+no other id and is fork commits `acae9a72`, `58e4d93d`, `c2630318`,
+`e9ccadcd` and `76ca0d32`.
 
 | File | Patch |
 | --- | --- |
+| `Cargo.lock` | release 0.18.4 |
+| `Cargo.toml` | release 0.18.4 |
 | `README.md` | readme fork framing |
-| `crates/apps/reticulumd/tests/fork_publish_contract_parts/ledger_contract.rs` | readme fork framing |
-| `crates/libs/rns-transport/CHANGELOG.md` | readme fork framing |
-| `crates/libs/rns-transport/README.md` | readme fork framing |
-| `docs/fork/PATCHSET.md` | readme fork framing |
+| `crates/apps/reticulumd/Cargo.toml` | release 0.18.4 |
+| `crates/apps/reticulumd/tests/fork_publish_contract.rs` | release 0.18.4 |
+| `crates/apps/reticulumd/tests/fork_publish_contract_parts/ledger_contract.rs` | readme fork framing, release 0.18.4 |
+| `crates/apps/reticulumd/tests/fork_release_docs_contract.rs` | release 0.18.4 |
+| `crates/apps/reticulumd/tests/fork_release_docs_contract_parts/readme_patch_list.rs` | release 0.18.4 |
+| `crates/apps/reticulumd/tests/fork_release_docs_contract_parts/release_0_18_3_probe.rs` | release 0.18.4 |
+| `crates/apps/reticulumd/tests/fork_release_docs_contract_parts/release_0_18_4_probe.rs` | release 0.18.4 |
+| `crates/apps/reticulumd/tests/fork_release_docs_contract_parts/request_layer_api_docs.rs` | rpc io error |
+| `crates/apps/reticulumd/tests/python_channel_interop.rs` | Python-in-the-loop rpc io error interop |
+| `crates/apps/reticulumd/tests/python_channel_interop_parts/python_shared_instance_rpc.rs` | rpc io error, Python-in-the-loop rpc io error interop |
+| `crates/apps/reticulumd/tests/python_channel_interop_parts/python_shared_instance_rpc_io.rs` | Python-in-the-loop rpc io error interop |
+| `crates/apps/rns-tools/Cargo.toml` | release 0.18.4 |
+| `crates/libs/rns-transport/CHANGELOG.md` | readme fork framing, rpc io error, Python-in-the-loop rpc io error interop, release 0.18.4 |
+| `crates/libs/rns-transport/Cargo.toml` | release 0.18.4 |
+| `crates/libs/rns-transport/README.md` | readme fork framing, rpc io error, Python-in-the-loop rpc io error interop, release 0.18.4 |
+| `crates/libs/rns-transport/fuzz/Cargo.lock` | release 0.18.4 |
+| `crates/libs/rns-transport/src/transport/shared_instance_rpc.rs` | rpc io error |
+| `crates/libs/rns-transport/src/transport/shared_instance_rpc/framing.rs` | rpc io error |
+| `crates/libs/rns-transport/src/transport/shared_instance_rpc/tests/mock_server.rs` | rpc io error |
+| `crates/libs/rns-transport/src/transport/shared_instance_rpc/tests/mod.rs` | rpc io error |
+| `crates/libs/rns-transport/tests/shared_instance_rpc_api.rs` | rpc io error |
+| `crates/libs/rns-transport/tests/shared_instance_rpc_departed_server_python_probe.rs` | rpc io error |
+| `crates/libs/rns-transport/tests/shared_instance_rpc_io_kind_probe.rs` | rpc io error, release 0.18.4 |
+| `docs/fork/PATCHSET.md` | readme fork framing, rpc io error, Python-in-the-loop rpc io error interop, release 0.18.4 |
+| `docs/getting-started.md` | release 0.18.4 |
 
 Fork commits `edb4258e`, `a7688b50`, `6e1a7457` and `b8a0c07d`: P1, readme
 fork framing. Docs only, no library change.
@@ -66,6 +96,237 @@ heading whose attribution names the `## Main packages` row the fork updated.
 The crate `CHANGELOG.md` reopens `## Unreleased` with a docs-only Changed
 bullet, and `ledger_contract.rs` extends the full-hash ledger pin to the
 reopened section.
+
+Fork commits `8547983a`, `29cc16d6`, `f2813179`, `df674bea`, `6f19155e`,
+`c31add6e`, `9a0eb46a` and `a58b664e`: P2, rpc io error.
+Upstream site: the fork-added rnsd RPC client
+`crates/libs/rns-transport/src/transport/shared_instance_rpc.rs` (O2 of
+`## 0.18.3`) and its framing helper `shared_instance_rpc/framing.rs`;
+upstream carries neither. `RpcError::Protocol(String)` covered both a
+malformed frame and an io error after the connection was established, so a
+caller that wanted to retry a dropped rnsd connection matched `reset` in
+the message text, which breaks on wording, platform (Windows renders a
+reset as "An existing connection was forcibly closed by the remote host")
+and locale. `8547983a` adds the variant `RpcError::Io(#[source]
+std::io::Error)` (`shared instance rpc io error after connect: {0}`) to the
+`#[non_exhaustive]` enum, moves the three io sites in `framing.rs` (the
+`write_all`, the `flush` and the `read_exact`, EOF as `UnexpectedEof`) onto
+it, leaves every bytes-were-wrong site (`framing.rs` length checks,
+`handshake.rs` token checks) on `Protocol`, leaves the failed `#FAILURE#`
+write to a departed server on `Authentication` (`handshake.rs`), and adds
+`RpcError::io_kind() -> Option<std::io::ErrorKind>` returning the kind
+behind `Io` and `Connect` and `None` otherwise; the rustdoc names the
+retryable kinds (`ConnectionReset`, `ConnectionAborted`, `BrokenPipe`,
+`UnexpectedEof`) against rnsd's serial `rpc_loop` behind a `backlog=1`
+listener (`RNS/Reticulum.py:1274-1334`, `:364`) and says `Connect` yields
+`ConnectionRefused`, outside that set. The same commit adds `Script::Close`
+to the mock peer `shared_instance_rpc/tests/mock_server.rs`, re-pins the
+truncated frame in `shared_instance_rpc/tests/mod.rs` as
+`truncated_frame_is_io_unexpected_eof` beside new pins for the closing
+server, for garbage and oversized frames staying `Protocol` with no io
+kind and for `io_kind()` over every variant, widens the black-box twin
+`tests/shared_instance_rpc_api.rs` to eight variants with `Connect`
+yielding `Some(ConnectionRefused)` and an accept-then-shutdown listener
+yielding `Io`, and adds the `honest_rst` mode to the CPython fixture
+`tests/shared_instance_rpc_departed_server_python_probe.rs`, a server that
+answers both challenges, reads the request and resets with `SO_LINGER 0`
+without replying, so the reply read is `Io` of kind `ConnectionReset` on
+every round (the wrong-answer `fin` and `rst` modes stay `Authentication`).
+`29cc16d6` documents the change: the crate README's variant sentence names
+`Io` beside a bytes-only `Protocol`, a new paragraph says which kinds a
+caller retries through `io_kind()` and why, that macOS resets an overflowed
+dial before `connect()` completes so the kind can also arrive on
+`Connect`, and that `ConnectionRefused` stays outside the retry set, and
+the CHANGELOG `## Unreleased` opens with an Added bullet that says io
+failures moved out of `Protocol`. `f2813179` widens the black-box twin
+with the README's retry rule as a consumer writes it over every variant
+and loopback servers that write garbage, stay silent, hang up mid-frame or
+reset after a whole challenge, and brings the `Io` and `io_kind()` rustdoc
+onto the README's account: a `Connect` is usually `ConnectionRefused`,
+outside the retry set, while a `ConnectionReset` on `Connect` is the
+overflowed dial some kernels reset before `connect()` returns, worth the
+same retry as on `Io`; the CPython probe's header now names the `Io`
+rustdoc as the carve-out's home, and the README and CHANGELOG pin clauses
+name the new pins. `df674bea` pins the write side of `framing.rs`
+deterministically (`send_frame` to a dropped duplex peer is `Io` of kind
+`BrokenPipe`) and EOF at the reply stage (a 48-byte reply header then a
+FIN, after the handshake and the request went through), folds the two
+EOF assertions into one helper, renames the in-crate `io_kind()` pin after
+its black-box twin, drops the oversized-header pin the garbage-and-oversized
+pin subsumes, makes the mid-frame black-box pin assert the `Io` variant,
+marks `io_kind()` `#[must_use]`, says in the `Io` rustdoc that a
+non-retryable kind is surfaced rather than retried, hoists the CPython
+fixture's `SO_LINGER 0` close into one `reset(conn)`, and adds
+`tests/shared_instance_rpc_io_kind_probe.rs`, the README's promise held from
+outside the crate: a valid challenge then a FIN is `Io` and never
+`Authentication`, an honest handshake then a FIN instead of a reply is
+`Io` of kind `UnexpectedEof`, the unix-socket close-at-once twin, a unix
+path nobody listens on as `Connect` of kind `NotFound`, and a `backlog=1`
+listener under four dials yielding only `Timeout` or a retryable kind.
+`6f19155e` makes the `io_kind()` rustdoc name the four retryable kinds
+itself and tell `Connect(ConnectionRefused)` apart from them, pinned by a
+release-docs needle in `fork_release_docs_contract_parts/request_layer_api_docs.rs`
+over the rustdoc, the README section and the CHANGELOG bullet; says at every
+`backlog=1` citation that the `Listener` at `RNS/Reticulum.py:364` keeps the
+stdlib default of `Listener.__init__` rather than passing one; adds that the
+library never retries and a caller bounds its attempts with a short backoff;
+names the handshake token in `Protocol`'s wrong-bytes list; gates the
+backlog overflow pin off Windows, where Winsock answers a SYN past the
+backlog with a RST read as `ConnectionRefused`, and says in the README that
+a Windows caller may fold that kind into its retry set after its own poll;
+and gives the io kind probe its remaining departed servers: oversized, wide,
+negative and empty headers as `Protocol` with no io kind, an accept-then-RST
+before any byte as `Io`, and a stale unix socket file as
+`Connect(ConnectionRefused)`. `c31add6e` is rustdoc and test prose: the
+identity-file rustdoc says `Io` is for failures after the dial and `Connect`
+for the dial itself, a local file fitting neither, instead of claiming the
+enum has no io variant; `Connect`'s rustdoc names `ConnectionReset` as the
+overflowed dial read through `io_kind()`; `io_kind()` carries the Windows
+`ConnectionRefused` clause and names `Timeout` as the kindless retry; the
+CPython `honest_rst` pin states its Windows exclusion (POSIX `struct linger`
+layout) and the README and CHANGELOG cite it as off Windows; the release-docs
+needle reads the one CHANGELOG bullet that introduces `RpcError::Io`.
+`9a0eb46a` adopts five more probes in
+`tests/shared_instance_rpc_io_kind_probe.rs`, written against the contract
+alone, for the stage boundaries a retrying caller must not confuse: a
+header left half-written and then silence is `Timeout` (the read is pending,
+not ended, so the budget decides), a verdict other than `#WELCOME#` after a
+correct answer is `Authentication` (CPython's `answer_challenge` parity), an
+oversized reply header after an honest handshake is `Protocol`, a
+well-framed reply that is not the stats shape is `Decode`, none with an io
+kind, and an honest handshake then a reset instead of a reply is `Io` of a
+retryable kind, the Rust twin of the CPython `honest_rst` pin; the three
+honest-handshake pins and the FIN pin before them serve it through one
+`serve_honest_handshake` helper. `a58b664e` makes the accept-then-RST pin
+there and the reset-after-a-whole-challenge pin in
+`tests/shared_instance_rpc_api.rs` admit `Io` or `Connect` with a retryable
+`io_kind()`, as the backlog overflow pin already does: on macOS a
+`SO_LINGER 0` drop in the same reactor tick as the accept can be read before
+the dial's `connect()` returns and surfaces as `Connect` of kind
+`ConnectionReset`; both are renamed to say so
+(`accept_then_reset_before_any_byte_is_a_retryable_kind_on_either_variant`,
+`server_that_resets_after_a_whole_challenge_is_a_retryable_kind_on_either_variant`)
+and the CHANGELOG and README clauses that name them follow. The same commit
+marks `assert_running` on the hil rnsd fixture in
+`crates/apps/reticulumd/tests/python_channel_interop_parts/python_shared_instance_rpc.rs`
+`#[cfg(unix)]` like its only callers, says in the `Script::Close` doc of
+`shared_instance_rpc/tests/mock_server.rs` why the script does not drain
+(the client never writes before its first read), and gives the
+wrong-then-reset CPython pin in
+`tests/shared_instance_rpc_departed_server_python_probe.rs` the POSIX
+`struct linger` layout clause its `honest_rst` sibling has.
+
+Fork commits `94d41512`, `29cc16d6`, `f2813179`, `df674bea` and `6f19155e`:
+Python-in-the-loop rpc io error interop. `94d41512` rehomes the hil poll in
+`crates/apps/reticulumd/tests/python_channel_interop_parts/python_shared_instance_rpc.rs`
+from the `reset` text match on `Protocol` onto `io_kind()` over the
+retryable kinds, keeping its `Connect` arm for the listener rnsd binds only
+after `Transport.start`, and adds the part
+`python_channel_interop_parts/python_shared_instance_rpc_io.rs`, included
+from `python_channel_interop.rs`: after the first reply from a live Python
+rnsd (RNS 1.5.2) it runs eight rounds of three concurrent `interface_stats`
+dials and requires every round to be answered at least once and every
+failure to be `Timeout` or a retryable kind, on `Io` or on `Connect`
+(macOS resets the overflowed dial before `connect()` completes), never
+`Protocol`, `Connect` with `ConnectionRefused` or `Authentication`; on this
+host every round lost exactly one dial to a `ConnectionReset`, split
+between `Io` and `Connect`. `29cc16d6` names the part in the README's pin
+clause and the CHANGELOG bullet. `f2813179` places the `Io` boundary in the
+part's header at `connect()` returning, where the library draws it.
+`df674bea` moves the retry set into one `shared_instance_rpc_retryable`
+helper the poll and the part's classifier share, checks every reply of a
+round, and names rnsd's exit status before a panic on a dead fixture.
+`6f19155e` makes the part unix-only (Windows reads an overflowed dial as
+`ConnectionRefused`) and corrects its `backlog=1` citation to the stdlib
+default the `Listener` keeps.
+
+Fork commits `acae9a72`, `58e4d93d`, `c2630318`, `e9ccadcd` and `76ca0d32`:
+release 0.18.4. The first bumps the crate version to 0.18.4 at every
+manifest and consumer-snippet site (`Cargo.toml`,
+`crates/libs/rns-transport/Cargo.toml`, `crates/apps/reticulumd/Cargo.toml`,
+`crates/apps/rns-tools/Cargo.toml`, the snippet in
+`crates/libs/rns-transport/README.md` and `docs/getting-started.md`) and in
+`Cargo.lock` and `crates/libs/rns-transport/fuzz/Cargo.lock`, where the
+fuzz lock changes only its version line since this release adds no
+dependency, and retargets the two hand pins in
+`crates/apps/reticulumd/tests/fork_publish_contract.rs` to `0.18.4`; the
+root `VERSION` file stays. The second adds the 0.18.4 paragraph to the
+`## Patch list` of `crates/libs/rns-transport/README.md`, folding it into
+the intro sentence and leaving the 0.18.3 block as a standalone paragraph
+with its bullets unchanged; its four bullets are the rpc io error with the
+`io_kind()` retry contract and the macOS reading of a same-tick reset as
+`Connect`, the README fork framing, the Python-in-the-loop proof against a
+live rnsd beside the CPython and black-box pins, and the consumer note (pin
+0.18.4, nothing to opt into, `io_kind()` over both `Io` and `Connect` in
+place of a text match on `Protocol`, a `Connect` arm for
+`ConnectionRefused`, bounded attempts with a short backoff, and an io
+failure after connect surfacing as `Io` instead of `Protocol` as the only
+observable change for an existing matcher). The third promotes
+`## Unreleased` to `## 0.18.4 - 2026-11-20` in the crate `CHANGELOG.md`,
+prepending two bullets to its `### Changed` subsection: a version bullet
+(the announce field, the patch-bump reasoning with no `### Breaking` as
+every change is additive API a consumer need not opt into, the `Io` instead
+of `Protocol` sentence, the `cargo semver-checks` result of 0 findings
+against `v0.18.3` with the gate that runs it,
+`tools/scripts/semver-major-findings-check.sh coyote-rns-transport-v0.18.3 0`,
+and the contract tests that pin the release) and a restated test-only
+bullet for the release docs contract parts naming all thirteen; it
+retargets the promotion-sensitive pins to the literal 0.18.4 label:
+`crates/apps/reticulumd/tests/fork_publish_contract_parts/ledger_contract.rs`
+expects the full-hash contract and the bullet-cite contract to cover
+`0.18.4`, `0.18.3`, `0.18.2`, `0.18.1`, `0.18.0`, `0.17.0`, `0.16.0` and
+`0.15.1` with no `Unreleased` label, and
+`crates/apps/reticulumd/tests/fork_release_docs_contract_parts/readme_patch_list.rs`
+gains a 0.18.4 twin
+(`readme_patch_list_opens_with_the_0_18_4_block_and_keeps_the_0_18_3_paragraph`)
+asserting that the 0.18.4 block opens the list, the 0.18.4, 0.18.3, 0.18.2
+order and the 0.18.4 items, while the 0.18.3 test becomes
+`readme_patch_list_keeps_the_0_18_3_block_above_the_0_18_2_paragraph` and
+keeps its order and its needles through a shared const; it demotes
+`crates/apps/reticulumd/tests/fork_release_docs_contract_parts/release_0_18_3_probe.rs`,
+which keeps its date pin and slices its ledger section by heading but no
+longer claims the first release heading, the ledger opening, the README
+dependency snippet or the manifest version, its hand-pins test going with
+them; and it adds
+`crates/apps/reticulumd/tests/fork_release_docs_contract_parts/release_0_18_4_probe.rs`,
+included from `crates/apps/reticulumd/tests/fork_release_docs_contract.rs`,
+which pins the heading date and its place as the first release heading,
+the subsection set `### Added`, `### Changed` and nothing else (so no
+`### Breaking` and no `### Fixed`), the one `### Added` item as
+`RpcError::Io` with its `io_kind()` accessor, the patch digit and semver
+sentence of the version bullet, the thirteen parts the include-set bullet
+names, the README patch-list order and the 0.18.4 block's four bullets and
+consumer note with the retry rule, the dependency snippet, the publish
+contract's two hand pins reading `0.18.4`, and this ledger opening on this
+section with the release patch in the legend, the two adopted probe commits
+in the `rpc io error` legend and the probe's own row under
+`release 0.18.4`. The fourth folds into `release_0_18_4_probe.rs` the
+usage pins that read the release against the tree it describes: the
+stage-boundary clauses of the `### Added` bullet and the README rpc section
+match the tests `tests/shared_instance_rpc_io_kind_probe.rs` carries, the
+reset pins are kind-based on either variant in the tests and both
+documents, the test-hygiene claims this section makes about `a58b664e`
+hold in the tree, and this section cites the two adopted test commits
+under `rpc io error` with every file they touched rowed there, the hil
+fixture under both patches; it demotes the 0.18.3 probe's doc wording to
+the pins that file still owns and renames its ledger test
+`release_0_18_3_patchset_cites_the_release_patch_and_the_adopted_probe`;
+and in the io kind probe it extracts `hold_until_client_leaves` for the
+four servers that hold the socket after writing, makes
+`serve_honest_handshake` return unit since no caller read the request it
+returned, and corrects the reset pin's rationale (a `SO_LINGER 0` close
+emits a bare RST with no FIN, and `UnexpectedEof` is admitted because a
+kernel may report the reset to a read already in flight as end-of-stream).
+The fifth pins in `release_0_18_4_probe.rs` the first four commits above in
+both this section's legend sentence and this paragraph's header, as
+`contains` checks so later ledger commits may be cited beside them; reads
+the io kind probe's row under both `rpc io error` and `release 0.18.4`,
+since the fourth commit edited that file; and adds the version bullet's
+usage-pins needles and a past-tense pin over the README fork framing
+bullet's ledger sentence.
+The ledger commits that cite the five commits above are omitted from the
+patch headers like every commit whose changes touch only this file and the
+crate `CHANGELOG.md`.
 
 ## 0.18.3 (upstream 0.14.0)
 

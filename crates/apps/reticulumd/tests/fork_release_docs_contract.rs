@@ -248,3 +248,5 @@ include!("fork_release_docs_contract_parts/release_0_18_1_probe.rs");
 include!("fork_release_docs_contract_parts/release_0_18_2_probe.rs");
 
 include!("fork_release_docs_contract_parts/release_0_18_3_probe.rs");
+
+include!("fork_release_docs_contract_parts/release_0_18_4_probe.rs");

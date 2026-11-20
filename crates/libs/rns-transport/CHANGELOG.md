@@ -8,10 +8,110 @@ no library behaviour (a test-only change such as a fixture hardening or a
 test hygiene pass, release tooling, CI) is a Changed (or, for a deleted file,
 Removed) bullet of its own, marked as such.
 
-## Unreleased
+## 0.18.4 - 2026-11-20
+
+### Added
+
+- `RpcError::Io(std::io::Error)` on the `#[non_exhaustive]`
+  `transport::shared_instance_rpc::RpcError`
+  (`transport/shared_instance_rpc.rs`), carrying every io failure after the
+  dial succeeded: a failed write or flush, a short read, EOF during the
+  handshake or the reply, raised in `shared_instance_rpc/framing.rs`.
+  These moved out of `Protocol`, which now means only wrong bytes (a bad
+  length, an oversized frame, or an unexpected handshake token), so a
+  matcher on `Protocol(_)` that looked for a reset in the message text
+  must move to `Io` or to the new
+  `RpcError::io_kind() -> Option<std::io::ErrorKind>`, which returns the
+  kind behind `Io` and `Connect` and `None` otherwise. The kinds worth
+  retrying, with bounded attempts and a short backoff since the library
+  itself never retries, are `ConnectionReset`, `ConnectionAborted`,
+  `BrokenPipe` and `UnexpectedEof`: rnsd serves dials serially on
+  `rpc_loop` (`RNS/Reticulum.py:1274-1334`) behind a `Listener`
+  (`RNS/Reticulum.py:364`) left at the default `backlog=1` of the stdlib
+  `multiprocessing.connection` `Listener.__init__`, and macOS resets an
+  overflowed dial before `connect()` returns, so the kind can also
+  arrive on `Connect`; `Connect` with `ConnectionRefused` stays outside the
+  retry set (Windows renders a full backlog that way too). The
+  `#FAILURE#` write to a departed server stays `Authentication`. Pinned by
+  `shared_instance_rpc/tests/mod.rs`
+  (`Script::Close` and the re-pinned `truncated_frame_is_io_unexpected_eof`,
+  `send_frame` to a dropped peer as `Io` of kind `BrokenPipe`, a reply cut
+  short after its header as `Io` of kind `UnexpectedEof`, garbage and
+  oversized frames staying `Protocol` with no io kind),
+  `tests/shared_instance_rpc_api.rs` (eight variants, `Connect` yielding
+  `Some(ConnectionRefused)`, an accept-then-shutdown listener yielding `Io`,
+  the retry rule as a consumer writes it over every variant, and loopback
+  servers that write garbage, stay silent or hang up mid-frame, and one
+  that resets after a whole challenge as `Io` or `Connect` of a retryable
+  kind, since on macOS the reset can land before the dial's `connect()`
+  returns),
+  `tests/shared_instance_rpc_io_kind_probe.rs` (a valid challenge then a
+  FIN is `Io`, never `Authentication`; an honest handshake then a FIN
+  instead of a reply; the unix-socket close-at-once twin; a missing unix
+  path as `Connect` of kind `NotFound` and a stale socket file as `Connect`
+  of kind `ConnectionRefused`; a `backlog=1` listener under four dials
+  yielding only `Timeout` or a retryable kind, off Windows; an
+  accept-then-RST before any byte as `Io` or `Connect` of a retryable kind;
+  the oversized, wide, negative and empty frame headers as `Protocol` with
+  no io kind; and the stage boundaries a retrying caller must not confuse:
+  a half-written header then silence as `Timeout`, a non-`#WELCOME#`
+  verdict after a correct answer as `Authentication`, an oversized reply
+  header after an honest handshake as `Protocol`, a well-framed reply of
+  the wrong shape as `Decode`, none with an io kind, and an honest
+  handshake then a reset instead of a reply as `Io` of a retryable kind),
+  `tests/shared_instance_rpc_departed_server_python_probe.rs`
+  (`honest_rst`: a CPython server resetting after the request is `Io` of
+  kind `ConnectionReset`, off Windows), the hil poll
+  `python_channel_interop_parts/python_shared_instance_rpc.rs`, which now
+  retries through `io_kind()`, and the Python-in-the-loop
+  `python_channel_interop_parts/python_shared_instance_rpc_io.rs` (three
+  concurrent dials against rnsd 1.5.2, every failure `Timeout` or a
+  retryable kind).
 
 ### Changed
 
+- The crate version is `0.18.4`; the discovery announce carries it in the
+  `TRANSPORT_VERS` field (`discovery/announce.rs`), so peers observe the fork
+  patch release through discovery. The bump is a patch one under the README
+  policy, as `0.15.1`, `0.18.1`, `0.18.2` and `0.18.3` were: every change
+  since `0.18.3` is additive API a consumer need not opt into (a new variant
+  on the `#[non_exhaustive]` `RpcError` and the `io_kind()` accessor), with
+  no public item removed or changed, so there is no `### Breaking`
+  subsection. The only observable change for an existing matcher is an io
+  failure after connect surfacing as `Io` instead of `Protocol`, as the
+  `### Added` bullet's migration sentence says. `cargo semver-checks`
+  against `v0.18.3` reports 0 findings; additive changes are below
+  cargo-semver-checks' default lint level, so the patch-level run the
+  release check makes has nothing to report, and the release check runs it
+  as `tools/scripts/semver-major-findings-check.sh
+  coyote-rns-transport-v0.18.3 0`. The release contracts are pinned by
+  `crates/apps/reticulumd/tests/fork_publish_contract.rs` and
+  `fork_release_docs_contract.rs`; its
+  `fork_release_docs_contract_parts/release_0_18_4_probe.rs` pins the heading
+  date and its place as the first release heading, the subsection set
+  `### Added`, `### Changed` of this release with no `### Breaking` and no
+  `### Fixed`, the one `### Added` item by its name, the patch digit and
+  the semver sentence above, the README patch-list order with the 0.18.4
+  block on top, the thirteen parts the include-set bullet names, and
+  the usage pins a consumer reads cold: the ledger's release patch and
+  adopted-commit attribution, the README consumer note with the retry rule
+  and the publish contract's two hand pins reading `0.18.4`.
+- Release docs contract, test-only: `fork_release_docs_contract.rs` includes
+  its tests from `fork_release_docs_contract_parts/`
+  (`crate_readme_sections.rs`, `readme_patch_list.rs`,
+  `release_0_17_0_probe.rs`, `release_0_17_0_probe2.rs`,
+  `release_0_17_0_probe3.rs`, `release_0_17_0_probe4.rs`,
+  `release_0_18_0_probe.rs`, `release_0_18_1_probe.rs`,
+  `release_0_18_2_probe.rs`, `release_0_18_3_probe.rs`,
+  `release_0_18_4_probe.rs`, `release_notes_breaking.rs` and
+  `request_layer_api_docs.rs`); the patch-list pin opens on the 0.18.4
+  block and keeps the 0.18.3 block as a demoted twin with its needles
+  shared through a const, as the 0.18.2, 0.18.1, 0.18.0 and 0.17.0 blocks
+  are; the 0.18.3 probe keeps its date pin and no longer claims the first
+  release heading, the ledger opening, the README dependency snippet or the
+  manifest version, which `release_0_18_4_probe.rs` owns; and the label
+  pins in `fork_publish_contract_parts/ledger_contract.rs` read `0.18.4`
+  first, with no `Unreleased` label, since a release tree carries no stub.
 - README fork framing, docs only, no library change: the crate README's
   `## What this is` now says what Coyote is, why this fork of upstream
   `reticulum-rs-transport` exists and what differs from upstream, by theme,
@@ -20,8 +120,9 @@ Removed) bullet of its own, marked as such.
   repository README leads with the fork (title, badges and intro name this
   repository and `coyote-rns-transport`) and keeps upstream's workspace
   documentation under an `## Upstream LXMF-rs` heading. The full-hash
-  ledger pin in `ledger_contract.rs` admits the reopened `## Unreleased`
-  section of `docs/fork/PATCHSET.md`.
+  ledger pin in `ledger_contract.rs` covered the reopened `## Unreleased`
+  section of `docs/fork/PATCHSET.md` while the 0.18.4 work was in
+  progress.
 
 ## 0.18.3 - 2026-11-19
 

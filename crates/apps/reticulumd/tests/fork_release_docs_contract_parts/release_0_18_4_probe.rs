@@ -4,26 +4,28 @@
 // the heading to the day the release was cut and to the top of the ledger,
 // the subsection set a purely additive patch release carries, the one item
 // `### Added` names, the patch digit and semver verdict the version bullet
-// records, the thirteen release-docs parts the restated include-set bullet
-// lists, the README patch-list order with the 0.18.4 block on top, and the
-// usage pins a consumer reads cold: the patch-set ledger opening on this
-// release with the release patch and the adopted probe commits cited, the
-// README block's four bullets and consumer note with the retry rule, and the
-// publish contract's two hand pins reading the release version. Four more
-// usage pins read the release against the tree it describes: the
-// stage-boundary clauses of the `### Added` bullet and the README rpc
-// section name tests the io kind probe carries, the reset pins are
-// kind-based on either variant in the tests and both documents, the
-// test-hygiene claims the ledger makes about `a58b664e` hold in the tree,
-// and the ledger cites the adopted test commits under `rpc io error` with
-// every file they touched rowed there. The pins over the current tree,
-// which the next release cut demotes, are the first-release-heading test,
-// the ledger-opening assertion of the patch-set test, the README
-// `[dependencies]` snippet and four-bullet opener pins of the consumer-note
-// test, and the crate-manifest version and publish-contract literal count
-// of the hand-pins test; the rest hold facts about the 0.18.4 section
-// itself. `first_release_heading` and `patchset_opening_section` are shared
-// with the 0.18.3 probe.
+// records, the past tense the framing bullet keeps for a pin that read the
+// reopened section, the thirteen release-docs parts the restated
+// include-set bullet lists, the README patch-list order with the 0.18.4
+// block on top, and the usage pins a consumer reads cold: the patch-set
+// ledger opening on this release with the four release commits and the
+// adopted probe commits cited, the README block's four bullets and consumer
+// note with the retry rule, and the publish contract's two hand pins
+// reading the release version. Four more usage pins read the release
+// against the tree it describes: the stage-boundary clauses of the
+// `### Added` bullet and the README rpc section name tests the io kind probe
+// carries, the reset pins are kind-based on either variant in the tests and
+// both documents, the test-hygiene claims the ledger makes about `a58b664e`
+// hold in the tree, and the ledger cites the adopted test commits under
+// `rpc io error` with every file they touched rowed there, the io kind probe
+// under the release patch as well since a release commit edited it. The
+// pins over the current tree, which the next release cut demotes, are the
+// first-release-heading test, the ledger-opening assertion of the patch-set
+// test, the README `[dependencies]` snippet and four-bullet opener pins of
+// the consumer-note test, and the crate-manifest version and
+// publish-contract literal count of the hand-pins test; the rest hold facts
+// about the 0.18.4 section itself. `first_release_heading` and
+// `patchset_opening_section` are shared with the 0.18.3 probe.
 
 /// The 0.18.4 heading carries the day the release was cut and is the first
 /// release heading of the CHANGELOG.
@@ -83,7 +85,8 @@ fn release_0_18_4_added_names_the_io_variant_and_the_kind_accessor() {
 /// bump is a patch one and the semver verdict: the baseline tag, that nothing
 /// was found, the 0.15.1, 0.18.1, 0.18.2 and 0.18.3 precedents, the absent
 /// `### Breaking`, the one observable change for an existing matcher, the
-/// gate the release check runs and the probe that pins the release.
+/// gate the release check runs, the probe that pins the release and the
+/// usage pins it carries down to the publish contract's hand pins.
 #[test]
 fn release_0_18_4_version_bullet_records_the_patch_digit_and_the_semver_verdict() {
     let changelog = read_repo_file("crates/libs/rns-transport/CHANGELOG.md");
@@ -107,9 +110,33 @@ fn release_0_18_4_version_bullet_records_the_patch_digit_and_the_semver_verdict(
         "surfacing as `Io` instead of `Protocol`",
         "`tools/scripts/semver-major-findings-check.sh coyote-rns-transport-v0.18.3 0`",
         "`fork_release_docs_contract_parts/release_0_18_4_probe.rs`",
+        "the usage pins a consumer reads cold",
+        "two hand pins reading `0.18.4`",
     ] {
         assert!(bullet.contains(needle), "the 0.18.4 version bullet should say {needle:?}");
     }
+}
+
+/// The README fork framing bullet of 0.18.4 describes the full-hash ledger
+/// pin's cover of the reopened `## Unreleased` section in the past tense,
+/// since the release tree carries no such section.
+#[test]
+fn release_0_18_4_framing_bullet_reads_the_ledger_pin_in_the_past_tense() {
+    let changelog = read_repo_file("crates/libs/rns-transport/CHANGELOG.md");
+    let section = changelog_release_section(&changelog, "0.18.4");
+    let bullets = subsection_bullets(&section, "Changed");
+    let bullet = joined_prose(&single_bullet_starting_with(
+        &bullets,
+        "- README fork framing, docs only, no library change",
+    ));
+    assert!(
+        bullet.contains("covered the reopened `## Unreleased` section"),
+        "the framing bullet should read the ledger pin in the past tense: {bullet}"
+    );
+    assert!(
+        !bullet.contains("admits the reopened"),
+        "the framing bullet should not read the ledger pin in the present tense: {bullet}"
+    );
 }
 
 /// The restated include-set bullet of 0.18.4 names all thirteen parts of
@@ -170,10 +197,12 @@ fn release_0_18_4_readme_patch_list_runs_newest_first() {
 
 /// The first release section of the patch-set ledger is
 /// `## 0.18.4 (upstream 0.14.0)`; its legend names the id-less
-/// `release 0.18.4` patch, the `rpc io error` legend cites the two probe
-/// commits adopted since 0.18.3, and the table rows this file under
-/// `release 0.18.4`. The release commits themselves are not pinned here:
-/// their hashes exist only once the ledger commit is cut.
+/// `release 0.18.4` patch and cites the four release commits both there
+/// and in the release paragraph header, the `rpc io error` legend cites the
+/// two probe commits adopted since 0.18.3, and the table rows this file
+/// under `release 0.18.4`. The citations are `contains` checks so the
+/// ledger may cite later commits too; only this probe's own commit cannot
+/// cite itself.
 #[test]
 fn release_0_18_4_patchset_opens_on_the_release_patch() {
     let ledger = read_repo_file("docs/fork/PATCHSET.md");
@@ -184,10 +213,31 @@ fn release_0_18_4_patchset_opens_on_the_release_patch() {
         "the first release section of the patch-set ledger should be 0.18.4"
     );
     let prose = joined_prose(section);
-    assert!(
-        prose.contains("The `release 0.18.4` patch carries no other id and is fork commits"),
-        "the 0.18.4 legend names the id-less release patch"
-    );
+    let release_marker = "The `release 0.18.4` patch carries no other id and is fork commits";
+    let release_legend_start =
+        prose.find(release_marker).expect("the 0.18.4 legend names the id-less release patch");
+    let release_legend = &prose[release_legend_start + release_marker.len()..];
+    let release_legend = &release_legend[..release_legend.find('.').expect("sentence end")];
+    let release_commits = ["`acae9a72`", "`58e4d93d`", "`c2630318`", "`e9ccadcd`"];
+    for commit in release_commits {
+        assert!(
+            release_legend.contains(commit),
+            "the `release 0.18.4` legend should cite {commit}: {release_legend}"
+        );
+    }
+    let release_label = ": release 0.18.4.";
+    let release_header_end =
+        prose.find(release_label).expect("the release paragraph header carries its label");
+    let release_header_start = prose[..release_header_end]
+        .rfind("Fork commits ")
+        .expect("the release paragraph header opens on `Fork commits`");
+    let release_header = &prose[release_header_start..release_header_end];
+    for commit in release_commits {
+        assert!(
+            release_header.contains(commit),
+            "the release paragraph header should cite {commit}: {release_header}"
+        );
+    }
     let io_legend_start = prose
         .find("The `rpc io error` patch is fork commits")
         .expect("the 0.18.4 legend names the `rpc io error` patch");
@@ -300,7 +350,9 @@ fn release_0_18_4_publish_contract_hand_pins_read_the_release_version() {
 fn release_0_18_4_stage_boundary_pins_match_the_added_bullet_and_the_readme() {
     let changelog = read_repo_file("crates/libs/rns-transport/CHANGELOG.md");
     let section = changelog_release_section(&changelog, "0.18.4");
-    let added = joined_prose(&subsection_bullets(&section, "Added")[0]);
+    let bullets = subsection_bullets(&section, "Added");
+    let added =
+        joined_prose(&single_bullet_starting_with(&bullets, "- `RpcError::Io(std::io::Error)`"));
     let readme = read_repo_file("crates/libs/rns-transport/README.md");
     let rpc = joined_prose(crate_readme_section(&readme, "Reading rnsd's interface statistics"));
     let probe =
@@ -352,7 +404,9 @@ fn release_0_18_4_stage_boundary_pins_match_the_added_bullet_and_the_readme() {
 fn release_0_18_4_reset_pins_are_kind_based_on_either_variant_in_tests_and_docs() {
     let changelog = read_repo_file("crates/libs/rns-transport/CHANGELOG.md");
     let section = changelog_release_section(&changelog, "0.18.4");
-    let added = joined_prose(&subsection_bullets(&section, "Added")[0]);
+    let bullets = subsection_bullets(&section, "Added");
+    let added =
+        joined_prose(&single_bullet_starting_with(&bullets, "- `RpcError::Io(std::io::Error)`"));
     let readme = read_repo_file("crates/libs/rns-transport/README.md");
     let rpc = joined_prose(crate_readme_section(&readme, "Reading rnsd's interface statistics"));
     let io_kind_probe =
@@ -445,9 +499,11 @@ fn release_0_18_4_ledger_hygiene_claims_hold_in_the_tree() {
 /// commits (`9a0eb46a`, the five stage-boundary probes, and `a58b664e`, the
 /// kind-based reset pins) are cited under the `rpc io error` patch of the
 /// `## 0.18.4` ledger, both in the legend and in the patch paragraph, and
-/// every test file they touched is rowed under that patch: the four
-/// rns-transport test files under it alone, the hil rnsd fixture under it
-/// and the Python interop patch in legend order.
+/// every test file they touched is rowed under that patch: three
+/// rns-transport test files under it alone, the io kind probe under it and
+/// `release 0.18.4` since a release commit edited that file too, and the
+/// hil rnsd fixture under it and the Python interop patch. Each row lists
+/// the union of touching patches in legend order.
 #[test]
 fn release_0_18_4_ledger_cites_the_adopted_test_commits_under_the_rpc_io_error_patch() {
     let ledger = read_repo_file("docs/fork/PATCHSET.md");
@@ -467,7 +523,6 @@ fn release_0_18_4_ledger_cites_the_adopted_test_commits_under_the_rpc_io_error_p
         );
     }
     for file in [
-        "crates/libs/rns-transport/tests/shared_instance_rpc_io_kind_probe.rs",
         "crates/libs/rns-transport/tests/shared_instance_rpc_api.rs",
         "crates/libs/rns-transport/tests/shared_instance_rpc_departed_server_python_probe.rs",
         "crates/libs/rns-transport/src/transport/shared_instance_rpc/tests/mock_server.rs",
@@ -482,6 +537,16 @@ fn release_0_18_4_ledger_cites_the_adopted_test_commits_under_the_rpc_io_error_p
             "{file} is rowed under the rpc io error patch alone"
         );
     }
+    let io_kind_probe = "crates/libs/rns-transport/tests/shared_instance_rpc_io_kind_probe.rs";
+    let row = section
+        .lines()
+        .find(|line| line.starts_with(&format!("| `{io_kind_probe}` |")))
+        .expect("the io kind probe is rowed in the 0.18.4 table");
+    assert_eq!(
+        row,
+        format!("| `{io_kind_probe}` | rpc io error, release 0.18.4 |"),
+        "the io kind probe is rowed under rpc io error and the release patch"
+    );
     let fixture =
         "crates/apps/reticulumd/tests/python_channel_interop_parts/python_shared_instance_rpc.rs";
     let row = section

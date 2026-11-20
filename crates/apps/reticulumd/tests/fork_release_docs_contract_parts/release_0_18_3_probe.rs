@@ -1,22 +1,21 @@
 // Pins over the 0.18.3 release artefacts beyond what the release contracts
 // check. Those pin the heading date by shape, the absence of a `### Breaking`
 // subsection on a patch bump and the version by its sites; these pins hold
-// the heading to the day the release was cut and to the top of the ledger,
-// the subsection set a purely additive patch release carries, the three
-// items `### Added` names, the patch digit and semver verdict the version
-// bullet records, the twelve release-docs parts the restated include-set
-// bullet lists, the README patch-list order with the 0.18.3 block on top,
-// and the usage pins a consumer reads cold: the patch-set ledger opening on
-// this release with the release patch and the adopted probe cited, the
-// emitted note naming the late-joiner probe, the README block's six bullets
-// and consumer note, the probe's module doc standing on the contract alone,
-// and the publish contract's two hand pins reading the release version.
-// The pins over the current tree, which the next release cut demotes, are
-// the first-release-heading test, the ledger-opening assertion of the
-// patch-set test, the README `[dependencies]` snippet and six-bullet opener
-// pins of the consumer-note test, and the crate-manifest version and
-// publish-contract literal count of the hand-pins test; the rest hold facts
-// about the 0.18.3 section itself.
+// the heading to the day the release was cut, the subsection set a purely
+// additive patch release carries, the three items `### Added` names, the
+// patch digit and semver verdict the version bullet records, the twelve
+// release-docs parts the restated include-set bullet lists, the README
+// patch-list order with the 0.18.3 block above the 0.18.2 and 0.18.1
+// blocks, and the facts about the 0.18.3 section a consumer reads cold: the
+// patch-set ledger's 0.18.3 section citing the release patch and the
+// adopted probe, the emitted note naming the late-joiner probe, the README
+// block's six bullets and consumer note, and the probe's module doc standing
+// on the contract alone. The first release heading, the ledger opening, the
+// README dependency snippet and the publish contract's hand pins with the
+// manifest version belong to the 0.18.4 probe, which shares
+// `first_release_heading` and `patchset_opening_section` from here; the
+// 0.18.3 hand-pins test went with them, since its line-policy and `VERSION`
+// checks would only repeat the 0.18.4 one's.
 
 /// The first `## <digit>` heading line of the CHANGELOG; a `## Unreleased`
 /// stub above it is skipped.
@@ -26,22 +25,13 @@ fn first_release_heading(changelog: &str) -> Option<&str> {
         .find(|line| line.starts_with("## ") && line[3..].starts_with(|c: char| c.is_ascii_digit()))
 }
 
-/// The 0.18.3 heading carries the day the release was cut and is the first
-/// release heading of the CHANGELOG.
+/// The 0.18.3 heading carries the day the release was cut.
 #[test]
 fn release_0_18_3_heading_carries_the_release_date() {
     let changelog = read_repo_file("crates/libs/rns-transport/CHANGELOG.md");
-    let heading = "\n## 0.18.3 - 2026-11-19\n";
     assert!(
-        changelog.contains(heading),
+        changelog.contains("\n## 0.18.3 - 2026-11-19\n"),
         "the CHANGELOG should head the 0.18.3 section with its release date"
-    );
-    let first_release =
-        first_release_heading(&changelog).expect("the CHANGELOG should carry a release heading");
-    assert_eq!(
-        first_release,
-        heading.trim(),
-        "the 0.18.3 heading should be the first release heading of the CHANGELOG"
     );
 }
 
@@ -144,8 +134,9 @@ fn release_0_18_3_include_set_bullet_names_the_twelve_parts() {
     }
 }
 
-/// The README patch list runs 0.18.3, then 0.18.2, then 0.18.1: the new
-/// block opens the list and the two demoted blocks keep their order below it.
+/// The README patch list runs 0.18.3, then 0.18.2, then 0.18.1: the 0.18.3
+/// block sits above the 0.18.2 and 0.18.1 blocks in that order; the 0.18.4
+/// block opens the list.
 #[test]
 fn release_0_18_3_readme_patch_list_runs_newest_first() {
     let readme = read_repo_file("crates/libs/rns-transport/README.md");
@@ -207,22 +198,22 @@ fn release_0_18_3_patchset_opening_section_skips_an_unreleased_stub() {
     );
 }
 
-/// The first release section of the patch-set ledger is
-/// `## 0.18.3 (upstream 0.14.0)`; it cites `a2a548a7`, `27d866af`,
-/// `af9d5694` and `9c3cada9` in the id-less `release 0.18.3` legend sentence
-/// and in the release paragraph header, closes the release paragraph on the
-/// two ledger files, rows the adopted late-joiner probe under
-/// `announce emitted` and cites the two probe commits in both the
-/// `announce emitted` legend and the O3 patch header.
+/// The `## 0.18.3 (upstream 0.14.0)` section of the patch-set ledger cites
+/// `a2a548a7`, `27d866af`, `af9d5694` and `9c3cada9` in the id-less
+/// `release 0.18.3` legend sentence and in the release paragraph header,
+/// closes the release paragraph on the two ledger files, rows the adopted
+/// late-joiner probe under `announce emitted` and cites the two probe
+/// commits in both the `announce emitted` legend and the O3 patch header.
 #[test]
 fn release_0_18_3_patchset_opens_on_the_release_patch_and_the_adopted_probe() {
     let ledger = read_repo_file("docs/fork/PATCHSET.md");
-    let section = patchset_opening_section(&ledger);
-    assert_eq!(
-        section.lines().next(),
-        Some("## 0.18.3 (upstream 0.14.0)"),
-        "the first release section of the patch-set ledger should be 0.18.3"
-    );
+    let heading = "\n## 0.18.3 (upstream 0.14.0)\n";
+    let start = ledger.find(heading).expect("the patch-set ledger carries the 0.18.3 section") + 1;
+    let section = &ledger[start..];
+    let section = match section[3..].find("\n## ") {
+        Some(end) => &section[..end + 3],
+        None => section,
+    };
     let prose = joined_prose(section);
     let release_marker = "The `release 0.18.3` patch carries no other id and is fork commits";
     let release_legend_start =
@@ -307,7 +298,7 @@ fn release_0_18_3_emitted_bullet_pins_the_late_joiner_probe() {
 /// with the default control port elsewhere, the identity-derived key from
 /// `<configdir>/storage/transport_identity`, the `kind` filter and the rule
 /// to compare against `emitted`, never arrival; the dependency snippet pins
-/// the release and no 0.18.2 snippet survives.
+/// the release.
 #[test]
 fn release_0_18_3_readme_consumer_note_names_the_rnsd_path_and_the_emitted_rule() {
     let readme = read_repo_file("crates/libs/rns-transport/README.md");
@@ -356,15 +347,6 @@ fn release_0_18_3_readme_consumer_note_names_the_rnsd_path_and_the_emitted_rule(
     ] {
         assert!(consumer.contains(needle), "the consumer note should say {needle:?}: {consumer}");
     }
-    let snippet = "coyote-rns-transport = \"0.18.3\"";
-    assert!(
-        readme.contains(&format!("[dependencies]\n{snippet}\n")),
-        "the README dependency snippet should pin {snippet:?}"
-    );
-    assert!(
-        !readme.contains("[dependencies]\ncoyote-rns-transport = \"0.18.2\""),
-        "the README dependency snippet should no longer pin 0.18.2"
-    );
 }
 
 /// The adopted late-joiner probe lives in the crate's black-box suite, its
@@ -387,25 +369,4 @@ fn release_0_18_3_announce_emitted_probe_stands_on_the_contract_alone() {
         2,
         "the adopted probe carries its two late-joiner tests"
     );
-}
-
-/// The publish contract's two hand pins (the bare version and the manifest
-/// line) read the release version with no stale 0.18.2 pin beside them, the
-/// crate manifest declares it, and the root `VERSION` file stays.
-#[test]
-fn release_0_18_3_publish_contract_hand_pins_read_the_release_version() {
-    let contract = read_repo_file("crates/apps/reticulumd/tests/fork_publish_contract.rs");
-    assert!(
-        contract.lines().count() <= 1200,
-        "fork_publish_contract.rs stays within the 1200-line test policy"
-    );
-    let pins: Vec<&str> = contract.lines().filter(|line| line.contains("0.18.3")).collect();
-    assert_eq!(pins.len(), 2, "the publish contract carries its two hand pins, got {pins:?}");
-    assert!(
-        !contract.contains("0.18.2\""),
-        "no stale 0.18.2 hand pin survives in the publish contract"
-    );
-    let manifest = read_repo_file("crates/libs/rns-transport/Cargo.toml");
-    assert!(manifest.contains("\nversion = \"0.18.3\"\n"), "the crate manifest declares 0.18.3");
-    assert_eq!(read_repo_file("VERSION").trim(), "0.14.0", "the root VERSION file stays");
 }

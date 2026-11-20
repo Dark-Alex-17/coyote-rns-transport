@@ -36,7 +36,8 @@ belongs to. Patch ids: P1 is readme fork framing, P2 is rpc io error. The
 `9a0eb46a` and `a58b664e`. The `Python-in-the-loop rpc io error interop`
 patch carries no other id and is fork commits `94d41512`, `29cc16d6`,
 `f2813179`, `df674bea` and `6f19155e`. The `release 0.18.4` patch carries
-no other id and is fork commits `acae9a72`, `58e4d93d` and `c2630318`.
+no other id and is fork commits `acae9a72`, `58e4d93d`, `c2630318` and
+`e9ccadcd`.
 
 | File | Patch |
 | --- | --- |
@@ -52,7 +53,7 @@ no other id and is fork commits `acae9a72`, `58e4d93d` and `c2630318`.
 | `crates/apps/reticulumd/tests/fork_release_docs_contract_parts/release_0_18_4_probe.rs` | release 0.18.4 |
 | `crates/apps/reticulumd/tests/fork_release_docs_contract_parts/request_layer_api_docs.rs` | rpc io error |
 | `crates/apps/reticulumd/tests/python_channel_interop.rs` | Python-in-the-loop rpc io error interop |
-| `crates/apps/reticulumd/tests/python_channel_interop_parts/python_shared_instance_rpc.rs` | Python-in-the-loop rpc io error interop |
+| `crates/apps/reticulumd/tests/python_channel_interop_parts/python_shared_instance_rpc.rs` | rpc io error, Python-in-the-loop rpc io error interop |
 | `crates/apps/reticulumd/tests/python_channel_interop_parts/python_shared_instance_rpc_io.rs` | Python-in-the-loop rpc io error interop |
 | `crates/apps/rns-tools/Cargo.toml` | release 0.18.4 |
 | `crates/libs/rns-transport/CHANGELOG.md` | readme fork framing, rpc io error, Python-in-the-loop rpc io error interop, release 0.18.4 |
@@ -239,8 +240,8 @@ round, and names rnsd's exit status before a panic on a dead fixture.
 `ConnectionRefused`) and corrects its `backlog=1` citation to the stdlib
 default the `Listener` keeps.
 
-Fork commits `acae9a72`, `58e4d93d` and `c2630318`: release 0.18.4. The
-first bumps the crate version to 0.18.4 at every manifest and
+Fork commits `acae9a72`, `58e4d93d`, `c2630318` and `e9ccadcd`: release
+0.18.4. The first bumps the crate version to 0.18.4 at every manifest and
 consumer-snippet site (`Cargo.toml`,
 `crates/libs/rns-transport/Cargo.toml`, `crates/apps/reticulumd/Cargo.toml`,
 `crates/apps/rns-tools/Cargo.toml`, the snippet in
@@ -299,9 +300,26 @@ consumer note with the retry rule, the dependency snippet, the publish
 contract's two hand pins reading `0.18.4`, and this ledger opening on this
 section with the release patch in the legend, the two adopted probe commits
 in the `rpc io error` legend and the probe's own row under
-`release 0.18.4`. The ledger commit that cites the three commits above is
-omitted from the patch headers like every commit whose changes touch only
-this file and the crate `CHANGELOG.md`.
+`release 0.18.4`. The fourth folds into `release_0_18_4_probe.rs` the
+usage pins that read the release against the tree it describes: the
+stage-boundary clauses of the `### Added` bullet and the README rpc section
+match the tests `tests/shared_instance_rpc_io_kind_probe.rs` carries, the
+reset pins are kind-based on either variant in the tests and both
+documents, the test-hygiene claims this section makes about `a58b664e`
+hold in the tree, and this section cites the two adopted test commits
+under `rpc io error` with every file they touched rowed there, the hil
+fixture under both patches; it demotes the 0.18.3 probe's doc wording to
+the pins that file still owns and renames its ledger test
+`release_0_18_3_patchset_cites_the_release_patch_and_the_adopted_probe`;
+and in the io kind probe it extracts `hold_until_client_leaves` for the
+four servers that hold the socket after writing, makes
+`serve_honest_handshake` return unit since no caller read the request it
+returned, and corrects the reset pin's rationale (a `SO_LINGER 0` close
+emits a bare RST with no FIN, and `UnexpectedEof` is admitted because a
+kernel may report the reset to a read already in flight as end-of-stream).
+The ledger commits that cite the four commits above are omitted from the
+patch headers like every commit whose changes touch only this file and the
+crate `CHANGELOG.md`.
 
 ## 0.18.3 (upstream 0.14.0)
 

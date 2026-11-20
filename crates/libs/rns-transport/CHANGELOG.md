@@ -91,8 +91,11 @@ Removed) bullet of its own, marked as such.
   date and its place as the first release heading, the subsection set
   `### Added`, `### Changed` of this release with no `### Breaking` and no
   `### Fixed`, the one `### Added` item by its name, the patch digit and
-  the semver sentence above, and the README patch-list order with the
-  0.18.4 block on top.
+  the semver sentence above, the README patch-list order with the 0.18.4
+  block on top, the thirteen parts the include-set bullet names, and
+  the usage pins a consumer reads cold: the ledger's release patch and
+  adopted-commit attribution, the README consumer note with the retry rule
+  and the publish contract's two hand pins reading `0.18.4`.
 - Release docs contract, test-only: `fork_release_docs_contract.rs` includes
   its tests from `fork_release_docs_contract_parts/`
   (`crate_readme_sections.rs`, `readme_patch_list.rs`,
@@ -117,8 +120,9 @@ Removed) bullet of its own, marked as such.
   repository README leads with the fork (title, badges and intro name this
   repository and `coyote-rns-transport`) and keeps upstream's workspace
   documentation under an `## Upstream LXMF-rs` heading. The full-hash
-  ledger pin in `ledger_contract.rs` admits the reopened `## Unreleased`
-  section of `docs/fork/PATCHSET.md`.
+  ledger pin in `ledger_contract.rs` covered the reopened `## Unreleased`
+  section of `docs/fork/PATCHSET.md` while the 0.18.4 work was in
+  progress.
 
 ## 0.18.3 - 2026-11-19
 

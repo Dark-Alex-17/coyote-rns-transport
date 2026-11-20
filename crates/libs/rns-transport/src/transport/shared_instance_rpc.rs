@@ -113,8 +113,9 @@ impl RpcKey {
     /// `<configdir>/storage/transport_identity` (`RNS/Reticulum.py:360-361`,
     /// `Identity.full_hash`). A file of any other length is
     /// [`RpcError::InvalidKeyMaterial`]; so is an unreadable file, with the
-    /// io error logged at warn level, since the error enum carries no io
-    /// variant for a path that never reached the network.
+    /// io error logged at warn level; [`RpcError::Io`] is reserved for
+    /// failures after the dial and [`RpcError::Connect`] for the dial itself,
+    /// and a local file that never reached the network fits neither.
     pub fn from_transport_identity_file(path: &Path) -> Result<Self, RpcError> {
         let private_key = std::fs::read(path).map_err(|err| {
             log::warn!("transport identity unreadable path={} err={}", path.display(), err);
@@ -141,7 +142,9 @@ impl fmt::Debug for RpcKey {
 #[non_exhaustive]
 #[derive(Debug, thiserror::Error)]
 pub enum RpcError {
-    /// The TCP or unix connect itself failed; nothing was exchanged.
+    /// The TCP or unix connect itself failed; nothing was exchanged. A
+    /// `ConnectionReset` kind here is the overflowed dial (see
+    /// [`RpcError::Io`]); read it through [`RpcError::io_kind`].
     #[error("connect failed: {0}")]
     Connect(#[source] std::io::Error),
     /// The server rejected our answer to its challenge with `#FAILURE#`
@@ -200,7 +203,10 @@ impl RpcError {
     /// `Connect(ConnectionRefused)` is the listener not being there and is
     /// not one of them, so a caller that waits for a listener to bind keeps
     /// its own `Connect` arm, while a `Connect` whose kind is
-    /// `ConnectionReset` is the overflowed dial and worth the same retry.
+    /// `ConnectionReset` is the overflowed dial and worth the same retry (on
+    /// unix; Windows renders a full listen backlog as `ConnectionRefused`
+    /// too). [`RpcError::Timeout`] is also worth a retry but has no kind;
+    /// test for it by variant.
     #[must_use]
     pub fn io_kind(&self) -> Option<std::io::ErrorKind> {
         match self {

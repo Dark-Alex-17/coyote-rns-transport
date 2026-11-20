@@ -1112,7 +1112,7 @@ Windows; an accept-then-RST before any byte; the oversized, wide, negative
 and empty frame headers as `Protocol` with no io kind),
 the CPython `honest_rst` mode
 (`stdlib_server_resetting_after_the_request_is_io_connection_reset_every_time`)
-in `tests/shared_instance_rpc_departed_server_python_probe.rs`, and the
+in `tests/shared_instance_rpc_departed_server_python_probe.rs`, off Windows, and the
 live three-concurrent-dial part
 `crates/apps/reticulumd/tests/python_channel_interop_parts/python_shared_instance_rpc_io.rs`
 against rnsd (RNS 1.5.2), whose every failure must be `Timeout` or a
@@ -1149,7 +1149,7 @@ exercised against CPython's own `multiprocessing.connection` server in
 `tests/shared_instance_rpc_departed_server_python_probe.rs`, whose reset
 mode (`SO_LINGER 0`) makes the `#FAILURE#` write fail outright and whose
 `honest_rst` mode resets after reading the request so the reply read is
-`Io` of kind `ConnectionReset`. The
+`Io` of kind `ConnectionReset` (both off Windows, whose linger layout differs). The
 Python-in-the-loop proof is
 `crates/apps/reticulumd/tests/python_channel_interop_parts/python_shared_instance_rpc.rs`
 of the reticulumd `python_channel_interop` binary: a Python `rnsd` (RNS

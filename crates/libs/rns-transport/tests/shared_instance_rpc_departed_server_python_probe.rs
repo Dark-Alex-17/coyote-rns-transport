@@ -162,7 +162,8 @@ async fn stdlib_server_answering_wrong_then_resetting_is_authentication_every_ti
 
 /// An honest server that resets (`SO_LINGER 0`) once it has read the request: the
 /// client's reply read meets ECONNRESET, with no FIN ahead of it to race, so every
-/// round is `Io` of kind `ConnectionReset`.
+/// round is `Io` of kind `ConnectionReset`. Not on Windows: `reset()` packs the POSIX
+/// `struct linger` layout (`"ii"`); Winsock's differs.
 #[cfg(not(windows))]
 #[tokio::test]
 async fn stdlib_server_resetting_after_the_request_is_io_connection_reset_every_time() {

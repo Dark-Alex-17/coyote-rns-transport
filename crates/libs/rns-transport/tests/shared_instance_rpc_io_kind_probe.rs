@@ -9,11 +9,11 @@
 //! server that completes the whole handshake and reads the request but hangs up with a
 //! FIN instead of a reply, the same accept-then-close over a unix socket, a `backlog=1`
 //! listener that never accepts under four concurrent dials (the rnsd `rpc_loop` shape the
-//! README describes, without Python), and a unix path nobody listens on. The round-2
-//! additions are the bytes-wrong edges a consumer meets from outside the crate (an
-//! oversized, a negative and an empty frame header, all `Protocol` with no io kind), a
-//! server that resets instead of closing before its first byte, and a unix socket file
-//! that exists with nobody behind it (`Connect` of kind `ConnectionRefused`).
+//! README describes, without Python), and a unix path nobody listens on; then the
+//! bytes-wrong edges a consumer meets from outside the crate (an oversized, a wide, a
+//! negative and an empty frame header, all `Protocol` with no io kind), a server that
+//! resets instead of closing before its first byte, and a unix socket file that exists
+//! with nobody behind it (`Connect` of kind `ConnectionRefused`).
 
 use std::error::Error;
 use std::time::{Duration, Instant};
@@ -348,10 +348,10 @@ async fn empty_challenge_frame_is_protocol_without_an_io_kind() {
     server.await.expect("server task");
 }
 
-/// The handoff's literal ask: a server that accepts and then closes mid-handshake, here
-/// with a reset (`SO_LINGER 0`) rather than a FIN, before it has written a byte. The
-/// client's first read meets the reset or EOF; either way the call is `Io` of a kind in
-/// the retry set, never `Protocol` or `Authentication`.
+/// A server that accepts and then closes mid-handshake, here with a reset (`SO_LINGER 0`)
+/// rather than a FIN, before it has written a byte. The client's first read meets the
+/// reset or EOF; either way the call is `Io` of a kind in the retry set, never `Protocol`
+/// or `Authentication`.
 #[tokio::test]
 async fn accept_then_reset_before_any_byte_is_io_retryable() {
     let (listener, endpoint) = loopback_listener().await;

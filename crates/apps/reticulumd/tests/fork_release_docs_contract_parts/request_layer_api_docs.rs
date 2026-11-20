@@ -490,8 +490,13 @@ fn rpc_error_io_kind_rustdoc_names_the_retryable_kinds_like_the_docs() {
     let readme = read_repo_file("crates/libs/rns-transport/README.md");
     let section = squash(crate_readme_section(&readme, "Reading rnsd's interface statistics"));
     let changelog = read_repo_file("crates/libs/rns-transport/CHANGELOG.md");
-    let changelog_section =
-        squash(changelog_section_naming(&changelog, "`RpcError::Io(std::io::Error)`"));
+    let anchor = "`RpcError::Io(std::io::Error)`";
+    let changelog_section = squash(
+        &top_level_bullets(changelog_section_naming(&changelog, anchor))
+            .into_iter()
+            .find(|bullet| bullet.contains(anchor))
+            .expect("the changelog bullet introducing RpcError::Io"),
+    );
     for (what, text, tells_refused_apart) in [
         ("io_kind rustdoc", &io_kind_rustdoc, true),
         ("Io rustdoc", &variant_rustdoc, false),

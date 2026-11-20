@@ -53,7 +53,7 @@ Removed) bullet of its own, marked as such.
   and empty frame headers as `Protocol` with no io kind),
   `tests/shared_instance_rpc_departed_server_python_probe.rs`
   (`honest_rst`: a CPython server resetting after the request is `Io` of
-  kind `ConnectionReset`), the hil poll
+  kind `ConnectionReset`, off Windows), the hil poll
   `python_channel_interop_parts/python_shared_instance_rpc.rs`, which now
   retries through `io_kind()`, and the Python-in-the-loop
   `python_channel_interop_parts/python_shared_instance_rpc_io.rs` (three

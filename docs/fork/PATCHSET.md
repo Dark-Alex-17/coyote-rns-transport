@@ -29,16 +29,28 @@ per fork task.
 ## Unreleased (upstream 0.14.0)
 
 Every file changed since the `0.18.3` release and the patch each change
-belongs to. Patch ids: P1 is readme fork framing. The `readme fork framing`
-patch is fork commits `edb4258e`, `a7688b50`, `6e1a7457` and `b8a0c07d`.
+belongs to. Patch ids: P1 is readme fork framing, P2 is rpc io error. The
+`readme fork framing` patch is fork commits `edb4258e`, `a7688b50`,
+`6e1a7457` and `b8a0c07d`. The `rpc io error` patch is fork commits
+`8547983a` and `29cc16d6`. The `Python-in-the-loop rpc io error interop`
+patch carries no other id and is fork commits `94d41512` and `29cc16d6`.
 
 | File | Patch |
 | --- | --- |
 | `README.md` | readme fork framing |
 | `crates/apps/reticulumd/tests/fork_publish_contract_parts/ledger_contract.rs` | readme fork framing |
-| `crates/libs/rns-transport/CHANGELOG.md` | readme fork framing |
-| `crates/libs/rns-transport/README.md` | readme fork framing |
-| `docs/fork/PATCHSET.md` | readme fork framing |
+| `crates/apps/reticulumd/tests/python_channel_interop.rs` | Python-in-the-loop rpc io error interop |
+| `crates/apps/reticulumd/tests/python_channel_interop_parts/python_shared_instance_rpc.rs` | Python-in-the-loop rpc io error interop |
+| `crates/apps/reticulumd/tests/python_channel_interop_parts/python_shared_instance_rpc_io.rs` | Python-in-the-loop rpc io error interop |
+| `crates/libs/rns-transport/CHANGELOG.md` | readme fork framing, rpc io error, Python-in-the-loop rpc io error interop |
+| `crates/libs/rns-transport/README.md` | readme fork framing, rpc io error, Python-in-the-loop rpc io error interop |
+| `crates/libs/rns-transport/src/transport/shared_instance_rpc.rs` | rpc io error |
+| `crates/libs/rns-transport/src/transport/shared_instance_rpc/framing.rs` | rpc io error |
+| `crates/libs/rns-transport/src/transport/shared_instance_rpc/tests/mock_server.rs` | rpc io error |
+| `crates/libs/rns-transport/src/transport/shared_instance_rpc/tests/mod.rs` | rpc io error |
+| `crates/libs/rns-transport/tests/shared_instance_rpc_api.rs` | rpc io error |
+| `crates/libs/rns-transport/tests/shared_instance_rpc_departed_server_python_probe.rs` | rpc io error |
+| `docs/fork/PATCHSET.md` | readme fork framing, rpc io error, Python-in-the-loop rpc io error interop |
 
 Fork commits `edb4258e`, `a7688b50`, `6e1a7457` and `b8a0c07d`: P1, readme
 fork framing. Docs only, no library change.
@@ -66,6 +78,65 @@ heading whose attribution names the `## Main packages` row the fork updated.
 The crate `CHANGELOG.md` reopens `## Unreleased` with a docs-only Changed
 bullet, and `ledger_contract.rs` extends the full-hash ledger pin to the
 reopened section.
+
+Fork commits `8547983a` and `29cc16d6`: P2, rpc io error.
+Upstream site: the fork-added rnsd RPC client
+`crates/libs/rns-transport/src/transport/shared_instance_rpc.rs` (O2 of
+`## 0.18.3`) and its framing helper `shared_instance_rpc/framing.rs`;
+upstream carries neither. `RpcError::Protocol(String)` covered both a
+malformed frame and an io error after the connection was established, so a
+caller that wanted to retry a dropped rnsd connection matched `reset` in
+the message text, which breaks on wording, platform (Windows renders a
+reset as "An existing connection was forcibly closed by the remote host")
+and locale. `8547983a` adds the variant `RpcError::Io(#[source]
+std::io::Error)` (`shared instance rpc io error after connect: {0}`) to the
+`#[non_exhaustive]` enum, moves the three io sites in `framing.rs` (the
+`write_all`, the `flush` and the `read_exact`, EOF as `UnexpectedEof`) onto
+it, leaves every bytes-were-wrong site (`framing.rs` length checks,
+`handshake.rs` token checks) on `Protocol`, leaves the failed `#FAILURE#`
+write to a departed server on `Authentication` (`handshake.rs`), and adds
+`RpcError::io_kind() -> Option<std::io::ErrorKind>` returning the kind
+behind `Io` and `Connect` and `None` otherwise; the rustdoc names the
+retryable kinds (`ConnectionReset`, `ConnectionAborted`, `BrokenPipe`,
+`UnexpectedEof`) against rnsd's serial `rpc_loop` behind a `backlog=1`
+listener (`RNS/Reticulum.py:1274-1334`, `:364`) and says `Connect` yields
+`ConnectionRefused`, outside that set. The same commit adds `Script::Close`
+to the mock peer `shared_instance_rpc/tests/mock_server.rs`, re-pins the
+truncated frame in `shared_instance_rpc/tests/mod.rs` as
+`truncated_frame_is_io_unexpected_eof` beside new pins for the closing
+server, for garbage and oversized frames staying `Protocol` with no io
+kind and for `io_kind()` over every variant, widens the black-box twin
+`tests/shared_instance_rpc_api.rs` to eight variants with `Connect`
+yielding `Some(ConnectionRefused)` and an accept-then-shutdown listener
+yielding `Io`, and adds the `honest_rst` mode to the CPython fixture
+`tests/shared_instance_rpc_departed_server_python_probe.rs`, a server that
+answers both challenges, reads the request and resets with `SO_LINGER 0`
+without replying, so the reply read is `Io` of kind `ConnectionReset` on
+every round (the wrong-answer `fin` and `rst` modes stay `Authentication`).
+`29cc16d6` documents the change: the crate README's variant sentence names
+`Io` beside a bytes-only `Protocol`, a new paragraph says which kinds a
+caller retries through `io_kind()` and why, that macOS resets an overflowed
+dial before `connect()` completes so the kind can also arrive on
+`Connect`, and that `ConnectionRefused` stays outside the retry set, and
+the CHANGELOG `## Unreleased` opens with an Added bullet that says io
+failures moved out of `Protocol`.
+
+Fork commits `94d41512` and `29cc16d6`: Python-in-the-loop rpc io error
+interop. `94d41512` rehomes the hil poll in
+`crates/apps/reticulumd/tests/python_channel_interop_parts/python_shared_instance_rpc.rs`
+from the `reset` text match on `Protocol` onto `io_kind()` over the
+retryable kinds, keeping its `Connect` arm for the listener rnsd binds only
+after `Transport.start`, and adds the part
+`python_channel_interop_parts/python_shared_instance_rpc_io.rs`, included
+from `python_channel_interop.rs`: after the first reply from a live Python
+rnsd (RNS 1.5.2) it runs eight rounds of three concurrent `interface_stats`
+dials and requires every round to be answered at least once and every
+failure to be `Timeout` or a retryable kind, on `Io` or on `Connect`
+(macOS resets the overflowed dial before `connect()` completes), never
+`Protocol`, `Connect` with `ConnectionRefused` or `Authentication`; on this
+host every round lost exactly one dial to a `ConnectionReset`, split
+between `Io` and `Connect`. `29cc16d6` names the part in the README's pin
+clause and the CHANGELOG bullet.
 
 ## 0.18.3 (upstream 0.14.0)
 

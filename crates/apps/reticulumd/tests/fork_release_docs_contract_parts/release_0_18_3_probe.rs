@@ -136,7 +136,7 @@ fn release_0_18_3_include_set_bullet_names_the_twelve_parts() {
 
 /// The README patch list runs 0.18.3, then 0.18.2, then 0.18.1: the 0.18.3
 /// block sits above the 0.18.2 and 0.18.1 blocks in that order; the 0.18.4
-/// block opens the list.
+/// probe pins the block that opens the list.
 #[test]
 fn release_0_18_3_readme_patch_list_runs_newest_first() {
     let readme = read_repo_file("crates/libs/rns-transport/README.md");
@@ -205,7 +205,7 @@ fn release_0_18_3_patchset_opening_section_skips_an_unreleased_stub() {
 /// late-joiner probe under `announce emitted` and cites the two probe
 /// commits in both the `announce emitted` legend and the O3 patch header.
 #[test]
-fn release_0_18_3_patchset_opens_on_the_release_patch_and_the_adopted_probe() {
+fn release_0_18_3_patchset_cites_the_release_patch_and_the_adopted_probe() {
     let ledger = read_repo_file("docs/fork/PATCHSET.md");
     let heading = "\n## 0.18.3 (upstream 0.14.0)\n";
     let start = ledger.find(heading).expect("the patch-set ledger carries the 0.18.3 section") + 1;
@@ -297,8 +297,7 @@ fn release_0_18_3_emitted_bullet_pins_the_late_joiner_probe() {
 /// path: the `for_instance` endpoint on Linux or Android, the TCP endpoint
 /// with the default control port elsewhere, the identity-derived key from
 /// `<configdir>/storage/transport_identity`, the `kind` filter and the rule
-/// to compare against `emitted`, never arrival; the dependency snippet pins
-/// the release.
+/// to compare against `emitted`, never arrival.
 #[test]
 fn release_0_18_3_readme_consumer_note_names_the_rnsd_path_and_the_emitted_rule() {
     let readme = read_repo_file("crates/libs/rns-transport/README.md");

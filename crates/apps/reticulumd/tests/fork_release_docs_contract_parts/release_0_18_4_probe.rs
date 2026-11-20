@@ -9,14 +9,21 @@
 // usage pins a consumer reads cold: the patch-set ledger opening on this
 // release with the release patch and the adopted probe commits cited, the
 // README block's four bullets and consumer note with the retry rule, and the
-// publish contract's two hand pins reading the release version. The pins
-// over the current tree, which the next release cut demotes, are the
-// first-release-heading test, the ledger-opening assertion of the patch-set
-// test, the README `[dependencies]` snippet and four-bullet opener pins of
-// the consumer-note test, and the crate-manifest version and
-// publish-contract literal count of the hand-pins test; the rest hold facts
-// about the 0.18.4 section itself. `first_release_heading` and
-// `patchset_opening_section` are shared with the 0.18.3 probe.
+// publish contract's two hand pins reading the release version. Four more
+// usage pins read the release against the tree it describes: the
+// stage-boundary clauses of the `### Added` bullet and the README rpc
+// section name tests the io kind probe carries, the reset pins are
+// kind-based on either variant in the tests and both documents, the
+// test-hygiene claims the ledger makes about `a58b664e` hold in the tree,
+// and the ledger cites the adopted test commits under `rpc io error` with
+// every file they touched rowed there. The pins over the current tree,
+// which the next release cut demotes, are the first-release-heading test,
+// the ledger-opening assertion of the patch-set test, the README
+// `[dependencies]` snippet and four-bullet opener pins of the consumer-note
+// test, and the crate-manifest version and publish-contract literal count
+// of the hand-pins test; the rest hold facts about the 0.18.4 section
+// itself. `first_release_heading` and `patchset_opening_section` are shared
+// with the 0.18.3 probe.
 
 /// The 0.18.4 heading carries the day the release was cut and is the first
 /// release heading of the CHANGELOG.
@@ -279,4 +286,211 @@ fn release_0_18_4_publish_contract_hand_pins_read_the_release_version() {
     let manifest = read_repo_file("crates/libs/rns-transport/Cargo.toml");
     assert!(manifest.contains("\nversion = \"0.18.4\"\n"), "the crate manifest declares 0.18.4");
     assert_eq!(read_repo_file("VERSION").trim(), "0.14.0", "the root VERSION file stays");
+}
+
+/// The five stage-boundary pins the 0.18.4 `### Added` bullet and the README
+/// rpc section promise exist in `tests/shared_instance_rpc_io_kind_probe.rs`
+/// under the classification the prose gives them, and both documents carry
+/// the clause for each: a half-written header then silence as `Timeout`, a
+/// non-`#WELCOME#` verdict after a correct answer as `Authentication`, an
+/// oversized reply header after an honest handshake as `Protocol`, a
+/// well-framed reply of the wrong shape as `Decode`, and an honest handshake
+/// then a reset instead of a reply as `Io` of a retryable kind.
+#[test]
+fn release_0_18_4_stage_boundary_pins_match_the_added_bullet_and_the_readme() {
+    let changelog = read_repo_file("crates/libs/rns-transport/CHANGELOG.md");
+    let section = changelog_release_section(&changelog, "0.18.4");
+    let added = joined_prose(&subsection_bullets(&section, "Added")[0]);
+    let readme = read_repo_file("crates/libs/rns-transport/README.md");
+    let rpc = joined_prose(crate_readme_section(&readme, "Reading rnsd's interface statistics"));
+    let probe =
+        read_repo_file("crates/libs/rns-transport/tests/shared_instance_rpc_io_kind_probe.rs");
+    let clauses_and_pins = [
+        (
+            "a half-written header then silence as `Timeout`",
+            "async fn partial_header_then_silence_is_timeout_without_an_io_kind()",
+        ),
+        (
+            "a non-`#WELCOME#` verdict after a correct answer as `Authentication`",
+            "async fn non_welcome_verdict_after_a_correct_answer_is_authentication_without_an_io_kind()",
+        ),
+        (
+            "an oversized reply header after an honest handshake as `Protocol`",
+            "async fn honest_handshake_then_oversized_reply_header_is_protocol_without_an_io_kind()",
+        ),
+        (
+            "a well-framed reply of the wrong shape as `Decode`",
+            "async fn honest_handshake_then_a_reply_of_the_wrong_shape_is_decode_without_an_io_kind()",
+        ),
+        (
+            "an honest handshake then a reset instead of a reply as `Io` of a retryable kind",
+            "async fn honest_handshake_then_reset_instead_of_a_reply_is_io_retryable()",
+        ),
+    ];
+    for (clause, pin) in clauses_and_pins {
+        assert!(added.contains(clause), "the 0.18.4 `### Added` bullet should say {clause:?}");
+        assert!(rpc.contains(clause), "the README rpc section should say {clause:?}");
+        assert!(probe.contains(pin), "the io kind probe should carry {pin:?}");
+    }
+    assert!(
+        added.contains("none with an io kind"),
+        "the `### Added` bullet says the four non-io stage boundaries carry no io kind"
+    );
+    assert!(
+        added.contains("`tests/shared_instance_rpc_io_kind_probe.rs`")
+            && rpc.contains("`tests/shared_instance_rpc_io_kind_probe.rs`"),
+        "both documents name the probe file the stage-boundary clauses describe"
+    );
+}
+
+/// The two reset pins the ledger says were made kind-based carry their new
+/// names and no trace of the old ones, the CHANGELOG `### Added` bullet and
+/// the README rpc section describe each as `Io` or `Connect` of a retryable
+/// kind with the macOS reason, and neither document still reads the reset
+/// pins as `Io` alone.
+#[test]
+fn release_0_18_4_reset_pins_are_kind_based_on_either_variant_in_tests_and_docs() {
+    let changelog = read_repo_file("crates/libs/rns-transport/CHANGELOG.md");
+    let section = changelog_release_section(&changelog, "0.18.4");
+    let added = joined_prose(&subsection_bullets(&section, "Added")[0]);
+    let readme = read_repo_file("crates/libs/rns-transport/README.md");
+    let rpc = joined_prose(crate_readme_section(&readme, "Reading rnsd's interface statistics"));
+    let io_kind_probe =
+        read_repo_file("crates/libs/rns-transport/tests/shared_instance_rpc_io_kind_probe.rs");
+    let api = read_repo_file("crates/libs/rns-transport/tests/shared_instance_rpc_api.rs");
+    for (file, text, new_name, old_name) in [
+        (
+            "shared_instance_rpc_io_kind_probe.rs",
+            &io_kind_probe,
+            "async fn accept_then_reset_before_any_byte_is_a_retryable_kind_on_either_variant()",
+            "accept_then_reset_before_any_byte_is_io_retryable",
+        ),
+        (
+            "shared_instance_rpc_api.rs",
+            &api,
+            "async fn server_that_resets_after_a_whole_challenge_is_a_retryable_kind_on_either_variant()",
+            "server_that_resets_after_a_whole_challenge_is_io_of_a_retryable_kind",
+        ),
+    ] {
+        assert!(text.contains(new_name), "{file} should carry the renamed pin {new_name:?}");
+        assert!(!text.contains(old_name), "{file} should no longer carry the old pin name {old_name:?}");
+    }
+    for clause in [
+        "an accept-then-RST before any byte as `Io` or `Connect` of a retryable kind",
+        "resets after a whole challenge as `Io` or `Connect` of a retryable kind",
+        "on macOS the reset can land before the dial's `connect()` returns",
+    ] {
+        assert!(added.contains(clause), "the 0.18.4 `### Added` bullet should say {clause:?}");
+    }
+    for clause in [
+        "an accept-then-RST before any byte as `Io` or `Connect` of a retryable kind",
+        "reset-after-the-challenge loopback servers (the last `Io` or `Connect` of a retryable kind",
+        "on macOS the reset can land before the dial's `connect()` returns",
+    ] {
+        assert!(rpc.contains(clause), "the README rpc section should say {clause:?}");
+    }
+    for stale in ["an accept-then-RST before any byte as `Io`;", "reset after a whole challenge),"]
+    {
+        assert!(
+            !added.contains(stale),
+            "the `### Added` bullet should not keep the `Io`-only reading {stale:?}"
+        );
+    }
+    assert!(
+        !rpc.contains("an accept-then-RST before any byte;"),
+        "the README rpc section should not keep the kind-less accept-then-RST clause"
+    );
+}
+
+/// The test-hygiene claims the 0.18.4 ledger makes about `a58b664e` hold in
+/// the tree: `assert_running` on the hil rnsd fixture is `#[cfg(unix)]`, the
+/// `Script::Close` doc says why the script does not drain, and both CPython
+/// reset pins carry the POSIX `struct linger` layout clause.
+#[test]
+fn release_0_18_4_ledger_hygiene_claims_hold_in_the_tree() {
+    let fixture = read_repo_file(
+        "crates/apps/reticulumd/tests/python_channel_interop_parts/python_shared_instance_rpc.rs",
+    );
+    assert!(
+        fixture.contains("    #[cfg(unix)]\n    fn assert_running("),
+        "`assert_running` on the hil rnsd fixture should be gated `#[cfg(unix)]` like its callers"
+    );
+    let mock = read_repo_file(
+        "crates/libs/rns-transport/src/transport/shared_instance_rpc/tests/mock_server.rs",
+    );
+    let close_doc =
+        mock[..mock.find("\n    Close,\n").expect("`Script::Close` exists")].to_string();
+    let close_doc: String = close_doc
+        [close_doc.rfind("\n    Silent,\n").expect("`Script::Silent` precedes `Close`")..]
+        .lines()
+        .filter_map(|line| line.trim().strip_prefix("///"))
+        .collect::<Vec<_>>()
+        .join(" ");
+    let close_doc = joined_prose(&close_doc);
+    assert!(
+        close_doc.contains("no drain, since the client never writes before its first read"),
+        "the `Script::Close` doc should say why the script does not drain: {close_doc}"
+    );
+    let python_probe = read_repo_file(
+        "crates/libs/rns-transport/tests/shared_instance_rpc_departed_server_python_probe.rs",
+    );
+    assert_eq!(
+        python_probe.matches("`struct linger` layout").count(),
+        2,
+        "both CPython reset pins carry the POSIX `struct linger` layout clause"
+    );
+}
+
+/// The two test-adoption commits the release took before its promotion
+/// commits (`9a0eb46a`, the five stage-boundary probes, and `a58b664e`, the
+/// kind-based reset pins) are cited under the `rpc io error` patch of the
+/// `## 0.18.4` ledger, both in the legend and in the patch paragraph, and
+/// every test file they touched is rowed under that patch: the four
+/// rns-transport test files under it alone, the hil rnsd fixture under it
+/// and the Python interop patch in legend order.
+#[test]
+fn release_0_18_4_ledger_cites_the_adopted_test_commits_under_the_rpc_io_error_patch() {
+    let ledger = read_repo_file("docs/fork/PATCHSET.md");
+    let section = patchset_opening_section(&ledger);
+    let prose = joined_prose(section);
+    let legend_start = prose.find("The `rpc io error` patch is fork commits").expect("legend");
+    let legend = &prose[legend_start..];
+    let legend = &legend[..legend.find(". ").expect("the legend sentence ends")];
+    let header_end = prose.find(": P2, rpc io error.").expect("the rpc io error patch header");
+    let header_start = prose[..header_end].rfind("Fork commits `").expect("the header opens");
+    let header = &prose[header_start..header_end];
+    for sha in ["9a0eb46a", "a58b664e"] {
+        assert!(legend.contains(&format!("`{sha}`")), "the legend cites {sha} under rpc io error");
+        assert!(
+            header.contains(&format!("`{sha}`")),
+            "the rpc io error patch header cites {sha}: {header}"
+        );
+    }
+    for file in [
+        "crates/libs/rns-transport/tests/shared_instance_rpc_io_kind_probe.rs",
+        "crates/libs/rns-transport/tests/shared_instance_rpc_api.rs",
+        "crates/libs/rns-transport/tests/shared_instance_rpc_departed_server_python_probe.rs",
+        "crates/libs/rns-transport/src/transport/shared_instance_rpc/tests/mock_server.rs",
+    ] {
+        let row = section
+            .lines()
+            .find(|line| line.starts_with(&format!("| `{file}` |")))
+            .unwrap_or_else(|| panic!("{file} is rowed in the 0.18.4 table"));
+        assert_eq!(
+            row,
+            format!("| `{file}` | rpc io error |"),
+            "{file} is rowed under the rpc io error patch alone"
+        );
+    }
+    let fixture =
+        "crates/apps/reticulumd/tests/python_channel_interop_parts/python_shared_instance_rpc.rs";
+    let row = section
+        .lines()
+        .find(|line| line.starts_with(&format!("| `{fixture}` |")))
+        .expect("the hil fixture a58b664e touched is rowed in the 0.18.4 table");
+    assert_eq!(
+        row,
+        format!("| `{fixture}` | rpc io error, Python-in-the-loop rpc io error interop |"),
+        "the hil fixture is rowed under rpc io error and the Python interop patch"
+    );
 }

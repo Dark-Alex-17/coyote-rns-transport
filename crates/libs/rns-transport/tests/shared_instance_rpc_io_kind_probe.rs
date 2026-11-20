@@ -143,8 +143,8 @@ async fn valid_challenge_then_fin_without_reading_is_io_retryable() {
 }
 
 /// Serve the stdlib's mutual handshake honestly (`deliver_challenge`, then
-/// `answer_challenge`) and return the request frame the client sends next.
-async fn serve_honest_handshake(stream: &mut TcpStream) -> Vec<u8> {
+/// `answer_challenge`) and read the request frame the client sends next.
+async fn serve_honest_handshake(stream: &mut TcpStream) {
     let authkey = authkey();
     // deliver_challenge: our challenge, the client's answer, our welcome.
     let message = server_challenge();
@@ -164,7 +164,17 @@ async fn serve_honest_handshake(stream: &mut TcpStream) -> Vec<u8> {
     // The request.
     let request = recv_frame(stream).await.expect("the request");
     assert!(!request.is_empty());
-    request
+}
+
+/// Hold the socket open until the client goes away, so the client sees exactly what
+/// the server wrote and nothing else.
+async fn hold_until_client_leaves(stream: &mut TcpStream) {
+    let mut sink = [0u8; 256];
+    while let Ok(n) = stream.read(&mut sink).await {
+        if n == 0 {
+            break;
+        }
+    }
 }
 
 /// An honest server: both challenges pass, the request is read, then a plain FIN instead
@@ -289,12 +299,7 @@ async fn server_writing_then_holding(bytes: Vec<u8>) -> (RpcEndpoint, tokio::tas
         let (mut stream, _) = listener.accept().await.expect("accept");
         stream.write_all(&bytes).await.expect("write");
         stream.flush().await.expect("flush");
-        let mut sink = [0u8; 256];
-        while let Ok(n) = stream.read(&mut sink).await {
-            if n == 0 {
-                break;
-            }
-        }
+        hold_until_client_leaves(&mut stream).await;
     });
     (endpoint, server)
 }
@@ -460,12 +465,7 @@ async fn non_welcome_verdict_after_a_correct_answer_is_authentication_without_an
         assert_eq!(response, answer(&authkey(), &message), "the client's answer");
         stream.write_all(&frame(b"#NOPE#")).await.expect("write the wrong token");
         stream.flush().await.expect("flush");
-        let mut sink = [0u8; 256];
-        while let Ok(n) = stream.read(&mut sink).await {
-            if n == 0 {
-                break;
-            }
-        }
+        hold_until_client_leaves(&mut stream).await;
     });
     let started = Instant::now();
     let result = interface_stats(&endpoint, &key(), WAIT).await;
@@ -491,12 +491,7 @@ async fn honest_handshake_then_oversized_reply_header_is_protocol_without_an_io_
         serve_honest_handshake(&mut stream).await;
         stream.write_all(&i32::MAX.to_be_bytes()).await.expect("write the oversized header");
         stream.flush().await.expect("flush");
-        let mut sink = [0u8; 256];
-        while let Ok(n) = stream.read(&mut sink).await {
-            if n == 0 {
-                break;
-            }
-        }
+        hold_until_client_leaves(&mut stream).await;
     });
     let started = Instant::now();
     let result = interface_stats(&endpoint, &key(), WAIT).await;
@@ -506,9 +501,13 @@ async fn honest_handshake_then_oversized_reply_header_is_protocol_without_an_io_
 }
 
 /// An honest handshake, the request read, then `SO_LINGER 0` instead of a reply: the
-/// Rust twin of the CPython `honest_rst` pin. The reply read meets the reset (or, if the
-/// FIN raced ahead, EOF); either way `Io` of a retryable kind, never `Protocol` or
-/// `Authentication`.
+/// Rust twin of the CPython `honest_rst` pin. A `SO_LINGER 0` close emits a bare RST
+/// with no FIN, so the reply read normally meets `ConnectionReset`; `UnexpectedEof` is
+/// admitted because a kernel may report the reset to a read already in flight as
+/// end-of-stream. The CPython twin
+/// (`stdlib_server_resetting_after_the_request_is_io_connection_reset_every_time` in
+/// `shared_instance_rpc_departed_server_python_probe.rs`) pins `ConnectionReset` alone.
+/// Either way `Io` of a retryable kind, never `Protocol` or `Authentication`.
 #[tokio::test]
 async fn honest_handshake_then_reset_instead_of_a_reply_is_io_retryable() {
     let (listener, endpoint) = loopback_listener().await;
@@ -548,12 +547,7 @@ async fn honest_handshake_then_a_reply_of_the_wrong_shape_is_decode_without_an_i
         payload.extend_from_slice(b"oops!");
         stream.write_all(&frame(&payload)).await.expect("write the wrong-shaped reply");
         stream.flush().await.expect("flush");
-        let mut sink = [0u8; 256];
-        while let Ok(n) = stream.read(&mut sink).await {
-            if n == 0 {
-                break;
-            }
-        }
+        hold_until_client_leaves(&mut stream).await;
     });
     let started = Instant::now();
     let result = interface_stats(&endpoint, &key(), WAIT).await;

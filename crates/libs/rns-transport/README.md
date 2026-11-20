@@ -1076,7 +1076,7 @@ one at a time on `rpc_loop` (`RNS/Reticulum.py:1274-1334`) behind a
 `Listener` with `backlog=1` (`RNS/Reticulum.py:364`), so a dial that lands
 while another is being served may be queued, dropped or reset, and a server
 departing mid-call renders as one of those kinds. Where the reset lands
-depends on the kernel: once the handshake has completed it is `Io`, whereas
+depends on the kernel: once `connect()` has returned it is `Io`, whereas
 macOS resets the overflowed dial before `connect()` has completed, so there
 it arrives as `Connect` with the `ConnectionReset` kind, which is why a
 caller matches the kind through `io_kind()` rather than the variant.
@@ -1087,8 +1087,11 @@ own `Connect` arm; everything else is a report, not a retry. Pinned by
 `server_that_closes_at_once_is_io_unexpected_eof` and
 `truncated_frame_is_io_unexpected_eof` in
 `src/transport/shared_instance_rpc/tests/mod.rs`,
-`server_that_hangs_up_at_once_is_io` and
-`closed_port_connect_has_the_refused_io_kind` in
+`server_that_hangs_up_at_once_is_io`,
+`closed_port_connect_has_the_refused_io_kind`,
+`io_kind_is_some_for_exactly_io_and_connect` (the retry rule above as a
+consumer writes it) and the garbage, silent, mid-frame and
+reset-after-the-challenge loopback servers in
 `tests/shared_instance_rpc_api.rs`, the CPython `honest_rst` mode
 (`stdlib_server_resetting_after_the_request_is_io_connection_reset_every_time`)
 in `tests/shared_instance_rpc_departed_server_python_probe.rs`, and the

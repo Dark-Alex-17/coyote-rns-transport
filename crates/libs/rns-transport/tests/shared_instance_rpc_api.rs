@@ -11,7 +11,10 @@
 //! `Send`; and a call against a closed loopback port is `Err(RpcError::Connect(_))` well
 //! inside its budget. The README recipe's lines run here; the test supplies the endpoint.
 //! A server that accepts and hangs up without a byte is `Err(RpcError::Io(_))` with the
-//! `UnexpectedEof` kind behind `io_kind()`.
+//! `UnexpectedEof` kind behind `io_kind()`; so is one that hangs up mid-frame, while one
+//! that resets after a whole challenge is `Io` of a retryable kind; one that writes
+//! garbage is `Protocol` and one that stays silent is `Timeout`, both with no io kind;
+//! and `io_kind()` is `Some` for exactly `Io` and `Connect`.
 
 use std::error::Error;
 use std::fmt::Debug;
@@ -214,6 +217,166 @@ async fn server_that_hangs_up_at_once_is_io() {
         result.as_ref().err().and_then(RpcError::io_kind),
         Some(std::io::ErrorKind::UnexpectedEof)
     );
+    server.await.expect("server task");
+}
+
+/// The README's retry rule as a consumer writes it: the kind through `io_kind()`, not the
+/// variant.
+fn readme_retryable(err: &RpcError) -> bool {
+    use std::io::ErrorKind::{BrokenPipe, ConnectionAborted, ConnectionReset, UnexpectedEof};
+    matches!(err, RpcError::Timeout)
+        || matches!(
+            err.io_kind(),
+            Some(ConnectionReset | ConnectionAborted | BrokenPipe | UnexpectedEof)
+        )
+}
+
+#[test]
+fn io_kind_is_some_for_exactly_io_and_connect() {
+    use std::io::ErrorKind;
+    let io = RpcError::Io(std::io::Error::new(ErrorKind::ConnectionReset, "peer reset"));
+    assert_eq!(io.io_kind(), Some(ErrorKind::ConnectionReset));
+    assert!(readme_retryable(&io), "{io:?}");
+    let text = io.to_string();
+    assert!(text.contains("io error after connect"), "{text}");
+    assert!(text.contains("peer reset"), "{text}");
+    assert_eq!(io.source().map(ToString::to_string).as_deref(), Some("peer reset"), "{io:?}");
+    for kind in [ErrorKind::ConnectionAborted, ErrorKind::BrokenPipe, ErrorKind::UnexpectedEof] {
+        let err = RpcError::Io(std::io::Error::from(kind));
+        assert_eq!(err.io_kind(), Some(kind));
+        assert!(readme_retryable(&err), "{err:?}");
+    }
+    let refused = RpcError::Connect(std::io::Error::from(ErrorKind::ConnectionRefused));
+    assert_eq!(refused.io_kind(), Some(ErrorKind::ConnectionRefused));
+    assert!(!readme_retryable(&refused), "{refused:?}");
+    let reset_at_connect = RpcError::Connect(std::io::Error::from(ErrorKind::ConnectionReset));
+    assert_eq!(reset_at_connect.io_kind(), Some(ErrorKind::ConnectionReset));
+    assert!(readme_retryable(&reset_at_connect), "{reset_at_connect:?}");
+    assert!(readme_retryable(&RpcError::Timeout));
+    for err in [
+        RpcError::Authentication,
+        RpcError::Protocol("short".into()),
+        RpcError::Decode("shape".into()),
+        RpcError::UnsupportedDigest("sha1".into()),
+        RpcError::InvalidKeyMaterial,
+        RpcError::Timeout,
+    ] {
+        assert_eq!(err.io_kind(), None, "{err:?}");
+    }
+    assert!(!readme_retryable(&RpcError::Authentication));
+    assert!(!readme_retryable(&RpcError::Protocol("short".into())));
+}
+
+/// A loopback listener that writes `bytes` to the first client and then does `after`.
+async fn one_shot_server<F, Fut>(
+    bytes: Vec<u8>,
+    after: F,
+) -> (std::net::SocketAddr, tokio::task::JoinHandle<()>)
+where
+    F: FnOnce(tokio::net::TcpStream) -> Fut + Send + 'static,
+    Fut: std::future::Future<Output = ()> + Send,
+{
+    let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.expect("bind loopback");
+    let addr = listener.local_addr().expect("listener address");
+    let server = tokio::spawn(async move {
+        let (mut stream, _) = listener.accept().await.expect("accept");
+        stream.write_all(&bytes).await.expect("write");
+        stream.flush().await.expect("flush");
+        after(stream).await;
+    });
+    (addr, server)
+}
+
+/// Hold the socket open until the client goes away, so the client's read sees whatever
+/// the server wrote and nothing more until its budget runs out.
+async fn hold_until_client_leaves(mut stream: tokio::net::TcpStream) {
+    use tokio::io::AsyncReadExt;
+    let mut sink = [0u8; 1024];
+    while let Ok(n) = stream.read(&mut sink).await {
+        if n == 0 {
+            break;
+        }
+    }
+}
+
+#[tokio::test]
+async fn server_that_writes_garbage_is_protocol_with_no_io_kind() {
+    let (addr, server) =
+        one_shot_server(b"not a frame at all, just bytes".to_vec(), hold_until_client_leaves).await;
+    let key = RpcKey::from_hex(KEY_HEX).expect("hex key");
+    let result = interface_stats(&RpcEndpoint::Tcp(addr), &key, WAIT).await;
+    match &result {
+        Err(err @ RpcError::Protocol(_)) => {
+            assert_eq!(err.io_kind(), None, "{err:?}");
+            assert!(!readme_retryable(err), "{err:?}");
+        }
+        other => panic!("expected Protocol, got {other:?}"),
+    }
+    server.await.expect("server task");
+}
+
+#[tokio::test]
+async fn server_that_stays_silent_is_timeout_with_no_io_kind() {
+    let (addr, server) = one_shot_server(Vec::new(), hold_until_client_leaves).await;
+    let key = RpcKey::from_hex(KEY_HEX).expect("hex key");
+    let started = Instant::now();
+    let result = interface_stats(&RpcEndpoint::Tcp(addr), &key, Duration::from_millis(700)).await;
+    let elapsed = started.elapsed();
+    match &result {
+        Err(err @ RpcError::Timeout) => {
+            assert_eq!(err.io_kind(), None);
+            assert!(readme_retryable(err));
+        }
+        other => panic!("expected Timeout, got {other:?}"),
+    }
+    assert!(elapsed >= Duration::from_millis(600), "{elapsed:?}");
+    assert!(elapsed < Duration::from_secs(4), "{elapsed:?}");
+    server.await.expect("server task");
+}
+
+#[tokio::test]
+async fn server_that_hangs_up_mid_frame_is_io_unexpected_eof() {
+    // A 48-byte header followed by ten bytes and a FIN: the bytes read were fine, the
+    // stream ended early.
+    let mut bytes = 48i32.to_be_bytes().to_vec();
+    bytes.extend_from_slice(b"#CHALLENGE");
+    let (addr, server) = one_shot_server(bytes, |mut stream| async move {
+        stream.shutdown().await.expect("shutdown mid-frame");
+    })
+    .await;
+    let key = RpcKey::from_hex(KEY_HEX).expect("hex key");
+    let result = interface_stats(&RpcEndpoint::Tcp(addr), &key, WAIT).await;
+    assert!(!matches!(result, Err(RpcError::Protocol(_))), "{result:?}");
+    assert_eq!(
+        result.as_ref().err().and_then(RpcError::io_kind),
+        Some(std::io::ErrorKind::UnexpectedEof),
+        "{result:?}"
+    );
+    assert!(result.as_ref().err().is_some_and(readme_retryable), "{result:?}");
+    server.await.expect("server task");
+}
+
+#[tokio::test]
+async fn server_that_resets_after_a_whole_challenge_is_io_of_a_retryable_kind() {
+    // A complete legacy challenge (`#CHALLENGE#` + 20 bytes) and then `SO_LINGER 0`: the
+    // bytes were right, the peer departed mid-call, so whichever of the client's next
+    // write or read meets the reset, the call is `Io` of a kind worth a retry.
+    let mut bytes = 31i32.to_be_bytes().to_vec();
+    bytes.extend_from_slice(b"#CHALLENGE#");
+    bytes.extend_from_slice(&[0x5au8; 20]);
+    let (addr, server) = one_shot_server(bytes, |stream| async move {
+        socket2::SockRef::from(&stream).set_linger(Some(Duration::ZERO)).expect("linger zero");
+        drop(stream);
+    })
+    .await;
+    let key = RpcKey::from_hex(KEY_HEX).expect("hex key");
+    let result = interface_stats(&RpcEndpoint::Tcp(addr), &key, WAIT).await;
+    match &result {
+        Err(err @ RpcError::Io(_)) => {
+            assert!(readme_retryable(err), "not a retryable kind: {err:?}");
+        }
+        other => panic!("expected Io, got {other:?}"),
+    }
     server.await.expect("server task");
 }
 

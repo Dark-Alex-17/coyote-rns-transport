@@ -166,7 +166,10 @@ pub enum RpcError {
     /// (`RNS/Reticulum.py:364`), so a dial that lands while another is served
     /// may be queued, dropped or reset, and a server that departs mid-call
     /// renders as one of those kinds; a retry after a short delay usually
-    /// succeeds. Everything else is a report.
+    /// succeeds. Everything else is a report. Some kernels (macOS) reset the
+    /// overflowed dial before `connect()` returns, so the same kind can
+    /// arrive on [`RpcError::Connect`]; [`RpcError::io_kind`] reads both,
+    /// which is why a retrying caller matches the kind, not the variant.
     #[error("shared instance rpc io error after connect: {0}")]
     Io(#[source] std::io::Error),
     /// The reply was not the msgpack shape `get_interface_stats` builds.
@@ -187,9 +190,11 @@ pub enum RpcError {
 
 impl RpcError {
     /// The io error kind behind an [`RpcError::Io`] or [`RpcError::Connect`],
-    /// `None` for every other variant. `Connect` yields `ConnectionRefused`,
-    /// which is outside the retry set, so a caller that waits for a listener
-    /// to bind keeps its own `Connect` arm.
+    /// `None` for every other variant. A `Connect` is usually
+    /// `ConnectionRefused` (the listener is not bound yet), which is outside
+    /// the retry set, so a caller that waits for a listener to bind keeps its
+    /// own `Connect` arm; a `Connect` whose kind is `ConnectionReset` is the
+    /// overflowed dial of the [`RpcError::Io`] docs and worth the same retry.
     pub fn io_kind(&self) -> Option<std::io::ErrorKind> {
         match self {
             Self::Io(err) | Self::Connect(err) => Some(err.kind()),

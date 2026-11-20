@@ -9,8 +9,8 @@
 // did read were fine) but a retryable kind (`ConnectionReset`,
 // `ConnectionAborted`, `BrokenPipe`, `UnexpectedEof`), which `io_kind()`
 // exposes, or `Timeout`. Where the reset lands depends on the kernel: a
-// reset after the handshake completed is `Io`, while macOS resets the
-// overflowed dial while `connect()` is still completing, so there it is
+// reset once `connect()` has returned is `Io`, while macOS resets the
+// overflowed dial before `connect()` completes, so there it is
 // `Connect` with the `ConnectionReset` kind; `io_kind()` reads both, which
 // is why callers match on the kind and not the variant. A refused dial
 // (`ConnectionRefused`) is still a listener that is not there and fails the

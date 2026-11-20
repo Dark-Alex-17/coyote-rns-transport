@@ -3,7 +3,7 @@
 //! handshake (`deliver_challenge` / `answer_challenge`, `connection.py:917-1006`), run on a
 //! raw loopback socket so the server can misbehave after the stdlib has done the
 //! challenging. The README promises that a server answering our challenge wrong and
-//! hanging up at once reads as `Authentication` every time, and `RpcError::Protocol`'s
+//! hanging up at once reads as `Authentication` every time, and `RpcError::Io`'s
 //! rustdoc carves out the failed `#FAILURE#` write, which stays `Authentication`. The
 //! stdlib pins the frame shapes; this file adds the hang-up the in-tree Rust mock does
 //! not model: a reset (`SO_LINGER 0`), where the client's `#FAILURE#` write meets

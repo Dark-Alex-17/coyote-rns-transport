@@ -28,17 +28,20 @@ Removed) bullet of its own, marked as such.
   (`RNS/Reticulum.py:364`), and macOS resets an overflowed dial at
   `connect()`, so the kind can also arrive on `Connect`; `Connect` with
   `ConnectionRefused` stays outside the retry set. The
-  `#FAILURE#` write to a departed server stays `Authentication`. The
-  fork's own live poll in
-  `python_channel_interop_parts/python_shared_instance_rpc.rs` now retries
-  through `io_kind()`. Pinned by `shared_instance_rpc/tests/mod.rs`
+  `#FAILURE#` write to a departed server stays `Authentication`. Pinned by
+  `shared_instance_rpc/tests/mod.rs`
   (`Script::Close` and the re-pinned `truncated_frame_is_io_unexpected_eof`,
   garbage and oversized frames staying `Protocol` with no io kind),
   `tests/shared_instance_rpc_api.rs` (eight variants, `Connect` yielding
-  `Some(ConnectionRefused)`, an accept-then-close listener yielding `Io`),
+  `Some(ConnectionRefused)`, an accept-then-shutdown listener yielding `Io`,
+  the retry rule as a consumer writes it over every variant, and loopback
+  servers that write garbage, stay silent, hang up mid-frame or reset after
+  a whole challenge),
   `tests/shared_instance_rpc_departed_server_python_probe.rs`
   (`honest_rst`: a CPython server resetting after the request is `Io` of
-  kind `ConnectionReset`) and the Python-in-the-loop
+  kind `ConnectionReset`), the hil poll
+  `python_channel_interop_parts/python_shared_instance_rpc.rs`, which now
+  retries through `io_kind()`, and the Python-in-the-loop
   `python_channel_interop_parts/python_shared_instance_rpc_io.rs` (three
   concurrent dials against rnsd 1.5.2, every failure `Timeout` or a
   retryable kind).

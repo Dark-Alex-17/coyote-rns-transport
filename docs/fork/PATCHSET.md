@@ -32,14 +32,15 @@ Every file changed since the `0.18.3` release and the patch each change
 belongs to. Patch ids: P1 is readme fork framing, P2 is rpc io error. The
 `readme fork framing` patch is fork commits `edb4258e`, `a7688b50`,
 `6e1a7457` and `b8a0c07d`. The `rpc io error` patch is fork commits
-`8547983a`, `29cc16d6`, `f2813179` and `df674bea`. The `Python-in-the-loop
-rpc io error interop` patch carries no other id and is fork commits
-`94d41512`, `29cc16d6`, `f2813179` and `df674bea`.
+`8547983a`, `29cc16d6`, `f2813179`, `df674bea` and `6f19155e`. The
+`Python-in-the-loop rpc io error interop` patch carries no other id and is
+fork commits `94d41512`, `29cc16d6`, `f2813179`, `df674bea` and `6f19155e`.
 
 | File | Patch |
 | --- | --- |
 | `README.md` | readme fork framing |
 | `crates/apps/reticulumd/tests/fork_publish_contract_parts/ledger_contract.rs` | readme fork framing |
+| `crates/apps/reticulumd/tests/fork_release_docs_contract_parts/request_layer_api_docs.rs` | rpc io error |
 | `crates/apps/reticulumd/tests/python_channel_interop.rs` | Python-in-the-loop rpc io error interop |
 | `crates/apps/reticulumd/tests/python_channel_interop_parts/python_shared_instance_rpc.rs` | Python-in-the-loop rpc io error interop |
 | `crates/apps/reticulumd/tests/python_channel_interop_parts/python_shared_instance_rpc_io.rs` | Python-in-the-loop rpc io error interop |
@@ -81,8 +82,8 @@ The crate `CHANGELOG.md` reopens `## Unreleased` with a docs-only Changed
 bullet, and `ledger_contract.rs` extends the full-hash ledger pin to the
 reopened section.
 
-Fork commits `8547983a`, `29cc16d6`, `f2813179` and `df674bea`: P2, rpc io
-error.
+Fork commits `8547983a`, `29cc16d6`, `f2813179`, `df674bea` and `6f19155e`:
+P2, rpc io error.
 Upstream site: the fork-added rnsd RPC client
 `crates/libs/rns-transport/src/transport/shared_instance_rpc.rs` (O2 of
 `## 0.18.3`) and its framing helper `shared_instance_rpc/framing.rs`;
@@ -147,8 +148,23 @@ outside the crate: a valid challenge then a FIN is `Io` and never
 `Io` of kind `UnexpectedEof`, the unix-socket close-at-once twin, a unix
 path nobody listens on as `Connect` of kind `NotFound`, and a `backlog=1`
 listener under four dials yielding only `Timeout` or a retryable kind.
+`6f19155e` makes the `io_kind()` rustdoc name the four retryable kinds
+itself and tell `Connect(ConnectionRefused)` apart from them, pinned by a
+release-docs needle in `fork_release_docs_contract_parts/request_layer_api_docs.rs`
+over the rustdoc, the README section and the CHANGELOG bullet; says at every
+`backlog=1` citation that the `Listener` at `RNS/Reticulum.py:364` keeps the
+stdlib default of `Listener.__init__` rather than passing one; adds that the
+library never retries and a caller bounds its attempts with a short backoff;
+names the handshake token in `Protocol`'s wrong-bytes list; gates the
+backlog overflow pin off Windows, where Winsock answers a SYN past the
+backlog with a RST read as `ConnectionRefused`, and says in the README that
+a Windows caller may fold that kind into its retry set after its own poll;
+and gives the io kind probe its remaining departed servers: oversized, wide,
+negative and empty headers as `Protocol` with no io kind, an accept-then-RST
+before any byte as `Io`, and a stale unix socket file as
+`Connect(ConnectionRefused)`.
 
-Fork commits `94d41512`, `29cc16d6`, `f2813179` and `df674bea`:
+Fork commits `94d41512`, `29cc16d6`, `f2813179`, `df674bea` and `6f19155e`:
 Python-in-the-loop rpc io error interop. `94d41512` rehomes the hil poll in
 `crates/apps/reticulumd/tests/python_channel_interop_parts/python_shared_instance_rpc.rs`
 from the `reset` text match on `Protocol` onto `io_kind()` over the
@@ -168,6 +184,9 @@ part's header at `connect()` returning, where the library draws it.
 `df674bea` moves the retry set into one `shared_instance_rpc_retryable`
 helper the poll and the part's classifier share, checks every reply of a
 round, and names rnsd's exit status before a panic on a dead fixture.
+`6f19155e` makes the part unix-only (Windows reads an overflowed dial as
+`ConnectionRefused`) and corrects its `backlog=1` citation to the stdlib
+default the `Listener` keeps.
 
 ## 0.18.3 (upstream 0.14.0)
 

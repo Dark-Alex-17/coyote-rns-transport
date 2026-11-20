@@ -32,9 +32,9 @@ Every file changed since the `0.18.3` release and the patch each change
 belongs to. Patch ids: P1 is readme fork framing, P2 is rpc io error. The
 `readme fork framing` patch is fork commits `edb4258e`, `a7688b50`,
 `6e1a7457` and `b8a0c07d`. The `rpc io error` patch is fork commits
-`8547983a`, `29cc16d6`, `f2813179`, `df674bea` and `6f19155e`. The
-`Python-in-the-loop rpc io error interop` patch carries no other id and is
-fork commits `94d41512`, `29cc16d6`, `f2813179`, `df674bea` and `6f19155e`.
+`8547983a`, `29cc16d6`, `f2813179`, `df674bea`, `6f19155e` and `c31add6e`.
+The `Python-in-the-loop rpc io error interop` patch carries no other id and
+is fork commits `94d41512`, `29cc16d6`, `f2813179`, `df674bea` and `6f19155e`.
 
 | File | Patch |
 | --- | --- |
@@ -82,8 +82,8 @@ The crate `CHANGELOG.md` reopens `## Unreleased` with a docs-only Changed
 bullet, and `ledger_contract.rs` extends the full-hash ledger pin to the
 reopened section.
 
-Fork commits `8547983a`, `29cc16d6`, `f2813179`, `df674bea` and `6f19155e`:
-P2, rpc io error.
+Fork commits `8547983a`, `29cc16d6`, `f2813179`, `df674bea`, `6f19155e` and
+`c31add6e`: P2, rpc io error.
 Upstream site: the fork-added rnsd RPC client
 `crates/libs/rns-transport/src/transport/shared_instance_rpc.rs` (O2 of
 `## 0.18.3`) and its framing helper `shared_instance_rpc/framing.rs`;
@@ -162,7 +162,15 @@ a Windows caller may fold that kind into its retry set after its own poll;
 and gives the io kind probe its remaining departed servers: oversized, wide,
 negative and empty headers as `Protocol` with no io kind, an accept-then-RST
 before any byte as `Io`, and a stale unix socket file as
-`Connect(ConnectionRefused)`.
+`Connect(ConnectionRefused)`. `c31add6e` is rustdoc and test prose: the
+identity-file rustdoc says `Io` is for failures after the dial and `Connect`
+for the dial itself, a local file fitting neither, instead of claiming the
+enum has no io variant; `Connect`'s rustdoc names `ConnectionReset` as the
+overflowed dial read through `io_kind()`; `io_kind()` carries the Windows
+`ConnectionRefused` clause and names `Timeout` as the kindless retry; the
+CPython `honest_rst` pin states its Windows exclusion (POSIX `struct linger`
+layout) and the README and CHANGELOG cite it as off Windows; the release-docs
+needle reads the one CHANGELOG bullet that introduces `RpcError::Io`.
 
 Fork commits `94d41512`, `29cc16d6`, `f2813179`, `df674bea` and `6f19155e`:
 Python-in-the-loop rpc io error interop. `94d41512` rehomes the hil poll in

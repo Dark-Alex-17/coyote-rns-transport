@@ -26,26 +26,39 @@ parity rows this file plus the crate README `## Known divergences from
 Python RNS` are the parity ledger; `docs/status/*` matrices are not updated
 per fork task.
 
-## Unreleased (upstream 0.14.0)
+## 0.18.4 (upstream 0.14.0)
 
 Every file changed since the `0.18.3` release and the patch each change
 belongs to. Patch ids: P1 is readme fork framing, P2 is rpc io error. The
 `readme fork framing` patch is fork commits `edb4258e`, `a7688b50`,
 `6e1a7457` and `b8a0c07d`. The `rpc io error` patch is fork commits
-`8547983a`, `29cc16d6`, `f2813179`, `df674bea`, `6f19155e` and `c31add6e`.
-The `Python-in-the-loop rpc io error interop` patch carries no other id and
-is fork commits `94d41512`, `29cc16d6`, `f2813179`, `df674bea` and `6f19155e`.
+`8547983a`, `29cc16d6`, `f2813179`, `df674bea`, `6f19155e`, `c31add6e`,
+`9a0eb46a` and `a58b664e`. The `Python-in-the-loop rpc io error interop`
+patch carries no other id and is fork commits `94d41512`, `29cc16d6`,
+`f2813179`, `df674bea` and `6f19155e`. The `release 0.18.4` patch carries
+no other id and is fork commits `acae9a72`, `58e4d93d` and `c2630318`.
 
 | File | Patch |
 | --- | --- |
+| `Cargo.lock` | release 0.18.4 |
+| `Cargo.toml` | release 0.18.4 |
 | `README.md` | readme fork framing |
-| `crates/apps/reticulumd/tests/fork_publish_contract_parts/ledger_contract.rs` | readme fork framing |
+| `crates/apps/reticulumd/Cargo.toml` | release 0.18.4 |
+| `crates/apps/reticulumd/tests/fork_publish_contract.rs` | release 0.18.4 |
+| `crates/apps/reticulumd/tests/fork_publish_contract_parts/ledger_contract.rs` | readme fork framing, release 0.18.4 |
+| `crates/apps/reticulumd/tests/fork_release_docs_contract.rs` | release 0.18.4 |
+| `crates/apps/reticulumd/tests/fork_release_docs_contract_parts/readme_patch_list.rs` | release 0.18.4 |
+| `crates/apps/reticulumd/tests/fork_release_docs_contract_parts/release_0_18_3_probe.rs` | release 0.18.4 |
+| `crates/apps/reticulumd/tests/fork_release_docs_contract_parts/release_0_18_4_probe.rs` | release 0.18.4 |
 | `crates/apps/reticulumd/tests/fork_release_docs_contract_parts/request_layer_api_docs.rs` | rpc io error |
 | `crates/apps/reticulumd/tests/python_channel_interop.rs` | Python-in-the-loop rpc io error interop |
 | `crates/apps/reticulumd/tests/python_channel_interop_parts/python_shared_instance_rpc.rs` | Python-in-the-loop rpc io error interop |
 | `crates/apps/reticulumd/tests/python_channel_interop_parts/python_shared_instance_rpc_io.rs` | Python-in-the-loop rpc io error interop |
-| `crates/libs/rns-transport/CHANGELOG.md` | readme fork framing, rpc io error, Python-in-the-loop rpc io error interop |
-| `crates/libs/rns-transport/README.md` | readme fork framing, rpc io error, Python-in-the-loop rpc io error interop |
+| `crates/apps/rns-tools/Cargo.toml` | release 0.18.4 |
+| `crates/libs/rns-transport/CHANGELOG.md` | readme fork framing, rpc io error, Python-in-the-loop rpc io error interop, release 0.18.4 |
+| `crates/libs/rns-transport/Cargo.toml` | release 0.18.4 |
+| `crates/libs/rns-transport/README.md` | readme fork framing, rpc io error, Python-in-the-loop rpc io error interop, release 0.18.4 |
+| `crates/libs/rns-transport/fuzz/Cargo.lock` | release 0.18.4 |
 | `crates/libs/rns-transport/src/transport/shared_instance_rpc.rs` | rpc io error |
 | `crates/libs/rns-transport/src/transport/shared_instance_rpc/framing.rs` | rpc io error |
 | `crates/libs/rns-transport/src/transport/shared_instance_rpc/tests/mock_server.rs` | rpc io error |
@@ -53,7 +66,8 @@ is fork commits `94d41512`, `29cc16d6`, `f2813179`, `df674bea` and `6f19155e`.
 | `crates/libs/rns-transport/tests/shared_instance_rpc_api.rs` | rpc io error |
 | `crates/libs/rns-transport/tests/shared_instance_rpc_departed_server_python_probe.rs` | rpc io error |
 | `crates/libs/rns-transport/tests/shared_instance_rpc_io_kind_probe.rs` | rpc io error |
-| `docs/fork/PATCHSET.md` | readme fork framing, rpc io error, Python-in-the-loop rpc io error interop |
+| `docs/fork/PATCHSET.md` | readme fork framing, rpc io error, Python-in-the-loop rpc io error interop, release 0.18.4 |
+| `docs/getting-started.md` | release 0.18.4 |
 
 Fork commits `edb4258e`, `a7688b50`, `6e1a7457` and `b8a0c07d`: P1, readme
 fork framing. Docs only, no library change.
@@ -82,8 +96,8 @@ The crate `CHANGELOG.md` reopens `## Unreleased` with a docs-only Changed
 bullet, and `ledger_contract.rs` extends the full-hash ledger pin to the
 reopened section.
 
-Fork commits `8547983a`, `29cc16d6`, `f2813179`, `df674bea`, `6f19155e` and
-`c31add6e`: P2, rpc io error.
+Fork commits `8547983a`, `29cc16d6`, `f2813179`, `df674bea`, `6f19155e`,
+`c31add6e`, `9a0eb46a` and `a58b664e`: P2, rpc io error.
 Upstream site: the fork-added rnsd RPC client
 `crates/libs/rns-transport/src/transport/shared_instance_rpc.rs` (O2 of
 `## 0.18.3`) and its framing helper `shared_instance_rpc/framing.rs`;
@@ -171,6 +185,35 @@ overflowed dial read through `io_kind()`; `io_kind()` carries the Windows
 CPython `honest_rst` pin states its Windows exclusion (POSIX `struct linger`
 layout) and the README and CHANGELOG cite it as off Windows; the release-docs
 needle reads the one CHANGELOG bullet that introduces `RpcError::Io`.
+`9a0eb46a` adopts five more probes in
+`tests/shared_instance_rpc_io_kind_probe.rs`, written against the contract
+alone, for the stage boundaries a retrying caller must not confuse: a
+header left half-written and then silence is `Timeout` (the read is pending,
+not ended, so the budget decides), a verdict other than `#WELCOME#` after a
+correct answer is `Authentication` (CPython's `answer_challenge` parity), an
+oversized reply header after an honest handshake is `Protocol`, a
+well-framed reply that is not the stats shape is `Decode`, none with an io
+kind, and an honest handshake then a reset instead of a reply is `Io` of a
+retryable kind, the Rust twin of the CPython `honest_rst` pin; the three
+honest-handshake pins and the FIN pin before them serve it through one
+`serve_honest_handshake` helper. `a58b664e` makes the accept-then-RST pin
+there and the reset-after-a-whole-challenge pin in
+`tests/shared_instance_rpc_api.rs` admit `Io` or `Connect` with a retryable
+`io_kind()`, as the backlog overflow pin already does: on macOS a
+`SO_LINGER 0` drop in the same reactor tick as the accept can be read before
+the dial's `connect()` returns and surfaces as `Connect` of kind
+`ConnectionReset`; both are renamed to say so
+(`accept_then_reset_before_any_byte_is_a_retryable_kind_on_either_variant`,
+`server_that_resets_after_a_whole_challenge_is_a_retryable_kind_on_either_variant`)
+and the CHANGELOG and README clauses that name them follow. The same commit
+marks `assert_running` on the hil rnsd fixture in
+`crates/apps/reticulumd/tests/python_channel_interop_parts/python_shared_instance_rpc.rs`
+`#[cfg(unix)]` like its only callers, says in the `Script::Close` doc of
+`shared_instance_rpc/tests/mock_server.rs` why the script does not drain
+(the client never writes before its first read), and gives the
+wrong-then-reset CPython pin in
+`tests/shared_instance_rpc_departed_server_python_probe.rs` the POSIX
+`struct linger` layout clause its `honest_rst` sibling has.
 
 Fork commits `94d41512`, `29cc16d6`, `f2813179`, `df674bea` and `6f19155e`:
 Python-in-the-loop rpc io error interop. `94d41512` rehomes the hil poll in
@@ -195,6 +238,70 @@ round, and names rnsd's exit status before a panic on a dead fixture.
 `6f19155e` makes the part unix-only (Windows reads an overflowed dial as
 `ConnectionRefused`) and corrects its `backlog=1` citation to the stdlib
 default the `Listener` keeps.
+
+Fork commits `acae9a72`, `58e4d93d` and `c2630318`: release 0.18.4. The
+first bumps the crate version to 0.18.4 at every manifest and
+consumer-snippet site (`Cargo.toml`,
+`crates/libs/rns-transport/Cargo.toml`, `crates/apps/reticulumd/Cargo.toml`,
+`crates/apps/rns-tools/Cargo.toml`, the snippet in
+`crates/libs/rns-transport/README.md` and `docs/getting-started.md`) and in
+`Cargo.lock` and `crates/libs/rns-transport/fuzz/Cargo.lock`, where the
+fuzz lock changes only its version line since this release adds no
+dependency, and retargets the two hand pins in
+`crates/apps/reticulumd/tests/fork_publish_contract.rs` to `0.18.4`; the
+root `VERSION` file stays. The second adds the 0.18.4 paragraph to the
+`## Patch list` of `crates/libs/rns-transport/README.md`, folding it into
+the intro sentence and leaving the 0.18.3 block as a standalone paragraph
+with its bullets unchanged; its four bullets are the rpc io error with the
+`io_kind()` retry contract and the macOS reading of a same-tick reset as
+`Connect`, the README fork framing, the Python-in-the-loop proof against a
+live rnsd beside the CPython and black-box pins, and the consumer note (pin
+0.18.4, nothing to opt into, `io_kind()` over both `Io` and `Connect` in
+place of a text match on `Protocol`, a `Connect` arm for
+`ConnectionRefused`, bounded attempts with a short backoff, and an io
+failure after connect surfacing as `Io` instead of `Protocol` as the only
+observable change for an existing matcher). The third promotes
+`## Unreleased` to `## 0.18.4 - 2026-11-20` in the crate `CHANGELOG.md`,
+prepending two bullets to its `### Changed` subsection: a version bullet
+(the announce field, the patch-bump reasoning with no `### Breaking` as
+every change is additive API a consumer need not opt into, the `Io` instead
+of `Protocol` sentence, the `cargo semver-checks` result of 0 findings
+against `v0.18.3` with the gate that runs it,
+`tools/scripts/semver-major-findings-check.sh coyote-rns-transport-v0.18.3 0`,
+and the contract tests that pin the release) and a restated test-only
+bullet for the release docs contract parts naming all thirteen; it
+retargets the promotion-sensitive pins to the literal 0.18.4 label:
+`crates/apps/reticulumd/tests/fork_publish_contract_parts/ledger_contract.rs`
+expects the full-hash contract and the bullet-cite contract to cover
+`0.18.4`, `0.18.3`, `0.18.2`, `0.18.1`, `0.18.0`, `0.17.0`, `0.16.0` and
+`0.15.1` with no `Unreleased` label, and
+`crates/apps/reticulumd/tests/fork_release_docs_contract_parts/readme_patch_list.rs`
+gains a 0.18.4 twin
+(`readme_patch_list_opens_with_the_0_18_4_block_and_keeps_the_0_18_3_paragraph`)
+asserting that the 0.18.4 block opens the list, the 0.18.4, 0.18.3, 0.18.2
+order and the 0.18.4 items, while the 0.18.3 test becomes
+`readme_patch_list_keeps_the_0_18_3_block_above_the_0_18_2_paragraph` and
+keeps its order and its needles through a shared const; it demotes
+`crates/apps/reticulumd/tests/fork_release_docs_contract_parts/release_0_18_3_probe.rs`,
+which keeps its date pin and slices its ledger section by heading but no
+longer claims the first release heading, the ledger opening, the README
+dependency snippet or the manifest version, its hand-pins test going with
+them; and it adds
+`crates/apps/reticulumd/tests/fork_release_docs_contract_parts/release_0_18_4_probe.rs`,
+included from `crates/apps/reticulumd/tests/fork_release_docs_contract.rs`,
+which pins the heading date and its place as the first release heading,
+the subsection set `### Added`, `### Changed` and nothing else (so no
+`### Breaking` and no `### Fixed`), the one `### Added` item as
+`RpcError::Io` with its `io_kind()` accessor, the patch digit and semver
+sentence of the version bullet, the thirteen parts the include-set bullet
+names, the README patch-list order and the 0.18.4 block's four bullets and
+consumer note with the retry rule, the dependency snippet, the publish
+contract's two hand pins reading `0.18.4`, and this ledger opening on this
+section with the release patch in the legend, the two adopted probe commits
+in the `rpc io error` legend and the probe's own row under
+`release 0.18.4`. The ledger commit that cites the three commits above is
+omitted from the patch headers like every commit whose changes touch only
+this file and the crate `CHANGELOG.md`.
 
 ## 0.18.3 (upstream 0.14.0)
 

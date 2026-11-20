@@ -10,6 +10,39 @@ Removed) bullet of its own, marked as such.
 
 ## Unreleased
 
+### Added
+
+- `RpcError::Io(std::io::Error)` on the `#[non_exhaustive]`
+  `transport::shared_instance_rpc::RpcError`
+  (`transport/shared_instance_rpc.rs`), carrying every io failure after the
+  dial succeeded: a failed write or flush, a short read, EOF during the
+  handshake or the reply, raised in `shared_instance_rpc/framing.rs`.
+  These moved out of `Protocol`, which now means only a malformed or
+  oversized frame, so a matcher on `Protocol(_)` that looked for a reset
+  in the message text must move to `Io` or to the new
+  `RpcError::io_kind() -> Option<std::io::ErrorKind>`, which returns the
+  kind behind `Io` and `Connect` and `None` otherwise. The kinds worth
+  retrying after a short delay are `ConnectionReset`, `ConnectionAborted`,
+  `BrokenPipe` and `UnexpectedEof`: rnsd serves dials serially on
+  `rpc_loop` (`RNS/Reticulum.py:1274-1334`) behind a `backlog=1` listener
+  (`RNS/Reticulum.py:364`), and macOS resets an overflowed dial at
+  `connect()`, so the kind can also arrive on `Connect`; `Connect` with
+  `ConnectionRefused` stays outside the retry set. The
+  `#FAILURE#` write to a departed server stays `Authentication`. The
+  fork's own live poll in
+  `python_channel_interop_parts/python_shared_instance_rpc.rs` now retries
+  through `io_kind()`. Pinned by `shared_instance_rpc/tests/mod.rs`
+  (`Script::Close` and the re-pinned `truncated_frame_is_io_unexpected_eof`,
+  garbage and oversized frames staying `Protocol` with no io kind),
+  `tests/shared_instance_rpc_api.rs` (eight variants, `Connect` yielding
+  `Some(ConnectionRefused)`, an accept-then-close listener yielding `Io`),
+  `tests/shared_instance_rpc_departed_server_python_probe.rs`
+  (`honest_rst`: a CPython server resetting after the request is `Io` of
+  kind `ConnectionReset`) and the Python-in-the-loop
+  `python_channel_interop_parts/python_shared_instance_rpc_io.rs` (three
+  concurrent dials against rnsd 1.5.2, every failure `Timeout` or a
+  retryable kind).
+
 ### Changed
 
 - README fork framing, docs only, no library change: the crate README's

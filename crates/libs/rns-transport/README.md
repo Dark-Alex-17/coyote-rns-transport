@@ -1061,12 +1061,42 @@ enums with a wildcard arm and destructure the structs with `..`. The call
 takes one fresh connection and runs connect, handshake, request and reply
 under the one `Duration`; `RpcError::Connect` is the dial failing,
 `RpcError::Authentication` a key the server rejects (or a server that fails
-our challenge), `Protocol` a malformed or oversized frame or an io error
-after connect (except the failure notice to a server that has already hung
-up, which stays `Authentication`), `Decode` an unexpected reply shape,
-`UnsupportedDigest` a challenge digest outside the stdlib's allowed set,
-`InvalidKeyMaterial` a key that cannot be parsed or derived, and `Timeout`
-the budget running out.
+our challenge), `Protocol` a malformed or oversized frame, `Io` an io error
+after connect, EOF included (except the failure notice to a server that has
+already hung up, which stays `Authentication`), `Decode` an unexpected
+reply shape, `UnsupportedDigest` a challenge digest outside the stdlib's
+allowed set, `InvalidKeyMaterial` a key that cannot be parsed or derived,
+and `Timeout` the budget running out.
+
+`RpcError::io_kind()` returns the `std::io::ErrorKind` behind `Io` and
+`Connect` (`None` for every other variant), and the kinds worth a retry
+after a short delay are `ConnectionReset`, `ConnectionAborted`,
+`BrokenPipe` and `UnexpectedEof`, beside `Timeout`: rnsd serves RPC dials
+one at a time on `rpc_loop` (`RNS/Reticulum.py:1274-1334`) behind a
+`Listener` with `backlog=1` (`RNS/Reticulum.py:364`), so a dial that lands
+while another is being served may be queued, dropped or reset, and a server
+departing mid-call renders as one of those kinds. Where the reset lands
+depends on the kernel: once the handshake has completed it is `Io`, whereas
+macOS resets the overflowed dial before `connect()` has completed, so there
+it arrives as `Connect` with the `ConnectionReset` kind, which is why a
+caller matches the kind through `io_kind()` rather than the variant.
+`Connect` with `ConnectionRefused` stays the listener not being there (rnsd
+binds it only after `Transport.start`, `RNS/Reticulum.py:363-367`) and is
+outside the retry set, so a caller waiting for a listener to bind keeps its
+own `Connect` arm; everything else is a report, not a retry. Pinned by
+`server_that_closes_at_once_is_io_unexpected_eof` and
+`truncated_frame_is_io_unexpected_eof` in
+`src/transport/shared_instance_rpc/tests/mod.rs`,
+`server_that_hangs_up_at_once_is_io` and
+`closed_port_connect_has_the_refused_io_kind` in
+`tests/shared_instance_rpc_api.rs`, the CPython `honest_rst` mode
+(`stdlib_server_resetting_after_the_request_is_io_connection_reset_every_time`)
+in `tests/shared_instance_rpc_departed_server_python_probe.rs`, and the
+live three-concurrent-dial part
+`crates/apps/reticulumd/tests/python_channel_interop_parts/python_shared_instance_rpc_io.rs`
+against rnsd (RNS 1.5.2), whose every failure must be `Timeout` or a
+retryable kind.
+
 The handshake is the stdlib's mutual HMAC exchange
 (`connection.py:917-1006`): the client answers the server's challenge and
 then delivers its own, in the modern `{digest}`-prefixed form a Python 3.12
@@ -1080,7 +1110,7 @@ whose `_create_response` echoes the challenge digest
 (`connection.py:928-942`). Pinned by
 `src/transport/shared_instance_rpc/tests/mod.rs` (both handshake forms and
 the `{sha3_384}` and `{md5}` digests against a mock server, the wrong-key,
-bad-answer, unsupported-digest, truncated, oversized, silent and
+bad-answer, unsupported-digest, oversized, silent and
 short-challenge failures, the unix socket round trips, the wide and
 negative frame headers, the digest lock and the stdlib known-answer vectors
 from `connection.py:917-942`, the key derivations and the decode shape
@@ -1096,7 +1126,9 @@ notice the client cannot deliver, is pinned by
 `src/transport/shared_instance_rpc/tests/mod.rs` (the pin of record) and
 exercised against CPython's own `multiprocessing.connection` server in
 `tests/shared_instance_rpc_departed_server_python_probe.rs`, whose reset
-mode (`SO_LINGER 0`) makes the `#FAILURE#` write fail outright. The
+mode (`SO_LINGER 0`) makes the `#FAILURE#` write fail outright and whose
+`honest_rst` mode resets after reading the request so the reply read is
+`Io` of kind `ConnectionReset`. The
 Python-in-the-loop proof is
 `crates/apps/reticulumd/tests/python_channel_interop_parts/python_shared_instance_rpc.rs`
 of the reticulumd `python_channel_interop` binary: a Python `rnsd` (RNS

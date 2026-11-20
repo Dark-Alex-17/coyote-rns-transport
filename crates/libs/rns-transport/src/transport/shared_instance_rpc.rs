@@ -150,11 +150,25 @@ pub enum RpcError {
     /// notice a server that has already hung up never reads).
     #[error("shared instance rpc authentication failed")]
     Authentication,
-    /// A malformed or oversized frame, or an io error after the connection
-    /// was established, except a failed write of the `#FAILURE#` notice,
-    /// which stays `Authentication`.
+    /// A malformed or oversized frame: a bad length, an oversized frame, an
+    /// unexpected handshake token.
     #[error("shared instance rpc protocol error: {0}")]
     Protocol(String),
+    /// Every io failure after the dial succeeded (a failed write or flush, a
+    /// short read, EOF during the handshake or the reply), except the failed
+    /// write of the `#FAILURE#` notice to a server that already hung up,
+    /// which stays [`RpcError::Authentication`].
+    ///
+    /// The kinds worth retrying are `ConnectionReset`, `ConnectionAborted`,
+    /// `BrokenPipe` and `UnexpectedEof` (and [`RpcError::Timeout`]): rnsd
+    /// serves RPC dials one at a time on `rpc_loop`
+    /// (`RNS/Reticulum.py:1274-1334`) behind a `Listener` with `backlog=1`
+    /// (`RNS/Reticulum.py:364`), so a dial that lands while another is served
+    /// may be queued, dropped or reset, and a server that departs mid-call
+    /// renders as one of those kinds; a retry after a short delay usually
+    /// succeeds. Everything else is a report.
+    #[error("shared instance rpc io error after connect: {0}")]
+    Io(#[source] std::io::Error),
     /// The reply was not the msgpack shape `get_interface_stats` builds.
     #[error("shared instance rpc reply did not decode: {0}")]
     Decode(String),
@@ -169,6 +183,19 @@ pub enum RpcError {
     /// The whole call, connect included, outran the caller's budget.
     #[error("shared instance rpc call timed out")]
     Timeout,
+}
+
+impl RpcError {
+    /// The io error kind behind an [`RpcError::Io`] or [`RpcError::Connect`],
+    /// `None` for every other variant. `Connect` yields `ConnectionRefused`,
+    /// which is outside the retry set, so a caller that waits for a listener
+    /// to bind keeps its own `Connect` arm.
+    pub fn io_kind(&self) -> Option<std::io::ErrorKind> {
+        match self {
+            Self::Io(err) | Self::Connect(err) => Some(err.kind()),
+            _ => None,
+        }
+    }
 }
 
 /// The decoded `interface_stats` reply (`RNS/Reticulum.py:1405-1628`).

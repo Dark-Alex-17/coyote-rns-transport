@@ -9,7 +9,9 @@
 //! not model: a reset (`SO_LINGER 0`), where the client's `#FAILURE#` write meets
 //! ECONNRESET/EPIPE rather than a kernel buffer that still accepts it. The honest mode of
 //! the same script serves a reply, so a refusal is the server's doing and not this
-//! file's framing.
+//! file's framing. A third mode is an honest server that resets after reading the
+//! request, so the client's reply read meets ECONNRESET and the call is
+//! `RpcError::Io`.
 //!
 //! Needs `python3` (or `LXMF_PYTHON_BIN`) on PATH; the script imports the stdlib only.
 
@@ -52,6 +54,15 @@ while True:
         conn.send_bytes(EMPTY_STATS)
         conn.close()
         print(json.dumps({"served": True}), flush=True)
+        continue
+    if mode == "honest_rst":
+        answer_challenge(conn, key)
+        conn.recv_bytes(1 << 16)
+        raw = socket.socket(fileno=conn.fileno())
+        raw.setsockopt(socket.SOL_SOCKET, socket.SO_LINGER, struct.pack("ii", 1, 0))
+        raw.detach()
+        conn.close()
+        print(json.dumps({"departed": mode}), flush=True)
         continue
     # The client's challenge: answer it wrong (right shape, wrong bytes) and hang up.
     challenge = conn.recv_bytes(256)
@@ -139,10 +150,34 @@ async fn stdlib_server_answering_wrong_then_closing_is_authentication_every_time
 /// A reset (`SO_LINGER 0`) right after the wrong answer, so the client's `#FAILURE#`
 /// write fails outright rather than landing in a buffer nobody reads. Not on Windows:
 /// WinSock drops the receive queue on a reset, so there the client's read of the wrong
-/// answer fails first and the call is `Protocol`, a platform rendering of the reset
+/// answer fails first and the call is `Io`, a platform rendering of the reset
 /// rather than a client defect.
 #[cfg(not(windows))]
 #[tokio::test]
 async fn stdlib_server_answering_wrong_then_resetting_is_authentication_every_time() {
     every_round_is_authentication("rst").await;
+}
+
+/// An honest server that resets (`SO_LINGER 0`) once it has read the request: the
+/// client's reply read meets ECONNRESET, with no FIN ahead of it to race, so every
+/// round is `Io` of kind `ConnectionReset`.
+#[cfg(not(windows))]
+#[tokio::test]
+async fn stdlib_server_resetting_after_the_request_is_io_connection_reset_every_time() {
+    let server = PythonServer::spawn("honest_rst");
+    let key = RpcKey::from_hex(KEY_HEX).expect("key");
+    for round in 0..ROUNDS {
+        let started = Instant::now();
+        let result = interface_stats(&server.endpoint, &key, CALL).await;
+        let elapsed = started.elapsed();
+        match &result {
+            Err(RpcError::Io(err)) => assert_eq!(
+                err.kind(),
+                std::io::ErrorKind::ConnectionReset,
+                "round {round}: {err:?}"
+            ),
+            other => panic!("round {round}: expected Io(ConnectionReset), got {other:?}"),
+        }
+        assert!(elapsed < CALL, "round {round}: {elapsed:?} ran to the budget");
+    }
 }

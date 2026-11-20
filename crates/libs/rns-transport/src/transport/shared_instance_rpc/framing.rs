@@ -20,17 +20,16 @@ where
     let mut frame = Vec::with_capacity(4 + payload.len());
     frame.extend_from_slice(&len.to_be_bytes());
     frame.extend_from_slice(payload);
-    stream.write_all(&frame).await.map_err(|err| {
-        RpcError::Protocol(format!("write of {} bytes failed: {err}", frame.len()))
-    })?;
-    stream.flush().await.map_err(|err| RpcError::Protocol(format!("flush failed: {err}")))
+    stream.write_all(&frame).await.map_err(RpcError::Io)?;
+    stream.flush().await.map_err(RpcError::Io)
 }
 
 /// `Connection._recv_bytes(maxsize)` (`connection.py:450-458`): the length is
 /// checked against `max_len` before anything is allocated, so a hostile
 /// header cannot ask for memory; Python returns `None` there and
 /// `recv_bytes` raises `OSError("bad message length")`. A negative length
-/// other than -1 is also refused. A short read is [`RpcError::Protocol`].
+/// other than -1 is also refused. A short read is [`RpcError::Io`]
+/// (`UnexpectedEof`).
 pub(super) async fn recv_frame<S>(stream: &mut S, max_len: usize) -> Result<Vec<u8>, RpcError>
 where
     S: AsyncRead + Unpin,
@@ -59,9 +58,5 @@ async fn read_exact<S>(stream: &mut S, buf: &mut [u8]) -> Result<(), RpcError>
 where
     S: AsyncRead + Unpin,
 {
-    stream
-        .read_exact(buf)
-        .await
-        .map(|_| ())
-        .map_err(|err| RpcError::Protocol(format!("read of {} bytes failed: {err}", buf.len())))
+    stream.read_exact(buf).await.map(|_| ()).map_err(RpcError::Io)
 }

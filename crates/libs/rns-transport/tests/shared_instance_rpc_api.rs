@@ -1,5 +1,5 @@
 //! The rnsd RPC client used from outside the crate, through
-//! `rns_transport::transport::shared_instance_rpc` only: `RpcError` has its seven
+//! `rns_transport::transport::shared_instance_rpc` only: `RpcError` has its eight
 //! variants and stays open to more, and is a `Send + Sync + 'static` error;
 //! `RpcEndpoint` has `Tcp` and, on unix, `Unix` and stays open to more,
 //! `RpcEndpoint::default_tcp()` is `127.0.0.1:37429` and `for_instance("default")` is the
@@ -10,11 +10,15 @@
 //! PartialEq` values whose fields are read by name; the `interface_stats` future is
 //! `Send`; and a call against a closed loopback port is `Err(RpcError::Connect(_))` well
 //! inside its budget. The README recipe's lines run here; the test supplies the endpoint.
+//! A server that accepts and hangs up without a byte is `Err(RpcError::Io(_))` with the
+//! `UnexpectedEof` kind behind `io_kind()`.
 
 use std::error::Error;
 use std::fmt::Debug;
 use std::path::Path;
 use std::time::{Duration, Instant};
+
+use tokio::io::AsyncWriteExt;
 
 use rns_transport::transport::shared_instance_rpc::{
     interface_stats, InterfaceStat, InterfaceStats, RpcEndpoint, RpcError, RpcKey,
@@ -38,6 +42,7 @@ fn error_label(err: &RpcError) -> &'static str {
         RpcError::Connect(_) => "connect",
         RpcError::Authentication => "authentication",
         RpcError::Protocol(_) => "protocol",
+        RpcError::Io(_) => "io",
         RpcError::Decode(_) => "decode",
         RpcError::UnsupportedDigest(_) => "unsupported digest",
         RpcError::InvalidKeyMaterial => "invalid key material",
@@ -79,13 +84,17 @@ fn describe(stats: &InterfaceStats) {
 }
 
 #[test]
-fn rpc_error_is_a_send_sync_error_with_seven_named_variants() {
+fn rpc_error_is_a_send_sync_error_with_eight_named_variants() {
     assert_error::<RpcError>();
     let err = RpcError::InvalidKeyMaterial;
     assert_eq!(error_label(&err), "invalid key material");
     assert_eq!(error_label(&RpcError::Timeout), "timeout");
     assert_eq!(error_label(&RpcError::Authentication), "authentication");
     assert_eq!(error_label(&RpcError::Protocol("short".to_string())), "protocol");
+    assert_eq!(
+        error_label(&RpcError::Io(std::io::Error::from(std::io::ErrorKind::UnexpectedEof))),
+        "io"
+    );
     assert_eq!(error_label(&RpcError::Decode("shape".to_string())), "decode");
     assert_eq!(error_label(&RpcError::UnsupportedDigest("sha1".to_string())), "unsupported digest");
     assert!(err.to_string().contains("key"), "{err}");
@@ -168,6 +177,44 @@ async fn closed_port_is_connect_and_the_future_is_send() {
     let result = interface_stats(&endpoint, &key, WAIT).await;
     assert!(matches!(result, Err(RpcError::Connect(_))), "{result:?}");
     assert!(started.elapsed() < Duration::from_secs(2), "{:?}", started.elapsed());
+}
+
+#[tokio::test]
+async fn closed_port_connect_has_the_refused_io_kind() {
+    let port = free_loopback_port().await;
+    let endpoint = RpcEndpoint::Tcp(([127, 0, 0, 1], port).into());
+    let key = RpcKey::from_hex(KEY_HEX).expect("hex key");
+    let result = interface_stats(&endpoint, &key, WAIT).await;
+    assert!(matches!(result, Err(RpcError::Connect(_))), "{result:?}");
+    assert_eq!(
+        result.as_ref().err().and_then(RpcError::io_kind),
+        Some(std::io::ErrorKind::ConnectionRefused)
+    );
+}
+
+#[tokio::test]
+async fn server_that_hangs_up_at_once_is_io() {
+    let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.expect("bind loopback");
+    let addr = listener.local_addr().expect("listener address");
+    let server = tokio::spawn(async move {
+        let (mut stream, _) = listener.accept().await.expect("accept");
+        stream.shutdown().await.expect("shutdown at once");
+    });
+    let key = RpcKey::from_hex(KEY_HEX).expect("hex key");
+    let result = interface_stats(&RpcEndpoint::Tcp(addr), &key, WAIT).await;
+    assert!(!matches!(result, Err(RpcError::Protocol(_))), "{result:?}");
+    match &result {
+        Err(err @ RpcError::Io(io)) => {
+            assert_eq!(io.kind(), std::io::ErrorKind::UnexpectedEof);
+            assert!(err.source().is_some(), "{err:?}");
+        }
+        other => panic!("expected Io, got {other:?}"),
+    }
+    assert_eq!(
+        result.as_ref().err().and_then(RpcError::io_kind),
+        Some(std::io::ErrorKind::UnexpectedEof)
+    );
+    server.await.expect("server task");
 }
 
 #[tokio::test]

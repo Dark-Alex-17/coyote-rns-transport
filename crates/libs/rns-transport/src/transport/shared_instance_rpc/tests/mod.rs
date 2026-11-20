@@ -369,12 +369,68 @@ async fn frame_header_is_big_endian() {
 }
 
 #[tokio::test]
-async fn truncated_frame_is_protocol() {
+async fn truncated_frame_is_io_unexpected_eof() {
     let mut bytes = 48i32.to_be_bytes().to_vec();
     bytes.extend_from_slice(b"#CHALLENGE");
     let server = MockServer::spawn(Script::RawBytes(bytes)).await;
-    assert!(matches!(call(&server).await, Err(RpcError::Protocol(_))));
+    let result = call(&server).await;
+    match &result {
+        Err(RpcError::Io(err)) => assert_eq!(err.kind(), std::io::ErrorKind::UnexpectedEof),
+        other => panic!("expected Io, got {other:?}"),
+    }
+    assert_eq!(
+        result.as_ref().err().and_then(RpcError::io_kind),
+        Some(std::io::ErrorKind::UnexpectedEof)
+    );
     server.finish().await;
+}
+
+#[tokio::test]
+async fn server_that_closes_at_once_is_io_unexpected_eof() {
+    let server = MockServer::spawn(Script::Close).await;
+    let result = call(&server).await;
+    match &result {
+        Err(RpcError::Io(err)) => assert_eq!(err.kind(), std::io::ErrorKind::UnexpectedEof),
+        other => panic!("expected Io, got {other:?}"),
+    }
+    assert_eq!(
+        result.as_ref().err().and_then(RpcError::io_kind),
+        Some(std::io::ErrorKind::UnexpectedEof)
+    );
+    server.finish().await;
+}
+
+#[tokio::test]
+async fn garbage_and_oversized_frames_are_protocol_without_an_io_kind() {
+    // "not " reads as a positive 32-bit length far past the 256-byte auth cap.
+    let garbage = b"not a frame at all, just bytes".to_vec();
+    for bytes in [300i32.to_be_bytes().to_vec(), garbage] {
+        let server = MockServer::spawn(Script::RawBytes(bytes.clone())).await;
+        match call(&server).await {
+            Err(err @ RpcError::Protocol(_)) => assert_eq!(err.io_kind(), None, "{bytes:?}"),
+            other => panic!("expected Protocol for {bytes:?}, got {other:?}"),
+        }
+        server.finish().await;
+    }
+}
+
+#[test]
+fn io_kind_is_none_for_the_non_io_variants() {
+    use std::io::ErrorKind;
+    for err in [
+        RpcError::Authentication,
+        RpcError::Protocol("x".into()),
+        RpcError::Decode("x".into()),
+        RpcError::UnsupportedDigest("x".into()),
+        RpcError::InvalidKeyMaterial,
+        RpcError::Timeout,
+    ] {
+        assert_eq!(err.io_kind(), None, "{err:?}");
+    }
+    let connect = RpcError::Connect(std::io::Error::from(ErrorKind::ConnectionRefused));
+    assert_eq!(connect.io_kind(), Some(ErrorKind::ConnectionRefused));
+    let io = RpcError::Io(std::io::Error::from(ErrorKind::ConnectionReset));
+    assert_eq!(io.io_kind(), Some(ErrorKind::ConnectionReset));
 }
 
 #[tokio::test]

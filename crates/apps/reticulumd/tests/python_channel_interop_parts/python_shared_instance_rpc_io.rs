@@ -20,24 +20,23 @@
 
 const SHARED_INSTANCE_RPC_IO_ROUNDS: usize = 8;
 
-fn shared_instance_rpc_io_failure_kind(round: usize, err: &RpcError) -> String {
-    match err {
-        RpcError::Timeout => "Timeout".to_string(),
-        RpcError::Io(_) | RpcError::Connect(_) => match err.io_kind() {
-            Some(kind @ (ConnectionReset | ConnectionAborted | BrokenPipe | UnexpectedEof)) => {
-                match err {
-                    RpcError::Connect(_) => format!("Connect({kind:?})"),
-                    _ => format!("Io({kind:?})"),
-                }
-            }
-            other => panic!("round {round}: non-retryable io kind {other:?}: {err:?}"),
-        },
-        other => panic!("round {round}: not a retryable failure: {other:?}"),
+/// `Timeout`, or the variant and kind of a retryable failure; `None` for
+/// anything a caller must not retry.
+fn shared_instance_rpc_io_failure_kind(err: &RpcError) -> Option<String> {
+    match (err, err.io_kind()) {
+        (RpcError::Timeout, _) => Some("Timeout".to_string()),
+        (RpcError::Connect(_), Some(kind)) if shared_instance_rpc_retryable(err) => {
+            Some(format!("Connect({kind:?})"))
+        }
+        (RpcError::Io(_), Some(kind)) if shared_instance_rpc_retryable(err) => {
+            Some(format!("Io({kind:?})"))
+        }
+        _ => None,
     }
 }
 
 /// Three concurrent `interface_stats` dials per round, eight rounds: every
-/// round gets at least one reply with the fixture's interface entries, and
+/// round gets at least one reply, every reply carries the fixture's entries, and
 /// every failure is `Timeout`, or `Io` or `Connect` whose `io_kind()` is a
 /// retryable kind.
 #[tokio::test]
@@ -67,13 +66,21 @@ async fn python_rnsd_shared_instance_rpc_concurrent_dials_fail_only_with_retryab
             interface_stats(&endpoint, &key, SHARED_INSTANCE_RPC_CALL),
         );
         let results = [results.0, results.1, results.2];
-        let first_ok = results
-            .iter()
-            .find_map(|result| result.as_ref().ok())
-            .unwrap_or_else(|| panic!("round {round}: no dial was answered: {results:?}"));
-        assert_shared_instance_rpc_entries(first_ok);
+        if results.iter().all(Result::is_err) {
+            rnsd.assert_running(&format!("round {round}: no dial was answered: {results:?}"));
+            panic!("round {round}: no dial was answered: {results:?}");
+        }
+        for stats in results.iter().filter_map(|result| result.as_ref().ok()) {
+            assert_shared_instance_rpc_entries(stats);
+        }
         for err in results.iter().filter_map(|result| result.as_ref().err()) {
-            failure_kinds.push(shared_instance_rpc_io_failure_kind(round, err));
+            match shared_instance_rpc_io_failure_kind(err) {
+                Some(kind) => failure_kinds.push(kind),
+                None => {
+                    rnsd.assert_running(&format!("round {round}: {err:?}"));
+                    panic!("round {round}: not a retryable failure: {err:?}");
+                }
+            }
         }
     }
     eprintln!(

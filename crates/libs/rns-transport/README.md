@@ -1084,15 +1084,22 @@ caller matches the kind through `io_kind()` rather than the variant.
 binds it only after `Transport.start`, `RNS/Reticulum.py:363-367`) and is
 outside the retry set, so a caller waiting for a listener to bind keeps its
 own `Connect` arm; everything else is a report, not a retry. Pinned by
-`server_that_closes_at_once_is_io_unexpected_eof` and
-`truncated_frame_is_io_unexpected_eof` in
-`src/transport/shared_instance_rpc/tests/mod.rs`,
+`server_that_closes_at_once_is_io_unexpected_eof`,
+`truncated_frame_is_io_unexpected_eof`,
+`send_frame_to_a_dropped_peer_is_io_broken_pipe` (the write side) and
+`reply_cut_short_after_its_header_is_io_unexpected_eof` (EOF at the reply
+stage) in `src/transport/shared_instance_rpc/tests/mod.rs`,
 `server_that_hangs_up_at_once_is_io`,
 `closed_port_connect_has_the_refused_io_kind`,
 `io_kind_is_some_for_exactly_io_and_connect` (the retry rule above as a
 consumer writes it) and the garbage, silent, mid-frame and
 reset-after-the-challenge loopback servers in
-`tests/shared_instance_rpc_api.rs`, the CPython `honest_rst` mode
+`tests/shared_instance_rpc_api.rs`, the departed servers of
+`tests/shared_instance_rpc_io_kind_probe.rs` (a valid challenge then a FIN
+is `Io`, never `Authentication`; an honest handshake then a FIN instead of
+a reply; the unix-socket close-at-once twin; a unix path nobody listens on
+as `Connect` of kind `NotFound`; a `backlog=1` listener under four dials),
+the CPython `honest_rst` mode
 (`stdlib_server_resetting_after_the_request_is_io_connection_reset_every_time`)
 in `tests/shared_instance_rpc_departed_server_python_probe.rs`, and the
 live three-concurrent-dial part

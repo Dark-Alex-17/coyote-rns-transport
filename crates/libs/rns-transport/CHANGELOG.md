@@ -31,12 +31,19 @@ Removed) bullet of its own, marked as such.
   `#FAILURE#` write to a departed server stays `Authentication`. Pinned by
   `shared_instance_rpc/tests/mod.rs`
   (`Script::Close` and the re-pinned `truncated_frame_is_io_unexpected_eof`,
-  garbage and oversized frames staying `Protocol` with no io kind),
+  `send_frame` to a dropped peer as `Io` of kind `BrokenPipe`, a reply cut
+  short after its header as `Io` of kind `UnexpectedEof`, garbage and
+  oversized frames staying `Protocol` with no io kind),
   `tests/shared_instance_rpc_api.rs` (eight variants, `Connect` yielding
   `Some(ConnectionRefused)`, an accept-then-shutdown listener yielding `Io`,
   the retry rule as a consumer writes it over every variant, and loopback
   servers that write garbage, stay silent, hang up mid-frame or reset after
   a whole challenge),
+  `tests/shared_instance_rpc_io_kind_probe.rs` (a valid challenge then a
+  FIN is `Io`, never `Authentication`; an honest handshake then a FIN
+  instead of a reply; the unix-socket close-at-once twin; a missing unix
+  path as `Connect` of kind `NotFound`; a `backlog=1` listener under four
+  dials yielding only `Timeout` or a retryable kind),
   `tests/shared_instance_rpc_departed_server_python_probe.rs`
   (`honest_rst`: a CPython server resetting after the request is `Io` of
   kind `ConnectionReset`), the hil poll

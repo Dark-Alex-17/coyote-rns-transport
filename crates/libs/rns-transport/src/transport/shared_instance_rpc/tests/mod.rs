@@ -91,6 +91,17 @@ async fn call(server: &MockServer) -> Result<InterfaceStats, RpcError> {
     interface_stats(&RpcEndpoint::Tcp(server.addr()), &key(), WAIT).await
 }
 
+fn assert_io_unexpected_eof<T: std::fmt::Debug>(result: &Result<T, RpcError>) {
+    match result {
+        Err(RpcError::Io(err)) => assert_eq!(err.kind(), std::io::ErrorKind::UnexpectedEof),
+        other => panic!("expected Io, got {other:?}"),
+    }
+    assert_eq!(
+        result.as_ref().err().and_then(RpcError::io_kind),
+        Some(std::io::ErrorKind::UnexpectedEof)
+    );
+}
+
 fn assert_decoded(stats: &InterfaceStats) {
     assert_eq!(stats.interfaces.len(), 3);
     let auto = &stats.interfaces[0];
@@ -373,33 +384,52 @@ async fn truncated_frame_is_io_unexpected_eof() {
     let mut bytes = 48i32.to_be_bytes().to_vec();
     bytes.extend_from_slice(b"#CHALLENGE");
     let server = MockServer::spawn(Script::RawBytes(bytes)).await;
-    let result = call(&server).await;
-    match &result {
-        Err(RpcError::Io(err)) => assert_eq!(err.kind(), std::io::ErrorKind::UnexpectedEof),
-        other => panic!("expected Io, got {other:?}"),
-    }
-    assert_eq!(
-        result.as_ref().err().and_then(RpcError::io_kind),
-        Some(std::io::ErrorKind::UnexpectedEof)
-    );
+    assert_io_unexpected_eof(&call(&server).await);
     server.finish().await;
 }
 
 #[tokio::test]
 async fn server_that_closes_at_once_is_io_unexpected_eof() {
     let server = MockServer::spawn(Script::Close).await;
-    let result = call(&server).await;
-    match &result {
-        Err(RpcError::Io(err)) => assert_eq!(err.kind(), std::io::ErrorKind::UnexpectedEof),
-        other => panic!("expected Io, got {other:?}"),
-    }
-    assert_eq!(
-        result.as_ref().err().and_then(RpcError::io_kind),
-        Some(std::io::ErrorKind::UnexpectedEof)
-    );
+    assert_io_unexpected_eof(&call(&server).await);
     server.finish().await;
 }
 
+/// The write side of `framing.rs`: over an in-memory pipe whose reader has
+/// gone, `send_frame` meets a broken pipe and reports it as `Io`, the kind
+/// a caller retries on.
+#[tokio::test]
+async fn send_frame_to_a_dropped_peer_is_io_broken_pipe() {
+    let (mut client, server) = tokio::io::duplex(1024);
+    drop(server);
+    let result = send_frame(&mut client, b"x").await;
+    match &result {
+        Err(err @ RpcError::Io(io)) => {
+            assert_eq!(io.kind(), std::io::ErrorKind::BrokenPipe, "{err:?}");
+            assert_eq!(err.io_kind(), Some(std::io::ErrorKind::BrokenPipe));
+        }
+        other => panic!("expected Io(BrokenPipe), got {other:?}"),
+    }
+}
+
+/// EOF at the reply stage, after the whole handshake and the request went
+/// through: a 48-byte reply header and then a FIN.
+#[tokio::test]
+async fn reply_cut_short_after_its_header_is_io_unexpected_eof() {
+    let server = MockServer::spawn(Script::Exchange {
+        form: ServerForm::Modern(Digest::Sha256),
+        key: key().as_bytes().to_vec(),
+        answer: Answer::Correct,
+        reply: Reply::BareHeader(48),
+    })
+    .await;
+    assert_io_unexpected_eof(&call(&server).await);
+    assert_request(&server.finish().await);
+}
+
+/// Both the oversized header (300 bytes against the 256-byte auth cap) and
+/// bytes that are no frame at all are rejected before any payload read, so
+/// they are `Protocol` and carry no io kind.
 #[tokio::test]
 async fn garbage_and_oversized_frames_are_protocol_without_an_io_kind() {
     // "not " reads as a positive 32-bit length far past the 256-byte auth cap.
@@ -415,7 +445,7 @@ async fn garbage_and_oversized_frames_are_protocol_without_an_io_kind() {
 }
 
 #[test]
-fn io_kind_is_none_for_the_non_io_variants() {
+fn io_kind_is_some_for_exactly_io_and_connect() {
     use std::io::ErrorKind;
     for err in [
         RpcError::Authentication,
@@ -431,13 +461,6 @@ fn io_kind_is_none_for_the_non_io_variants() {
     assert_eq!(connect.io_kind(), Some(ErrorKind::ConnectionRefused));
     let io = RpcError::Io(std::io::Error::from(ErrorKind::ConnectionReset));
     assert_eq!(io.io_kind(), Some(ErrorKind::ConnectionReset));
-}
-
-#[tokio::test]
-async fn oversized_auth_frame_is_protocol() {
-    let server = MockServer::spawn(Script::RawBytes(300i32.to_be_bytes().to_vec())).await;
-    assert!(matches!(call(&server).await, Err(RpcError::Protocol(_))));
-    server.finish().await;
 }
 
 #[tokio::test]

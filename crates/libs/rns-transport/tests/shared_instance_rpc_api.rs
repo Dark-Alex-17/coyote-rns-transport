@@ -205,7 +205,6 @@ async fn server_that_hangs_up_at_once_is_io() {
     });
     let key = RpcKey::from_hex(KEY_HEX).expect("hex key");
     let result = interface_stats(&RpcEndpoint::Tcp(addr), &key, WAIT).await;
-    assert!(!matches!(result, Err(RpcError::Protocol(_))), "{result:?}");
     match &result {
         Err(err @ RpcError::Io(io)) => {
             assert_eq!(io.kind(), std::io::ErrorKind::UnexpectedEof);
@@ -346,13 +345,14 @@ async fn server_that_hangs_up_mid_frame_is_io_unexpected_eof() {
     .await;
     let key = RpcKey::from_hex(KEY_HEX).expect("hex key");
     let result = interface_stats(&RpcEndpoint::Tcp(addr), &key, WAIT).await;
-    assert!(!matches!(result, Err(RpcError::Protocol(_))), "{result:?}");
-    assert_eq!(
-        result.as_ref().err().and_then(RpcError::io_kind),
-        Some(std::io::ErrorKind::UnexpectedEof),
-        "{result:?}"
-    );
-    assert!(result.as_ref().err().is_some_and(readme_retryable), "{result:?}");
+    match &result {
+        Err(err @ RpcError::Io(io)) => {
+            assert_eq!(io.kind(), std::io::ErrorKind::UnexpectedEof, "{err:?}");
+            assert_eq!(err.io_kind(), Some(std::io::ErrorKind::UnexpectedEof));
+            assert!(readme_retryable(err), "{err:?}");
+        }
+        other => panic!("expected Io, got {other:?}"),
+    }
     server.await.expect("server task");
 }
 

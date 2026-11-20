@@ -4,8 +4,6 @@
 // rnsd runs, here its own `LocalServerInterface` and one `AutoInterface`
 // from a top-level `[interfaces]` section (`RNS/Reticulum.py:748-752`).
 
-use std::io::ErrorKind::{BrokenPipe, ConnectionAborted, ConnectionReset, UnexpectedEof};
-
 use rns_transport::transport::shared_instance_rpc::{
     interface_stats, InterfaceStat, InterfaceStats, RpcEndpoint, RpcError, RpcKey,
 };
@@ -19,6 +17,14 @@ const SHARED_INSTANCE_RPC_CALL: Duration = Duration::from_secs(5);
 const SHARED_INSTANCE_RPC_AUTO_INTERFACE_NAME: &str = "coyote-live-auto";
 const SHARED_INSTANCE_RPC_CONFIGURED_KEY: &str =
     "c0ffee00c0ffee00c0ffee00c0ffee00c0ffee00c0ffee00c0ffee00c0ffee00";
+
+// The retry set of the crate README: an io kind behind `Io` or `Connect`
+// that a dial landing on rnsd's serial `rpc_loop` (`RNS/Reticulum.py:1274-1334`,
+// backlog one at `:364`) or a server departing mid-call can produce.
+fn shared_instance_rpc_retryable(err: &RpcError) -> bool {
+    use std::io::ErrorKind::{BrokenPipe, ConnectionAborted, ConnectionReset, UnexpectedEof};
+    matches!(err.io_kind(), Some(ConnectionReset | ConnectionAborted | BrokenPipe | UnexpectedEof))
+}
 
 // The AutoInterface's data socket is bound without address reuse
 // (`RNS/Interfaces/AutoInterface.py:334-337`) and the bind error reaches the
@@ -113,6 +119,15 @@ impl SharedInstanceRpcRnsd {
             .expect("rpc key from the transport identity")
     }
 
+    /// Fails at once, naming rnsd's exit status and `context`, when the
+    /// fixture has exited; a dead rnsd otherwise reads as a refused dial.
+    fn assert_running(&mut self, context: &str) {
+        let rnsd = self.guard.child.as_mut().expect("rnsd is held until drop");
+        if let Some(status) = shared_instance_rpc_rnsd_exited(rnsd) {
+            panic!("rnsd exited with {status}: {context}");
+        }
+    }
+
     /// rnsd binds the RPC listener only after `Transport.start`
     /// (`RNS/Reticulum.py:351-367`), which runs after the shared instance
     /// log line and the AutoInterface's peering wait in `final_init`
@@ -139,10 +154,7 @@ impl SharedInstanceRpcRnsd {
                 let result = interface_stats(endpoint, key, SHARED_INSTANCE_RPC_CALL).await;
                 let retry = match &result {
                     Err(RpcError::Connect(_)) => true,
-                    Err(err @ RpcError::Io(_)) => matches!(
-                        err.io_kind(),
-                        Some(ConnectionReset | ConnectionAborted | BrokenPipe | UnexpectedEof)
-                    ),
+                    Err(err @ RpcError::Io(_)) => shared_instance_rpc_retryable(err),
                     _ => false,
                 };
                 if !retry {

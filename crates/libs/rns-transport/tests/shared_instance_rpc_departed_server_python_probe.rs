@@ -39,6 +39,12 @@ srv.bind(("127.0.0.1", 0))
 srv.listen(16)
 print(json.dumps({"port": srv.getsockname()[1]}), flush=True)
 EMPTY_STATS = b"\x81\xaainterfaces\x90"  # msgpack {"interfaces": []}
+def reset(conn):
+    # SO_LINGER 0 on the connection's own socket, so the close that follows is a RST.
+    raw = socket.socket(fileno=conn.fileno())
+    raw.setsockopt(socket.SOL_SOCKET, socket.SO_LINGER, struct.pack("ii", 1, 0))
+    raw.detach()
+    conn.close()
 while True:
     s, _ = srv.accept()
     conn = Connection(s.detach())
@@ -58,20 +64,16 @@ while True:
     if mode == "honest_rst":
         answer_challenge(conn, key)
         conn.recv_bytes(1 << 16)
-        raw = socket.socket(fileno=conn.fileno())
-        raw.setsockopt(socket.SOL_SOCKET, socket.SO_LINGER, struct.pack("ii", 1, 0))
-        raw.detach()
-        conn.close()
+        reset(conn)
         print(json.dumps({"departed": mode}), flush=True)
         continue
     # The client's challenge: answer it wrong (right shape, wrong bytes) and hang up.
     challenge = conn.recv_bytes(256)
     conn.send_bytes(b"{sha256}" + bytes(32))
     if mode == "rst":
-        raw = socket.socket(fileno=conn.fileno())
-        raw.setsockopt(socket.SOL_SOCKET, socket.SO_LINGER, struct.pack("ii", 1, 0))
-        raw.detach()
-    conn.close()
+        reset(conn)
+    else:
+        conn.close()
     print(json.dumps({"departed": mode}), flush=True)
 "#;
 

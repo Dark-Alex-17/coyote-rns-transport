@@ -36,8 +36,8 @@ belongs to. Patch ids: P1 is readme fork framing, P2 is rpc io error. The
 `9a0eb46a` and `a58b664e`. The `Python-in-the-loop rpc io error interop`
 patch carries no other id and is fork commits `94d41512`, `29cc16d6`,
 `f2813179`, `df674bea` and `6f19155e`. The `release 0.18.4` patch carries
-no other id and is fork commits `acae9a72`, `58e4d93d`, `c2630318` and
-`e9ccadcd`.
+no other id and is fork commits `acae9a72`, `58e4d93d`, `c2630318`,
+`e9ccadcd` and `76ca0d32`.
 
 | File | Patch |
 | --- | --- |
@@ -66,7 +66,7 @@ no other id and is fork commits `acae9a72`, `58e4d93d`, `c2630318` and
 | `crates/libs/rns-transport/src/transport/shared_instance_rpc/tests/mod.rs` | rpc io error |
 | `crates/libs/rns-transport/tests/shared_instance_rpc_api.rs` | rpc io error |
 | `crates/libs/rns-transport/tests/shared_instance_rpc_departed_server_python_probe.rs` | rpc io error |
-| `crates/libs/rns-transport/tests/shared_instance_rpc_io_kind_probe.rs` | rpc io error |
+| `crates/libs/rns-transport/tests/shared_instance_rpc_io_kind_probe.rs` | rpc io error, release 0.18.4 |
 | `docs/fork/PATCHSET.md` | readme fork framing, rpc io error, Python-in-the-loop rpc io error interop, release 0.18.4 |
 | `docs/getting-started.md` | release 0.18.4 |
 
@@ -240,9 +240,9 @@ round, and names rnsd's exit status before a panic on a dead fixture.
 `ConnectionRefused`) and corrects its `backlog=1` citation to the stdlib
 default the `Listener` keeps.
 
-Fork commits `acae9a72`, `58e4d93d`, `c2630318` and `e9ccadcd`: release
-0.18.4. The first bumps the crate version to 0.18.4 at every manifest and
-consumer-snippet site (`Cargo.toml`,
+Fork commits `acae9a72`, `58e4d93d`, `c2630318`, `e9ccadcd` and `76ca0d32`:
+release 0.18.4. The first bumps the crate version to 0.18.4 at every
+manifest and consumer-snippet site (`Cargo.toml`,
 `crates/libs/rns-transport/Cargo.toml`, `crates/apps/reticulumd/Cargo.toml`,
 `crates/apps/rns-tools/Cargo.toml`, the snippet in
 `crates/libs/rns-transport/README.md` and `docs/getting-started.md`) and in
@@ -317,7 +317,14 @@ four servers that hold the socket after writing, makes
 returned, and corrects the reset pin's rationale (a `SO_LINGER 0` close
 emits a bare RST with no FIN, and `UnexpectedEof` is admitted because a
 kernel may report the reset to a read already in flight as end-of-stream).
-The ledger commits that cite the four commits above are omitted from the
+The fifth pins in `release_0_18_4_probe.rs` the first four commits above in
+both this section's legend sentence and this paragraph's header, as
+`contains` checks so later ledger commits may be cited beside them; reads
+the io kind probe's row under both `rpc io error` and `release 0.18.4`,
+since the fourth commit edited that file; and adds the version bullet's
+usage-pins needles and a past-tense pin over the README fork framing
+bullet's ledger sentence.
+The ledger commits that cite the five commits above are omitted from the
 patch headers like every commit whose changes touch only this file and the
 crate `CHANGELOG.md`.
 

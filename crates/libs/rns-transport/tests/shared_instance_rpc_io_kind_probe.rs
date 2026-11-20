@@ -13,7 +13,13 @@
 //! bytes-wrong edges a consumer meets from outside the crate (an oversized, a wide, a
 //! negative and an empty frame header, all `Protocol` with no io kind), a server that
 //! resets instead of closing before its first byte, and a unix socket file that exists
-//! with nobody behind it (`Connect` of kind `ConnectionRefused`).
+//! with nobody behind it (`Connect` of kind `ConnectionRefused`); then the stage
+//! boundaries a retrying caller must not confuse: a header left half-written is
+//! `Timeout` (not `Io`), a verdict other than `#WELCOME#` after a correct answer is
+//! `Authentication` (CPython's `answer_challenge` parity, not `Io`), an oversized reply
+//! header after an honest handshake is `Protocol`, a well-framed reply that is not the
+//! stats shape is `Decode` (none with an io kind), and an honest handshake followed by a
+//! reset instead of a reply is `Io` of a retryable kind, the Rust twin of CPython `honest_rst`.
 
 use std::error::Error;
 use std::time::{Duration, Instant};
@@ -136,6 +142,31 @@ async fn valid_challenge_then_fin_without_reading_is_io_retryable() {
     server.await.expect("server task");
 }
 
+/// Serve the stdlib's mutual handshake honestly (`deliver_challenge`, then
+/// `answer_challenge`) and return the request frame the client sends next.
+async fn serve_honest_handshake(stream: &mut TcpStream) -> Vec<u8> {
+    let authkey = authkey();
+    // deliver_challenge: our challenge, the client's answer, our welcome.
+    let message = server_challenge();
+    let mut challenge = CHALLENGE.to_vec();
+    challenge.extend_from_slice(&message);
+    stream.write_all(&frame(&challenge)).await.expect("write challenge");
+    let response = recv_frame(stream).await.expect("the client's answer");
+    assert_eq!(response, answer(&authkey, &message), "the client's answer to our challenge");
+    stream.write_all(&frame(WELCOME)).await.expect("write welcome");
+    // answer_challenge: the client's challenge, our answer, the client's welcome.
+    let theirs = recv_frame(stream).await.expect("the client's challenge");
+    assert!(theirs.starts_with(CHALLENGE), "{theirs:?}");
+    let ours = answer(&authkey, &theirs[CHALLENGE.len()..]);
+    stream.write_all(&frame(&ours)).await.expect("write our answer");
+    let welcome = recv_frame(stream).await.expect("the client's verdict");
+    assert_eq!(welcome, WELCOME, "the client rejected a correct answer");
+    // The request.
+    let request = recv_frame(stream).await.expect("the request");
+    assert!(!request.is_empty());
+    request
+}
+
 /// An honest server: both challenges pass, the request is read, then a plain FIN instead
 /// of a reply. The reply read meets EOF, so the call is `Io` of kind `UnexpectedEof`,
 /// the FIN twin of the CPython `honest_rst` pin.
@@ -144,25 +175,8 @@ async fn honest_handshake_then_fin_instead_of_a_reply_is_io_unexpected_eof() {
     let (listener, endpoint) = loopback_listener().await;
     let server = tokio::spawn(async move {
         let (mut stream, _) = listener.accept().await.expect("accept");
-        let authkey = authkey();
-        // deliver_challenge: our challenge, the client's answer, our welcome.
-        let message = server_challenge();
-        let mut challenge = CHALLENGE.to_vec();
-        challenge.extend_from_slice(&message);
-        stream.write_all(&frame(&challenge)).await.expect("write challenge");
-        let response = recv_frame(&mut stream).await.expect("the client's answer");
-        assert_eq!(response, answer(&authkey, &message), "the client's answer to our challenge");
-        stream.write_all(&frame(WELCOME)).await.expect("write welcome");
-        // answer_challenge: the client's challenge, our answer, the client's welcome.
-        let theirs = recv_frame(&mut stream).await.expect("the client's challenge");
-        assert!(theirs.starts_with(CHALLENGE), "{theirs:?}");
-        let ours = answer(&authkey, &theirs[CHALLENGE.len()..]);
-        stream.write_all(&frame(&ours)).await.expect("write our answer");
-        let welcome = recv_frame(&mut stream).await.expect("the client's verdict");
-        assert_eq!(welcome, WELCOME, "the client rejected a correct answer");
-        // The request, then FIN without a reply.
-        let request = recv_frame(&mut stream).await.expect("the request");
-        assert!(!request.is_empty());
+        // The whole handshake and the request, then FIN without a reply.
+        serve_honest_handshake(&mut stream).await;
         stream.shutdown().await.expect("fin");
         drop(stream);
     });
@@ -399,4 +413,153 @@ async fn unix_socket_file_with_no_listener_is_connect_connection_refused() {
         other => panic!("expected Connect, got {other:?}"),
     }
     assert!(started.elapsed() < Duration::from_secs(2), "{:?}", started.elapsed());
+}
+
+/// A header left half-written and then silence: the read is short but still pending, so
+/// the budget decides, not the stream. `Timeout`, no io kind, worth a retry by variant.
+/// A caller must not see this as `Io(UnexpectedEof)` (the stream never ended) nor as
+/// `Protocol` (no bytes were wrong).
+#[tokio::test]
+async fn partial_header_then_silence_is_timeout_without_an_io_kind() {
+    let (endpoint, server) = server_writing_then_holding(vec![0x00, 0x00]).await;
+    let budget = Duration::from_millis(700);
+    let started = Instant::now();
+    let result = interface_stats(&endpoint, &key(), budget).await;
+    let elapsed = started.elapsed();
+    match &result {
+        Err(err @ RpcError::Timeout) => {
+            assert_eq!(err.io_kind(), None, "{err:?}");
+            assert!(retryable(err), "{err:?}");
+        }
+        other => panic!("partial header then silence: expected Timeout, got {other:?}"),
+    }
+    assert!(elapsed >= Duration::from_millis(600), "{elapsed:?} returned before the budget");
+    assert!(elapsed < Duration::from_secs(4), "{elapsed:?} overran the budget");
+    server.await.expect("server task");
+}
+
+/// A correct answer met with a verdict that is neither `#WELCOME#` nor `#FAILURE#`.
+/// CPython's `answer_challenge` raises `AuthenticationError` for any response other
+/// than `#WELCOME#` (`connection.py`, "digest sent was rejected"), and so does the
+/// client here: `Authentication`, no io kind, not a retry. The point for a retrying
+/// caller is that it is not `Io`: no io failure happened, the server simply said no.
+#[tokio::test]
+async fn non_welcome_verdict_after_a_correct_answer_is_authentication_without_an_io_kind() {
+    let (listener, endpoint) = loopback_listener().await;
+    let server = tokio::spawn(async move {
+        let (mut stream, _) = listener.accept().await.expect("accept");
+        let message = server_challenge();
+        let mut challenge = CHALLENGE.to_vec();
+        challenge.extend_from_slice(&message);
+        stream.write_all(&frame(&challenge)).await.expect("write challenge");
+        let response = recv_frame(&mut stream).await.expect("the client's answer");
+        assert_eq!(response, answer(&authkey(), &message), "the client's answer");
+        stream.write_all(&frame(b"#NOPE#")).await.expect("write the wrong token");
+        stream.flush().await.expect("flush");
+        let mut sink = [0u8; 256];
+        while let Ok(n) = stream.read(&mut sink).await {
+            if n == 0 {
+                break;
+            }
+        }
+    });
+    let started = Instant::now();
+    let result = interface_stats(&endpoint, &key(), WAIT).await;
+    match &result {
+        Err(err @ RpcError::Authentication) => {
+            assert_eq!(err.io_kind(), None, "{err:?}");
+            assert!(!retryable(err), "{err:?}");
+        }
+        other => panic!("non-WELCOME verdict: expected Authentication, got {other:?}"),
+    }
+    assert!(started.elapsed() < Duration::from_secs(2), "{:?}", started.elapsed());
+    server.await.expect("server task");
+}
+
+/// An honest handshake, the request read, then a reply header announcing `i32::MAX`
+/// bytes: the cap rejects the reply on its header. Bytes wrong at the reply stage are
+/// `Protocol` with no io kind, exactly as at the challenge stage, and quick.
+#[tokio::test]
+async fn honest_handshake_then_oversized_reply_header_is_protocol_without_an_io_kind() {
+    let (listener, endpoint) = loopback_listener().await;
+    let server = tokio::spawn(async move {
+        let (mut stream, _) = listener.accept().await.expect("accept");
+        serve_honest_handshake(&mut stream).await;
+        stream.write_all(&i32::MAX.to_be_bytes()).await.expect("write the oversized header");
+        stream.flush().await.expect("flush");
+        let mut sink = [0u8; 256];
+        while let Ok(n) = stream.read(&mut sink).await {
+            if n == 0 {
+                break;
+            }
+        }
+    });
+    let started = Instant::now();
+    let result = interface_stats(&endpoint, &key(), WAIT).await;
+    assert_protocol_without_io_kind(&result, "oversized reply header after an honest handshake");
+    assert!(started.elapsed() < Duration::from_secs(2), "{:?}", started.elapsed());
+    server.await.expect("server task");
+}
+
+/// An honest handshake, the request read, then `SO_LINGER 0` instead of a reply: the
+/// Rust twin of the CPython `honest_rst` pin. The reply read meets the reset (or, if the
+/// FIN raced ahead, EOF); either way `Io` of a retryable kind, never `Protocol` or
+/// `Authentication`.
+#[tokio::test]
+async fn honest_handshake_then_reset_instead_of_a_reply_is_io_retryable() {
+    let (listener, endpoint) = loopback_listener().await;
+    let server = tokio::spawn(async move {
+        let (mut stream, _) = listener.accept().await.expect("accept");
+        serve_honest_handshake(&mut stream).await;
+        socket2::SockRef::from(&stream).set_linger(Some(Duration::ZERO)).expect("linger zero");
+        drop(stream);
+    });
+    let started = Instant::now();
+    let result = interface_stats(&endpoint, &key(), WAIT).await;
+    assert_io_retryable(&result, "honest handshake then RST");
+    let kind = result.as_ref().err().and_then(RpcError::io_kind);
+    eprintln!("honest handshake then RST: {kind:?}");
+    assert!(
+        matches!(
+            kind,
+            Some(std::io::ErrorKind::ConnectionReset | std::io::ErrorKind::UnexpectedEof)
+        ),
+        "{result:?}"
+    );
+    assert!(started.elapsed() < Duration::from_secs(2), "{:?}", started.elapsed());
+    server.await.expect("server task");
+}
+
+/// An honest handshake and a well-framed reply whose payload is not the stats shape: the
+/// README's `Decode`, with no io kind, so a retrying caller reports it rather than
+/// dialing again.
+#[tokio::test]
+async fn honest_handshake_then_a_reply_of_the_wrong_shape_is_decode_without_an_io_kind() {
+    let (listener, endpoint) = loopback_listener().await;
+    let server = tokio::spawn(async move {
+        let (mut stream, _) = listener.accept().await.expect("accept");
+        serve_honest_handshake(&mut stream).await;
+        // A valid frame around a msgpack string, not the interface_stats map.
+        let mut payload = vec![0xa5u8];
+        payload.extend_from_slice(b"oops!");
+        stream.write_all(&frame(&payload)).await.expect("write the wrong-shaped reply");
+        stream.flush().await.expect("flush");
+        let mut sink = [0u8; 256];
+        while let Ok(n) = stream.read(&mut sink).await {
+            if n == 0 {
+                break;
+            }
+        }
+    });
+    let started = Instant::now();
+    let result = interface_stats(&endpoint, &key(), WAIT).await;
+    match &result {
+        Err(err @ RpcError::Decode(_)) => {
+            assert_eq!(err.io_kind(), None, "{err:?}");
+            assert!(!retryable(err), "{err:?}");
+        }
+        other => panic!("wrong-shaped reply: expected Decode, got {other:?}"),
+    }
+    assert!(started.elapsed() < Duration::from_secs(2), "{:?}", started.elapsed());
+    server.await.expect("server task");
 }

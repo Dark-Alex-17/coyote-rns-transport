@@ -1101,15 +1101,23 @@ stage) in `src/transport/shared_instance_rpc/tests/mod.rs`,
 `closed_port_connect_has_the_refused_io_kind`,
 `io_kind_is_some_for_exactly_io_and_connect` (the retry rule above as a
 consumer writes it) and the garbage, silent, mid-frame and
-reset-after-the-challenge loopback servers in
+reset-after-the-challenge loopback servers (the last `Io` or `Connect` of a
+retryable kind, since on macOS the reset can land before the dial's
+`connect()` returns) in
 `tests/shared_instance_rpc_api.rs`, the departed servers of
 `tests/shared_instance_rpc_io_kind_probe.rs` (a valid challenge then a FIN
 is `Io`, never `Authentication`; an honest handshake then a FIN instead of
 a reply; the unix-socket close-at-once twin; a unix path nobody listens on
 as `Connect` of kind `NotFound` and a stale socket file as `Connect` of
 kind `ConnectionRefused`; a `backlog=1` listener under four dials, off
-Windows; an accept-then-RST before any byte; the oversized, wide, negative
-and empty frame headers as `Protocol` with no io kind),
+Windows; an accept-then-RST before any byte as `Io` or `Connect` of a
+retryable kind; the oversized, wide, negative and empty frame headers as
+`Protocol` with no io kind; and the stage boundaries a retrying caller must
+not confuse: a half-written header then silence as `Timeout`, a
+non-`#WELCOME#` verdict after a correct answer as `Authentication`, an
+oversized reply header after an honest handshake as `Protocol`, a
+well-framed reply of the wrong shape as `Decode`, and an honest handshake
+then a reset instead of a reply as `Io` of a retryable kind),
 the CPython `honest_rst` mode
 (`stdlib_server_resetting_after_the_request_is_io_connection_reset_every_time`)
 in `tests/shared_instance_rpc_departed_server_python_probe.rs`, off Windows, and the

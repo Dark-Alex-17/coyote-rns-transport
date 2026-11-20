@@ -12,9 +12,9 @@
 //! inside its budget. The README recipe's lines run here; the test supplies the endpoint.
 //! A server that accepts and hangs up without a byte is `Err(RpcError::Io(_))` with the
 //! `UnexpectedEof` kind behind `io_kind()`; so is one that hangs up mid-frame, while one
-//! that resets after a whole challenge is `Io` of a retryable kind; one that writes
-//! garbage is `Protocol` and one that stays silent is `Timeout`, both with no io kind;
-//! and `io_kind()` is `Some` for exactly `Io` and `Connect`.
+//! that resets after a whole challenge is `Io` or `Connect` of a retryable kind; one that
+//! writes garbage is `Protocol` and one that stays silent is `Timeout`, both with no io
+//! kind; and `io_kind()` is `Some` for exactly `Io` and `Connect`.
 
 use std::error::Error;
 use std::fmt::Debug;
@@ -357,10 +357,14 @@ async fn server_that_hangs_up_mid_frame_is_io_unexpected_eof() {
 }
 
 #[tokio::test]
-async fn server_that_resets_after_a_whole_challenge_is_io_of_a_retryable_kind() {
+async fn server_that_resets_after_a_whole_challenge_is_a_retryable_kind_on_either_variant() {
     // A complete legacy challenge (`#CHALLENGE#` + 20 bytes) and then `SO_LINGER 0`: the
     // bytes were right, the peer departed mid-call, so whichever of the client's next
-    // write or read meets the reset, the call is `Io` of a kind worth a retry.
+    // write or read meets the reset, the call is `Io` of a kind worth a retry. On macOS
+    // the reset can land in the same reactor tick as the accept, before the dial's
+    // `connect()` has returned, and the call is then `Connect` of kind `ConnectionReset`;
+    // a consumer classifies by `io_kind()`, so either variant is admitted, never
+    // `Protocol`, `Authentication` or `ConnectionRefused`.
     let mut bytes = 31i32.to_be_bytes().to_vec();
     bytes.extend_from_slice(b"#CHALLENGE#");
     bytes.extend_from_slice(&[0x5au8; 20]);
@@ -371,12 +375,9 @@ async fn server_that_resets_after_a_whole_challenge_is_io_of_a_retryable_kind() 
     .await;
     let key = RpcKey::from_hex(KEY_HEX).expect("hex key");
     let result = interface_stats(&RpcEndpoint::Tcp(addr), &key, WAIT).await;
-    match &result {
-        Err(err @ RpcError::Io(_)) => {
-            assert!(readme_retryable(err), "not a retryable kind: {err:?}");
-        }
-        other => panic!("expected Io, got {other:?}"),
-    }
+    let err = result.as_ref().expect_err("the server never replies");
+    assert!(matches!(err, RpcError::Io(_) | RpcError::Connect(_)), "{err:?}");
+    assert!(readme_retryable(err), "not a retryable kind: {err:?}");
     server.await.expect("server task");
 }
 

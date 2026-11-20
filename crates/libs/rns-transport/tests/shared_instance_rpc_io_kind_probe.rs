@@ -363,11 +363,14 @@ async fn empty_challenge_frame_is_protocol_without_an_io_kind() {
 }
 
 /// A server that accepts and then closes mid-handshake, here with a reset (`SO_LINGER 0`)
-/// rather than a FIN, before it has written a byte. The client's first read meets the
-/// reset or EOF; either way the call is `Io` of a kind in the retry set, never `Protocol`
-/// or `Authentication`.
+/// rather than a FIN, before it has written a byte. Usually the client's first read meets
+/// the reset or EOF and the call is `Io`; on macOS the reset can land in the same reactor
+/// tick as the accept, before the dial's `connect()` has returned, and the call is then
+/// `Connect` of kind `ConnectionReset`. A consumer classifies by `io_kind()`, so either
+/// variant is admitted as long as the kind is in the retry set: never `Protocol`, never
+/// `Authentication`, never `ConnectionRefused`.
 #[tokio::test]
-async fn accept_then_reset_before_any_byte_is_io_retryable() {
+async fn accept_then_reset_before_any_byte_is_a_retryable_kind_on_either_variant() {
     let (listener, endpoint) = loopback_listener().await;
     let server = tokio::spawn(async move {
         let (stream, _) = listener.accept().await.expect("accept");
@@ -376,16 +379,17 @@ async fn accept_then_reset_before_any_byte_is_io_retryable() {
     });
     let started = Instant::now();
     let result = interface_stats(&endpoint, &key(), WAIT).await;
-    assert_io_retryable(&result, "accept then RST");
-    let kind = result.as_ref().err().and_then(RpcError::io_kind);
-    eprintln!("accept then RST: {kind:?}");
+    let err = result.as_ref().expect_err("the server never replies");
+    assert!(matches!(err, RpcError::Io(_) | RpcError::Connect(_)), "accept then RST: {err:?}");
+    assert!(retryable(err), "accept then RST: not classifiable by the README rule: {err:?}");
     assert!(
         matches!(
-            kind,
+            err.io_kind(),
             Some(std::io::ErrorKind::ConnectionReset | std::io::ErrorKind::UnexpectedEof)
         ),
-        "{result:?}"
+        "accept then RST: {err:?}"
     );
+    eprintln!("accept then RST: {err:?}");
     assert!(started.elapsed() < Duration::from_secs(2), "{:?}", started.elapsed());
     server.await.expect("server task");
 }

@@ -123,6 +123,7 @@ impl SharedInstanceRpcRnsd {
 
     /// Fails at once, naming rnsd's exit status and `context`, when the
     /// fixture has exited; a dead rnsd otherwise reads as a refused dial.
+    #[cfg(unix)]
     fn assert_running(&mut self, context: &str) {
         let rnsd = self.guard.child.as_mut().expect("rnsd is held until drop");
         if let Some(status) = shared_instance_rpc_rnsd_exited(rnsd) {

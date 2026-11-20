@@ -73,7 +73,8 @@ pub(super) enum Script {
     /// goes away.
     Silent,
     /// Accept, then shut the socket down at once without writing, so the
-    /// client's first read meets EOF.
+    /// client's first read meets EOF; no drain, since the client never
+    /// writes before its first read.
     Close,
 }
 

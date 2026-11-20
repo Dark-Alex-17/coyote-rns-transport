@@ -153,7 +153,8 @@ async fn stdlib_server_answering_wrong_then_closing_is_authentication_every_time
 /// write fails outright rather than landing in a buffer nobody reads. Not on Windows:
 /// WinSock drops the receive queue on a reset, so there the client's read of the wrong
 /// answer fails first and the call is `Io`, a platform rendering of the reset
-/// rather than a client defect.
+/// rather than a client defect; and `reset()` packs the POSIX `struct linger` layout
+/// (`"ii"`); Winsock's differs.
 #[cfg(not(windows))]
 #[tokio::test]
 async fn stdlib_server_answering_wrong_then_resetting_is_authentication_every_time() {

@@ -132,7 +132,9 @@ impl MockServer {
     }
 
     pub(super) async fn finish(self) -> Observed {
-        self.finish_all().await.into_iter().next().expect("one connection served")
+        let observed = self.finish_all().await;
+        let [one] = <[Observed; 1]>::try_from(observed).expect("exactly one connection served");
+        one
     }
 
     pub(super) async fn finish_all(self) -> Vec<Observed> {

@@ -47,13 +47,16 @@ Removed) bullet of its own, marked as such.
   (`RNS/Transport.py:3162-3164`), which reads as `None`, and the shared
   instance interface for a destination registered inside the rnsd process
   itself (`RNS/Transport.py:2908-2909`), which the path table never holds
-  (`:2211`); a dropped but not
-  yet culled row carries the int `0` where a float timestamp normally is
-  (`RNS/Transport.py:3219-3226`), and `first_hop_timeout` is the float `MTU
-  * latency + DEFAULT_PER_HOP_TIMEOUT` with a path or the int `6` without
-  one (`RNS/Transport.py:3194-3197`), so both slots read int or float as a
-  number; a bin of any other length, and every other wrong shape, is
-  `RpcError::Decode`. `interface_stats` now runs on the same private
+  (`:2211`); a dropped but not yet culled row carries the int `0` where a
+  float timestamp normally is (`RNS/Transport.py:3219-3226`), and
+  `first_hop_timeout` is the float `MTU * latency + DEFAULT_PER_HOP_TIMEOUT`
+  with a path or the int `6` without one (`RNS/Transport.py:3194-3197`), so
+  both slots read int or float as a number; a bin of any other length, and
+  every other wrong shape, is `RpcError::Decode`. The two drop calls say
+  that a `Timeout` or `Io` after the request left the client leaves the
+  effect unknown and that repeating them is safe: `drop path` answers `true`
+  again until the cull pops the entry (`RNS/Transport.py:1088-1090`) and
+  `false` after. `interface_stats` now runs on the same private
   request seam with its request bytes unchanged. Pinned by
   `shared_instance_rpc/tests/paths.rs` (the exact request bytes, `max_hops`
   nil and `\x05`, the bin header before the hash, the row decoding with an
@@ -86,10 +89,11 @@ Removed) bullet of its own, marked as such.
   only a slow cull: the destination may have been re-learned from a fresh
   announce between the pop and a poll, so a caller re-reads `path_table`
   before treating it as a failure, and a destination registered inside the
-  rnsd process never reads as `None`. The two dials are not one
-  transaction: an error after the drop answered `true` leaves the drop in
-  place, and a repeated call then answers `Ok(false)` once the cull has run,
-  which a retrying caller reads as settled. Pinned by
+  rnsd process never reads as `None`. The helper never retries: a poll that
+  fails with a transient error is returned as it is, budget left or not. The
+  dials are not one transaction: an error after the drop answered `true`
+  leaves the drop in place, and a repeated call then answers `Ok(false)` once
+  the cull has run, which a retrying caller reads as settled. Pinned by
   `shared_instance_rpc/tests/paths.rs` (drop `true` then two names then
   `"None"` as `Ok(true)` under one budget and no sooner than two poll
   intervals, drop `false` as `Ok(false)` after exactly one dial, a next hop

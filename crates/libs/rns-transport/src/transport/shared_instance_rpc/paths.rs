@@ -36,7 +36,7 @@ pub async fn path_table(
 ) -> Result<Vec<PathRow>, RpcError> {
     tokio::time::timeout(timeout, async {
         let max_hops = max_hops.map_or(Value::Nil, Value::from);
-        let request = request(vec![("get", Value::from("path_table")), ("max_hops", max_hops)])?;
+        let request = request([("get", Value::from("path_table")), ("max_hops", max_hops)])?;
         super::path_table::path_table(call(endpoint, key, &request).await?)
     })
     .await
@@ -68,7 +68,11 @@ pub async fn next_hop_interface_name(
 /// Drops the path to `destination` (`RNS/Reticulum.py:1305`,
 /// `RNS/Transport.py:3219-3226`): `true` when there was one. The entry
 /// itself lingers until the next cull; see [`drop_path_settled`]. The whole
-/// call runs under `timeout`; outrunning it is [`RpcError::Timeout`].
+/// call runs under `timeout`; outrunning it is [`RpcError::Timeout`]. A
+/// `Timeout` or [`RpcError::Io`] after the request left the client leaves
+/// the drop's effect unknown; repeating the call is safe, since rnsd
+/// answers `true` again until the cull pops the entry
+/// (`RNS/Transport.py:1088-1090`) and `false` after.
 pub async fn drop_path(
     endpoint: &RpcEndpoint,
     key: &RpcKey,
@@ -85,7 +89,10 @@ pub async fn drop_path(
 /// many were dropped. The request key is `destination_hash` even though the
 /// value is a transport hash; that is the name `rpc_loop` reads
 /// (`RNS/Reticulum.py:1306`). The whole call runs under `timeout`;
-/// outrunning it is [`RpcError::Timeout`].
+/// outrunning it is [`RpcError::Timeout`]. A `Timeout` or [`RpcError::Io`]
+/// after the request left the client leaves the drops' effect unknown;
+/// repeating the call is safe and re-counts the entries still lingering
+/// before the cull (`RNS/Transport.py:1088-1090`).
 pub async fn drop_all_via(
     endpoint: &RpcEndpoint,
     key: &RpcKey,
@@ -146,11 +153,14 @@ pub async fn first_hop_timeout(
 /// destination may have been re-learned between the pop and a poll, because
 /// a fresh announce arrived, so a caller re-reads [`path_table`] before
 /// treating it as a failure; and a destination registered inside the rnsd
-/// process never reads as `None` (see [`next_hop_interface_name`]). The two
-/// dials are not one transaction: an error after the drop answered `true`
-/// leaves the drop in place, and a repeated call then returns `Ok(false)`
-/// once the cull has run, so a caller that retries reads that `Ok(false)`
-/// as settled rather than as nothing to drop, or re-reads [`path_table`].
+/// process never reads as `None` (see [`next_hop_interface_name`]). Like
+/// the rest of this library the helper never retries: a poll that fails
+/// with a transient error (see [`RpcError::is_transient`]) is returned as
+/// it is, budget left or not. The dials are not one transaction: an error
+/// after the drop answered `true` leaves the drop in place, and a repeated
+/// call then returns `Ok(false)` once the cull has run, so a caller that
+/// retries reads that `Ok(false)` as settled rather than as nothing to
+/// drop, or re-reads [`path_table`].
 pub async fn drop_path_settled(
     endpoint: &RpcEndpoint,
     key: &RpcKey,
@@ -176,12 +186,14 @@ async fn next_hop_interface_name_untimed(
     destination: &AddressHash,
 ) -> Result<Option<String>, RpcError> {
     let request = hash_request("get", "next_hop_if_name", destination)?;
+    // Python's `str()` always packs valid UTF-8; the arm for a str that is
+    // not is kept apart from a reply that is no str at all.
     match call(endpoint, key, &request).await? {
         Value::Nil => Ok(None),
         Value::String(name) => match name.as_str() {
             Some("None") => Ok(None),
             Some(name) => Ok(Some(name.to_owned())),
-            None => Err(RpcError::Decode("reply is not a str".to_string())),
+            None => Err(RpcError::Decode("reply str is not utf-8".to_string())),
         },
         _ => Err(RpcError::Decode("reply is not a str".to_string())),
     }
@@ -202,7 +214,7 @@ async fn drop_path_untimed(
 /// `{verb: name, "destination_hash": <bin>}`, the shape every hash-carrying
 /// request shares (`RNS/Reticulum.py:1289`, `:1291`, `:1305-1306`).
 fn hash_request(verb: &str, name: &str, hash: &AddressHash) -> Result<Vec<u8>, RpcError> {
-    request(vec![
+    request([
         (verb, Value::from(name)),
         ("destination_hash", Value::Binary(hash.as_slice().to_vec())),
     ])
@@ -213,7 +225,7 @@ fn hash_request(verb: &str, name: &str, hash: &AddressHash) -> Result<Vec<u8>, R
 /// the io error path exists only to keep the builder free of panics, and it
 /// reads as [`RpcError::Protocol`], the variant for bytes that are wrong,
 /// since no variant names a request that would not encode.
-fn request(pairs: Vec<(&str, Value)>) -> Result<Vec<u8>, RpcError> {
+fn request<'a>(pairs: impl IntoIterator<Item = (&'a str, Value)>) -> Result<Vec<u8>, RpcError> {
     let map = Value::Map(pairs.into_iter().map(|(key, value)| (Value::from(key), value)).collect());
     let mut bytes = Vec::new();
     rmpv::encode::write_value(&mut bytes, &map)

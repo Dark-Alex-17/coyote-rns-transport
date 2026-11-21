@@ -31,8 +31,8 @@ fn shared_instance_rpc_retryable(err: &RpcError) -> bool {
 }
 
 // The kind-only predicate above is `RpcError::is_transient()` without its `Timeout` arm:
-// the two agree on every `Io` and `Connect`, and `poll_interface_stats` returns a `Timeout`
-// as the reply instead of dialling again.
+// the two agree on every variant but `Timeout`, which `poll_interface_stats` returns as
+// the reply instead of dialling again.
 #[test]
 fn shared_instance_rpc_retryable_is_is_transient_without_the_timeout_arm() {
     use std::io::{Error, ErrorKind};
@@ -47,6 +47,15 @@ fn shared_instance_rpc_retryable_is_is_transient_without_the_timeout_arm() {
         for err in [RpcError::Io(Error::from(kind)), RpcError::Connect(Error::from(kind))] {
             assert_eq!(shared_instance_rpc_retryable(&err), err.is_transient(), "{err:?}");
         }
+    }
+    for err in [
+        RpcError::Authentication,
+        RpcError::Protocol("short".into()),
+        RpcError::Decode("shape".into()),
+        RpcError::UnsupportedDigest("sha1".into()),
+        RpcError::InvalidKeyMaterial,
+    ] {
+        assert_eq!(shared_instance_rpc_retryable(&err), err.is_transient(), "{err:?}");
     }
     assert!(RpcError::Timeout.is_transient());
     assert!(!shared_instance_rpc_retryable(&RpcError::Timeout));

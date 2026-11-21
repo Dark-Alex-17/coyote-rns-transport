@@ -174,6 +174,20 @@ async fn next_hop_interface_name_rejects_a_non_str_reply() {
     let result = next_hop_interface_name(&endpoint(&server), &key(), &destination(), WAIT).await;
     assert_decode(&result, "str");
     server.finish().await;
+    // A one-byte fixstr holding 0xff: a str on the wire, but not UTF-8.
+    let server = MockServer::spawn(Script::Exchange {
+        form: ServerForm::Modern(Digest::Sha256),
+        key: key().as_bytes().to_vec(),
+        answer: Answer::Correct,
+        reply: Reply::Frame(vec![0xa1, 0xff]),
+    })
+    .await;
+    let result = next_hop_interface_name(&endpoint(&server), &key(), &destination(), WAIT).await;
+    match &result {
+        Err(RpcError::Decode(text)) => assert_eq!(text, "reply str is not utf-8"),
+        other => panic!("expected Decode for a non-utf-8 str, got {other:?}"),
+    }
+    server.finish().await;
 }
 
 #[tokio::test]

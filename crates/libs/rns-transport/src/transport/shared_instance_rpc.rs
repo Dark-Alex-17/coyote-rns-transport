@@ -297,10 +297,11 @@ pub async fn interface_stats(
     key: &RpcKey,
     timeout: Duration,
 ) -> Result<InterfaceStats, RpcError> {
-    let value = tokio::time::timeout(timeout, call(endpoint, key, INTERFACE_STATS_REQUEST))
-        .await
-        .map_err(|_| RpcError::Timeout)??;
-    decode::interface_stats(value)
+    tokio::time::timeout(timeout, async {
+        decode::interface_stats(call(endpoint, key, INTERFACE_STATS_REQUEST).await?)
+    })
+    .await
+    .map_err(|_| RpcError::Timeout)?
 }
 
 /// One connection to `endpoint` carrying `request`; the reply as decoded

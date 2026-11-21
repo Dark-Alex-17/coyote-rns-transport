@@ -210,7 +210,8 @@ async fn probe_python_stdlib_listener_takes_any_key_length_and_refuses_a_wrong_k
 /// `next_hop_interface_name` reads the str `"None"` as `None`;
 /// `first_hop_timeout` reads the int `6` as `6.0`; `drop_path` is the bin
 /// pin, since the listener answers whether `destination_hash` arrived as
-/// `bytes`; `drop_all_via` reads the count; and `drop_path_settled` is
+/// `bytes`; `drop_all_via`, handed the rows' next-hop transport hash, reads
+/// the canned count; and `drop_path_settled` is
 /// `Ok(true)` after the drop and one next-hop poll, two connections.
 #[tokio::test]
 #[ignore = "requires local Python Reticulum checkout"]
@@ -219,6 +220,7 @@ async fn probe_python_stdlib_listener_answers_shared_instance_rpc_path_calls_wit
     let listener = StdlibListener::spawn(STDLIB_LISTENER_SIXTEEN_BYTE_KEY).await;
     let key = RpcKey::from_hex(STDLIB_LISTENER_SIXTEEN_BYTE_KEY).expect("configured key");
     let destination = AddressHash::new([0x11; 16]);
+    let via = AddressHash::new([0x22; 16]);
 
     let rows = path_table(&listener.endpoint, &key, None, STDLIB_LISTENER_CALL)
         .await
@@ -263,7 +265,7 @@ async fn probe_python_stdlib_listener_answers_shared_instance_rpc_path_calls_wit
     assert!(dropped, "destination_hash did not arrive as bytes");
     listener.wait_served(5).await;
 
-    let count = drop_all_via(&listener.endpoint, &key, &destination, STDLIB_LISTENER_CALL)
+    let count = drop_all_via(&listener.endpoint, &key, &via, STDLIB_LISTENER_CALL)
         .await
         .expect("drop_all_via");
     assert_eq!(count, 2);

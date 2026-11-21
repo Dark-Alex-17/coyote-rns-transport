@@ -8,7 +8,7 @@ use rmpv::Value;
 
 use super::decode::{required, required_str, required_u64, wrong_type, Map};
 use super::RpcError;
-use crate::hash::AddressHash;
+use crate::hash::{AddressHash, ADDRESS_HASH_SIZE};
 
 /// One row of the shared instance's path table (`RNS/Reticulum.py:1638-1648`).
 #[non_exhaustive]
@@ -65,7 +65,7 @@ fn path_row(entry: &Value) -> Result<PathRow, RpcError> {
 /// Python packs `bytes` as msgpack bin (`RNS/vendor/umsgpack.py:505-506`).
 fn required_hash(map: &Map, key: &str) -> Result<AddressHash, RpcError> {
     match required(map, key)? {
-        Value::Binary(bytes) => <[u8; 16]>::try_from(bytes.as_slice())
+        Value::Binary(bytes) => <[u8; ADDRESS_HASH_SIZE]>::try_from(bytes.as_slice())
             .map(AddressHash::new)
             .map_err(|_| wrong_type(key, "a 16-byte bin")),
         _ => Err(wrong_type(key, "a 16-byte bin")),

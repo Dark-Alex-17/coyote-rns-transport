@@ -237,6 +237,13 @@ async fn drop_path_settled_polls_until_the_path_is_gone() {
         .await
         .expect("drop_path_settled");
     assert!(settled);
+    // Two polls read a name before the third reads "None": two sleeps of
+    // the 50 ms cadence, which tokio's sleep never cuts short.
+    assert!(
+        started.elapsed() >= 2 * Duration::from_millis(50),
+        "{:?} is shorter than two poll intervals",
+        started.elapsed()
+    );
     assert!(started.elapsed() < WAIT, "{:?}", started.elapsed());
     let observed = server.finish_all().await;
     assert_eq!(observed.len(), 4);

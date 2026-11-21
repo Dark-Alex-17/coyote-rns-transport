@@ -25,8 +25,8 @@ const SETTLE_POLL: Duration = Duration::from_millis(50);
 /// `:1638-1648`), every known destination or, with `max_hops`, only those at
 /// most that many hops away. The request always carries the `max_hops` key,
 /// nil when `None`: rnsd reads `call["max_hops"]` and a missing key raises a
-/// `KeyError` that `rpc_loop` logs at `RNS/Reticulum.py:1333` without
-/// answering or closing, so the client would only hang to its timeout. The
+/// `KeyError` that `rpc_loop` logs at `RNS/Reticulum.py:1333-1334` without
+/// answering, so the client would only hang to its timeout. The
 /// whole call runs under `timeout`; outrunning it is [`RpcError::Timeout`].
 pub async fn path_table(
     endpoint: &RpcEndpoint,
@@ -44,11 +44,15 @@ pub async fn path_table(
 }
 
 /// The `Type[name]` of the interface the next hop towards `destination` is
-/// reached on, `None` without a path. rnsd answers
+/// reached on, `None` without one. rnsd answers
 /// `str(Transport.next_hop_interface(d))` (`RNS/Reticulum.py:1715`), and
-/// `next_hop_interface` returns `None` without a path
-/// (`RNS/Transport.py:3162-3164`), so the four-character str `"None"` reads
-/// as no path, as does a msgpack nil. The whole call runs under `timeout`;
+/// `next_hop_interface` (`RNS/Transport.py:3162-3164`) answers the receiving
+/// interface of the path table entry, the shared instance interface for a
+/// destination registered inside the rnsd process itself (its
+/// `destinations_map`, `RNS/Transport.py:2908-2909`, which keeps such
+/// destinations out of the path table, `:2211`), and `None` otherwise, so
+/// the four-character str `"None"` reads as no path, as does a msgpack nil.
+/// The whole call runs under `timeout`;
 /// outrunning it is [`RpcError::Timeout`].
 pub async fn next_hop_interface_name(
     endpoint: &RpcEndpoint,
@@ -138,9 +142,15 @@ pub async fn first_hop_timeout(
 ///
 /// The polls run every 50 ms, and every dial (the drop and each poll)
 /// shares the single `timeout` budget; outrunning it is
-/// [`RpcError::Timeout`]. That `Timeout` can also mean the destination was
-/// re-learned between the pop and a poll, because a fresh announce arrived,
-/// so a caller re-reads [`path_table`] before treating it as a failure.
+/// [`RpcError::Timeout`]. That `Timeout` does not only mean a slow cull: the
+/// destination may have been re-learned between the pop and a poll, because
+/// a fresh announce arrived, so a caller re-reads [`path_table`] before
+/// treating it as a failure; and a destination registered inside the rnsd
+/// process never reads as `None` (see [`next_hop_interface_name`]). The two
+/// dials are not one transaction: an error after the drop answered `true`
+/// leaves the drop in place, and a repeated call then returns `Ok(false)`
+/// once the cull has run, so a caller that retries reads that `Ok(false)`
+/// as settled rather than as nothing to drop, or re-reads [`path_table`].
 pub async fn drop_path_settled(
     endpoint: &RpcEndpoint,
     key: &RpcKey,
@@ -200,7 +210,9 @@ fn hash_request(verb: &str, name: &str, hash: &AddressHash) -> Result<Vec<u8>, R
 
 /// A msgpack map with the keys in the given order, as `mp.packb` of a dict
 /// literal would emit them. Writing into a `Vec` does not fail in practice;
-/// the io error path exists only to keep the builder free of panics.
+/// the io error path exists only to keep the builder free of panics, and it
+/// reads as [`RpcError::Protocol`], the variant for bytes that are wrong,
+/// since no variant names a request that would not encode.
 fn request(pairs: Vec<(&str, Value)>) -> Result<Vec<u8>, RpcError> {
     let map = Value::Map(pairs.into_iter().map(|(key, value)| (Value::from(key), value)).collect());
     let mut bytes = Vec::new();

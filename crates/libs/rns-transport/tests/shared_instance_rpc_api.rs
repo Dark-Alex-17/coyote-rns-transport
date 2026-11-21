@@ -317,7 +317,7 @@ fn is_transient_agrees_with_the_readme_retry_rule() {
     for err in &errors {
         assert_eq!(err.is_transient(), readme_retryable(err), "{err:?}");
     }
-    // Eight retryable kinds and Timeout; the rest, ConnectionRefused included, stay.
+    // Four kinds on each of Io and Connect, and Timeout; the rest, ConnectionRefused included, stay.
     assert_eq!(errors.iter().filter(|err| err.is_transient()).count(), 9);
     assert!(RpcError::Timeout.is_transient());
     assert!(!RpcError::Connect(std::io::ErrorKind::ConnectionRefused.into()).is_transient());
@@ -446,6 +446,186 @@ async fn readme_recipe_runs_against_a_closed_port() {
     let port = free_loopback_port().await;
     let result = readme_recipe(dir.path(), RpcEndpoint::Tcp(([127, 0, 0, 1], port).into())).await;
     assert!(matches!(result, Err(RpcError::Connect(_))), "{result:?}");
+}
+
+// ---------------------------------------------------------------------------------------
+// The edges the documented contract promises that the pins above leave to the reader:
+// one budget shared across every dial of `drop_path_settled`, a nil next hop, the
+// silence-after-handshake form of `Timeout` on a path call, a `via` of the wrong length,
+// and a wrong-shaped poll reply surfacing at once.
+// ---------------------------------------------------------------------------------------
+
+/// A loopback listener that answers `first` to its first connection and `rest` to every
+/// connection after that, forever; the counter is the number of connections served. The
+/// task never ends on its own: abort it.
+async fn endless_server(
+    first: Value,
+    rest: Value,
+) -> (RpcEndpoint, std::sync::Arc<std::sync::atomic::AtomicUsize>, tokio::task::JoinHandle<()>) {
+    use std::sync::atomic::{AtomicUsize, Ordering};
+    let listener = TcpListener::bind("127.0.0.1:0").await.expect("bind loopback");
+    let endpoint = RpcEndpoint::Tcp(listener.local_addr().expect("listener address"));
+    let served = std::sync::Arc::new(AtomicUsize::new(0));
+    let counter = served.clone();
+    let server = tokio::spawn(async move {
+        let mut reply = first;
+        loop {
+            let (mut stream, _) = listener.accept().await.expect("accept");
+            let request = serve_honest_handshake(&mut stream).await;
+            let n = counter.fetch_add(1, Ordering::SeqCst);
+            if n == 0 {
+                assert_eq!(request, hash_request(DROP_PATH_REQUEST_HEAD), "first dial is the drop");
+            } else {
+                assert_eq!(request, hash_request(NEXT_HOP_REQUEST_HEAD), "dial {n} is a poll");
+            }
+            stream.write_all(&frame(&pack(&reply))).await.expect("write reply");
+            stream.flush().await.expect("flush");
+            stream.shutdown().await.expect("fin");
+            reply = rest.clone();
+        }
+    });
+    (endpoint, served, server)
+}
+
+/// Plan (b): `drop_path`, then poll `next_hop_interface_name` every 50 ms until it reads
+/// `None` or the SAME `timeout` budget (shared across all dials) runs out -> `Timeout`.
+/// A next hop that never reads `None` (the destination was re-learned, as the rustdoc
+/// warns) must end in `Timeout` close to the one budget, after several polls at the
+/// 50 ms cadence: never a success, never a per-dial budget that multiplies the wait.
+#[tokio::test]
+async fn drop_path_settled_that_never_settles_is_timeout_under_one_shared_budget() {
+    let (endpoint, served, server) =
+        endless_server(Value::from(true), Value::from(INTERFACE_NAME)).await;
+    let key = RpcKey::from_hex(KEY_HEX).expect("hex key");
+    let budget = Duration::from_millis(700);
+    let started = Instant::now();
+    let result = drop_path_settled(&endpoint, &key, &destination(), budget).await;
+    let elapsed = started.elapsed();
+    server.abort();
+    match &result {
+        Err(err @ RpcError::Timeout) => {
+            assert_eq!(err.io_kind(), None, "{err:?}");
+            assert!(err.is_transient(), "{err:?}");
+        }
+        other => panic!("a path that never settles: expected Timeout, got {other:?}"),
+    }
+    assert!(elapsed >= Duration::from_millis(600), "{elapsed:?} returned before the budget");
+    assert!(elapsed < Duration::from_millis(1500), "{elapsed:?} is more than one budget");
+    let dials = served.load(std::sync::atomic::Ordering::SeqCst);
+    // One drop and then polls at a 50 ms cadence: 700 ms holds a dozen; at least four
+    // rules out a single poll followed by a sleep to the budget.
+    assert!(dials >= 5, "only {dials} dials in {elapsed:?}: no 50 ms poll cadence");
+    eprintln!("drop_path_settled never settles: {dials} dials in {elapsed:?} -> {result:?}");
+}
+
+/// Plan: `next_hop_interface_name` reads nil as `None`, beside the str `"None"`.
+#[tokio::test]
+async fn next_hop_interface_name_reads_nil_as_none() {
+    let key = RpcKey::from_hex(KEY_HEX).expect("hex key");
+    let (endpoint, server) = canned_server(vec![Value::Nil]).await;
+    let name = next_hop_interface_name(&endpoint, &key, &destination(), WAIT).await;
+    assert_eq!(name.expect("next_hop_interface_name"), None);
+    assert_eq!(served_request(server).await, hash_request(NEXT_HOP_REQUEST_HEAD));
+}
+
+/// Plan: `max_hops` is `Value::from(u8)`, so a 255 crosses the wire as a msgpack uint
+/// rnsd's `call["max_hops"]` reads as the int 255, and a 0 as the int 0, not nil.
+#[tokio::test]
+async fn path_table_max_hops_edges_cross_the_wire_as_their_integer() {
+    let key = RpcKey::from_hex(KEY_HEX).expect("hex key");
+    for max_hops in [0u8, 255u8] {
+        let (endpoint, server) = canned_server(vec![Value::Array(vec![])]).await;
+        path_table(&endpoint, &key, Some(max_hops), WAIT).await.expect("path_table");
+        let request = served_request(server).await;
+        let value = rmpv::decode::read_value(&mut request.as_slice()).expect("a msgpack value");
+        assert_eq!(value["get"].as_str(), Some("path_table"), "{value:?}");
+        assert_eq!(value["max_hops"].as_u64(), Some(u64::from(max_hops)), "{value:?}");
+    }
+}
+
+/// An honest server that reads the request and then says nothing: every call wraps its
+/// whole exchange in the one `timeout`, so the reply read is `Timeout`, not a hang.
+async fn silent_after_the_request() -> (RpcEndpoint, tokio::task::JoinHandle<Vec<u8>>) {
+    let listener = TcpListener::bind("127.0.0.1:0").await.expect("bind loopback");
+    let endpoint = RpcEndpoint::Tcp(listener.local_addr().expect("listener address"));
+    let server = tokio::spawn(async move {
+        let (mut stream, _) = listener.accept().await.expect("accept");
+        let request = serve_honest_handshake(&mut stream).await;
+        hold_until_client_leaves(stream).await;
+        request
+    });
+    (endpoint, server)
+}
+
+#[tokio::test]
+async fn path_table_against_a_server_silent_after_the_request_is_timeout() {
+    let key = RpcKey::from_hex(KEY_HEX).expect("hex key");
+    let (endpoint, server) = silent_after_the_request().await;
+    let started = Instant::now();
+    let result = path_table(&endpoint, &key, None, Duration::from_millis(700)).await;
+    let elapsed = started.elapsed();
+    assert!(matches!(result, Err(RpcError::Timeout)), "{result:?}");
+    assert!(elapsed >= Duration::from_millis(600), "{elapsed:?}");
+    assert!(elapsed < Duration::from_secs(4), "{elapsed:?}");
+    assert_eq!(server.await.expect("server task"), PATH_TABLE_REQUEST_NO_MAX_HOPS);
+}
+
+/// The drop dial itself spends the helper's budget: silence after the drop request is
+/// `Timeout` inside that one budget, with no poll ever sent.
+#[tokio::test]
+async fn drop_path_settled_against_a_server_silent_after_the_drop_is_timeout() {
+    let key = RpcKey::from_hex(KEY_HEX).expect("hex key");
+    let (endpoint, server) = silent_after_the_request().await;
+    let started = Instant::now();
+    let result =
+        drop_path_settled(&endpoint, &key, &destination(), Duration::from_millis(700)).await;
+    let elapsed = started.elapsed();
+    assert!(matches!(result, Err(RpcError::Timeout)), "{result:?}");
+    assert!(elapsed >= Duration::from_millis(600), "{elapsed:?}");
+    assert!(elapsed < Duration::from_millis(1500), "{elapsed:?} is more than one budget");
+    assert_eq!(server.await.expect("server task"), hash_request(DROP_PATH_REQUEST_HEAD));
+}
+
+/// Plan: 16-byte bins -> `AddressHash`; wrong length -> `Decode`. `via` is an
+/// `AddressHash` too, so a 15-byte `via` is `Decode` just like a 15-byte `hash`.
+#[tokio::test]
+async fn path_table_via_of_the_wrong_length_is_decode() {
+    let key = RpcKey::from_hex(KEY_HEX).expect("hex key");
+    let short_via = map(vec![
+        ("hash", Value::Binary(DESTINATION.to_vec())),
+        ("timestamp", Value::F64(1.0)),
+        ("via", Value::Binary(vec![0x5a; 15])),
+        ("hops", Value::from(1)),
+        ("expires", Value::F64(2.0)),
+        ("interface", Value::from(INTERFACE_NAME)),
+    ]);
+    let (endpoint, server) = canned_server(vec![Value::Array(vec![short_via])]).await;
+    let result = path_table(&endpoint, &key, None, WAIT).await;
+    match &result {
+        Err(err @ RpcError::Decode(_)) => {
+            assert_eq!(err.io_kind(), None, "{err:?}");
+            assert!(!err.is_transient(), "{err:?}");
+        }
+        other => panic!("15-byte via: expected Decode, got {other:?}"),
+    }
+    served_request(server).await;
+}
+
+/// A poll that reads a reply of the wrong shape is a `Decode` the helper surfaces at
+/// once: it does not keep polling a server that answers nonsense until the budget runs
+/// out, since `Decode` is not transient.
+#[tokio::test]
+async fn drop_path_settled_surfaces_a_wrong_shaped_poll_reply_as_decode_at_once() {
+    let key = RpcKey::from_hex(KEY_HEX).expect("hex key");
+    let (endpoint, server) = canned_server(vec![Value::from(true), Value::from(7)]).await;
+    let started = Instant::now();
+    let result = drop_path_settled(&endpoint, &key, &destination(), WAIT).await;
+    let elapsed = started.elapsed();
+    eprintln!("drop_path_settled wrong-shaped poll: {result:?} in {elapsed:?}");
+    assert!(matches!(result, Err(RpcError::Decode(_))), "{result:?}");
+    assert!(elapsed < Duration::from_secs(2), "{elapsed:?}");
+    let requests = server.await.expect("server task");
+    assert_eq!(requests.len(), 2, "{requests:?}");
 }
 
 const CHALLENGE: &[u8] = b"#CHALLENGE#";
@@ -604,7 +784,6 @@ async fn path_table_always_sends_max_hops_nil_for_none() {
     path_table(&endpoint, &key, Some(5), WAIT).await.expect("path_table");
     let request = served_request(server).await;
     assert_eq!(request, PATH_TABLE_REQUEST_MAX_HOPS_FIVE);
-    assert_eq!(request.last(), Some(&0x05));
 }
 
 #[tokio::test]
@@ -635,7 +814,6 @@ async fn path_table_rows_are_read_by_name_and_keep_the_raw_entry() {
     assert_eq!(rows[1].hops, 0);
     assert_eq!(rows[1].raw, dropped);
     assert_eq!(rows[1].raw["extra"].as_str(), Some("unknown"), "{:?}", rows[1].raw);
-    assert_eq!(rows[0].clone(), rows[0]);
     assert_ne!(rows[0], rows[1]);
 }
 
@@ -716,6 +894,13 @@ async fn drop_path_settled_polls_the_next_hop_until_it_reads_none() {
     let started = Instant::now();
     let settled = drop_path_settled(&endpoint, &key, &destination(), WAIT).await;
     assert!(settled.expect("drop_path_settled"));
+    // One poll read a name before the second read "None": one sleep of the documented
+    // 50 ms cadence, which tokio's sleep never cuts short.
+    assert!(
+        started.elapsed() >= Duration::from_millis(50),
+        "{:?} is shorter than one poll interval",
+        started.elapsed()
+    );
     assert!(started.elapsed() < WAIT, "{:?}", started.elapsed());
     let requests = server.await.expect("server task");
     assert_eq!(requests.len(), 3, "{requests:?}");

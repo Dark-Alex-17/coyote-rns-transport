@@ -167,7 +167,8 @@ pub enum RpcError {
     #[error("shared instance rpc authentication failed")]
     Authentication,
     /// The bytes were wrong: a bad length, an oversized frame, or an
-    /// unexpected handshake token.
+    /// unexpected handshake token (or, in theory only, a request that would
+    /// not encode; writing msgpack into a `Vec` does not fail).
     #[error("shared instance rpc protocol error: {0}")]
     Protocol(String),
     /// Every io failure after the dial succeeded (a failed write or flush, a

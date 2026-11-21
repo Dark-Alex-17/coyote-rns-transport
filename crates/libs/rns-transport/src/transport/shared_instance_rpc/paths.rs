@@ -85,10 +85,14 @@ pub async fn drop_path(
         .map_err(|_| RpcError::Timeout)?
 }
 
-/// Drops every path whose next hop is the transport identity
-/// `transport_hash` (`RNS/Reticulum.py:1306`, `:1689-1695`) and returns how
-/// many were dropped. The request key is `destination_hash` even though the
-/// value is a transport hash; that is the name `rpc_loop` reads
+/// Drops every path whose `via` ([`PathRow::via`]) equals `transport_hash`
+/// (`RNS/Reticulum.py:1306`, `:1689-1695`) and returns how many were
+/// dropped. That slot is the announce's `received_from`: the relaying
+/// transport's identity, or the destination hash itself for a path heard
+/// directly (`RNS/Transport.py:2177-2178`, `:2202`), so passing a
+/// destination hash drops its own direct one-hop path. The request key is
+/// `destination_hash` even though the value is usually a transport hash;
+/// that is the name `rpc_loop` reads
 /// (`RNS/Reticulum.py:1306`). The whole call runs under `timeout`;
 /// outrunning it is [`RpcError::Timeout`]. A `Timeout` or [`RpcError::Io`]
 /// after the request left the client leaves the drops' effect unknown;

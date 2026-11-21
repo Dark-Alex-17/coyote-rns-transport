@@ -510,7 +510,7 @@ async fn drop_path_settled_that_never_settles_is_timeout_under_one_shared_budget
         other => panic!("a path that never settles: expected Timeout, got {other:?}"),
     }
     assert!(elapsed >= Duration::from_millis(600), "{elapsed:?} returned before the budget");
-    assert!(elapsed < Duration::from_millis(1500), "{elapsed:?} is more than one budget");
+    assert!(elapsed < Duration::from_millis(1200), "{elapsed:?} is more than one budget");
     let dials = served.load(std::sync::atomic::Ordering::SeqCst);
     // One drop and then polls at a 50 ms cadence: 700 ms holds a dozen; one drop and at
     // least four polls (five dials) rules out a single poll followed by a sleep to the budget.
@@ -529,7 +529,9 @@ async fn next_hop_interface_name_reads_nil_as_none() {
 }
 
 /// Plan: `max_hops` is `Value::from(u8)`, so a 255 crosses the wire as a msgpack uint
-/// rnsd's `call["max_hops"]` reads as the int 255, and a 0 as the int 0, not nil.
+/// rnsd's `call["max_hops"]` reads as the int 255, and a 0 as the int 0, not nil. Above
+/// the positive fixint range the value takes the uint 8 form: 200 is `\xcc\xc8`, the
+/// same int to rnsd.
 #[tokio::test]
 async fn path_table_max_hops_edges_cross_the_wire_as_their_integer() {
     let key = RpcKey::from_hex(KEY_HEX).expect("hex key");
@@ -541,6 +543,13 @@ async fn path_table_max_hops_edges_cross_the_wire_as_their_integer() {
         assert_eq!(value["get"].as_str(), Some("path_table"), "{value:?}");
         assert_eq!(value["max_hops"].as_u64(), Some(u64::from(max_hops)), "{value:?}");
     }
+    let (endpoint, server) = canned_server(vec![Value::Array(vec![])]).await;
+    path_table(&endpoint, &key, Some(200), WAIT).await.expect("path_table");
+    assert_eq!(
+        served_request(server).await,
+        b"\x82\xa3get\xaapath_table\xa8max_hops\xcc\xc8",
+        "200 is the uint 8 form"
+    );
 }
 
 /// An honest server that reads the request and then says nothing: every call wraps its
@@ -582,7 +591,7 @@ async fn drop_path_settled_against_a_server_silent_after_the_drop_is_timeout() {
     let elapsed = started.elapsed();
     assert!(matches!(result, Err(RpcError::Timeout)), "{result:?}");
     assert!(elapsed >= Duration::from_millis(600), "{elapsed:?}");
-    assert!(elapsed < Duration::from_millis(1500), "{elapsed:?} is more than one budget");
+    assert!(elapsed < Duration::from_millis(1200), "{elapsed:?} is more than one budget");
     assert_eq!(server.await.expect("server task"), hash_request(DROP_PATH_REQUEST_HEAD));
 }
 
@@ -626,6 +635,53 @@ async fn drop_path_settled_surfaces_a_wrong_shaped_poll_reply_as_decode_at_once(
     assert!(elapsed < Duration::from_secs(2), "{elapsed:?}");
     let requests = server.await.expect("server task");
     assert_eq!(requests.len(), 2, "{requests:?}");
+}
+
+/// A hash of the right length but the wrong msgpack type (a sixteen-char str where
+/// rnsd writes a 16-byte bin, `RNS/vendor/umsgpack.py:505-506`) is `Decode`, for `hash`
+/// and for `via` alike: the typed row is bytes-only, never a str read as bytes.
+#[tokio::test]
+async fn path_table_hash_or_via_as_a_sixteen_char_str_is_decode() {
+    let key = RpcKey::from_hex(KEY_HEX).expect("hex key");
+    let sixteen = "0123456789abcdef";
+    for (label, hash, via) in [
+        ("hash", Value::from(sixteen), Value::Binary(VIA.to_vec())),
+        ("via", Value::Binary(DESTINATION.to_vec()), Value::from(sixteen)),
+    ] {
+        let row = map(vec![
+            ("hash", hash),
+            ("timestamp", Value::F64(1.0)),
+            ("via", via),
+            ("hops", Value::from(1)),
+            ("expires", Value::F64(2.0)),
+            ("interface", Value::from(INTERFACE_NAME)),
+        ]);
+        let (endpoint, server) = canned_server(vec![Value::Array(vec![row])]).await;
+        let result = path_table(&endpoint, &key, None, WAIT).await;
+        match &result {
+            Err(err @ RpcError::Decode(message)) => {
+                assert!(message.contains(label), "{label}: {err:?}");
+                assert_eq!(err.io_kind(), None, "{label}: {err:?}");
+                assert!(!err.is_transient(), "{label}: {err:?}");
+            }
+            other => panic!("{label} as a 16-char str: expected Decode, got {other:?}"),
+        }
+        served_request(server).await;
+    }
+}
+
+/// A mistyped drop reply inside `drop_path_settled` (an int where `expire_path` returns
+/// a bool, `RNS/Transport.py:3219-3226`) is `Decode` after exactly one dial: the helper
+/// polls only after a `true` drop.
+#[tokio::test]
+async fn drop_path_settled_with_a_mistyped_drop_reply_is_decode_without_polling() {
+    let key = RpcKey::from_hex(KEY_HEX).expect("hex key");
+    let (endpoint, server) = canned_server(vec![Value::from(1)]).await;
+    let started = Instant::now();
+    let result = drop_path_settled(&endpoint, &key, &destination(), WAIT).await;
+    assert!(matches!(result, Err(RpcError::Decode(_))), "{result:?}");
+    assert!(started.elapsed() < Duration::from_secs(1), "no poll: {:?}", started.elapsed());
+    assert_eq!(served_request(server).await, hash_request(DROP_PATH_REQUEST_HEAD));
 }
 
 const CHALLENGE: &[u8] = b"#CHALLENGE#";
@@ -772,6 +828,9 @@ fn row(hash: Vec<u8>, timestamp: Value, hops: u8, extra: Vec<(&str, Value)>) -> 
     map(pairs)
 }
 
+/// The request carries `max_hops` as nil for `None` and as the int otherwise, and an
+/// empty reply list, what a fresh rnsd with no peers sends (`RNS/Reticulum.py:1638`
+/// over an empty `Transport.path_table`), is `Ok` and empty, not a decode error.
 #[tokio::test]
 async fn path_table_always_sends_max_hops_nil_for_none() {
     let key = RpcKey::from_hex(KEY_HEX).expect("hex key");
@@ -1071,7 +1130,7 @@ async fn drop_path_settled_whose_server_vanishes_mid_poll_never_reports_settled(
     let elapsed = started.elapsed();
     eprintln!("drop_path_settled with a vanished server: {result:?} in {elapsed:?}");
     assert!(result.is_err(), "a poll that never read None reported {result:?}");
-    assert!(elapsed < Duration::from_millis(1500), "{elapsed:?} is more than one budget");
+    assert!(elapsed < Duration::from_millis(1200), "{elapsed:?} is more than one budget");
     let requests = server.await.expect("server task");
     assert_eq!(requests.len(), 2, "{requests:?}");
 }

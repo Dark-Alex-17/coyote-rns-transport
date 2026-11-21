@@ -20,8 +20,12 @@ pub struct PathRow {
     /// (`RNS/Reticulum.py:1642`). A path dropped through `expire_path` but
     /// not yet culled carries `0` here (`RNS/Transport.py:3219-3226`).
     pub timestamp: f64,
-    /// `path_table[dst][1]`, the transport identity hash of the next hop
-    /// (`RNS/Reticulum.py:1643`).
+    /// `path_table[dst][1]`, the `received_from` of the announce that
+    /// taught the path (`RNS/Reticulum.py:1643`): the transport identity
+    /// of the relaying node when the announce carried a transport header,
+    /// and the destination hash itself when it was heard directly
+    /// (`RNS/Transport.py:2177-2178`, `:2202`), so a direct one-hop row
+    /// has `via == hash`.
     pub via: AddressHash,
     /// `path_table[dst][2]`, the hop count to the destination
     /// (`RNS/Reticulum.py:1644`).
@@ -32,8 +36,8 @@ pub struct PathRow {
     /// `str(path_table[dst][5])`, the receiving interface in its
     /// `Type[name]` form (`RNS/Reticulum.py:1646`).
     pub interface: String,
-    /// This entry's whole map as received, any key a newer server adds
-    /// included.
+    /// This entry's whole map as received (`RNS/Reticulum.py:1641-1646`),
+    /// any key a newer server adds included.
     pub raw: Value,
 }
 

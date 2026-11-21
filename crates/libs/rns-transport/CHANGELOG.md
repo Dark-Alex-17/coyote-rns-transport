@@ -33,7 +33,12 @@ Removed) bullet of its own, marked as such.
   carries the six fields `get_path_table` builds
   (`RNS/Reticulum.py:1638-1648`), `hash` and `via` as `AddressHash`,
   `timestamp` and `expires` as `f64`, `hops` as `u8`, `interface` as the
-  `str(interface)` form, and `raw`, the whole entry as received. Facts
+  `str(interface)` form, and `raw`, the whole entry as received. `via` is
+  the announce's `received_from`: the relaying transport's identity when
+  the announce carried a transport header, the destination hash itself
+  when it was heard directly (`RNS/Transport.py:2177-2178`, `:2202`), so a
+  direct one-hop row has `via == hash` and `drop_all_via` handed a
+  destination hash drops that direct path too (`RNS/Reticulum.py:1691`). Facts
   settled for a shared-instance client: hashes travel as msgpack bin (a
   16-byte `bin 8`), the form umsgpack gives the `bytes` keys of
   `Transport.path_table` (`RNS/Transport.py:2459`,
@@ -69,8 +74,9 @@ Removed) bullet of its own, marked as such.
   `tests/shared_instance_rpc_api.rs` (the same vectors from outside the
   crate against a loopback server that completes the stdlib handshake,
   `PathRow` as a `Clone + Debug + PartialEq` value read by name, `Send`
-  futures, `max_hops` `0` and `255` as their integers, a nil next hop, a
-  wrong-length `via` as `Decode`, and an honest server silent after the
+  futures, `max_hops` `0`, `200` and `255` as their integers, a nil next
+  hop, a wrong-length `via` and a sixteen-char str `hash` or `via` as
+  `Decode`, an empty table as `Ok`, and an honest server silent after the
   request as `Timeout`, `hops` outside a byte, a row short of a field, a
   non-map row and mistyped scalar replies as `Decode`, and two calls in
   flight at once each on their own connection) and the CPython stdlib
@@ -109,7 +115,8 @@ Removed) bullet of its own, marked as such.
   five dials at the 50 ms cadence, never one budget per dial; silence after the
   drop as `Timeout` with no poll sent; a wrong-shaped poll reply as `Decode`
   at once after two dials; a server gone after the first poll never reported
-  as settled) and the CPython stdlib listener
+  as settled; a mistyped drop reply as `Decode` after one dial with no poll)
+  and the CPython stdlib listener
   `python_channel_interop_parts/python_stdlib_listener_rpc_probe.rs`.
 - `RpcError::is_transient() -> bool` (`transport/shared_instance_rpc.rs`),
   the retry rule the `Io` and `io_kind()` docs describe as one predicate:
@@ -130,10 +137,18 @@ Removed) bullet of its own, marked as such.
 - Test-only: the mock rnsd peer `shared_instance_rpc/tests/mock_server.rs`
   serves a scripted sequence of connections on one listener
   (`spawn_sequence`, `finish_all`), one per reply the way `rpc_loop` closes
-  after each, for the settled-drop pins.
+  after each, for the settled-drop pins, and aborts its task when dropped
+  unfinished, so a budget that cuts a sequence short leaves no detached
+  panic.
 - Test-only:
   `fork_publish_contract_parts/ledger_contract.rs` extends the full-hash
   ledger pin to the reopened `Unreleased` section.
+- Test-only: the fork docs contract (`fork_release_docs_contract.rs`,
+  `fork_release_docs_contract_parts/request_layer_api_docs.rs`) walks the new
+  `shared_instance_rpc/paths.rs` and `shared_instance_rpc/path_table.rs` and
+  `RpcError::is_transient`, so every public item there cites Python or says
+  fork-only, and holds `PathRow` to the read-by-field, `#[non_exhaustive]`
+  shape of the other decoded rows.
 
 ## 0.18.4 - 2026-11-20
 

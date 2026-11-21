@@ -24,6 +24,11 @@
 //    the str `"None"` for no next hop (`RNS/Reticulum.py:1715`), the int `6`
 //    first-hop timeout, the bool of `drop path` and the count of `drop all_via`.
 
+use rns_transport::transport::shared_instance_rpc::{
+    drop_all_via, drop_path, drop_path_settled, first_hop_timeout, next_hop_interface_name,
+    path_table,
+};
+
 const STDLIB_LISTENER_PYTHON_SERVER: &str = r#"
 import json, sys
 import multiprocessing.connection as mpc
@@ -68,6 +73,8 @@ while True:
         conn.send_bytes(mp.packb(isinstance(request["destination_hash"], bytes)))
     elif request.get("drop") == "all_via":
         conn.send_bytes(mp.packb(2))
+    else:
+        print(json.dumps({"unexpected": repr(request)}), flush=True)
     conn.close()
     served += 1
     print(json.dumps({"served": served}), flush=True)

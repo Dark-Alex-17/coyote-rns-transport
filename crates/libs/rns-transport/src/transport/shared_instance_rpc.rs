@@ -232,8 +232,9 @@ impl RpcError {
     }
 
     /// The retry rule the [`RpcError::io_kind`] and [`RpcError::Io`] docs
-    /// describe, as one predicate: [`RpcError::Timeout`], or an
-    /// [`RpcError::Io`] or [`RpcError::Connect`] whose kind is
+    /// describe, as one fork-only predicate (Python has no typed client):
+    /// [`RpcError::Timeout`], or an [`RpcError::Io`] or
+    /// [`RpcError::Connect`] whose kind is
     /// `ConnectionReset`, `ConnectionAborted`, `BrokenPipe` or
     /// `UnexpectedEof`. `Connect(ConnectionRefused)` and every other variant
     /// are not transient. This library never retries; a caller that does

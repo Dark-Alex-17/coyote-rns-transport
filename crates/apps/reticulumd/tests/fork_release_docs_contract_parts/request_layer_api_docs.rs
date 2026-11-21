@@ -223,6 +223,11 @@ fn request_layer_public_items_cite_python_or_say_fork_only() {
             ItemKind::Method,
             "connected_streams",
         ),
+        (
+            "crates/libs/rns-transport/src/transport/shared_instance_rpc.rs",
+            ItemKind::Method,
+            "is_transient",
+        ),
     ];
 
     let mut checked = 0usize;
@@ -297,7 +302,7 @@ fn request_layer_public_items_cite_python_or_say_fork_only() {
     }
 
     assert!(
-        checked >= 199,
+        checked >= 214,
         "the request layer should expose the receipt, frame, handler and outcome surface; found only {checked} public items"
     );
     assert!(
@@ -322,7 +327,9 @@ fn request_layer_public_items_cite_python_or_say_fork_only() {
 /// fork-added `is_path_response`, `emitted` and `random_blob` follow that
 /// shape and are asserted public, together with the `#[non_exhaustive]`
 /// attribute that keeps the public fields from breaking out-of-crate struct
-/// literals.
+/// literals. The decoded rnsd RPC rows (`PathRow`, like `InterfaceStat` and
+/// `InterfaceStats` beside it) are read by field, so they take the same
+/// shape: every field public, the struct `#[non_exhaustive]`.
 #[test]
 fn fork_new_public_structs_keep_their_fields_private() {
     let expected = [
@@ -331,6 +338,7 @@ fn fork_new_public_structs_keep_their_fields_private() {
         "InterfaceEvent",
         "OutboundOutcome",
         "PathHash",
+        "PathRow",
         "RequestFrame",
         "RequestId",
         "RequestOptions",
@@ -341,8 +349,10 @@ fn fork_new_public_structs_keep_their_fields_private() {
         "ResponseOutcomeTracker",
         "SharedInstanceOptions",
     ];
+    let public_rows = ["PathRow"];
     let mut found = Vec::new();
     let mut exposed = Vec::new();
+    let mut hidden = Vec::new();
     for file in FORK_NEW_FILES {
         let source = read_repo_file(file);
         let lines: Vec<&str> = source.lines().collect();
@@ -350,6 +360,32 @@ fn fork_new_public_structs_keep_their_fields_private() {
             let Some(rest) = raw.trim_start().strip_prefix("pub struct ") else { continue };
             let name: String =
                 rest.chars().take_while(|c| c.is_alphanumeric() || *c == '_').collect();
+            if public_rows.contains(&name.as_str()) {
+                // Members are the field declarations: doc comments and
+                // attributes above them and the closing brace are skipped.
+                for index in direct_members(&lines, open) {
+                    let text = lines[index].trim_start();
+                    if !text.starts_with("///")
+                        && !text.starts_with("#[")
+                        && text != "}"
+                        && !is_pub_field(text)
+                    {
+                        hidden.push(format!(
+                            "{file}:{}: `{name}` hides `{}`",
+                            index + 1,
+                            lines[index].trim()
+                        ));
+                    }
+                }
+                let definition = source.find(raw).expect("the struct line is in its source");
+                let attributes = attribute_block_above(&source, definition);
+                assert!(
+                    attributes.lines().any(|line| line.trim() == "#[non_exhaustive]"),
+                    "{file}: `{name}` exposes its fields, so it must be `#[non_exhaustive]`:\n{attributes}"
+                );
+                found.push(name);
+                continue;
+            }
             let offenders: Vec<usize> = if rest.contains('{') {
                 direct_members(&lines, open)
                     .into_iter()
@@ -391,6 +427,11 @@ fn fork_new_public_structs_keep_their_fields_private() {
         exposed.is_empty(),
         "every public struct the fork introduced should keep its fields private:\n{}",
         exposed.join("\n")
+    );
+    assert!(
+        hidden.is_empty(),
+        "every field of a decoded rnsd RPC row should be public, read by name:\n{}",
+        hidden.join("\n")
     );
 
     let file = "crates/libs/rns-transport/src/transport/mod.rs";

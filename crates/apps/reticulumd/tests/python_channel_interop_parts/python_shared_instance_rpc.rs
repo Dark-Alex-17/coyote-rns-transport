@@ -5,9 +5,7 @@
 // from a top-level `[interfaces]` section (`RNS/Reticulum.py:748-752`).
 
 use rns_transport::transport::shared_instance_rpc::{
-    drop_all_via, drop_path, drop_path_settled, first_hop_timeout, interface_stats,
-    next_hop_interface_name, path_table, InterfaceStat, InterfaceStats, RpcEndpoint, RpcError,
-    RpcKey,
+    interface_stats, InterfaceStat, InterfaceStats, RpcEndpoint, RpcError, RpcKey,
 };
 
 const SHARED_INSTANCE_RPC_RNSD_START: Duration = Duration::from_secs(30);

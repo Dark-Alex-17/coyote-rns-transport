@@ -94,7 +94,10 @@ pub(super) struct Observed {
 
 pub(super) struct MockServer {
     addr: Option<SocketAddr>,
-    task: JoinHandle<Vec<Observed>>,
+    /// Taken by `finish_all`; a server still here when the test drops it
+    /// (a budget cut the scripted sequence short) is aborted so its
+    /// `expect`s on a client that vanished mid-handshake never fire.
+    task: Option<JoinHandle<Vec<Observed>>>,
 }
 
 impl MockServer {
@@ -114,7 +117,7 @@ impl MockServer {
             }
             observed
         });
-        Self { addr: Some(addr), task }
+        Self { addr: Some(addr), task: Some(task) }
     }
 
     #[cfg(unix)]
@@ -124,7 +127,7 @@ impl MockServer {
             let (stream, _) = listener.accept().await.expect("accept");
             vec![serve(stream, script).await]
         });
-        Self { addr: None, task }
+        Self { addr: None, task: Some(task) }
     }
 
     pub(super) fn addr(&self) -> SocketAddr {
@@ -137,8 +140,17 @@ impl MockServer {
         one
     }
 
-    pub(super) async fn finish_all(self) -> Vec<Observed> {
-        self.task.await.expect("server task")
+    pub(super) async fn finish_all(mut self) -> Vec<Observed> {
+        let task = self.task.take().expect("a server not yet finished");
+        task.await.expect("server task")
+    }
+}
+
+impl Drop for MockServer {
+    fn drop(&mut self) {
+        if let Some(task) = self.task.take() {
+            task.abort();
+        }
     }
 }
 

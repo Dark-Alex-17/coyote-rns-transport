@@ -30,12 +30,14 @@ per fork task.
 
 Every file changed since the `0.18.4` release and the patch each change
 belongs to. Patch ids: Q1 is rnsd path rpc. The `rnsd path rpc` patch is
-fork commits `1528b698`, `bab079de`, `6f22dca2`, `0adb116e`, `75126a26` and
-`5faf736d`.
+fork commits `1528b698`, `bab079de`, `6f22dca2`, `0adb116e`, `75126a26`,
+`5faf736d` and `50a177eb`.
 
 | File | Patch |
 | --- | --- |
 | `crates/apps/reticulumd/tests/fork_publish_contract_parts/ledger_contract.rs` | rnsd path rpc |
+| `crates/apps/reticulumd/tests/fork_release_docs_contract.rs` | rnsd path rpc |
+| `crates/apps/reticulumd/tests/fork_release_docs_contract_parts/request_layer_api_docs.rs` | rnsd path rpc |
 | `crates/apps/reticulumd/tests/python_channel_interop_parts/python_shared_instance_rpc.rs` | rnsd path rpc |
 | `crates/apps/reticulumd/tests/python_channel_interop_parts/python_stdlib_listener_rpc_probe.rs` | rnsd path rpc |
 | `crates/libs/rns-transport/CHANGELOG.md` | rnsd path rpc |
@@ -50,8 +52,8 @@ fork commits `1528b698`, `bab079de`, `6f22dca2`, `0adb116e`, `75126a26` and
 | `crates/libs/rns-transport/tests/shared_instance_rpc_io_kind_probe.rs` | rnsd path rpc |
 | `docs/fork/PATCHSET.md` | rnsd path rpc |
 
-Fork commits `1528b698`, `bab079de`, `6f22dca2`, `0adb116e`, `75126a26` and
-`5faf736d`: Q1, rnsd path rpc.
+Fork commits `1528b698`, `bab079de`, `6f22dca2`, `0adb116e`, `75126a26`,
+`5faf736d` and `50a177eb`: Q1, rnsd path rpc.
 Upstream site: the fork-added rnsd RPC client
 `crates/libs/rns-transport/src/transport/shared_instance_rpc.rs` (O2 of
 `## 0.18.3`, P2 of `## 0.18.4`) and its sub-parts; upstream carries none
@@ -128,8 +130,8 @@ with their Python cites; and extends the full-hash ledger pin in
 to the reopened section. The live rnsd proofs of these calls and the
 README section that documents them are not in this patch. `6f22dca2`
 adopts the pins a usage probe wrote into `tests/shared_instance_rpc_api.rs`
-(a next hop that never clears as `Timeout` within one budget after a dozen
-dials at the 50 ms cadence, `max_hops` `0` and `255` as their integers, a
+(a next hop that never clears as `Timeout` within one budget after at least
+five dials at the 50 ms cadence, `max_hops` `0` and `255` as their integers, a
 nil next hop, a 15-byte `via` as `Decode`, an honest server silent after
 the request or after the drop as `Timeout` with no poll sent, a
 wrong-shaped poll reply as `Decode` after two dials), has both settle pins
@@ -164,6 +166,21 @@ meeting a closed connection comes back as the transient `Io` with no retry,
 has the `path_table` rustdoc say a missing `max_hops` key hangs the client
 until its timeout or the next dial, fills the ragged next-hop rustdoc, and
 has the CHANGELOG name the dial count the never-settles pin asserts.
+`50a177eb` has the fork docs contract
+(`crates/apps/reticulumd/tests/fork_release_docs_contract.rs`,
+`fork_release_docs_contract_parts/request_layer_api_docs.rs`) walk
+`shared_instance_rpc/paths.rs`, `shared_instance_rpc/path_table.rs` and
+`RpcError::is_transient`, so every public item there cites Python or says
+fork-only, and hold `PathRow` to the read-by-field `#[non_exhaustive]`
+shape of the other decoded rows; has `PathRow::via` and `drop_all_via` say
+the slot is the announce's `received_from`, the destination hash itself for
+a path heard directly (`RNS/Transport.py:2177-2178`, `:2202`), so a
+destination hash also drops its own direct path; has the mock peer abort
+an unfinished task on drop; tightens the one-budget ceilings to 1200 ms;
+adds two black-box pins (a sixteen-char str `hash` or `via` as `Decode`, a
+mistyped drop reply as `Decode` after one dial) beside the uint 8
+`max_hops` vector; and moves the path-call imports to the CPython probe
+part, whose listener now logs an unexpected request.
 
 ## 0.18.4 (upstream 0.14.0)
 

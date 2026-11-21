@@ -30,7 +30,7 @@ per fork task.
 
 Every file changed since the `0.18.4` release and the patch each change
 belongs to. Patch ids: Q1 is rnsd path rpc. The `rnsd path rpc` patch is
-fork commits `1528b698`, `bab079de`, `6f22dca2` and `0adb116e`.
+fork commits `1528b698`, `bab079de`, `6f22dca2`, `0adb116e` and `75126a26`.
 
 | File | Patch |
 | --- | --- |
@@ -49,7 +49,8 @@ fork commits `1528b698`, `bab079de`, `6f22dca2` and `0adb116e`.
 | `crates/libs/rns-transport/tests/shared_instance_rpc_io_kind_probe.rs` | rnsd path rpc |
 | `docs/fork/PATCHSET.md` | rnsd path rpc |
 
-Fork commits `1528b698`, `bab079de`, `6f22dca2` and `0adb116e`: Q1, rnsd path rpc.
+Fork commits `1528b698`, `bab079de`, `6f22dca2`, `0adb116e` and `75126a26`:
+Q1, rnsd path rpc.
 Upstream site: the fork-added rnsd RPC client
 `crates/libs/rns-transport/src/transport/shared_instance_rpc.rs` (O2 of
 `## 0.18.3`, P2 of `## 0.18.4`) and its sub-parts; upstream carries none
@@ -147,7 +148,15 @@ ordered pairs, `interface_stats` decode inside its timeout like the path
 calls, the mock peer's single-connection `finish` assert exactly one
 connection was served, the hil predicate pin cover every variant, the
 CPython probe hand `drop_all_via` the rows' next-hop hash, and the
-CHANGELOG mirror the new sentences.
+CHANGELOG mirror the new sentences. `75126a26` adopts a second set of
+black-box pins into `tests/shared_instance_rpc_api.rs` (`hops` outside a
+byte, a row short of a field, a non-map row and mistyped scalar replies as
+`Decode`; two calls in flight each on their own connection; a server gone
+after the first poll never reported as settled), has the `is_transient`
+rustdoc point at the settled helper's other `Timeout` meanings, the module
+doc name the `path_table` fn unambiguously, the CPython probe compare the
+rows' `via` against its local, and the CHANGELOG carry the `drop all_via`
+re-count note and the adopted pins.
 
 ## 0.18.4 (upstream 0.14.0)
 

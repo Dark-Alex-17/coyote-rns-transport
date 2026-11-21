@@ -56,8 +56,10 @@ Removed) bullet of its own, marked as such.
   that a `Timeout` or `Io` after the request left the client leaves the
   effect unknown and that repeating them is safe: `drop path` answers `true`
   again until the cull pops the entry (`RNS/Transport.py:1088-1090`) and
-  `false` after. `interface_stats` now runs on the same private
-  request seam with its request bytes unchanged. Pinned by
+  `false` after, and `drop all_via` re-counts the entries still lingering
+  before the cull, so a retried count is not additive. `interface_stats`
+  now runs on the same private request seam with its request bytes
+  unchanged. Pinned by
   `shared_instance_rpc/tests/paths.rs` (the exact request bytes, `max_hops`
   nil and `\x05`, the bin header before the hash, the row decoding with an
   unknown key kept in `raw` and an int `0` timestamp, `"None"` and a real
@@ -69,7 +71,10 @@ Removed) bullet of its own, marked as such.
   `PathRow` as a `Clone + Debug + PartialEq` value read by name, `Send`
   futures, `max_hops` `0` and `255` as their integers, a nil next hop, a
   wrong-length `via` as `Decode`, and an honest server silent after the
-  request as `Timeout`) and the CPython stdlib listener
+  request as `Timeout`, `hops` outside a byte, a row short of a field, a
+  non-map row and mistyped scalar replies as `Decode`, and two calls in
+  flight at once each on their own connection) and the CPython stdlib
+  listener
   `python_channel_interop_parts/python_stdlib_listener_rpc_probe.rs`, whose
   `drop path` branch answers whether `destination_hash` arrived as `bytes`
   and whose `path_table` branch logs the `max_hops` it read.
@@ -102,7 +107,8 @@ Removed) bullet of its own, marked as such.
   next hop that never clears as `Timeout` within one budget after a dozen
   dials at the 50 ms cadence, never one budget per dial; silence after the
   drop as `Timeout` with no poll sent; a wrong-shaped poll reply as `Decode`
-  at once after two dials) and the CPython stdlib listener
+  at once after two dials; a server gone after the first poll never reported
+  as settled) and the CPython stdlib listener
   `python_channel_interop_parts/python_stdlib_listener_rpc_probe.rs`.
 - `RpcError::is_transient() -> bool` (`transport/shared_instance_rpc.rs`),
   the retry rule the `Io` and `io_kind()` docs describe as one predicate:

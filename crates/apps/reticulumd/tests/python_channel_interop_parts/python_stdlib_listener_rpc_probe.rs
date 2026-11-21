@@ -229,7 +229,7 @@ async fn probe_python_stdlib_listener_answers_shared_instance_rpc_path_calls_wit
     listener.wait_served(1).await;
     assert_eq!(rows.len(), 2, "{rows:?}");
     assert_eq!(rows[0].hash, destination);
-    assert_eq!(rows[0].via, AddressHash::new([0x22; 16]));
+    assert_eq!(rows[0].via, via);
     assert_eq!(rows[0].timestamp, 1_700_000_000.25);
     assert_eq!(rows[0].hops, 1);
     assert_eq!(rows[0].expires, 1_700_000_600.5);

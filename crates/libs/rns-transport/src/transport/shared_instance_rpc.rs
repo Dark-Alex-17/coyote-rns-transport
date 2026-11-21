@@ -6,7 +6,7 @@
 //! server closes. The calls: [`interface_stats`], the
 //! `{"get": "interface_stats"}` request rnstatus sends
 //! (`RNS/Reticulum.py:1397-1402`), decoded into [`InterfaceStats`]; and the
-//! path calls [`path_table`] (rows of [`PathRow`]),
+//! path calls [`fn@path_table`] (rows of [`PathRow`]),
 //! [`next_hop_interface_name`], [`first_hop_timeout`], [`drop_path`] and
 //! [`drop_all_via`], with [`drop_path_settled`] waiting out the cull that
 //! follows a drop. Typed fields keep the raw msgpack beside them. Python has
@@ -237,7 +237,10 @@ impl RpcError {
     /// `ConnectionReset`, `ConnectionAborted`, `BrokenPipe` or
     /// `UnexpectedEof`. `Connect(ConnectionRefused)` and every other variant
     /// are not transient. This library never retries; a caller that does
-    /// bounds its attempts and backs off briefly between them.
+    /// bounds its attempts and backs off briefly between them. A `Timeout`
+    /// from [`drop_path_settled`] can also mean the destination was
+    /// re-learned or is local to rnsd; that helper's docs say what to
+    /// re-read before retrying.
     #[must_use]
     pub fn is_transient(&self) -> bool {
         use std::io::ErrorKind::{BrokenPipe, ConnectionAborted, ConnectionReset, UnexpectedEof};

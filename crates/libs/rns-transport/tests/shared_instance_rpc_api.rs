@@ -449,7 +449,7 @@ async fn readme_recipe_runs_against_a_closed_port() {
 }
 
 // ---------------------------------------------------------------------------------------
-// The edges the documented contract promises that the pins above leave to the reader:
+// The edges the documented contract promises that the pins below leave to the reader:
 // one budget shared across every dial of `drop_path_settled`, a nil next hop, the
 // silence-after-handshake form of `Timeout` on a path call, a `via` of the wrong length,
 // and a wrong-shaped poll reply surfacing at once.
@@ -512,8 +512,8 @@ async fn drop_path_settled_that_never_settles_is_timeout_under_one_shared_budget
     assert!(elapsed >= Duration::from_millis(600), "{elapsed:?} returned before the budget");
     assert!(elapsed < Duration::from_millis(1500), "{elapsed:?} is more than one budget");
     let dials = served.load(std::sync::atomic::Ordering::SeqCst);
-    // One drop and then polls at a 50 ms cadence: 700 ms holds a dozen; at least four
-    // rules out a single poll followed by a sleep to the budget.
+    // One drop and then polls at a 50 ms cadence: 700 ms holds a dozen; one drop and at
+    // least four polls (five dials) rules out a single poll followed by a sleep to the budget.
     assert!(dials >= 5, "only {dials} dials in {elapsed:?}: no 50 ms poll cadence");
     eprintln!("drop_path_settled never settles: {dials} dials in {elapsed:?} -> {result:?}");
 }
@@ -932,4 +932,146 @@ async fn path_call_futures_are_send() {
     assert_send(drop_path_settled(&endpoint, &key, &destination, WAIT));
     let result = drop_path(&endpoint, &key, &destination, WAIT).await;
     assert!(matches!(result, Err(RpcError::Connect(_))), "{result:?}");
+}
+
+// ---------------------------------------------------------------------------------------
+// The typed-decode edges the documented contract implies: `hops` is a `u8`, so an int
+// outside a byte is `Decode` (never a silent wrap); a row short of a named field and a
+// non-map row are `Decode`; the hash calls' scalar replies are typed, so a bool count, a
+// negative count, a str timeout and an int drop are
+// `Decode`; concurrent calls each take their own connection and never cross replies;
+// and a `drop_path_settled` whose poll can no longer reach the server never reports a
+// settled drop.
+// ---------------------------------------------------------------------------------------
+
+/// Plan: `PathRow { hops: u8, .. }`. rnsd's `hops` is a Python int; a value the field
+/// cannot hold is a `Decode`, with no io kind and not transient, never a wrapped byte.
+#[tokio::test]
+async fn path_table_hops_outside_a_byte_is_decode() {
+    let key = RpcKey::from_hex(KEY_HEX).expect("hex key");
+    for hops in [Value::from(256), Value::from(-1)] {
+        let pairs = vec![
+            ("hash", Value::Binary(DESTINATION.to_vec())),
+            ("timestamp", Value::F64(1.0)),
+            ("via", Value::Binary(VIA.to_vec())),
+            ("hops", hops.clone()),
+            ("expires", Value::F64(2.0)),
+            ("interface", Value::from(INTERFACE_NAME)),
+        ];
+        let (endpoint, server) = canned_server(vec![Value::Array(vec![map(pairs)])]).await;
+        let result = path_table(&endpoint, &key, None, WAIT).await;
+        match &result {
+            Err(err @ RpcError::Decode(_)) => {
+                assert_eq!(err.io_kind(), None, "{err:?}");
+                assert!(!err.is_transient(), "{err:?}");
+            }
+            other => panic!("hops {hops:?}: expected Decode, got {other:?}"),
+        }
+        served_request(server).await;
+    }
+}
+
+/// Plan: rows are read by name from `get_path_table`'s six-key maps. A row short of one
+/// of the six, and a list element that is not a map at all, are `Decode`.
+#[tokio::test]
+async fn path_table_row_short_of_a_field_or_not_a_map_is_decode() {
+    let key = RpcKey::from_hex(KEY_HEX).expect("hex key");
+    let no_expires = map(vec![
+        ("hash", Value::Binary(DESTINATION.to_vec())),
+        ("timestamp", Value::F64(1.0)),
+        ("via", Value::Binary(VIA.to_vec())),
+        ("hops", Value::from(1)),
+        ("interface", Value::from(INTERFACE_NAME)),
+    ]);
+    let good = row(DESTINATION.to_vec(), Value::F64(1.0), 1, vec![]);
+    for reply in
+        [Value::Array(vec![no_expires]), Value::Array(vec![good, Value::from("not a row")])]
+    {
+        let (endpoint, server) = canned_server(vec![reply.clone()]).await;
+        let result = path_table(&endpoint, &key, None, WAIT).await;
+        assert!(matches!(result, Err(RpcError::Decode(_))), "{reply:?} -> {result:?}");
+        served_request(server).await;
+    }
+}
+
+/// Plan: `drop_all_via -> u64`, `first_hop_timeout -> f64`, `drop_path -> bool`. A reply
+/// of another type is `Decode` for each of them, not a coerced value.
+#[tokio::test]
+async fn wrong_shaped_hash_call_replies_are_decode() {
+    let key = RpcKey::from_hex(KEY_HEX).expect("hex key");
+    let destination = destination();
+
+    for reply in [Value::from(true), Value::from(-1)] {
+        let (endpoint, server) = canned_server(vec![reply.clone()]).await;
+        let result = drop_all_via(&endpoint, &key, &destination, WAIT).await;
+        assert!(matches!(result, Err(RpcError::Decode(_))), "all_via {reply:?} -> {result:?}");
+        served_request(server).await;
+    }
+
+    let (endpoint, server) = canned_server(vec![Value::from("6")]).await;
+    let result = first_hop_timeout(&endpoint, &key, &destination, WAIT).await;
+    assert!(matches!(result, Err(RpcError::Decode(_))), "first_hop_timeout str -> {result:?}");
+    served_request(server).await;
+
+    let (endpoint, server) = canned_server(vec![Value::from(1)]).await;
+    let result = drop_path(&endpoint, &key, &destination, WAIT).await;
+    assert!(matches!(result, Err(RpcError::Decode(_))), "drop_path int -> {result:?}");
+    served_request(server).await;
+}
+
+/// Plan: one call per connection. Two calls in flight at once each take their own
+/// connection and read their own reply: the server answers by what each request asks.
+#[tokio::test]
+async fn concurrent_path_calls_take_one_connection_each_and_never_cross_replies() {
+    let listener = TcpListener::bind("127.0.0.1:0").await.expect("bind loopback");
+    let endpoint = RpcEndpoint::Tcp(listener.local_addr().expect("listener address"));
+    let server = tokio::spawn(async move {
+        let mut workers = Vec::new();
+        for _ in 0..2 {
+            let (mut stream, _) = listener.accept().await.expect("accept");
+            workers.push(tokio::spawn(async move {
+                let request = serve_honest_handshake(&mut stream).await;
+                let reply = if request == hash_request(DROP_PATH_REQUEST_HEAD) {
+                    Value::from(true)
+                } else if request == hash_request(FIRST_HOP_TIMEOUT_REQUEST_HEAD) {
+                    Value::from(6)
+                } else {
+                    panic!("unexpected request {request:?}");
+                };
+                stream.write_all(&frame(&pack(&reply))).await.expect("write reply");
+                stream.shutdown().await.expect("fin");
+            }));
+        }
+        for worker in workers {
+            worker.await.expect("worker");
+        }
+    });
+    let key = RpcKey::from_hex(KEY_HEX).expect("hex key");
+    let destination = destination();
+    let (dropped, seconds) = tokio::join!(
+        drop_path(&endpoint, &key, &destination, WAIT),
+        first_hop_timeout(&endpoint, &key, &destination, WAIT),
+    );
+    assert!(dropped.expect("drop_path"));
+    assert_eq!(seconds.expect("first_hop_timeout"), 6.0);
+    server.await.expect("server task");
+}
+
+/// Plan: the helper returns the drop's bool only once a poll reads `None`. When the
+/// server goes away after answering the first poll with a name, the helper must not
+/// report `Ok(true)`: whatever error it surfaces, the path was never seen gone.
+#[tokio::test]
+async fn drop_path_settled_whose_server_vanishes_mid_poll_never_reports_settled() {
+    let key = RpcKey::from_hex(KEY_HEX).expect("hex key");
+    let (endpoint, server) =
+        canned_server(vec![Value::from(true), Value::from(INTERFACE_NAME)]).await;
+    let started = Instant::now();
+    let result =
+        drop_path_settled(&endpoint, &key, &destination(), Duration::from_millis(700)).await;
+    let elapsed = started.elapsed();
+    eprintln!("drop_path_settled with a vanished server: {result:?} in {elapsed:?}");
+    assert!(result.is_err(), "a poll that never read None reported {result:?}");
+    assert!(elapsed < Duration::from_millis(1500), "{elapsed:?} is more than one budget");
+    let requests = server.await.expect("server task");
+    assert_eq!(requests.len(), 2, "{requests:?}");
 }

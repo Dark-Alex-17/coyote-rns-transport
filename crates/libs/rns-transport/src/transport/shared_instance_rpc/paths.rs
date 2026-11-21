@@ -68,12 +68,15 @@ pub async fn next_hop_interface_name(
 
 /// Drops the path to `destination` (`RNS/Reticulum.py:1305`,
 /// `RNS/Transport.py:3219-3226`): `true` when there was one. The entry
-/// itself lingers until the next cull; see [`drop_path_settled`]. The whole
-/// call runs under `timeout`; outrunning it is [`RpcError::Timeout`]. A
-/// `Timeout` or [`RpcError::Io`] after the request left the client leaves
-/// the drop's effect unknown; repeating the call is safe, since rnsd
-/// answers `true` again until the cull pops the entry
-/// (`RNS/Transport.py:1088-1090`) and `false` after.
+/// itself lingers until the next cull; see [`drop_path_settled`]. Observed
+/// against rnsd 1.5.2, the row is still listed with timestamp 0 and the
+/// next hop still names the interface under a millisecond after the drop,
+/// and both read as gone at about 160 ms. The whole call runs under
+/// `timeout`; outrunning it is [`RpcError::Timeout`]. A `Timeout` or
+/// [`RpcError::Io`] after the request left the client leaves the drop's
+/// effect unknown; repeating the call is safe, since rnsd answers `true`
+/// again until the cull pops the entry (`RNS/Transport.py:1088-1090`) and
+/// `false` after.
 pub async fn drop_path(
     endpoint: &RpcEndpoint,
     key: &RpcKey,
@@ -150,7 +153,11 @@ pub async fn first_hop_timeout(
 /// answers from the dropped entry's cached announce, so a path request sent
 /// right after a bare [`drop_path`] is answered from the stale entry. A
 /// caller that wants a fresh path sends one path request after this helper
-/// returns `Ok(true)`.
+/// returns `Ok(true)`. Observed against rnsd 1.5.2, the row is still listed
+/// with timestamp 0 and the next hop still names the interface under a
+/// millisecond after the drop, both read as gone at about 160 ms, and this
+/// helper returns `Ok(true)` in 110 to 160 ms; the bound is one
+/// `job_interval` tick, 250 ms.
 ///
 /// The polls run every 50 ms, and every dial (the drop and each poll)
 /// shares the single `timeout` budget; outrunning it is

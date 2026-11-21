@@ -59,6 +59,24 @@ fn shared_instance_rpc_retryable_is_is_transient_without_the_timeout_arm() {
     assert!(!shared_instance_rpc_retryable(&RpcError::Timeout));
 }
 
+// The config text the rnsd fixture is written from: transport off unless
+// asked for, and `config_with_interfaces` appends the caller's section as is.
+#[test]
+fn shared_instance_rpc_config_text_carries_the_transport_toggle_and_the_interfaces() {
+    let interfaces = "[interfaces]\n  [[x]]\n    type = TCPClientInterface\n";
+    let instance = live_tcp_shared_instance();
+    let default = instance.config(37_000);
+    assert!(default.contains("enable_transport = no\n"), "{default}");
+    assert!(!default.contains("enable_transport = yes"), "{default}");
+    assert!(
+        instance.config_with_interfaces(37_000, interfaces).ends_with(interfaces),
+        "the interfaces text is the tail of the config"
+    );
+    let with_transport = instance.with_transport(true).config(37_000);
+    assert!(with_transport.contains("enable_transport = yes\n"), "{with_transport}");
+    assert!(!with_transport.contains("enable_transport = no"), "{with_transport}");
+}
+
 // The AutoInterface's data socket is bound without address reuse
 // (`RNS/Interfaces/AutoInterface.py:334-337`) and the bind error reaches the
 // catch-all that panics rnsd (`RNS/Reticulum.py:1120-1124`), so a host rnsd
@@ -106,13 +124,29 @@ impl SharedInstanceRpcRnsd {
         control_port: u16,
         config_dir: &std::path::Path,
     ) -> Self {
+        Self::spawn_with_interfaces(
+            instance,
+            control_port,
+            config_dir,
+            &shared_instance_rpc_auto_interface_section(),
+        )
+        .await
+    }
+
+    /// `interfaces` is the whole top-level `[interfaces]` text, such as the
+    /// `TCPClientInterface` section `client_config` writes in
+    /// `support/python_channel_process.rs`.
+    #[deny(clippy::await_holding_invalid_type)]
+    async fn spawn_with_interfaces(
+        instance: &LiveSharedInstance,
+        control_port: u16,
+        config_dir: &std::path::Path,
+        interfaces: &str,
+    ) -> Self {
         let paths = python_channel_interop_paths();
         write_live_shared_instance_config(
             config_dir,
-            &instance.config_with_interfaces(
-                control_port,
-                &shared_instance_rpc_auto_interface_section(),
-            ),
+            &instance.config_with_interfaces(control_port, interfaces),
         );
         let mut rnsd = paths.spawn_rnsd(config_dir);
         let log = ProcessLogTail::follow("rnsd", &mut rnsd);

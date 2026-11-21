@@ -30,7 +30,7 @@ per fork task.
 
 Every file changed since the `0.18.4` release and the patch each change
 belongs to. Patch ids: Q1 is rnsd path rpc. The `rnsd path rpc` patch is
-fork commits `1528b698` and `bab079de`.
+fork commits `1528b698`, `bab079de` and `6f22dca2`.
 
 | File | Patch |
 | --- | --- |
@@ -49,7 +49,7 @@ fork commits `1528b698` and `bab079de`.
 | `crates/libs/rns-transport/tests/shared_instance_rpc_io_kind_probe.rs` | rnsd path rpc |
 | `docs/fork/PATCHSET.md` | rnsd path rpc |
 
-Fork commits `1528b698` and `bab079de`: Q1, rnsd path rpc.
+Fork commits `1528b698`, `bab079de` and `6f22dca2`: Q1, rnsd path rpc.
 Upstream site: the fork-added rnsd RPC client
 `crates/libs/rns-transport/src/transport/shared_instance_rpc.rs` (O2 of
 `## 0.18.3`, P2 of `## 0.18.4`) and its sub-parts; upstream carries none
@@ -69,7 +69,7 @@ timeout) -> Result<Vec<PathRow>, RpcError>`, `next_hop_interface_name`,
 hashes sent as msgpack bin since `Transport.path_table` is keyed by `bytes`
 (`RNS/Transport.py:2459`, `RNS/vendor/umsgpack.py:505-506`) and the
 `max_hops` key always present, nil for `None`, since a missing key raises a
-`KeyError` that `rpc_loop` logs at `RNS/Reticulum.py:1333` without
+`KeyError` that `rpc_loop` logs at `RNS/Reticulum.py:1333-1334` without
 answering; the `#[non_exhaustive]` `PathRow` carries the six fields of
 `get_path_table`'s rows (`RNS/Reticulum.py:1638-1648`) with `timestamp`
 and `expires` read as int or float, since a dropped but not yet culled row
@@ -124,7 +124,20 @@ drop window and what to poll, the `"None"` str, the int-or-float slots)
 with their Python cites; and extends the full-hash ledger pin in
 `crates/apps/reticulumd/tests/fork_publish_contract_parts/ledger_contract.rs`
 to the reopened section. The live rnsd proofs of these calls and the
-README section that documents them are not in this patch.
+README section that documents them are not in this patch. `6f22dca2`
+adopts the pins a usage probe wrote into `tests/shared_instance_rpc_api.rs`
+(a next hop that never clears as `Timeout` within one budget after a dozen
+dials at the 50 ms cadence, `max_hops` `0` and `255` as their integers, a
+nil next hop, a 15-byte `via` as `Decode`, an honest server silent after
+the request or after the drop as `Timeout` with no poll sent, a
+wrong-shaped poll reply as `Decode` after two dials), has both settle pins
+assert at least one poll interval per intermediate name, has the
+`next_hop_interface_name` rustdoc name the arm for a destination local to
+the rnsd process (`RNS/Transport.py:2908-2909`, kept out of the path table
+by `:2211`), the `drop_path_settled` rustdoc say what a retry after a
+mid-poll error observes, the request builder say why an encode failure
+reads as `Protocol`, and the row decoder spell the hash width as
+`ADDRESS_HASH_SIZE`.
 
 ## 0.18.4 (upstream 0.14.0)
 

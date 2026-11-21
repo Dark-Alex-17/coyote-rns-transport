@@ -102,10 +102,11 @@ Removed) bullet of its own, marked as such.
   `shared_instance_rpc/tests/paths.rs` (drop `true` then two names then
   `"None"` as `Ok(true)` under one budget and no sooner than two poll
   intervals, drop `false` as `Ok(false)` after exactly one dial, a next hop
-  that never clears as `Timeout` at the budget),
+  that never clears as `Timeout` at the budget, a poll meeting a closed
+  connection returned as the transient `Io` it is with no retry),
   `tests/shared_instance_rpc_api.rs` (the same from outside the crate; a
-  next hop that never clears as `Timeout` within one budget after a dozen
-  dials at the 50 ms cadence, never one budget per dial; silence after the
+  next hop that never clears as `Timeout` within one budget after at least
+  five dials at the 50 ms cadence, never one budget per dial; silence after the
   drop as `Timeout` with no poll sent; a wrong-shaped poll reply as `Decode`
   at once after two dials; a server gone after the first poll never reported
   as settled) and the CPython stdlib listener

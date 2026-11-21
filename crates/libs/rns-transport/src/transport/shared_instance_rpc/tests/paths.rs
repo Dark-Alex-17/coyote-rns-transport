@@ -279,6 +279,25 @@ async fn drop_path_settled_without_a_path_does_not_poll() {
     assert_eq!(request(&observed[0]), hash_request(DROP_PATH_REQUEST_HEAD));
 }
 
+/// A poll that meets a transient failure is returned as it is: the helper
+/// never retries, budget left or not.
+#[tokio::test]
+async fn drop_path_settled_returns_a_transient_poll_error_without_retrying() {
+    let server = MockServer::spawn_sequence(vec![
+        answering(Value::from(true)),
+        answering(Value::from("TCPInterface[x]")),
+        Script::Close,
+    ])
+    .await;
+    let started = Instant::now();
+    let result = drop_path_settled(&endpoint(&server), &key(), &destination(), WAIT).await;
+    let err = result.expect_err("a closed poll connection is an error");
+    assert_eq!(err.io_kind(), Some(std::io::ErrorKind::UnexpectedEof), "{err:?}");
+    assert!(err.is_transient(), "{err:?}");
+    assert!(started.elapsed() < Duration::from_secs(2), "{:?}", started.elapsed());
+    assert_eq!(server.finish_all().await.len(), 3);
+}
+
 #[tokio::test]
 async fn drop_path_settled_outrunning_its_budget_is_timeout() {
     let budget = Duration::from_millis(400);

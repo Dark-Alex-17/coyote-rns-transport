@@ -26,8 +26,9 @@ const SETTLE_POLL: Duration = Duration::from_millis(50);
 /// most that many hops away. The request always carries the `max_hops` key,
 /// nil when `None`: rnsd reads `call["max_hops"]` and a missing key raises a
 /// `KeyError` that `rpc_loop` logs at `RNS/Reticulum.py:1333-1334` without
-/// answering, so the client would only hang to its timeout. The
-/// whole call runs under `timeout`; outrunning it is [`RpcError::Timeout`].
+/// answering, so the client would hang until its timeout, or until the next
+/// dial lets rnsd release the socket and it reads EOF. The whole call runs
+/// under `timeout`; outrunning it is [`RpcError::Timeout`].
 pub async fn path_table(
     endpoint: &RpcEndpoint,
     key: &RpcKey,
@@ -52,8 +53,8 @@ pub async fn path_table(
 /// `destinations_map`, `RNS/Transport.py:2908-2909`, which keeps such
 /// destinations out of the path table, `:2211`), and `None` otherwise, so
 /// the four-character str `"None"` reads as no path, as does a msgpack nil.
-/// The whole call runs under `timeout`;
-/// outrunning it is [`RpcError::Timeout`].
+/// The whole call runs under `timeout`; outrunning it is
+/// [`RpcError::Timeout`].
 pub async fn next_hop_interface_name(
     endpoint: &RpcEndpoint,
     key: &RpcKey,

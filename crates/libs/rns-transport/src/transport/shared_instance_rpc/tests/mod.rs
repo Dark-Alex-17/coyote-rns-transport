@@ -147,7 +147,10 @@ async fn modern_sha256_server_round_trip() {
     assert_eq!(challenge.len(), "#CHALLENGE#{sha256}".len() + 40);
     assert_eq!(observed.verdict.as_deref(), Some(b"#WELCOME#".as_slice()));
     assert_request(&observed);
-    assert_eq!(observed.request.as_deref(), Some(INTERFACE_STATS_REQUEST));
+    // The vector rnstatus sends (`RNS/Reticulum.py:1400`), spelled out so a
+    // re-encoding of the constant cannot move both sides of the pin.
+    let rnstatus_request: &[u8] = b"\x81\xa3get\xafinterface_stats";
+    assert_eq!(observed.request.as_deref(), Some(rnstatus_request));
 }
 
 #[tokio::test]

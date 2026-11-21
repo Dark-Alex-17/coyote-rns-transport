@@ -30,7 +30,8 @@ per fork task.
 
 Every file changed since the `0.18.4` release and the patch each change
 belongs to. Patch ids: Q1 is rnsd path rpc. The `rnsd path rpc` patch is
-fork commits `1528b698`, `bab079de`, `6f22dca2`, `0adb116e` and `75126a26`.
+fork commits `1528b698`, `bab079de`, `6f22dca2`, `0adb116e`, `75126a26` and
+`5faf736d`.
 
 | File | Patch |
 | --- | --- |
@@ -49,8 +50,8 @@ fork commits `1528b698`, `bab079de`, `6f22dca2`, `0adb116e` and `75126a26`.
 | `crates/libs/rns-transport/tests/shared_instance_rpc_io_kind_probe.rs` | rnsd path rpc |
 | `docs/fork/PATCHSET.md` | rnsd path rpc |
 
-Fork commits `1528b698`, `bab079de`, `6f22dca2`, `0adb116e` and `75126a26`:
-Q1, rnsd path rpc.
+Fork commits `1528b698`, `bab079de`, `6f22dca2`, `0adb116e`, `75126a26` and
+`5faf736d`: Q1, rnsd path rpc.
 Upstream site: the fork-added rnsd RPC client
 `crates/libs/rns-transport/src/transport/shared_instance_rpc.rs` (O2 of
 `## 0.18.3`, P2 of `## 0.18.4`) and its sub-parts; upstream carries none
@@ -113,7 +114,7 @@ assert agreement with `is_transient()` (the last differs only on
 CPython stdlib listener
 `crates/apps/reticulumd/tests/python_channel_interop_parts/python_stdlib_listener_rpc_probe.rs`
 the path branches, its `drop path` branch answering
-`isinstance(call["destination_hash"], bytes)` so the Rust `drop_path`
+`isinstance(request["destination_hash"], bytes)` so the Rust `drop_path`
 result is the bin pin, its `path_table` branch logging the `max_hops` it
 read and answering two canned rows with an int `0` timestamp, its
 `next_hop_if_name` branch answering the str `"None"`, `first_hop_timeout`
@@ -156,7 +157,13 @@ after the first poll never reported as settled), has the `is_transient`
 rustdoc point at the settled helper's other `Timeout` meanings, the module
 doc name the `path_table` fn unambiguously, the CPython probe compare the
 rows' `via` against its local, and the CHANGELOG carry the `drop all_via`
-re-count note and the adopted pins.
+re-count note and the adopted pins. `5faf736d` spells the rnstatus request
+out in the `tests/mod.rs` round-trip pin instead of comparing the constant
+against itself, pins in `shared_instance_rpc/tests/paths.rs` that a poll
+meeting a closed connection comes back as the transient `Io` with no retry,
+has the `path_table` rustdoc say a missing `max_hops` key hangs the client
+until its timeout or the next dial, fills the ragged next-hop rustdoc, and
+has the CHANGELOG name the dial count the never-settles pin asserts.
 
 ## 0.18.4 (upstream 0.14.0)
 

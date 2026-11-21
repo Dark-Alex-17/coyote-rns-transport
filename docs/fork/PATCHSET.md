@@ -30,7 +30,7 @@ per fork task.
 
 Every file changed since the `0.18.4` release and the patch each change
 belongs to. Patch ids: Q1 is rnsd path rpc. The `rnsd path rpc` patch is
-fork commits `1528b698`, `bab079de` and `6f22dca2`.
+fork commits `1528b698`, `bab079de`, `6f22dca2` and `0adb116e`.
 
 | File | Patch |
 | --- | --- |
@@ -49,7 +49,7 @@ fork commits `1528b698`, `bab079de` and `6f22dca2`.
 | `crates/libs/rns-transport/tests/shared_instance_rpc_io_kind_probe.rs` | rnsd path rpc |
 | `docs/fork/PATCHSET.md` | rnsd path rpc |
 
-Fork commits `1528b698`, `bab079de` and `6f22dca2`: Q1, rnsd path rpc.
+Fork commits `1528b698`, `bab079de`, `6f22dca2` and `0adb116e`: Q1, rnsd path rpc.
 Upstream site: the fork-added rnsd RPC client
 `crates/libs/rns-transport/src/transport/shared_instance_rpc.rs` (O2 of
 `## 0.18.3`, P2 of `## 0.18.4`) and its sub-parts; upstream carries none
@@ -137,7 +137,17 @@ the rnsd process (`RNS/Transport.py:2908-2909`, kept out of the path table
 by `:2211`), the `drop_path_settled` rustdoc say what a retry after a
 mid-poll error observes, the request builder say why an encode failure
 reads as `Protocol`, and the row decoder spell the hash width as
-`ADDRESS_HASH_SIZE`.
+`ADDRESS_HASH_SIZE`. `0adb116e` has the two drop calls say that a
+`Timeout` or `Io` after the request left the client leaves the effect
+unknown and that repeating them is safe, the settled helper say it never
+retries a transient poll error, the next-hop decoder name a str that is
+not UTF-8 apart from a reply that is no str (pinned with a raw frame in
+`shared_instance_rpc/tests/paths.rs`), the request builder take any
+ordered pairs, `interface_stats` decode inside its timeout like the path
+calls, the mock peer's single-connection `finish` assert exactly one
+connection was served, the hil predicate pin cover every variant, the
+CPython probe hand `drop_all_via` the rows' next-hop hash, and the
+CHANGELOG mirror the new sentences.
 
 ## 0.18.4 (upstream 0.14.0)
 

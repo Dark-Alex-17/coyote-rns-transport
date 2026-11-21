@@ -26,6 +26,106 @@ parity rows this file plus the crate README `## Known divergences from
 Python RNS` are the parity ledger; `docs/status/*` matrices are not updated
 per fork task.
 
+## Unreleased (upstream 0.14.0)
+
+Every file changed since the `0.18.4` release and the patch each change
+belongs to. Patch ids: Q1 is rnsd path rpc. The `rnsd path rpc` patch is
+fork commits `1528b698` and `bab079de`.
+
+| File | Patch |
+| --- | --- |
+| `crates/apps/reticulumd/tests/fork_publish_contract_parts/ledger_contract.rs` | rnsd path rpc |
+| `crates/apps/reticulumd/tests/python_channel_interop_parts/python_shared_instance_rpc.rs` | rnsd path rpc |
+| `crates/apps/reticulumd/tests/python_channel_interop_parts/python_stdlib_listener_rpc_probe.rs` | rnsd path rpc |
+| `crates/libs/rns-transport/CHANGELOG.md` | rnsd path rpc |
+| `crates/libs/rns-transport/src/transport/shared_instance_rpc.rs` | rnsd path rpc |
+| `crates/libs/rns-transport/src/transport/shared_instance_rpc/decode.rs` | rnsd path rpc |
+| `crates/libs/rns-transport/src/transport/shared_instance_rpc/path_table.rs` | rnsd path rpc |
+| `crates/libs/rns-transport/src/transport/shared_instance_rpc/paths.rs` | rnsd path rpc |
+| `crates/libs/rns-transport/src/transport/shared_instance_rpc/tests/mock_server.rs` | rnsd path rpc |
+| `crates/libs/rns-transport/src/transport/shared_instance_rpc/tests/mod.rs` | rnsd path rpc |
+| `crates/libs/rns-transport/src/transport/shared_instance_rpc/tests/paths.rs` | rnsd path rpc |
+| `crates/libs/rns-transport/tests/shared_instance_rpc_api.rs` | rnsd path rpc |
+| `crates/libs/rns-transport/tests/shared_instance_rpc_io_kind_probe.rs` | rnsd path rpc |
+| `docs/fork/PATCHSET.md` | rnsd path rpc |
+
+Fork commits `1528b698` and `bab079de`: Q1, rnsd path rpc.
+Upstream site: the fork-added rnsd RPC client
+`crates/libs/rns-transport/src/transport/shared_instance_rpc.rs` (O2 of
+`## 0.18.3`, P2 of `## 0.18.4`) and its sub-parts; upstream carries none
+of it. The client had one call, `interface_stats`, and its `call` and
+`exchange` were bound to that request's bytes and reply type, so a
+shared-instance client could not drive rnsd's path table the way `rnpath`
+does over the control connection. `1528b698` gives `call` and `exchange` a
+request parameter and a `rmpv::Value` result, the generic seam every call
+now shares, re-expresses `interface_stats` on it with its byte constant
+`INTERFACE_STATS_REQUEST` kept as the pinned vector, and adds the
+sub-parts `shared_instance_rpc/paths.rs` and
+`shared_instance_rpc/path_table.rs`: `path_table(endpoint, key, max_hops,
+timeout) -> Result<Vec<PathRow>, RpcError>`, `next_hop_interface_name`,
+`drop_path`, `drop_all_via` and `first_hop_timeout`, the requests
+`rpc_loop` reads (`RNS/Reticulum.py:1274-1334`, `:1283-1285`, `:1289`,
+`:1291`, `:1305-1306`), each one connection under the caller's timeout,
+hashes sent as msgpack bin since `Transport.path_table` is keyed by `bytes`
+(`RNS/Transport.py:2459`, `RNS/vendor/umsgpack.py:505-506`) and the
+`max_hops` key always present, nil for `None`, since a missing key raises a
+`KeyError` that `rpc_loop` logs at `RNS/Reticulum.py:1333` without
+answering; the `#[non_exhaustive]` `PathRow` carries the six fields of
+`get_path_table`'s rows (`RNS/Reticulum.py:1638-1648`) with `timestamp`
+and `expires` read as int or float, since a dropped but not yet culled row
+carries the int `0` (`RNS/Transport.py:3219-3226`), and the whole entry in
+`raw`; `next_hop_interface_name` reads the str `"None"`
+(`RNS/Reticulum.py:1715`, `RNS/Transport.py:3162-3164`) and nil as `None`;
+`first_hop_timeout` reads the int `6` or the float
+(`RNS/Transport.py:3194-3197`) as `f64`. `drop_path_settled` runs
+`drop_path` and then polls `next_hop_interface_name` every 50 ms under the
+same timeout until the cull on the next `Transport.jobs` tick
+(`RNS/Transport.py:248`, `:855`, `:1088-1090`) has popped the entry, whose
+cached announce `path_request` (`RNS/Transport.py:3459`) answers from
+until then; it returns `Ok(false)` at once when there was no path, and its
+rustdoc says a `Timeout` can also be a re-learned destination. `RpcError`
+gains `is_transient()`, the retry rule of the `Io` and `io_kind()` docs as
+one predicate (`Timeout`, or `Io` or `Connect` of kind `ConnectionReset`,
+`ConnectionAborted`, `BrokenPipe` or `UnexpectedEof`); no variant is
+added. The `decode.rs` map helpers are widened to the module for the row
+decoder. The same commit has the mock peer
+`shared_instance_rpc/tests/mock_server.rs` serve a scripted sequence of
+connections on one listener (`spawn_sequence`, `finish_all`) and adds
+`shared_instance_rpc/tests/paths.rs`, declared from `tests/mod.rs`, which
+pins the exact request bytes of every call (`max_hops` nil and `\x05`, the
+bin 8 header before the hash), the row decoding with an unknown key kept
+in `raw` and an int `0` timestamp, the `Decode` texts naming the bad key,
+the settled helper's three sequences and `is_transient()` over every
+variant and kind; `tests/mod.rs` also asserts the `interface_stats`
+request bytes equal the pinned constant. `bab079de` holds the calls to the
+same vectors from outside the crate in `tests/shared_instance_rpc_api.rs`
+over a loopback server that completes the stdlib handshake and answers one
+canned reply per connection, with `PathRow` a `Clone + Debug + PartialEq`
+value read by name and every future `Send`, keeps the eight-variant pin
+and the consumer-written `readme_retryable` as the README pin and has it,
+the io kind probe's `retryable` in
+`tests/shared_instance_rpc_io_kind_probe.rs` and the hil poll's kind-only
+`shared_instance_rpc_retryable` in
+`crates/apps/reticulumd/tests/python_channel_interop_parts/python_shared_instance_rpc.rs`
+assert agreement with `is_transient()` (the last differs only on
+`Timeout`, which the poll returns rather than retries); teaches the
+CPython stdlib listener
+`crates/apps/reticulumd/tests/python_channel_interop_parts/python_stdlib_listener_rpc_probe.rs`
+the path branches, its `drop path` branch answering
+`isinstance(call["destination_hash"], bytes)` so the Rust `drop_path`
+result is the bin pin, its `path_table` branch logging the `max_hops` it
+read and answering two canned rows with an int `0` timestamp, its
+`next_hop_if_name` branch answering the str `"None"`, `first_hop_timeout`
+the int `6` and `all_via` the int `2`, exercised by a new ignored part
+that also settles a drop in two connections; reopens the CHANGELOG
+`## Unreleased` with the Added bullets for the calls, the settled helper
+and `is_transient()`, each stating the facts settled (hashes as bin, the
+drop window and what to poll, the `"None"` str, the int-or-float slots)
+with their Python cites; and extends the full-hash ledger pin in
+`crates/apps/reticulumd/tests/fork_publish_contract_parts/ledger_contract.rs`
+to the reopened section. The live rnsd proofs of these calls and the
+README section that documents them are not in this patch.
+
 ## 0.18.4 (upstream 0.14.0)
 
 Every file changed since the `0.18.3` release and the patch each change

@@ -1,12 +1,13 @@
 //! The `interface_stats` reply as `get_interface_stats` builds it
 //! (`RNS/Reticulum.py:1405-1628`): a map with an `interfaces` array of
 //! per-interface maps. Keys arrive as msgpack str (`RNS.vendor.umsgpack`).
+//! The map helpers below also serve the path-table decoder.
 
 use rmpv::Value;
 
 use super::{InterfaceStat, InterfaceStats, RpcError};
 
-type Map = [(Value, Value)];
+pub(super) type Map = [(Value, Value)];
 
 pub(super) fn interface_stats(value: Value) -> Result<InterfaceStats, RpcError> {
     let map = value.as_map().ok_or_else(|| RpcError::Decode("reply is not a map".to_string()))?;
@@ -38,19 +39,19 @@ fn interface_stat(entry: &Value) -> Result<InterfaceStat, RpcError> {
     })
 }
 
-fn field<'a>(map: &'a Map, key: &str) -> Option<&'a Value> {
+pub(super) fn field<'a>(map: &'a Map, key: &str) -> Option<&'a Value> {
     map.iter().find(|(name, _)| name.as_str() == Some(key)).map(|(_, value)| value)
 }
 
-fn required<'a>(map: &'a Map, key: &str) -> Result<&'a Value, RpcError> {
+pub(super) fn required<'a>(map: &'a Map, key: &str) -> Result<&'a Value, RpcError> {
     field(map, key).ok_or_else(|| RpcError::Decode(format!("missing key {key:?}")))
 }
 
-fn required_str(map: &Map, key: &str) -> Result<String, RpcError> {
+pub(super) fn required_str(map: &Map, key: &str) -> Result<String, RpcError> {
     required(map, key)?.as_str().map(str::to_owned).ok_or_else(|| wrong_type(key, "str"))
 }
 
-fn required_u64(map: &Map, key: &str) -> Result<u64, RpcError> {
+pub(super) fn required_u64(map: &Map, key: &str) -> Result<u64, RpcError> {
     required(map, key)?.as_u64().ok_or_else(|| wrong_type(key, "non-negative integer"))
 }
 
@@ -66,6 +67,6 @@ fn optional_u64(map: &Map, key: &str) -> Result<Option<u64>, RpcError> {
     }
 }
 
-fn wrong_type(key: &str, expected: &str) -> RpcError {
+pub(super) fn wrong_type(key: &str, expected: &str) -> RpcError {
     RpcError::Decode(format!("key {key:?} is not {expected}"))
 }

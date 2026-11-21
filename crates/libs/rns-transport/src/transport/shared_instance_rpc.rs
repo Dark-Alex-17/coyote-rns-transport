@@ -1,11 +1,16 @@
 //! Fork-only client of the rnsd shared instance's RPC listener, the
 //! `multiprocessing.connection.Listener` a Python shared instance opens at
 //! `RNS/Reticulum.py:363-367` and serves from `rpc_loop`
-//! (`RNS/Reticulum.py:1274-1334`). One call is implemented,
-//! [`interface_stats`], the `{"get": "interface_stats"}` request rnstatus
-//! sends (`RNS/Reticulum.py:1397-1402`); the reply is decoded into
-//! [`InterfaceStats`] with the raw msgpack kept beside the typed fields.
-//! Python has no typed client and this crate hosts no RPC listener.
+//! (`RNS/Reticulum.py:1274-1334`). Every call is one fresh connection, the
+//! mutual HMAC handshake, one msgpack request and one reply, after which the
+//! server closes. The calls: [`interface_stats`], the
+//! `{"get": "interface_stats"}` request rnstatus sends
+//! (`RNS/Reticulum.py:1397-1402`), decoded into [`InterfaceStats`]; and the
+//! path calls [`path_table`] (rows of [`PathRow`]),
+//! [`next_hop_interface_name`], [`first_hop_timeout`], [`drop_path`] and
+//! [`drop_all_via`], with [`drop_path_settled`] waiting out the cull that
+//! follows a drop. Typed fields keep the raw msgpack beside them. Python has
+//! no typed client and this crate hosts no RPC listener.
 
 use std::fmt;
 use std::net::{Ipv4Addr, SocketAddr};
@@ -23,8 +28,16 @@ use crate::iface::local::LocalUnixEndpoint;
 mod decode;
 mod framing;
 mod handshake;
+mod path_table;
+mod paths;
 #[cfg(test)]
 mod tests;
+
+pub use path_table::PathRow;
+pub use paths::{
+    drop_all_via, drop_path, drop_path_settled, first_hop_timeout, next_hop_interface_name,
+    path_table,
+};
 
 /// Python's default `instance_control_port` (`RNS/Reticulum.py:296`).
 const DEFAULT_CONTROL_PORT: u16 = 37429;
@@ -179,7 +192,9 @@ pub enum RpcError {
     /// which is why a retrying caller matches the kind, not the variant.
     #[error("shared instance rpc io error after connect: {0}")]
     Io(#[source] std::io::Error),
-    /// The reply was not the msgpack shape `get_interface_stats` builds.
+    /// The reply was not the msgpack shape the call expects: the map
+    /// `get_interface_stats` builds, the row array of `get_path_table`, or
+    /// the scalar the next-hop, timeout and drop calls answer with.
     #[error("shared instance rpc reply did not decode: {0}")]
     Decode(String),
     /// The server's challenge named a digest outside Python's
@@ -212,6 +227,23 @@ impl RpcError {
         match self {
             Self::Io(err) | Self::Connect(err) => Some(err.kind()),
             _ => None,
+        }
+    }
+
+    /// The retry rule the [`RpcError::io_kind`] and [`RpcError::Io`] docs
+    /// describe, as one predicate: [`RpcError::Timeout`], or an
+    /// [`RpcError::Io`] or [`RpcError::Connect`] whose kind is
+    /// `ConnectionReset`, `ConnectionAborted`, `BrokenPipe` or
+    /// `UnexpectedEof`. `Connect(ConnectionRefused)` and every other variant
+    /// are not transient. This library never retries; a caller that does
+    /// bounds its attempts and backs off briefly between them.
+    #[must_use]
+    pub fn is_transient(&self) -> bool {
+        use std::io::ErrorKind::{BrokenPipe, ConnectionAborted, ConnectionReset, UnexpectedEof};
+        match self.io_kind() {
+            Some(ConnectionReset | ConnectionAborted | BrokenPipe | UnexpectedEof) => true,
+            Some(_) => false,
+            None => matches!(self, Self::Timeout),
         }
     }
 }
@@ -264,19 +296,28 @@ pub async fn interface_stats(
     key: &RpcKey,
     timeout: Duration,
 ) -> Result<InterfaceStats, RpcError> {
-    tokio::time::timeout(timeout, call(endpoint, key)).await.map_err(|_| RpcError::Timeout)?
+    let value = tokio::time::timeout(timeout, call(endpoint, key, INTERFACE_STATS_REQUEST))
+        .await
+        .map_err(|_| RpcError::Timeout)??;
+    decode::interface_stats(value)
 }
 
-async fn call(endpoint: &RpcEndpoint, key: &RpcKey) -> Result<InterfaceStats, RpcError> {
+/// One connection to `endpoint` carrying `request`; the reply as decoded
+/// msgpack, left to the caller to shape.
+async fn call(
+    endpoint: &RpcEndpoint,
+    key: &RpcKey,
+    request: &[u8],
+) -> Result<rmpv::Value, RpcError> {
     let result = match endpoint {
         RpcEndpoint::Tcp(addr) => {
             let stream = TcpStream::connect(addr).await.map_err(RpcError::Connect)?;
-            exchange(stream, key).await
+            exchange(stream, key, request).await
         }
         #[cfg(unix)]
         RpcEndpoint::Unix(unix) => {
             let stream = UnixStream::connect(unix.tokio_path()).await.map_err(RpcError::Connect)?;
-            exchange(stream, key).await
+            exchange(stream, key, request).await
         }
     };
     if let Err(RpcError::Authentication) = &result {
@@ -290,15 +331,13 @@ async fn call(endpoint: &RpcEndpoint, key: &RpcKey) -> Result<InterfaceStats, Rp
     result
 }
 
-async fn exchange<S>(mut stream: S, key: &RpcKey) -> Result<InterfaceStats, RpcError>
+async fn exchange<S>(mut stream: S, key: &RpcKey, request: &[u8]) -> Result<rmpv::Value, RpcError>
 where
     S: AsyncRead + AsyncWrite + Unpin + Send,
 {
     let form = handshake::answer_challenge(&mut stream, key.as_bytes()).await?;
     handshake::deliver_challenge(&mut stream, key.as_bytes(), form).await?;
-    framing::send_frame(&mut stream, INTERFACE_STATS_REQUEST).await?;
+    framing::send_frame(&mut stream, request).await?;
     let reply = framing::recv_frame(&mut stream, REPLY_MAX_LEN).await?;
-    let value = rmpv::decode::read_value(&mut reply.as_slice())
-        .map_err(|err| RpcError::Decode(err.to_string()))?;
-    decode::interface_stats(value)
+    rmpv::decode::read_value(&mut reply.as_slice()).map_err(|err| RpcError::Decode(err.to_string()))
 }

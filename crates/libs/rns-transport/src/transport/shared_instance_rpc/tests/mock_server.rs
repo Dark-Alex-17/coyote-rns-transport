@@ -2,10 +2,11 @@
 //! (`connection.py:513-517`: `deliver_challenge`, then `answer_challenge`),
 //! followed by rnsd's one request and one reply (`RNS/Reticulum.py:1277-1334`),
 //! on a TCP loopback listener or a unix socket, with the frames the client
-//! sent recorded for the tests to inspect. Framing and MACs reuse the
-//! client's own `framing` and `handshake` helpers, so a shared mistake would
-//! cancel out here; the hand-built header tests and the CPython vectors in
-//! `mod.rs` are what keep them honest.
+//! sent recorded for the tests to inspect. A listener serves one connection
+//! per script, in order, since rnsd closes after every reply. Framing and
+//! MACs reuse the client's own `framing` and `handshake` helpers, so a
+//! shared mistake would cancel out here; the hand-built header tests and the
+//! CPython vectors in `mod.rs` are what keep them honest.
 
 use std::net::SocketAddr;
 #[cfg(unix)]
@@ -93,16 +94,25 @@ pub(super) struct Observed {
 
 pub(super) struct MockServer {
     addr: Option<SocketAddr>,
-    task: JoinHandle<Observed>,
+    task: JoinHandle<Vec<Observed>>,
 }
 
 impl MockServer {
     pub(super) async fn spawn(script: Script) -> Self {
+        Self::spawn_sequence(vec![script]).await
+    }
+
+    /// One connection per script, accepted in order on the same listener.
+    pub(super) async fn spawn_sequence(scripts: Vec<Script>) -> Self {
         let listener = TcpListener::bind("127.0.0.1:0").await.expect("bind loopback");
         let addr = listener.local_addr().expect("listener address");
         let task = tokio::spawn(async move {
-            let (stream, _) = listener.accept().await.expect("accept");
-            serve(stream, script).await
+            let mut observed = Vec::with_capacity(scripts.len());
+            for script in scripts {
+                let (stream, _) = listener.accept().await.expect("accept");
+                observed.push(serve(stream, script).await);
+            }
+            observed
         });
         Self { addr: Some(addr), task }
     }
@@ -112,7 +122,7 @@ impl MockServer {
         let listener = UnixListener::bind(path).expect("bind unix socket");
         let task = tokio::spawn(async move {
             let (stream, _) = listener.accept().await.expect("accept");
-            serve(stream, script).await
+            vec![serve(stream, script).await]
         });
         Self { addr: None, task }
     }
@@ -122,6 +132,10 @@ impl MockServer {
     }
 
     pub(super) async fn finish(self) -> Observed {
+        self.finish_all().await.into_iter().next().expect("one connection served")
+    }
+
+    pub(super) async fn finish_all(self) -> Vec<Observed> {
         self.task.await.expect("server task")
     }
 }

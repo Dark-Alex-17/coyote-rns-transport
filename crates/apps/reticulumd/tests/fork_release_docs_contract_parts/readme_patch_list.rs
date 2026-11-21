@@ -641,6 +641,92 @@ fn crate_readme_rnsd_rpc_section_describes_the_client() {
     }
 }
 
+/// The path table section describes the calls the way the code presents
+/// them: the six calls and the row type, the Python lines the name
+/// equality, the drop window, the cull tick, the replacement rule, the
+/// stale path answer and the bin encoding are read from, the live rnsd part
+/// with its harness constructors and the black-box probe that pin it; the
+/// divergence register names the calls and the retry predicate as fork-only
+/// below the `Not divergences:` marker (API shape) and nowhere above it, and
+/// the changelog bullets carry the same name equality, the same measured
+/// window and the same pin files.
+#[test]
+fn crate_readme_path_table_section_describes_the_calls_and_the_window() {
+    let readme = read_repo_file("crates/libs/rns-transport/README.md");
+    let section = squash(crate_readme_section(&readme, "Driving rnsd's path table"));
+    let shared_claims = [
+        "`RNS/Reticulum.py:1527`",
+        "(`:1645`)",
+        "about 160 ms",
+        "110 to 160 ms",
+        "250 ms",
+        "python_channel_interop_parts/python_shared_instance_rpc_paths_live.rs`",
+        "`tests/shared_instance_rpc_paths_probe.rs`",
+    ];
+    for claim in shared_claims.into_iter().chain([
+        "`path_table`",
+        "`next_hop_interface_name`",
+        "`drop_path`",
+        "`drop_all_via`",
+        "`first_hop_timeout`",
+        "`drop_path_settled`",
+        "`PathRow`",
+        "`RNS/Transport.py:3219-3226`",
+        "`RNS/Transport.py:248`",
+        "`RNS/Transport.py:2236-2286`",
+        "`RNS/Transport.py:3459`",
+        "`RNS/vendor/umsgpack.py:505-506`",
+        "`SharedInstanceRpcRnsd::spawn_with_interfaces`",
+        "`LiveSharedInstance::with_transport`",
+        "`RpcError::is_transient()`",
+    ]) {
+        assert!(
+            section.contains(&squash(claim)),
+            "the path table section should mention {claim}:\n{section}"
+        );
+    }
+    let divergences = crate_readme_section(&readme, "Known divergences from Python RNS");
+    let (real, api_shape) = divergences
+        .split_once("\nNot divergences:\n")
+        .expect("the register separates API-shape facts under `Not divergences:`");
+    for bullet in [
+        "`drop_path_settled` are a fork-only typed client",
+        "`RpcError::is_transient()` is a fork-only predicate",
+    ] {
+        assert!(
+            squash(api_shape).contains(&squash(bullet)),
+            "{bullet} is API shape, listed below the marker:\n{api_shape}"
+        );
+        assert!(
+            !squash(real).contains(&squash(bullet)),
+            "{bullet} is not a behaviour divergence:\n{real}"
+        );
+    }
+    let changelog = read_repo_file("crates/libs/rns-transport/CHANGELOG.md");
+    let changelog_section = squash(changelog_section_naming(
+        &changelog,
+        "The path calls of rnsd's RPC listener on `transport::shared_instance_rpc`",
+    ));
+    for claim in shared_claims.into_iter().chain([
+        "`str(interface.name)` (`:1528`)",
+        "`drop_path_settled(endpoint, key, destination, timeout)",
+        "`RNS/Transport.py:248`",
+        "`RNS/Transport.py:3219-3226`",
+    ]) {
+        assert!(changelog_section.contains(&squash(claim)), "the changelog should mention {claim}");
+    }
+    let window_at = changelog_section
+        .find(&squash("Observed against rnsd 1.5.2"))
+        .expect("the changelog carries the observed window");
+    let settled_at = changelog_section
+        .find(&squash("`drop_path_settled(endpoint, key, destination, timeout)"))
+        .expect("the changelog carries the settling helper bullet");
+    assert!(
+        settled_at < window_at,
+        "the measured window sits in the `drop_path_settled` bullet, after its signature"
+    );
+}
+
 /// The announce section describes the emission second the way the code
 /// carries it: the two event fields, the blob slice and the Python lines
 /// it is decoded from, the relay replaying the stored bytes under the

@@ -73,6 +73,11 @@ their own are in the [Patch list](#patch-list)):
   `InterfaceStat` and `RpcError` in
   `rns_transport::transport::shared_instance_rpc`, the client side of rnsd's
   `get_interface_stats` RPC.
+- [Driving rnsd's path table](#driving-rnsds-path-table): `path_table`,
+  `next_hop_interface_name`, `drop_path`, `drop_all_via`,
+  `first_hop_timeout`, `drop_path_settled` and `PathRow` in
+  `rns_transport::transport::shared_instance_rpc`, the client side of the
+  path requests rnsd serves rnpath.
 
 The [Patch list](#patch-list) is the per-release summary of what each release
 changed and why, with `docs/fork/PATCHSET.md` as the per-file, per-commit
@@ -1176,6 +1181,108 @@ agreeing with the typed reply, and `python_stdlib_listener_rpc_probe.rs`
 runs CPython's own `multiprocessing.connection.Listener`, which takes a
 one-byte and a sixteen-byte key and refuses a wrong one.
 
+## Driving rnsd's path table
+
+`path_table`, `next_hop_interface_name`, `drop_path`, `drop_all_via`,
+`first_hop_timeout` and `drop_path_settled`, with the row type `PathRow`,
+in `rns_transport::transport::shared_instance_rpc` are the client side of
+the path requests `rpc_loop` serves rnpath (`RNS/Reticulum.py:1283-1306`):
+the `path_table`, `next_hop_if_name` and `first_hop_timeout` gets and the
+`path` and `all_via` drops, which `Reticulum.get_path_table`, `drop_path`
+and `drop_all_via` send when attached to a shared instance
+(`RNS/Reticulum.py:1630-1635`, `:1671-1676`, `:1681-1686`) and rnpath calls
+(`RNS/Utilities/rnpath.py:255`, `:406`, `:427`). Each call is one fresh
+connection under the caller's timeout, with the same `RpcEndpoint`,
+`RpcKey` and `RpcError` as `interface_stats` above.
+
+The problem they solve is roaming. A laptop that moves from the LAN to a
+phone's hotspot leaves rnsd holding a 1-hop row for its correspondent over
+the interface that is now offline. Python replaces a known row only for an
+announce with no more hops than the row's and a newer emission (or the same
+emission over an interface of higher gravity), or for one with more hops
+when the row has expired or the announce was emitted after every one the
+row has heard (`RNS/Transport.py:2236-2286`), or when a link request the
+instance relayed went unanswered (`:2292-2296`, set at `:929-931`, a
+transport-only path); an interface going offline never invalidates a row,
+`.online` being consulted only for the bitrate bounds
+(`RNS/Transport.py:568`, `:570`), the outbound broadcast (`:1449`), the
+inbound drop (`:1916`) and the path-request fan-out (`:3576`); and a
+transport-enabled rnsd restores its rows from `storage/destination_table`
+on start, finding each row's interface by hash (`RNS/Transport.py:404-441`,
+saved at `:3788-3863`). So the same announce heard again over a live 3-hop
+route is one the row already holds and never displaces the dead 1-hop row,
+and a shared-instance client's path request is answered from the stale
+entry (`RNS/Transport.py:3459`) rather than forwarded. A client's
+in-process `Transport::expire_path` touches only its own table; what
+`rnpath -d` does is ask rnsd over the control connection, and that is what
+these calls do.
+
+On a failed link, read `path_table(None)` and find the row. Its
+`interface` is the `str(interface)` form and equals the `interface_stats`
+entry's `name` for the same interface, byte for byte:
+`ifstats["name"] = str(interface)` (`RNS/Reticulum.py:1527`) and
+`"interface": str(path_table[dst][5])` (`:1645`) are the same `str()` of
+the same object, where `short_name` is `str(interface.name)` (`:1528`) and
+differs. So the row's interface, its `online` and its counters can be
+looked up by that name. If `online == false`, or the interface came up
+after the row's `timestamp`, call `drop_path_settled`, then send one
+`Transport::request_path`, then retry the link with `first_hop_timeout` as
+the budget for the first hop.
+
+The settling helper exists because a drop is not immediate. `drop path` is
+`Transport.expire_path`, which zeroes the entry's timestamp and resets
+`tables_last_culled` (`RNS/Transport.py:3219-3226`); the cull that pops the
+entry runs on the next `Transport.jobs` tick (`job_interval = 0.250`,
+`RNS/Transport.py:248`; the gate at `:855`; the pop at `:1088-1090`), and
+until then `path_request` (`:3459`) answers from the dropped entry.
+Observed against rnsd 1.5.2: under a millisecond after `drop_path`
+answered true, `path_table` still lists the row with timestamp 0 and
+`next_hop_interface_name` still names the interface; both read as gone at
+about 160 ms; `drop_path_settled` (`drop_path`, then
+`next_hop_interface_name` polled every 50 ms until it reads `None`, every
+dial under the one timeout) returns true in 110 to 160 ms; the bound is one
+tick, 250 ms. A `Timeout` from the helper can also mean the destination was
+re-learned from a fresh announce between the pop and a poll, so re-read
+`path_table` before treating it as a failure.
+
+Hashes travel as msgpack bin: `Transport.path_table` is keyed by `bytes`
+(`RNS/Transport.py:2459`) and umsgpack packs `bytes` as bin
+(`RNS/vendor/umsgpack.py:505-506`), which the client does; a str would miss
+and `drop path` would answer `False`. The `max_hops` key is always sent,
+nil for `None`, since rnsd reads `call["max_hops"]`
+(`RNS/Reticulum.py:1283-1285`) and a missing key hangs the call. `via` is
+the announce's `received_from`, the relaying transport's identity when the
+announce carried a transport header and the destination hash itself when
+it was heard directly (`RNS/Transport.py:2177-2178`, `:2202`), so a direct
+one-hop row has `via == hash` and `drop_all_via(row.via)` drops it too
+(`RNS/Reticulum.py:1689-1695`). `RpcError::is_transient()` decides whether
+to dial again: `Timeout`, or `Io` or `Connect` of kind `ConnectionReset`,
+`ConnectionAborted`, `BrokenPipe` or `UnexpectedEof`; `ConnectionRefused`
+is not.
+
+Pinned by the Python-in-the-loop part
+`crates/apps/reticulumd/tests/python_channel_interop_parts/python_shared_instance_rpc_paths_live.rs`
+of the reticulumd `python_channel_interop` binary
+(`python_rnsd_path_calls_list_the_client_interface_and_a_drop_settles`): a
+Rust client attached to a Python rnsd (RNS 1.5.2) announces one
+destination, the row is listed at hops 0 with `interface` equal to the
+`interface_stats` `name` of the client's `LocalInterface[<port>]` and
+different from its `short_name`, `next_hop_interface_name` is `Some` of
+that str, `first_hop_timeout` is a finite float of at least 6.0 (observed
+6.000004), the empty table and unknown-hash replies decode (`"None"`, int
+6, `False`, 0), a random hash drops as false while the row stays, the
+window above is recorded, the second drop is false, `drop_path_settled` is
+true with next hop `None` and the row gone, and `drop_all_via(row.via)` is
+at least 1; the harness `SharedInstanceRpcRnsd::spawn_with_interfaces` and
+`LiveSharedInstance::with_transport` in `python_shared_instance_rpc.rs`
+and `python_shared_instance_live.rs` take an `[interfaces]` text and the
+`enable_transport` toggle. Black-box, beside
+`tests/shared_instance_rpc_api.rs`, `tests/shared_instance_rpc_paths_probe.rs`
+holds one shared budget across a slow drop and the polls, the unix endpoint
+twins, a wrong key as `Authentication` after one dial, a 2000-row reply past
+64 KiB read by name, only the exact str `"None"` as `None`, `drop_all_via`
+int-only, and a zero budget as `Timeout`.
+
 ## Known divergences from Python RNS
 
 Where this crate is known to behave differently from RNS 1.5.2. Each entry
@@ -1414,6 +1521,23 @@ Not divergences:
   `RNS/Reticulum.py:1397-1402`), and the RPC server stays Python-only:
   reticulumd hosts no `multiprocessing.connection` listener as of this
   release. API shape, not behaviour.
+- The path calls `path_table`, `next_hop_interface_name`, `drop_path`,
+  `drop_all_via` and `first_hop_timeout` and the settling helper
+  `drop_path_settled` are a fork-only typed client of the `path_table`,
+  `next_hop_if_name`, `first_hop_timeout`, `drop path` and `drop all_via`
+  requests rnpath drives through `Reticulum.get_path_table`, `drop_path`
+  and `drop_all_via` (`RNS/Utilities/rnpath.py:255`, `:406`, `:427`;
+  `RNS/Reticulum.py:1630-1635`, `:1671-1676`, `:1681-1686`) and `rpc_loop`
+  serves (`RNS/Reticulum.py:1283-1306`); the settling helper is client-side
+  polling of what Python's cull does on its own tick
+  (`RNS/Transport.py:855`). API shape, not behaviour.
+- `RpcError::is_transient()` is a fork-only predicate; Python's clients
+  have no retry rule: rnstatus makes one call and swallows any exception
+  into "Could not get RNS status" (`RNS/Reticulum.py:1397-1402`,
+  `RNS/Utilities/rnstatus.py:355-356`, `:821`) and rnpath makes one call
+  with no handler around it (`RNS/Utilities/rnpath.py:255`, `:406`,
+  `:427`; only `KeyboardInterrupt` is caught, `:525`).
+  API shape, not behaviour.
 - `RpcEndpoint::Tcp` dials the address it is given, loopback or not, as
   Python's own `multiprocessing.connection.Client` does in rnstatus
   (`RNS/Reticulum.py:1397-1402`); the loopback guard that

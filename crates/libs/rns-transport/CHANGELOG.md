@@ -39,8 +39,14 @@ Removed) bullet of its own, marked as such.
   when it was heard directly (`RNS/Transport.py:2177-2178`, `:2202`), so a
   direct one-hop row has `via == hash` and `drop_all_via` handed a
   destination hash drops that direct path too (`RNS/Reticulum.py:1691`). Facts
-  settled for a shared-instance client: hashes travel as msgpack bin (a
-  16-byte `bin 8`), the form umsgpack gives the `bytes` keys of
+  settled for a shared-instance client: a row's `interface` equals the
+  `interface_stats` entry's `name` for the same interface, byte for byte,
+  since `ifstats["name"] = str(interface)` (`RNS/Reticulum.py:1527`) and
+  `"interface": str(path_table[dst][5])` (`:1645`) are the same `str()` of
+  the same object, where `short_name` is `str(interface.name)` (`:1528`)
+  and differs, so a row is matched to its interface's `online` by `name`;
+  hashes travel as msgpack bin (a 16-byte `bin 8`), the form umsgpack gives
+  the `bytes` keys of
   `Transport.path_table` (`RNS/Transport.py:2459`,
   `RNS/vendor/umsgpack.py:505-506`), so a str would miss the entry and
   `drop path` would answer `False`; the `max_hops` key is always present,
@@ -83,7 +89,21 @@ Removed) bullet of its own, marked as such.
   listener
   `python_channel_interop_parts/python_stdlib_listener_rpc_probe.rs`, whose
   `drop path` branch answers whether `destination_hash` arrived as `bytes`
-  and whose `path_table` branch logs the `max_hops` it read.
+  and whose `path_table` branch logs the `max_hops` it read, the live rnsd
+  (RNS 1.5.2) part
+  `python_channel_interop_parts/python_shared_instance_rpc_paths_live.rs`,
+  where a destination announced by an attached Rust client is listed at
+  hops 0 with `interface` equal to the `interface_stats` `name` of the
+  client's `LocalInterface[<port>]` and different from its `short_name`,
+  the empty-table and unknown-hash replies decode, a random hash drops as
+  false beside the listed row, the dropped row is still listed with
+  timestamp 0 under a millisecond after `drop_path` and gone at about
+  160 ms, and `drop_all_via(row.via)` counts at least 1, and
+  `tests/shared_instance_rpc_paths_probe.rs` (one shared budget across a
+  slow drop and the polls, the unix endpoint twins, a wrong key as
+  `Authentication` after one dial, a 2000-row reply past 64 KiB read by
+  name, only the exact str `"None"` as `None`, `drop_all_via` int-only, and
+  a zero budget as `Timeout`).
 - `drop_path_settled(endpoint, key, destination, timeout) -> Result<bool,
   RpcError>` (`transport/shared_instance_rpc/paths.rs`): `drop_path`, then,
   when it answered `true`, `next_hop_interface_name` polled every 50 ms
@@ -94,17 +114,22 @@ Removed) bullet of its own, marked as such.
   next `Transport.jobs` tick (`job_interval = 0.250` at
   `RNS/Transport.py:248`, the gate at `:855`, the pop at `:1088-1090`), and
   until then `path_request` (`RNS/Transport.py:3459`) still answers from
-  the dropped entry's cached announce, so a path request sent right after a
-  bare `drop_path` is answered from the stale entry. A caller sends one path
-  request after the helper returns `Ok(true)`. A `Timeout` from it is not
-  only a slow cull: the destination may have been re-learned from a fresh
-  announce between the pop and a poll, so a caller re-reads `path_table`
-  before treating it as a failure, and a destination registered inside the
-  rnsd process never reads as `None`. The helper never retries: a poll that
-  fails with a transient error is returned as it is, budget left or not. The
-  dials are not one transaction: an error after the drop answered `true`
-  leaves the drop in place, and a repeated call then answers `Ok(false)` once
-  the cull has run, which a retrying caller reads as settled. Pinned by
+  the dropped entry's cached announce. Observed against rnsd 1.5.2: under
+  a millisecond after `drop_path` answered true, `path_table` still lists
+  the row with timestamp 0 and `next_hop_interface_name` still names the
+  interface; both read as gone at about 160 ms; `drop_path_settled` returns
+  true in 110 to 160 ms; the bound is one tick, 250 ms. A path request sent
+  right after a bare `drop_path` is answered from the stale entry; a caller
+  sends one path request after the helper returns `Ok(true)`. A `Timeout`
+  from it is not only a slow cull: the destination may have been re-learned
+  from a fresh announce between the pop and a poll, so a caller re-reads
+  `path_table` before treating it as a failure, and a destination registered
+  inside the rnsd process never reads as `None`. The helper never retries: a
+  poll that fails with a transient error is returned as it is, budget left or
+  not. The dials are not one transaction: an error after the drop answered
+  `true` leaves the drop in place, and a repeated call then answers
+  `Ok(false)` once the cull has run, which a retrying caller reads as
+  settled. Pinned by
   `shared_instance_rpc/tests/paths.rs` (drop `true` then two names then
   `"None"` as `Ok(true)` under one budget and no sooner than two poll
   intervals, drop `false` as `Ok(false)` after exactly one dial, a next hop

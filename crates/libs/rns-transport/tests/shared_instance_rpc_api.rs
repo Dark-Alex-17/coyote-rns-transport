@@ -14,17 +14,36 @@
 //! `UnexpectedEof` kind behind `io_kind()`; so is one that hangs up mid-frame, while one
 //! that resets after a whole challenge is `Io` or `Connect` of a retryable kind; one that
 //! writes garbage is `Protocol` and one that stays silent is `Timeout`, both with no io
-//! kind; and `io_kind()` is `Some` for exactly `Io` and `Connect`.
+//! kind; and `io_kind()` is `Some` for exactly `Io` and `Connect`. The path calls
+//! (`path_table`, `next_hop_interface_name`, `first_hop_timeout`, `drop_path`,
+//! `drop_all_via`, `drop_path_settled`) are held, against a loopback server that completes
+//! the stdlib handshake honestly and answers one canned reply per connection, to the
+//! request bytes rnsd's `rpc_loop` reads (`max_hops` always present and nil for `None`,
+//! `RNS/Reticulum.py:1283-1285`; the hash as a 16-byte msgpack bin, the form umsgpack
+//! gives the `bytes` keys of `Transport.path_table`, `RNS/Transport.py:2459`,
+//! `RNS/vendor/umsgpack.py:505-506`) and to rnsd's reply shapes (`PathRow`s read by name
+//! from `get_path_table`'s maps, `RNS/Reticulum.py:1638-1648`, with the int `0` timestamp
+//! of a dropped path, `RNS/Transport.py:3219-3226`; the str `"None"` as no next hop,
+//! `RNS/Reticulum.py:1715`; int or float seconds); their futures are `Send`; and
+//! `is_transient()` agrees with the README's retry rule as a consumer writes it over every
+//! variant and kind.
 
 use std::error::Error;
 use std::fmt::Debug;
 use std::path::Path;
 use std::time::{Duration, Instant};
 
-use tokio::io::AsyncWriteExt;
+use hmac::{Hmac, Mac};
+use rmpv::Value;
+use sha2::Sha256;
+use tokio::io::{AsyncReadExt, AsyncWriteExt};
+use tokio::net::{TcpListener, TcpStream};
 
+use rns_transport::hash::AddressHash;
 use rns_transport::transport::shared_instance_rpc::{
-    interface_stats, InterfaceStat, InterfaceStats, RpcEndpoint, RpcError, RpcKey,
+    drop_all_via, drop_path, drop_path_settled, first_hop_timeout, interface_stats,
+    next_hop_interface_name, path_table, InterfaceStat, InterfaceStats, PathRow, RpcEndpoint,
+    RpcError, RpcKey,
 };
 
 #[path = "support/free_loopback_port.rs"]
@@ -266,6 +285,44 @@ fn io_kind_is_some_for_exactly_io_and_connect() {
     assert!(!readme_retryable(&RpcError::Protocol("short".into())));
 }
 
+/// Every variant, and every kind the README names, behind `Io` and `Connect`.
+fn every_variant_and_kind() -> Vec<RpcError> {
+    use std::io::{Error, ErrorKind};
+    let mut errors = Vec::new();
+    for kind in [
+        ErrorKind::ConnectionReset,
+        ErrorKind::ConnectionAborted,
+        ErrorKind::BrokenPipe,
+        ErrorKind::UnexpectedEof,
+    ] {
+        errors.push(RpcError::Io(Error::from(kind)));
+        errors.push(RpcError::Connect(Error::from(kind)));
+    }
+    errors.extend([
+        RpcError::Connect(Error::from(ErrorKind::ConnectionRefused)),
+        RpcError::Io(Error::from(ErrorKind::Other)),
+        RpcError::Timeout,
+        RpcError::Authentication,
+        RpcError::Protocol("short".into()),
+        RpcError::Decode("shape".into()),
+        RpcError::UnsupportedDigest("sha1".into()),
+        RpcError::InvalidKeyMaterial,
+    ]);
+    errors
+}
+
+#[test]
+fn is_transient_agrees_with_the_readme_retry_rule() {
+    let errors = every_variant_and_kind();
+    for err in &errors {
+        assert_eq!(err.is_transient(), readme_retryable(err), "{err:?}");
+    }
+    // Eight retryable kinds and Timeout; the rest, ConnectionRefused included, stay.
+    assert_eq!(errors.iter().filter(|err| err.is_transient()).count(), 9);
+    assert!(RpcError::Timeout.is_transient());
+    assert!(!RpcError::Connect(std::io::ErrorKind::ConnectionRefused.into()).is_transient());
+}
+
 /// A loopback listener that writes `bytes` to the first client and then does `after`.
 async fn one_shot_server<F, Fut>(
     bytes: Vec<u8>,
@@ -289,7 +346,6 @@ where
 /// Hold the socket open until the client goes away, so the client's read sees whatever
 /// the server wrote and nothing more until its budget runs out.
 async fn hold_until_client_leaves(mut stream: tokio::net::TcpStream) {
-    use tokio::io::AsyncReadExt;
     let mut sink = [0u8; 1024];
     while let Ok(n) = stream.read(&mut sink).await {
         if n == 0 {
@@ -389,5 +445,306 @@ async fn readme_recipe_runs_against_a_closed_port() {
     std::fs::write(storage.join("transport_identity"), [7u8; 64]).expect("write identity");
     let port = free_loopback_port().await;
     let result = readme_recipe(dir.path(), RpcEndpoint::Tcp(([127, 0, 0, 1], port).into())).await;
+    assert!(matches!(result, Err(RpcError::Connect(_))), "{result:?}");
+}
+
+const CHALLENGE: &[u8] = b"#CHALLENGE#";
+const WELCOME: &[u8] = b"#WELCOME#";
+
+const DESTINATION: [u8; 16] = [
+    0x10, 0x11, 0x12, 0x13, 0x14, 0x15, 0x16, 0x17, 0x18, 0x19, 0x1a, 0x1b, 0x1c, 0x1d, 0x1e, 0x1f,
+];
+const VIA: [u8; 16] = [0x5a; 16];
+const INTERFACE_NAME: &str = "TCPInterface[A/127.0.0.1:4242]";
+
+const PATH_TABLE_REQUEST_NO_MAX_HOPS: &[u8] = b"\x82\xa3get\xaapath_table\xa8max_hops\xc0";
+const PATH_TABLE_REQUEST_MAX_HOPS_FIVE: &[u8] = b"\x82\xa3get\xaapath_table\xa8max_hops\x05";
+const NEXT_HOP_REQUEST_HEAD: &[u8] = b"\x82\xa3get\xb0next_hop_if_name\xb0destination_hash\xc4\x10";
+const DROP_PATH_REQUEST_HEAD: &[u8] = b"\x82\xa4drop\xa4path\xb0destination_hash\xc4\x10";
+const DROP_ALL_VIA_REQUEST_HEAD: &[u8] = b"\x82\xa4drop\xa7all_via\xb0destination_hash\xc4\x10";
+const FIRST_HOP_TIMEOUT_REQUEST_HEAD: &[u8] =
+    b"\x82\xa3get\xb1first_hop_timeout\xb0destination_hash\xc4\x10";
+
+fn destination() -> AddressHash {
+    AddressHash::new(DESTINATION)
+}
+
+/// `head` is the fixmap up to and including the bin8 header `\xc4\x10`; the destination's
+/// 16 bytes follow.
+fn hash_request(head: &[u8]) -> Vec<u8> {
+    let mut bytes = head.to_vec();
+    bytes.extend_from_slice(&DESTINATION);
+    bytes
+}
+
+fn authkey() -> Vec<u8> {
+    (0..KEY_HEX.len())
+        .step_by(2)
+        .map(|i| u8::from_str_radix(&KEY_HEX[i..i + 2], 16).expect("hex byte"))
+        .collect()
+}
+
+/// One stdlib `send_bytes` frame: signed big-endian 32-bit length, then the payload.
+fn frame(payload: &[u8]) -> Vec<u8> {
+    let mut out = i32::try_from(payload.len()).expect("frame fits").to_be_bytes().to_vec();
+    out.extend_from_slice(payload);
+    out
+}
+
+async fn recv_frame(stream: &mut TcpStream) -> std::io::Result<Vec<u8>> {
+    let mut header = [0u8; 4];
+    stream.read_exact(&mut header).await?;
+    let len = usize::try_from(i32::from_be_bytes(header)).expect("non-negative length");
+    let mut payload = vec![0u8; len];
+    stream.read_exact(&mut payload).await?;
+    Ok(payload)
+}
+
+/// The stdlib's `deliver_challenge` message in the modern form: `{sha256}` + 40 bytes.
+fn server_challenge() -> Vec<u8> {
+    let mut message = b"{sha256}".to_vec();
+    message.extend_from_slice(&[0x42u8; 40]);
+    message
+}
+
+/// The stdlib's `_create_response` for a `{sha256}`-prefixed message: the MAC covers the
+/// whole message, header included, and the reply carries the same prefix.
+fn answer(authkey: &[u8], message: &[u8]) -> Vec<u8> {
+    assert!(message.starts_with(b"{sha256}"), "the client challenges with {{sha256}}: {message:?}");
+    let mut mac = Hmac::<Sha256>::new_from_slice(authkey).expect("hmac key");
+    mac.update(message);
+    let mut out = b"{sha256}".to_vec();
+    out.extend_from_slice(&mac.finalize().into_bytes());
+    out
+}
+
+/// Serve the stdlib's mutual handshake honestly (`deliver_challenge`, then
+/// `answer_challenge`) and return the request frame the client sends next.
+async fn serve_honest_handshake(stream: &mut TcpStream) -> Vec<u8> {
+    let authkey = authkey();
+    let message = server_challenge();
+    let mut challenge = CHALLENGE.to_vec();
+    challenge.extend_from_slice(&message);
+    stream.write_all(&frame(&challenge)).await.expect("write challenge");
+    let response = recv_frame(stream).await.expect("the client's answer");
+    assert_eq!(response, answer(&authkey, &message), "the client's answer to our challenge");
+    stream.write_all(&frame(WELCOME)).await.expect("write welcome");
+    let theirs = recv_frame(stream).await.expect("the client's challenge");
+    assert!(theirs.starts_with(CHALLENGE), "{theirs:?}");
+    let ours = answer(&authkey, &theirs[CHALLENGE.len()..]);
+    stream.write_all(&frame(&ours)).await.expect("write our answer");
+    let welcome = recv_frame(stream).await.expect("the client's verdict");
+    assert_eq!(welcome, WELCOME, "the client rejected a correct answer");
+    recv_frame(stream).await.expect("the request")
+}
+
+fn pack(value: &Value) -> Vec<u8> {
+    let mut bytes = Vec::new();
+    rmpv::encode::write_value(&mut bytes, value).expect("pack into a vec");
+    bytes
+}
+
+/// A loopback listener that takes one connection per canned reply: the honest handshake,
+/// the request, the reply, then the close `rpc_loop` does. The task yields every request
+/// read, in connection order; a dial after the last reply is refused.
+async fn canned_server(
+    replies: Vec<Value>,
+) -> (RpcEndpoint, tokio::task::JoinHandle<Vec<Vec<u8>>>) {
+    let listener = TcpListener::bind("127.0.0.1:0").await.expect("bind loopback");
+    let endpoint = RpcEndpoint::Tcp(listener.local_addr().expect("listener address"));
+    let server = tokio::spawn(async move {
+        let mut requests = Vec::with_capacity(replies.len());
+        for reply in replies {
+            let (mut stream, _) = listener.accept().await.expect("accept");
+            requests.push(serve_honest_handshake(&mut stream).await);
+            stream.write_all(&frame(&pack(&reply))).await.expect("write reply");
+            stream.flush().await.expect("flush");
+            stream.shutdown().await.expect("fin");
+        }
+        requests
+    });
+    (endpoint, server)
+}
+
+/// The one request a single-reply [`canned_server`] read.
+async fn served_request(server: tokio::task::JoinHandle<Vec<Vec<u8>>>) -> Vec<u8> {
+    let mut requests = server.await.expect("server task");
+    assert_eq!(requests.len(), 1, "{requests:?}");
+    requests.remove(0)
+}
+
+fn map(pairs: Vec<(&str, Value)>) -> Value {
+    Value::Map(pairs.into_iter().map(|(key, value)| (Value::from(key), value)).collect())
+}
+
+/// A row as `get_path_table` builds it (`RNS/Reticulum.py:1638-1648`), with `extra`
+/// keys appended as a newer server might add them.
+fn row(hash: Vec<u8>, timestamp: Value, hops: u8, extra: Vec<(&str, Value)>) -> Value {
+    let mut pairs = vec![
+        ("hash", Value::Binary(hash)),
+        ("timestamp", timestamp),
+        ("via", Value::Binary(VIA.to_vec())),
+        ("hops", Value::from(hops)),
+        ("expires", Value::F64(1_700_000_600.5)),
+        ("interface", Value::from(INTERFACE_NAME)),
+    ];
+    pairs.extend(extra);
+    map(pairs)
+}
+
+#[tokio::test]
+async fn path_table_always_sends_max_hops_nil_for_none() {
+    let key = RpcKey::from_hex(KEY_HEX).expect("hex key");
+    let (endpoint, server) = canned_server(vec![Value::Array(vec![])]).await;
+    let rows = path_table(&endpoint, &key, None, WAIT).await.expect("path_table");
+    assert!(rows.is_empty(), "{rows:?}");
+    assert_eq!(served_request(server).await, PATH_TABLE_REQUEST_NO_MAX_HOPS);
+
+    let (endpoint, server) = canned_server(vec![Value::Array(vec![])]).await;
+    path_table(&endpoint, &key, Some(5), WAIT).await.expect("path_table");
+    let request = served_request(server).await;
+    assert_eq!(request, PATH_TABLE_REQUEST_MAX_HOPS_FIVE);
+    assert_eq!(request.last(), Some(&0x05));
+}
+
+#[tokio::test]
+async fn path_table_rows_are_read_by_name_and_keep_the_raw_entry() {
+    assert_value::<PathRow>();
+    let learned = row(DESTINATION.to_vec(), Value::F64(1_700_000_000.25), 3, vec![]);
+    // The int 0 is what `expire_path` leaves in the timestamp slot
+    // (`RNS/Transport.py:3219-3226`).
+    let dropped = row(vec![0x03; 16], Value::from(0), 0, vec![("extra", Value::from("unknown"))]);
+    let (endpoint, server) =
+        canned_server(vec![Value::Array(vec![learned.clone(), dropped.clone()])]).await;
+    let key = RpcKey::from_hex(KEY_HEX).expect("hex key");
+    let rows = path_table(&endpoint, &key, None, WAIT).await.expect("path_table");
+    served_request(server).await;
+
+    assert_eq!(rows.len(), 2, "{rows:?}");
+    let PathRow { hash, timestamp, via, hops, expires, interface, raw, .. } = &rows[0];
+    assert_eq!(*hash, destination());
+    assert_eq!(*timestamp, 1_700_000_000.25);
+    assert_eq!(*via, AddressHash::new(VIA));
+    assert_eq!(*hops, 3);
+    assert_eq!(*expires, 1_700_000_600.5);
+    assert_eq!(interface, INTERFACE_NAME);
+    assert_eq!(*raw, learned);
+
+    assert_eq!(rows[1].hash, AddressHash::new([0x03; 16]));
+    assert_eq!(rows[1].timestamp, 0.0);
+    assert_eq!(rows[1].hops, 0);
+    assert_eq!(rows[1].raw, dropped);
+    assert_eq!(rows[1].raw["extra"].as_str(), Some("unknown"), "{:?}", rows[1].raw);
+    assert_eq!(rows[0].clone(), rows[0]);
+    assert_ne!(rows[0], rows[1]);
+}
+
+#[tokio::test]
+async fn hash_calls_send_the_destination_as_a_sixteen_byte_bin() {
+    let key = RpcKey::from_hex(KEY_HEX).expect("hex key");
+
+    let (endpoint, server) = canned_server(vec![Value::from("None")]).await;
+    let name = next_hop_interface_name(&endpoint, &key, &destination(), WAIT).await;
+    assert_eq!(name.expect("next_hop_interface_name"), None);
+    assert_eq!(served_request(server).await, hash_request(NEXT_HOP_REQUEST_HEAD));
+
+    let (endpoint, server) = canned_server(vec![Value::from(6)]).await;
+    let seconds = first_hop_timeout(&endpoint, &key, &destination(), WAIT).await;
+    assert_eq!(seconds.expect("first_hop_timeout"), 6.0);
+    assert_eq!(served_request(server).await, hash_request(FIRST_HOP_TIMEOUT_REQUEST_HEAD));
+
+    let (endpoint, server) = canned_server(vec![Value::from(true)]).await;
+    let dropped = drop_path(&endpoint, &key, &destination(), WAIT).await;
+    assert!(dropped.expect("drop_path"));
+    assert_eq!(served_request(server).await, hash_request(DROP_PATH_REQUEST_HEAD));
+
+    let (endpoint, server) = canned_server(vec![Value::from(2)]).await;
+    let count = drop_all_via(&endpoint, &key, &destination(), WAIT).await;
+    assert_eq!(count.expect("drop_all_via"), 2);
+    assert_eq!(served_request(server).await, hash_request(DROP_ALL_VIA_REQUEST_HEAD));
+}
+
+#[tokio::test]
+async fn hash_call_replies_read_as_rnsd_writes_them() {
+    let key = RpcKey::from_hex(KEY_HEX).expect("hex key");
+
+    let (endpoint, server) = canned_server(vec![Value::from(INTERFACE_NAME)]).await;
+    let name = next_hop_interface_name(&endpoint, &key, &destination(), WAIT).await;
+    assert_eq!(name.expect("next_hop_interface_name"), Some(INTERFACE_NAME.to_string()));
+    served_request(server).await;
+
+    let (endpoint, server) = canned_server(vec![Value::from(false)]).await;
+    let dropped = drop_path(&endpoint, &key, &destination(), WAIT).await;
+    assert!(!dropped.expect("drop_path"));
+    served_request(server).await;
+
+    let (endpoint, server) = canned_server(vec![Value::F64(6.0128)]).await;
+    let seconds = first_hop_timeout(&endpoint, &key, &destination(), WAIT).await;
+    assert_eq!(seconds.expect("first_hop_timeout"), 6.0128);
+    served_request(server).await;
+}
+
+#[tokio::test]
+async fn wrong_shaped_path_replies_are_decode_without_an_io_kind() {
+    let key = RpcKey::from_hex(KEY_HEX).expect("hex key");
+
+    let not_an_array = map(vec![("interfaces", Value::Array(vec![]))]);
+    let (endpoint, server) = canned_server(vec![not_an_array]).await;
+    let result = path_table(&endpoint, &key, None, WAIT).await;
+    match &result {
+        Err(err @ RpcError::Decode(_)) => {
+            assert_eq!(err.io_kind(), None, "{err:?}");
+            assert!(!err.is_transient(), "{err:?}");
+        }
+        other => panic!("non-array path_table reply: expected Decode, got {other:?}"),
+    }
+    served_request(server).await;
+
+    let short_hash = row(vec![0x01; 15], Value::F64(1.0), 1, vec![]);
+    let (endpoint, server) = canned_server(vec![Value::Array(vec![short_hash])]).await;
+    let result = path_table(&endpoint, &key, None, WAIT).await;
+    assert!(matches!(result, Err(RpcError::Decode(_))), "15-byte hash: {result:?}");
+    served_request(server).await;
+}
+
+#[tokio::test]
+async fn drop_path_settled_polls_the_next_hop_until_it_reads_none() {
+    let (endpoint, server) =
+        canned_server(vec![Value::from(true), Value::from(INTERFACE_NAME), Value::from("None")])
+            .await;
+    let key = RpcKey::from_hex(KEY_HEX).expect("hex key");
+    let started = Instant::now();
+    let settled = drop_path_settled(&endpoint, &key, &destination(), WAIT).await;
+    assert!(settled.expect("drop_path_settled"));
+    assert!(started.elapsed() < WAIT, "{:?}", started.elapsed());
+    let requests = server.await.expect("server task");
+    assert_eq!(requests.len(), 3, "{requests:?}");
+    assert_eq!(requests[0], hash_request(DROP_PATH_REQUEST_HEAD));
+    assert_eq!(requests[1], hash_request(NEXT_HOP_REQUEST_HEAD));
+    assert_eq!(requests[2], hash_request(NEXT_HOP_REQUEST_HEAD));
+}
+
+#[tokio::test]
+async fn drop_path_settled_without_a_path_dials_exactly_once() {
+    let (endpoint, server) = canned_server(vec![Value::from(false)]).await;
+    let key = RpcKey::from_hex(KEY_HEX).expect("hex key");
+    let settled = drop_path_settled(&endpoint, &key, &destination(), WAIT).await;
+    assert!(!settled.expect("drop_path_settled"));
+    assert_eq!(served_request(server).await, hash_request(DROP_PATH_REQUEST_HEAD));
+}
+
+#[tokio::test]
+async fn path_call_futures_are_send() {
+    let port = free_loopback_port().await;
+    let endpoint = RpcEndpoint::Tcp(([127, 0, 0, 1], port).into());
+    let key = RpcKey::from_hex(KEY_HEX).expect("hex key");
+    let destination = destination();
+    assert_send(path_table(&endpoint, &key, None, WAIT));
+    assert_send(next_hop_interface_name(&endpoint, &key, &destination, WAIT));
+    assert_send(first_hop_timeout(&endpoint, &key, &destination, WAIT));
+    assert_send(drop_path(&endpoint, &key, &destination, WAIT));
+    assert_send(drop_all_via(&endpoint, &key, &destination, WAIT));
+    assert_send(drop_path_settled(&endpoint, &key, &destination, WAIT));
+    let result = drop_path(&endpoint, &key, &destination, WAIT).await;
     assert!(matches!(result, Err(RpcError::Connect(_))), "{result:?}");
 }

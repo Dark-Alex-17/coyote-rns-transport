@@ -55,6 +55,37 @@ fn key() -> RpcKey {
     RpcKey::from_hex(KEY_HEX).expect("hex key")
 }
 
+/// `RpcError::is_transient()` is the same rule as one predicate; the consumer's `retryable`
+/// must agree with it over every variant and every kind the README names.
+#[test]
+fn retryable_agrees_with_is_transient_over_every_variant_and_kind() {
+    use std::io::{Error, ErrorKind};
+    let mut errors = Vec::new();
+    for kind in [
+        ErrorKind::ConnectionReset,
+        ErrorKind::ConnectionAborted,
+        ErrorKind::BrokenPipe,
+        ErrorKind::UnexpectedEof,
+    ] {
+        errors.push(RpcError::Io(Error::from(kind)));
+        errors.push(RpcError::Connect(Error::from(kind)));
+    }
+    errors.extend([
+        RpcError::Connect(Error::from(ErrorKind::ConnectionRefused)),
+        RpcError::Io(Error::from(ErrorKind::Other)),
+        RpcError::Timeout,
+        RpcError::Authentication,
+        RpcError::Protocol("short".into()),
+        RpcError::Decode("shape".into()),
+        RpcError::UnsupportedDigest("sha1".into()),
+        RpcError::InvalidKeyMaterial,
+    ]);
+    for err in &errors {
+        assert_eq!(retryable(err), err.is_transient(), "{err:?}");
+    }
+    assert_eq!(errors.iter().filter(|err| retryable(err)).count(), 9, "{errors:?}");
+}
+
 /// One stdlib `send_bytes` frame: signed big-endian 32-bit length, then the payload.
 fn frame(payload: &[u8]) -> Vec<u8> {
     let mut out = i32::try_from(payload.len()).expect("frame fits").to_be_bytes().to_vec();

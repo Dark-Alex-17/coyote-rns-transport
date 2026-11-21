@@ -8,6 +8,107 @@ no library behaviour (a test-only change such as a fixture hardening or a
 test hygiene pass, release tooling, CI) is a Changed (or, for a deleted file,
 Removed) bullet of its own, marked as such.
 
+## Unreleased
+
+### Added
+
+- The path calls of rnsd's RPC listener on `transport::shared_instance_rpc`
+  (`transport/shared_instance_rpc/paths.rs`), each one fresh connection,
+  the mutual handshake, one request and one reply under the caller's
+  `timeout`, with the same `RpcEndpoint`, `RpcKey`, `RpcError` and
+  `io_kind()` contract as `interface_stats`:
+  `path_table(endpoint, key, max_hops: Option<u8>, timeout) ->
+  Result<Vec<PathRow>, RpcError>`, `next_hop_interface_name(.., destination,
+  ..) -> Result<Option<String>, RpcError>`, `drop_path(.., destination, ..)
+  -> Result<bool, RpcError>`, `drop_all_via(.., transport_hash, ..) ->
+  Result<u64, RpcError>` and `first_hop_timeout(.., destination, ..) ->
+  Result<f64, RpcError>`, the requests `rpc_loop` reads
+  (`RNS/Reticulum.py:1274-1334`: `{"get": "path_table", "max_hops": mh}`
+  at `:1283-1285`, `{"get": "next_hop_if_name", "destination_hash": d}` at
+  `:1289`, `{"get": "first_hop_timeout", "destination_hash": d}` at
+  `:1291`, `{"drop": "path", "destination_hash": d}` at `:1305` and
+  `{"drop": "all_via", "destination_hash": t}` at `:1306`, whose key is
+  `destination_hash` though the value is a transport hash). The
+  `#[non_exhaustive]` `PathRow` (`transport/shared_instance_rpc/path_table.rs`)
+  carries the six fields `get_path_table` builds
+  (`RNS/Reticulum.py:1638-1648`), `hash` and `via` as `AddressHash`,
+  `timestamp` and `expires` as `f64`, `hops` as `u8`, `interface` as the
+  `str(interface)` form, and `raw`, the whole entry as received. Facts
+  settled for a shared-instance client: hashes travel as msgpack bin (a
+  16-byte `bin 8`), the form umsgpack gives the `bytes` keys of
+  `Transport.path_table` (`RNS/Transport.py:2459`,
+  `RNS/vendor/umsgpack.py:505-506`), so a str would miss the entry and
+  `drop path` would answer `False`; the `max_hops` key is always present,
+  nil for `None`, since rnsd reads `call["max_hops"]` and a missing key
+  raises a `KeyError` that `rpc_loop` logs at `RNS/Reticulum.py:1333`
+  without answering or closing, leaving the client to its timeout;
+  `next_hop_if_name` answers `str(Transport.next_hop_interface(d))`
+  (`RNS/Reticulum.py:1715`), the four-character str `"None"` without a path
+  (`RNS/Transport.py:3162-3164`), which reads as `None`; a dropped but not
+  yet culled row carries the int `0` where a float timestamp normally is
+  (`RNS/Transport.py:3219-3226`), and `first_hop_timeout` is the float `MTU
+  * latency + DEFAULT_PER_HOP_TIMEOUT` with a path or the int `6` without
+  one (`RNS/Transport.py:3194-3197`), so both slots read int or float as a
+  number; a bin of any other length, and every other wrong shape, is
+  `RpcError::Decode`. `interface_stats` now runs on the same private
+  request seam with its request bytes unchanged. Pinned by
+  `shared_instance_rpc/tests/paths.rs` (the exact request bytes, `max_hops`
+  nil and `\x05`, the bin header before the hash, the row decoding with an
+  unknown key kept in `raw` and an int `0` timestamp, `"None"` and a real
+  name, the bool, the count, the int and float seconds, and the `Decode`
+  texts naming the bad key), `shared_instance_rpc/tests/mod.rs` (the
+  `interface_stats` request bytes equal to the pinned constant),
+  `tests/shared_instance_rpc_api.rs` (the same vectors from outside the
+  crate against a loopback server that completes the stdlib handshake,
+  `PathRow` as a `Clone + Debug + PartialEq` value read by name, `Send`
+  futures) and the CPython stdlib listener
+  `python_channel_interop_parts/python_stdlib_listener_rpc_probe.rs`, whose
+  `drop path` branch answers whether `destination_hash` arrived as `bytes`
+  and whose `path_table` branch logs the `max_hops` it read.
+- `drop_path_settled(endpoint, key, destination, timeout) -> Result<bool,
+  RpcError>` (`transport/shared_instance_rpc/paths.rs`): `drop_path`, then,
+  when it answered `true`, `next_hop_interface_name` polled every 50 ms
+  until it reads `None`, every dial under the one `timeout`; `Ok(false)` at
+  once when there was no path. The window it waits out: `expire_path` only
+  zeroes the entry's timestamp and resets `tables_last_culled`
+  (`RNS/Transport.py:3219-3226`); the cull that pops the entry runs on the
+  next `Transport.jobs` tick (`job_interval = 0.250` at
+  `RNS/Transport.py:248`, the gate at `:855`, the pop at `:1088-1090`), and
+  until then `path_request` (`RNS/Transport.py:3459`) still answers from
+  the dropped entry's cached announce, so a path request sent right after a
+  bare `drop_path` is answered from the stale entry. A caller sends one path
+  request after the helper returns `Ok(true)`; a `Timeout` from it can also
+  mean the destination was re-learned from a fresh announce between the pop
+  and a poll, so a caller re-reads `path_table` before treating it as a
+  failure. Pinned by `shared_instance_rpc/tests/paths.rs` (drop `true` then
+  two names then `"None"` as `Ok(true)` under one budget, drop `false` as
+  `Ok(false)` after exactly one dial, a next hop that never clears as
+  `Timeout` at the budget), `tests/shared_instance_rpc_api.rs` and the
+  CPython stdlib listener
+  `python_channel_interop_parts/python_stdlib_listener_rpc_probe.rs`.
+- `RpcError::is_transient() -> bool` (`transport/shared_instance_rpc.rs`),
+  the retry rule the `Io` and `io_kind()` docs describe as one predicate:
+  `Timeout`, or an `Io` or `Connect` whose kind is `ConnectionReset`,
+  `ConnectionAborted`, `BrokenPipe` or `UnexpectedEof`;
+  `Connect(ConnectionRefused)` and every other variant are not transient.
+  The library still never retries. Pinned by
+  `shared_instance_rpc/tests/paths.rs` over every variant and kind, and by
+  the three consumer-written predicates agreeing with it:
+  `tests/shared_instance_rpc_api.rs` (the README rule, kept as the README
+  pin), `tests/shared_instance_rpc_io_kind_probe.rs` and the hil poll's
+  kind-only predicate in
+  `python_channel_interop_parts/python_shared_instance_rpc.rs`, which
+  differs from `is_transient()` only on `Timeout`.
+
+### Changed
+
+- Test-only: the mock rnsd peer `shared_instance_rpc/tests/mock_server.rs`
+  serves a scripted sequence of connections on one listener
+  (`spawn_sequence`, `finish_all`), one per reply the way `rpc_loop` closes
+  after each, for the settled-drop pins; and
+  `fork_publish_contract_parts/ledger_contract.rs` extends the full-hash
+  ledger pin to the reopened `Unreleased` section.
+
 ## 0.18.4 - 2026-11-20
 
 ### Added

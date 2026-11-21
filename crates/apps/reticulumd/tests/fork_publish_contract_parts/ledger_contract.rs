@@ -59,7 +59,17 @@ fn full_hash_contract_covers_the_newest_section_and_the_releases_from_0_15_1() {
         .collect();
     assert_eq!(
         labels,
-        ["0.18.4", "0.18.3", "0.18.2", "0.18.1", "0.18.0", "0.17.0", "0.16.0", "0.15.1"],
+        [
+            "Unreleased",
+            "0.18.4",
+            "0.18.3",
+            "0.18.2",
+            "0.18.1",
+            "0.18.0",
+            "0.17.0",
+            "0.16.0",
+            "0.15.1"
+        ],
         "the full hash contract should cover the newest section and the releases from 0.15.1 \
          up; extend this pin when a section is added or released"
     );

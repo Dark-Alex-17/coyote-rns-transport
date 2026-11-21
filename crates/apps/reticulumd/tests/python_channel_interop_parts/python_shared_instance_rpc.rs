@@ -5,7 +5,9 @@
 // from a top-level `[interfaces]` section (`RNS/Reticulum.py:748-752`).
 
 use rns_transport::transport::shared_instance_rpc::{
-    interface_stats, InterfaceStat, InterfaceStats, RpcEndpoint, RpcError, RpcKey,
+    drop_all_via, drop_path, drop_path_settled, first_hop_timeout, interface_stats,
+    next_hop_interface_name, path_table, InterfaceStat, InterfaceStats, RpcEndpoint, RpcError,
+    RpcKey,
 };
 
 const SHARED_INSTANCE_RPC_RNSD_START: Duration = Duration::from_secs(30);
@@ -26,6 +28,28 @@ const SHARED_INSTANCE_RPC_CONFIGURED_KEY: &str =
 fn shared_instance_rpc_retryable(err: &RpcError) -> bool {
     use std::io::ErrorKind::{BrokenPipe, ConnectionAborted, ConnectionReset, UnexpectedEof};
     matches!(err.io_kind(), Some(ConnectionReset | ConnectionAborted | BrokenPipe | UnexpectedEof))
+}
+
+// The kind-only predicate above is `RpcError::is_transient()` without its `Timeout` arm:
+// the two agree on every `Io` and `Connect`, and `poll_interface_stats` returns a `Timeout`
+// as the reply instead of dialling again.
+#[test]
+fn shared_instance_rpc_retryable_is_is_transient_without_the_timeout_arm() {
+    use std::io::{Error, ErrorKind};
+    for kind in [
+        ErrorKind::ConnectionReset,
+        ErrorKind::ConnectionAborted,
+        ErrorKind::BrokenPipe,
+        ErrorKind::UnexpectedEof,
+        ErrorKind::ConnectionRefused,
+        ErrorKind::Other,
+    ] {
+        for err in [RpcError::Io(Error::from(kind)), RpcError::Connect(Error::from(kind))] {
+            assert_eq!(shared_instance_rpc_retryable(&err), err.is_transient(), "{err:?}");
+        }
+    }
+    assert!(RpcError::Timeout.is_transient());
+    assert!(!shared_instance_rpc_retryable(&RpcError::Timeout));
 }
 
 // The AutoInterface's data socket is bound without address reuse

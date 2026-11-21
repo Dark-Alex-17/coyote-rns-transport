@@ -14,6 +14,15 @@
 //  * the typed fields are projections of a reply whose shape is rnsd's:
 //    `peers` present is `Some`, a nil `clients` is `None`, an absent `peers`
 //    is `None`.
+//  * the path calls reach CPython as `rpc_loop` reads them
+//    (`RNS/Reticulum.py:1283-1306`): `max_hops` is present and `None` when
+//    the caller passes none, the hash arrives as `bytes` (the key type of
+//    `Transport.path_table`, `RNS/Transport.py:2459`, which umsgpack packs as
+//    bin, `RNS/vendor/umsgpack.py:505-506`), and the canned replies read as
+//    rnsd's shapes: `get_path_table` rows (`RNS/Reticulum.py:1638-1648`) with
+//    the int `0` timestamp of a dropped path (`RNS/Transport.py:3219-3226`),
+//    the str `"None"` for no next hop (`RNS/Reticulum.py:1715`), the int `6`
+//    first-hop timeout, the bool of `drop path` and the count of `drop all_via`.
 
 const STDLIB_LISTENER_PYTHON_SERVER: &str = r#"
 import json, sys
@@ -30,6 +39,12 @@ reply = {"interfaces": [
      "type": "LocalServerInterface", "status": True, "clients": 2,
      "rxb": 0, "txb": 0, "hash": b"\x02" * 32, "mode": 1, "bitrate": None},
 ]}
+path_rows = [
+    {"hash": b"\x11" * 16, "timestamp": 1700000000.25, "via": b"\x22" * 16, "hops": 1,
+     "expires": 1700000600.5, "interface": "AutoInterface[probe]"},
+    {"hash": b"\x33" * 16, "timestamp": 0, "via": b"\x22" * 16, "hops": 0,
+     "expires": 1700000600.5, "interface": "AutoInterface[probe]"},
+]
 served = 0
 refused = 0
 while True:
@@ -42,6 +57,17 @@ while True:
     request = mp.unpackb(conn.recv_bytes())
     if request.get("get") == "interface_stats":
         conn.send_bytes(mp.packb(reply))
+    elif request.get("get") == "path_table":
+        print(json.dumps({"max_hops": request["max_hops"]}), flush=True)
+        conn.send_bytes(mp.packb(path_rows))
+    elif request.get("get") == "next_hop_if_name":
+        conn.send_bytes(mp.packb("None"))
+    elif request.get("get") == "first_hop_timeout":
+        conn.send_bytes(mp.packb(6))
+    elif request.get("drop") == "path":
+        conn.send_bytes(mp.packb(isinstance(request["destination_hash"], bytes)))
+    elif request.get("drop") == "all_via":
+        conn.send_bytes(mp.packb(2))
     conn.close()
     served += 1
     print(json.dumps({"served": served}), flush=True)
@@ -107,6 +133,20 @@ impl StdlibListener {
             })
             .await
     }
+
+    /// The `max_hops` the listener read from the last `path_table` request: `None` is
+    /// Python's `None`, logged as JSON null.
+    #[deny(clippy::await_holding_invalid_type)]
+    async fn wait_max_hops(&self, expected: Option<u64>) {
+        self.log
+            .wait_for(&format!("max_hops={expected:?}"), STDLIB_LISTENER_START, |line| {
+                python_json_line(&["max_hops"])(line).filter(|v| match expected {
+                    Some(n) => v["max_hops"].as_u64() == Some(n),
+                    None => v["max_hops"].is_null(),
+                })
+            })
+            .await;
+    }
 }
 
 fn stdlib_listener_assert_reply(stats: &InterfaceStats) {
@@ -161,4 +201,77 @@ async fn probe_python_stdlib_listener_takes_any_key_length_and_refuses_a_wrong_k
         stdlib_listener_assert_reply(&again);
         listener.wait_served(2).await;
     }
+}
+
+/// The six path calls against CPython's own listener with the sixteen-byte
+/// key. `path_table` carries `max_hops` as Python `None` for `None` and as
+/// the int otherwise (the listener logs what it read), and its two canned
+/// rows decode with the second row's int `0` timestamp read as `0.0`;
+/// `next_hop_interface_name` reads the str `"None"` as `None`;
+/// `first_hop_timeout` reads the int `6` as `6.0`; `drop_path` is the bin
+/// pin, since the listener answers whether `destination_hash` arrived as
+/// `bytes`; `drop_all_via` reads the count; and `drop_path_settled` is
+/// `Ok(true)` after the drop and one next-hop poll, two connections.
+#[tokio::test]
+#[ignore = "requires local Python Reticulum checkout"]
+async fn probe_python_stdlib_listener_answers_shared_instance_rpc_path_calls_with_bytes_hashes() {
+    let _interop_guard = python_interop_guard().await;
+    let listener = StdlibListener::spawn(STDLIB_LISTENER_SIXTEEN_BYTE_KEY).await;
+    let key = RpcKey::from_hex(STDLIB_LISTENER_SIXTEEN_BYTE_KEY).expect("configured key");
+    let destination = AddressHash::new([0x11; 16]);
+
+    let rows = path_table(&listener.endpoint, &key, None, STDLIB_LISTENER_CALL)
+        .await
+        .expect("path_table without max_hops");
+    listener.wait_max_hops(None).await;
+    listener.wait_served(1).await;
+    assert_eq!(rows.len(), 2, "{rows:?}");
+    assert_eq!(rows[0].hash, destination);
+    assert_eq!(rows[0].via, AddressHash::new([0x22; 16]));
+    assert_eq!(rows[0].timestamp, 1_700_000_000.25);
+    assert_eq!(rows[0].hops, 1);
+    assert_eq!(rows[0].expires, 1_700_000_600.5);
+    assert_eq!(rows[0].interface, "AutoInterface[probe]");
+    assert_eq!(rows[1].hash, AddressHash::new([0x33; 16]));
+    assert_eq!(rows[1].timestamp, 0.0);
+    assert_eq!(rows[1].hops, 0);
+    assert_eq!(rows[1].interface, "AutoInterface[probe]");
+
+    let again = path_table(&listener.endpoint, &key, Some(1), STDLIB_LISTENER_CALL)
+        .await
+        .expect("path_table with max_hops");
+    listener.wait_max_hops(Some(1)).await;
+    listener.wait_served(2).await;
+    assert_eq!(again, rows);
+
+    let name =
+        next_hop_interface_name(&listener.endpoint, &key, &destination, STDLIB_LISTENER_CALL)
+            .await
+            .expect("next_hop_interface_name");
+    assert_eq!(name, None);
+    listener.wait_served(3).await;
+
+    let seconds = first_hop_timeout(&listener.endpoint, &key, &destination, STDLIB_LISTENER_CALL)
+        .await
+        .expect("first_hop_timeout");
+    assert_eq!(seconds, 6.0);
+    listener.wait_served(4).await;
+
+    let dropped = drop_path(&listener.endpoint, &key, &destination, STDLIB_LISTENER_CALL)
+        .await
+        .expect("drop_path");
+    assert!(dropped, "destination_hash did not arrive as bytes");
+    listener.wait_served(5).await;
+
+    let count = drop_all_via(&listener.endpoint, &key, &destination, STDLIB_LISTENER_CALL)
+        .await
+        .expect("drop_all_via");
+    assert_eq!(count, 2);
+    listener.wait_served(6).await;
+
+    let settled = drop_path_settled(&listener.endpoint, &key, &destination, STDLIB_LISTENER_CALL)
+        .await
+        .expect("drop_path_settled");
+    assert!(settled);
+    listener.wait_served(8).await;
 }

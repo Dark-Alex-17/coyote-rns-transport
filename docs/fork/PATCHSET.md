@@ -31,9 +31,9 @@ per fork task.
 Every file changed since the `0.18.4` release and the patch each change
 belongs to. Patch ids: Q1 is rnsd path rpc. The `rnsd path rpc` patch is
 fork commits `1528b698`, `bab079de`, `6f22dca2`, `0adb116e`, `75126a26`,
-`5faf736d`, `50a177eb`, `60410ca9`, `cc67d5f3` and `d0e34ef2`. The
-`Python-in-the-loop rnsd path rpc interop` patch carries no other id and is
-fork commits `60410ca9`, `cc67d5f3` and `d0e34ef2`.
+`5faf736d`, `50a177eb`, `60410ca9`, `cc67d5f3`, `d0e34ef2` and `ef50cff5`.
+The `Python-in-the-loop rnsd path rpc interop` patch carries no other id and
+is fork commits `60410ca9`, `cc67d5f3`, `d0e34ef2` and `ef50cff5`.
 
 | File | Patch |
 | --- | --- |
@@ -61,7 +61,8 @@ fork commits `60410ca9`, `cc67d5f3` and `d0e34ef2`.
 | `docs/fork/PATCHSET.md` | rnsd path rpc, Python-in-the-loop rnsd path rpc interop |
 
 Fork commits `1528b698`, `bab079de`, `6f22dca2`, `0adb116e`, `75126a26`,
-`5faf736d`, `50a177eb`, `60410ca9`, `cc67d5f3` and `d0e34ef2`: Q1, rnsd path rpc.
+`5faf736d`, `50a177eb`, `60410ca9`, `cc67d5f3`, `d0e34ef2` and `ef50cff5`: Q1,
+rnsd path rpc.
 Upstream site: the fork-added rnsd RPC client
 `crates/libs/rns-transport/src/transport/shared_instance_rpc.rs` (O2 of
 `## 0.18.3`, P2 of `## 0.18.4`) and its sub-parts; upstream carries none
@@ -192,8 +193,8 @@ part, whose listener now logs an unexpected request. `60410ca9` has the
 `drop_path` and `drop_path_settled` rustdocs in `shared_instance_rpc/paths.rs`
 carry the window as measured against rnsd 1.5.2 (the row still listed with
 timestamp 0 and the next hop still named under a millisecond after the
-drop, both gone at about 160 ms, the helper true in about 110 to 180 ms, the
-bound one 250 ms tick) and adds the black-box file
+drop, both gone at about 160 ms, the helper true in 110 to 160 ms as first
+measured, the bound one 250 ms tick) and adds the black-box file
 `tests/shared_instance_rpc_paths_probe.rs` beside
 `tests/shared_instance_rpc_api.rs`: one shared budget across a slow drop and
 the polls that follow, the path calls over a unix endpoint answering like
@@ -226,10 +227,17 @@ the README recipe say how a consumer sees an interface come back (the stats
 carry no per-interface uptime, `RNS/Reticulum.py:1527-1566`), widens the
 settle figure to about 110 to 180 ms in the rustdoc, README and CHANGELOG
 after the transport-enabled run, and has `readme_patch_list.rs` pin the
-window inside the `drop_path_settled` bullet and in its rustdoc.
+window inside the `drop_path_settled` bullet and in its rustdoc. `ef50cff5`
+has the `drop_path` rustdoc point at `drop_path_settled` for the observed
+window instead of repeating it, adds the test-only Changed bullet for the
+harness constructors and the missing comma in the settle pin clause to the
+CHANGELOG, names the path table in the README's framing paragraph and the
+third live part in its pin paragraph, and has the
+`tests/shared_instance_rpc_paths_probe.rs` header say its unix twin binds a
+filesystem socket standing in for the abstract name.
 
-Fork commits `60410ca9`, `cc67d5f3` and `d0e34ef2`: Python-in-the-loop rnsd
-path rpc interop. `60410ca9` adds the part
+Fork commits `60410ca9`, `cc67d5f3`, `d0e34ef2` and `ef50cff5`: Python-in-the-loop
+rnsd path rpc interop. `60410ca9` adds the part
 `crates/apps/reticulumd/tests/python_channel_interop_parts/python_shared_instance_rpc_paths_live.rs`,
 included from `python_channel_interop.rs`, an ignored test against a live
 Python rnsd (RNS 1.5.2) that proves the path calls on rnsd itself: on the
@@ -272,7 +280,19 @@ and runs the row, next-hop, first-hop and settle checks; asserts `via ==
 hash` and the `LocalInterface[` prefix on the client's row; bounds the
 settle at two ticks (500 ms) in both tests; detaches and stops the Rust
 client at the end; and has the `spawn_with_interfaces` rustdoc point at
-the tail of `client_config` as the shape of the text.
+the tail of `client_config` as the shape of the text. `ef50cff5` has the
+transport-enabled sibling assert hops 0 (the inbound hop of
+`RNS/Transport.py:1800` is taken back for a local client interface at
+`:1938` with no transport gate), `via == hash`, a wall-clock `timestamp`,
+`expires` past it, the `LocalInterface[` prefix and the first-hop range like
+the first test; adds the third part
+`python_rnsd_path_calls_filter_by_hops_and_repeat_idempotently`, which reads
+the hops-0 row under `max_hops` 0 and 255 (`RNS/Reticulum.py:1641`), the
+matched stats entry's `online`, `drop_path_settled` repeated on the settled
+row as `Ok(false)` without polling, and `drop_all_via(row.via)` as 0 once the
+row is gone and at least 1 after a re-announce; and has the part import
+`PathRow`, take its per-dial budget from `SHARED_INSTANCE_RPC_CALL` and look
+the client's stats entry up once.
 
 ## 0.18.4 (upstream 0.14.0)
 

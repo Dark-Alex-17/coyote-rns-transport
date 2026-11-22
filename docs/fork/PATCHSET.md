@@ -31,9 +31,9 @@ per fork task.
 Every file changed since the `0.18.4` release and the patch each change
 belongs to. Patch ids: Q1 is rnsd path rpc. The `rnsd path rpc` patch is
 fork commits `1528b698`, `bab079de`, `6f22dca2`, `0adb116e`, `75126a26`,
-`5faf736d`, `50a177eb`, `60410ca9` and `cc67d5f3`. The `Python-in-the-loop
-rnsd path rpc interop` patch carries no other id and is fork commits
-`60410ca9` and `cc67d5f3`.
+`5faf736d`, `50a177eb`, `60410ca9`, `cc67d5f3` and `d0e34ef2`. The
+`Python-in-the-loop rnsd path rpc interop` patch carries no other id and is
+fork commits `60410ca9`, `cc67d5f3` and `d0e34ef2`.
 
 | File | Patch |
 | --- | --- |
@@ -61,7 +61,7 @@ rnsd path rpc interop` patch carries no other id and is fork commits
 | `docs/fork/PATCHSET.md` | rnsd path rpc, Python-in-the-loop rnsd path rpc interop |
 
 Fork commits `1528b698`, `bab079de`, `6f22dca2`, `0adb116e`, `75126a26`,
-`5faf736d`, `50a177eb`, `60410ca9` and `cc67d5f3`: Q1, rnsd path rpc.
+`5faf736d`, `50a177eb`, `60410ca9`, `cc67d5f3` and `d0e34ef2`: Q1, rnsd path rpc.
 Upstream site: the fork-added rnsd RPC client
 `crates/libs/rns-transport/src/transport/shared_instance_rpc.rs` (O2 of
 `## 0.18.3`, P2 of `## 0.18.4`) and its sub-parts; upstream carries none
@@ -192,7 +192,7 @@ part, whose listener now logs an unexpected request. `60410ca9` has the
 `drop_path` and `drop_path_settled` rustdocs in `shared_instance_rpc/paths.rs`
 carry the window as measured against rnsd 1.5.2 (the row still listed with
 timestamp 0 and the next hop still named under a millisecond after the
-drop, both gone at about 160 ms, the helper true in 110 to 160 ms, the
+drop, both gone at about 160 ms, the helper true in about 110 to 180 ms, the
 bound one 250 ms tick) and adds the black-box file
 `tests/shared_instance_rpc_paths_probe.rs` beside
 `tests/shared_instance_rpc_api.rs`: one shared budget across a slow drop and
@@ -219,10 +219,17 @@ divergences:` bullets for the typed client and the predicate; carries the
 name equality and the measured window into the CHANGELOG bullets, whose
 pin clause names the live part and the new black-box file; and pins the
 shared README and CHANGELOG claims in
-`fork_release_docs_contract_parts/readme_patch_list.rs`.
+`fork_release_docs_contract_parts/readme_patch_list.rs`. `d0e34ef2` has
+the CHANGELOG pin clause say the live part records the window rather than
+pins it and file the settle pins under the `drop_path_settled` bullet, has
+the README recipe say how a consumer sees an interface come back (the stats
+carry no per-interface uptime, `RNS/Reticulum.py:1527-1566`), widens the
+settle figure to about 110 to 180 ms in the rustdoc, README and CHANGELOG
+after the transport-enabled run, and has `readme_patch_list.rs` pin the
+window inside the `drop_path_settled` bullet and in its rustdoc.
 
-Fork commits `60410ca9` and `cc67d5f3`: Python-in-the-loop rnsd path rpc
-interop. `60410ca9` adds the part
+Fork commits `60410ca9`, `cc67d5f3` and `d0e34ef2`: Python-in-the-loop rnsd
+path rpc interop. `60410ca9` adds the part
 `crates/apps/reticulumd/tests/python_channel_interop_parts/python_shared_instance_rpc_paths_live.rs`,
 included from `python_channel_interop.rs`, an ignored test against a live
 Python rnsd (RNS 1.5.2) that proves the path calls on rnsd itself: on the
@@ -240,8 +247,8 @@ that str; `first_hop_timeout` is a finite float in `6.0..60.0` (observed
 `drop_path` answers `true` and the immediate re-read is recorded (under a
 millisecond after the drop the row is still listed with timestamp 0 and
 the next hop still named; `None` at about 160 ms); the second drop is
-`false`; after a re-announce `drop_path_settled` is `true` within one
-250 ms tick with the next hop `None` and the row gone; and
+`false`; after a re-announce `drop_path_settled` is `true` (observed inside
+one 250 ms tick) with the next hop `None` and the row gone; and
 `drop_all_via(row.via)` counts at least 1. The same commit gives the
 harness in `python_shared_instance_rpc.rs` the constructor
 `SharedInstanceRpcRnsd::spawn_with_interfaces(instance, control_port,
@@ -252,7 +259,20 @@ config_dir, interfaces)` taking the whole `[interfaces]` text, with
 default, both pinned by a non-ignored config-text test; the live part
 spawns its rnsd with `with_transport(false)`. `cc67d5f3` names the part,
 its proofs and the two harness constructors in the README section and the
-CHANGELOG pin clause.
+CHANGELOG pin clause. `d0e34ef2` gates every item of the part `#[cfg(unix)]`
+like the io part, since `SharedInstanceRpcRnsd::assert_running` is unix-only
+and the target stays buildable on Windows; adds the sibling test
+`python_rnsd_with_transport_and_a_given_interfaces_text_serves_the_path_calls`,
+which spawns rnsd through `spawn_with_interfaces` with a
+`TCPServerInterface` text and `with_transport(true)`, proves the interface
+is listed under `TCPServerInterface[<name>/127.0.0.1:<port>]`
+(`RNS/Interfaces/TCPInterface.py:689-695`) with no AutoInterface, that the
+stats carry `transport_id` and `transport_uptime` (`RNS/Reticulum.py:1614-1618`),
+and runs the row, next-hop, first-hop and settle checks; asserts `via ==
+hash` and the `LocalInterface[` prefix on the client's row; bounds the
+settle at two ticks (500 ms) in both tests; detaches and stops the Rust
+client at the end; and has the `spawn_with_interfaces` rustdoc point at
+the tail of `client_config` as the shape of the text.
 
 ## 0.18.4 (upstream 0.14.0)
 

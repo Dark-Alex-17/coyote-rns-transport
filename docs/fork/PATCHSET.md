@@ -36,7 +36,7 @@ timeout. The `rnsd path rpc` patch is fork commits `1528b698`, `bab079de`,
 timeout` patch is fork commits `a451a06e` and `312ede0a`. The
 `Python-in-the-loop rnsd path rpc interop` patch carries no other id and is
 fork commits `60410ca9`, `cc67d5f3`, `d0e34ef2`, `ef50cff5`, `689f5ab3`,
-`a451a06e`, `312ede0a`, `ad5c7e15`, `cc69ed29` and `ZZZZZZZZ`.
+`a451a06e`, `312ede0a`, `ad5c7e15`, `cc69ed29` and `02b2cfb9`.
 
 | File | Patch |
 | --- | --- |
@@ -309,7 +309,7 @@ header and rows, which is why that part, the README and this file are
 rowed under the patch.
 
 Fork commits `60410ca9`, `cc67d5f3`, `d0e34ef2`, `ef50cff5`, `689f5ab3`,
-`a451a06e`, `312ede0a`, `ad5c7e15`, `cc69ed29` and `ZZZZZZZZ`:
+`a451a06e`, `312ede0a`, `ad5c7e15`, `cc69ed29` and `02b2cfb9`:
 Python-in-the-loop rnsd path rpc interop. `60410ca9` adds the part
 `crates/apps/reticulumd/tests/python_channel_interop_parts/python_shared_instance_rpc_paths_live.rs`,
 included from `python_channel_interop.rs`, an ignored test against a live
@@ -454,7 +454,7 @@ hop and the maintenance job's slack. `cc69ed29` adds
 included from `python_channel_interop.rs`, four fast parts pinning the
 graceful stop without Python, tightens the restart part (the persisted
 entry count asserted, the reasoned disconnect alone, the identity compared
-without printing it) and the ledger wording. `ZZZZZZZZ` makes the graceful
+without printing it) and the ledger wording. `02b2cfb9` makes the graceful
 stop probe wait for the shell's trap instead of sleeping, checks the taken
 guard directly, and folds the restart part's connect count into its
 reconnect wait.

@@ -36,7 +36,7 @@ timeout. The `rnsd path rpc` patch is fork commits `1528b698`, `bab079de`,
 timeout` patch is fork commits `a451a06e` and `312ede0a`. The
 `Python-in-the-loop rnsd path rpc interop` patch carries no other id and is
 fork commits `60410ca9`, `cc67d5f3`, `d0e34ef2`, `ef50cff5`, `689f5ab3`,
-`a451a06e`, `312ede0a`, `ad5c7e15` and `YYYYYYYY`.
+`a451a06e`, `312ede0a`, `ad5c7e15` and `cc69ed29`.
 
 | File | Patch |
 | --- | --- |
@@ -309,7 +309,7 @@ header and rows, which is why that part, the README and this file are
 rowed under the patch.
 
 Fork commits `60410ca9`, `cc67d5f3`, `d0e34ef2`, `ef50cff5`, `689f5ab3`,
-`a451a06e`, `312ede0a`, `ad5c7e15` and `YYYYYYYY`: Python-in-the-loop rnsd
+`a451a06e`, `312ede0a`, `ad5c7e15` and `cc69ed29`: Python-in-the-loop rnsd
 path rpc interop. `60410ca9` adds the part
 `crates/apps/reticulumd/tests/python_channel_interop_parts/python_shared_instance_rpc_paths_live.rs`,
 included from `python_channel_interop.rs`, an ignored test against a live
@@ -449,7 +449,7 @@ the README recipe paragraph and the CHANGELOG path-calls,
 `readme_patch_list.rs` claims to those names and to
 `storage/destination_table`; and qualifies the budget claim in the README,
 the CHANGELOG and this ledger to rnsd's `first_hop_timeout` plus 6 s per
-hop and the maintenance job's slack. `YYYYYYYY` adds
+hop and the maintenance job's slack. `cc69ed29` adds
 `crates/apps/reticulumd/tests/python_channel_interop_parts/graceful_stop_probe.rs`,
 included from `python_channel_interop.rs`, four fast parts pinning the
 graceful stop without Python, tightens the restart part (the persisted

@@ -117,8 +117,20 @@ Removed) bullet of its own, marked as such.
   `python_channel_interop_parts/python_shared_instance_rpc_roaming_recipe_budget_probe.rs`,
   the README recipe followed on that topology: the row's interface is
   looked up in the stats by `name`, rnsd's `first_hop_timeout` plus 6 s
-  per hop bounds the failed link and the one that comes up over B, and a
-  repeated `request_path` after the recovery leaves the row on B; and
+  per hop and the maintenance job's slack bounds the failed link and the
+  one that comes up over B, and a repeated `request_path` after the
+  recovery leaves the row on B;
+  `python_channel_interop_parts/python_shared_instance_rpc_roaming_restart.rs`,
+  the restart variant: an rnsd SIGTERMed persists the stale row to
+  `storage/destination_table` (`RNS/Transport.py:3788-3863`; an entry is
+  kept while its interface hash is still registered (`:3820-3830`), and
+  an offline `TCPClientInterface` stays registered) and a
+  transport-enabled rnsd restores it on start by interface hash
+  (`:404-441`, `:2987-2992`) from the row and its cached announce
+  (`cache/announces/<packet_hash>`, `:425`, `:433`, written at `:2457`)
+  even while that interface is offline, so the dead 1-hop row is back
+  after a restart; the same `drop_path_settled` plus one `request_path`
+  moves it to the live route and a link comes up; and
   `tests/shared_instance_rpc_paths_probe.rs` (the unix endpoint twins, a
   wrong key as `Authentication` after one dial, a 2000-row reply past
   64 KiB read by name, only the exact str `"None"` as `None`, and
@@ -177,7 +189,11 @@ Removed) bullet of its own, marked as such.
   forwarded upstream by rnsd (`RNS/Transport.py:3523-3530`) and answered
   with a fresh emission, against the stale answer from the dropped entry
   (`RNS/Transport.py:3459`) that a request right after a bare `drop_path`
-  gets.
+  gets. A restart of rnsd does not stand in for the helper: in
+  `python_channel_interop_parts/python_shared_instance_rpc_roaming_restart.rs`
+  the respawned rnsd restores the dead row from
+  `storage/destination_table` and the same `drop_path_settled` plus one
+  `request_path` is what moves it to the live route.
 - `RpcError::is_transient() -> bool` (`transport/shared_instance_rpc.rs`),
   the retry rule the `Io` and `io_kind()` docs describe as one predicate:
   `Timeout`, or an `Io` or `Connect` whose kind is `ConnectionReset`,
@@ -215,6 +231,13 @@ Removed) bullet of its own, marked as such.
 - Test-only:
   `fork_publish_contract_parts/ledger_contract.rs` extends the full-hash
   ledger pin to the reopened `Unreleased` section.
+- Test-only: the harness support file `tests/support/python_channel_process.rs`
+  gains `terminate_child_gracefully` (SIGTERM to the spawned child, a
+  bounded reap, a clean exit asserted) and
+  `python_channel_interop_parts/python_shared_instance_rpc.rs` gains
+  `SharedInstanceRpcRnsd::stop_gracefully` on it; the roaming part's
+  bring-up is the `roaming_topology` fixture the roaming, recipe budget
+  and restart parts share.
 - Test-only: the fork docs contract (`fork_release_docs_contract.rs`,
   `fork_release_docs_contract_parts/request_layer_api_docs.rs`) walks the new
   `shared_instance_rpc/paths.rs` and `shared_instance_rpc/path_table.rs` and
@@ -252,7 +275,7 @@ Removed) bullet of its own, marked as such.
   30 s (observed 12.9 s) and in
   `python_channel_interop_parts/python_shared_instance_rpc_roaming_recipe_budget_probe.rs`,
   where the same link closes inside rnsd's own `first_hop_timeout` plus
-  6 s per hop and slack.
+  6 s per hop and the maintenance job's slack.
 
 ## 0.18.4 - 2026-11-20
 

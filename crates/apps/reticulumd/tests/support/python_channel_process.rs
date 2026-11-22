@@ -367,6 +367,55 @@ pub(super) struct ChildGuard {
     pub(super) child: Option<Child>,
 }
 
+/// SIGTERMs `child` so a Python process runs its exit handler (rnsd persists
+/// its tables there), then reaps it within `within` and asserts a clean exit.
+/// Any failure kills and reaps the child first: the caller has taken it out of
+/// its `ChildGuard`, and a live child keeps the log drain threads blocked on
+/// its pipes, which would turn the failing test into a hang.
+#[cfg(unix)]
+pub(super) fn terminate_child_gracefully(
+    child: &mut Child,
+    within: Duration,
+) -> std::process::ExitStatus {
+    match try_terminate_child_gracefully(child, within) {
+        Ok(status) => status,
+        Err(message) => {
+            let _ = child.kill();
+            let _ = child.wait();
+            panic!("{message}");
+        }
+    }
+}
+
+#[cfg(unix)]
+fn try_terminate_child_gracefully(
+    child: &mut Child,
+    within: Duration,
+) -> Result<std::process::ExitStatus, String> {
+    let signalled = Command::new("kill")
+        .args(["-TERM", &child.id().to_string()])
+        .status()
+        .map_err(|err| format!("send SIGTERM to the exact child: {err}"))?;
+    if !signalled.success() {
+        return Err(format!("failed to signal the child with SIGTERM: {signalled}"));
+    }
+    let deadline = Instant::now() + within;
+    loop {
+        let exited =
+            child.try_wait().map_err(|err| format!("wait for the child's graceful exit: {err}"))?;
+        if let Some(status) = exited {
+            if !status.success() {
+                return Err(format!("the child failed during graceful shutdown: {status}"));
+            }
+            return Ok(status);
+        }
+        if Instant::now() >= deadline {
+            return Err(format!("the child did not exit within {within:?} of SIGTERM"));
+        }
+        std::thread::sleep(Duration::from_millis(25));
+    }
+}
+
 impl Drop for ChildGuard {
     fn drop(&mut self) {
         if let Some(child) = self.child.as_mut() {

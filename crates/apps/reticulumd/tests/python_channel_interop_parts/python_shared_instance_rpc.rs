@@ -197,6 +197,29 @@ impl SharedInstanceRpcRnsd {
         }
     }
 
+    /// SIGTERMs rnsd so it runs `sigterm_handler` (`RNS/Reticulum.py:203-206`,
+    /// which detaches the interfaces and persists the tables through
+    /// `Transport.exit_handler`, `RNS/Transport.py:3977-3981`), reaps it and
+    /// returns its exit status and its complete output. The guard's child is
+    /// taken first so its Drop never kills a reaped pid; the drains are joined
+    /// after the reap (they see EOF once the child is gone) so the snapshot
+    /// holds the last lines rnsd wrote on its way out.
+    #[cfg(unix)]
+    #[deny(clippy::await_holding_invalid_type)]
+    async fn stop_gracefully(self, within: Duration) -> (std::process::ExitStatus, String) {
+        let Self { mut guard, _log: mut log, identity_file: _ } = self;
+        let mut rnsd = guard.child.take().expect("rnsd is held until drop");
+        tokio::task::spawn_blocking(move || {
+            let status = terminate_child_gracefully(&mut rnsd, within);
+            for drain in log.drains.drain(..) {
+                let _ = drain.join();
+            }
+            (status, log.snapshot())
+        })
+        .await
+        .expect("the graceful stop neither panicked nor was cancelled")
+    }
+
     /// rnsd binds the RPC listener only after `Transport.start`
     /// (`RNS/Reticulum.py:351-367`), which runs after the shared instance
     /// log line and the AutoInterface's peering wait in `final_init`

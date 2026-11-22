@@ -1,6 +1,6 @@
-// The README `## Driving rnsd's path table` recipe followed word for word by
+// The README `## Driving rnsd's path table` recipe followed step by step by
 // a consumer on the roaming topology of `python_shared_instance_rpc_roaming.rs`,
-// whose fixtures this part reuses,
+// whose `roaming_topology` fixture and helpers this part reuses,
 // with the two steps the roaming proof cites but does not exercise:
 //
 //  * "find the row. Its `interface` ... equals the `interface_stats` entry's
@@ -57,73 +57,14 @@ async fn recipe_stats_entry_for_row(
 #[deny(clippy::await_holding_invalid_type)]
 async fn recipe_budget_scenario(
     started: tokio::time::Instant,
+    config_dir: &std::path::Path,
     rnsd_slot: &mut Option<SharedInstanceRpcRnsd>,
 ) {
     // ---- Topology, as the roaming proof builds it. ----
-    let r2 = roaming_relay("recipe-r2");
-    let r2_port = free_tcp_port();
-    let (_r2_server, r2_listener) = roaming_listen(&r2, r2_port).await;
-    let r1 = roaming_relay("recipe-r1");
-    let r1_to_r2 = roaming_dial(&r1, r2_port, &r2_listener, 1).await;
-    let d_identity = to_transport_private_identity(&PrivateIdentity::new_from_rand(OsRng));
-    let d = Transport::new(TransportConfig::new("recipe-d", &d_identity, false));
-    let a_port = free_tcp_port();
-    let (a_server, _a_listener) = roaming_listen(&d, a_port).await;
-    roaming_dial(&d, r2_port, &r2_listener, 2).await;
-    let destination =
-        d.add_destination(d_identity.clone(), DestinationName::new("test", "recipebudget")).await;
-    let hash = { destination.lock().await.desc.address_hash };
-    let packet = destination.lock().await.announce(OsRng, None).expect("valid announce packet");
-    d.send_packet(packet).await;
-    let r1_path = roaming_wait_path(&r1, &hash, true, ROAMING_BRING_UP, "R1 learns D").await;
-    assert_eq!(r1_path.interface, Some(r1_to_r2), "{r1_path:?}");
-
-    let temp = tempfile::tempdir().expect("tempdir");
-    let control_port = free_tcp_port();
-    let b_port = free_tcp_port();
-    let interfaces = format!(
-        "[interfaces]\n  [[A]]\n    type = TCPClientInterface\n    enabled = yes\n    target_host = 127.0.0.1\n    target_port = {a_port}\n  [[B]]\n    type = TCPClientInterface\n    enabled = yes\n    target_host = 127.0.0.1\n    target_port = {b_port}\n"
-    );
-    let instance = live_tcp_shared_instance().with_transport(true);
-    let rnsd = rnsd_slot.insert(
-        SharedInstanceRpcRnsd::spawn_with_interfaces(
-            &instance,
-            control_port,
-            &temp.path().join("python-rnsd-recipe-budget"),
-            &interfaces,
-        )
-        .await,
-    );
-    let endpoint = RpcEndpoint::Tcp(SocketAddr::from(([127, 0, 0, 1], control_port)));
-    let key = rnsd.identity_key().await;
-    rnsd.poll_interface_stats(&endpoint, &key).await.expect("the rpc listener is up");
-    let a_name = format!("TCPInterface[A/127.0.0.1:{a_port}]");
-    let b_name = format!("TCPInterface[B/127.0.0.1:{b_port}]");
-    roaming_wait_online(&endpoint, &key, "A", true, ROAMING_BRING_UP).await;
-    let c_identity = to_transport_private_identity(&PrivateIdentity::new_from_rand(OsRng));
-    let c = Transport::new(TransportConfig::new("recipe-c", &c_identity, false));
-    c.attach_shared_instance(instance.endpoint.clone(), SharedInstanceOptions::default())
-        .await
-        .expect("C attaches");
-    let attach_started = tokio::time::Instant::now();
-    loop {
-        let stats = interface_stats(&endpoint, &key, PATH_LIVE_CALL).await.expect("stats");
-        if stats.interfaces.iter().any(|iface| iface.name.starts_with("LocalInterface[")) {
-            break;
-        }
-        assert!(attach_started.elapsed() < ROAMING_BRING_UP, "C never attached: {stats:?}");
-        tokio::time::sleep(PATH_LIVE_POLL).await;
-    }
-    let mut announces = c.recv_announces().await;
-    let dispatch = c.request_path(&hash, None, None).await;
-    assert!(dispatch.sent_ifaces + dispatch.queued_ifaces >= 1, "{dispatch:?}");
-    let (c_hops_via_a, _, _) =
-        path_recipe_wait_announce(&mut announces, hash, ROAMING_BRING_UP).await;
-    let rows = path_live_wait_listed(&endpoint, &key, &hash, true, PATH_LIVE_LISTED).await;
-    let row_via_a = path_live_row(&rows, &hash).expect("listed");
-    assert_eq!(row_via_a.interface, a_name, "{row_via_a:?}");
-    let (_b_server, _b_listener) = roaming_listen(&r1, b_port).await;
-    roaming_wait_online(&endpoint, &key, "B", true, ROAMING_B_ONLINE).await;
+    let RoamingTopology {
+        r2, r1, d, c, a_server, b_name, hash, endpoint, key, c_hops_via_a, ..
+    } = roaming_topology("recipe", config_dir, SharedInstanceOptions::default(), rnsd_slot).await;
+    let rnsd = rnsd_slot.as_mut().expect("the fixture spawned rnsd");
 
     // ---- A goes down. The README's lookup: the stats entry named like the row. ----
     assert!(d.stop_interface(a_server).await, "D's A listener stops");
@@ -253,8 +194,13 @@ async fn python_rnsd_roaming_recipe_links_inside_pythons_first_hop_timeout_budge
 ) {
     let _interop_guard = python_interop_guard().await;
     let started = tokio::time::Instant::now();
+    let temp = tempfile::tempdir().expect("tempdir");
+    let config_dir = temp.path().join("python-rnsd-recipe-budget");
     let mut rnsd = None;
-    let outcome =
-        tokio::time::timeout(RECIPE_BUDGET_TOTAL, recipe_budget_scenario(started, &mut rnsd)).await;
+    let outcome = tokio::time::timeout(
+        RECIPE_BUDGET_TOTAL,
+        recipe_budget_scenario(started, &config_dir, &mut rnsd),
+    )
+    .await;
     roaming_expect_in_budget(outcome, &rnsd, "the recipe budget scenario");
 }

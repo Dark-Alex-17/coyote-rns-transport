@@ -86,4 +86,6 @@ include!("python_channel_interop_parts/python_shared_instance_rpc_roaming.rs");
 
 include!("python_channel_interop_parts/python_shared_instance_rpc_roaming_recipe_budget_probe.rs");
 
+include!("python_channel_interop_parts/python_shared_instance_rpc_roaming_restart.rs");
+
 include!("python_channel_interop_parts/python_shared_instance_announce_emitted.rs");

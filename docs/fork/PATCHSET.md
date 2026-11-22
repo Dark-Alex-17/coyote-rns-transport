@@ -36,7 +36,7 @@ timeout. The `rnsd path rpc` patch is fork commits `1528b698`, `bab079de`,
 timeout` patch is fork commits `a451a06e` and `312ede0a`. The
 `Python-in-the-loop rnsd path rpc interop` patch carries no other id and is
 fork commits `60410ca9`, `cc67d5f3`, `d0e34ef2`, `ef50cff5`, `689f5ab3`,
-`a451a06e` and `312ede0a`.
+`a451a06e`, `312ede0a` and `XXXXXXXX`.
 
 | File | Patch |
 | --- | --- |
@@ -51,8 +51,10 @@ fork commits `60410ca9`, `cc67d5f3`, `d0e34ef2`, `ef50cff5`, `689f5ab3`,
 | `crates/apps/reticulumd/tests/python_channel_interop_parts/python_shared_instance_rpc_paths_recipe_probe.rs` | Python-in-the-loop rnsd path rpc interop |
 | `crates/apps/reticulumd/tests/python_channel_interop_parts/python_shared_instance_rpc_roaming.rs` | Python-in-the-loop rnsd path rpc interop |
 | `crates/apps/reticulumd/tests/python_channel_interop_parts/python_shared_instance_rpc_roaming_recipe_budget_probe.rs` | Python-in-the-loop rnsd path rpc interop |
+| `crates/apps/reticulumd/tests/python_channel_interop_parts/python_shared_instance_rpc_roaming_restart.rs` | Python-in-the-loop rnsd path rpc interop |
 | `crates/apps/reticulumd/tests/python_channel_interop_parts/python_stdlib_listener_rpc_probe.rs` | rnsd path rpc |
 | `crates/apps/reticulumd/tests/support/python_channel_events.rs` | Python-in-the-loop rnsd path rpc interop |
+| `crates/apps/reticulumd/tests/support/python_channel_process.rs` | Python-in-the-loop rnsd path rpc interop |
 | `crates/libs/rns-transport/CHANGELOG.md` | rnsd path rpc, Python-in-the-loop rnsd path rpc interop, link establishment timeout |
 | `crates/libs/rns-transport/README.md` | rnsd path rpc, Python-in-the-loop rnsd path rpc interop, link establishment timeout |
 | `crates/libs/rns-transport/src/transport/links_parts/transport_sections/link_establishment.rs` | link establishment timeout |
@@ -306,7 +308,7 @@ header and rows, which is why that part, the README and this file are
 rowed under the patch.
 
 Fork commits `60410ca9`, `cc67d5f3`, `d0e34ef2`, `ef50cff5`, `689f5ab3`,
-`a451a06e` and `312ede0a`: Python-in-the-loop rnsd path rpc interop. `60410ca9` adds the
+`a451a06e`, `312ede0a` and `XXXXXXXX`: Python-in-the-loop rnsd path rpc interop. `60410ca9` adds the
 part
 `crates/apps/reticulumd/tests/python_channel_interop_parts/python_shared_instance_rpc_paths_live.rs`,
 included from `python_channel_interop.rs`, an ignored test against a live
@@ -404,21 +406,47 @@ bullets carry the two parts in their pin clauses with a test-only Changed
 bullet for the helper. `312ede0a` adds the part
 `crates/apps/reticulumd/tests/python_channel_interop_parts/python_shared_instance_rpc_roaming_recipe_budget_probe.rs`,
 included from `python_channel_interop.rs`, which follows the README recipe
-word for word on the roaming topology: the row's interface is looked up in
+step by step on the roaming topology: the row's interface is looked up in
 the stats by `name` and read offline before the drop, rnsd's own
-`first_hop_timeout` (6.0004 s observed) plus 6 s per hop bounds the failed
-link (closed with `Timeout` at about 12.9 s against a 12.0004 s figure plus
-slack) and the link over B (active in milliseconds against 24.0004 s), and
-a repeated `request_path` after the recovery is answered from the B row
-and leaves it at hops 3; has the recipe probe wait for the re-announce to
-be the row on file (its `timestamp` past the re-filed row's) before pinning
-the replayed emission second at or before it, with no slack, and take its
-clock second from `announce_emitted_clock_secs`; has both live parts keep
-their rnsd in a slot on the test's frame so a run that outlives its budget
-prints rnsd's output before panicking; names the recipe probe's test, the
-budget probe and the black-box timeout twin in the README recipe paragraph
-and the CHANGELOG pin clauses; and extends the `readme_patch_list.rs`
-claims to those names.
+`first_hop_timeout` (6.0004 s observed) plus 6 s per hop and the
+maintenance job's slack bounds the failed link (closed with `Timeout` at
+about 12.9 s against a 12.0004 s figure plus slack) and the link over B
+(active in milliseconds against 24.0004 s), and a repeated `request_path`
+after the recovery is answered from the B row and leaves it at hops 3; has
+the recipe probe wait for the re-announce to be the row on file (its
+`timestamp` past the re-filed row's) before pinning the replayed emission
+second at or before it, with no slack, and take its clock second from
+`announce_emitted_clock_secs`; has both live parts keep their rnsd in a
+slot on the test's frame so a run that outlives its budget prints rnsd's
+output before panicking; names the recipe probe's test, the budget probe
+and the black-box timeout twin in the README recipe paragraph and the
+CHANGELOG pin clauses; and extends the `readme_patch_list.rs` claims to
+those names. `XXXXXXXX` adds the part
+`crates/apps/reticulumd/tests/python_channel_interop_parts/python_shared_instance_rpc_roaming_restart.rs`,
+included from `python_channel_interop.rs`, which shows that a restart of
+rnsd does not clear the dead 1-hop row: with A down, rnsd is SIGTERMed and
+its exit handler (`RNS/Transport.py:3977-3981`, `:3966`) writes the path
+table to `storage/destination_table` (`:3788-3863`), keeping the entry
+because its interface hash is still registered (`:3820-3830`, true of an
+offline `TCPClientInterface`); rnsd respawned on the same directory and
+ports restores the row by interface hash (`:404-441`, `:2987-2992`) while
+A is still offline, the client, whose own table the instance drop flushed
+(`RNS/Transport.py:3698`), reconnects and its one explicit `request_path`
+is answered from the restored row, a link over it closes with `Timeout`, a
+second request is answered from it again, and `drop_path_settled` plus one
+`request_path` moves the row to the 3-hop route over B with a link coming
+up; hoists the bring-up the roaming and budget probe parts duplicated into
+the `roaming_topology` fixture in `python_shared_instance_rpc_roaming.rs`
+the three parts share; adds `terminate_child_gracefully` to
+`crates/apps/reticulumd/tests/support/python_channel_process.rs` (SIGTERM
+to the spawned child, a bounded reap, a clean exit asserted) and
+`SharedInstanceRpcRnsd::stop_gracefully` on it; names the restart test in
+the README recipe paragraph and the CHANGELOG path-calls,
+`drop_path_settled` and test-only Changed bullets; extends the
+`readme_patch_list.rs` claims to those names and to
+`storage/destination_table`; and qualifies the budget claim in the README,
+the CHANGELOG and this ledger to rnsd's `first_hop_timeout` plus 6 s per
+hop and the maintenance job's slack.
 
 ## 0.18.4 (upstream 0.14.0)
 

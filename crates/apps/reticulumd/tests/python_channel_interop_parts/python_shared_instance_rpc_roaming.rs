@@ -45,7 +45,9 @@
 // from `python_stdlib_listener_rpc_probe.rs`, the row helpers and `PathRow`
 // from `python_shared_instance_rpc_paths_live.rs`, the announce wait from
 // `python_shared_instance_rpc_paths_recipe_probe.rs`, the harness from
-// `python_shared_instance_rpc.rs` and `python_shared_instance_live.rs`.
+// `python_shared_instance_rpc.rs` and `python_shared_instance_live.rs`. The
+// bring-up is the `roaming_topology` fixture, shared with the recipe budget
+// probe and the restart part.
 
 #[cfg(unix)]
 use rns_transport::destination::link::LinkCloseReason;
@@ -238,43 +240,72 @@ async fn roaming_wait_row(
     }
 }
 
-/// The whole-test budget as a panic that still shows rnsd's output: the
-/// scenario's rnsd lives in `rnsd_slot` on the test's frame, so dropping the
-/// timed-out future does not take the log tail with it (that tail prints
-/// only when its own drop runs during a panic).
-#[cfg(unix)]
-fn roaming_expect_in_budget<T>(
-    outcome: Result<T, tokio::time::error::Elapsed>,
-    rnsd: &Option<SharedInstanceRpcRnsd>,
-    what: &str,
-) -> T {
-    outcome.unwrap_or_else(|_| {
-        if let Some(rnsd) = rnsd {
-            eprintln!("rnsd output at the budget:\n{}", rnsd._log.snapshot());
-        }
-        panic!("{what} did not finish within its budget")
-    })
-}
-
+/// Polls `interface_stats` until a `LocalInterface[` entry lists C as a
+/// client of rnsd (the `LocalClientInterface` joins the stats on accept).
 #[cfg(unix)]
 #[deny(clippy::await_holding_invalid_type)]
-async fn roaming_scenario(
-    started: tokio::time::Instant,
+async fn roaming_wait_client_attached(endpoint: &RpcEndpoint, key: &RpcKey) {
+    let attach_started = tokio::time::Instant::now();
+    loop {
+        let stats = interface_stats(endpoint, key, PATH_LIVE_CALL).await.expect("stats");
+        if stats.interfaces.iter().any(|iface| iface.name.starts_with("LocalInterface[")) {
+            break;
+        }
+        assert!(attach_started.elapsed() < ROAMING_BRING_UP, "C never attached: {stats:?}");
+        tokio::time::sleep(PATH_LIVE_POLL).await;
+    }
+}
+
+/// The roaming topology up to where the scenarios diverge: R2, R1 and D run
+/// with D's one announce learnt by R1 at two hops over `r1_to_r2`; rnsd runs
+/// in the caller's slot with A online, C attached, and the hops-1 row for D
+/// filed under A's str after C's first request, which was forwarded and not
+/// answered; B's listener is up on R1 and B online while R1's own row still
+/// names R2. The callers take A down themselves. `config_dir` is rnsd's and
+/// belongs to the caller, so a respawn can reuse it with `instance`,
+/// `control_port` and `interfaces`.
+#[cfg(unix)]
+struct RoamingTopology {
+    r2: Transport,
+    r1: Transport,
+    d: Transport,
+    c: Transport,
+    a_server: AddressHash,
+    a_name: String,
+    b_name: String,
+    hash: AddressHash,
+    hex: String,
+    control_port: u16,
+    endpoint: RpcEndpoint,
+    key: RpcKey,
+    instance: LiveSharedInstance,
+    interfaces: String,
+    c_hops_via_a: u8,
+    row_via_a: PathRow,
+}
+
+/// `prefix` names the four transports and the destination aspect.
+#[cfg(unix)]
+#[deny(clippy::await_holding_invalid_type)]
+async fn roaming_topology(
+    prefix: &str,
+    config_dir: &std::path::Path,
+    c_options: SharedInstanceOptions,
     rnsd_slot: &mut Option<SharedInstanceRpcRnsd>,
-) {
+) -> RoamingTopology {
     // D announces once over R2; R1 learns it at two hops.
-    let r2 = roaming_relay("roaming-r2");
+    let r2 = roaming_relay(&format!("{prefix}-r2"));
     let r2_port = free_tcp_port();
-    let (_r2_server, r2_listener) = roaming_listen(&r2, r2_port).await;
-    let r1 = roaming_relay("roaming-r1");
+    let (_, r2_listener) = roaming_listen(&r2, r2_port).await;
+    let r1 = roaming_relay(&format!("{prefix}-r1"));
     let r1_to_r2 = roaming_dial(&r1, r2_port, &r2_listener, 1).await;
     let d_identity = to_transport_private_identity(&PrivateIdentity::new_from_rand(OsRng));
-    let d = Transport::new(TransportConfig::new("roaming-d", &d_identity, false));
+    let d = Transport::new(TransportConfig::new(format!("{prefix}-d"), &d_identity, false));
     let a_port = free_tcp_port();
-    let (a_server, _a_listener) = roaming_listen(&d, a_port).await;
+    let (a_server, _) = roaming_listen(&d, a_port).await;
     roaming_dial(&d, r2_port, &r2_listener, 2).await;
     let destination =
-        d.add_destination(d_identity.clone(), DestinationName::new("test", "roaming")).await;
+        d.add_destination(d_identity.clone(), DestinationName::new("test", prefix)).await;
     let hash = { destination.lock().await.desc.address_hash };
     let hex = format!("<{}>", hex::encode(hash.as_slice()));
     let packet = destination.lock().await.announce(OsRng, None).expect("valid announce packet");
@@ -286,7 +317,6 @@ async fn roaming_scenario(
 
     // rnsd comes up with A dialling D and B dialling a port nobody listens
     // on yet; C attaches and asks for the path, which rnsd forwards over A.
-    let temp = tempfile::tempdir().expect("tempdir");
     let control_port = free_tcp_port();
     let b_port = free_tcp_port();
     let interfaces = format!(
@@ -297,7 +327,7 @@ async fn roaming_scenario(
         SharedInstanceRpcRnsd::spawn_with_interfaces(
             &instance,
             control_port,
-            &temp.path().join("python-rnsd-roaming"),
+            config_dir,
             &interfaces,
         )
         .await,
@@ -310,19 +340,9 @@ async fn roaming_scenario(
     let (a_entry, _) = roaming_wait_online(&endpoint, &key, "A", true, ROAMING_BRING_UP).await;
     assert_eq!(a_entry.name, a_name, "{a_entry:?}");
     let c_identity = to_transport_private_identity(&PrivateIdentity::new_from_rand(OsRng));
-    let c = Transport::new(TransportConfig::new("roaming-c", &c_identity, false));
-    c.attach_shared_instance(instance.endpoint.clone(), SharedInstanceOptions::default())
-        .await
-        .expect("C attaches");
-    let attach_started = tokio::time::Instant::now();
-    loop {
-        let stats = interface_stats(&endpoint, &key, PATH_LIVE_CALL).await.expect("stats");
-        if stats.interfaces.iter().any(|iface| iface.name.starts_with("LocalInterface[")) {
-            break;
-        }
-        assert!(attach_started.elapsed() < ROAMING_BRING_UP, "C never attached: {stats:?}");
-        tokio::time::sleep(PATH_LIVE_POLL).await;
-    }
+    let c = Transport::new(TransportConfig::new(format!("{prefix}-c"), &c_identity, false));
+    c.attach_shared_instance(instance.endpoint.clone(), c_options).await.expect("C attaches");
+    roaming_wait_client_attached(&endpoint, &key).await;
     assert!(!c.has_path(&hash).await, "C attached after D's only announce holds no row");
     let mut announces = c.recv_announces().await;
     let log_before = rnsd._log.snapshot().len();
@@ -356,7 +376,7 @@ async fn roaming_scenario(
 
     // B's listener appears; rnsd's reconnect loop brings B online. R1's
     // own row is untouched.
-    let (_b_server, _b_listener) = roaming_listen(&r1, b_port).await;
+    roaming_listen(&r1, b_port).await;
     let (b_entry, b_online_after) =
         roaming_wait_online(&endpoint, &key, "B", true, ROAMING_B_ONLINE).await;
     assert_eq!(b_entry.name, b_name, "{b_entry:?}");
@@ -364,6 +384,69 @@ async fn roaming_scenario(
     let r1_path = r1.path_status(&hash).await;
     assert_eq!(r1_path.interface, Some(r1_to_r2), "{r1_path:?}");
     assert_eq!(r1_path.hops, Some(2), "{r1_path:?}");
+
+    RoamingTopology {
+        r2,
+        r1,
+        d,
+        c,
+        a_server,
+        a_name,
+        b_name,
+        hash,
+        hex,
+        control_port,
+        endpoint,
+        key,
+        instance,
+        interfaces,
+        c_hops_via_a,
+        row_via_a,
+    }
+}
+
+/// The whole-test budget as a panic that still shows rnsd's output: the
+/// scenario's rnsd lives in `rnsd_slot` on the test's frame, so dropping the
+/// timed-out future does not take the log tail with it (that tail prints
+/// only when its own drop runs during a panic).
+#[cfg(unix)]
+fn roaming_expect_in_budget<T>(
+    outcome: Result<T, tokio::time::error::Elapsed>,
+    rnsd: &Option<SharedInstanceRpcRnsd>,
+    what: &str,
+) -> T {
+    outcome.unwrap_or_else(|_| {
+        if let Some(rnsd) = rnsd {
+            eprintln!("rnsd output at the budget:\n{}", rnsd._log.snapshot());
+        }
+        panic!("{what} did not finish within its budget")
+    })
+}
+
+#[cfg(unix)]
+#[deny(clippy::await_holding_invalid_type)]
+async fn roaming_scenario(
+    started: tokio::time::Instant,
+    config_dir: &std::path::Path,
+    rnsd_slot: &mut Option<SharedInstanceRpcRnsd>,
+) {
+    let RoamingTopology {
+        r2,
+        r1,
+        d,
+        c,
+        a_server,
+        a_name,
+        b_name,
+        hash,
+        hex,
+        endpoint,
+        key,
+        c_hops_via_a,
+        row_via_a,
+        ..
+    } = roaming_topology("roaming", config_dir, SharedInstanceOptions::default(), rnsd_slot).await;
+    let rnsd = rnsd_slot.as_mut().expect("the fixture spawned rnsd");
 
     // A goes down: the stats entry reads offline, the row does not move.
     assert!(d.stop_interface(a_server).await, "D's A listener stops");
@@ -467,7 +550,11 @@ async fn python_rnsd_roaming_keeps_the_dead_one_hop_row_until_drop_settled_moves
 ) {
     let _interop_guard = python_interop_guard().await;
     let started = tokio::time::Instant::now();
+    let temp = tempfile::tempdir().expect("tempdir");
+    let config_dir = temp.path().join("python-rnsd-roaming");
     let mut rnsd = None;
-    let outcome = tokio::time::timeout(ROAMING_BUDGET, roaming_scenario(started, &mut rnsd)).await;
+    let outcome =
+        tokio::time::timeout(ROAMING_BUDGET, roaming_scenario(started, &config_dir, &mut rnsd))
+            .await;
     roaming_expect_in_budget(outcome, &rnsd, "the roaming scenario");
 }

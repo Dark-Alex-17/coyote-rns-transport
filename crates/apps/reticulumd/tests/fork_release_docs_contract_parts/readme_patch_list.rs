@@ -780,6 +780,12 @@ fn crate_readme_path_table_section_describes_the_calls_and_the_window() {
         "`python_shared_instance_rpc_paths_recipe_probe.rs`",
         "`python_rnsd_recipe_drop_settled_then_request_path_is_forwarded_not_answered_stale`",
         "`python_rnsd_roaming_recipe_links_inside_pythons_first_hop_timeout_budget_and_a_repeat_request_stays_on_b`",
+        "step by step",
+        "and the maintenance job's slack",
+        "`python_rnsd_roaming_restart_restores_the_dead_one_hop_row_from_storage_until_drop_settled_moves_it_to_the_live_route`",
+        "`python_shared_instance_rpc_roaming_restart.rs`",
+        "`storage/destination_table`",
+        "by interface hash",
         "`tests/link_establishment_timeout_shared_instance_probe.rs`",
     ]) {
         assert!(
@@ -787,6 +793,7 @@ fn crate_readme_path_table_section_describes_the_calls_and_the_window() {
             "the path table section should mention {claim}:\n{section}"
         );
     }
+    assert!(!readme.contains("word for word"), "the README qualifies the recipe as step by step");
     // The section follows the interface statistics one directly, and the
     // table of contents links it.
     let stats_heading = readme
@@ -836,9 +843,20 @@ fn crate_readme_path_table_section_describes_the_calls_and_the_window() {
         "python_channel_interop_parts/python_shared_instance_rpc_paths_recipe_probe.rs`",
         "`transport/tests_parts/establishment_timeout_python_sizing.rs`",
         "python_channel_interop_parts/python_shared_instance_rpc_roaming_recipe_budget_probe.rs`",
+        "and the maintenance job's slack",
+        "python_channel_interop_parts/python_shared_instance_rpc_roaming_restart.rs`",
+        "`storage/destination_table`",
+        "`:3820-3830`",
+        "`:404-441`",
+        "`:2987-2992`",
+        "by interface hash",
     ]) {
         assert!(changelog_text.contains(&squash(claim)), "the changelog should mention {claim}");
     }
+    assert!(
+        !changelog.contains("word for word"),
+        "the CHANGELOG qualifies the recipe as step by step"
+    );
     let bullets = top_level_bullets(changelog_section);
     let settled = bullets
         .iter()

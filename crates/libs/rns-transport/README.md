@@ -1246,11 +1246,18 @@ the row to the live 3-hop route and a link over it comes up. On the same
 topology
 `python_rnsd_roaming_recipe_links_inside_pythons_first_hop_timeout_budget_and_a_repeat_request_stays_on_b`
 (`python_shared_instance_rpc_roaming_recipe_budget_probe.rs`) follows the
-paragraph above word for word: the row's interface is looked up in the
+paragraph above step by step: the row's interface is looked up in the
 stats by `name` and read offline, the failed link closes inside rnsd's own
-`first_hop_timeout` plus 6 s per hop, the link over the live route comes
-up inside the same budget, and a repeated `request_path` after the
-recovery leaves the row where it is. The companion part
+`first_hop_timeout` plus 6 s per hop and the maintenance job's slack, the
+link over the live route comes up inside the same budget, and a repeated
+`request_path` after the recovery leaves the row where it is. A restart of
+rnsd does not clear the dead row either:
+`python_rnsd_roaming_restart_restores_the_dead_one_hop_row_from_storage_until_drop_settled_moves_it_to_the_live_route`
+(`python_shared_instance_rpc_roaming_restart.rs`) SIGTERMs rnsd, which
+persists the row to `storage/destination_table`, and the respawned rnsd
+restores it by interface hash from that row and the cached announce while
+that interface is still offline; the same recipe recovers it. The
+companion part
 `python_shared_instance_rpc_paths_recipe_probe.rs`
 (`python_rnsd_recipe_drop_settled_then_request_path_is_forwarded_not_answered_stale`)
 shows the rule a path request obeys after a drop: after `drop_path_settled`

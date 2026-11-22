@@ -31,9 +31,10 @@ per fork task.
 Every file changed since the `0.18.4` release and the patch each change
 belongs to. Patch ids: Q1 is rnsd path rpc. The `rnsd path rpc` patch is
 fork commits `1528b698`, `bab079de`, `6f22dca2`, `0adb116e`, `75126a26`,
-`5faf736d`, `50a177eb`, `60410ca9`, `cc67d5f3`, `d0e34ef2` and `ef50cff5`.
-The `Python-in-the-loop rnsd path rpc interop` patch carries no other id and
-is fork commits `60410ca9`, `cc67d5f3`, `d0e34ef2` and `ef50cff5`.
+`5faf736d`, `50a177eb`, `60410ca9`, `cc67d5f3`, `d0e34ef2`, `ef50cff5` and
+`689f5ab3`. The `Python-in-the-loop rnsd path rpc interop` patch carries no
+other id and is fork commits `60410ca9`, `cc67d5f3`, `d0e34ef2`, `ef50cff5`
+and `689f5ab3`.
 
 | File | Patch |
 | --- | --- |
@@ -61,8 +62,8 @@ is fork commits `60410ca9`, `cc67d5f3`, `d0e34ef2` and `ef50cff5`.
 | `docs/fork/PATCHSET.md` | rnsd path rpc, Python-in-the-loop rnsd path rpc interop |
 
 Fork commits `1528b698`, `bab079de`, `6f22dca2`, `0adb116e`, `75126a26`,
-`5faf736d`, `50a177eb`, `60410ca9`, `cc67d5f3`, `d0e34ef2` and `ef50cff5`: Q1,
-rnsd path rpc.
+`5faf736d`, `50a177eb`, `60410ca9`, `cc67d5f3`, `d0e34ef2`, `ef50cff5` and
+`689f5ab3`: Q1, rnsd path rpc.
 Upstream site: the fork-added rnsd RPC client
 `crates/libs/rns-transport/src/transport/shared_instance_rpc.rs` (O2 of
 `## 0.18.3`, P2 of `## 0.18.4`) and its sub-parts; upstream carries none
@@ -234,10 +235,16 @@ harness constructors and the missing comma in the settle pin clause to the
 CHANGELOG, names the path table in the README's framing paragraph and the
 third live part in its pin paragraph, and has the
 `tests/shared_instance_rpc_paths_probe.rs` header say its unix twin binds a
-filesystem socket standing in for the abstract name.
+filesystem socket standing in for the abstract name. `689f5ab3` has
+`readme_patch_list.rs` pin that the section follows `## Reading rnsd's
+interface statistics` directly, that the table of contents links it and
+that the recipe names `Transport::request_path`; has the window sentence in
+the README, CHANGELOG and `drop_path_settled` rustdoc attribute the 250 ms
+tick to the cull, read by the helper on its next 50 ms poll; and widens the
+settle figure to about 50 to 180 ms after a 54 ms run.
 
-Fork commits `60410ca9`, `cc67d5f3`, `d0e34ef2` and `ef50cff5`: Python-in-the-loop
-rnsd path rpc interop. `60410ca9` adds the part
+Fork commits `60410ca9`, `cc67d5f3`, `d0e34ef2`, `ef50cff5` and `689f5ab3`:
+Python-in-the-loop rnsd path rpc interop. `60410ca9` adds the part
 `crates/apps/reticulumd/tests/python_channel_interop_parts/python_shared_instance_rpc_paths_live.rs`,
 included from `python_channel_interop.rs`, an ignored test against a live
 Python rnsd (RNS 1.5.2) that proves the path calls on rnsd itself: on the
@@ -292,7 +299,8 @@ matched stats entry's `online`, `drop_path_settled` repeated on the settled
 row as `Ok(false)` without polling, and `drop_all_via(row.via)` as 0 once the
 row is gone and at least 1 after a re-announce; and has the part import
 `PathRow`, take its per-dial budget from `SHARED_INSTANCE_RPC_CALL` and look
-the client's stats entry up once.
+the client's stats entry up once. `689f5ab3` has the first part count its
+empty-table dials as seven in its diagnostic line.
 
 ## 0.18.4 (upstream 0.14.0)
 

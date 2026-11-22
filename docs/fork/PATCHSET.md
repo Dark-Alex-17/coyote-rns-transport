@@ -36,7 +36,7 @@ timeout. The `rnsd path rpc` patch is fork commits `1528b698`, `bab079de`,
 timeout` patch is fork commits `a451a06e` and `312ede0a`. The
 `Python-in-the-loop rnsd path rpc interop` patch carries no other id and is
 fork commits `60410ca9`, `cc67d5f3`, `d0e34ef2`, `ef50cff5`, `689f5ab3`,
-`a451a06e`, `312ede0a` and `ad5c7e15`.
+`a451a06e`, `312ede0a`, `ad5c7e15` and `YYYYYYYY`.
 
 | File | Patch |
 | --- | --- |
@@ -45,6 +45,7 @@ fork commits `60410ca9`, `cc67d5f3`, `d0e34ef2`, `ef50cff5`, `689f5ab3`,
 | `crates/apps/reticulumd/tests/fork_release_docs_contract_parts/readme_patch_list.rs` | rnsd path rpc, Python-in-the-loop rnsd path rpc interop, link establishment timeout |
 | `crates/apps/reticulumd/tests/fork_release_docs_contract_parts/request_layer_api_docs.rs` | rnsd path rpc |
 | `crates/apps/reticulumd/tests/python_channel_interop.rs` | Python-in-the-loop rnsd path rpc interop |
+| `crates/apps/reticulumd/tests/python_channel_interop_parts/graceful_stop_probe.rs` | Python-in-the-loop rnsd path rpc interop |
 | `crates/apps/reticulumd/tests/python_channel_interop_parts/python_shared_instance_live.rs` | Python-in-the-loop rnsd path rpc interop |
 | `crates/apps/reticulumd/tests/python_channel_interop_parts/python_shared_instance_rpc.rs` | rnsd path rpc, Python-in-the-loop rnsd path rpc interop |
 | `crates/apps/reticulumd/tests/python_channel_interop_parts/python_shared_instance_rpc_paths_live.rs` | Python-in-the-loop rnsd path rpc interop |
@@ -308,8 +309,8 @@ header and rows, which is why that part, the README and this file are
 rowed under the patch.
 
 Fork commits `60410ca9`, `cc67d5f3`, `d0e34ef2`, `ef50cff5`, `689f5ab3`,
-`a451a06e`, `312ede0a` and `ad5c7e15`: Python-in-the-loop rnsd path rpc interop. `60410ca9` adds the
-part
+`a451a06e`, `312ede0a`, `ad5c7e15` and `YYYYYYYY`: Python-in-the-loop rnsd
+path rpc interop. `60410ca9` adds the part
 `crates/apps/reticulumd/tests/python_channel_interop_parts/python_shared_instance_rpc_paths_live.rs`,
 included from `python_channel_interop.rs`, an ignored test against a live
 Python rnsd (RNS 1.5.2) that proves the path calls on rnsd itself: on the
@@ -410,7 +411,7 @@ step by step on the roaming topology: the row's interface is looked up in
 the stats by `name` and read offline before the drop, rnsd's own
 `first_hop_timeout` (6.0004 s observed) plus 6 s per hop and the
 maintenance job's slack bounds the failed link (closed with `Timeout` at
-about 12.9 s against a 12.0004 s figure plus slack) and the link over B
+about 12.9 s against the 12.0004 s figure) and the link over B
 (active in milliseconds against 24.0004 s), and a repeated `request_path`
 after the recovery is answered from the B row and leaves it at hops 3; has
 the recipe probe wait for the re-announce to be the row on file (its
@@ -431,13 +432,15 @@ because its interface hash is still registered (`:3820-3830`, true of an
 offline `TCPClientInterface`); rnsd respawned on the same directory and
 ports restores the row by interface hash (`:404-441`, `:2987-2992`) while
 A is still offline, the client, whose own table the instance drop flushed
-(`RNS/Transport.py:3698`), reconnects and its one explicit `request_path`
-is answered from the restored row, a link over it closes with `Timeout`, a
-second request is answered from it again, and `drop_path_settled` plus one
-`request_path` moves the row to the 3-hop route over B with a link coming
-up; hoists the bring-up the roaming and budget probe parts duplicated into
-the `roaming_topology` fixture in `python_shared_instance_rpc_roaming.rs`
-the three parts share; adds `terminate_child_gracefully` to
+(`RNS/Transport.py:3698`; the Rust twin is pinned by
+`transport/tests_parts/two_transport_shared_instance_flush.rs`), reconnects
+and its one explicit `request_path` is answered from the restored row, a
+link over it closes with `Timeout`, a second request is answered from it
+again, and `drop_path_settled` plus one `request_path` moves the row to
+the 3-hop route over B with a link coming up; hoists the bring-up the
+roaming and budget probe parts duplicated into the `roaming_topology`
+fixture in `python_shared_instance_rpc_roaming.rs` the three parts share;
+adds `terminate_child_gracefully` to
 `crates/apps/reticulumd/tests/support/python_channel_process.rs` (SIGTERM
 to the spawned child, a bounded reap, a clean exit asserted) and
 `SharedInstanceRpcRnsd::stop_gracefully` on it; names the restart test in
@@ -446,7 +449,12 @@ the README recipe paragraph and the CHANGELOG path-calls,
 `readme_patch_list.rs` claims to those names and to
 `storage/destination_table`; and qualifies the budget claim in the README,
 the CHANGELOG and this ledger to rnsd's `first_hop_timeout` plus 6 s per
-hop and the maintenance job's slack.
+hop and the maintenance job's slack. `YYYYYYYY` adds
+`crates/apps/reticulumd/tests/python_channel_interop_parts/graceful_stop_probe.rs`,
+included from `python_channel_interop.rs`, four fast parts pinning the
+graceful stop without Python, tightens the restart part (the persisted
+entry count asserted, the reasoned disconnect alone, the identity compared
+without printing it) and the ledger wording.
 
 ## 0.18.4 (upstream 0.14.0)
 

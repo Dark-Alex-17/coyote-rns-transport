@@ -399,7 +399,7 @@ fn try_terminate_child_gracefully(
     if !signalled.success() {
         return Err(format!("failed to signal the child with SIGTERM: {signalled}"));
     }
-    let deadline = Instant::now() + within;
+    let deadline = std::time::Instant::now() + within;
     loop {
         let exited =
             child.try_wait().map_err(|err| format!("wait for the child's graceful exit: {err}"))?;
@@ -409,7 +409,7 @@ fn try_terminate_child_gracefully(
             }
             return Ok(status);
         }
-        if Instant::now() >= deadline {
+        if std::time::Instant::now() >= deadline {
             return Err(format!("the child did not exit within {within:?} of SIGTERM"));
         }
         std::thread::sleep(Duration::from_millis(25));

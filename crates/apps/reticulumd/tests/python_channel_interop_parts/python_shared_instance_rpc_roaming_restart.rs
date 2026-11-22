@@ -161,7 +161,7 @@ async fn restart_scenario(
     while events.try_recv().is_ok() {}
     let iface = c.shared_instance().expect("C is attached");
     assert_eq!(c.interface_connect_count(&iface).await, Some(1));
-    let identity_file = config_dir.join("storage/transport_identity");
+    let identity_file = rnsd_slot.as_ref().expect("the fixture spawned rnsd").identity_file.clone();
     let identity_before = fs::read(&identity_file).expect("the transport identity on disk");
 
     // SIGTERM: rnsd persists the table and exits 0; the dead row is in it.
@@ -169,6 +169,11 @@ async fn restart_scenario(
     let stop_started = tokio::time::Instant::now();
     let (status, output) = rnsd.stop_gracefully(RESTART_STOP).await;
     let stop_after = stop_started.elapsed();
+    let tail_from = output.lines().count().saturating_sub(20);
+    eprintln!("old rnsd output, last lines:");
+    for line in output.lines().skip(tail_from) {
+        eprintln!("  {line}");
+    }
     let table = config_dir.join("storage/destination_table");
     let table_len = fs::metadata(&table)
         .unwrap_or_else(|err| {
@@ -177,7 +182,7 @@ async fn restart_scenario(
         .len();
     assert!(
         table_len > 0,
-        "{} is empty after SIGTERM\nold rnsd output:\n{output}",
+        "{} holds no bytes after SIGTERM\nold rnsd output:\n{output}",
         table.display()
     );
     let saved =
@@ -186,12 +191,20 @@ async fn restart_scenario(
         "rnsd exited {status} {stop_after:?} after SIGTERM; {} holds {table_len} bytes; {saved:?}",
         table.display()
     );
+    let saved = saved
+        .unwrap_or_else(|| panic!("rnsd logged no path table save\nold rnsd output:\n{output}"));
+    // `save_path_table` reports the count it kept (`RNS/Transport.py:3868`,
+    // LOG_DEBUG, visible at the config's loglevel).
+    assert!(
+        saved.contains("Saved 1 path table entries"),
+        "the dead row alone is persisted: {saved}"
+    );
     assert!(
         matches!(
             next_state("the disconnect after the stop", &mut events).await,
-            SharedInstanceEvent::Disconnected | SharedInstanceEvent::DisconnectedWithReason { .. }
+            SharedInstanceEvent::DisconnectedWithReason { .. }
         ),
-        "a stopped rnsd reads as a disconnect\nold rnsd output:\n{output}"
+        "a stopped rnsd reads as a disconnect with a reason\nold rnsd output:\n{output}"
     );
     assert_eq!(
         next_state("the redial's Connecting", &mut events).await,
@@ -224,9 +237,9 @@ async fn restart_scenario(
         )
         .await,
     );
-    assert_eq!(
-        fs::read(&identity_file).expect("the transport identity after the respawn"),
-        identity_before,
+    assert!(
+        fs::read(&identity_file).expect("the transport identity after the respawn")
+            == identity_before,
         "the respawn keeps the transport identity"
     );
     let mut dial_failures = 0usize;

@@ -88,4 +88,6 @@ include!("python_channel_interop_parts/python_shared_instance_rpc_roaming_recipe
 
 include!("python_channel_interop_parts/python_shared_instance_rpc_roaming_restart.rs");
 
+include!("python_channel_interop_parts/graceful_stop_probe.rs");
+
 include!("python_channel_interop_parts/python_shared_instance_announce_emitted.rs");

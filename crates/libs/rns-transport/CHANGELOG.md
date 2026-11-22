@@ -122,10 +122,10 @@ Removed) bullet of its own, marked as such.
   recovery leaves the row on B;
   `python_channel_interop_parts/python_shared_instance_rpc_roaming_restart.rs`,
   the restart variant: an rnsd SIGTERMed persists the stale row to
-  `storage/destination_table` (`RNS/Transport.py:3788-3863`; an entry is
-  kept while its interface hash is still registered (`:3820-3830`), and
-  an offline `TCPClientInterface` stays registered) and a
-  transport-enabled rnsd restores it on start by interface hash
+  `storage/destination_table` (`RNS/Transport.py:3788-3863`), keeping an
+  entry whose interface hash is still registered (`:3820-3830`), which an
+  offline `TCPClientInterface`'s is; a transport-enabled rnsd restores it
+  on start by interface hash
   (`:404-441`, `:2987-2992`) from the row and its cached announce
   (`cache/announces/<packet_hash>`, `:425`, `:433`, written at `:2457`)
   even while that interface is offline, so the dead 1-hop row is back
@@ -237,7 +237,11 @@ Removed) bullet of its own, marked as such.
   `python_channel_interop_parts/python_shared_instance_rpc.rs` gains
   `SharedInstanceRpcRnsd::stop_gracefully` on it; the roaming part's
   bring-up is the `roaming_topology` fixture the roaming, recipe budget
-  and restart parts share.
+  and restart parts share;
+  `python_channel_interop_parts/graceful_stop_probe.rs` pins
+  `terminate_child_gracefully` without Python (SIGTERM not SIGKILL, a
+  stubborn child killed and reaped inside the bound, a non-zero exit
+  reported, a taken `ChildGuard` inert on drop).
 - Test-only: the fork docs contract (`fork_release_docs_contract.rs`,
   `fork_release_docs_contract_parts/request_layer_api_docs.rs`) walks the new
   `shared_instance_rpc/paths.rs` and `shared_instance_rpc/path_table.rs` and

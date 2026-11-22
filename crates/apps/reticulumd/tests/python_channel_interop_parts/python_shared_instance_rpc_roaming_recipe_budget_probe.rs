@@ -62,7 +62,18 @@ async fn recipe_budget_scenario(
 ) {
     // ---- Topology, as the roaming proof builds it. ----
     let RoamingTopology {
-        r2, r1, d, c, a_server, b_name, hash, endpoint, key, c_hops_via_a, ..
+        r2,
+        r1,
+        d,
+        c,
+        a_server,
+        b_name,
+        hash,
+        hex,
+        endpoint,
+        key,
+        c_hops_via_a,
+        ..
     } = roaming_topology("recipe", config_dir, SharedInstanceOptions::default(), rnsd_slot).await;
     let rnsd = rnsd_slot.as_mut().expect("the fixture spawned rnsd");
 
@@ -148,9 +159,7 @@ async fn recipe_budget_scenario(
     let known = rnsd
         ._log
         .wait_for("the repeat answered from the B row", ROAMING_REPATH, |line| {
-            (line.contains(PATH_RECIPE_KNOWN_LINE)
-                && line.contains(&format!("<{}>", hex::encode(hash.as_slice()))))
-            .then(|| line.to_string())
+            (line.contains(PATH_RECIPE_KNOWN_LINE) && line.contains(&hex)).then(|| line.to_string())
         })
         .await;
     eprintln!("rnsd: {known}");
@@ -166,12 +175,7 @@ async fn recipe_budget_scenario(
     let since = rnsd._log.snapshot();
     let since = &since[log_before.min(since.len())..];
     assert!(
-        path_recipe_lines_for(
-            since,
-            PATH_RECIPE_FORWARDED_LINE,
-            &format!("<{}>", hex::encode(hash.as_slice()))
-        )
-        .is_empty(),
+        path_recipe_lines_for(since, PATH_RECIPE_FORWARDED_LINE, &hex).is_empty(),
         "with the B row on file the repeat is answered, not forwarded"
     );
     assert_eq!(c.hops_to(&hash).await, 3, "C's row stays at the B hop count");

@@ -1243,11 +1243,11 @@ answered true, `path_table` still lists the row with timestamp 0 and
 `next_hop_interface_name` still names the interface; both read as gone at
 about 160 ms; `drop_path_settled` (`drop_path`, then
 `next_hop_interface_name` polled every 50 ms until it reads `None`, every
-dial under the one timeout) returns true in about 110 to 180 ms; the bound
-is one tick, 250 ms, wherever in the tick the drop lands. A `Timeout` from
-the helper can also mean the destination was
-re-learned from a fresh announce between the pop and a poll, so re-read
-`path_table` before treating it as a failure.
+dial under the one timeout) returns true in about 50 to 180 ms; the cull's
+bound is one tick, 250 ms, wherever in the tick the drop lands, and the
+helper reads it on its next 50 ms poll. A `Timeout` from the helper can
+also mean the destination was re-learned from a fresh announce between the
+pop and a poll, so re-read `path_table` before treating it as a failure.
 
 Hashes travel as msgpack bin: `Transport.path_table` is keyed by `bytes`
 (`RNS/Transport.py:2459`) and umsgpack packs `bytes` as bin

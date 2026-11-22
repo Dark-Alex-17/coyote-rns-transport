@@ -658,7 +658,7 @@ fn crate_readme_path_table_section_describes_the_calls_and_the_window() {
         "`RNS/Reticulum.py:1527`",
         "(`:1645`)",
         "about 160 ms",
-        "110 to 180 ms",
+        "50 to 180 ms",
         "250 ms",
         "python_channel_interop_parts/python_shared_instance_rpc_paths_live.rs`",
         "`tests/shared_instance_rpc_paths_probe.rs`",
@@ -679,12 +679,27 @@ fn crate_readme_path_table_section_describes_the_calls_and_the_window() {
         "`SharedInstanceRpcRnsd::spawn_with_interfaces`",
         "`LiveSharedInstance::with_transport`",
         "`RpcError::is_transient()`",
+        "`Transport::request_path`",
     ]) {
         assert!(
             section.contains(&squash(claim)),
             "the path table section should mention {claim}:\n{section}"
         );
     }
+    // The section follows the interface statistics one directly, and the
+    // table of contents links it.
+    let stats_heading = readme
+        .find("\n## Reading rnsd's interface statistics\n")
+        .expect("the interface statistics section");
+    let next_heading = readme[stats_heading + 1..].find("\n## ").expect("a following section");
+    assert!(
+        readme[stats_heading + 1 + next_heading..].starts_with("\n## Driving rnsd's path table\n"),
+        "the path table section follows the interface statistics section"
+    );
+    assert!(
+        readme.contains("- [Driving rnsd's path table](#driving-rnsds-path-table):"),
+        "the table of contents links the path table section"
+    );
     let divergences = crate_readme_section(&readme, "Known divergences from Python RNS");
     let (real, api_shape) = divergences
         .split_once("\nNot divergences:\n")
@@ -721,7 +736,7 @@ fn crate_readme_path_table_section_describes_the_calls_and_the_window() {
         .iter()
         .find(|bullet| bullet.starts_with("- `drop_path_settled(endpoint"))
         .expect("the changelog carries the settling helper bullet");
-    for claim in ["Observed against rnsd 1.5.2", "about 160 ms", "110 to 180 ms", "250 ms"] {
+    for claim in ["Observed against rnsd 1.5.2", "about 160 ms", "50 to 180 ms", "250 ms"] {
         assert!(
             squash(settled).contains(&squash(claim)),
             "the measured window sits in the `drop_path_settled` bullet: {claim}\n{settled}"
@@ -735,7 +750,7 @@ fn crate_readme_path_table_section_describes_the_calls_and_the_window() {
         .position(|line| line.starts_with("pub async fn drop_path_settled("))
         .expect("paths.rs declares drop_path_settled");
     let rustdoc = squash(&doc_block_above(&lines, settled_fn));
-    for claim in ["Observed against rnsd 1.5.2", "about 160 ms", "110 to 180 ms", "250 ms"] {
+    for claim in ["Observed against rnsd 1.5.2", "about 160 ms", "50 to 180 ms", "250 ms"] {
         assert!(rustdoc.contains(&squash(claim)), "the drop_path_settled rustdoc carries {claim}");
     }
 }

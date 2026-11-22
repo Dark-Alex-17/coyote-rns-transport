@@ -42,7 +42,7 @@ const PATH_LIVE_GONE: Duration = Duration::from_secs(5);
 #[cfg(unix)]
 const PATH_LIVE_POLL: Duration = Duration::from_millis(50);
 // Two `job_interval` ticks (`RNS/Transport.py:248`): the cull lands on the
-// next tick after the drop, observed in about 110 to 180 ms.
+// next tick after the drop, observed in about 50 to 180 ms.
 #[cfg(unix)]
 const PATH_LIVE_SETTLE: Duration = Duration::from_millis(500);
 // rnsd files a re-announce at equal hops only for a later emitted second
@@ -132,7 +132,7 @@ async fn python_rnsd_path_calls_list_the_client_interface_and_a_drop_settles() {
         "a false drop returns without polling: {:?}",
         settle_started.elapsed()
     );
-    eprintln!("empty-table pass of six calls took {:?}", started.elapsed());
+    eprintln!("empty-table pass of seven dials took {:?}", started.elapsed());
     rnsd.assert_running("after the empty-table calls");
 
     // A Rust client of the shared instance announces one destination.

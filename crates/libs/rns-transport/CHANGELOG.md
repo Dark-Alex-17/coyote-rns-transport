@@ -123,8 +123,9 @@ Removed) bullet of its own, marked as such.
   a millisecond after `drop_path` answered true, `path_table` still lists
   the row with timestamp 0 and `next_hop_interface_name` still names the
   interface; both read as gone at about 160 ms; `drop_path_settled`
-  returns true in about 110 to 180 ms; the bound is one tick, 250 ms,
-  wherever in the tick the drop lands. A path request sent
+  returns true in about 50 to 180 ms; the cull's bound is one tick,
+  250 ms, wherever in the tick the drop lands, and the helper reads it on
+  its next 50 ms poll. A path request sent
   right after a bare `drop_path` is answered from the stale entry; a caller
   sends one path request after the helper returns `Ok(true)`. A `Timeout`
   from it is not only a slow cull: the destination may have been re-learned

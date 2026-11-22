@@ -29,11 +29,12 @@ per fork task.
 ## Unreleased (upstream 0.14.0)
 
 Every file changed since the `0.18.4` release and the patch each change
-belongs to. Patch ids: Q1 is rnsd path rpc, Q3 is link establishment
-timeout. The `rnsd path rpc` patch is fork commits `1528b698`, `bab079de`,
-`6f22dca2`, `0adb116e`, `75126a26`, `5faf736d`, `50a177eb`, `60410ca9`,
-`cc67d5f3`, `d0e34ef2`, `ef50cff5` and `689f5ab3`. The `link establishment
-timeout` patch is fork commits `a451a06e` and `312ede0a`. The
+belongs to. Patch ids: Q1 is rnsd path rpc, Q2 is path interface, Q3 is
+link establishment timeout. The `rnsd path rpc` patch is fork commits
+`1528b698`, `bab079de`, `6f22dca2`, `0adb116e`, `75126a26`, `5faf736d`,
+`50a177eb`, `60410ca9`, `cc67d5f3`, `d0e34ef2`, `ef50cff5` and `689f5ab3`.
+The `path interface` patch is fork commits `3fddb1b4` and `280495b7`. The
+`link establishment timeout` patch is fork commits `a451a06e` and `312ede0a`. The
 `Python-in-the-loop rnsd path rpc interop` patch carries no other id and is
 fork commits `60410ca9`, `cc67d5f3`, `d0e34ef2`, `ef50cff5`, `689f5ab3`,
 `a451a06e`, `312ede0a`, `ad5c7e15`, `cc69ed29`, `02b2cfb9` and `9b21a2c9`.
@@ -41,9 +42,9 @@ fork commits `60410ca9`, `cc67d5f3`, `d0e34ef2`, `ef50cff5`, `689f5ab3`,
 | File | Patch |
 | --- | --- |
 | `crates/apps/reticulumd/tests/fork_publish_contract_parts/ledger_contract.rs` | rnsd path rpc |
-| `crates/apps/reticulumd/tests/fork_release_docs_contract.rs` | rnsd path rpc |
-| `crates/apps/reticulumd/tests/fork_release_docs_contract_parts/readme_patch_list.rs` | rnsd path rpc, Python-in-the-loop rnsd path rpc interop, link establishment timeout |
-| `crates/apps/reticulumd/tests/fork_release_docs_contract_parts/request_layer_api_docs.rs` | rnsd path rpc |
+| `crates/apps/reticulumd/tests/fork_release_docs_contract.rs` | rnsd path rpc, path interface |
+| `crates/apps/reticulumd/tests/fork_release_docs_contract_parts/readme_patch_list.rs` | rnsd path rpc, Python-in-the-loop rnsd path rpc interop, link establishment timeout, path interface |
+| `crates/apps/reticulumd/tests/fork_release_docs_contract_parts/request_layer_api_docs.rs` | rnsd path rpc, path interface |
 | `crates/apps/reticulumd/tests/python_channel_interop.rs` | Python-in-the-loop rnsd path rpc interop |
 | `crates/apps/reticulumd/tests/python_channel_interop_parts/graceful_stop_probe.rs` | Python-in-the-loop rnsd path rpc interop |
 | `crates/apps/reticulumd/tests/python_channel_interop_parts/python_shared_instance_live.rs` | Python-in-the-loop rnsd path rpc interop |
@@ -56,10 +57,13 @@ fork commits `60410ca9`, `cc67d5f3`, `d0e34ef2`, `ef50cff5`, `689f5ab3`,
 | `crates/apps/reticulumd/tests/python_channel_interop_parts/python_stdlib_listener_rpc_probe.rs` | rnsd path rpc |
 | `crates/apps/reticulumd/tests/support/python_channel_events.rs` | Python-in-the-loop rnsd path rpc interop |
 | `crates/apps/reticulumd/tests/support/python_channel_process.rs` | Python-in-the-loop rnsd path rpc interop |
-| `crates/libs/rns-transport/CHANGELOG.md` | rnsd path rpc, Python-in-the-loop rnsd path rpc interop, link establishment timeout |
-| `crates/libs/rns-transport/README.md` | rnsd path rpc, Python-in-the-loop rnsd path rpc interop, link establishment timeout |
+| `crates/libs/rns-transport/CHANGELOG.md` | rnsd path rpc, Python-in-the-loop rnsd path rpc interop, link establishment timeout, path interface |
+| `crates/libs/rns-transport/README.md` | rnsd path rpc, Python-in-the-loop rnsd path rpc interop, link establishment timeout, path interface |
+| `crates/libs/rns-transport/src/transport/links_parts/transport.rs` | path interface |
 | `crates/libs/rns-transport/src/transport/links_parts/transport_sections/link_establishment.rs` | link establishment timeout |
 | `crates/libs/rns-transport/src/transport/links_parts/transport_sections/link_open.rs` | link establishment timeout |
+| `crates/libs/rns-transport/src/transport/links_parts/transport_sections/path_interface.rs` | path interface |
+| `crates/libs/rns-transport/src/transport/mod.rs` | path interface |
 | `crates/libs/rns-transport/src/transport/next_hop_metrics.rs` | link establishment timeout |
 | `crates/libs/rns-transport/src/transport/shared_instance_rpc.rs` | rnsd path rpc |
 | `crates/libs/rns-transport/src/transport/shared_instance_rpc/decode.rs` | rnsd path rpc |
@@ -68,13 +72,15 @@ fork commits `60410ca9`, `cc67d5f3`, `d0e34ef2`, `ef50cff5`, `689f5ab3`,
 | `crates/libs/rns-transport/src/transport/shared_instance_rpc/tests/mock_server.rs` | rnsd path rpc |
 | `crates/libs/rns-transport/src/transport/shared_instance_rpc/tests/mod.rs` | rnsd path rpc |
 | `crates/libs/rns-transport/src/transport/shared_instance_rpc/tests/paths.rs` | rnsd path rpc |
-| `crates/libs/rns-transport/src/transport/tests.rs` | link establishment timeout |
+| `crates/libs/rns-transport/src/transport/tests.rs` | link establishment timeout, path interface |
 | `crates/libs/rns-transport/src/transport/tests_parts/establishment_timeout_python_sizing.rs` | link establishment timeout |
+| `crates/libs/rns-transport/src/transport/tests_parts/path_interface_api.rs` | path interface |
 | `crates/libs/rns-transport/tests/link_establishment_timeout_shared_instance_probe.rs` | link establishment timeout |
+| `crates/libs/rns-transport/tests/path_interface_api.rs` | path interface |
 | `crates/libs/rns-transport/tests/shared_instance_rpc_api.rs` | rnsd path rpc |
 | `crates/libs/rns-transport/tests/shared_instance_rpc_io_kind_probe.rs` | rnsd path rpc |
 | `crates/libs/rns-transport/tests/shared_instance_rpc_paths_probe.rs` | rnsd path rpc |
-| `docs/fork/PATCHSET.md` | rnsd path rpc, Python-in-the-loop rnsd path rpc interop, link establishment timeout |
+| `docs/fork/PATCHSET.md` | rnsd path rpc, Python-in-the-loop rnsd path rpc interop, link establishment timeout, path interface |
 
 Fork commits `1528b698`, `bab079de`, `6f22dca2`, `0adb116e`, `75126a26`,
 `5faf736d`, `50a177eb`, `60410ca9`, `cc67d5f3`, `d0e34ef2`, `ef50cff5` and
@@ -257,6 +263,51 @@ that the recipe names `Transport::request_path`; has the window sentence in
 the README, CHANGELOG and `drop_path_settled` rustdoc attribute the 250 ms
 tick to the cull, read by the helper on its next 50 ms poll; and widens the
 settle figure to about 50 to 180 ms after a 54 ms run.
+
+Fork commits `3fddb1b4` and `280495b7`: Q2, path interface.
+Upstream site: `Transport::path_status` in
+`crates/libs/rns-transport/src/transport/links_parts/transport_sections/close_channel.rs`,
+which reads one path table entry under the handler lock and reports the
+next hop, interface and hops; upstream carries `path_status` and the
+whole-table export `path_table` but no per-path read that also names the
+interface and dates the entry, so a transport that holds its own table
+could not check the interface one path rests on without exporting every
+row. `3fddb1b4` adds the section file
+`crates/libs/rns-transport/src/transport/links_parts/transport_sections/path_interface.rs`,
+included from `links_parts/transport.rs` beside `path_table.rs` so
+`close_channel.rs` stays unchanged, with
+`Transport::path_interface(&AddressHash) -> Option<PathIface>` and the
+`#[non_exhaustive]` `PathIface { iface, name, learned_at, hops }`,
+re-exported from `transport/mod.rs` beside `TransportPathTableEntry`:
+the handler lock is taken, the entry's interface, hops and `Instant` are
+copied out and the guard dropped before the interface manager lock is
+taken for the display name, the same order `next_hop_metrics` uses;
+`iface` is the row's `IDX_PT_RVCD_IF` slot that Python's
+`Transport.next_hop_interface` returns as the interface object
+(`RNS/Transport.py:3156-3164`, `:4127`), `learned_at` is the
+`IDX_PT_TIMESTAMP` slot (`:4122`, set from `now` at `:2458-2459`)
+converted from the entry's `Instant` to a `SystemTime`, `name` is the
+interface manager's display name, the source of
+`TransportPathTableEntry::interface_name`, and `None` means the table has
+no entry, the `path_found == false` case of `path_status`, whose shape is
+unchanged. Pinned by the new part
+`crates/libs/rns-transport/src/transport/tests_parts/path_interface_api.rs`,
+included from `transport/tests.rs`, where a connector that learned a
+listener's announce over loopback reads the record, agrees with
+`path_status`, `hops_to` and `path_table` on the interface, name and hops,
+brackets `learned_at` within a second of the announce, sees `name` turn
+from `None` to the display name set on the manager, and reads `None` for
+an unknown and an expired destination; and by the black-box twin
+`crates/libs/rns-transport/tests/path_interface_api.rs`, which pins the
+same facts by field from outside the crate and `PathIface` as a `Send +
+Sync` value type. The same commit adds the section file to
+`FORK_NEW_FILES` in `fork_release_docs_contract.rs` and `PathIface` to the
+expected and by-field struct lists in `request_layer_api_docs.rs`.
+`280495b7` adds the CHANGELOG `### Added` bullet, the README paragraph in
+`## Driving rnsd's path table` that names `Transport::interface_events()`
+as the in-process up/down stream and the `expire_path` then
+`request_path` recipe, the `Not divergences:` bullet, and the
+`readme_patch_list.rs` pin that reads them.
 
 Fork commits `a451a06e` and `312ede0a`: Q3, link establishment timeout.
 Upstream site: `Transport::link`'s establishment timeout in

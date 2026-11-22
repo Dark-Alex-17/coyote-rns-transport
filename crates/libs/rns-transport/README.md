@@ -1301,6 +1301,23 @@ to dial again: `Timeout`, or `Io` or `Connect` of kind `ConnectionReset`,
 `ConnectionAborted`, `BrokenPipe` or `UnexpectedEof`; `ConnectionRefused`
 is not.
 
+Without rnsd, a transport that holds its own table (a direct LAN or private
+setup) reads the same fact in-process with `Transport::path_interface`,
+which returns a `PathIface` for one destination or `None` when the table
+has no entry: `iface`, the interface the announce arrived on; `name`, the
+interface manager's display name for it (the `interface_name` of
+`Transport::path_table`'s rows); `learned_at`, the time this transport
+accepted the announce, converted from the entry's monotonic clock; and
+`hops`. Python's `Transport.next_hop_interface` returns the interface
+object itself (`RNS/Transport.py:3156-3164`). The in-process up/down stream is
+`Transport::interface_events()`: a `Disconnected` followed by `Connecting`
+or `Connected` means the interface came back since the path was learned.
+On a failed link, read the path's interface, check it against that stream,
+and when the interface is down call `Transport::expire_path` and then
+`Transport::request_path`. Pinned by
+`transport/tests_parts/path_interface_api.rs` on loopback and
+`tests/path_interface_api.rs` from outside the crate.
+
 Pinned by the Python-in-the-loop part
 `crates/apps/reticulumd/tests/python_channel_interop_parts/python_shared_instance_rpc_paths_live.rs`
 of the reticulumd `python_channel_interop` binary
@@ -1560,6 +1577,11 @@ Not divergences:
   state tagged by interface; Python's clients log their state changes and
   expose no event stream (`RNS/Interfaces/LocalInterface.py:159-167`,
   `:255-266`). API shape, not behaviour.
+- `Transport::path_interface` is a fork-only in-process read of one path's
+  interface, display name, local learn time and hops; Python's
+  `Transport.next_hop_interface` returns the interface object
+  (`RNS/Transport.py:3156-3164`) and the timestamp sits in the table row
+  (`:4122`). API shape, not behaviour.
 - `Transport::interface_connect_count()` is a fork-only per-interface count of
   established streams; Python's reconnect loop keeps only a per-burst local
   `attempts` and no count of established streams

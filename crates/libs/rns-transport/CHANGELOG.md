@@ -207,6 +207,30 @@ Removed) bullet of its own, marked as such.
   kind-only predicate in
   `python_channel_interop_parts/python_shared_instance_rpc.rs`, which
   differs from `is_transient()` only on `Timeout`.
+- `Transport::path_interface(&AddressHash) -> Option<PathIface>`
+  (`transport/links_parts/transport_sections/path_interface.rs`), the
+  in-process read of the interface one path rests on, and the
+  `#[non_exhaustive]` `PathIface` it returns, read by field: `iface` is
+  the interface the announce arrived on, the row slot `next_hop_interface`
+  returns (`RNS/Transport.py:3156-3164`,
+  `:4127`); `name` is the interface manager's display name, the same source
+  as `TransportPathTableEntry::interface_name`, `None` when the interface
+  has none; `learned_at` is the time this transport accepted the announce,
+  the in-process analogue of a rnsd `PathRow.timestamp`
+  (`RNS/Transport.py:4122`), converted from the entry's `Instant` and so
+  carrying a sub-millisecond imprecision; `hops` is the figure `hops_to`
+  answers. `None` iff the table has no entry, the `path_found == false`
+  case of `path_status`, whose shape is unchanged. A shared-instance client
+  or a direct LAN setup can check the interface a path rests on without
+  exporting the whole table: on a failed link, read the path's interface,
+  check it against the interface state held, and when it is down call
+  `expire_path` then `request_path`. The in-process up/down stream is the
+  existing `Transport::interface_events()`, where a `Disconnected` followed
+  by `Connecting` or `Connected` means the interface came back since the
+  path was learned; no new stream is added. Pinned on loopback by
+  `transport/tests_parts/path_interface_api.rs` and from outside the crate
+  by `tests/path_interface_api.rs`, which also pins `PathIface` as a
+  `Send + Sync` value type.
 
 ### Changed
 

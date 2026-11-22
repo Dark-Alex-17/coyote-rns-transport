@@ -886,6 +886,63 @@ fn crate_readme_path_table_section_describes_the_calls_and_the_window() {
     }
 }
 
+/// The path table section also describes the in-process accessor the way
+/// the code presents it: `Transport::path_interface` and its `PathIface`
+/// record, the `learned_at` field, the Python line the interface read is
+/// named after, `Transport::interface_events()` as the up/down stream, the
+/// `expire_path` then `request_path` recipe, and the two pins; the
+/// divergence register lists the accessor as fork-only below the
+/// `Not divergences:` marker (API shape) and nowhere above it, and the
+/// changelog bullet carries the record, the field, the Python line, the
+/// stream and the same pin files.
+#[test]
+fn crate_readme_path_table_section_describes_the_in_process_accessor() {
+    let readme = read_repo_file("crates/libs/rns-transport/README.md");
+    let section = squash(crate_readme_section(&readme, "Driving rnsd's path table"));
+    let shared_claims = [
+        "`PathIface`",
+        "`learned_at`",
+        "`Transport::interface_events()`",
+        "`RNS/Transport.py:3156-3164`",
+        "`tests/path_interface_api.rs`",
+        "`transport/tests_parts/path_interface_api.rs`",
+    ];
+    for claim in shared_claims.into_iter().chain([
+        "`Transport::path_interface`",
+        "`Transport::expire_path`",
+        "`Transport::request_path`",
+    ]) {
+        assert!(
+            section.contains(&squash(claim)),
+            "the path table section should mention {claim}:\n{section}"
+        );
+    }
+    let divergences = crate_readme_section(&readme, "Known divergences from Python RNS");
+    let (real, api_shape) = divergences
+        .split_once("\nNot divergences:\n")
+        .expect("the register separates API-shape facts under `Not divergences:`");
+    let bullet = "`Transport::path_interface` is a fork-only";
+    assert!(
+        top_level_bullets(api_shape).iter().any(|item| item.starts_with(&format!("- {bullet}"))),
+        "{bullet} is API shape, listed below the marker:\n{api_shape}"
+    );
+    assert!(
+        !squash(real).contains(&squash(bullet)),
+        "{bullet} is not a behaviour divergence:\n{real}"
+    );
+    let changelog = read_repo_file("crates/libs/rns-transport/CHANGELOG.md");
+    let changelog_text = squash(changelog_section_naming(
+        &changelog,
+        "`Transport::path_interface(&AddressHash) -> Option<PathIface>`",
+    ));
+    for claim in shared_claims.into_iter().chain([
+        "`transport/links_parts/transport_sections/path_interface.rs`",
+        "`PathRow.timestamp`",
+    ]) {
+        assert!(changelog_text.contains(&squash(claim)), "the changelog should mention {claim}");
+    }
+}
+
 /// The announce section describes the emission second the way the code
 /// carries it: the two event fields, the blob slice and the Python lines
 /// it is decoded from, the relay replaying the stored bytes under the

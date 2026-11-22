@@ -133,9 +133,10 @@ impl SharedInstanceRpcRnsd {
         .await
     }
 
-    /// `interfaces` is the whole top-level `[interfaces]` text, such as the
-    /// `TCPClientInterface` section `client_config` writes in
-    /// `support/python_channel_process.rs`.
+    /// `interfaces` is the config text from the top-level `[interfaces]`
+    /// header on, in the shape of the `TCPClientInterface` block
+    /// `client_config` ends with in `support/python_channel_process.rs`
+    /// (that fn returns a whole config, so only its tail is the shape).
     #[deny(clippy::await_holding_invalid_type)]
     async fn spawn_with_interfaces(
         instance: &LiveSharedInstance,

@@ -658,7 +658,7 @@ fn crate_readme_path_table_section_describes_the_calls_and_the_window() {
         "`RNS/Reticulum.py:1527`",
         "(`:1645`)",
         "about 160 ms",
-        "110 to 160 ms",
+        "110 to 180 ms",
         "250 ms",
         "python_channel_interop_parts/python_shared_instance_rpc_paths_live.rs`",
         "`tests/shared_instance_rpc_paths_probe.rs`",
@@ -703,28 +703,41 @@ fn crate_readme_path_table_section_describes_the_calls_and_the_window() {
         );
     }
     let changelog = read_repo_file("crates/libs/rns-transport/CHANGELOG.md");
-    let changelog_section = squash(changelog_section_naming(
+    let changelog_section = changelog_section_naming(
         &changelog,
         "The path calls of rnsd's RPC listener on `transport::shared_instance_rpc`",
-    ));
+    );
+    let changelog_text = squash(changelog_section);
     for claim in shared_claims.into_iter().chain([
         "`str(interface.name)` (`:1528`)",
         "`drop_path_settled(endpoint, key, destination, timeout)",
         "`RNS/Transport.py:248`",
         "`RNS/Transport.py:3219-3226`",
     ]) {
-        assert!(changelog_section.contains(&squash(claim)), "the changelog should mention {claim}");
+        assert!(changelog_text.contains(&squash(claim)), "the changelog should mention {claim}");
     }
-    let window_at = changelog_section
-        .find(&squash("Observed against rnsd 1.5.2"))
-        .expect("the changelog carries the observed window");
-    let settled_at = changelog_section
-        .find(&squash("`drop_path_settled(endpoint, key, destination, timeout)"))
+    let bullets = top_level_bullets(changelog_section);
+    let settled = bullets
+        .iter()
+        .find(|bullet| bullet.starts_with("- `drop_path_settled(endpoint"))
         .expect("the changelog carries the settling helper bullet");
-    assert!(
-        settled_at < window_at,
-        "the measured window sits in the `drop_path_settled` bullet, after its signature"
-    );
+    for claim in ["Observed against rnsd 1.5.2", "about 160 ms", "110 to 180 ms", "250 ms"] {
+        assert!(
+            squash(settled).contains(&squash(claim)),
+            "the measured window sits in the `drop_path_settled` bullet: {claim}\n{settled}"
+        );
+    }
+    let source =
+        read_repo_file("crates/libs/rns-transport/src/transport/shared_instance_rpc/paths.rs");
+    let lines: Vec<&str> = source.lines().collect();
+    let settled_fn = lines
+        .iter()
+        .position(|line| line.starts_with("pub async fn drop_path_settled("))
+        .expect("paths.rs declares drop_path_settled");
+    let rustdoc = squash(&doc_block_above(&lines, settled_fn));
+    for claim in ["Observed against rnsd 1.5.2", "about 160 ms", "110 to 180 ms", "250 ms"] {
+        assert!(rustdoc.contains(&squash(claim)), "the drop_path_settled rustdoc carries {claim}");
+    }
 }
 
 /// The announce section describes the emission second the way the code

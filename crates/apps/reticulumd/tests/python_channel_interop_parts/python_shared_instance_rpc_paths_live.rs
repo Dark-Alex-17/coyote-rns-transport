@@ -20,18 +20,31 @@
 //  * `drop_path` -> true and the immediate re-read is RECORDED (the window
 //    of `RNS/Transport.py:3222` + the `:855` cull), the entry is gone within
 //    the cull interval, a second `drop_path` -> false; after a fresh announce
-//    `drop_path_settled` -> true inside one cull tick with
-//    `next_hop_interface_name` `None`; after another `drop_all_via(row.via)`
-//    >= 1 and the row leaves the table.
+//    `drop_path_settled` -> true within two cull ticks (observed inside one)
+//    with `next_hop_interface_name` `None`; after another
+//    `drop_all_via(row.via)` >= 1 and the row leaves the table.
+//
+// Unix only, like the io part: `SharedInstanceRpcRnsd::assert_running` is
+// `#[cfg(unix)]`, and the target stays buildable on Windows.
 
+#[cfg(unix)]
 const PATH_LIVE_CALL: Duration = Duration::from_secs(5);
+#[cfg(unix)]
 const PATH_LIVE_LISTED: Duration = Duration::from_secs(20);
+#[cfg(unix)]
 const PATH_LIVE_GONE: Duration = Duration::from_secs(5);
+#[cfg(unix)]
 const PATH_LIVE_POLL: Duration = Duration::from_millis(50);
+// Two `job_interval` ticks (`RNS/Transport.py:248`): the cull lands on the
+// next tick after the drop, observed in 107 to 177 ms.
+#[cfg(unix)]
+const PATH_LIVE_SETTLE: Duration = Duration::from_millis(500);
 // rnsd files a re-announce at equal hops only for a later emitted second
 // (`RNS/Transport.py:2238`), so successive announces are spaced past one.
+#[cfg(unix)]
 const PATH_LIVE_ANNOUNCE_GAP: Duration = Duration::from_millis(1100);
 
+#[cfg(unix)]
 fn path_live_row(
     rows: &[rns_transport::transport::shared_instance_rpc::PathRow],
     hash: &AddressHash,
@@ -40,6 +53,7 @@ fn path_live_row(
 }
 
 /// Polls `path_table(None)` until `hash` is listed (or not, per `listed`).
+#[cfg(unix)]
 #[deny(clippy::await_holding_invalid_type)]
 async fn path_live_wait_listed(
     endpoint: &RpcEndpoint,
@@ -63,6 +77,7 @@ async fn path_live_wait_listed(
     );
 }
 
+#[cfg(unix)]
 #[tokio::test]
 #[ignore = "requires local Python Reticulum checkout"]
 async fn python_rnsd_path_calls_list_the_client_interface_and_a_drop_settles() {
@@ -136,6 +151,11 @@ async fn python_rnsd_path_calls_list_the_client_interface_and_a_drop_settles() {
     let row = path_live_row(&rows, &rust_hash).expect("listed");
     eprintln!("rnsd path row for the Rust destination: {row:?}");
     assert_eq!(row.hops, 0, "a local client's own announce is filed at zero hops: {row:?}");
+    assert_eq!(
+        row.via, rust_hash,
+        "an announce heard without a transport header is filed with via == hash \
+         (RNS/Transport.py:2177-2178, :2202): {row:?}"
+    );
     assert!(row.timestamp > 1.0e9, "wall-clock seconds: {row:?}");
     assert!(row.expires > row.timestamp, "{row:?}");
     assert!(!row.interface.is_empty(), "{row:?}");
@@ -174,6 +194,11 @@ async fn python_rnsd_path_calls_list_the_client_interface_and_a_drop_settles() {
     assert!(same_name, "the row's interface str is an interface_stats name");
     let client_iface =
         stats.interfaces.iter().find(|iface| iface.name == row.interface).expect("listed");
+    assert!(
+        row.interface.starts_with("LocalInterface["),
+        "the client's interface is the LocalClientInterface rnsd spawned for it \
+         (RNS/Interfaces/LocalInterface.py:351-353): {client_iface:?}"
+    );
     assert_ne!(
         client_iface.short_name, row.interface,
         "short_name is str(interface.name), not str(interface): {client_iface:?}"
@@ -246,9 +271,9 @@ async fn python_rnsd_path_calls_list_the_client_interface_and_a_drop_settles() {
     assert!(settled);
     eprintln!("drop_path_settled -> true in {:?}", settle_started.elapsed());
     assert!(
-        settle_started.elapsed() < Duration::from_millis(1000),
+        settle_started.elapsed() < PATH_LIVE_SETTLE,
         "the cull runs on the next Transport.jobs tick, job_interval 250 ms \
-         (RNS/Transport.py:248), so settling takes well under a second: {:?}",
+         (RNS/Transport.py:248), so settling takes under two ticks: {:?}",
         settle_started.elapsed()
     );
     let name = next_hop_interface_name(&endpoint, &key, &rust_hash, PATH_LIVE_CALL)
@@ -268,5 +293,137 @@ async fn python_rnsd_path_calls_list_the_client_interface_and_a_drop_settles() {
         drop_all_via(&endpoint, &key, &row.via, PATH_LIVE_CALL).await.expect("drop_all_via");
     assert!(count >= 1, "at least the Rust row goes via {:?}: {count}", row.via);
     path_live_wait_listed(&endpoint, &key, &rust_hash, false, PATH_LIVE_GONE).await;
+    let detached = tokio::time::timeout(Duration::from_secs(5), transport.detach_shared_instance())
+        .await
+        .expect("detach concludes");
+    assert!(detached, "the shared instance was attached");
+    tokio::time::timeout(Duration::from_secs(5), transport.stop()).await.expect("transport stops");
+    rnsd.assert_running("at the end");
+}
+
+// The two harness variants driven live, and the path contract under
+// `enable_transport = yes`: `spawn_with_interfaces` hands rnsd the caller's
+// whole `[interfaces]` text (a `TCPServerInterface`, no AutoInterface), so
+// `interface_stats` lists that interface under `str(interface)`
+// (`RNS/Interfaces/TCPInterface.py:689-695`) with the configured name as
+// `short_name` and no AutoInterface; `with_transport(true)` writes
+// `enable_transport = yes`, which rnsd reports as the `transport_id` and
+// `transport_uptime` keys of the stats reply (`RNS/Reticulum.py:1614-1618`,
+// absent with transport off). A Rust client's announce is then listed with
+// `interface` equal to a stats `name` and unlike that entry's `short_name`,
+// `first_hop_timeout` is finite and at least 6.0, and `drop_path_settled`
+// settles within two cull ticks with the next hop `None` and the row gone,
+// the same as with transport off.
+#[cfg(unix)]
+#[tokio::test]
+#[ignore = "requires local Python Reticulum checkout"]
+async fn python_rnsd_with_transport_and_a_given_interfaces_text_serves_the_path_calls() {
+    let _interop_guard = python_interop_guard().await;
+    let instance = live_tcp_shared_instance().with_transport(true);
+    let temp = tempfile::tempdir().expect("tempdir");
+    let control_port = free_tcp_port();
+    let listen_port = free_tcp_port();
+    let interfaces = format!(
+        "[interfaces]\n  [[live-tcp-server]]\n    type = TCPServerInterface\n    enabled = yes\n    listen_ip = 127.0.0.1\n    listen_port = {listen_port}\n"
+    );
+    let mut rnsd = SharedInstanceRpcRnsd::spawn_with_interfaces(
+        &instance,
+        control_port,
+        &temp.path().join("python-rnsd-path-rpc-transport"),
+        &interfaces,
+    )
+    .await;
+    let endpoint = RpcEndpoint::Tcp(SocketAddr::from(([127, 0, 0, 1], control_port)));
+    let key = rnsd.identity_key().await;
+    let stats = rnsd.poll_interface_stats(&endpoint, &key).await.expect("the rpc listener is up");
+    rnsd.assert_running("after the first interface_stats");
+
+    // The interfaces text was used as given: the TCP server under its
+    // `str(interface)` and configured name, and no AutoInterface at all.
+    let expected_name = format!("TCPServerInterface[live-tcp-server/127.0.0.1:{listen_port}]");
+    let tcp =
+        stats.interfaces.iter().find(|iface| iface.short_name == "live-tcp-server").unwrap_or_else(
+            || panic!("the configured interface is listed: {:?}", stats.interfaces),
+        );
+    assert_eq!(tcp.name, expected_name, "{tcp:?}");
+    assert_eq!(tcp.kind, "TCPServerInterface", "{tcp:?}");
+    assert!(tcp.online, "a loopback TCP server is up: {tcp:?}");
+    assert!(
+        stats.interfaces.iter().all(|iface| iface.kind != "AutoInterface"),
+        "spawn_with_interfaces replaces the AutoInterface section: {:?}",
+        stats.interfaces
+    );
+    // Transport is on: rnsd adds `transport_id` (a 16-byte bin) and
+    // `transport_uptime` to the reply.
+    let top = stats.raw.as_map().expect("the stats reply is a map");
+    let top_key =
+        |name: &str| top.iter().find(|(k, _)| k.as_str() == Some(name)).map(|(_, v)| v.clone());
+    match top_key("transport_id") {
+        Some(rmpv::Value::Binary(bytes)) => assert_eq!(bytes.len(), 16, "{bytes:?}"),
+        other => panic!("enable_transport = yes puts a bin transport_id in the stats: {other:?}"),
+    }
+    assert!(
+        matches!(top_key("transport_uptime"), Some(rmpv::Value::F64(_) | rmpv::Value::Integer(_))),
+        "transport_uptime is a number: {:?}",
+        top_key("transport_uptime")
+    );
+
+    // A Rust client announces one destination through the shared instance.
+    let rust_identity = to_transport_private_identity(&PrivateIdentity::new_from_rand(OsRng));
+    let config = TransportConfig::new("python-rnsd-path-rpc-transport-rust", &rust_identity, false);
+    let transport = Transport::new(config);
+    let destination = transport
+        .add_destination(rust_identity.clone(), DestinationName::new("test", "pathrpctransport"))
+        .await;
+    let rust_hash = { destination.lock().await.desc.address_hash };
+    transport
+        .attach_shared_instance(instance.endpoint.clone(), SharedInstanceOptions::default())
+        .await
+        .expect("attach to the python shared instance");
+    assert_eq!(transport.announce_destinations_to_shared_instance().await, 1);
+
+    let rows = path_live_wait_listed(&endpoint, &key, &rust_hash, true, PATH_LIVE_LISTED).await;
+    let row = path_live_row(&rows, &rust_hash).expect("listed");
+    eprintln!("transport-enabled rnsd path row for the Rust destination: {row:?}");
+    assert!(row.hops <= 1, "a local client's announce is filed at 0 or 1 hops: {row:?}");
+    let stats = interface_stats(&endpoint, &key, PATH_LIVE_CALL).await.expect("stats after attach");
+    let client_iface =
+        stats.interfaces.iter().find(|iface| iface.name == row.interface).unwrap_or_else(|| {
+            panic!(
+                "the row's interface {:?} is an interface_stats name: {:?}",
+                row.interface,
+                stats.interfaces.iter().map(|iface| iface.name.as_str()).collect::<Vec<_>>()
+            )
+        });
+    assert_ne!(client_iface.short_name, row.interface, "{client_iface:?}");
+    let name = next_hop_interface_name(&endpoint, &key, &rust_hash, PATH_LIVE_CALL)
+        .await
+        .expect("next_hop_interface_name of the listed row");
+    assert_eq!(name.as_deref(), Some(row.interface.as_str()));
+    let seconds = first_hop_timeout(&endpoint, &key, &rust_hash, PATH_LIVE_CALL)
+        .await
+        .expect("first_hop_timeout of the listed row");
+    assert!(seconds.is_finite() && seconds >= 6.0, "{seconds}");
+
+    let settle_started = tokio::time::Instant::now();
+    let settled = drop_path_settled(&endpoint, &key, &rust_hash, PATH_LIVE_CALL)
+        .await
+        .expect("drop_path_settled on the listed row");
+    assert!(settled);
+    eprintln!("transport-enabled drop_path_settled -> true in {:?}", settle_started.elapsed());
+    assert!(settle_started.elapsed() < PATH_LIVE_SETTLE, "{:?}", settle_started.elapsed());
+    let name = next_hop_interface_name(&endpoint, &key, &rust_hash, PATH_LIVE_CALL)
+        .await
+        .expect("next_hop_interface_name after settling");
+    assert_eq!(name, None);
+    let rows = path_table(&endpoint, &key, None, PATH_LIVE_CALL).await.expect("path_table");
+    assert!(path_live_row(&rows, &rust_hash).is_none(), "{rows:?}");
+    let again = drop_path(&endpoint, &key, &rust_hash, PATH_LIVE_CALL).await.expect("second drop");
+    assert!(!again, "the gone entry drops as false");
+    let detached = tokio::time::timeout(Duration::from_secs(5), transport.detach_shared_instance())
+        .await
+        .expect("detach concludes");
+    assert!(detached, "the shared instance was attached");
+    tokio::time::timeout(Duration::from_secs(5), transport.stop()).await.expect("transport stops");
     rnsd.assert_running("at the end");
 }

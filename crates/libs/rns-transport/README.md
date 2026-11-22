@@ -1224,10 +1224,12 @@ entry's `name` for the same interface, byte for byte:
 `"interface": str(path_table[dst][5])` (`:1645`) are the same `str()` of
 the same object, where `short_name` is `str(interface.name)` (`:1528`) and
 differs. So the row's interface, its `online` and its counters can be
-looked up by that name. If `online == false`, or the interface came up
-after the row's `timestamp`, call `drop_path_settled`, then send one
-`Transport::request_path`, then retry the link with `first_hop_timeout` as
-the budget for the first hop.
+looked up by that name. If `online == false`, or that entry's `online` has
+been seen to go false and back to true since the row's `timestamp` (the
+stats carry no per-interface uptime, `RNS/Reticulum.py:1527-1566`, so a
+consumer that polls them keeps that history itself), call
+`drop_path_settled`, then send one `Transport::request_path`, then retry
+the link with `first_hop_timeout` as the budget for the first hop.
 
 The settling helper exists because a drop is not immediate. `drop path` is
 `Transport.expire_path`, which zeroes the entry's timestamp and resets
@@ -1240,8 +1242,9 @@ answered true, `path_table` still lists the row with timestamp 0 and
 `next_hop_interface_name` still names the interface; both read as gone at
 about 160 ms; `drop_path_settled` (`drop_path`, then
 `next_hop_interface_name` polled every 50 ms until it reads `None`, every
-dial under the one timeout) returns true in 110 to 160 ms; the bound is one
-tick, 250 ms. A `Timeout` from the helper can also mean the destination was
+dial under the one timeout) returns true in about 110 to 180 ms; the bound
+is one tick, 250 ms, wherever in the tick the drop lands. A `Timeout` from
+the helper can also mean the destination was
 re-learned from a fresh announce between the pop and a poll, so re-read
 `path_table` before treating it as a failure.
 
@@ -1271,12 +1274,17 @@ different from its `short_name`, `next_hop_interface_name` is `Some` of
 that str, `first_hop_timeout` is a finite float of at least 6.0 (observed
 6.000004), the empty table and unknown-hash replies decode (`"None"`, int
 6, `False`, 0), a random hash drops as false while the row stays, the
-window above is recorded, the second drop is false, `drop_path_settled` is
-true with next hop `None` and the row gone, and `drop_all_via(row.via)` is
-at least 1; the harness `SharedInstanceRpcRnsd::spawn_with_interfaces` and
+window above is recorded, the second drop is false, after a re-announce
+`drop_path_settled` is true within two ticks with next hop `None` and the
+row gone, and after another `drop_all_via(row.via)` is at least 1; its
+sibling `python_rnsd_with_transport_and_a_given_interfaces_text_serves_the_path_calls`
+runs the same row, next-hop, first-hop and settle checks against an rnsd
+spawned with `enable_transport = yes` and a `TCPServerInterface` text in
+place of the AutoInterface. The harness constructors they use,
+`SharedInstanceRpcRnsd::spawn_with_interfaces` and
 `LiveSharedInstance::with_transport` in `python_shared_instance_rpc.rs`
-and `python_shared_instance_live.rs` take an `[interfaces]` text and the
-`enable_transport` toggle. Black-box, beside
+and `python_shared_instance_live.rs`, take the `[interfaces]` text and the
+`enable_transport` toggle, pinned by a config-text test. Black-box, beside
 `tests/shared_instance_rpc_api.rs`, `tests/shared_instance_rpc_paths_probe.rs`
 holds one shared budget across a slow drop and the polls, the unix endpoint
 twins, a wrong key as `Authentication` after one dial, a 2000-row reply past

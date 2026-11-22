@@ -93,17 +93,19 @@ Removed) bullet of its own, marked as such.
   (RNS 1.5.2) part
   `python_channel_interop_parts/python_shared_instance_rpc_paths_live.rs`,
   where a destination announced by an attached Rust client is listed at
-  hops 0 with `interface` equal to the `interface_stats` `name` of the
-  client's `LocalInterface[<port>]` and different from its `short_name`,
-  the empty-table and unknown-hash replies decode, a random hash drops as
-  false beside the listed row, the dropped row is still listed with
-  timestamp 0 under a millisecond after `drop_path` and gone at about
-  160 ms, and `drop_all_via(row.via)` counts at least 1, and
-  `tests/shared_instance_rpc_paths_probe.rs` (one shared budget across a
-  slow drop and the polls, the unix endpoint twins, a wrong key as
-  `Authentication` after one dial, a 2000-row reply past 64 KiB read by
-  name, only the exact str `"None"` as `None`, `drop_all_via` int-only, and
-  a zero budget as `Timeout`).
+  hops 0 with `via == hash` and `interface` equal to the `interface_stats`
+  `name` of the client's `LocalInterface[<port>]` and different from its
+  `short_name`, the empty-table and unknown-hash replies decode, a random
+  hash drops as false beside the listed row, the immediate re-read after
+  `drop_path` is recorded (a row still listed carries timestamp 0), the row
+  is gone within the cull interval, the second drop is false, and
+  `drop_all_via(row.via)` counts at least 1, with a sibling test running
+  the row, next-hop and first-hop checks against an rnsd spawned with
+  `enable_transport = yes` and a `TCPServerInterface` text, and
+  `tests/shared_instance_rpc_paths_probe.rs` (the unix endpoint twins, a
+  wrong key as `Authentication` after one dial, a 2000-row reply past
+  64 KiB read by name, only the exact str `"None"` as `None`, and
+  `drop_all_via` int-only).
 - `drop_path_settled(endpoint, key, destination, timeout) -> Result<bool,
   RpcError>` (`transport/shared_instance_rpc/paths.rs`): `drop_path`, then,
   when it answered `true`, `next_hop_interface_name` polled every 50 ms
@@ -117,8 +119,9 @@ Removed) bullet of its own, marked as such.
   the dropped entry's cached announce. Observed against rnsd 1.5.2: under
   a millisecond after `drop_path` answered true, `path_table` still lists
   the row with timestamp 0 and `next_hop_interface_name` still names the
-  interface; both read as gone at about 160 ms; `drop_path_settled` returns
-  true in 110 to 160 ms; the bound is one tick, 250 ms. A path request sent
+  interface; both read as gone at about 160 ms; `drop_path_settled`
+  returns true in about 110 to 180 ms; the bound is one tick, 250 ms,
+  wherever in the tick the drop lands. A path request sent
   right after a bare `drop_path` is answered from the stale entry; a caller
   sends one path request after the helper returns `Ok(true)`. A `Timeout`
   from it is not only a slow cull: the destination may have been re-learned
@@ -141,8 +144,15 @@ Removed) bullet of its own, marked as such.
   drop as `Timeout` with no poll sent; a wrong-shaped poll reply as `Decode`
   at once after two dials; a server gone after the first poll never reported
   as settled; a mistyped drop reply as `Decode` after one dial with no poll)
-  and the CPython stdlib listener
-  `python_channel_interop_parts/python_stdlib_listener_rpc_probe.rs`.
+  the CPython stdlib listener
+  `python_channel_interop_parts/python_stdlib_listener_rpc_probe.rs`,
+  `tests/shared_instance_rpc_paths_probe.rs` (one budget shared across a
+  drop held for 400 ms and the polls after it, so a never-clearing next
+  hop is `Timeout` at the budget and not later; a zero budget as `Timeout`)
+  and the live rnsd (RNS 1.5.2) part
+  `python_channel_interop_parts/python_shared_instance_rpc_paths_live.rs`,
+  where after a re-announce the helper returns `Ok(true)` within two ticks
+  with the next hop `None` and the row gone, with and without transport.
 - `RpcError::is_transient() -> bool` (`transport/shared_instance_rpc.rs`),
   the retry rule the `Io` and `io_kind()` docs describe as one predicate:
   `Timeout`, or an `Io` or `Connect` whose kind is `ConnectionReset`,

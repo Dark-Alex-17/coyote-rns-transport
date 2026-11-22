@@ -33,9 +33,10 @@ belongs to. Patch ids: Q1 is rnsd path rpc, Q3 is link establishment
 timeout. The `rnsd path rpc` patch is fork commits `1528b698`, `bab079de`,
 `6f22dca2`, `0adb116e`, `75126a26`, `5faf736d`, `50a177eb`, `60410ca9`,
 `cc67d5f3`, `d0e34ef2`, `ef50cff5` and `689f5ab3`. The `link establishment
-timeout` patch is fork commit `a451a06e`. The `Python-in-the-loop rnsd path
-rpc interop` patch carries no other id and is fork commits `60410ca9`,
-`cc67d5f3`, `d0e34ef2`, `ef50cff5`, `689f5ab3` and `a451a06e`.
+timeout` patch is fork commits `a451a06e` and `312ede0a`. The
+`Python-in-the-loop rnsd path rpc interop` patch carries no other id and is
+fork commits `60410ca9`, `cc67d5f3`, `d0e34ef2`, `ef50cff5`, `689f5ab3`,
+`a451a06e` and `312ede0a`.
 
 | File | Patch |
 | --- | --- |
@@ -254,7 +255,7 @@ the README, CHANGELOG and `drop_path_settled` rustdoc attribute the 250 ms
 tick to the cull, read by the helper on its next 50 ms poll; and widens the
 settle figure to about 50 to 180 ms after a 54 ms run.
 
-Fork commit `a451a06e`: Q3, link establishment timeout.
+Fork commits `a451a06e` and `312ede0a`: Q3, link establishment timeout.
 Upstream site: `Transport::link`'s establishment timeout in
 `crates/libs/rns-transport/src/transport/links_parts/transport_sections/link_establishment.rs`
 and its caller in `link_open.rs`, the `RNS.Link.__init__` sizing
@@ -286,10 +287,26 @@ interface times out between 12.060 and 12.070 s, a 3-hop one between
 24.060 and 24.070 s, interfaces of 500, 16384 and 524288 bytes give the
 same 1-hop timeout, and the maintenance job leaves the 1-hop link pending
 at 11 s and closes it with `Timeout` at 13 s. The CHANGELOG `### Fixed`
-bullet of `## Unreleased` carries the entry.
+bullet of `## Unreleased` carries the entry. `312ede0a` adds the black-box
+twin `crates/libs/rns-transport/tests/link_establishment_timeout_shared_instance_probe.rs`:
+a client attached to a transport-enabled Rust server with a 262144-byte
+MTU and a forced 62500 bps bitrate learns a destination at one hop, the
+destination's host leaves, and the client's link closes with `Timeout`
+between 12 s and 14.56 s (observed 13.05 s) where the hardware-MTU sizing
+left it pending about 45 s; qualifies the residual first-hop gap in the
+rustdoc, the CHANGELOG, the README register and this narrative as
+milliseconds when the shared instance's next hop is a TCP interface and
+seconds behind a slow radio hop, naming
+`shared_instance_rpc::first_hop_timeout` as the client that reads rnsd's
+side; and has
+`crates/apps/reticulumd/tests/fork_release_docs_contract_parts/readme_patch_list.rs`
+pin the `### Fixed` bullet by its opener and cites, the register entry
+above `Not divergences:` and not below it, and this ledger's Q3 id, label,
+header and rows, which is why that part, the README and this file are
+rowed under the patch.
 
-Fork commits `60410ca9`, `cc67d5f3`, `d0e34ef2`, `ef50cff5`, `689f5ab3` and
-`a451a06e`: Python-in-the-loop rnsd path rpc interop. `60410ca9` adds the
+Fork commits `60410ca9`, `cc67d5f3`, `d0e34ef2`, `ef50cff5`, `689f5ab3`,
+`a451a06e` and `312ede0a`: Python-in-the-loop rnsd path rpc interop. `60410ca9` adds the
 part
 `crates/apps/reticulumd/tests/python_channel_interop_parts/python_shared_instance_rpc_paths_live.rs`,
 included from `python_channel_interop.rs`, an ignored test against a live
@@ -384,7 +401,24 @@ callers. The README `## Driving rnsd's path table` recipe paragraph names
 both parts, `readme_patch_list.rs` pins those names in the README section
 and the CHANGELOG, and the CHANGELOG path-calls and `drop_path_settled`
 bullets carry the two parts in their pin clauses with a test-only Changed
-bullet for the helper.
+bullet for the helper. `312ede0a` adds the part
+`crates/apps/reticulumd/tests/python_channel_interop_parts/python_shared_instance_rpc_roaming_recipe_budget_probe.rs`,
+included from `python_channel_interop.rs`, which follows the README recipe
+word for word on the roaming topology: the row's interface is looked up in
+the stats by `name` and read offline before the drop, rnsd's own
+`first_hop_timeout` (6.0004 s observed) plus 6 s per hop bounds the failed
+link (closed with `Timeout` at about 12.9 s against a 12.0004 s figure plus
+slack) and the link over B (active in milliseconds against 24.0004 s), and
+a repeated `request_path` after the recovery is answered from the B row
+and leaves it at hops 3; has the recipe probe wait for the re-announce to
+be the row on file (its `timestamp` past the re-filed row's) before pinning
+the replayed emission second at or before it, with no slack, and take its
+clock second from `announce_emitted_clock_secs`; has both live parts keep
+their rnsd in a slot on the test's frame so a run that outlives its budget
+prints rnsd's output before panicking; names the recipe probe's test, the
+budget probe and the black-box timeout twin in the README recipe paragraph
+and the CHANGELOG pin clauses; and extends the `readme_patch_list.rs`
+claims to those names.
 
 ## 0.18.4 (upstream 0.14.0)
 

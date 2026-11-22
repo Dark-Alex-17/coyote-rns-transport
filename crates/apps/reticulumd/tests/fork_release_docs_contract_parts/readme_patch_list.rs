@@ -645,11 +645,12 @@ fn crate_readme_rnsd_rpc_section_describes_the_client() {
 /// them: the six calls and the row type, the Python lines the name
 /// equality, the drop window, the cull tick, the replacement rule, the
 /// stale path answer and the bin encoding are read from, the live rnsd part
-/// with its harness constructors and the black-box probe that pin it; the
-/// divergence register names the calls and the retry predicate as fork-only
-/// below the `Not divergences:` marker (API shape) and nowhere above it, and
-/// the changelog bullets carry the same name equality, the same measured
-/// window and the same pin files.
+/// with its harness constructors, the black-box probe, the roaming part and
+/// the recipe probe that pin it; the divergence register names the calls and
+/// the retry predicate as fork-only below the `Not divergences:` marker (API
+/// shape) and nowhere above it, and the changelog bullets carry the same
+/// name equality, the same measured window and the same pin files, the
+/// roaming part and the recipe probe included.
 #[test]
 fn crate_readme_path_table_section_describes_the_calls_and_the_window() {
     let readme = read_repo_file("crates/libs/rns-transport/README.md");
@@ -680,6 +681,9 @@ fn crate_readme_path_table_section_describes_the_calls_and_the_window() {
         "`LiveSharedInstance::with_transport`",
         "`RpcError::is_transient()`",
         "`Transport::request_path`",
+        "`python_rnsd_roaming_keeps_the_dead_one_hop_row_until_drop_settled_moves_it_to_the_live_route`",
+        "python_channel_interop_parts/python_shared_instance_rpc_roaming.rs`",
+        "`python_shared_instance_rpc_paths_recipe_probe.rs`",
     ]) {
         assert!(
             section.contains(&squash(claim)),
@@ -728,6 +732,12 @@ fn crate_readme_path_table_section_describes_the_calls_and_the_window() {
         "`drop_path_settled(endpoint, key, destination, timeout)",
         "`RNS/Transport.py:248`",
         "`RNS/Transport.py:3219-3226`",
+        "python_channel_interop_parts/python_shared_instance_rpc_roaming.rs`",
+        "the roaming proof",
+        "`RNS/Transport.py:2236-2286`",
+        "`RNS/Interfaces/TCPInterface.py:270-296`",
+        "python_channel_interop_parts/python_shared_instance_rpc_paths_recipe_probe.rs`",
+        "`transport/tests_parts/establishment_timeout_python_sizing.rs`",
     ]) {
         assert!(changelog_text.contains(&squash(claim)), "the changelog should mention {claim}");
     }

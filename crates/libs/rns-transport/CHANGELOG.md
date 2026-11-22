@@ -105,6 +105,15 @@ Removed) bullet of its own, marked as such.
   where `path_table(Some(0))` and `Some(255)` both list the hops-0 row
   (`RNS/Reticulum.py:1641`), the matched stats entry reads `online`, and
   `drop_all_via(row.via)` counts 0 once the row is gone, and
+  `python_channel_interop_parts/python_shared_instance_rpc_roaming.rs`,
+  the roaming proof: an rnsd with two TCP upstreams keeps the stale 1-hop
+  row over an interface that went offline, never displaced
+  (`RNS/Transport.py:2236-2286`) while
+  `RNS/Interfaces/TCPInterface.py:270-296` keeps the reconnecting
+  interface registered, a link over the dead row closes with
+  `LinkCloseReason::Timeout` first, then `drop_path_settled` plus one
+  `request_path` moves the row to the live 3-hop route under the other
+  interface's `name` and a link over it comes up; and
   `tests/shared_instance_rpc_paths_probe.rs` (the unix endpoint twins, a
   wrong key as `Authentication` after one dial, a 2000-row reply past
   64 KiB read by name, only the exact str `"None"` as `None`, and
@@ -157,7 +166,13 @@ Removed) bullet of its own, marked as such.
   `python_channel_interop_parts/python_shared_instance_rpc_paths_live.rs`,
   where after a re-announce the helper returns `Ok(true)` within two ticks
   with the next hop `None` and the row gone, with and without transport,
-  and repeated on the settled row returns `Ok(false)` without polling.
+  and repeated on the settled row returns `Ok(false)` without polling, and
+  `python_channel_interop_parts/python_shared_instance_rpc_paths_recipe_probe.rs`,
+  where a path request sent after the helper returned `Ok(true)` is
+  forwarded upstream by rnsd (`RNS/Transport.py:3523-3530`) and answered
+  with a fresh emission, against the stale answer from the dropped entry
+  (`RNS/Transport.py:3459`) that a request right after a bare `drop_path`
+  gets.
 - `RpcError::is_transient() -> bool` (`transport/shared_instance_rpc.rs`),
   the retry rule the `Io` and `io_kind()` docs describe as one predicate:
   `Timeout`, or an `Io` or `Connect` whose kind is `ConnectionReset`,
@@ -189,6 +204,10 @@ Removed) bullet of its own, marked as such.
   `enable_transport` line (off by default), both pinned by a config-text
   test; the live path part is unix-only like the io part.
 - Test-only:
+  the harness support file `tests/support/python_channel_events.rs` gains
+  `wait_for_out_link_closed`, the closed event for a given link returning
+  its close reason, beside `wait_for_out_link_active`.
+- Test-only:
   `fork_publish_contract_parts/ledger_contract.rs` extends the full-hash
   ledger pin to the reopened `Unreleased` section.
 - Test-only: the fork docs contract (`fork_release_docs_contract.rs`,
@@ -197,6 +216,27 @@ Removed) bullet of its own, marked as such.
   `RpcError::is_transient`, so every public item there cites Python or says
   fork-only, and holds `PathRow` to the read-by-field, `#[non_exhaustive]`
   shape of the other decoded rows.
+
+### Fixed
+
+- The outbound link establishment timeout `Transport::link` gives a new
+  link was sized with the next hop interface's hardware MTU (262144 on a
+  shared-instance client interface, so about 45 s for a 1-hop path at
+  62500 bps) where Python sizes the first hop with the fixed 500-byte
+  Reticulum MTU (`RNS/Link.py:282-283`, `RNS/Transport.py:3194-3197`,
+  `RNS/Reticulum.py:93`); it is now about 12 s for that path. The first
+  hop is still sized from the local next-hop interface's bitrate where a
+  Python shared-instance client asks the shared instance for the figure
+  (`RNS/Reticulum.py:1728-1732`), a difference of milliseconds at the
+  500-byte MTU, recorded in the README divergence register. Pinned by
+  `transport/tests_parts/establishment_timeout_python_sizing.rs` (a 1-hop
+  path over a 262144-byte interface times out between 12.060 and 12.070 s
+  and a 3-hop one between 24.060 and 24.070 s, interfaces of 500, 16384 and 524288
+  bytes give the same 1-hop timeout, and the maintenance job closes the
+  1-hop link with `Timeout` at 13 s) and observed in the roaming live part
+  `python_channel_interop_parts/python_shared_instance_rpc_roaming.rs`,
+  where the link over the dead 1-hop row closes with `Timeout` inside
+  30 s (observed 12.9 s).
 
 ## 0.18.4 - 2026-11-20
 

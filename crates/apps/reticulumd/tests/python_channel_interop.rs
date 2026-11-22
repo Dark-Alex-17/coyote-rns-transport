@@ -80,4 +80,8 @@ include!("python_channel_interop_parts/python_stdlib_listener_rpc_probe.rs");
 
 include!("python_channel_interop_parts/python_shared_instance_rpc_paths_live.rs");
 
+include!("python_channel_interop_parts/python_shared_instance_rpc_paths_recipe_probe.rs");
+
+include!("python_channel_interop_parts/python_shared_instance_rpc_roaming.rs");
+
 include!("python_channel_interop_parts/python_shared_instance_announce_emitted.rs");

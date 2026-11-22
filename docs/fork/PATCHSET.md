@@ -29,12 +29,13 @@ per fork task.
 ## Unreleased (upstream 0.14.0)
 
 Every file changed since the `0.18.4` release and the patch each change
-belongs to. Patch ids: Q1 is rnsd path rpc. The `rnsd path rpc` patch is
-fork commits `1528b698`, `bab079de`, `6f22dca2`, `0adb116e`, `75126a26`,
-`5faf736d`, `50a177eb`, `60410ca9`, `cc67d5f3`, `d0e34ef2`, `ef50cff5` and
-`689f5ab3`. The `Python-in-the-loop rnsd path rpc interop` patch carries no
-other id and is fork commits `60410ca9`, `cc67d5f3`, `d0e34ef2`, `ef50cff5`
-and `689f5ab3`.
+belongs to. Patch ids: Q1 is rnsd path rpc, Q3 is link establishment
+timeout. The `rnsd path rpc` patch is fork commits `1528b698`, `bab079de`,
+`6f22dca2`, `0adb116e`, `75126a26`, `5faf736d`, `50a177eb`, `60410ca9`,
+`cc67d5f3`, `d0e34ef2`, `ef50cff5` and `689f5ab3`. The `link establishment
+timeout` patch is not yet committed. The `Python-in-the-loop rnsd path rpc
+interop` patch carries no other id and is fork commits `60410ca9`,
+`cc67d5f3`, `d0e34ef2`, `ef50cff5` and `689f5ab3`.
 
 | File | Patch |
 | --- | --- |
@@ -46,9 +47,15 @@ and `689f5ab3`.
 | `crates/apps/reticulumd/tests/python_channel_interop_parts/python_shared_instance_live.rs` | Python-in-the-loop rnsd path rpc interop |
 | `crates/apps/reticulumd/tests/python_channel_interop_parts/python_shared_instance_rpc.rs` | rnsd path rpc, Python-in-the-loop rnsd path rpc interop |
 | `crates/apps/reticulumd/tests/python_channel_interop_parts/python_shared_instance_rpc_paths_live.rs` | Python-in-the-loop rnsd path rpc interop |
+| `crates/apps/reticulumd/tests/python_channel_interop_parts/python_shared_instance_rpc_paths_recipe_probe.rs` | Python-in-the-loop rnsd path rpc interop |
+| `crates/apps/reticulumd/tests/python_channel_interop_parts/python_shared_instance_rpc_roaming.rs` | Python-in-the-loop rnsd path rpc interop |
 | `crates/apps/reticulumd/tests/python_channel_interop_parts/python_stdlib_listener_rpc_probe.rs` | rnsd path rpc |
-| `crates/libs/rns-transport/CHANGELOG.md` | rnsd path rpc, Python-in-the-loop rnsd path rpc interop |
+| `crates/apps/reticulumd/tests/support/python_channel_events.rs` | Python-in-the-loop rnsd path rpc interop |
+| `crates/libs/rns-transport/CHANGELOG.md` | rnsd path rpc, Python-in-the-loop rnsd path rpc interop, link establishment timeout |
 | `crates/libs/rns-transport/README.md` | rnsd path rpc, Python-in-the-loop rnsd path rpc interop |
+| `crates/libs/rns-transport/src/transport/links_parts/transport_sections/link_establishment.rs` | link establishment timeout |
+| `crates/libs/rns-transport/src/transport/links_parts/transport_sections/link_open.rs` | link establishment timeout |
+| `crates/libs/rns-transport/src/transport/next_hop_metrics.rs` | link establishment timeout |
 | `crates/libs/rns-transport/src/transport/shared_instance_rpc.rs` | rnsd path rpc |
 | `crates/libs/rns-transport/src/transport/shared_instance_rpc/decode.rs` | rnsd path rpc |
 | `crates/libs/rns-transport/src/transport/shared_instance_rpc/path_table.rs` | rnsd path rpc |
@@ -56,10 +63,12 @@ and `689f5ab3`.
 | `crates/libs/rns-transport/src/transport/shared_instance_rpc/tests/mock_server.rs` | rnsd path rpc |
 | `crates/libs/rns-transport/src/transport/shared_instance_rpc/tests/mod.rs` | rnsd path rpc |
 | `crates/libs/rns-transport/src/transport/shared_instance_rpc/tests/paths.rs` | rnsd path rpc |
+| `crates/libs/rns-transport/src/transport/tests.rs` | link establishment timeout |
+| `crates/libs/rns-transport/src/transport/tests_parts/establishment_timeout_python_sizing.rs` | link establishment timeout |
 | `crates/libs/rns-transport/tests/shared_instance_rpc_api.rs` | rnsd path rpc |
 | `crates/libs/rns-transport/tests/shared_instance_rpc_io_kind_probe.rs` | rnsd path rpc |
 | `crates/libs/rns-transport/tests/shared_instance_rpc_paths_probe.rs` | rnsd path rpc |
-| `docs/fork/PATCHSET.md` | rnsd path rpc, Python-in-the-loop rnsd path rpc interop |
+| `docs/fork/PATCHSET.md` | rnsd path rpc, Python-in-the-loop rnsd path rpc interop, link establishment timeout |
 
 Fork commits `1528b698`, `bab079de`, `6f22dca2`, `0adb116e`, `75126a26`,
 `5faf736d`, `50a177eb`, `60410ca9`, `cc67d5f3`, `d0e34ef2`, `ef50cff5` and

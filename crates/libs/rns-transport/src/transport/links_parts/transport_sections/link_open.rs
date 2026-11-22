@@ -58,7 +58,7 @@ impl Transport {
             None => None,
         };
         link.set_establishment_timeout(
-            self.establishment_timeout_for(&destination.address_hash, next_hop_mtu, hops).await,
+            self.establishment_timeout_for(&destination.address_hash, hops).await,
         );
         let packet = match next_hop_mtu {
             Some(mtu) => link.request_with_mtu(mtu),

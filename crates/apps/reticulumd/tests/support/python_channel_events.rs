@@ -4,6 +4,8 @@ use std::sync::{Arc, Mutex as StdMutex};
 use std::time::Duration;
 
 use rns_transport::channel_buffer::RawChannelReader;
+#[cfg(unix)]
+use rns_transport::destination::link::LinkCloseReason;
 use rns_transport::destination::link::{Link, LinkEvent, LinkEventData, LinkStatus};
 use rns_transport::destination::{DestinationDesc, SingleInputDestination};
 use rns_transport::hash::{AddressHash, Hash};
@@ -47,6 +49,27 @@ pub(super) async fn wait_for_out_link_active(
     })
     .await
     .expect("timed out waiting for Rust link activation")
+}
+
+// Called from the unix-only live parts alone, so gated like them.
+#[cfg(unix)]
+pub(super) async fn wait_for_out_link_closed(
+    events: &mut tokio::sync::broadcast::Receiver<LinkEventData>,
+    link: &Arc<tokio::sync::Mutex<Link>>,
+    duration: Duration,
+) -> Option<LinkCloseReason> {
+    let expected = *link.lock().await.id();
+    timeout(duration, async {
+        loop {
+            let event = events.recv().await.expect("link event");
+            if event.id == expected && matches!(event.event, LinkEvent::Closed) {
+                assert_eq!(link.lock().await.status(), LinkStatus::Closed);
+                return event.close_reason;
+            }
+        }
+    })
+    .await
+    .expect("timed out waiting for Rust link close")
 }
 
 pub(super) async fn wait_for_in_link_active_with_announces(

@@ -1230,7 +1230,25 @@ been seen to go false and back to true since the row's `timestamp` (the
 stats carry no per-interface uptime, `RNS/Reticulum.py:1527-1566`, so a
 consumer that polls them keeps that history itself), call
 `drop_path_settled`, then send one `Transport::request_path`, then retry
-the link with `first_hop_timeout` as the budget for the first hop.
+the link with `first_hop_timeout` as the budget for the first hop. This
+recipe is walked end to end on loopback by
+`python_rnsd_roaming_keeps_the_dead_one_hop_row_until_drop_settled_moves_it_to_the_live_route`
+in the part
+`crates/apps/reticulumd/tests/python_channel_interop_parts/python_shared_instance_rpc_roaming.rs`:
+the client's rnsd has two TCP upstreams, the 1-hop row over the interface
+that went offline stays (an interface going offline does not meet the
+replacement rule above, `RNS/Transport.py:2236-2286`, and
+`RNS/Interfaces/TCPInterface.py:270-296` keeps a reconnecting interface
+registered, so no cull), a link over it times out, and one request sent then
+is still answered from the stale entry and not forwarded
+(`RNS/Transport.py:3459`); `drop_path_settled` plus one `request_path` moves
+the row to the live 3-hop route and a link over it comes up. The companion part
+`python_shared_instance_rpc_paths_recipe_probe.rs` shows the rule a path
+request obeys after a drop: after `drop_path_settled` the request is
+forwarded upstream (the rnsd line `Forwarding path request from local
+client`, `RNS/Transport.py:3523-3530`) and answered with a fresh announce,
+while a bare `drop_path` followed at once by a request is answered from
+the dropped entry (`RNS/Transport.py:3459`).
 
 The settling helper exists because a drop is not immediate. `drop path` is
 `Transport.expire_path`, which zeroes the entry's timestamp and resets
@@ -1489,6 +1507,13 @@ parity ledger; the `docs/status/*` matrices are not updated per fork task.
   `transport::shared_instance_rpc` challenges a Python 3.11 or older
   server in its legacy raw HMAC-MD5 form, where the stdlib client always
   sends a `{sha256}` challenge (`connection.py:970`, `:976`).
+- The outbound link establishment timeout sizes its first hop from the
+  local next-hop interface's bitrate at the 500-byte Reticulum MTU
+  (`RNS/Transport.py:3194-3197`); a Python shared-instance client asks the
+  shared instance for `first_hop_timeout` over the control connection
+  instead (`RNS/Reticulum.py:1728-1732`), so the two differ by the gap
+  between the client interface's bitrate guess and rnsd's next-hop bitrate,
+  milliseconds at that MTU.
 
 Not divergences:
 

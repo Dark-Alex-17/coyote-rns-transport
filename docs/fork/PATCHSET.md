@@ -33,9 +33,9 @@ belongs to. Patch ids: Q1 is rnsd path rpc, Q3 is link establishment
 timeout. The `rnsd path rpc` patch is fork commits `1528b698`, `bab079de`,
 `6f22dca2`, `0adb116e`, `75126a26`, `5faf736d`, `50a177eb`, `60410ca9`,
 `cc67d5f3`, `d0e34ef2`, `ef50cff5` and `689f5ab3`. The `link establishment
-timeout` patch is not yet committed. The `Python-in-the-loop rnsd path rpc
-interop` patch carries no other id and is fork commits `60410ca9`,
-`cc67d5f3`, `d0e34ef2`, `ef50cff5` and `689f5ab3`.
+timeout` patch is fork commit `a451a06e`. The `Python-in-the-loop rnsd path
+rpc interop` patch carries no other id and is fork commits `60410ca9`,
+`cc67d5f3`, `d0e34ef2`, `ef50cff5`, `689f5ab3` and `a451a06e`.
 
 | File | Patch |
 | --- | --- |
@@ -252,8 +252,40 @@ the README, CHANGELOG and `drop_path_settled` rustdoc attribute the 250 ms
 tick to the cull, read by the helper on its next 50 ms poll; and widens the
 settle figure to about 50 to 180 ms after a 54 ms run.
 
-Fork commits `60410ca9`, `cc67d5f3`, `d0e34ef2`, `ef50cff5` and `689f5ab3`:
-Python-in-the-loop rnsd path rpc interop. `60410ca9` adds the part
+Fork commit `a451a06e`: Q3, link establishment timeout.
+Upstream site: `Transport::link`'s establishment timeout in
+`crates/libs/rns-transport/src/transport/links_parts/transport_sections/link_establishment.rs`
+and its caller in `link_open.rs`, the `RNS.Link.__init__` sizing
+(`RNS/Link.py:282-283`) the fork added in N2 `link request once` of
+`## 0.18.2`. The first hop was sized by
+`NextHopMetrics::first_hop_timeout` with the next hop interface's hardware
+MTU, read from the interface manager, where Python passes the fixed
+`RNS.Reticulum.MTU` of 500 bytes (`RNS/Transport.py:3194-3197`,
+`RNS/Reticulum.py:93`): a shared-instance client interface carries a
+262144-byte MTU, so a 1-hop link over it at the 62500 bps default bitrate
+stayed pending about 45 s instead of about 12 s. `a451a06e` lifts the
+500-byte constant out of `medium_path_timeout_for_bitrate` in
+`crates/libs/rns-transport/src/transport/next_hop_metrics.rs` as
+`RETICULUM_MTU`, tied by a const assertion to the link layer's
+`LEGACY_RETICULUM_MTU`, sizes the first hop with it, drops the
+hardware-MTU parameter from `establishment_timeout_for` (the hardware MTU
+still signals the link MTU in the request), documents on both
+`NextHopMetrics` timeout methods that Python passes the fixed MTU, and
+records in the rustdoc, the CHANGELOG and the README divergence register
+that the bitrate stays the local next-hop interface's where a Python
+shared-instance client asks the shared instance for the figure
+(`RNS/Reticulum.py:1728-1732`). Pinned by the new part
+`crates/libs/rns-transport/src/transport/tests_parts/establishment_timeout_python_sizing.rs`,
+included from `transport/tests.rs`: a 1-hop link over a 262144-byte
+interface times out between 12.060 and 12.070 s, a 3-hop one between
+24.060 and 24.070 s, interfaces of 500, 16384 and 524288 bytes give the
+same 1-hop timeout, and the maintenance job leaves the 1-hop link pending
+at 11 s and closes it with `Timeout` at 13 s. The CHANGELOG `### Fixed`
+bullet of `## Unreleased` carries the entry.
+
+Fork commits `60410ca9`, `cc67d5f3`, `d0e34ef2`, `ef50cff5`, `689f5ab3` and
+`a451a06e`: Python-in-the-loop rnsd path rpc interop. `60410ca9` adds the
+part
 `crates/apps/reticulumd/tests/python_channel_interop_parts/python_shared_instance_rpc_paths_live.rs`,
 included from `python_channel_interop.rs`, an ignored test against a live
 Python rnsd (RNS 1.5.2) that proves the path calls on rnsd itself: on the
@@ -309,7 +341,45 @@ row as `Ok(false)` without polling, and `drop_all_via(row.via)` as 0 once the
 row is gone and at least 1 after a re-announce; and has the part import
 `PathRow`, take its per-dial budget from `SHARED_INSTANCE_RPC_CALL` and look
 the client's stats entry up once. `689f5ab3` has the first part count its
-empty-table dials as seven in its diagnostic line.
+empty-table dials as seven in its diagnostic line. `a451a06e` adds two
+parts included from `python_channel_interop.rs`.
+`crates/apps/reticulumd/tests/python_channel_interop_parts/python_shared_instance_rpc_roaming.rs`
+is the roaming scenario the path calls exist for, on loopback against a
+live rnsd 1.5.2: a Rust transport D hosts the destination behind a
+`TcpServer` and dials a transport-enabled relay R2, a second relay R1 dials
+R2 and later opens the server rnsd's upstream B dials, both relays built
+with `set_announce_retry_limit(0)` so D's single announce is relayed once;
+rnsd runs `enable_transport = yes` with `TCPClientInterface`s A (to D) and
+B (to R1, absent at start); a Rust shared-instance client C requests the
+path and rnsd files D over A at hops 1 under the str
+`TCPInterface[A/127.0.0.1:<port>]` equal to the `interface_stats` `name`
+(C hears hops 1, the shared-instance hop taken back,
+`RNS/Transport.py:1940`); B's listener then appears and reads online within
+10 s while R1's own row still names R2; D stops A, the A entry reads
+offline under a millisecond while the row still names A at hops 1; a link
+over it closes with `LinkCloseReason::Timeout` in about 12.9 s; C's own row
+expires on that timeout and, attached to a shared instance, C queues no
+rediscovery, so one explicit request is sent and rnsd answers it from the
+stale entry (`path is known`, no `Forwarding path request` line); then
+`drop_path_settled` returns true, C expires its row, one `request_path`
+moves rnsd's row to B at hops 3 (D, R2, R1, rnsd) under the B str within
+1.6 s and a link over it activates; the whole run takes about 21 s of a
+120 s budget.
+`crates/apps/reticulumd/tests/python_channel_interop_parts/python_shared_instance_rpc_paths_recipe_probe.rs`
+follows the README recipe with two Rust clients on one rnsd: after
+`drop_path_settled` a path request is forwarded upstream
+(`RNS/Transport.py:3523-3530`) and answered with a fresh emission, while
+a request right after a bare `drop_path` is answered from the dropped
+entry (`:3459`) with the old emission second and the row is culled on the
+next tick anyway, recorded and pinned when the window is hit. The support
+file `crates/apps/reticulumd/tests/support/python_channel_events.rs` gains
+`wait_for_out_link_closed`, the closed-event twin of
+`wait_for_out_link_active` returning the close reason, unix-only like its
+callers. The README `## Driving rnsd's path table` recipe paragraph names
+both parts, `readme_patch_list.rs` pins those names in the README section
+and the CHANGELOG, and the CHANGELOG path-calls and `drop_path_settled`
+bullets carry the two parts in their pin clauses with a test-only Changed
+bullet for the helper.
 
 ## 0.18.4 (upstream 0.14.0)
 

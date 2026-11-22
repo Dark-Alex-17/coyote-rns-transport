@@ -113,7 +113,12 @@ Removed) bullet of its own, marked as such.
   interface registered, a link over the dead row closes with
   `LinkCloseReason::Timeout` first, then `drop_path_settled` plus one
   `request_path` moves the row to the live 3-hop route under the other
-  interface's `name` and a link over it comes up; and
+  interface's `name` and a link over it comes up;
+  `python_channel_interop_parts/python_shared_instance_rpc_roaming_recipe_budget_probe.rs`,
+  the README recipe followed on that topology: the row's interface is
+  looked up in the stats by `name`, rnsd's `first_hop_timeout` plus 6 s
+  per hop bounds the failed link and the one that comes up over B, and a
+  repeated `request_path` after the recovery leaves the row on B; and
   `tests/shared_instance_rpc_paths_probe.rs` (the unix endpoint twins, a
   wrong key as `Authentication` after one dial, a 2000-row reply past
   64 KiB read by name, only the exact str `"None"` as `None`, and
@@ -227,16 +232,27 @@ Removed) bullet of its own, marked as such.
   `RNS/Reticulum.py:93`); it is now about 12 s for that path. The first
   hop is still sized from the local next-hop interface's bitrate where a
   Python shared-instance client asks the shared instance for the figure
-  (`RNS/Reticulum.py:1728-1732`), a difference of milliseconds at the
-  500-byte MTU, recorded in the README divergence register. Pinned by
+  (`RNS/Reticulum.py:1728-1732`), a difference of milliseconds when the
+  shared instance's next hop is a TCP interface and of seconds behind a
+  slow radio hop (about 3.3 s at 1200 bps), recorded in the README
+  divergence register with `shared_instance_rpc::first_hop_timeout` as the
+  client that reads rnsd's figure. Pinned by
   `transport/tests_parts/establishment_timeout_python_sizing.rs` (a 1-hop
   path over a 262144-byte interface times out between 12.060 and 12.070 s
-  and a 3-hop one between 24.060 and 24.070 s, interfaces of 500, 16384 and 524288
-  bytes give the same 1-hop timeout, and the maintenance job closes the
-  1-hop link with `Timeout` at 13 s) and observed in the roaming live part
+  and a 3-hop one between 24.060 and 24.070 s, interfaces of 500, 16384
+  and 524288 bytes give the same 1-hop timeout, and the maintenance job
+  closes the 1-hop link with `Timeout` at 13 s), from outside the crate by
+  `tests/link_establishment_timeout_shared_instance_probe.rs` (a client
+  attached to a transport-enabled Rust server with a 262144-byte MTU and a
+  forced 62500 bps bitrate sees its 1-hop link close with `Timeout` between
+  12 s and 14.56 s once the destination's host has left), and observed in
+  the roaming live part
   `python_channel_interop_parts/python_shared_instance_rpc_roaming.rs`,
   where the link over the dead 1-hop row closes with `Timeout` inside
-  30 s (observed 12.9 s).
+  30 s (observed 12.9 s) and in
+  `python_channel_interop_parts/python_shared_instance_rpc_roaming_recipe_budget_probe.rs`,
+  where the same link closes inside rnsd's own `first_hop_timeout` plus
+  6 s per hop and slack.
 
 ## 0.18.4 - 2026-11-20
 

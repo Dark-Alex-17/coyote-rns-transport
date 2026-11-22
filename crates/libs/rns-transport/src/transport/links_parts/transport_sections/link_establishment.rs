@@ -13,8 +13,10 @@ impl Transport {
     /// timeout at 62500 bps from about 12 s to about 45 s. The bitrate is
     /// the local next-hop interface's; a Python shared-instance client asks
     /// the shared instance for the first-hop figure instead
-    /// (`RNS/Reticulum.py:1728-1732`), a difference of milliseconds at the
-    /// 500-byte MTU.
+    /// (`RNS/Reticulum.py:1728-1732`), a difference of milliseconds when the
+    /// shared instance's next hop is a TCP interface and of seconds behind a
+    /// slow radio hop (about 3.3 s at 1200 bps); the RPC client that reads
+    /// rnsd's figure is `shared_instance_rpc::first_hop_timeout`.
     async fn establishment_timeout_for(&self, destination: &AddressHash, hops: u8) -> Duration {
         let per_hop = crate::destination::link::ESTABLISHMENT_TIMEOUT_PER_HOP;
         let first_hop_timeout = match self.next_hop_metrics(destination).await {

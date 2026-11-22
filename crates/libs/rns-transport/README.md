@@ -1242,13 +1242,25 @@ replacement rule above, `RNS/Transport.py:2236-2286`, and
 registered, so no cull), a link over it times out, and one request sent then
 is still answered from the stale entry and not forwarded
 (`RNS/Transport.py:3459`); `drop_path_settled` plus one `request_path` moves
-the row to the live 3-hop route and a link over it comes up. The companion part
-`python_shared_instance_rpc_paths_recipe_probe.rs` shows the rule a path
-request obeys after a drop: after `drop_path_settled` the request is
+the row to the live 3-hop route and a link over it comes up. On the same
+topology
+`python_rnsd_roaming_recipe_links_inside_pythons_first_hop_timeout_budget_and_a_repeat_request_stays_on_b`
+(`python_shared_instance_rpc_roaming_recipe_budget_probe.rs`) follows the
+paragraph above word for word: the row's interface is looked up in the
+stats by `name` and read offline, the failed link closes inside rnsd's own
+`first_hop_timeout` plus 6 s per hop, the link over the live route comes
+up inside the same budget, and a repeated `request_path` after the
+recovery leaves the row where it is. The companion part
+`python_shared_instance_rpc_paths_recipe_probe.rs`
+(`python_rnsd_recipe_drop_settled_then_request_path_is_forwarded_not_answered_stale`)
+shows the rule a path request obeys after a drop: after `drop_path_settled`
+the request is
 forwarded upstream (the rnsd line `Forwarding path request from local
 client`, `RNS/Transport.py:3523-3530`) and answered with a fresh announce,
 while a bare `drop_path` followed at once by a request is answered from
 the dropped entry (`RNS/Transport.py:3459`).
+The first-hop sizing those budgets rest on is pinned from outside the crate by
+`tests/link_establishment_timeout_shared_instance_probe.rs`.
 
 The settling helper exists because a drop is not immediate. `drop path` is
 `Transport.expire_path`, which zeroes the entry's timestamp and resets
@@ -1513,7 +1525,10 @@ parity ledger; the `docs/status/*` matrices are not updated per fork task.
   shared instance for `first_hop_timeout` over the control connection
   instead (`RNS/Reticulum.py:1728-1732`), so the two differ by the gap
   between the client interface's bitrate guess and rnsd's next-hop bitrate,
-  milliseconds at that MTU.
+  milliseconds when the shared instance's next hop is a TCP interface and
+  seconds behind a slow radio hop (about 3.3 s at 1200 bps);
+  `shared_instance_rpc::first_hop_timeout` reads rnsd's figure for a caller
+  that wants to close that gap itself.
 
 Not divergences:
 

@@ -41,7 +41,7 @@ rpc interop` patch carries no other id and is fork commits `60410ca9`,
 | --- | --- |
 | `crates/apps/reticulumd/tests/fork_publish_contract_parts/ledger_contract.rs` | rnsd path rpc |
 | `crates/apps/reticulumd/tests/fork_release_docs_contract.rs` | rnsd path rpc |
-| `crates/apps/reticulumd/tests/fork_release_docs_contract_parts/readme_patch_list.rs` | rnsd path rpc, Python-in-the-loop rnsd path rpc interop |
+| `crates/apps/reticulumd/tests/fork_release_docs_contract_parts/readme_patch_list.rs` | rnsd path rpc, Python-in-the-loop rnsd path rpc interop, link establishment timeout |
 | `crates/apps/reticulumd/tests/fork_release_docs_contract_parts/request_layer_api_docs.rs` | rnsd path rpc |
 | `crates/apps/reticulumd/tests/python_channel_interop.rs` | Python-in-the-loop rnsd path rpc interop |
 | `crates/apps/reticulumd/tests/python_channel_interop_parts/python_shared_instance_live.rs` | Python-in-the-loop rnsd path rpc interop |
@@ -49,10 +49,11 @@ rpc interop` patch carries no other id and is fork commits `60410ca9`,
 | `crates/apps/reticulumd/tests/python_channel_interop_parts/python_shared_instance_rpc_paths_live.rs` | Python-in-the-loop rnsd path rpc interop |
 | `crates/apps/reticulumd/tests/python_channel_interop_parts/python_shared_instance_rpc_paths_recipe_probe.rs` | Python-in-the-loop rnsd path rpc interop |
 | `crates/apps/reticulumd/tests/python_channel_interop_parts/python_shared_instance_rpc_roaming.rs` | Python-in-the-loop rnsd path rpc interop |
+| `crates/apps/reticulumd/tests/python_channel_interop_parts/python_shared_instance_rpc_roaming_recipe_budget_probe.rs` | Python-in-the-loop rnsd path rpc interop |
 | `crates/apps/reticulumd/tests/python_channel_interop_parts/python_stdlib_listener_rpc_probe.rs` | rnsd path rpc |
 | `crates/apps/reticulumd/tests/support/python_channel_events.rs` | Python-in-the-loop rnsd path rpc interop |
 | `crates/libs/rns-transport/CHANGELOG.md` | rnsd path rpc, Python-in-the-loop rnsd path rpc interop, link establishment timeout |
-| `crates/libs/rns-transport/README.md` | rnsd path rpc, Python-in-the-loop rnsd path rpc interop |
+| `crates/libs/rns-transport/README.md` | rnsd path rpc, Python-in-the-loop rnsd path rpc interop, link establishment timeout |
 | `crates/libs/rns-transport/src/transport/links_parts/transport_sections/link_establishment.rs` | link establishment timeout |
 | `crates/libs/rns-transport/src/transport/links_parts/transport_sections/link_open.rs` | link establishment timeout |
 | `crates/libs/rns-transport/src/transport/next_hop_metrics.rs` | link establishment timeout |
@@ -65,6 +66,7 @@ rpc interop` patch carries no other id and is fork commits `60410ca9`,
 | `crates/libs/rns-transport/src/transport/shared_instance_rpc/tests/paths.rs` | rnsd path rpc |
 | `crates/libs/rns-transport/src/transport/tests.rs` | link establishment timeout |
 | `crates/libs/rns-transport/src/transport/tests_parts/establishment_timeout_python_sizing.rs` | link establishment timeout |
+| `crates/libs/rns-transport/tests/link_establishment_timeout_shared_instance_probe.rs` | link establishment timeout |
 | `crates/libs/rns-transport/tests/shared_instance_rpc_api.rs` | rnsd path rpc |
 | `crates/libs/rns-transport/tests/shared_instance_rpc_io_kind_probe.rs` | rnsd path rpc |
 | `crates/libs/rns-transport/tests/shared_instance_rpc_paths_probe.rs` | rnsd path rpc |
@@ -274,7 +276,10 @@ still signals the link MTU in the request), documents on both
 records in the rustdoc, the CHANGELOG and the README divergence register
 that the bitrate stays the local next-hop interface's where a Python
 shared-instance client asks the shared instance for the figure
-(`RNS/Reticulum.py:1728-1732`). Pinned by the new part
+(`RNS/Reticulum.py:1728-1732`), a gap of milliseconds when the shared
+instance's next hop is a TCP interface and of seconds behind a slow radio
+hop, which `shared_instance_rpc::first_hop_timeout` reads rnsd's side of.
+Pinned by the new part
 `crates/libs/rns-transport/src/transport/tests_parts/establishment_timeout_python_sizing.rs`,
 included from `transport/tests.rs`: a 1-hop link over a 262144-byte
 interface times out between 12.060 and 12.070 s, a 3-hop one between

@@ -238,9 +238,30 @@ async fn roaming_wait_row(
     }
 }
 
+/// The whole-test budget as a panic that still shows rnsd's output: the
+/// scenario's rnsd lives in `rnsd_slot` on the test's frame, so dropping the
+/// timed-out future does not take the log tail with it (that tail prints
+/// only when its own drop runs during a panic).
+#[cfg(unix)]
+fn roaming_expect_in_budget<T>(
+    outcome: Result<T, tokio::time::error::Elapsed>,
+    rnsd: &Option<SharedInstanceRpcRnsd>,
+    what: &str,
+) -> T {
+    outcome.unwrap_or_else(|_| {
+        if let Some(rnsd) = rnsd {
+            eprintln!("rnsd output at the budget:\n{}", rnsd._log.snapshot());
+        }
+        panic!("{what} did not finish within its budget")
+    })
+}
+
 #[cfg(unix)]
 #[deny(clippy::await_holding_invalid_type)]
-async fn roaming_scenario(started: tokio::time::Instant) {
+async fn roaming_scenario(
+    started: tokio::time::Instant,
+    rnsd_slot: &mut Option<SharedInstanceRpcRnsd>,
+) {
     // D announces once over R2; R1 learns it at two hops.
     let r2 = roaming_relay("roaming-r2");
     let r2_port = free_tcp_port();
@@ -272,13 +293,15 @@ async fn roaming_scenario(started: tokio::time::Instant) {
         "[interfaces]\n  [[A]]\n    type = TCPClientInterface\n    enabled = yes\n    target_host = 127.0.0.1\n    target_port = {a_port}\n  [[B]]\n    type = TCPClientInterface\n    enabled = yes\n    target_host = 127.0.0.1\n    target_port = {b_port}\n"
     );
     let instance = live_tcp_shared_instance().with_transport(true);
-    let mut rnsd = SharedInstanceRpcRnsd::spawn_with_interfaces(
-        &instance,
-        control_port,
-        &temp.path().join("python-rnsd-roaming"),
-        &interfaces,
-    )
-    .await;
+    let rnsd = rnsd_slot.insert(
+        SharedInstanceRpcRnsd::spawn_with_interfaces(
+            &instance,
+            control_port,
+            &temp.path().join("python-rnsd-roaming"),
+            &interfaces,
+        )
+        .await,
+    );
     let endpoint = RpcEndpoint::Tcp(SocketAddr::from(([127, 0, 0, 1], control_port)));
     let key = rnsd.identity_key().await;
     rnsd.poll_interface_stats(&endpoint, &key).await.expect("the rpc listener is up");
@@ -444,7 +467,7 @@ async fn python_rnsd_roaming_keeps_the_dead_one_hop_row_until_drop_settled_moves
 ) {
     let _interop_guard = python_interop_guard().await;
     let started = tokio::time::Instant::now();
-    tokio::time::timeout(ROAMING_BUDGET, roaming_scenario(started))
-        .await
-        .expect("the roaming scenario finishes within its budget");
+    let mut rnsd = None;
+    let outcome = tokio::time::timeout(ROAMING_BUDGET, roaming_scenario(started, &mut rnsd)).await;
+    roaming_expect_in_budget(outcome, &rnsd, "the roaming scenario");
 }

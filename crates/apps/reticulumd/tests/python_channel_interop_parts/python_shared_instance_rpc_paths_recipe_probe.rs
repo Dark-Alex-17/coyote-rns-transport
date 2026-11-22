@@ -34,14 +34,6 @@ const PATH_RECIPE_KNOWN_LINE: &str = "path is known";
 #[cfg(unix)]
 const PATH_RECIPE_FORWARDED_LINE: &str = "Forwarding path request from local client";
 
-#[cfg(unix)]
-fn path_recipe_now_secs() -> u64 {
-    std::time::SystemTime::now()
-        .duration_since(std::time::UNIX_EPOCH)
-        .expect("wall clock after the epoch")
-        .as_secs()
-}
-
 /// The next announce event for `hash` as `(hops, emitted, is_path_response)`.
 #[cfg(unix)]
 #[deny(clippy::await_holding_invalid_type)]
@@ -129,7 +121,7 @@ async fn python_rnsd_recipe_drop_settled_then_request_path_is_forwarded_not_answ
         None
     );
     let mut announces = asker.recv_announces().await;
-    let request_second = path_recipe_now_secs();
+    let request_second = announce_emitted_clock_secs();
     let dispatch = asker.request_path(&hash, None, None).await;
     assert!(
         dispatch.sent_ifaces + dispatch.queued_ifaces >= 1,
@@ -178,8 +170,22 @@ async fn python_rnsd_recipe_drop_settled_then_request_path_is_forwarded_not_answ
     // ---- The contrast, recorded: bare drop_path then an immediate request. ----
     tokio::time::sleep_until(last_announce + 2 * PATH_LIVE_ANNOUNCE_GAP).await;
     assert_eq!(owner.announce_destinations_to_shared_instance().await, 1);
-    let rows = path_live_wait_listed(&endpoint, &key, &hash, true, PATH_LIVE_LISTED).await;
-    let relearned = path_live_row(&rows, &hash).expect("re-learned");
+    // The row is already listed from the recipe section, so wait for the
+    // re-announce to be the one on file: its timestamp moves past the
+    // re-filed row's.
+    let reannounced = {
+        let started = tokio::time::Instant::now();
+        loop {
+            let rows = path_table(&endpoint, &key, None, PATH_LIVE_CALL).await.expect("path_table");
+            match path_live_row(&rows, &hash) {
+                Some(row) if row.timestamp > refiled.timestamp => break row,
+                row => {
+                    assert!(started.elapsed() < PATH_LIVE_LISTED, "re-announce not filed: {row:?}")
+                }
+            }
+            tokio::time::sleep(PATH_LIVE_POLL).await;
+        }
+    };
     tokio::time::sleep(PATH_LIVE_ANNOUNCE_GAP).await;
     assert!(asker.expire_path(&hash).await, "C2 forgets its row so the next answer is an event");
     let log_before = rnsd._log.snapshot().len();
@@ -187,7 +193,7 @@ async fn python_rnsd_recipe_drop_settled_then_request_path_is_forwarded_not_answ
     let dropped = drop_path(&endpoint, &key, &hash, PATH_LIVE_CALL).await.expect("bare drop");
     assert!(dropped);
     let drop_done = tokio::time::Instant::now();
-    let request_second = path_recipe_now_secs();
+    let request_second = announce_emitted_clock_secs();
     let dispatch = asker.request_path(&hash, None, None).await;
     assert!(dispatch.sent_ifaces + dispatch.queued_ifaces >= 1, "{dispatch:?}");
     let (hops, emitted, is_path_response) =
@@ -216,9 +222,9 @@ async fn python_rnsd_recipe_drop_settled_then_request_path_is_forwarded_not_answ
             "a cached answer carries the OLD emission second: {emitted} vs {request_second}"
         );
         assert!(
-            emitted <= relearned.timestamp as u64 + 1,
-            "the replay is the re-announce on file (~{}): {emitted}",
-            relearned.timestamp as u64
+            emitted <= reannounced.timestamp as u64,
+            "the replay is the re-announce on file (filed at {}): {emitted}",
+            reannounced.timestamp as u64
         );
         assert!(
             row_after.is_none(),

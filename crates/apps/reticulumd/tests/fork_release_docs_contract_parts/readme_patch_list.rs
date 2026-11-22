@@ -557,6 +557,100 @@ fn crate_readme_shared_instance_section_describes_interface_peer_count() {
     }
 }
 
+// Pins over the `link establishment timeout` docs of the reopened
+// `## Unreleased` section, the ones no other contract reads: the CHANGELOG
+// `### Fixed` bullet that records the first-hop sizing fix with the Python
+// lines it is read from, the README divergence register's entry for the
+// residual first-hop sizing (a real divergence, so above `Not divergences:`
+// and not below it), and the patch-set ledger naming the patch id with its
+// label and the commit that carries it.
+
+const UNRELEASED_FIXED_OPENER: &str =
+    "- The outbound link establishment timeout `Transport::link` gives a new";
+
+#[test]
+fn unreleased_fixed_records_the_link_establishment_timeout_sizing() {
+    let changelog = read_repo_file("crates/libs/rns-transport/CHANGELOG.md");
+    let section = changelog_section_naming(&changelog, UNRELEASED_FIXED_OPENER);
+    assert!(
+        section.starts_with("Unreleased\n"),
+        "the fix bullet sits in the `## Unreleased` section until it is released"
+    );
+    let bullets = subsection_bullets(section, "Fixed");
+    let bullet = single_bullet_starting_with(&bullets, UNRELEASED_FIXED_OPENER);
+    for needle in [
+        "`Transport::link`",
+        "`RNS/Link.py:282-283`",
+        "`RNS/Transport.py:3194-3197`",
+        "`RNS/Reticulum.py:93`",
+        "`RNS/Reticulum.py:1728-1732`",
+        "`transport/tests_parts/establishment_timeout_python_sizing.rs`",
+        "`tests/link_establishment_timeout_shared_instance_probe.rs`",
+        "`python_channel_interop_parts/python_shared_instance_rpc_roaming.rs`",
+    ] {
+        assert!(
+            squash(&bullet).contains(&squash(needle)),
+            "the fix bullet names {needle}:\n{bullet}"
+        );
+    }
+}
+
+#[test]
+fn divergence_register_carries_the_first_hop_sizing_as_a_real_divergence() {
+    let readme = read_repo_file("crates/libs/rns-transport/README.md");
+    let register = crate_readme_section(&readme, "Known divergences from Python RNS");
+    let (real, api_shape) =
+        register.split_once("\nNot divergences:\n").expect("the register has both halves");
+    let entry = top_level_bullets(real)
+        .into_iter()
+        .find(|bullet| bullet.contains("`first_hop_timeout`"))
+        .expect("the register's real half carries the first-hop sizing entry");
+    for needle in ["`RNS/Reticulum.py:1728-1732`", "`RNS/Transport.py:3194-3197`", "radio"] {
+        assert!(squash(&entry).contains(&squash(needle)), "the entry names {needle}:\n{entry}");
+    }
+    assert!(
+        !api_shape.contains("`RNS/Reticulum.py:1728-1732`"),
+        "the first-hop sizing is a behaviour divergence, not an API-shape note"
+    );
+}
+
+#[test]
+fn patch_set_ledger_names_the_link_establishment_timeout_patch() {
+    let ledger = read_repo_file("docs/fork/PATCHSET.md");
+    let section = ledger
+        .split("\n## ")
+        .find(|section| section.starts_with("Unreleased (upstream "))
+        .expect("the ledger has an `## Unreleased` section");
+    let legend = squash(section.split("\n| File | Patch |").next().expect("legend"));
+    for claim in [
+        "Q3 is link establishment timeout",
+        "The `link establishment timeout` patch is fork commit",
+        "`a451a06e`",
+    ] {
+        assert!(legend.contains(&squash(claim)), "the legend says {claim:?}:\n{legend}");
+    }
+    let header = section
+        .lines()
+        .find(|line| {
+            line.starts_with("Fork commit") && line.ends_with(": Q3, link establishment timeout.")
+        })
+        .expect("the patch header names Q3 with its label");
+    assert!(header.contains("`a451a06e`"), "the Q3 header cites the fix commit: {header}");
+    for path in [
+        "crates/libs/rns-transport/src/transport/links_parts/transport_sections/link_establishment.rs",
+        "crates/libs/rns-transport/src/transport/tests_parts/establishment_timeout_python_sizing.rs",
+        "crates/libs/rns-transport/tests/link_establishment_timeout_shared_instance_probe.rs",
+        "crates/libs/rns-transport/README.md",
+        "crates/apps/reticulumd/tests/fork_release_docs_contract_parts/readme_patch_list.rs",
+    ] {
+        let row = section
+            .lines()
+            .find(|line| line.starts_with(&format!("| `{path}` |")))
+            .unwrap_or_else(|| panic!("the table rows {path}"));
+        assert!(row.contains("link establishment timeout"), "{path} belongs to Q3: {row}");
+    }
+}
+
 /// The rnsd RPC section describes the client the way the code presents it:
 /// the one call, the endpoint and key constructors a consumer reaches for,
 /// the authentication error, the default TCP listener and the abstract
@@ -684,6 +778,9 @@ fn crate_readme_path_table_section_describes_the_calls_and_the_window() {
         "`python_rnsd_roaming_keeps_the_dead_one_hop_row_until_drop_settled_moves_it_to_the_live_route`",
         "python_channel_interop_parts/python_shared_instance_rpc_roaming.rs`",
         "`python_shared_instance_rpc_paths_recipe_probe.rs`",
+        "`python_rnsd_recipe_drop_settled_then_request_path_is_forwarded_not_answered_stale`",
+        "`python_rnsd_roaming_recipe_links_inside_pythons_first_hop_timeout_budget_and_a_repeat_request_stays_on_b`",
+        "`tests/link_establishment_timeout_shared_instance_probe.rs`",
     ]) {
         assert!(
             section.contains(&squash(claim)),
@@ -738,6 +835,7 @@ fn crate_readme_path_table_section_describes_the_calls_and_the_window() {
         "`RNS/Interfaces/TCPInterface.py:270-296`",
         "python_channel_interop_parts/python_shared_instance_rpc_paths_recipe_probe.rs`",
         "`transport/tests_parts/establishment_timeout_python_sizing.rs`",
+        "python_channel_interop_parts/python_shared_instance_rpc_roaming_recipe_budget_probe.rs`",
     ]) {
         assert!(changelog_text.contains(&squash(claim)), "the changelog should mention {claim}");
     }

@@ -123,9 +123,9 @@ Removed) bullet of its own, marked as such.
   `python_channel_interop_parts/python_shared_instance_rpc_roaming_restart.rs`,
   the restart variant: an rnsd SIGTERMed persists the stale row to
   `storage/destination_table` (`RNS/Transport.py:3788-3863`), keeping an
-  entry whose interface hash is still registered (`:3820-3830`), which an
-  offline `TCPClientInterface`'s is; a transport-enabled rnsd restores it
-  on start by interface hash
+  entry whose interface hash is still registered (`:3820-3830`), as an
+  offline `TCPClientInterface`'s hash still is; a transport-enabled rnsd
+  restores it on start by interface hash
   (`:404-441`, `:2987-2992`) from the row and its cached announce
   (`cache/announces/<packet_hash>`, `:425`, `:433`, written at `:2457`)
   even while that interface is offline, so the dead 1-hop row is back

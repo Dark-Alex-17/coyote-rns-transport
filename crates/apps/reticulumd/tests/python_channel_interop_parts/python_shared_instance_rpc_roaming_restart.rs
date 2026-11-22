@@ -123,6 +123,9 @@ async fn restart_scenario(
     config_dir: &std::path::Path,
     rnsd_slot: &mut Option<SharedInstanceRpcRnsd>,
 ) {
+    // The redial emits at most about 20 DialFailed a second at the 50 ms
+    // wait and nothing drains the channel during the respawn's start wait of
+    // at most 30 s, so 1024 never fills and no Connected is lost to `try_send`.
     let (events_tx, mut events) = tokio::sync::mpsc::channel(1024);
     let c_options = SharedInstanceOptions::default()
         .with_reconnect_wait(Duration::from_millis(50))
@@ -161,8 +164,10 @@ async fn restart_scenario(
     while events.try_recv().is_ok() {}
     let iface = c.shared_instance().expect("C is attached");
     assert_eq!(c.interface_connect_count(&iface).await, Some(1));
-    let identity_file = rnsd_slot.as_ref().expect("the fixture spawned rnsd").identity_file.clone();
+    let old_rnsd = rnsd_slot.as_ref().expect("the fixture spawned rnsd");
+    let identity_file = old_rnsd.identity_file.clone();
     let identity_before = fs::read(&identity_file).expect("the transport identity on disk");
+    let log_before_stop = old_rnsd._log.snapshot().len();
 
     // SIGTERM: rnsd persists the table and exits 0; the dead row is in it.
     let rnsd = rnsd_slot.take().expect("the fixture spawned rnsd");
@@ -185,8 +190,13 @@ async fn restart_scenario(
         "{} holds no bytes after SIGTERM\nold rnsd output:\n{output}",
         table.display()
     );
-    let saved =
-        output.lines().find(|line| line.contains(" path table entries in ")).map(str::to_string);
+    // The periodic persists (`GRACIOUS_PERSIST_INTERVAL` 300 s, `PERSIST_INTERVAL`
+    // 12 h, `RNS/Reticulum.py:160-161`) lie outside the 150 s budget, so a
+    // save logged after the stop began is the exit handler's.
+    let saved = output[log_before_stop.min(output.len())..]
+        .lines()
+        .find(|line| line.contains(" path table entries in "))
+        .map(str::to_string);
     eprintln!(
         "rnsd exited {status} {stop_after:?} after SIGTERM; {} holds {table_len} bytes; {saved:?}",
         table.display()
@@ -237,16 +247,17 @@ async fn restart_scenario(
         )
         .await,
     );
-    assert!(
-        fs::read(&identity_file).expect("the transport identity after the respawn")
-            == identity_before,
-        "the respawn keeps the transport identity"
-    );
     let mut dial_failures = 0usize;
     tokio::time::timeout(RESTART_RECONNECT, async {
         loop {
             match next_state("the Connected after the respawn", &mut events).await {
-                SharedInstanceEvent::Connected => break,
+                SharedInstanceEvent::Connected => {
+                    let connects = c.interface_connect_count(&iface).await;
+                    if connects == connects_before_respawn.map(|n| n + 1) {
+                        break;
+                    }
+                    eprintln!("Connected while rnsd restarts, connect count {connects:?}");
+                }
                 SharedInstanceEvent::DialFailed { .. } => dial_failures += 1,
                 other => eprintln!("state while rnsd restarts: {other:?}"),
             }
@@ -263,6 +274,13 @@ async fn restart_scenario(
         "the reconnect to the respawned rnsd counts one more stream"
     );
     rnsd.poll_interface_stats(&endpoint, &key).await.expect("the old key still authenticates");
+    // `Transport.start` loads or regenerates the identity after the start
+    // line the spawn waited for; the old key authenticating is the proof.
+    assert!(
+        fs::read(&identity_file).expect("the transport identity after the respawn")
+            == identity_before,
+        "the respawn keeps the transport identity"
+    );
     roaming_wait_client_attached(&endpoint, &key).await;
 
     // The restore, read while A is still offline.

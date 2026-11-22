@@ -621,6 +621,11 @@ fn patch_set_ledger_names_the_link_establishment_timeout_patch() {
         .split("\n## ")
         .find(|section| section.starts_with("Unreleased (upstream "))
         .expect("the ledger has an `## Unreleased` section");
+    assert!(!ledger.contains("word for word"), "the ledger vouches for no verbatim copy");
+    assert!(
+        squash(section).contains(&squash("and the maintenance job's slack")),
+        "the Unreleased narrative qualifies the recovery budget by the maintenance job's slack"
+    );
     let legend = squash(section.split("\n| File | Patch |").next().expect("legend"));
     for claim in [
         "Q3 is link establishment timeout",

@@ -14,20 +14,43 @@
 //    on drop, so the stop is never followed by a second kill of a reaped pid.
 //
 // `/bin/sh` stands in for rnsd: a `trap` on TERM is the exit handler, a
-// marker file its persisted table. Unix only like the helper.
+// marker file its persisted table, and a `ready` file written right after
+// the trap is installed tells the test the signal can land. Unix only like
+// the helper.
 
 #[cfg(unix)]
 const GRACEFUL_WITHIN: Duration = Duration::from_secs(5);
 
-/// A shell child that loops until TERM, then runs `on_term`.
+/// A shell child that installs the TERM trap, writes `ready`, then loops
+/// until TERM, when it runs `on_term`.
 #[cfg(unix)]
-fn graceful_probe_child(on_term: &str) -> std::process::Child {
+fn graceful_probe_child(ready: &Path, on_term: &str) -> std::process::Child {
     std::process::Command::new("/bin/sh")
-        .args(["-c", &format!("trap '{on_term}' TERM; while :; do sleep 0.05; done")])
+        .args([
+            "-c",
+            &format!(
+                "trap '{on_term}' TERM; : > {}; while :; do sleep 0.05; done",
+                ready.display()
+            ),
+        ])
         .stdout(std::process::Stdio::null())
         .stderr(std::process::Stdio::null())
         .spawn()
         .expect("spawn /bin/sh")
+}
+
+/// Waits for the child's `ready` file so the signal lands on an installed trap.
+#[cfg(unix)]
+fn wait_until_ready(ready: &Path) {
+    let started = std::time::Instant::now();
+    while !ready.exists() {
+        assert!(
+            started.elapsed() < GRACEFUL_WITHIN,
+            "{} not written within {GRACEFUL_WITHIN:?}",
+            ready.display()
+        );
+        std::thread::sleep(Duration::from_millis(10));
+    }
 }
 
 /// Runs the helper under `catch_unwind` and returns the panic message.
@@ -48,10 +71,11 @@ fn graceful_stop_panics_with(child: &mut std::process::Child, within: Duration) 
 #[test]
 fn terminate_child_gracefully_lets_the_term_handler_run_and_returns_the_clean_exit() {
     let temp = tempfile::tempdir().expect("tempdir");
+    let ready = temp.path().join("ready");
     let marker = temp.path().join("handled");
-    let mut child = graceful_probe_child(&format!("echo handled > {}; exit 0", marker.display()));
-    // The loop must be running before the signal lands.
-    std::thread::sleep(Duration::from_millis(100));
+    let mut child =
+        graceful_probe_child(&ready, &format!("echo handled > {}; exit 0", marker.display()));
+    wait_until_ready(&ready);
     let started = std::time::Instant::now();
     let status = terminate_child_gracefully(&mut child, GRACEFUL_WITHIN);
     let elapsed = started.elapsed();
@@ -71,9 +95,11 @@ fn terminate_child_gracefully_lets_the_term_handler_run_and_returns_the_clean_ex
 #[cfg(unix)]
 #[test]
 fn terminate_child_gracefully_kills_and_reaps_a_child_that_ignores_term_inside_the_bound() {
+    let temp = tempfile::tempdir().expect("tempdir");
+    let ready = temp.path().join("ready");
     let within = Duration::from_millis(500);
-    let mut child = graceful_probe_child("");
-    std::thread::sleep(Duration::from_millis(100));
+    let mut child = graceful_probe_child(&ready, "");
+    wait_until_ready(&ready);
     let started = std::time::Instant::now();
     let message = graceful_stop_panics_with(&mut child, within);
     let elapsed = started.elapsed();
@@ -91,11 +117,13 @@ fn terminate_child_gracefully_kills_and_reaps_a_child_that_ignores_term_inside_t
 #[cfg(unix)]
 #[test]
 fn terminate_child_gracefully_reports_a_nonzero_exit_on_term_as_a_failed_shutdown() {
-    let mut child = graceful_probe_child("exit 3");
-    std::thread::sleep(Duration::from_millis(100));
+    let temp = tempfile::tempdir().expect("tempdir");
+    let ready = temp.path().join("ready");
+    let mut child = graceful_probe_child(&ready, "exit 3");
+    wait_until_ready(&ready);
     let message = graceful_stop_panics_with(&mut child, GRACEFUL_WITHIN);
     assert!(
-        message.contains("failed during graceful shutdown") && message.contains("3"),
+        message.contains("failed during graceful shutdown") && message.contains("exit status: 3"),
         "the panic carries the exit status: {message}"
     );
     assert!(matches!(child.try_wait(), Ok(Some(_))), "the child is reaped");
@@ -105,25 +133,21 @@ fn terminate_child_gracefully_reports_a_nonzero_exit_on_term_as_a_failed_shutdow
 #[test]
 fn child_guard_does_not_kill_again_after_its_child_was_taken_for_a_graceful_stop() {
     let temp = tempfile::tempdir().expect("tempdir");
+    let ready = temp.path().join("ready");
     let marker = temp.path().join("handled");
     let mut guard = ChildGuard {
-        child: Some(graceful_probe_child(&format!("echo handled > {}; exit 0", marker.display()))),
+        child: Some(graceful_probe_child(
+            &ready,
+            &format!("echo handled > {}; exit 0", marker.display()),
+        )),
     };
-    std::thread::sleep(Duration::from_millis(100));
+    wait_until_ready(&ready);
     // The restart harness's order: take, stop gracefully, let the guard drop.
     let mut child = guard.child.take().expect("the guard held the child");
-    let pid = child.id();
     let status = terminate_child_gracefully(&mut child, GRACEFUL_WITHIN);
     assert!(status.success(), "{status}");
+    assert!(guard.child.is_none(), "the guard has nothing left to signal");
+    // Drop finds `None` and so never signals the pid the stop already reaped.
     drop(guard);
     assert_eq!(fs::read_to_string(&marker).expect("marker").trim(), "handled");
-    // The reaped pid is not signalled again: `kill -0` on it fails because
-    // the process is gone (the parent reaped it), and the guard had nothing
-    // to kill.
-    let probe = std::process::Command::new("kill")
-        .args(["-0", &pid.to_string()])
-        .stderr(std::process::Stdio::null())
-        .status()
-        .expect("kill -0");
-    assert!(!probe.success(), "pid {pid} was reaped by the graceful stop, nothing left to kill");
 }

@@ -17,11 +17,12 @@ handlers and what became of the response they sent, the resolved description
 of an announced destination, a responder's cap on the size of the response it
 sends, the shared-instance client's connection state and tunnel opt-in, an
 interface's connect and peer counts, an rnsd RPC client for its interface
-statistics, and the emission time of an announce, plus a handful of behaviour
-fixes. Publishing the fork lets Coyote pin it from crates.io instead of a git
-dependency. The fork started as upstream `0.14.0` plus one patch, the removed
-`println!` of the `link: close <id>` line (the `log::warn!` beside it already
-records the close); everything since is in the ledgers named below.
+statistics and path table, and the emission time of an announce, plus a
+handful of behaviour fixes. Publishing the fork lets Coyote pin it from
+crates.io instead of a git dependency. The fork started as upstream `0.14.0`
+plus one patch, the removed `println!` of the `link: close <id>` line (the
+`log::warn!` beside it already records the close); everything since is in
+the ledgers named below.
 
 ### What differs from upstream
 
@@ -1276,11 +1277,17 @@ that str, `first_hop_timeout` is a finite float of at least 6.0 (observed
 6, `False`, 0), a random hash drops as false while the row stays, the
 window above is recorded, the second drop is false, after a re-announce
 `drop_path_settled` is true within two ticks with next hop `None` and the
-row gone, and after another `drop_all_via(row.via)` is at least 1; its
-sibling `python_rnsd_with_transport_and_a_given_interfaces_text_serves_the_path_calls`
+row gone, and after another re-announce `drop_all_via(row.via)` is at least
+1; its sibling
+`python_rnsd_with_transport_and_a_given_interfaces_text_serves_the_path_calls`
 runs the same row, next-hop, first-hop and settle checks against an rnsd
 spawned with `enable_transport = yes` and a `TCPServerInterface` text in
-place of the AutoInterface. The harness constructors they use,
+place of the AutoInterface, and
+`python_rnsd_path_calls_filter_by_hops_and_repeat_idempotently` reads the
+hops-0 row under `max_hops` 0 and 255 (`RNS/Reticulum.py:1641`), reads the
+matched stats entry's `online`, repeats `drop_path_settled` on the settled
+row for `Ok(false)` without polling, and reads `drop_all_via(row.via)` as 0
+once the row is gone. The harness constructors they use,
 `SharedInstanceRpcRnsd::spawn_with_interfaces` and
 `LiveSharedInstance::with_transport` in `python_shared_instance_rpc.rs`
 and `python_shared_instance_live.rs`, take the `[interfaces]` text and the

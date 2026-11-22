@@ -1,8 +1,9 @@
 //! The rnsd path RPC calls against loopback servers that complete the stdlib handshake
 //! honestly: `drop_path_settled` keeps ONE budget across a SLOW drop and the polls that
 //! follow (an instant drop cannot tell one shared budget from one per phase); the path
-//! calls behave the same over a unix endpoint as over TCP (same bytes, same replies, the
-//! Linux abstract-socket shape rnsd binds); a wrong key on a path call is
+//! calls behave the same over a unix endpoint as over TCP (same bytes, same replies; a
+//! filesystem socket stands in for the abstract `rns/<instance>/rpc` name rnsd binds on
+//! Linux); a wrong key on a path call is
 //! `Authentication`, not transient, and `drop_path_settled` dials once for it; a
 //! two-thousand-row `path_table` reply (a frame well past 64 KiB, rows with their keys in
 //! reverse order and an extra key) is read by name; `next_hop_interface_name` turns only

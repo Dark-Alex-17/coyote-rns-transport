@@ -25,10 +25,16 @@
 //    `drop_all_via(row.via)` >= 1 and the row leaves the table.
 //
 // Unix only, like the io part: `SharedInstanceRpcRnsd::assert_running` is
-// `#[cfg(unix)]`, and the target stays buildable on Windows.
+// `#[cfg(unix)]`, and the target stays buildable on Windows. The path-call
+// imports come from the CPython stdlib listener part
+// (`python_stdlib_listener_rpc_probe.rs`), the stats ones from
+// `python_shared_instance_rpc.rs`.
 
 #[cfg(unix)]
-const PATH_LIVE_CALL: Duration = Duration::from_secs(5);
+use rns_transport::transport::shared_instance_rpc::PathRow;
+
+#[cfg(unix)]
+const PATH_LIVE_CALL: Duration = SHARED_INSTANCE_RPC_CALL;
 #[cfg(unix)]
 const PATH_LIVE_LISTED: Duration = Duration::from_secs(20);
 #[cfg(unix)]
@@ -36,7 +42,7 @@ const PATH_LIVE_GONE: Duration = Duration::from_secs(5);
 #[cfg(unix)]
 const PATH_LIVE_POLL: Duration = Duration::from_millis(50);
 // Two `job_interval` ticks (`RNS/Transport.py:248`): the cull lands on the
-// next tick after the drop, observed in 107 to 177 ms.
+// next tick after the drop, observed in about 110 to 180 ms.
 #[cfg(unix)]
 const PATH_LIVE_SETTLE: Duration = Duration::from_millis(500);
 // rnsd files a re-announce at equal hops only for a later emitted second
@@ -45,10 +51,7 @@ const PATH_LIVE_SETTLE: Duration = Duration::from_millis(500);
 const PATH_LIVE_ANNOUNCE_GAP: Duration = Duration::from_millis(1100);
 
 #[cfg(unix)]
-fn path_live_row(
-    rows: &[rns_transport::transport::shared_instance_rpc::PathRow],
-    hash: &AddressHash,
-) -> Option<rns_transport::transport::shared_instance_rpc::PathRow> {
+fn path_live_row(rows: &[PathRow], hash: &AddressHash) -> Option<PathRow> {
     rows.iter().find(|row| &row.hash == hash).cloned()
 }
 
@@ -61,7 +64,7 @@ async fn path_live_wait_listed(
     hash: &AddressHash,
     listed: bool,
     within: Duration,
-) -> Vec<rns_transport::transport::shared_instance_rpc::PathRow> {
+) -> Vec<PathRow> {
     let started = tokio::time::Instant::now();
     let mut last = Vec::new();
     while started.elapsed() < within {
@@ -184,16 +187,18 @@ async fn python_rnsd_path_calls_list_the_client_interface_and_a_drop_settles() {
     let stats = interface_stats(&endpoint, &key, PATH_LIVE_CALL)
         .await
         .expect("interface_stats after the attach");
-    let same_name = stats.interfaces.iter().any(|iface| iface.name == row.interface);
-    eprintln!(
-        "path row interface {:?} {} an interface_stats name (stats names: {:?})",
-        row.interface,
-        if same_name { "matches" } else { "does not match" },
-        stats.interfaces.iter().map(|iface| iface.name.as_str()).collect::<Vec<_>>()
-    );
-    assert!(same_name, "the row's interface str is an interface_stats name");
+    let stats_names: Vec<&str> = stats.interfaces.iter().map(|iface| iface.name.as_str()).collect();
     let client_iface =
-        stats.interfaces.iter().find(|iface| iface.name == row.interface).expect("listed");
+        stats.interfaces.iter().find(|iface| iface.name == row.interface).unwrap_or_else(|| {
+            panic!(
+                "the row's interface str {:?} is an interface_stats name: {stats_names:?}",
+                row.interface
+            )
+        });
+    eprintln!(
+        "path row interface {:?} matches an interface_stats name of {stats_names:?}",
+        row.interface
+    );
     assert!(
         row.interface.starts_with("LocalInterface["),
         "the client's interface is the LocalClientInterface rnsd spawned for it \
@@ -301,6 +306,120 @@ async fn python_rnsd_path_calls_list_the_client_interface_and_a_drop_settles() {
     rnsd.assert_running("at the end");
 }
 
+// The consumer patterns the README recipe and the CHANGELOG retry rule
+// promise, against a live rnsd: `path_table(Some(n))` keeps a row whose
+// hops are at most `n` (`RNS/Reticulum.py:1641`, `path_hops <= max_hops`),
+// so `Some(0)` and `Some(255)` both list a hops-0 row; the `interface_stats`
+// entry a row is matched to by `name` is the one whose `online` the recipe
+// reads, and the client's `LocalInterface[<port>]` is online while the client
+// is attached; `drop_path_settled` repeated on a settled row is `Ok(false)`
+// without polling ("a repeated call then answers `Ok(false)` once the cull
+// has run, which a retrying caller reads as settled"); and `drop_all_via` of
+// the row's `via` once the row is gone is `0`, then at least 1 again after a
+// re-announce.
+#[cfg(unix)]
+#[tokio::test]
+#[ignore = "requires local Python Reticulum checkout"]
+async fn python_rnsd_path_calls_filter_by_hops_and_repeat_idempotently() {
+    let _interop_guard = python_interop_guard().await;
+    let instance = live_tcp_shared_instance();
+    let temp = tempfile::tempdir().expect("tempdir");
+    let control_port = free_tcp_port();
+    let mut rnsd = SharedInstanceRpcRnsd::spawn(
+        &instance,
+        control_port,
+        &temp.path().join("python-rnsd-path-rpc-idempotent"),
+    )
+    .await;
+    let endpoint = RpcEndpoint::Tcp(SocketAddr::from(([127, 0, 0, 1], control_port)));
+    let key = rnsd.identity_key().await;
+    rnsd.poll_interface_stats(&endpoint, &key).await.expect("the rpc listener is up");
+
+    let rust_identity = to_transport_private_identity(&PrivateIdentity::new_from_rand(OsRng));
+    let config =
+        TransportConfig::new("python-rnsd-path-rpc-idempotent-rust", &rust_identity, false);
+    let transport = Transport::new(config);
+    let destination = transport
+        .add_destination(rust_identity.clone(), DestinationName::new("test", "pathrpcidem"))
+        .await;
+    let rust_hash = { destination.lock().await.desc.address_hash };
+    transport
+        .attach_shared_instance(instance.endpoint.clone(), SharedInstanceOptions::default())
+        .await
+        .expect("attach to the python shared instance");
+    assert_eq!(transport.announce_destinations_to_shared_instance().await, 1);
+    let last_announce = tokio::time::Instant::now();
+    let rows = path_live_wait_listed(&endpoint, &key, &rust_hash, true, PATH_LIVE_LISTED).await;
+    let row = path_live_row(&rows, &rust_hash).expect("listed");
+
+    // The hops filter keeps rows at or under the bound.
+    let at_zero =
+        path_table(&endpoint, &key, Some(0), PATH_LIVE_CALL).await.expect("path_table(Some(0))");
+    assert!(
+        path_live_row(&at_zero, &rust_hash).is_some(),
+        "a hops-{} row is listed under max_hops 0: {at_zero:?}",
+        row.hops
+    );
+    let at_max = path_table(&endpoint, &key, Some(255), PATH_LIVE_CALL)
+        .await
+        .expect("path_table(Some(255))");
+    assert_eq!(
+        path_live_row(&at_max, &rust_hash),
+        Some(row.clone()),
+        "max_hops 255 lists the same row as the unfiltered read"
+    );
+
+    // The README recipe reads the matched entry's `online`.
+    let stats = interface_stats(&endpoint, &key, PATH_LIVE_CALL).await.expect("interface_stats");
+    let client_iface =
+        stats.interfaces.iter().find(|iface| iface.name == row.interface).unwrap_or_else(|| {
+            panic!("{:?} is a stats name: {:?}", row.interface, stats.interfaces)
+        });
+    eprintln!("client interface stats entry: {client_iface:?}");
+    assert!(client_iface.online, "the attached client's interface is online: {client_iface:?}");
+
+    // Settle once, then repeat: the retrying caller reads `Ok(false)`.
+    let settled = drop_path_settled(&endpoint, &key, &rust_hash, PATH_LIVE_CALL)
+        .await
+        .expect("drop_path_settled");
+    assert!(settled, "the listed row settles");
+    let repeat_started = tokio::time::Instant::now();
+    let repeated = drop_path_settled(&endpoint, &key, &rust_hash, PATH_LIVE_CALL)
+        .await
+        .expect("drop_path_settled repeated on the settled row");
+    assert!(!repeated, "a settled row has nothing left to drop");
+    assert!(
+        repeat_started.elapsed() < Duration::from_secs(1),
+        "a false drop returns without polling: {:?}",
+        repeat_started.elapsed()
+    );
+    assert!(path_live_row(
+        &path_table(&endpoint, &key, None, PATH_LIVE_CALL).await.expect("path_table"),
+        &rust_hash
+    )
+    .is_none());
+
+    // drop_all_via on the row's via with nothing left is 0; at least 1 again
+    // once the destination is re-learned.
+    let none_left =
+        drop_all_via(&endpoint, &key, &row.via, PATH_LIVE_CALL).await.expect("drop_all_via empty");
+    assert_eq!(none_left, 0, "no row goes via {:?} after the settle", row.via);
+    tokio::time::sleep_until(last_announce + PATH_LIVE_ANNOUNCE_GAP).await;
+    assert_eq!(transport.announce_destinations_to_shared_instance().await, 1);
+    path_live_wait_listed(&endpoint, &key, &rust_hash, true, PATH_LIVE_LISTED).await;
+    let count =
+        drop_all_via(&endpoint, &key, &row.via, PATH_LIVE_CALL).await.expect("drop_all_via again");
+    assert!(count >= 1, "the re-learned row goes via {:?}: {count}", row.via);
+    path_live_wait_listed(&endpoint, &key, &rust_hash, false, PATH_LIVE_GONE).await;
+
+    let detached = tokio::time::timeout(Duration::from_secs(5), transport.detach_shared_instance())
+        .await
+        .expect("detach concludes");
+    assert!(detached);
+    tokio::time::timeout(Duration::from_secs(5), transport.stop()).await.expect("transport stops");
+    rnsd.assert_running("at the end");
+}
+
 // The two harness variants driven live, and the path contract under
 // `enable_transport = yes`: `spawn_with_interfaces` hands rnsd the caller's
 // whole `[interfaces]` text (a `TCPServerInterface`, no AutoInterface), so
@@ -385,7 +504,17 @@ async fn python_rnsd_with_transport_and_a_given_interfaces_text_serves_the_path_
     let rows = path_live_wait_listed(&endpoint, &key, &rust_hash, true, PATH_LIVE_LISTED).await;
     let row = path_live_row(&rows, &rust_hash).expect("listed");
     eprintln!("transport-enabled rnsd path row for the Rust destination: {row:?}");
-    assert!(row.hops <= 1, "a local client's announce is filed at 0 or 1 hops: {row:?}");
+    // The inbound hop (`RNS/Transport.py:1800`) is taken back for a local
+    // client interface with no transport gate (`:1938`), so transport on or
+    // off, the client's own announce is filed at zero hops.
+    assert_eq!(row.hops, 0, "a local client's own announce is filed at zero hops: {row:?}");
+    assert_eq!(row.via, rust_hash, "a directly heard announce is filed with via == hash: {row:?}");
+    assert!(row.timestamp > 1.0e9, "wall-clock seconds: {row:?}");
+    assert!(row.expires > row.timestamp, "{row:?}");
+    assert!(
+        row.interface.starts_with("LocalInterface["),
+        "the client's interface is the LocalClientInterface rnsd spawned for it: {row:?}"
+    );
     let stats = interface_stats(&endpoint, &key, PATH_LIVE_CALL).await.expect("stats after attach");
     let client_iface =
         stats.interfaces.iter().find(|iface| iface.name == row.interface).unwrap_or_else(|| {
@@ -403,7 +532,10 @@ async fn python_rnsd_with_transport_and_a_given_interfaces_text_serves_the_path_
     let seconds = first_hop_timeout(&endpoint, &key, &rust_hash, PATH_LIVE_CALL)
         .await
         .expect("first_hop_timeout of the listed row");
-    assert!(seconds.is_finite() && seconds >= 6.0, "{seconds}");
+    assert!(
+        seconds.is_finite() && (6.0..60.0).contains(&seconds),
+        "MTU * latency + DEFAULT_PER_HOP_TIMEOUT (RNS/Transport.py:3194-3197): {seconds}"
+    );
 
     let settle_started = tokio::time::Instant::now();
     let settled = drop_path_settled(&endpoint, &key, &rust_hash, PATH_LIVE_CALL)

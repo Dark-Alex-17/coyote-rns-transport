@@ -100,8 +100,11 @@ Removed) bullet of its own, marked as such.
   `drop_path` is recorded (a row still listed carries timestamp 0), the row
   is gone within the cull interval, the second drop is false, and
   `drop_all_via(row.via)` counts at least 1, with a sibling test running
-  the row, next-hop and first-hop checks against an rnsd spawned with
-  `enable_transport = yes` and a `TCPServerInterface` text, and
+  the same row, next-hop and first-hop checks against an rnsd spawned with
+  `enable_transport = yes` and a `TCPServerInterface` text and a third
+  where `path_table(Some(0))` and `Some(255)` both list the hops-0 row
+  (`RNS/Reticulum.py:1641`), the matched stats entry reads `online`, and
+  `drop_all_via(row.via)` counts 0 once the row is gone, and
   `tests/shared_instance_rpc_paths_probe.rs` (the unix endpoint twins, a
   wrong key as `Authentication` after one dial, a 2000-row reply past
   64 KiB read by name, only the exact str `"None"` as `None`, and
@@ -143,7 +146,7 @@ Removed) bullet of its own, marked as such.
   five dials at the 50 ms cadence, never one budget per dial; silence after the
   drop as `Timeout` with no poll sent; a wrong-shaped poll reply as `Decode`
   at once after two dials; a server gone after the first poll never reported
-  as settled; a mistyped drop reply as `Decode` after one dial with no poll)
+  as settled; a mistyped drop reply as `Decode` after one dial with no poll),
   the CPython stdlib listener
   `python_channel_interop_parts/python_stdlib_listener_rpc_probe.rs`,
   `tests/shared_instance_rpc_paths_probe.rs` (one budget shared across a
@@ -152,7 +155,8 @@ Removed) bullet of its own, marked as such.
   and the live rnsd (RNS 1.5.2) part
   `python_channel_interop_parts/python_shared_instance_rpc_paths_live.rs`,
   where after a re-announce the helper returns `Ok(true)` within two ticks
-  with the next hop `None` and the row gone, with and without transport.
+  with the next hop `None` and the row gone, with and without transport,
+  and repeated on the settled row returns `Ok(false)` without polling.
 - `RpcError::is_transient() -> bool` (`transport/shared_instance_rpc.rs`),
   the retry rule the `Io` and `io_kind()` docs describe as one predicate:
   `Timeout`, or an `Io` or `Connect` whose kind is `ConnectionReset`,
@@ -175,6 +179,14 @@ Removed) bullet of its own, marked as such.
   after each, for the settled-drop pins, and aborts its task when dropped
   unfinished, so a budget that cuts a sequence short leaves no detached
   panic.
+- Test-only: the live rnsd harness of the reticulumd `python_channel_interop`
+  binary gains `SharedInstanceRpcRnsd::spawn_with_interfaces` in
+  `python_channel_interop_parts/python_shared_instance_rpc.rs`, taking the
+  whole `[interfaces]` text with `spawn` a wrapper for the AutoInterface
+  section, and `LiveSharedInstance::with_transport(bool)` in
+  `python_channel_interop_parts/python_shared_instance_live.rs`, driving the
+  `enable_transport` line (off by default), both pinned by a config-text
+  test; the live path part is unix-only like the io part.
 - Test-only:
   `fork_publish_contract_parts/ledger_contract.rs` extends the full-hash
   ledger pin to the reopened `Unreleased` section.

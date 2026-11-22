@@ -329,7 +329,8 @@ fn request_layer_public_items_cite_python_or_say_fork_only() {
 /// attribute that keeps the public fields from breaking out-of-crate struct
 /// literals. The decoded rnsd RPC rows (`PathRow`, like `InterfaceStat` and
 /// `InterfaceStats` beside it) are read by field, so they take the same
-/// shape: every field public, the struct `#[non_exhaustive]`.
+/// shape: every field public, the struct `#[non_exhaustive]`; the in-process
+/// `PathIface` is read by field the same way.
 #[test]
 fn fork_new_public_structs_keep_their_fields_private() {
     let expected = [
@@ -338,6 +339,7 @@ fn fork_new_public_structs_keep_their_fields_private() {
         "InterfaceEvent",
         "OutboundOutcome",
         "PathHash",
+        "PathIface",
         "PathRow",
         "RequestFrame",
         "RequestId",
@@ -349,7 +351,7 @@ fn fork_new_public_structs_keep_their_fields_private() {
         "ResponseOutcomeTracker",
         "SharedInstanceOptions",
     ];
-    let public_rows = ["PathRow"];
+    let public_rows = ["PathIface", "PathRow"];
     let mut found = Vec::new();
     let mut exposed = Vec::new();
     let mut hidden = Vec::new();

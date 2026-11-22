@@ -426,6 +426,7 @@ pub struct TransportPathStatus {
     pub hops: Option<u8>,
 }
 
+pub use links::PathIface;
 pub use path_table::TransportPathTableEntry;
 
 // Transport internals are decomposed by concern for testability and bounded change sets.

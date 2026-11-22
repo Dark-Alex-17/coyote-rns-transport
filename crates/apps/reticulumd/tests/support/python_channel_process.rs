@@ -392,6 +392,12 @@ fn try_terminate_child_gracefully(
     child: &mut Child,
     within: Duration,
 ) -> Result<std::process::ExitStatus, String> {
+    // A child the harness already reaped through an earlier `try_wait` would
+    // make `kill` fail on a pid that may by now belong to someone else.
+    let already_exited = child.try_wait().map_err(|err| format!("poll the child: {err}"))?;
+    if let Some(status) = already_exited {
+        return Err(format!("the child had already exited with {status} before SIGTERM"));
+    }
     let signalled = Command::new("kill")
         .args(["-TERM", &child.id().to_string()])
         .status()

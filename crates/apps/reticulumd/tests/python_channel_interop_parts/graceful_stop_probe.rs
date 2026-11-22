@@ -29,7 +29,7 @@ fn graceful_probe_child(ready: &Path, on_term: &str) -> std::process::Child {
         .args([
             "-c",
             &format!(
-                "trap '{on_term}' TERM; : > {}; while :; do sleep 0.05; done",
+                "trap '{on_term}' TERM; : > \"{}\"; while :; do sleep 0.05; done",
                 ready.display()
             ),
         ])
@@ -74,7 +74,7 @@ fn terminate_child_gracefully_lets_the_term_handler_run_and_returns_the_clean_ex
     let ready = temp.path().join("ready");
     let marker = temp.path().join("handled");
     let mut child =
-        graceful_probe_child(&ready, &format!("echo handled > {}; exit 0", marker.display()));
+        graceful_probe_child(&ready, &format!("echo handled > \"{}\"; exit 0", marker.display()));
     wait_until_ready(&ready);
     let started = std::time::Instant::now();
     let status = terminate_child_gracefully(&mut child, GRACEFUL_WITHIN);
@@ -138,7 +138,7 @@ fn child_guard_does_not_kill_again_after_its_child_was_taken_for_a_graceful_stop
     let mut guard = ChildGuard {
         child: Some(graceful_probe_child(
             &ready,
-            &format!("echo handled > {}; exit 0", marker.display()),
+            &format!("echo handled > \"{}\"; exit 0", marker.display()),
         )),
     };
     wait_until_ready(&ready);

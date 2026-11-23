@@ -19,12 +19,18 @@
 // claims the three documents make hold in the tree. One more holds the
 // carried doc nits to the patches they belong to: `dfb85779` under rnsd
 // path rpc and path interface, `91c32571` under link establishment
-// timeout, in legend and header, and neither under the release patch. The
-// pins over the current tree, which the next release cut demotes, are the
-// first-release-heading test, the ledger-opening assertion of the patch-set
-// test, the README `[dependencies]` snippet pins of the consumer-note test,
-// and the crate-manifest version and publish-contract literal count of the
-// hand-pins test; the two no-`## Unreleased`-stub assertions of the ASCII
+// timeout, in legend and header, and neither under the release patch. Two
+// more read the release against the tree and the history it ships with:
+// every call, record, attribute and file the README block names resolves
+// in the crate, and the ledger section cites exactly the commits of the
+// release's own range, with the id-less release patch citing no
+// ledger-only commit. The pins over the current tree, which the next
+// release cut demotes, are the first-release-heading test, the
+// ledger-opening assertion of the patch-set test, the README
+// `[dependencies]` snippet pins of the consumer-note test, the
+// crate-manifest version and publish-contract literal count of the
+// hand-pins test, and the range test, whose range runs from the previous
+// tag to HEAD; the two no-`## Unreleased`-stub assertions of the ASCII
 // test go red sooner, on the commit that reopens the stub for the next
 // cycle, which is the commit that retires them; the rest hold facts about
 // the 0.18.5 section itself. `first_release_heading` and
@@ -233,11 +239,11 @@ fn release_0_18_5_readme_patch_list_runs_newest_first() {
 
 /// The first release section of the patch-set ledger is
 /// `## 0.18.5 (upstream 0.14.0)`; its legend names the id-less
-/// `release 0.18.5` patch and cites the release commits other than the one
-/// that last touched this file both there and in the release paragraph
-/// header, and the table rows this file under `release 0.18.5`. The
-/// citations are `contains` checks so the ledger may cite later commits
-/// too; only this probe's own commit cannot cite itself.
+/// `release 0.18.5` patch and cites the release commits both there and in
+/// the release paragraph header, and the table rows this file under
+/// `release 0.18.5`. The citations are `contains` checks so the ledger may
+/// cite later commits too; the only commits this pin cannot name are the
+/// ones that touch this file in the same commit.
 #[test]
 fn release_0_18_5_patchset_opens_on_the_release_patch() {
     let ledger = read_repo_file("docs/fork/PATCHSET.md");
@@ -253,7 +259,7 @@ fn release_0_18_5_patchset_opens_on_the_release_patch() {
         prose.find(release_marker).expect("the 0.18.5 legend names the id-less release patch");
     let release_legend = &prose[release_legend_start + release_marker.len()..];
     let release_legend = &release_legend[..release_legend.find('.').expect("sentence end")];
-    let release_commits = ["`8679349e`", "`12239075`", "`80e0cb4d`"];
+    let release_commits = ["`8679349e`", "`12239075`", "`80e0cb4d`", "`728464e5`"];
     for commit in release_commits {
         assert!(
             release_legend.contains(commit),
@@ -410,16 +416,12 @@ fn release_0_18_5_publish_contract_hand_pins_read_the_release_version() {
 #[test]
 fn release_0_18_5_artefacts_are_ascii_and_carry_no_plan_ids() {
     let readme = read_repo_file("crates/libs/rns-transport/README.md");
-    let marker = "What `0.18.5` carries on top";
-    let at = readme.find(marker).expect("the README patch list has the 0.18.5 block");
-    let block = &readme[at..];
-    let block =
-        &block[..block.find("\nWhat `0.18.4` carries on top").expect("the 0.18.4 block follows")];
+    let block = readme_0_18_5_block(&readme);
     let changelog = read_repo_file("crates/libs/rns-transport/CHANGELOG.md");
     let section = changelog_release_section(&changelog, "0.18.5");
     let ledger = read_repo_file("docs/fork/PATCHSET.md");
     let patchset = patchset_opening_section(&ledger);
-    let plan_ids = ["TASK-", "PLAN-"]; // debris-exempt: the needles the artefacts must not carry
+    let plan_ids = [concat!("TASK", "-"), concat!("PLAN", "-")];
     for (name, text) in [
         ("README 0.18.5 block", block),
         ("CHANGELOG 0.18.5 section", section.as_str()),
@@ -497,7 +499,9 @@ fn release_0_18_5_hygiene_claims_hold_in_the_tree() {
     let vanished =
         "async fn drop_path_settled_whose_server_vanishes_mid_poll_never_reports_settled()";
     let at = api.find(vanished).expect("the vanished-server case exists");
-    let preamble = &api[at.saturating_sub(600)..at];
+    let preamble_start =
+        api[..at].rfind("\n\n").expect("a blank line precedes the vanished-server case");
+    let preamble = &api[preamble_start..at];
     assert!(
         preamble.contains("#[cfg(not(windows))]\n#[tokio::test]\n"),
         "the vanished-server case is gated off Windows: {preamble}"
@@ -540,4 +544,259 @@ fn release_0_18_5_hygiene_claims_hold_in_the_tree() {
         ledger.contains("`8bc21180` bounds the vanished-server case by its 700 ms budget instead of a 400 ms ceiling"),
         "the ledger keeps the 700 ms budget with `8bc21180`"
     );
+}
+
+/// `git merge-base --is-ancestor <commit> <of>` from the repository root:
+/// `Some(true)` when `commit` is reachable from `of`, `Some(false)` when it
+/// is not, `None` when either name does not resolve.
+fn is_ancestor_of(commit: &str, of: &str) -> Option<bool> {
+    let status = std::process::Command::new("git")
+        .args(["merge-base", "--is-ancestor", commit, of])
+        .current_dir(repo_root())
+        .status()
+        .expect("git merge-base should run");
+    match status.code() {
+        Some(0) => Some(true),
+        Some(1) => Some(false),
+        _ => None,
+    }
+}
+
+/// The lines `git <args>` prints from the repository root.
+fn git_lines(args: &[&str]) -> Vec<String> {
+    let output = std::process::Command::new("git")
+        .args(args)
+        .current_dir(repo_root())
+        .output()
+        .expect("git should run");
+    assert!(output.status.success(), "git {args:?} should succeed");
+    String::from_utf8_lossy(&output.stdout)
+        .lines()
+        .filter(|line| !line.is_empty())
+        .map(str::to_string)
+        .collect()
+}
+
+/// The distinct backticked eight-hex-digit tokens in `text`, in order of
+/// first appearance: the short commit hashes a ledger section cites.
+fn cited_short_hashes(text: &str) -> Vec<&str> {
+    let mut hashes: Vec<&str> = Vec::new();
+    let mut rest = text;
+    while let Some(open) = rest.find('`') {
+        let after = &rest[open + 1..];
+        let Some(close) = after.find('`') else { break };
+        let token = &after[..close];
+        if token.len() == 8
+            && token.chars().all(|c| c.is_ascii_hexdigit() && !c.is_ascii_uppercase())
+            && !hashes.contains(&token)
+        {
+            hashes.push(token);
+        }
+        rest = &after[close + 1..];
+    }
+    hashes
+}
+
+/// The distinct backticked `.rs` / `.py` paths in `text`, in order of first
+/// appearance; a `RNS/<file>.py:<line>` cite ends in digits and is not one.
+fn cited_source_paths(text: &str) -> Vec<&str> {
+    let mut cited: Vec<&str> = Vec::new();
+    let mut rest = text;
+    while let Some(open) = rest.find('`') {
+        let after = &rest[open + 1..];
+        let Some(close) = after.find('`') else { break };
+        let token = &after[..close];
+        let is_path = (token.ends_with(".rs") || token.ends_with(".py"))
+            && token.chars().all(|c| c.is_ascii_alphanumeric() || "/_.-".contains(c));
+        if is_path && !cited.contains(&token) {
+            cited.push(token);
+        }
+        rest = &after[close + 1..];
+    }
+    cited
+}
+
+/// Every `.rs` / `.py` file under `dir`, recursively, as a repo-relative
+/// forward-slash path, skipping any `target` directory.
+fn source_paths_under(root: &std::path::Path, dir: &std::path::Path, into: &mut Vec<String>) {
+    let Ok(entries) = fs::read_dir(dir) else { return };
+    for entry in entries.flatten() {
+        let path = entry.path();
+        if path.is_dir() {
+            if path.file_name().is_some_and(|name| name == "target") {
+                continue;
+            }
+            source_paths_under(root, &path, into);
+        } else if path.extension().is_some_and(|ext| ext == "rs" || ext == "py") {
+            let relative = path.strip_prefix(root).unwrap_or(&path);
+            into.push(relative.to_string_lossy().replace('\\', "/"));
+        }
+    }
+}
+
+/// The README 0.18.5 block, from its marker sentence to the 0.18.4 block.
+fn readme_0_18_5_block(readme: &str) -> &str {
+    let marker = "What `0.18.5` carries on top";
+    let at = readme.find(marker).expect("the README patch list has the 0.18.5 block");
+    let block = &readme[at..];
+    &block[..block.find("\nWhat `0.18.4` carries on top").expect("the 0.18.4 block follows")]
+}
+
+/// Every public item the README 0.18.5 block tells a consumer to call or
+/// read is declared `pub` in the crate under the name and file the block
+/// gives, the two decoded records carry `#[non_exhaustive]` as the block
+/// says, and every backticked `.rs` path the block cites names a file under
+/// the crate tree or the reticulumd tests: the block a consumer reads cold
+/// points at code that exists.
+#[test]
+fn release_0_18_5_readme_block_claims_resolve_in_the_tree() {
+    let readme = read_repo_file("crates/libs/rns-transport/README.md");
+    let block = readme_0_18_5_block(&readme);
+    // The block wraps its signatures across lines; read it joined.
+    let prose = joined_prose(block);
+    let rpc = "crates/libs/rns-transport/src/transport/shared_instance_rpc";
+    let paths = read_repo_file(&format!("{rpc}/paths.rs"));
+    for call in [
+        "path_table",
+        "next_hop_interface_name",
+        "drop_path",
+        "drop_all_via",
+        "first_hop_timeout",
+        "drop_path_settled",
+    ] {
+        assert!(prose.contains(&format!("`{call}`")), "the README block names `{call}`");
+        assert!(
+            paths.contains(&format!("\npub async fn {call}(")),
+            "`{call}` should be a public async fn of shared_instance_rpc/paths.rs"
+        );
+    }
+    let rpc_root = read_repo_file("crates/libs/rns-transport/src/transport/shared_instance_rpc.rs");
+    assert!(prose.contains("`RpcError::is_transient() -> bool`"), "the block names the predicate");
+    assert!(
+        rpc_root.contains("pub fn is_transient(&self) -> bool"),
+        "`RpcError::is_transient` should be a public method returning bool"
+    );
+    let path_interface = read_repo_file(
+        "crates/libs/rns-transport/src/transport/links_parts/transport_sections/path_interface.rs",
+    );
+    assert!(
+        prose.contains("`Transport::path_interface(&AddressHash) -> Option<PathIface>`"),
+        "the block names the in-process read"
+    );
+    assert!(
+        path_interface.contains(
+            "pub async fn path_interface(&self, destination: &AddressHash) -> Option<PathIface>"
+        ),
+        "`Transport::path_interface` should be a public method of the shape the README gives"
+    );
+    let path_row = read_repo_file(&format!("{rpc}/path_row.rs"));
+    for (what, source, item) in [
+        ("PathIface", &path_interface, "pub struct PathIface"),
+        ("PathRow", &path_row, "pub struct PathRow"),
+    ] {
+        assert!(prose.contains(&format!("`{what}`")), "the README block names `{what}`");
+        let at = source.find(item).unwrap_or_else(|| panic!("{item} should be declared"));
+        assert!(
+            attribute_block_above(source, at).contains("#[non_exhaustive]"),
+            "`{what}` should carry `#[non_exhaustive]` as the README block says"
+        );
+    }
+    let events =
+        read_repo_file("crates/libs/rns-transport/src/transport/core_parts/interface_events.rs");
+    assert!(prose.contains("`Transport::interface_events()`"), "the block names the stream");
+    assert!(
+        events.contains("pub fn interface_events(&self)"),
+        "`Transport::interface_events` should be a public method"
+    );
+
+    let root = repo_root();
+    let mut tree: Vec<String> = Vec::new();
+    for subtree in ["crates/libs/rns-transport", "crates/apps/reticulumd/tests"] {
+        source_paths_under(&root, &root.join(subtree), &mut tree);
+    }
+    let cited = cited_source_paths(block);
+    assert!(cited.len() >= 10, "the README 0.18.5 block cites its pin files, found {cited:?}");
+    let unresolved: Vec<&str> = cited
+        .iter()
+        .copied()
+        .filter(|token| {
+            !tree.iter().any(|path| path == token || path.ends_with(&format!("/{token}")))
+        })
+        .collect();
+    assert!(
+        unresolved.is_empty(),
+        "every file the README 0.18.5 block cites should exist under the crate or the reticulumd \
+         tests:\n{}",
+        unresolved.join("\n")
+    );
+}
+
+/// The 0.18.5 patch-set section cites exactly the commits of its range:
+/// every short hash in its legend and patch headers is a commit reachable
+/// from HEAD and not from the `coyote-rns-transport-v0.18.4` tag, every
+/// commit in that range that touched a file other than the two ledgers
+/// (`CHANGELOG.md`, `PATCHSET.md`) is cited at least once, and the id-less
+/// `release 0.18.5` patch cites no ledger-only commit, as the 0.18.4 cut
+/// did not. Skips, in so many words, on a checkout without the previous tag.
+#[test]
+fn release_0_18_5_ledger_cites_exactly_the_commits_of_its_range() {
+    let previous = "coyote-rns-transport-v0.18.4";
+    if is_ancestor_of(previous, "HEAD") != Some(true) {
+        eprintln!("skipping: tag {previous} is not reachable from HEAD in this checkout");
+        return;
+    }
+    let ledger = read_repo_file("docs/fork/PATCHSET.md");
+    let section = patchset_opening_section(&ledger);
+    let hashes = cited_short_hashes(section);
+    assert!(
+        hashes.len() >= 40,
+        "the 0.18.5 section cites the Q1, Q2, Q3, interop and release commits, found {hashes:?}"
+    );
+    let mut wrong: Vec<String> = Vec::new();
+    for hash in &hashes {
+        match (is_ancestor_of(hash, "HEAD"), is_ancestor_of(hash, previous)) {
+            (Some(true), Some(false)) => {}
+            (None, _) | (_, None) => wrong.push(format!("`{hash}` does not resolve to a commit")),
+            (Some(false), _) => wrong.push(format!("`{hash}` is not reachable from HEAD")),
+            (_, Some(true)) => wrong.push(format!("`{hash}` was already released in {previous}")),
+        }
+    }
+    assert!(
+        wrong.is_empty(),
+        "the 0.18.5 ledger should cite only {previous}..HEAD commits:\n{}",
+        wrong.join("\n")
+    );
+
+    let ledgers = ["crates/libs/rns-transport/CHANGELOG.md", "docs/fork/PATCHSET.md"];
+    let ledger_only = |hash: &str| {
+        git_lines(&["show", "--name-only", "--format=", hash])
+            .iter()
+            .all(|file| ledgers.contains(&file.as_str()))
+    };
+    let range = format!("{previous}..HEAD");
+    let uncited: Vec<String> = git_lines(&["rev-list", "--abbrev-commit", "--abbrev=8", &range])
+        .into_iter()
+        .filter(|hash| !ledger_only(hash) && !hashes.contains(&hash.as_str()))
+        .collect();
+    assert!(
+        uncited.is_empty(),
+        "every {range} commit that touched more than the ledgers should be cited by the 0.18.5 \
+         section:\n{}",
+        uncited.join("\n")
+    );
+
+    let release_marker = "The `release 0.18.5` patch carries no other id and is fork commits";
+    let prose = joined_prose(section);
+    let legend =
+        &prose[prose.find(release_marker).expect("the release legend") + release_marker.len()..];
+    let legend = &legend[..legend.find('.').expect("the legend sentence ends")];
+    let release_hashes = cited_short_hashes(legend);
+    assert!(release_hashes.len() >= 3, "the release legend cites its commits: {legend}");
+    for hash in release_hashes {
+        assert!(
+            !ledger_only(hash),
+            "the `release 0.18.5` patch cites `{hash}`, a ledger-only commit the 0.18.4 precedent \
+             leaves out of the patch headers"
+        );
+    }
 }

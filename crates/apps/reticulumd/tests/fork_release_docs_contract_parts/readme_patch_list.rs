@@ -626,7 +626,7 @@ const LINK_TIMEOUT_FIXED_OPENER: &str =
     "- The outbound link establishment timeout `Transport::link` gives a new";
 
 #[test]
-fn fixed_records_the_link_establishment_timeout_sizing() {
+fn changelog_fixed_records_the_link_establishment_timeout_sizing() {
     let changelog = read_repo_file("crates/libs/rns-transport/CHANGELOG.md");
     let section = changelog_section_naming(&changelog, LINK_TIMEOUT_FIXED_OPENER);
     let bullets = subsection_bullets(section, "Fixed");
@@ -668,27 +668,27 @@ fn divergence_register_carries_the_first_hop_sizing_as_a_real_divergence() {
 }
 
 /// The `Fork commit(s) ...:` patch headers below a ledger section's table,
-/// each joined from its `Fork commit` line through the line that carries its
-/// colon, so a header that wraps still reads whole.
+/// each joined from its `Fork commit` line through the line that ends the label
+/// sentence after the colon, so a header wrapped on either side of it reads whole.
 fn patch_headers(section: &str) -> Vec<String> {
     let table_start =
         section.find("\n| File | Patch |").expect("the section has a `| File | Patch |` table");
     let mut headers: Vec<String> = Vec::new();
     let mut in_header = false;
+    let mut saw_colon = false;
     for line in section[table_start..].lines() {
         if line.starts_with("Fork commit `") || line.starts_with("Fork commits `") {
             headers.push(String::new());
             in_header = true;
+            saw_colon = false;
         }
-        if !in_header {
-            continue;
-        }
-        let header = headers.last_mut().expect("a header is open");
+        let Some(header) = headers.last_mut().filter(|_| in_header) else { continue };
         if !header.is_empty() {
             header.push(' ');
         }
         header.push_str(line);
-        in_header = !line.contains(':');
+        saw_colon |= line.contains(':');
+        in_header = !(saw_colon && line.ends_with('.'));
     }
     headers
 }

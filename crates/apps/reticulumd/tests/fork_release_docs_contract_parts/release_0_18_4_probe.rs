@@ -206,7 +206,7 @@ fn patchset_section_0_18_4(ledger: &str) -> &str {
 /// `contains` checks so the ledger may cite later commits too; only this
 /// probe's own commit cannot cite itself.
 #[test]
-fn release_0_18_4_patchset_opens_on_the_release_patch() {
+fn release_0_18_4_patchset_cites_the_release_patch_and_the_adopted_probes() {
     let ledger = read_repo_file("docs/fork/PATCHSET.md");
     let section = patchset_section_0_18_4(&ledger);
     let prose = joined_prose(section);

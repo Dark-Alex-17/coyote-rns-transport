@@ -46,7 +46,7 @@ is fork commits `60410ca9`, `cc67d5f3`, `d0e34ef2`, `ef50cff5`,
 `689f5ab3`, `a451a06e`, `312ede0a`, `ad5c7e15`, `cc69ed29`, `02b2cfb9`,
 `9b21a2c9`, `1867e6e4`, `800fa3ee`, `5d7fd412`, `d6eee86a`, `8bc21180` and
 `c3eaddcc`. The `release 0.18.5` patch carries no other id and is fork
-commits `8679349e`, `12239075` and `80e0cb4d`.
+commits `8679349e`, `12239075`, `80e0cb4d` and `728464e5`.
 
 | File | Patch |
 | --- | --- |
@@ -705,8 +705,8 @@ the first-hop range in the transport-enabled live part's header.
 and says what it is: one dial, a hang guard well under the call timeout, not
 a proof that no poll ran.
 
-Fork commits `8679349e`, `12239075` and `80e0cb4d`: release 0.18.5. The
-first bumps the crate version to 0.18.5 at every manifest and
+Fork commits `8679349e`, `12239075`, `80e0cb4d` and `728464e5`: release
+0.18.5. The first bumps the crate version to 0.18.5 at every manifest and
 consumer-snippet site (`Cargo.toml`,
 `crates/libs/rns-transport/Cargo.toml`, `crates/apps/reticulumd/Cargo.toml`,
 `crates/apps/rns-tools/Cargo.toml`, the snippet in
@@ -768,9 +768,23 @@ include-set bullet names, the README patch-list order and the 0.18.5
 block's six bullets and consumer note with the recovery recipe, the
 dependency snippet, the publish contract's two hand pins reading `0.18.5`,
 and this ledger opening on this section with the release patch in the
-legend and the probe's own row under `release 0.18.5`. The ledger commit
-that cites the three commits above is omitted from the patch headers like
-every commit whose changes touch only this file.
+legend and the probe's own row under `release 0.18.5`. The fourth folds
+into `release_0_18_5_probe.rs` the usage pins that read the release
+against the tree it describes: the README block, CHANGELOG section and
+this section are ASCII with no plan or task id and no `## Unreleased`
+stub beside them, and the test-hygiene claims the three
+documents make hold in the tree (the four shared support files, the mock
+peer's sequence and abort-on-drop, `path_row.rs` in place of
+`path_table.rs`, the Windows gate on the vanished-server case, the harness
+and support helpers under their documented names); it makes the probe's
+patch-set test cite the release commits in both the legend sentence and
+this header with contains-checks so later commits may sit beside them,
+adds the past-tense twin for the full-hash ledger-pin bullet, adds the
+`tests/support/stdlib_rpc_handshake.rs` hygiene needle to the README
+0.18.5 opener test in `readme_patch_list.rs`, and names the `### Fixed`
+opener and the two adopted pins in the crate `CHANGELOG.md` version
+bullet. The ledger commits that cite the four commits above are omitted
+from the patch headers like every commit whose changes touch only this file.
 
 ## 0.18.4 (upstream 0.14.0)
 

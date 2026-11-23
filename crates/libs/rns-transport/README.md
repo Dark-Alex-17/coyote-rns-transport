@@ -1314,12 +1314,16 @@ well under a millisecond; and `hops`. `Transport::path_table` exports the
 same facts for every destination whose interface is still registered; a
 path whose interface has since been detached is omitted there and still
 returned by `path_interface`. Python's `Transport.next_hop_interface`
-returns the interface object itself (`RNS/Transport.py:3156-3164`). The
-in-process up/down stream is `Transport::interface_events()`: a
-`Disconnected` followed by `Connecting` or `Connected` means the interface
-came back since the path was learned. On a failed link, read the path's
-interface, check it against that stream, and when the interface is down
-call `Transport::expire_path` and then `Transport::request_path`. Pinned by
+returns the interface object itself (`RNS/Transport.py:3156-3164`); only
+its path-table branch is mirrored, since a destination in
+`destinations_map` answers the shared-instance interface there (`:3163`)
+where a destination of this transport's own has no path table entry and
+answers `None`. The in-process up/down stream is
+`Transport::interface_events()`: a `Disconnected` followed by `Connecting`
+or `Connected` means the interface came back since the path was learned.
+On a failed link, read the path's interface, check it against that
+stream, and when the interface is down call `Transport::expire_path` and
+then `Transport::request_path`. Pinned by
 `transport/tests_parts/path_interface_api.rs` on loopback,
 `tests/path_interface_api.rs` from outside the crate, and
 `tests/path_interface_usage_probe.rs`, which joins the record to the event

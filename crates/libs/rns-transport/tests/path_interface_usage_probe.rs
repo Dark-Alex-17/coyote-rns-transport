@@ -8,9 +8,13 @@
 //!   so the two surfaces can be joined by `iface` as the paragraph says;
 //! - the recipe: the listener goes away, the connector reads `Disconnected` tagged with the
 //!   path's interface, `expire_path` removes the record, `path_interface` reads `None`,
-//!   `path_status` reads `path_found == false`, and `request_path` is accepted;
+//!   `path_status` reads `path_found == false`, and `request_path` returns with the table
+//!   still empty;
 //! - a second announce of the same destination that the connector accepts moves
-//!   `learned_at` forward to the second announce's bracket.
+//!   `learned_at` forward to the second announce's bracket;
+//! - an interface detached from the manager after the path was learned: the record is
+//!   still returned with the same `iface`, `hops` and learn time, `name` reads `None`,
+//!   `path_status` still finds the path, and `path_table` omits the row.
 //!
 //! Two transports on 127.0.0.1: a `TcpServer` listener and a `TcpClient` connector.
 
@@ -147,7 +151,8 @@ async fn a_transport_with_no_interfaces_answers_none_and_agrees_with_path_status
 /// The README recipe end to end. The record's `iface` is the address `spawn` returned
 /// for the `TcpClient`, the same tag the interface event stream carries; when the
 /// listener goes away the stream reads `Disconnected` under that tag, `expire_path`
-/// removes the record, and `request_path` is accepted on the now-pathless destination.
+/// removes the record, and `request_path` returns on the now-pathless destination with
+/// the table still empty.
 #[tokio::test]
 #[deny(clippy::await_holding_invalid_type)]
 async fn the_record_joins_interface_events_by_iface_and_the_expire_then_request_recipe_holds() {
@@ -253,6 +258,81 @@ async fn a_reannounce_moves_learned_at_forward() {
         within_bracket(second.learned_at, second_before, second_after),
         "learned_at {:?} lies within a second of the second announce bracket {second_before:?}..={second_after:?}",
         second.learned_at
+    );
+
+    timeout(WAIT, connector.stop()).await.expect("connector stop completes");
+    timeout(WAIT, listener.transport.stop()).await.expect("listener stop completes");
+}
+
+/// The README's detached-interface clause. The connector names its client `uplink`,
+/// learns a path over it, then stops the interface through the manager: the record is
+/// still returned by `path_interface` with the same `iface`, `hops` and learn time,
+/// `name` is `None` now that the manager no longer registers the interface,
+/// `path_status` still finds the path, and `path_table` no longer lists the row.
+#[tokio::test]
+#[deny(clippy::await_holding_invalid_type)]
+async fn a_detached_interface_keeps_the_record_drops_its_name_and_leaves_path_table() {
+    let listener = listener("path-interface-detach-listener").await;
+    let (connector, client_iface, mut announces, _events) =
+        connector("path-interface-detach-connector", listener.port).await;
+    wait_until("the listener to accept", || {
+        listener.status.to_json()["accepted_connections"].as_u64() == Some(1)
+    })
+    .await;
+    assert!(connector
+        .iface_manager()
+        .lock()
+        .await
+        .set_display_name(client_iface, Some("uplink".to_owned())));
+
+    let destination = listener
+        .transport
+        .add_destination(
+            PrivateIdentity::new_from_rand(OsRng),
+            DestinationName::new("probe", "detach"),
+        )
+        .await;
+    let hash = destination.lock().await.desc.address_hash;
+    let packet = destination.lock().await.announce(OsRng, None).expect("announce packet");
+    listener.transport.send_packet(packet).await;
+    learn_announce("the announce", &mut announces, &hash, WAIT).await;
+
+    let attached = connector.path_interface(&hash).await.expect("the path is on file");
+    assert_eq!(attached.iface, client_iface);
+    assert_eq!(attached.name.as_deref(), Some("uplink"), "the manager's display name");
+    let rows = connector.path_table(None).await.expect("path table");
+    let row = rows.iter().find(|row| row.destination == hash).expect("the table lists the path");
+    assert_eq!(row.interface_name.as_deref(), Some("uplink"), "path_table reads the same name");
+
+    // Detach the interface the path rests on; the manager forgets it.
+    assert!(connector.iface_manager().lock().await.stop_interface(client_iface));
+    assert!(
+        !connector.iface_manager().lock().await.interface_hashes().contains(&client_iface),
+        "the manager no longer registers the detached interface"
+    );
+    // Let any reaction to the stop settle before reading, so the read is of the steady state.
+    tokio::time::sleep(Duration::from_millis(200)).await;
+
+    let detached = connector
+        .path_interface(&hash)
+        .await
+        .expect("a path whose interface has since been detached is still returned");
+    assert_eq!(detached.iface, client_iface, "the interface the announce arrived on");
+    assert_eq!(detached.hops, attached.hops);
+    assert_eq!(detached.name, None, "no longer registered with the manager, no name");
+    let drift = detached
+        .learned_at
+        .duration_since(attached.learned_at)
+        .unwrap_or_else(|earlier| earlier.duration());
+    assert!(drift < Duration::from_millis(25), "the learn time did not move: {drift:?}");
+    assert!(
+        connector.path_status(&hash).await.path_found,
+        "Some iff the table has an entry: path_status still finds the path"
+    );
+    let rows = connector.path_table(None).await.expect("path table");
+    assert!(
+        rows.iter().all(|row| row.destination != hash),
+        "path_table omits a path whose interface is no longer registered"
     );
 
     timeout(WAIT, connector.stop()).await.expect("connector stop completes");

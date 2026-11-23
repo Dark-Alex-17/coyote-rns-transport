@@ -85,6 +85,18 @@ impl<T> AbortOnDrop<T> {
     async fn join(mut self) -> T {
         (&mut self.0).await.expect("server task")
     }
+
+    /// For a task that ends only by abort: the cancellation is the expected outcome, and
+    /// a request assertion that failed inside the task before then surfaces here instead
+    /// of being lost with the handle.
+    async fn abort_and_join(mut self) {
+        self.0.abort();
+        if let Err(err) = (&mut self.0).await {
+            if let Ok(panic) = err.try_into_panic() {
+                std::panic::resume_unwind(panic);
+            }
+        }
+    }
 }
 
 impl<T> Drop for AbortOnDrop<T> {
@@ -145,7 +157,7 @@ async fn drop_path_settled_shares_one_budget_between_a_slow_drop_and_its_polls()
     let endpoint = RpcEndpoint::Tcp(listener.local_addr().expect("listener address"));
     let served = std::sync::Arc::new(AtomicUsize::new(0));
     let counter = served.clone();
-    let _server = AbortOnDrop(tokio::spawn(async move {
+    let server = AbortOnDrop(tokio::spawn(async move {
         loop {
             let (mut stream, _) = listener.accept().await.expect("accept");
             let request = serve_handshake(&mut stream, &authkey()).await.expect("honest");
@@ -166,6 +178,7 @@ async fn drop_path_settled_shares_one_budget_between_a_slow_drop_and_its_polls()
     let elapsed = started.elapsed();
     let dials = served.load(Ordering::SeqCst);
     eprintln!("slow drop + endless polls: {result:?} after {dials} dials in {elapsed:?}");
+    server.abort_and_join().await;
     match &result {
         Err(err @ RpcError::Timeout) => assert!(err.is_transient(), "{err:?}"),
         other => {
@@ -205,7 +218,7 @@ async fn path_calls_over_a_unix_endpoint_send_the_pinned_bytes_and_read_the_repl
     let dir = tempfile::tempdir().expect("tempdir");
     let path = dir.path().join("rpc.sock");
     let listener = tokio::net::UnixListener::bind(&path).expect("bind unix");
-    let server = tokio::spawn(async move {
+    let server = AbortOnDrop(tokio::spawn(async move {
         let mut requests = Vec::new();
         for reply in [Value::from(true), Value::from("None"), Value::Array(vec![])] {
             let (mut stream, _) = listener.accept().await.expect("accept");
@@ -213,7 +226,7 @@ async fn path_calls_over_a_unix_endpoint_send_the_pinned_bytes_and_read_the_repl
             reply_and_close(&mut stream, &reply).await;
         }
         requests
-    });
+    }));
     let endpoint = RpcEndpoint::Unix(LocalUnixEndpoint::filesystem(path));
     let dropped = drop_path(&endpoint, &key(), &destination(), WAIT).await.expect("drop_path");
     assert!(dropped);
@@ -223,7 +236,7 @@ async fn path_calls_over_a_unix_endpoint_send_the_pinned_bytes_and_read_the_repl
     assert_eq!(next, None);
     let rows = path_table(&endpoint, &key(), None, WAIT).await.expect("path_table");
     assert!(rows.is_empty(), "{rows:?}");
-    let requests = server.await.expect("server task");
+    let requests = server.join().await;
     assert_eq!(requests[0], hash_request(DROP_PATH_REQUEST_HEAD));
     assert_eq!(requests[1], hash_request(NEXT_HOP_REQUEST_HEAD));
     assert_eq!(requests[2], PATH_TABLE_REQUEST_NO_MAX_HOPS);
@@ -239,10 +252,10 @@ async fn path_calls_over_a_unix_endpoint_send_the_pinned_bytes_and_read_the_repl
 /// poll for when the drop itself was refused.
 #[tokio::test]
 async fn wrong_key_on_a_path_call_is_authentication_and_not_transient() {
-    async fn refusing_server(dials: usize) -> (RpcEndpoint, tokio::task::JoinHandle<usize>) {
+    async fn refusing_server(dials: usize) -> (RpcEndpoint, AbortOnDrop<usize>) {
         let listener = TcpListener::bind("127.0.0.1:0").await.expect("bind loopback");
         let endpoint = RpcEndpoint::Tcp(listener.local_addr().expect("listener address"));
-        let server = tokio::spawn(async move {
+        let server = AbortOnDrop(tokio::spawn(async move {
             let mut refused = 0usize;
             for _ in 0..dials {
                 let (mut stream, _) = listener.accept().await.expect("accept");
@@ -253,7 +266,7 @@ async fn wrong_key_on_a_path_call_is_authentication_and_not_transient() {
                 refused += 1;
             }
             refused
-        });
+        }));
         (endpoint, server)
     }
 
@@ -266,7 +279,7 @@ async fn wrong_key_on_a_path_call_is_authentication_and_not_transient() {
         }
         other => panic!("path_table with a wrong key: expected Authentication, got {other:?}"),
     }
-    assert_eq!(server.await.expect("server task"), 1);
+    assert_eq!(server.join().await, 1);
 
     // drop_path_settled: one refused dial, no poll, well inside the budget.
     let (endpoint, server) = refusing_server(1).await;
@@ -274,7 +287,7 @@ async fn wrong_key_on_a_path_call_is_authentication_and_not_transient() {
     let result = drop_path_settled(&endpoint, &key(), &destination(), WAIT).await;
     assert!(matches!(result, Err(RpcError::Authentication)), "{result:?}");
     assert!(started.elapsed() < Duration::from_secs(1), "{:?}", started.elapsed());
-    assert_eq!(server.await.expect("server task"), 1);
+    assert_eq!(server.join().await, 1);
     // A second dial would now be refused by the OS, not by the server: the task is done.
     let again = drop_path(&endpoint, &key(), &destination(), WAIT).await;
     assert!(matches!(again, Err(RpcError::Connect(_))), "{again:?}");

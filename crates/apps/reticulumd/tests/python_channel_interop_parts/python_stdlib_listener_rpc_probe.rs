@@ -53,7 +53,8 @@ path_rows = [
 ]
 # A hash that did not arrive as bytes is logged; every branch but drop path,
 # whose bool reply is this check itself, then answers with a value the Rust
-# call rejects.
+# side rejects, by decode or by assertion (next_hop_if_name decodes
+# "not-bytes" as Some, and the test's assert_eq against None catches it).
 def hash_is_bytes(request, call):
     if isinstance(request["destination_hash"], bytes):
         return True

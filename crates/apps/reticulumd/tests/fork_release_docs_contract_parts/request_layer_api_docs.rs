@@ -317,9 +317,11 @@ fn request_layer_public_items_cite_python_or_say_fork_only() {
     );
 }
 
-/// Every `pub struct` the fork introduced keeps its fields private, so a
-/// consumer builds and reads it through methods alone: a brace body has no
-/// `pub <ident>:` member and a one-line tuple body has no `pub ` between its
+/// Every `pub struct` the fork introduced takes one of two shapes: it keeps
+/// its fields private, so a consumer builds and reads it through methods
+/// alone, or, as a decoded row read by field, it exposes every field under
+/// `#[non_exhaustive]`. A private-field body is a brace body with no
+/// `pub <ident>:` member or a one-line tuple body with no `pub ` between its
 /// parentheses. The set of structs found is pinned to the expected names so a
 /// new or renamed public struct shows up here. The fork-new fields in upstream
 /// structs are checked by name: `DeliveryReceipt::link_id` must be private.

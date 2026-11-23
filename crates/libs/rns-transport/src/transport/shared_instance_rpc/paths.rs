@@ -153,8 +153,8 @@ pub async fn first_hop_timeout(
 /// caller that wants a fresh path sends one path request after this helper
 /// returns `Ok(true)`. Observed against rnsd 1.5.2, the row is still listed
 /// with timestamp 0 and the next hop still names the interface under a
-/// millisecond after the drop, both read as gone at about 160 ms, and this
-/// helper returns `Ok(true)` in about 50 to 180 ms; the cull's bound is one
+/// millisecond after the drop, both read as gone at about 160 to 220 ms, and
+/// this helper returns `Ok(true)` in about 50 to 180 ms; the cull's bound is one
 /// `job_interval` tick, 250 ms, wherever in the tick the drop lands, and the
 /// helper reads it on its next 50 ms poll.
 ///

@@ -902,14 +902,14 @@ fn crate_readme_path_table_section_describes_the_calls_and_the_window() {
         .iter()
         .find(|bullet| bullet.starts_with("- `drop_path_settled(endpoint"))
         .expect("the changelog carries the settling helper bullet");
-    for claim in ["Observed against rnsd 1.5.2", "about 160 to 220 ms", "50 to 180 ms", "250 ms"] {
+    let window_claims =
+        ["Observed against rnsd 1.5.2", "about 160 to 220 ms", "50 to 180 ms", "250 ms"];
+    for claim in window_claims {
         assert!(
             squash(settled).contains(&squash(claim)),
             "the measured window sits in the `drop_path_settled` bullet: {claim}\n{settled}"
         );
     }
-    // The rustdoc carries the first run's figure; the docs widened it to the
-    // recorded range.
     let source =
         read_repo_file("crates/libs/rns-transport/src/transport/shared_instance_rpc/paths.rs");
     let lines: Vec<&str> = source.lines().collect();
@@ -918,7 +918,7 @@ fn crate_readme_path_table_section_describes_the_calls_and_the_window() {
         .position(|line| line.starts_with("pub async fn drop_path_settled("))
         .expect("paths.rs declares drop_path_settled");
     let rustdoc = squash(&doc_block_above(&lines, settled_fn));
-    for claim in ["Observed against rnsd 1.5.2", "about 160 ms", "50 to 180 ms", "250 ms"] {
+    for claim in window_claims {
         assert!(rustdoc.contains(&squash(claim)), "the drop_path_settled rustdoc carries {claim}");
     }
 }

@@ -14,7 +14,9 @@ use rns_transport::transport::{AnnounceEvent, ReceivedData, Transport};
 use tokio::time::{sleep, timeout, Instant};
 
 /// The next announce event for `target_hash` on an already subscribed
-/// receiver; events for other destinations and a lagged receiver are skipped.
+/// receiver; events for other destinations are skipped, and a lag is logged
+/// and skipped so a timeout that follows it can be read back to the lag.
+#[deny(clippy::await_holding_invalid_type)]
 pub(super) async fn wait_for_announce_event(
     announces: &mut tokio::sync::broadcast::Receiver<AnnounceEvent>,
     target_hash: AddressHash,
@@ -29,7 +31,12 @@ pub(super) async fn wait_for_announce_event(
                         return event;
                     }
                 }
-                Err(tokio::sync::broadcast::error::RecvError::Lagged(_)) => continue,
+                Err(tokio::sync::broadcast::error::RecvError::Lagged(skipped)) => {
+                    eprintln!(
+                        "announce receiver lagged by {skipped} events while waiting for {target_hash}"
+                    );
+                    continue;
+                }
                 Err(tokio::sync::broadcast::error::RecvError::Closed) => {
                     panic!("announce channel closed")
                 }
@@ -40,6 +47,7 @@ pub(super) async fn wait_for_announce_event(
     .expect("timed out waiting for the Python announce event")
 }
 
+#[deny(clippy::await_holding_invalid_type)]
 pub(super) async fn wait_for_announce(
     transport: &Transport,
     target_hash: AddressHash,

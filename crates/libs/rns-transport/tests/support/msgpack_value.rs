@@ -1,6 +1,7 @@
 //! An `rmpv::Value` map keyed by str, and a value packed to msgpack bytes; shared by the
 //! integration tests whose loopback servers answer the rnsd RPC client with canned
-//! replies. Every canned reply is built by the one and sent through the other.
+//! replies. Every canned reply goes out through `pack`; the map-shaped ones are built
+//! with `map`.
 
 use rmpv::Value;
 

@@ -57,7 +57,7 @@ fn assert_decode<T: std::fmt::Debug>(result: &Result<T, RpcError>, names: &str) 
     }
 }
 
-/// A row the way `get_path_table` builds it (`RNS/Reticulum.py:1641-1645`),
+/// A row the way `get_path_table` builds it (`RNS/Reticulum.py:1642-1645`),
 /// with `overrides` replacing or (via `None`) removing keys.
 fn row(overrides: Vec<(&str, Option<Value>)>) -> Value {
     let mut pairs = vec![

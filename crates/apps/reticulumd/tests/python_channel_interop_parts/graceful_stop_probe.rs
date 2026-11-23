@@ -78,7 +78,8 @@ fn terminate_child_gracefully_lets_the_term_handler_run_and_returns_the_clean_ex
     let mut child =
         graceful_probe_child(&ready, &format!("echo handled > \"{}\"; exit 0", marker.display()));
     wait_until_ready(&ready);
-    terminate_child_gracefully(&mut child, GRACEFUL_WITHIN);
+    let status = terminate_child_gracefully(&mut child, GRACEFUL_WITHIN);
+    assert!(status.success(), "{status}");
     assert_eq!(
         fs::read_to_string(&marker).expect("the TERM handler wrote the marker").trim(),
         "handled",

@@ -312,8 +312,11 @@ Removed) bullet of its own, marked as such.
   `transport/shared_instance_rpc/path_row.rs` is renamed from `path_table.rs`,
   with the `PathRow` field cites corrected; the `drop_path_settled` rustdoc
   says what a settle cut off by `Timeout` leaves in rnsd's log and how to
-  size its budget; the `PathIface::learned_at` rustdoc documents the clamp
-  to `UNIX_EPOCH` when the wall clock reads earlier than the entry's age.
+  size its budget; the `PathIface::learned_at` rustdoc says that a wall
+  clock reading less than the entry's age yields a representable
+  `SystemTime` before `UNIX_EPOCH`, as `path_table()`'s `timestamp_secs`
+  goes negative, and that the `unwrap_or(UNIX_EPOCH)` arm covers only an
+  unrepresentable result.
 
 ### Fixed
 

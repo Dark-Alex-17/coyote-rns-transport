@@ -1,48 +1,38 @@
 // Pins over the 0.18.4 release artefacts beyond what the release contracts
 // check. Those pin the heading date by shape, the absence of a `### Breaking`
 // subsection on a patch bump and the version by its sites; these pins hold
-// the heading to the day the release was cut and to the top of the ledger,
-// the subsection set a purely additive patch release carries, the one item
-// `### Added` names, the patch digit and semver verdict the version bullet
-// records, the past tense the framing bullet keeps for a pin that read the
-// reopened section, the thirteen release-docs parts the restated
-// include-set bullet lists, the README patch-list order with the 0.18.4
-// block on top, and the usage pins a consumer reads cold: the patch-set
-// ledger opening on this release with the four release commits and the
-// adopted probe commits cited, the README block's four bullets and consumer
-// note with the retry rule, and the publish contract's two hand pins
-// reading the release version. Four more usage pins read the release
-// against the tree it describes: the stage-boundary clauses of the
-// `### Added` bullet and the README rpc section name tests the io kind probe
-// carries, the reset pins are kind-based on either variant in the tests and
-// both documents, the test-hygiene claims the ledger makes about `a58b664e`
-// hold in the tree, and the ledger cites the adopted test commits under
-// `rpc io error` with every file they touched rowed there, the io kind probe
-// under the release patch as well since a release commit edited it. The
-// pins over the current tree, which the next release cut demotes, are the
-// first-release-heading test, the ledger-opening assertion of the patch-set
-// test, the README `[dependencies]` snippet and four-bullet opener pins of
-// the consumer-note test, and the crate-manifest version and
-// publish-contract literal count of the hand-pins test; the rest hold facts
-// about the 0.18.4 section itself. `first_release_heading` and
-// `patchset_opening_section` are shared with the 0.18.3 probe.
+// the heading to the day the release was cut, the subsection set a purely
+// additive patch release carries, the one item `### Added` names, the patch
+// digit and semver verdict the version bullet records, the past tense the
+// framing bullet keeps for a pin that read the reopened section, the
+// thirteen release-docs parts the restated include-set bullet lists, the
+// README patch-list order with the 0.18.4 block above the 0.18.3 and 0.18.2
+// blocks, and the facts about the 0.18.4 section a consumer reads cold: the
+// patch-set ledger's 0.18.4 section citing the four release commits and the
+// adopted probe commits, and the README block's four bullets and consumer
+// note with the retry rule. Four more usage pins read the release against
+// the tree it describes: the stage-boundary clauses of the `### Added`
+// bullet and the README rpc section name tests the io kind probe carries,
+// the reset pins are kind-based on either variant in the tests and both
+// documents, the test-hygiene claims the ledger makes about `a58b664e` hold
+// in the tree, and the ledger cites the adopted test commits under `rpc io
+// error` with every file they touched rowed there, the io kind probe under
+// the release patch as well since a release commit edited it. The first
+// release heading, the ledger opening, the README dependency snippet and
+// the publish contract's hand pins with the manifest version belong to the
+// 0.18.5 probe, which shares `first_release_heading` and
+// `patchset_opening_section` from the 0.18.3 probe; the two ledger tests
+// here slice their section by its heading instead, and the 0.18.4
+// hand-pins test went with them, since its line-policy and `VERSION` checks
+// would only repeat the 0.18.5 one's.
 
-/// The 0.18.4 heading carries the day the release was cut and is the first
-/// release heading of the CHANGELOG.
+/// The 0.18.4 heading carries the day the release was cut.
 #[test]
 fn release_0_18_4_heading_carries_the_release_date() {
     let changelog = read_repo_file("crates/libs/rns-transport/CHANGELOG.md");
-    let heading = "\n## 0.18.4 - 2026-11-20\n";
     assert!(
-        changelog.contains(heading),
+        changelog.contains("\n## 0.18.4 - 2026-11-20\n"),
         "the CHANGELOG should head the 0.18.4 section with its release date"
-    );
-    let first_release =
-        first_release_heading(&changelog).expect("the CHANGELOG should carry a release heading");
-    assert_eq!(
-        first_release,
-        heading.trim(),
-        "the 0.18.4 heading should be the first release heading of the CHANGELOG"
     );
 }
 
@@ -171,8 +161,9 @@ fn release_0_18_4_include_set_bullet_names_the_thirteen_parts() {
     }
 }
 
-/// The README patch list runs 0.18.4, then 0.18.3, then 0.18.2: the new
-/// block opens the list and the two demoted blocks keep their order below it.
+/// The README patch list runs 0.18.4, then 0.18.3, then 0.18.2: the 0.18.4
+/// block sits above the 0.18.3 and 0.18.2 blocks in that order; the 0.18.5
+/// block opens the list.
 #[test]
 fn release_0_18_4_readme_patch_list_runs_newest_first() {
     let readme = read_repo_file("crates/libs/rns-transport/README.md");
@@ -195,23 +186,29 @@ fn release_0_18_4_readme_patch_list_runs_newest_first() {
     );
 }
 
-/// The first release section of the patch-set ledger is
-/// `## 0.18.4 (upstream 0.14.0)`; its legend names the id-less
-/// `release 0.18.4` patch and cites the four release commits both there
-/// and in the release paragraph header, the `rpc io error` legend cites the
-/// two probe commits adopted since 0.18.3, and the table rows this file
-/// under `release 0.18.4`. The citations are `contains` checks so the
-/// ledger may cite later commits too; only this probe's own commit cannot
-/// cite itself.
+/// The `## 0.18.4 (upstream 0.14.0)` section of the patch-set ledger, up to
+/// the next `## ` heading.
+fn patchset_section_0_18_4(ledger: &str) -> &str {
+    let heading = "\n## 0.18.4 (upstream 0.14.0)\n";
+    let start = ledger.find(heading).expect("the patch-set ledger carries the 0.18.4 section") + 1;
+    let section = &ledger[start..];
+    match section[3..].find("\n## ") {
+        Some(end) => &section[..end + 3],
+        None => section,
+    }
+}
+
+/// The `## 0.18.4 (upstream 0.14.0)` section of the patch-set ledger names
+/// the id-less `release 0.18.4` patch in its legend and cites the four
+/// release commits both there and in the release paragraph header, the
+/// `rpc io error` legend cites the two probe commits adopted since 0.18.3,
+/// and the table rows this file under `release 0.18.4`. The citations are
+/// `contains` checks so the ledger may cite later commits too; only this
+/// probe's own commit cannot cite itself.
 #[test]
 fn release_0_18_4_patchset_opens_on_the_release_patch() {
     let ledger = read_repo_file("docs/fork/PATCHSET.md");
-    let section = patchset_opening_section(&ledger);
-    assert_eq!(
-        section.lines().next(),
-        Some("## 0.18.4 (upstream 0.14.0)"),
-        "the first release section of the patch-set ledger should be 0.18.4"
-    );
+    let section = patchset_section_0_18_4(&ledger);
     let prose = joined_prose(section);
     let release_marker = "The `release 0.18.4` patch carries no other id and is fork commits";
     let release_legend_start =
@@ -261,8 +258,7 @@ fn release_0_18_4_patchset_opens_on_the_release_patch() {
 /// (four, the consumer note last) and the consumer note spells out the retry
 /// rule: `io_kind()` over both variants, the four retryable kinds,
 /// `ConnectionRefused` kept on its own `Connect` arm, bounded attempts with a
-/// backoff, and the one observable change for an existing matcher; the
-/// dependency snippet pins the release and no 0.18.3 snippet survives.
+/// backoff, and the one observable change for an existing matcher.
 #[test]
 fn release_0_18_4_readme_consumer_note_names_the_retry_rule() {
     let readme = read_repo_file("crates/libs/rns-transport/README.md");
@@ -306,36 +302,6 @@ fn release_0_18_4_readme_consumer_note_names_the_retry_rule() {
     ] {
         assert!(consumer.contains(needle), "the consumer note should say {needle:?}: {consumer}");
     }
-    let snippet = "coyote-rns-transport = \"0.18.4\"";
-    assert!(
-        readme.contains(&format!("[dependencies]\n{snippet}\n")),
-        "the README dependency snippet should pin {snippet:?}"
-    );
-    assert!(
-        !readme.contains("[dependencies]\ncoyote-rns-transport = \"0.18.3\""),
-        "the README dependency snippet should no longer pin 0.18.3"
-    );
-}
-
-/// The publish contract's two hand pins (the bare version and the manifest
-/// line) read the release version with no stale 0.18.3 pin beside them, the
-/// crate manifest declares it, and the root `VERSION` file stays.
-#[test]
-fn release_0_18_4_publish_contract_hand_pins_read_the_release_version() {
-    let contract = read_repo_file("crates/apps/reticulumd/tests/fork_publish_contract.rs");
-    assert!(
-        contract.lines().count() <= 1200,
-        "fork_publish_contract.rs stays within the 1200-line test policy"
-    );
-    let pins: Vec<&str> = contract.lines().filter(|line| line.contains("0.18.4")).collect();
-    assert_eq!(pins.len(), 2, "the publish contract carries its two hand pins, got {pins:?}");
-    assert!(
-        !contract.contains("0.18.3\""),
-        "no stale 0.18.3 hand pin survives in the publish contract"
-    );
-    let manifest = read_repo_file("crates/libs/rns-transport/Cargo.toml");
-    assert!(manifest.contains("\nversion = \"0.18.4\"\n"), "the crate manifest declares 0.18.4");
-    assert_eq!(read_repo_file("VERSION").trim(), "0.14.0", "the root VERSION file stays");
 }
 
 /// The five stage-boundary pins the 0.18.4 `### Added` bullet and the README
@@ -507,7 +473,7 @@ fn release_0_18_4_ledger_hygiene_claims_hold_in_the_tree() {
 #[test]
 fn release_0_18_4_ledger_cites_the_adopted_test_commits_under_the_rpc_io_error_patch() {
     let ledger = read_repo_file("docs/fork/PATCHSET.md");
-    let section = patchset_opening_section(&ledger);
+    let section = patchset_section_0_18_4(&ledger);
     let prose = joined_prose(section);
     let legend_start = prose.find("The `rpc io error` patch is fork commits").expect("legend");
     let legend = &prose[legend_start..];

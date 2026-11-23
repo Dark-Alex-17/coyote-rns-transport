@@ -8,7 +8,7 @@ no library behaviour (a test-only change such as a fixture hardening or a
 test hygiene pass, release tooling, CI) is a Changed (or, for a deleted file,
 Removed) bullet of its own, marked as such.
 
-## Unreleased
+## 0.18.5 - 2026-11-23
 
 ### Added
 
@@ -257,6 +257,51 @@ Removed) bullet of its own, marked as such.
 
 ### Changed
 
+- The crate version is `0.18.5`; the discovery announce carries it in the
+  `TRANSPORT_VERS` field (`discovery/announce.rs`), so peers observe the fork
+  patch release through discovery. The bump is a patch one under the README
+  policy, as `0.15.1`, `0.18.1`, `0.18.2`, `0.18.3` and `0.18.4` were: every
+  change since `0.18.4` is additive API a consumer need not opt into (the
+  five path calls, `drop_path_settled`, `PathRow`, `is_transient()` on the
+  `#[non_exhaustive]` `RpcError`, `path_interface` and the
+  `#[non_exhaustive]` `PathIface`) plus the `### Fixed` timing correction
+  that sizes the first hop as Python does, with no public item removed or
+  changed, so there is no `### Breaking` subsection. The only observable
+  behaviour change for an existing consumer is the shorter link
+  establishment timeout named in `### Fixed`. `cargo semver-checks` against
+  `v0.18.4` reports 0 findings; additive changes are below
+  cargo-semver-checks' default lint level, so the patch-level run the
+  release check makes has nothing to report, and the release check runs it
+  as `tools/scripts/semver-major-findings-check.sh
+  coyote-rns-transport-v0.18.4 0`. The release contracts are pinned by
+  `crates/apps/reticulumd/tests/fork_publish_contract.rs` and
+  `fork_release_docs_contract.rs`; its
+  `fork_release_docs_contract_parts/release_0_18_5_probe.rs` pins the heading
+  date and its place as the first release heading, the subsection set
+  `### Added`, `### Changed`, `### Fixed` of this release with no
+  `### Breaking`, the four `### Added` items by their names, the patch digit
+  and the semver sentence above, the README patch-list order with the 0.18.5
+  block on top, the fourteen parts the include-set bullet names, and the
+  usage pins a consumer reads cold: the ledger's release patch, the README
+  consumer note with the recovery recipe and the publish contract's two
+  hand pins reading `0.18.5`.
+- Release docs contract, test-only: `fork_release_docs_contract.rs` includes
+  its tests from `fork_release_docs_contract_parts/`
+  (`crate_readme_sections.rs`, `readme_patch_list.rs`,
+  `release_0_17_0_probe.rs`, `release_0_17_0_probe2.rs`,
+  `release_0_17_0_probe3.rs`, `release_0_17_0_probe4.rs`,
+  `release_0_18_0_probe.rs`, `release_0_18_1_probe.rs`,
+  `release_0_18_2_probe.rs`, `release_0_18_3_probe.rs`,
+  `release_0_18_4_probe.rs`, `release_0_18_5_probe.rs`,
+  `release_notes_breaking.rs` and `request_layer_api_docs.rs`); the
+  patch-list pin opens on the 0.18.5 block and keeps the 0.18.4 block as a
+  demoted twin with its needles shared through a const, as the 0.18.3,
+  0.18.2, 0.18.1, 0.18.0 and 0.17.0 blocks are; the 0.18.4 probe keeps its
+  date pin and no longer claims the first release heading, the ledger
+  opening, the README dependency snippet or the manifest version, which
+  `release_0_18_5_probe.rs` owns; and the label pins in
+  `fork_publish_contract_parts/ledger_contract.rs` read `0.18.5` first,
+  with no `Unreleased` label, since a release tree carries no stub.
 - Test-only: the mock rnsd peer `shared_instance_rpc/tests/mock_server.rs`
   serves a scripted sequence of connections on one listener
   (`spawn_sequence`, `finish_all`), one per reply the way `rpc_loop` closes
@@ -276,8 +321,9 @@ Removed) bullet of its own, marked as such.
   `wait_for_out_link_closed`, the closed event for a given link returning
   its close reason, beside `wait_for_out_link_active`.
 - Test-only:
-  `fork_publish_contract_parts/ledger_contract.rs` extends the full-hash
-  ledger pin to the reopened `Unreleased` section.
+  the full-hash ledger pin in `fork_publish_contract_parts/ledger_contract.rs`
+  covered the reopened `## Unreleased` section of `docs/fork/PATCHSET.md`
+  while the 0.18.5 work was in progress.
 - Test-only: the harness support file `tests/support/python_channel_process.rs`
   gains `terminate_child_gracefully` (SIGTERM to the spawned child, a
   bounded reap, a clean exit asserted) and

@@ -33,8 +33,8 @@ belongs to. Patch ids: Q1 is rnsd path rpc, Q2 is path interface, Q3 is
 link establishment timeout. The `rnsd path rpc` patch is fork commits
 `1528b698`, `bab079de`, `6f22dca2`, `0adb116e`, `75126a26`, `5faf736d`,
 `50a177eb`, `60410ca9`, `cc67d5f3`, `d0e34ef2`, `ef50cff5`, `689f5ab3`,
-`31576efd`, `7edc5c91`, `1867e6e4`, `800fa3ee`, `5d7fd412`, `d6eee86a` and
-`8bc21180`. The `path interface` patch is fork commits `3fddb1b4`,
+`31576efd`, `7edc5c91`, `1867e6e4`, `800fa3ee`, `5d7fd412`, `d6eee86a`,
+`8bc21180` and `c3eaddcc`. The `path interface` patch is fork commits `3fddb1b4`,
 `280495b7`, `862a1128`, `6883f5ee`, `dd935a20`, `3b2ffcb5`, `061b3176`,
 `bf3968a0`, `14176cc2`, `f052002c`, `7ecd0eca`, `42748fdd`, `31576efd`,
 `7edc5c91`, `1867e6e4`, `800fa3ee`, `5d7fd412`, `d6eee86a` and `8bc21180`.
@@ -43,7 +43,7 @@ The `link establishment timeout` patch is fork commits `a451a06e`,
 rnsd path rpc interop` patch carries no other id and is fork commits
 `60410ca9`, `cc67d5f3`, `d0e34ef2`, `ef50cff5`, `689f5ab3`, `a451a06e`,
 `312ede0a`, `ad5c7e15`, `cc69ed29`, `02b2cfb9`, `9b21a2c9`, `1867e6e4`,
-`800fa3ee`, `5d7fd412`, `d6eee86a` and `8bc21180`.
+`800fa3ee`, `5d7fd412`, `d6eee86a`, `8bc21180` and `c3eaddcc`.
 
 | File | Patch |
 | --- | --- |
@@ -100,7 +100,7 @@ rnsd path rpc interop` patch carries no other id and is fork commits
 Fork commits `1528b698`, `bab079de`, `6f22dca2`, `0adb116e`, `75126a26`,
 `5faf736d`, `50a177eb`, `60410ca9`, `cc67d5f3`, `d0e34ef2`, `ef50cff5`,
 `689f5ab3`, `31576efd`, `7edc5c91`, `1867e6e4`, `800fa3ee`, `5d7fd412`,
-`d6eee86a` and `8bc21180`: Q1, rnsd path rpc.
+`d6eee86a`, `8bc21180` and `c3eaddcc`: Q1, rnsd path rpc.
 Upstream site: the fork-added rnsd RPC client
 `crates/libs/rns-transport/src/transport/shared_instance_rpc.rs` (O2 of
 `## 0.18.3`, P2 of `## 0.18.4`) and its sub-parts; upstream carries none
@@ -279,7 +279,7 @@ that the recipe names `Transport::request_path`; has the window sentence in
 the README, CHANGELOG and `drop_path_settled` rustdoc attribute the 250 ms
 tick to the cull, read by the helper on its next 50 ms poll; and widens the
 settle figure to about 50 to 180 ms after a 54 ms run.
-Seven hygiene commits follow. `31576efd` renames the private module
+Eight hygiene commits follow. `31576efd` renames the private module
 `shared_instance_rpc/path_table.rs` to `path_row.rs`, which drops the
 `fn@` disambiguator its rustdoc links needed, corrects the `PathRow` field
 cites to `RNS/Reticulum.py:1642-1645`, has `framing.rs` say a request map
@@ -310,6 +310,8 @@ and shares the `{sha256}` digest prefix from `tests/support/stdlib_rpc_frame.rs`
 a 400 ms ceiling, and guards the every-error census with an exhaustive
 in-crate `match` over `RpcError` in `shared_instance_rpc/tests/paths.rs`,
 so a new variant fails to compile with a pointer to the list to extend.
+`c3eaddcc` drops the release stamp from that list's doc, the in-crate match
+being the guard, and keeps the `Test-only` prefix on the CHANGELOG bullet.
 
 Fork commits `3fddb1b4`, `280495b7`, `862a1128`, `6883f5ee`, `dd935a20`,
 `3b2ffcb5`, `061b3176`, `bf3968a0`, `14176cc2`, `f052002c`, `7ecd0eca`,
@@ -493,7 +495,7 @@ README's recipe pin sentence and names its one-hop bound in the CHANGELOG.
 
 Fork commits `60410ca9`, `cc67d5f3`, `d0e34ef2`, `ef50cff5`, `689f5ab3`,
 `a451a06e`, `312ede0a`, `ad5c7e15`, `cc69ed29`, `02b2cfb9`, `9b21a2c9`,
-`1867e6e4`, `800fa3ee`, `5d7fd412`, `d6eee86a` and `8bc21180`: Python-in-the-loop rnsd path rpc
+`1867e6e4`, `800fa3ee`, `5d7fd412`, `d6eee86a`, `8bc21180` and `c3eaddcc`: Python-in-the-loop rnsd path rpc
 interop. `60410ca9` adds the part
 `crates/apps/reticulumd/tests/python_channel_interop_parts/python_shared_instance_rpc_paths_live.rs`,
 included from `python_channel_interop.rs`, an ignored test against a live
@@ -646,7 +648,7 @@ wait, and extends the `readme_patch_list.rs` pins to this
 ledger's qualified budget wording and the softened recipe claim.
 `9b21a2c9` quotes the probe shell's temp paths and makes the graceful stop
 report a child that had already exited instead of signalling its pid.
-Five hygiene commits follow. `1867e6e4` hoists the announce waiter that
+Six hygiene commits follow. `1867e6e4` hoists the announce waiter that
 `python_shared_instance_announce_emitted.rs` carried into
 `support/python_channel_events.rs` as `wait_for_announce_event`, shares the
 take-A-down step of the roaming test, its budget probe and the restart test
@@ -671,6 +673,9 @@ to the roaming parts.
 `8bc21180` points the budget probe's README pin clause at this recipe on the
 same topology, binds the B stats entry for its assertion message, and names
 the first-hop range in the transport-enabled live part's header.
+`c3eaddcc` tightens the live part's false-drop bound to 1 s at both sites
+and says what it is: one dial, a hang guard well under the call timeout, not
+a proof that no poll ran.
 
 ## 0.18.4 (upstream 0.14.0)
 

@@ -34,10 +34,10 @@ link establishment timeout. The `rnsd path rpc` patch is fork commits
 `1528b698`, `bab079de`, `6f22dca2`, `0adb116e`, `75126a26`, `5faf736d`,
 `50a177eb`, `60410ca9`, `cc67d5f3`, `d0e34ef2`, `ef50cff5` and `689f5ab3`.
 The `path interface` patch is fork commits `3fddb1b4`, `280495b7`,
-`862a1128`, `6883f5ee`, `dd935a20`, `3b2ffcb5` and `061b3176`. The `link
-establishment timeout` patch is fork commits `a451a06e` and `312ede0a`.
-The
-`Python-in-the-loop rnsd path rpc interop` patch carries no other id and is
+`862a1128`, `6883f5ee`, `dd935a20`, `3b2ffcb5`, `061b3176`, `bf3968a0` and
+`14176cc2`. The `link establishment timeout` patch is fork commits
+`a451a06e` and `312ede0a`. The `Python-in-the-loop rnsd path rpc interop`
+patch carries no other id and is
 fork commits `60410ca9`, `cc67d5f3`, `d0e34ef2`, `ef50cff5`, `689f5ab3`,
 `a451a06e`, `312ede0a`, `ad5c7e15`, `cc69ed29`, `02b2cfb9` and `9b21a2c9`.
 
@@ -80,6 +80,7 @@ fork commits `60410ca9`, `cc67d5f3`, `d0e34ef2`, `ef50cff5`, `689f5ab3`,
 | `crates/libs/rns-transport/tests/link_establishment_timeout_shared_instance_probe.rs` | link establishment timeout |
 | `crates/libs/rns-transport/tests/path_interface_api.rs` | path interface |
 | `crates/libs/rns-transport/tests/path_interface_usage_probe.rs` | path interface |
+| `crates/libs/rns-transport/tests/path_interface_usage_probe2.rs` | path interface |
 | `crates/libs/rns-transport/tests/shared_instance_rpc_api.rs` | rnsd path rpc |
 | `crates/libs/rns-transport/tests/shared_instance_rpc_io_kind_probe.rs` | rnsd path rpc |
 | `crates/libs/rns-transport/tests/shared_instance_rpc_paths_probe.rs` | rnsd path rpc |
@@ -268,7 +269,7 @@ tick to the cull, read by the helper on its next 50 ms poll; and widens the
 settle figure to about 50 to 180 ms after a 54 ms run.
 
 Fork commits `3fddb1b4`, `280495b7`, `862a1128`, `6883f5ee`, `dd935a20`,
-`3b2ffcb5` and `061b3176`: Q2, path interface.
+`3b2ffcb5`, `061b3176`, `bf3968a0` and `14176cc2`: Q2, path interface.
 Upstream site: `Transport::path_status` in
 `crates/libs/rns-transport/src/transport/links_parts/transport_sections/close_channel.rs`,
 which reads one path table entry under the handler lock and reports the
@@ -336,6 +337,22 @@ README that `learned_at` is the time the path was recorded, on the
 accepted announce or on a tunnel or disk restore, lists `path_interface`
 and `PathIface` in the README `## What this is` inventory, and names the
 detached-interface pin in the CHANGELOG bullet and README paragraph.
+`bf3968a0` corrects that sentence in the rustdoc, CHANGELOG and README: a
+disk restore keeps the persisted row's own timestamp carried across the
+restart (`restore_python_entry`, as Python keeps `serialised_entry[1]`,
+`RNS/Transport.py:419`) while a tunnel restore stamps the restore moment,
+drops the unpinned sub-millisecond figure, pins both restore cases in
+`tests_parts/path_interface_api.rs`, puts
+`#[deny(clippy::await_holding_invalid_type)]` on `path_interface` like its
+siblings, and has the `readme_patch_list.rs` pin read the CHANGELOG claims
+from the `path_interface` bullet alone. `14176cc2` adopts the black-box
+`crates/libs/rns-transport/tests/path_interface_usage_probe2.rs`: a path
+learned through a transport-enabled relay reads two hops on the learner's
+own named client interface, the record agrees with the `path_table` row
+including `learned_at` against `timestamp_secs`, two destinations keep
+independent records and expiring one leaves the other, the read is `Send`
+and stable over a thousand reads, and the `#[non_exhaustive]` struct
+literal and exhaustive pattern fail to compile for a consumer under rustc.
 
 Fork commits `a451a06e` and `312ede0a`: Q3, link establishment timeout.
 Upstream site: `Transport::link`'s establishment timeout in

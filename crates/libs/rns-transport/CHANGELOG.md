@@ -227,8 +227,9 @@ Removed) bullet of its own, marked as such.
   `path_status`, whose shape is unchanged;
   `path_table` exports the same facts for every destination whose
   interface is still registered, while a path whose interface has since
-  been detached is omitted there and still returned here. Only Python's
-  path-table branch is mirrored: a destination in `destinations_map`
+  been detached is omitted there and still returned here, until the next
+  cleanup pass, every 10 s, culls an entry whose interface is gone. Only
+  Python's path-table branch is mirrored: a destination in `destinations_map`
   answers the shared-instance interface there (`:3163`), where a
   destination of this transport's own has no path table entry and answers
   `None`. A shared-instance client or a direct LAN setup can check the

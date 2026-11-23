@@ -32,7 +32,9 @@ pub struct PathIface {
     /// (`transport::shared_instance_rpc::PathRow`, `RNS/Transport.py:4122`).
     /// The table entry keeps an `Instant`, so this is `SystemTime::now()`
     /// less the entry's age, carrying the imprecision of sampling the two
-    /// clocks.
+    /// clocks; the `Instant` does not advance across a system suspend, so a
+    /// path learned before a suspend reads later than it was, the same as
+    /// `path_table()`'s `timestamp_secs`.
     pub learned_at: std::time::SystemTime,
     /// The announce's hop count, the `IDX_PT_HOPS` slot (`RNS/Transport.py:4124`);
     /// the same figure [`Transport::hops_to`] answers.
@@ -48,7 +50,8 @@ impl Transport {
     /// exports the same facts for every destination whose interface is still
     /// registered with the manager; a path whose interface has since been
     /// detached is omitted there and still returned here, with `name` as
-    /// `None`.
+    /// `None`, until the next cleanup pass, every 10 s, culls an entry whose
+    /// interface is gone.
     ///
     /// On a failed link, look the path's interface up here and check it
     /// against the interface state you hold: in-process the state stream is

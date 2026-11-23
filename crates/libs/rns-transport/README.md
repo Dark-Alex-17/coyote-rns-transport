@@ -1317,8 +1317,9 @@ across the restart, as Python keeps `serialised_entry[1]`,
 carrying the imprecision of sampling the two clocks; and `hops`.
 `Transport::path_table` exports the same facts for every destination whose
 interface is still registered; a path whose interface has since been
-detached is omitted there and still returned by `path_interface`. Python's
-`Transport.next_hop_interface` returns the interface object itself
+detached is omitted there and still returned by `path_interface`, until the
+next cleanup pass, every 10 s, culls an entry whose interface is gone.
+Python's `Transport.next_hop_interface` returns the interface object itself
 (`RNS/Transport.py:3156-3164`); only its path-table branch is mirrored,
 since a destination in `destinations_map` answers the shared-instance
 interface there (`:3163`) where a destination of this transport's own has

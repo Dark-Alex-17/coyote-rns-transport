@@ -909,6 +909,7 @@ fn crate_readme_path_table_section_describes_the_in_process_accessor() {
         "`Transport::interface_events()`",
         "`RNS/Transport.py:3156-3164`",
         "no longer registered with the manager",
+        "until the next cleanup pass, every 10 s",
         "`destinations_map`",
         "`tests/path_interface_api.rs`",
         "`transport/tests_parts/path_interface_api.rs`",

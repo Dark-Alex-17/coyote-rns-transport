@@ -427,8 +427,7 @@ the `unwrap_or(UNIX_EPOCH)` arm covers only an unrepresentable result.
 `d6eee86a` moves the README pins in `readme_patch_list.rs` to the recipe
 sentence's scoped topology qualifier and the unanswered-link-request wording.
 
-Fork commits `a451a06e`, `312ede0a`, `7edc5c91`, `800fa3ee` and `d6eee86a`:
-Q3, link establishment timeout.
+Fork commits `a451a06e`, `312ede0a`, `7edc5c91`, `800fa3ee` and `d6eee86a`: Q3, link establishment timeout.
 Upstream site: `Transport::link`'s establishment timeout in
 `crates/libs/rns-transport/src/transport/links_parts/transport_sections/link_establishment.rs`
 and its caller in `link_open.rs`, the `RNS.Link.__init__` sizing

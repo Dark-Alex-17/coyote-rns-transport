@@ -407,10 +407,7 @@ and `remove_stale`), and notes that the entry's `Instant` does not advance
 across a system suspend, as `path_table`'s `timestamp_secs` does not.
 Five hygiene commits follow. `31576efd` has the `learned_at` rustdoc say
 how the `checked_sub` conversion to wall-clock time fails (reworded in
-`5d7fd412`: a wall clock reading less than the entry's age yields a
-`SystemTime` before `UNIX_EPOCH`, which is representable, and the
-`unwrap_or(UNIX_EPOCH)` arm covers only an unrepresentable result), names
-the restored row age in
+`5d7fd412`), names the restored row age in
 `tests_parts/path_interface_api.rs` as a 120 s constant (an age past the
 uptime is clamped to now on a Windows boot-relative `Instant`), and adds the
 pin there that `handle_cleanup` culls a detached interface's path.
@@ -419,7 +416,10 @@ message naming the `learned_at` read and its announce bracket. `1867e6e4`
 has `fork_release_docs_contract.rs` walk the renamed `path_row.rs` path.
 `800fa3ee` is the wording pass that adds the suspend caveat to the
 `learned_at` clause in the README and CHANGELOG and groups the in-process
-read under its own README heading.
+read under its own README heading. `5d7fd412` rewords the `learned_at`
+clause to what `checked_sub` does: a wall clock reading less than the
+entry's age yields a representable `SystemTime` before `UNIX_EPOCH`, and
+the `unwrap_or(UNIX_EPOCH)` arm covers only an unrepresentable result.
 
 Fork commits `a451a06e`, `312ede0a`, `7edc5c91` and `800fa3ee`: Q3, link establishment timeout.
 Upstream site: `Transport::link`'s establishment timeout in
@@ -498,7 +498,8 @@ that str; `first_hop_timeout` is a finite float between 6.0 and 60.0
 (observed 6.000004); a random hash drops as `false` with the row still listed;
 `drop_path` answers `true` and the immediate re-read is recorded (under a
 millisecond after the drop the row is still listed with timestamp 0 and
-the next hop still named; `None` at about 160 to 220 ms); the second drop is
+the next hop still named; `None` at about 160 ms as first measured, widened
+to 160 to 220 ms in `800fa3ee`); the second drop is
 `false`; after a re-announce `drop_path_settled` is `true` (observed inside
 one 250 ms tick) with the next hop `None` and the row gone; and
 `drop_all_via(row.via)` counts at least 1. The same commit gives the

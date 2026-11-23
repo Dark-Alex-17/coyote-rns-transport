@@ -34,7 +34,11 @@ pub struct PathIface {
     /// less the entry's age, carrying the imprecision of sampling the two
     /// clocks; the `Instant` does not advance across a system suspend, so a
     /// path learned before a suspend reads later than it was, the same as
-    /// `path_table()`'s `timestamp_secs`.
+    /// `path_table()`'s `timestamp_secs`. When the wall clock reads earlier
+    /// than the entry's age (the clock stepped back), this is clamped to
+    /// `UNIX_EPOCH` rather than failing, where `path_table()` answers its
+    /// analogous clock condition, a wall clock before the epoch, with an
+    /// `io::Error`.
     pub learned_at: std::time::SystemTime,
     /// The announce's hop count, the `IDX_PT_HOPS` slot (`RNS/Transport.py:4124`);
     /// the same figure [`Transport::hops_to`] answers.

@@ -6,7 +6,7 @@
 //! server closes. The calls: [`interface_stats`], the
 //! `{"get": "interface_stats"}` request rnstatus sends
 //! (`RNS/Reticulum.py:1397-1402`), decoded into [`InterfaceStats`]; and the
-//! path calls [`fn@path_table`] (rows of [`PathRow`]),
+//! path calls [`path_table`] (rows of [`PathRow`]),
 //! [`next_hop_interface_name`], [`first_hop_timeout`], [`drop_path`] and
 //! [`drop_all_via`], with [`drop_path_settled`] waiting out the cull that
 //! follows a drop. Typed fields keep the raw msgpack beside them. Python has
@@ -28,12 +28,12 @@ use crate::iface::local::LocalUnixEndpoint;
 mod decode;
 mod framing;
 mod handshake;
-mod path_table;
+mod path_row;
 mod paths;
 #[cfg(test)]
 mod tests;
 
-pub use path_table::PathRow;
+pub use path_row::PathRow;
 pub use paths::{
     drop_all_via, drop_path, drop_path_settled, first_hop_timeout, next_hop_interface_name,
     path_table,
@@ -151,24 +151,32 @@ impl fmt::Debug for RpcKey {
     }
 }
 
-/// What a call can fail with.
+/// What a call can fail with. Fork-only: Python has no typed client, and
+/// `get_rpc_client` (`RNS/Reticulum.py:1336`) hands back the stdlib
+/// `Client`, whose exceptions arrive as they are.
 #[non_exhaustive]
 #[derive(Debug, thiserror::Error)]
 pub enum RpcError {
-    /// The TCP or unix connect itself failed; nothing was exchanged. A
-    /// `ConnectionReset` kind here is the overflowed dial (see
-    /// [`RpcError::Io`]); read it through [`RpcError::io_kind`].
+    /// The TCP or unix connect to the listener (`RNS/Reticulum.py:364`)
+    /// itself failed; nothing was exchanged. A `ConnectionReset` kind here
+    /// is the overflowed dial (see [`RpcError::Io`]); read it through
+    /// [`RpcError::io_kind`].
     #[error("connect failed: {0}")]
     Connect(#[source] std::io::Error),
     /// The server rejected our answer to its challenge with `#FAILURE#`
     /// (anything but `#WELCOME#`), or its answer to our challenge did not
     /// verify, in which case we attempt to send `#FAILURE#` ourselves (a
-    /// notice a server that has already hung up never reads).
+    /// notice a server that has already hung up never reads). The key both
+    /// sides HMAC with is the listener's `rpc_key`
+    /// (`RNS/Reticulum.py:360-364`).
     #[error("shared instance rpc authentication failed")]
     Authentication,
-    /// The bytes were wrong: a bad length, an oversized frame, or an
-    /// unexpected handshake token (or, in theory only, a request that would
-    /// not encode; writing msgpack into a `Vec` does not fail).
+    /// The bytes were wrong: a bad length, an oversized frame or an
+    /// unexpected token in the handshake the listener's `accept` runs
+    /// (`RNS/Reticulum.py:1277`), or a bad length or an oversized frame on
+    /// the reply `rpc_return` sends (`RNS/Reticulum.py:1271-1272`); or, in
+    /// theory only, a request that would not encode (writing msgpack into a
+    /// `Vec` does not fail).
     #[error("shared instance rpc protocol error: {0}")]
     Protocol(String),
     /// Every io failure after the dial succeeded (a failed write or flush, a
@@ -194,26 +202,32 @@ pub enum RpcError {
     #[error("shared instance rpc io error after connect: {0}")]
     Io(#[source] std::io::Error),
     /// The reply was not the msgpack shape the call expects: the map
-    /// `get_interface_stats` builds, the row array of `get_path_table`, or
-    /// the scalar the next-hop, timeout and drop calls answer with.
+    /// `get_interface_stats` builds (`RNS/Reticulum.py:1397-1628`), the row
+    /// array of `get_path_table` (`RNS/Reticulum.py:1638-1648`), or the
+    /// scalar the next-hop, timeout and drop calls answer with.
     #[error("shared instance rpc reply did not decode: {0}")]
     Decode(String),
     /// The server's challenge named a digest outside Python's
-    /// `_ALLOWED_DIGESTS`.
+    /// `_ALLOWED_DIGESTS`; the listener (`RNS/Reticulum.py:364`) names the
+    /// digest its Python version's `multiprocessing.connection` defaults to.
     #[error("unsupported challenge digest: {0}")]
     UnsupportedDigest(String),
     /// Key material that cannot be an `authkey`: bad hex, an empty key, or a
-    /// transport identity file of the wrong length or unreadable.
+    /// transport identity file of the wrong length or unreadable (the two
+    /// sources of Python's `rpc_key`, `RNS/Reticulum.py:360-361`,
+    /// `:499-505`).
     #[error("invalid rpc key material")]
     InvalidKeyMaterial,
     /// The whole call, connect included, outran the caller's budget.
+    /// Fork-only: Python's `Client` blocks without one.
     #[error("shared instance rpc call timed out")]
     Timeout,
 }
 
 impl RpcError {
     /// The io error kind behind an [`RpcError::Io`] or [`RpcError::Connect`],
-    /// `None` for every other variant. The kinds worth a retry are
+    /// `None` for every other variant. Fork-only: Python's client surfaces
+    /// the `OSError` itself. The kinds worth a retry are
     /// `ConnectionReset`, `ConnectionAborted`, `BrokenPipe` and
     /// `UnexpectedEof` (the [`RpcError::Io`] docs say why);
     /// `Connect(ConnectionRefused)` is the listener not being there and is
@@ -258,10 +272,11 @@ impl RpcError {
 #[derive(Debug, Clone, PartialEq)]
 pub struct InterfaceStats {
     /// One entry per interface the shared instance runs, in the server's
-    /// order.
+    /// order (`RNS/Reticulum.py:1406`, `:1578`).
     pub interfaces: Vec<InterfaceStat>,
     /// The whole top-level map as received, with the totals (`rxb`, `txb`,
-    /// `rxs`, `txs`) and whatever else the server's version adds.
+    /// `rxs`, `txs`, `RNS/Reticulum.py:1579-1582`) and whatever else the
+    /// server's version adds.
     pub raw: rmpv::Value,
 }
 
@@ -269,26 +284,26 @@ pub struct InterfaceStats {
 #[non_exhaustive]
 #[derive(Debug, Clone, PartialEq)]
 pub struct InterfaceStat {
-    /// `str(interface)`, the `Type[name]` form.
+    /// `str(interface)`, the `Type[name]` form (`RNS/Reticulum.py:1527`).
     pub name: String,
-    /// The configured interface name.
+    /// The configured interface name (`RNS/Reticulum.py:1528`).
     pub short_name: String,
     /// The Python class name, such as `AutoInterface` or
-    /// `TCPServerInterface` (the `type` key).
+    /// `TCPServerInterface` (the `type` key, `RNS/Reticulum.py:1530`).
     pub kind: String,
-    /// `interface.online` (the `status` key).
+    /// `interface.online` (the `status` key, `RNS/Reticulum.py:1560`).
     pub online: bool,
     /// `len(interface.peers)` for an interface with a `peers` attribute
     /// (`RNS/Reticulum.py:1501-1503`); `None` when the key is absent or nil.
     pub peers: Option<u64>,
     /// `interface.clients` (`RNS/Reticulum.py:1409-1410`); `None` when nil.
     pub clients: Option<u64>,
-    /// Bytes received.
+    /// Bytes received, `interface.rxb` (`RNS/Reticulum.py:1532`).
     pub rxb: u64,
-    /// Bytes sent.
+    /// Bytes sent, `interface.txb` (`RNS/Reticulum.py:1533`).
     pub txb: u64,
     /// This entry's whole map as received, `hash`, `mtu`, `mode` and the
-    /// rest included.
+    /// rest included (`RNS/Reticulum.py:1407-1568`).
     pub raw: rmpv::Value,
 }
 

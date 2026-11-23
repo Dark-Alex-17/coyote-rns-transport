@@ -137,18 +137,15 @@ async fn path_table_reply_decodes_rows_and_keeps_the_raw_entry() {
 #[test]
 fn path_table_decode_rejects_bad_hashes_and_shapes() {
     let short_hash = Value::Array(vec![row(vec![("hash", Some(Value::Binary(vec![0x01; 15])))])]);
-    assert_decode(&path_table::path_table(short_hash), "hash");
+    assert_decode(&path_row::path_table(short_hash), "hash");
     let str_via = Value::Array(vec![row(vec![("via", Some(Value::from("5a5a")))])]);
-    assert_decode(&path_table::path_table(str_via), "via");
+    assert_decode(&path_row::path_table(str_via), "via");
     let wide_hops = Value::Array(vec![row(vec![("hops", Some(Value::from(256)))])]);
-    assert_decode(&path_table::path_table(wide_hops), "hops");
+    assert_decode(&path_row::path_table(wide_hops), "hops");
     let missing_interface = Value::Array(vec![row(vec![("interface", None)])]);
-    assert_decode(&path_table::path_table(missing_interface), "interface");
-    assert_decode(
-        &path_table::path_table(map(vec![("interfaces", Value::Array(vec![]))])),
-        "array",
-    );
-    assert_decode(&path_table::path_table(Value::Array(vec![Value::from(1)])), "map");
+    assert_decode(&path_row::path_table(missing_interface), "interface");
+    assert_decode(&path_row::path_table(map(vec![("interfaces", Value::Array(vec![]))])), "array");
+    assert_decode(&path_row::path_table(Value::Array(vec![Value::from(1)])), "map");
 }
 
 #[tokio::test]

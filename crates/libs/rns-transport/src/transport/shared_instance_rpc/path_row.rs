@@ -14,7 +14,7 @@ use crate::hash::{AddressHash, ADDRESS_HASH_SIZE};
 #[non_exhaustive]
 #[derive(Debug, Clone, PartialEq)]
 pub struct PathRow {
-    /// The destination hash, the `path_table` key (`RNS/Reticulum.py:1641`).
+    /// The destination hash, the `path_table` key (`RNS/Reticulum.py:1642`).
     pub hash: AddressHash,
     /// `path_table[dst][0]`, when the path was learned, as a Unix time
     /// (`RNS/Reticulum.py:1642`). A path dropped through `expire_path` but
@@ -28,15 +28,15 @@ pub struct PathRow {
     /// has `via == hash`.
     pub via: AddressHash,
     /// `path_table[dst][2]`, the hop count to the destination
-    /// (`RNS/Reticulum.py:1644`).
+    /// (`RNS/Reticulum.py:1643`).
     pub hops: u8,
     /// `path_table[dst][3]`, when the path expires, as a Unix time
-    /// (`RNS/Reticulum.py:1645`).
+    /// (`RNS/Reticulum.py:1644`).
     pub expires: f64,
     /// `str(path_table[dst][5])`, the receiving interface in its
-    /// `Type[name]` form (`RNS/Reticulum.py:1646`).
+    /// `Type[name]` form (`RNS/Reticulum.py:1645`).
     pub interface: String,
-    /// This entry's whole map as received (`RNS/Reticulum.py:1641-1646`),
+    /// This entry's whole map as received (`RNS/Reticulum.py:1642-1645`),
     /// any key a newer server adds included.
     pub raw: Value,
 }

@@ -77,6 +77,11 @@ fn within_a_second(actual: std::time::SystemTime, expected: std::time::SystemTim
     expected - second <= actual && actual <= expected + second
 }
 
+// `Instant` is boot-relative on Windows, where `restore_python_entry` clamps an
+// age past the uptime to now; an age under typical uptime keeps the restored
+// timestamp representable.
+const RESTORED_ROW_AGE: Duration = Duration::from_secs(120);
+
 #[tokio::test]
 #[deny(clippy::await_holding_invalid_type)]
 async fn path_interface_learned_at_keeps_a_disk_restored_rows_own_timestamp() {
@@ -92,7 +97,7 @@ async fn path_interface_learned_at_keeps_a_disk_restored_rows_own_timestamp() {
     transport.get_handler().lock().await.path_table.restore_python_entry(
         super::path_table::PythonPathEntry {
             destination,
-            timestamp_secs: now_unix - 3600.0,
+            timestamp_secs: now_unix - RESTORED_ROW_AGE.as_secs_f64(),
             received_from,
             hops: 2,
             expires_secs: now_unix + 3600.0,
@@ -108,10 +113,10 @@ async fn path_interface_learned_at_keeps_a_disk_restored_rows_own_timestamp() {
     let path = transport.path_interface(&destination).await.expect("the restored path is on file");
     assert_eq!(path.hops, 2);
     assert_eq!(path.iface, iface);
-    let an_hour_ago = std::time::SystemTime::now() - Duration::from_secs(3600);
+    let two_minutes_ago = std::time::SystemTime::now() - RESTORED_ROW_AGE;
     assert!(
-        within_a_second(path.learned_at, an_hour_ago),
-        "learned_at {:?} is the persisted row's hour-old timestamp, about {an_hour_ago:?}",
+        within_a_second(path.learned_at, two_minutes_ago),
+        "learned_at {:?} is the persisted row's two-minute-old timestamp, about {two_minutes_ago:?}",
         path.learned_at
     );
 }
@@ -146,5 +151,51 @@ async fn path_interface_learned_at_is_the_restore_moment_for_a_tunnel_restore() 
         within_a_second(path.learned_at, now),
         "learned_at {:?} is the restore moment, about {now:?}",
         path.learned_at
+    );
+}
+
+#[tokio::test]
+#[deny(clippy::await_holding_invalid_type)]
+async fn path_interface_entry_of_a_detached_interface_is_culled_by_the_cleanup_pass() {
+    let identity = PrivateIdentity::new_from_rand(OsRng);
+    let transport = Transport::new(TransportConfig::new("path-interface-cull", &identity, true));
+    let destination = AddressHash::new_from_hash(&Hash::new_from_slice(b"destination"));
+    let next_hop = AddressHash::new_from_hash(&Hash::new_from_slice(b"next-hop"));
+    let iface = *transport.iface_manager().lock().await.new_channel(16).address();
+    assert!(transport
+        .iface_manager()
+        .lock()
+        .await
+        .set_display_name(iface, Some("uplink".to_owned())));
+    assert!(transport.get_handler().lock().await.path_table.restore_tunnel_path_with_random_blobs(
+        super::path_table::TunnelPathRestore {
+            destination,
+            received_from: next_hop,
+            hops: 1,
+            iface,
+            packet_hash: Hash::new_from_slice(b"packet"),
+            random_blobs: vec![],
+            existing_mode: None,
+            now: std::time::Instant::now(),
+        }
+    ));
+    let attached = transport.path_interface(&destination).await.expect("the path is on file");
+    assert_eq!(attached.name.as_deref(), Some("uplink"));
+
+    assert!(transport.iface_manager().lock().await.stop_interface(iface));
+    let detached = transport
+        .path_interface(&destination)
+        .await
+        .expect("a path whose interface has since been detached is still returned");
+    assert_eq!(detached.iface, iface);
+    assert_eq!(detached.name, None, "no longer registered with the manager, no name");
+
+    // The pass the transport runs every 10 s; `remove_stale` drops an entry whose
+    // interface the manager no longer knows, whatever its age.
+    super::jobs::handle_cleanup(transport.get_handler().lock().await).await;
+    assert_eq!(
+        transport.path_interface(&destination).await,
+        None,
+        "the cleanup pass culls the entry of a detached interface"
     );
 }

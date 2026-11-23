@@ -13,7 +13,7 @@ use std::time::Duration;
 
 use rmpv::Value;
 
-use super::{call, path_table::PathRow, RpcEndpoint, RpcError, RpcKey};
+use super::{call, path_row::PathRow, RpcEndpoint, RpcError, RpcKey};
 use crate::hash::AddressHash;
 
 /// How often [`drop_path_settled`] re-reads the next hop while the cull is
@@ -38,7 +38,7 @@ pub async fn path_table(
     tokio::time::timeout(timeout, async {
         let max_hops = max_hops.map_or(Value::Nil, Value::from);
         let request = request([("get", Value::from("path_table")), ("max_hops", max_hops)])?;
-        super::path_table::path_table(call(endpoint, key, &request).await?)
+        super::path_row::path_table(call(endpoint, key, &request).await?)
     })
     .await
     .map_err(|_| RpcError::Timeout)?
@@ -171,7 +171,12 @@ pub async fn first_hop_timeout(
 /// after the drop answered `true` leaves the drop in place, and a repeated
 /// call then returns `Ok(false)` once the cull has run, so a caller that
 /// retries reads that `Ok(false)` as settled rather than as nothing to
-/// drop, or re-reads [`path_table`].
+/// drop, or re-reads [`path_table`]. A `Timeout` that cuts a dial
+/// mid-exchange leaves one error line in rnsd's log, where `rpc_loop`
+/// catches the broken connection (`RNS/Reticulum.py:1333-1334`), and
+/// nothing else. For the budget, one to two seconds covers the 250 ms cull
+/// tick plus a few polls against a loopback or LAN rnsd; a longer budget
+/// only lengthens the wait on a destination that was re-learned.
 pub async fn drop_path_settled(
     endpoint: &RpcEndpoint,
     key: &RpcKey,

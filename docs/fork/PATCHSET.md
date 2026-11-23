@@ -35,9 +35,9 @@ link establishment timeout. The `rnsd path rpc` patch is fork commits
 `50a177eb`, `60410ca9`, `cc67d5f3`, `d0e34ef2`, `ef50cff5` and `689f5ab3`.
 The `path interface` patch is fork commits `3fddb1b4`, `280495b7`,
 `862a1128`, `6883f5ee`, `dd935a20`, `3b2ffcb5`, `061b3176`, `bf3968a0`,
-`14176cc2` and `f052002c`. The `link establishment timeout` patch is fork
-commits `a451a06e` and `312ede0a`. The `Python-in-the-loop rnsd path rpc
-interop` patch carries no other id and is
+`14176cc2`, `f052002c`, `7ecd0eca` and `42748fdd`. The `link establishment
+timeout` patch is fork commits `a451a06e` and `312ede0a`. The
+`Python-in-the-loop rnsd path rpc interop` patch carries no other id and is
 fork commits `60410ca9`, `cc67d5f3`, `d0e34ef2`, `ef50cff5`, `689f5ab3`,
 `a451a06e`, `312ede0a`, `ad5c7e15`, `cc69ed29`, `02b2cfb9` and `9b21a2c9`.
 
@@ -269,8 +269,8 @@ tick to the cull, read by the helper on its next 50 ms poll; and widens the
 settle figure to about 50 to 180 ms after a 54 ms run.
 
 Fork commits `3fddb1b4`, `280495b7`, `862a1128`, `6883f5ee`, `dd935a20`,
-`3b2ffcb5`, `061b3176`, `bf3968a0`, `14176cc2` and `f052002c`: Q2, path
-interface.
+`3b2ffcb5`, `061b3176`, `bf3968a0`, `14176cc2`, `f052002c`, `7ecd0eca` and
+`42748fdd`: Q2, path interface.
 Upstream site: `Transport::path_status` in
 `crates/libs/rns-transport/src/transport/links_parts/transport_sections/close_channel.rs`,
 which reads one path table entry under the handler lock and reports the
@@ -355,6 +355,19 @@ independent records and expiring one leaves the other, the read is `Send`
 and stable over a thousand reads, and the `#[non_exhaustive]` struct
 literal and exhaustive pattern fail to compile for a consumer under rustc.
 `f052002c` is the rustfmt pass over the restore pins.
+`7ecd0eca` drives the tunnel-restore pin through
+`restore_tunnel_path_with_random_blobs`, the function the tunnel synth in
+`tunnels.rs` calls, in place of the test-only `restore_tunnel_path` seam
+that inserted whatever instant the test passed; drops the second probe's
+claim that two transports mint the same address for clients of one relay
+(addresses come from a per-manager counter, so the record is judged
+against the learner's own tag alone); and widens the same-entry re-read
+slack to 50 ms behind a 100 ms sleep in the three pins that used 25 ms.
+`42748fdd` bounds the detached-interface sentence in the rustdoc,
+CHANGELOG and README: the entry is still returned until the next cleanup
+pass, every 10 s, culls an entry whose interface is gone (`handle_cleanup`
+and `remove_stale`), and notes that the entry's `Instant` does not advance
+across a system suspend, as `path_table`'s `timestamp_secs` does not.
 
 Fork commits `a451a06e` and `312ede0a`: Q3, link establishment timeout.
 Upstream site: `Transport::link`'s establishment timeout in

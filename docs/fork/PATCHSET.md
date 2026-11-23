@@ -34,10 +34,11 @@ link establishment timeout. The `rnsd path rpc` patch is fork commits
 `1528b698`, `bab079de`, `6f22dca2`, `0adb116e`, `75126a26`, `5faf736d`,
 `50a177eb`, `60410ca9`, `cc67d5f3`, `d0e34ef2`, `ef50cff5`, `689f5ab3`,
 `31576efd`, `7edc5c91`, `1867e6e4`, `800fa3ee`, `5d7fd412`, `d6eee86a`,
-`8bc21180` and `c3eaddcc`. The `path interface` patch is fork commits `3fddb1b4`,
-`280495b7`, `862a1128`, `6883f5ee`, `dd935a20`, `3b2ffcb5`, `061b3176`,
-`bf3968a0`, `14176cc2`, `f052002c`, `7ecd0eca`, `42748fdd`, `31576efd`,
-`7edc5c91`, `1867e6e4`, `800fa3ee`, `5d7fd412`, `d6eee86a` and `8bc21180`.
+`8bc21180`, `c3eaddcc` and `dfb85779`. The `path interface` patch is fork
+commits `3fddb1b4`, `280495b7`, `862a1128`, `6883f5ee`, `dd935a20`,
+`3b2ffcb5`, `061b3176`, `bf3968a0`, `14176cc2`, `f052002c`, `7ecd0eca`,
+`42748fdd`, `31576efd`, `7edc5c91`, `1867e6e4`, `800fa3ee`, `5d7fd412`,
+`d6eee86a`, `8bc21180` and `dfb85779`.
 The `link establishment timeout` patch is fork commits `a451a06e`,
 `312ede0a`, `7edc5c91`, `800fa3ee` and `d6eee86a`. The `Python-in-the-loop
 rnsd path rpc interop` patch carries no other id and is fork commits
@@ -100,7 +101,7 @@ rnsd path rpc interop` patch carries no other id and is fork commits
 Fork commits `1528b698`, `bab079de`, `6f22dca2`, `0adb116e`, `75126a26`,
 `5faf736d`, `50a177eb`, `60410ca9`, `cc67d5f3`, `d0e34ef2`, `ef50cff5`,
 `689f5ab3`, `31576efd`, `7edc5c91`, `1867e6e4`, `800fa3ee`, `5d7fd412`,
-`d6eee86a`, `8bc21180` and `c3eaddcc`: Q1, rnsd path rpc.
+`d6eee86a`, `8bc21180`, `c3eaddcc` and `dfb85779`: Q1, rnsd path rpc.
 Upstream site: the fork-added rnsd RPC client
 `crates/libs/rns-transport/src/transport/shared_instance_rpc.rs` (O2 of
 `## 0.18.3`, P2 of `## 0.18.4`) and its sub-parts; upstream carries none
@@ -279,7 +280,7 @@ that the recipe names `Transport::request_path`; has the window sentence in
 the README, CHANGELOG and `drop_path_settled` rustdoc attribute the 250 ms
 tick to the cull, read by the helper on its next 50 ms poll; and widens the
 settle figure to about 50 to 180 ms after a 54 ms run.
-Eight hygiene commits follow. `31576efd` renames the private module
+Nine hygiene commits follow. `31576efd` renames the private module
 `shared_instance_rpc/path_table.rs` to `path_row.rs`, which drops the
 `fn@` disambiguator its rustdoc links needed, corrects the `PathRow` field
 cites to `RNS/Reticulum.py:1642-1645`, has `framing.rs` say a request map
@@ -313,11 +314,17 @@ in-crate `match` over `RpcError` in `shared_instance_rpc/tests/paths.rs`,
 so a new variant fails to compile with a pointer to the list to extend.
 `c3eaddcc` drops the release stamp from that list's doc, the in-crate match
 being the guard, and keeps the `Test-only` prefix on the CHANGELOG bullet.
+`dfb85779` has that bullet credit the abort-on-drop guard to
+`shared_instance_rpc_paths_probe.rs`, keeps the 400 ms ceiling with
+`7edc5c91` and the 700 ms budget with `8bc21180` in this narrative, gates
+the vanished-server case off Windows, where a refused loopback connect
+retries for about a second inside Winsock, and has the
+`request_layer_api_docs.rs` header admit the read-by-field rows.
 
 Fork commits `3fddb1b4`, `280495b7`, `862a1128`, `6883f5ee`, `dd935a20`,
 `3b2ffcb5`, `061b3176`, `bf3968a0`, `14176cc2`, `f052002c`, `7ecd0eca`,
 `42748fdd`, `31576efd`, `7edc5c91`, `1867e6e4`, `800fa3ee`, `5d7fd412`,
-`d6eee86a` and `8bc21180`: Q2, path interface.
+`d6eee86a`, `8bc21180` and `dfb85779`: Q2, path interface.
 Upstream site: `Transport::path_status` in
 `crates/libs/rns-transport/src/transport/links_parts/transport_sections/close_channel.rs`,
 which reads one path table entry under the handler lock and reports the
@@ -416,7 +423,7 @@ CHANGELOG and README: the entry is still returned until the next cleanup
 pass, every 10 s, culls an entry whose interface is gone (`handle_cleanup`
 and `remove_stale`), and notes that the entry's `Instant` does not advance
 across a system suspend, as `path_table`'s `timestamp_secs` does not.
-Seven hygiene commits follow. `31576efd` has the `learned_at` rustdoc say
+Eight hygiene commits follow. `31576efd` has the `learned_at` rustdoc say
 how the `checked_sub` conversion to wall-clock time fails (reworded in
 `5d7fd412`), names the restored row age in
 `tests_parts/path_interface_api.rs` as a 120 s constant (an age past the
@@ -435,6 +442,9 @@ the `unwrap_or(UNIX_EPOCH)` arm covers only an unrepresentable result.
 sentence's scoped topology qualifier and the unanswered-link-request wording.
 `8bc21180` names the cull pin in the `tests_parts/path_interface_api.rs`
 header.
+`dfb85779` has that part's restored-row-age note say `Instant` is
+boot-relative on every platform and a fresh Windows box is where the uptime
+clamp showed up.
 
 Fork commits `a451a06e`, `312ede0a`, `7edc5c91`, `800fa3ee` and `d6eee86a`: Q3, link establishment timeout.
 Upstream site: `Transport::link`'s establishment timeout in

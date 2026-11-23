@@ -216,8 +216,9 @@ Removed) bullet of its own, marked as such.
   manager's display name, the same source as
   `TransportPathTableEntry::interface_name`, `None` when the interface has
   none or is no longer registered with the manager; `learned_at` is the
-  time this transport accepted the announce, the in-process analogue of a
-  rnsd `PathRow.timestamp` (`RNS/Transport.py:4122`), converted from the
+  time this transport recorded the path, on the accepted announce or on a
+  tunnel or disk restore, the in-process analogue of a rnsd
+  `PathRow.timestamp` (`RNS/Transport.py:4122`), converted from the
   entry's `Instant` and so carrying the imprecision of sampling the two
   clocks, typically well under a millisecond; `hops` is the figure
   `hops_to` answers. `None` iff the table has no entry, the
@@ -240,8 +241,9 @@ Removed) bullet of its own, marked as such.
   `PathIface` as a `Send + Sync` value type, and by
   `tests/path_interface_usage_probe.rs`, which joins the record to
   `interface_events()` by `iface`, walks the `expire_path` then
-  `request_path` recipe after the listener goes away, and sees a
-  re-announce move `learned_at` forward.
+  `request_path` recipe after the listener goes away, sees a re-announce
+  move `learned_at` forward, and reads a path whose interface was detached
+  with `name` as `None` while `path_table` omits its row.
 
 ### Changed
 

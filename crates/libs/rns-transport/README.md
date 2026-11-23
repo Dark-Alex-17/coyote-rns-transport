@@ -78,7 +78,9 @@ their own are in the [Patch list](#patch-list)):
   `next_hop_interface_name`, `drop_path`, `drop_all_via`,
   `first_hop_timeout`, `drop_path_settled` and `PathRow` in
   `rns_transport::transport::shared_instance_rpc`, the client side of the
-  path requests rnsd serves rnpath.
+  path requests rnsd serves rnpath; in-process, `Transport::path_interface`
+  and `PathIface` in `rns_transport::transport`, the interface one path
+  rests on with its display name and learn time.
 
 The [Patch list](#patch-list) is the per-release summary of what each release
 changed and why, with `docs/fork/PATCHSET.md` as the per-file, per-commit
@@ -1308,17 +1310,17 @@ has no entry: `iface`, the interface the announce arrived on; `name`, the
 interface manager's display name for it (the `interface_name` of
 `Transport::path_table`'s rows), `None` when the interface has no display
 name or is no longer registered with the manager; `learned_at`, the time
-this transport accepted the announce, converted from the entry's monotonic
-clock and so carrying the imprecision of sampling the two clocks, typically
-well under a millisecond; and `hops`. `Transport::path_table` exports the
-same facts for every destination whose interface is still registered; a
-path whose interface has since been detached is omitted there and still
-returned by `path_interface`. Python's `Transport.next_hop_interface`
-returns the interface object itself (`RNS/Transport.py:3156-3164`); only
-its path-table branch is mirrored, since a destination in
-`destinations_map` answers the shared-instance interface there (`:3163`)
-where a destination of this transport's own has no path table entry and
-answers `None`. The in-process up/down stream is
+this transport recorded the path (the accepted announce or a restore),
+converted from the entry's monotonic clock and so carrying the imprecision
+of sampling the two clocks, typically well under a millisecond; and `hops`.
+`Transport::path_table` exports the same facts for every destination whose
+interface is still registered; a path whose interface has since been
+detached is omitted there and still returned by `path_interface`. Python's
+`Transport.next_hop_interface` returns the interface object itself
+(`RNS/Transport.py:3156-3164`); only its path-table branch is mirrored,
+since a destination in `destinations_map` answers the shared-instance
+interface there (`:3163`) where a destination of this transport's own has
+no path table entry and answers `None`. The in-process up/down stream is
 `Transport::interface_events()`: a `Disconnected` followed by `Connecting`
 or `Connected` means the interface came back since the path was learned.
 On a failed link, read the path's interface, check it against that
@@ -1327,7 +1329,8 @@ then `Transport::request_path`. Pinned by
 `transport/tests_parts/path_interface_api.rs` on loopback,
 `tests/path_interface_api.rs` from outside the crate, and
 `tests/path_interface_usage_probe.rs`, which joins the record to the event
-stream by `iface` and walks the recipe after the listener goes away.
+stream by `iface`, walks the recipe after the listener goes away, and reads
+a detached interface's path with `name` as `None` while `path_table` omits it.
 
 Pinned by the Python-in-the-loop part
 `crates/apps/reticulumd/tests/python_channel_interop_parts/python_shared_instance_rpc_paths_live.rs`

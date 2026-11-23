@@ -24,8 +24,9 @@ pub struct PathIface {
     /// until it is culled or expired). Fork-only: Python's interface object
     /// carries its own `name`.
     pub name: Option<String>,
-    /// When this transport accepted the announce, the in-process analogue of
-    /// a rnsd `PathRow.timestamp` (`transport::shared_instance_rpc::PathRow`):
+    /// When this transport recorded the path, on the accepted announce or on
+    /// a tunnel or disk restore, the in-process analogue of a rnsd
+    /// `PathRow.timestamp` (`transport::shared_instance_rpc::PathRow`):
     /// Python stores `now` in the row's `IDX_PT_TIMESTAMP` slot
     /// (`RNS/Transport.py:4122`, set at `:2458-2459`). The table entry keeps
     /// an `Instant`, so this is `SystemTime::now()` less the entry's age and

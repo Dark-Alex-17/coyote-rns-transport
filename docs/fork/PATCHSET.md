@@ -26,7 +26,7 @@ parity rows this file plus the crate README `## Known divergences from
 Python RNS` are the parity ledger; `docs/status/*` matrices are not updated
 per fork task.
 
-## Unreleased (upstream 0.14.0)
+## 0.18.5 (upstream 0.14.0)
 
 Every file changed since the `0.18.4` release and the patch each change
 belongs to. Patch ids: Q1 is rnsd path rpc, Q2 is path interface, Q3 is
@@ -45,13 +45,20 @@ The `link establishment timeout` patch is fork commits `a451a06e`,
 is fork commits `60410ca9`, `cc67d5f3`, `d0e34ef2`, `ef50cff5`,
 `689f5ab3`, `a451a06e`, `312ede0a`, `ad5c7e15`, `cc69ed29`, `02b2cfb9`,
 `9b21a2c9`, `1867e6e4`, `800fa3ee`, `5d7fd412`, `d6eee86a`, `8bc21180` and
-`c3eaddcc`.
+`c3eaddcc`. The `release 0.18.5` patch carries no other id and is fork
+commits `8679349e`, `12239075` and `80e0cb4d`.
 
 | File | Patch |
 | --- | --- |
-| `crates/apps/reticulumd/tests/fork_publish_contract_parts/ledger_contract.rs` | rnsd path rpc |
-| `crates/apps/reticulumd/tests/fork_release_docs_contract.rs` | rnsd path rpc, path interface |
-| `crates/apps/reticulumd/tests/fork_release_docs_contract_parts/readme_patch_list.rs` | rnsd path rpc, Python-in-the-loop rnsd path rpc interop, link establishment timeout, path interface |
+| `Cargo.lock` | release 0.18.5 |
+| `Cargo.toml` | release 0.18.5 |
+| `crates/apps/reticulumd/Cargo.toml` | release 0.18.5 |
+| `crates/apps/reticulumd/tests/fork_publish_contract.rs` | release 0.18.5 |
+| `crates/apps/reticulumd/tests/fork_publish_contract_parts/ledger_contract.rs` | rnsd path rpc, release 0.18.5 |
+| `crates/apps/reticulumd/tests/fork_release_docs_contract.rs` | rnsd path rpc, path interface, release 0.18.5 |
+| `crates/apps/reticulumd/tests/fork_release_docs_contract_parts/readme_patch_list.rs` | rnsd path rpc, Python-in-the-loop rnsd path rpc interop, link establishment timeout, path interface, release 0.18.5 |
+| `crates/apps/reticulumd/tests/fork_release_docs_contract_parts/release_0_18_4_probe.rs` | release 0.18.5 |
+| `crates/apps/reticulumd/tests/fork_release_docs_contract_parts/release_0_18_5_probe.rs` | release 0.18.5 |
 | `crates/apps/reticulumd/tests/fork_release_docs_contract_parts/request_layer_api_docs.rs` | rnsd path rpc, path interface |
 | `crates/apps/reticulumd/tests/python_channel_interop.rs` | Python-in-the-loop rnsd path rpc interop |
 | `crates/apps/reticulumd/tests/python_channel_interop_parts/graceful_stop_probe.rs` | Python-in-the-loop rnsd path rpc interop |
@@ -66,8 +73,11 @@ is fork commits `60410ca9`, `cc67d5f3`, `d0e34ef2`, `ef50cff5`,
 | `crates/apps/reticulumd/tests/python_channel_interop_parts/python_stdlib_listener_rpc_probe.rs` | rnsd path rpc |
 | `crates/apps/reticulumd/tests/support/python_channel_events.rs` | Python-in-the-loop rnsd path rpc interop |
 | `crates/apps/reticulumd/tests/support/python_channel_process.rs` | Python-in-the-loop rnsd path rpc interop |
-| `crates/libs/rns-transport/CHANGELOG.md` | rnsd path rpc, Python-in-the-loop rnsd path rpc interop, link establishment timeout, path interface |
-| `crates/libs/rns-transport/README.md` | rnsd path rpc, Python-in-the-loop rnsd path rpc interop, link establishment timeout, path interface |
+| `crates/apps/rns-tools/Cargo.toml` | release 0.18.5 |
+| `crates/libs/rns-transport/CHANGELOG.md` | rnsd path rpc, Python-in-the-loop rnsd path rpc interop, link establishment timeout, path interface, release 0.18.5 |
+| `crates/libs/rns-transport/Cargo.toml` | release 0.18.5 |
+| `crates/libs/rns-transport/README.md` | rnsd path rpc, Python-in-the-loop rnsd path rpc interop, link establishment timeout, path interface, release 0.18.5 |
+| `crates/libs/rns-transport/fuzz/Cargo.lock` | release 0.18.5 |
 | `crates/libs/rns-transport/src/transport/links_parts/transport.rs` | path interface |
 | `crates/libs/rns-transport/src/transport/links_parts/transport_sections/link_establishment.rs` | link establishment timeout |
 | `crates/libs/rns-transport/src/transport/links_parts/transport_sections/link_open.rs` | link establishment timeout |
@@ -97,7 +107,8 @@ is fork commits `60410ca9`, `cc67d5f3`, `d0e34ef2`, `ef50cff5`,
 | `crates/libs/rns-transport/tests/support/msgpack_value.rs` | rnsd path rpc |
 | `crates/libs/rns-transport/tests/support/stdlib_rpc_frame.rs` | rnsd path rpc |
 | `crates/libs/rns-transport/tests/support/stdlib_rpc_handshake.rs` | rnsd path rpc |
-| `docs/fork/PATCHSET.md` | rnsd path rpc, Python-in-the-loop rnsd path rpc interop, link establishment timeout, path interface |
+| `docs/fork/PATCHSET.md` | rnsd path rpc, Python-in-the-loop rnsd path rpc interop, link establishment timeout, path interface, release 0.18.5 |
+| `docs/getting-started.md` | release 0.18.5 |
 
 Fork commits `1528b698`, `bab079de`, `6f22dca2`, `0adb116e`, `75126a26`,
 `5faf736d`, `50a177eb`, `60410ca9`, `cc67d5f3`, `d0e34ef2`, `ef50cff5`,
@@ -693,6 +704,73 @@ the first-hop range in the transport-enabled live part's header.
 `c3eaddcc` tightens the live part's false-drop bound to 1 s at both sites
 and says what it is: one dial, a hang guard well under the call timeout, not
 a proof that no poll ran.
+
+Fork commits `8679349e`, `12239075` and `80e0cb4d`: release 0.18.5. The
+first bumps the crate version to 0.18.5 at every manifest and
+consumer-snippet site (`Cargo.toml`,
+`crates/libs/rns-transport/Cargo.toml`, `crates/apps/reticulumd/Cargo.toml`,
+`crates/apps/rns-tools/Cargo.toml`, the snippet in
+`crates/libs/rns-transport/README.md` and `docs/getting-started.md`) and in
+`Cargo.lock` and `crates/libs/rns-transport/fuzz/Cargo.lock`, where the
+fuzz lock changes only its version line since this release adds no
+dependency, and retargets the two hand pins in
+`crates/apps/reticulumd/tests/fork_publish_contract.rs` to `0.18.5`; the
+root `VERSION` file stays. The second adds the 0.18.5 paragraph to the
+`## Patch list` of `crates/libs/rns-transport/README.md`, folding it into
+the intro sentence and leaving the 0.18.4 block as a standalone paragraph
+with its bullets unchanged; its six bullets are the rnsd path calls with
+`PathRow`, `drop_path_settled` and `is_transient()`, the in-process path
+interface, the link establishment timeout fix, the Python-in-the-loop
+proofs beside the CPython stdlib listener and the black-box pins, the
+test-only hygiene, and the consumer note (pin 0.18.5, nothing to opt into,
+`drop_path_settled` then one `request_path` and never a path request right
+after a bare `drop_path`, retries classified with `is_transient()`, a row
+matched to its interface by `name`, `path_interface` and
+`interface_events()` in process, and the shorter link establishment
+timeout as the only observable behaviour change). The third promotes
+`## Unreleased` to `## 0.18.5 - 2026-11-23` in the crate `CHANGELOG.md`,
+prepending two bullets to its `### Changed` subsection: a version bullet
+(the announce field, the patch-bump reasoning with no `### Breaking` as
+every change is additive API a consumer need not opt into plus the
+`### Fixed` timing correction, the `cargo semver-checks` result of 0
+findings against `v0.18.4` with the gate that runs it,
+`tools/scripts/semver-major-findings-check.sh coyote-rns-transport-v0.18.4 0`,
+and the contract tests that pin the release) and a restated test-only
+bullet for the release docs contract parts naming all fourteen, and
+rewords the full-hash ledger pin bullet to the past tense; it retargets
+the promotion-sensitive pins to the literal 0.18.5 label:
+`crates/apps/reticulumd/tests/fork_publish_contract_parts/ledger_contract.rs`
+expects the full-hash contract and the bullet-cite contract to cover
+`0.18.5`, `0.18.4`, `0.18.3`, `0.18.2`, `0.18.1`, `0.18.0`, `0.17.0`,
+`0.16.0` and `0.15.1` with no `Unreleased` label, and
+`crates/apps/reticulumd/tests/fork_release_docs_contract_parts/readme_patch_list.rs`
+gains a 0.18.5 twin
+(`readme_patch_list_opens_with_the_0_18_5_block_and_keeps_the_0_18_4_paragraph`)
+asserting that the 0.18.5 block opens the list, the 0.18.5, 0.18.4, 0.18.3
+order and the 0.18.5 items, while the 0.18.4 test becomes
+`readme_patch_list_keeps_the_0_18_4_block_above_the_0_18_3_paragraph` and
+keeps its order and its needles through a shared const; it demotes
+`crates/apps/reticulumd/tests/fork_release_docs_contract_parts/release_0_18_4_probe.rs`,
+which keeps its date pin and slices its two ledger sections by heading but
+no longer claims the first release heading, the ledger opening, the README
+dependency snippet or the manifest version, its hand-pins test
+(`release_0_18_4_publish_contract_hand_pins_read_the_release_version`)
+going with them; and it adds
+`crates/apps/reticulumd/tests/fork_release_docs_contract_parts/release_0_18_5_probe.rs`,
+included from `crates/apps/reticulumd/tests/fork_release_docs_contract.rs`,
+which pins the heading date and its place as the first release heading,
+the subsection set `### Added`, `### Changed`, `### Fixed` and nothing else
+(so no `### Breaking`), the four `### Added` items as the rnsd path
+calls, `drop_path_settled`, `RpcError::is_transient()` and
+`Transport::path_interface`, the patch digit and semver sentence of the
+version bullet, the `### Fixed` bullet's opener, the fourteen parts the
+include-set bullet names, the README patch-list order and the 0.18.5
+block's six bullets and consumer note with the recovery recipe, the
+dependency snippet, the publish contract's two hand pins reading `0.18.5`,
+and this ledger opening on this section with the release patch in the
+legend and the probe's own row under `release 0.18.5`. The ledger commit
+that cites the three commits above is omitted from the patch headers like
+every commit whose changes touch only this file.
 
 ## 0.18.4 (upstream 0.14.0)
 

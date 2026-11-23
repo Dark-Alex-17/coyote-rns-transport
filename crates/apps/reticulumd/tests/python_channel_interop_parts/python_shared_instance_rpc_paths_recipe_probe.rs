@@ -23,7 +23,7 @@
 // Unix only like its siblings (`assert_running`). The path-call imports come
 // from `python_stdlib_listener_rpc_probe.rs`, the harness from
 // `python_shared_instance_rpc.rs` and `python_shared_instance_live.rs`, the
-// announce wait from `python_shared_instance_announce_emitted.rs`.
+// announce wait from `support/python_channel_events.rs`.
 
 #[cfg(unix)]
 const PATH_RECIPE_ANSWER: Duration = Duration::from_secs(10);
@@ -42,7 +42,7 @@ async fn path_recipe_wait_announce(
     hash: AddressHash,
     within: Duration,
 ) -> (u8, u64, bool) {
-    let event = live_wait_for_announce_event(announces, hash, within).await;
+    let event = wait_for_announce_event(announces, hash, within).await;
     (event.hops, event.emitted, event.is_path_response)
 }
 
@@ -112,7 +112,7 @@ async fn python_rnsd_recipe_drop_settled_then_request_path_is_forwarded_not_answ
     // A whole emission second past C's announce, so a fresh answer is told
     // apart from a replay by `emitted` alone.
     tokio::time::sleep_until(last_announce + PATH_LIVE_ANNOUNCE_GAP).await;
-    let log_before = rnsd._log.snapshot().len();
+    let log_before = rnsd.log.snapshot().len();
     let settled =
         drop_path_settled(&endpoint, &key, &hash, PATH_LIVE_CALL).await.expect("drop_path_settled");
     assert!(settled, "the listed row settles");
@@ -150,14 +150,14 @@ async fn python_rnsd_recipe_drop_settled_then_request_path_is_forwarded_not_answ
     assert_eq!(refiled.interface, first_row.interface, "same client interface: {refiled:?}");
     // rnsd's own account: the request was forwarded, never answered from cache.
     let forwarded = rnsd
-        ._log
+        .log
         .wait_for("the forwarding line", PATH_RECIPE_ANSWER, |line| {
             (line.contains(PATH_RECIPE_FORWARDED_LINE) && line.contains(&hex))
                 .then(|| line.to_string())
         })
         .await;
     eprintln!("rnsd: {forwarded}");
-    let since_drop = rnsd._log.snapshot();
+    let since_drop = rnsd.log.snapshot();
     let since_drop = &since_drop[log_before.min(since_drop.len())..];
     let cached = path_recipe_lines_for(since_drop, PATH_RECIPE_KNOWN_LINE, &hex);
     assert!(
@@ -188,7 +188,7 @@ async fn python_rnsd_recipe_drop_settled_then_request_path_is_forwarded_not_answ
     };
     tokio::time::sleep(PATH_LIVE_ANNOUNCE_GAP).await;
     assert!(asker.expire_path(&hash).await, "C2 forgets its row so the next answer is an event");
-    let log_before = rnsd._log.snapshot().len();
+    let log_before = rnsd.log.snapshot().len();
     let mut announces = asker.recv_announces().await;
     let dropped = drop_path(&endpoint, &key, &hash, PATH_LIVE_CALL).await.expect("bare drop");
     assert!(dropped);
@@ -200,7 +200,7 @@ async fn python_rnsd_recipe_drop_settled_then_request_path_is_forwarded_not_answ
         path_recipe_wait_announce(&mut announces, hash, PATH_RECIPE_ANSWER).await;
     let answered_at = drop_done.elapsed();
     tokio::time::sleep(Duration::from_millis(600)).await; // past one cull tick
-    let log = rnsd._log.snapshot();
+    let log = rnsd.log.snapshot();
     let since = &log[log_before.min(log.len())..];
     let stale = path_recipe_lines_for(since, PATH_RECIPE_KNOWN_LINE, &hex);
     let forwarded = path_recipe_lines_for(since, PATH_RECIPE_FORWARDED_LINE, &hex);

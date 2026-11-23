@@ -392,31 +392,33 @@ fn try_terminate_child_gracefully(
     child: &mut Child,
     within: Duration,
 ) -> Result<std::process::ExitStatus, String> {
+    let pid = child.id();
     // A child the harness already reaped through an earlier `try_wait` would
     // make `kill` fail on a pid that may by now belong to someone else.
-    let already_exited = child.try_wait().map_err(|err| format!("poll the child: {err}"))?;
+    let already_exited = child.try_wait().map_err(|err| format!("poll child {pid}: {err}"))?;
     if let Some(status) = already_exited {
-        return Err(format!("the child had already exited with {status} before SIGTERM"));
+        return Err(format!("child {pid} had already exited with {status} before SIGTERM"));
     }
     let signalled = Command::new("kill")
-        .args(["-TERM", &child.id().to_string()])
+        .args(["-TERM", &pid.to_string()])
         .status()
-        .map_err(|err| format!("send SIGTERM to the exact child: {err}"))?;
+        .map_err(|err| format!("send SIGTERM to child {pid}: {err}"))?;
     if !signalled.success() {
-        return Err(format!("failed to signal the child with SIGTERM: {signalled}"));
+        return Err(format!("failed to signal child {pid} with SIGTERM: {signalled}"));
     }
     let deadline = std::time::Instant::now() + within;
     loop {
-        let exited =
-            child.try_wait().map_err(|err| format!("wait for the child's graceful exit: {err}"))?;
+        let exited = child
+            .try_wait()
+            .map_err(|err| format!("wait for the graceful exit of child {pid}: {err}"))?;
         if let Some(status) = exited {
             if !status.success() {
-                return Err(format!("the child failed during graceful shutdown: {status}"));
+                return Err(format!("child {pid} failed during graceful shutdown: {status}"));
             }
             return Ok(status);
         }
         if std::time::Instant::now() >= deadline {
-            return Err(format!("the child did not exit within {within:?} of SIGTERM"));
+            return Err(format!("child {pid} did not exit within {within:?} of SIGTERM"));
         }
         std::thread::sleep(Duration::from_millis(25));
     }

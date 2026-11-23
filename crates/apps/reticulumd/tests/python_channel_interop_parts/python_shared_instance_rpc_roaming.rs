@@ -240,6 +240,30 @@ async fn roaming_wait_row(
     }
 }
 
+/// Takes A down as every roaming scenario does: D stops the listener A
+/// dials, the stats entry for A reads offline, and the hops-1 row for `hash`
+/// still names A. Returns that row and how long the offline read took.
+#[cfg(unix)]
+#[deny(clippy::await_holding_invalid_type)]
+async fn roaming_take_a_down(
+    d: &Transport,
+    a_server: AddressHash,
+    endpoint: &RpcEndpoint,
+    key: &RpcKey,
+    hash: &AddressHash,
+    a_name: &str,
+) -> (PathRow, Duration) {
+    assert!(d.stop_interface(a_server).await, "D's A listener stops");
+    let (a_entry, offline_after) =
+        roaming_wait_online(endpoint, key, "A", false, ROAMING_A_OFFLINE).await;
+    eprintln!("A offline {offline_after:?} after D closed it: {a_entry:?}");
+    let rows = path_table(endpoint, key, None, PATH_LIVE_CALL).await.expect("path_table");
+    let stale = path_live_row(&rows, hash).expect("the row survives A going offline");
+    assert_eq!(stale.hops, 1, "{stale:?}");
+    assert_eq!(stale.interface, a_name, "the stale row is never displaced: {stale:?}");
+    (stale, offline_after)
+}
+
 /// Polls `interface_stats` until a `LocalInterface[` entry lists C as a
 /// client of rnsd (the `LocalClientInterface` joins the stats on accept).
 #[cfg(unix)]
@@ -345,7 +369,7 @@ async fn roaming_topology(
     roaming_wait_client_attached(&endpoint, &key).await;
     assert!(!c.has_path(&hash).await, "C attached after D's only announce holds no row");
     let mut announces = c.recv_announces().await;
-    let log_before = rnsd._log.snapshot().len();
+    let log_before = rnsd.log.snapshot().len();
     let dispatch = c.request_path(&hash, None, None).await;
     assert!(
         dispatch.sent_ifaces + dispatch.queued_ifaces >= 1,
@@ -365,7 +389,7 @@ async fn roaming_topology(
         Some(a_name.clone())
     );
     // rnsd held no row, so the first request was fanned out, not answered.
-    let since_request = rnsd._log.snapshot();
+    let since_request = rnsd.log.snapshot();
     let since_request = &since_request[log_before.min(since_request.len())..];
     assert!(
         !path_recipe_lines_for(since_request, PATH_RECIPE_FORWARDED_LINE, &hex).is_empty(),
@@ -417,7 +441,7 @@ fn roaming_expect_in_budget<T>(
 ) -> T {
     outcome.unwrap_or_else(|_| {
         if let Some(rnsd) = rnsd {
-            eprintln!("rnsd output at the budget:\n{}", rnsd._log.snapshot());
+            eprintln!("rnsd output at the budget:\n{}", rnsd.log.snapshot());
         }
         panic!("{what} did not finish within its budget")
     })
@@ -449,14 +473,8 @@ async fn roaming_scenario(
     let rnsd = rnsd_slot.as_mut().expect("the fixture spawned rnsd");
 
     // A goes down: the stats entry reads offline, the row does not move.
-    assert!(d.stop_interface(a_server).await, "D's A listener stops");
-    let (a_entry, offline_after) =
-        roaming_wait_online(&endpoint, &key, "A", false, ROAMING_A_OFFLINE).await;
-    eprintln!("A offline {offline_after:?} after D closed it: {a_entry:?}");
-    let rows = path_table(&endpoint, &key, None, PATH_LIVE_CALL).await.expect("path_table");
-    let stale = path_live_row(&rows, &hash).expect("the row survives A going offline");
-    assert_eq!(stale.hops, 1, "{stale:?}");
-    assert_eq!(stale.interface, a_name, "the stale row is never displaced: {stale:?}");
+    let (_, offline_after) =
+        roaming_take_a_down(&d, a_server, &endpoint, &key, &hash, &a_name).await;
     assert_eq!(
         next_hop_interface_name(&endpoint, &key, &hash, PATH_LIVE_CALL).await.expect("next hop"),
         Some(a_name.clone())
@@ -477,7 +495,7 @@ async fn roaming_scenario(
     roaming_wait_path(&c, &hash, false, ROAMING_REPATH, "C drops the row of the timed-out link")
         .await;
     let mut announces = c.recv_announces().await;
-    let log_before = rnsd._log.snapshot().len();
+    let log_before = rnsd.log.snapshot().len();
     let dispatch = c.request_path(&hash, None, None).await;
     assert!(dispatch.sent_ifaces + dispatch.queued_ifaces >= 1, "{dispatch:?}");
     let (c_hops_stale, _, path_response) =
@@ -487,13 +505,13 @@ async fn roaming_scenario(
     assert!(c.has_path(&hash).await);
     assert_eq!(c.hops_to(&hash).await, 1);
     let known = rnsd
-        ._log
+        .log
         .wait_for("the known-path answer", ROAMING_REPATH, |line| {
             (line.contains(PATH_RECIPE_KNOWN_LINE) && line.contains(&hex)).then(|| line.to_string())
         })
         .await;
     eprintln!("rnsd: {known}");
-    let since_link = rnsd._log.snapshot();
+    let since_link = rnsd.log.snapshot();
     let since_link = &since_link[log_before.min(since_link.len())..];
     let forwarded = path_recipe_lines_for(since_link, PATH_RECIPE_FORWARDED_LINE, &hex);
     assert!(

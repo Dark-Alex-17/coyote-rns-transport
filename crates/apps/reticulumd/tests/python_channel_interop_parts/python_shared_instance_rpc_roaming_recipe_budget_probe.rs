@@ -26,17 +26,16 @@
 
 #[cfg(unix)]
 const RECIPE_BUDGET_TOTAL: Duration = Duration::from_secs(120);
-#[cfg(unix)]
-const RECIPE_BUDGET_PER_HOP: f64 = 6.0;
 // The maintenance job closes a timed-out link on its own cadence; the
 // roaming proof saw 0.85 s past the figure.
 #[cfg(unix)]
 const RECIPE_BUDGET_SLACK: Duration = Duration::from_millis(2_500);
 
-/// Python's establishment timeout for `hops` with the first hop at `first_hop`.
+/// Python's establishment timeout for `hops` with the first hop at `first_hop`
+/// (`RNS/Link.py:282-283`); its `ESTABLISHMENT_TIMEOUT_PER_HOP` is `DEFAULT_PER_HOP_TIMEOUT`.
 #[cfg(unix)]
 fn recipe_establishment_budget(first_hop: f64, hops: u8) -> Duration {
-    Duration::from_secs_f64(first_hop + RECIPE_BUDGET_PER_HOP * f64::from(hops.max(1)))
+    Duration::from_secs_f64(first_hop + PATH_LIVE_DEFAULT_PER_HOP_TIMEOUT * f64::from(hops.max(1)))
 }
 
 /// The `interface_stats` entry whose `name` is `row.interface`, the README's lookup.
@@ -67,6 +66,7 @@ async fn recipe_budget_scenario(
         d,
         c,
         a_server,
+        a_name,
         b_name,
         hash,
         hex,
@@ -78,10 +78,7 @@ async fn recipe_budget_scenario(
     let rnsd = rnsd_slot.as_mut().expect("the fixture spawned rnsd");
 
     // ---- A goes down. The README's lookup: the stats entry named like the row. ----
-    assert!(d.stop_interface(a_server).await, "D's A listener stops");
-    roaming_wait_online(&endpoint, &key, "A", false, ROAMING_A_OFFLINE).await;
-    let rows = path_table(&endpoint, &key, None, PATH_LIVE_CALL).await.expect("path_table");
-    let row = path_live_row(&rows, &hash).expect("the row survives A going offline");
+    let (row, _) = roaming_take_a_down(&d, a_server, &endpoint, &key, &hash, &a_name).await;
     let entry = recipe_stats_entry_for_row(&endpoint, &key, &row).await;
     assert_eq!(entry.short_name, "A", "the row's interface str names A's entry: {entry:?}");
     assert!(!entry.online, "the README's trigger: the row's interface reads offline: {entry:?}");
@@ -90,7 +87,10 @@ async fn recipe_budget_scenario(
     let first_hop_a = first_hop_timeout(&endpoint, &key, &hash, PATH_LIVE_CALL)
         .await
         .expect("first_hop_timeout over the dead row");
-    assert!(first_hop_a.is_finite() && first_hop_a >= 6.0, "{first_hop_a}");
+    assert!(
+        first_hop_a.is_finite() && first_hop_a >= PATH_LIVE_DEFAULT_PER_HOP_TIMEOUT,
+        "{first_hop_a}"
+    );
     let c_hops = c.hops_to(&hash).await;
     assert_eq!(c_hops, c_hops_via_a);
     let budget_a = recipe_establishment_budget(first_hop_a, c_hops);
@@ -107,8 +107,7 @@ async fn recipe_budget_scenario(
     );
     assert_eq!(reason, Some(LinkCloseReason::Timeout));
     assert!(
-        failed_after
-            >= Duration::from_secs_f64(6.0 + RECIPE_BUDGET_PER_HOP * f64::from(c_hops.max(1))),
+        failed_after >= recipe_establishment_budget(PATH_LIVE_DEFAULT_PER_HOP_TIMEOUT, c_hops),
         "Python's floor is 6 s + 6 s per hop: {failed_after:?}"
     );
     assert!(
@@ -140,7 +139,10 @@ async fn recipe_budget_scenario(
     let first_hop_b = first_hop_timeout(&endpoint, &key, &hash, PATH_LIVE_CALL)
         .await
         .expect("first_hop_timeout over B");
-    assert!(first_hop_b.is_finite() && first_hop_b >= 6.0, "{first_hop_b}");
+    assert!(
+        first_hop_b.is_finite() && first_hop_b >= PATH_LIVE_DEFAULT_PER_HOP_TIMEOUT,
+        "{first_hop_b}"
+    );
     let budget_b = recipe_establishment_budget(first_hop_b, c_hops_via_b);
     let mut link_events = c.out_link_events();
     let link_started = tokio::time::Instant::now();
@@ -153,11 +155,11 @@ async fn recipe_budget_scenario(
     );
 
     // ---- A duplicate retry of the recipe's request leaves the row on B. ----
-    let log_before = rnsd._log.snapshot().len();
+    let log_before = rnsd.log.snapshot().len();
     let dispatch = c.request_path(&hash, None, None).await;
     assert!(dispatch.sent_ifaces + dispatch.queued_ifaces >= 1, "{dispatch:?}");
     let known = rnsd
-        ._log
+        .log
         .wait_for("the repeat answered from the B row", ROAMING_REPATH, |line| {
             (line.contains(PATH_RECIPE_KNOWN_LINE) && line.contains(&hex)).then(|| line.to_string())
         })
@@ -172,7 +174,7 @@ async fn recipe_budget_scenario(
         next_hop_interface_name(&endpoint, &key, &hash, PATH_LIVE_CALL).await.expect("next hop"),
         Some(b_name.clone())
     );
-    let since = rnsd._log.snapshot();
+    let since = rnsd.log.snapshot();
     let since = &since[log_before.min(since.len())..];
     assert!(
         path_recipe_lines_for(since, PATH_RECIPE_FORWARDED_LINE, &hex).is_empty(),

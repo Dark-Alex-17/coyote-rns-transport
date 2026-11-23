@@ -327,16 +327,18 @@ fn request_layer_public_items_cite_python_or_say_fork_only() {
 /// fork-added `is_path_response`, `emitted` and `random_blob` follow that
 /// shape and are asserted public, together with the `#[non_exhaustive]`
 /// attribute that keeps the public fields from breaking out-of-crate struct
-/// literals. The decoded rnsd RPC rows (`PathRow`, like `InterfaceStat` and
-/// `InterfaceStats` beside it) are read by field, so they take the same
-/// shape: every field public, the struct `#[non_exhaustive]`; the in-process
-/// `PathIface` is read by field the same way.
+/// literals. The decoded rnsd RPC rows (`PathRow`, `InterfaceStat` and
+/// `InterfaceStats`) are read by field, so they take the same shape: every
+/// field public, the struct `#[non_exhaustive]`; the in-process `PathIface`
+/// is read by field the same way.
 #[test]
-fn fork_new_public_structs_keep_their_fields_private() {
+fn fork_new_public_structs_hide_fields_or_are_non_exhaustive_rows() {
     let expected = [
         "DialFailure",
         "InboundRequest",
         "InterfaceEvent",
+        "InterfaceStat",
+        "InterfaceStats",
         "OutboundOutcome",
         "PathHash",
         "PathIface",
@@ -349,9 +351,10 @@ fn fork_new_public_structs_keep_their_fields_private() {
         "ResponseFrame",
         "ResponseOutcomeReceiver",
         "ResponseOutcomeTracker",
+        "RpcKey",
         "SharedInstanceOptions",
     ];
-    let public_rows = ["PathIface", "PathRow"];
+    let public_rows = ["InterfaceStat", "InterfaceStats", "PathIface", "PathRow"];
     let mut found = Vec::new();
     let mut exposed = Vec::new();
     let mut hidden = Vec::new();
@@ -363,11 +366,12 @@ fn fork_new_public_structs_keep_their_fields_private() {
             let name: String =
                 rest.chars().take_while(|c| c.is_alphanumeric() || *c == '_').collect();
             if public_rows.contains(&name.as_str()) {
-                // Members are the field declarations: doc comments and
-                // attributes above them and the closing brace are skipped.
+                // Members are the field declarations: doc and plain comments,
+                // attributes, blank lines and the closing brace are skipped.
                 for index in direct_members(&lines, open) {
                     let text = lines[index].trim_start();
-                    if !text.starts_with("///")
+                    if !text.is_empty()
+                        && !text.starts_with("//")
                         && !text.starts_with("#[")
                         && text != "}"
                         && !is_pub_field(text)

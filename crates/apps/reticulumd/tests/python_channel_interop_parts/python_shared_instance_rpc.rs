@@ -107,7 +107,7 @@ fn shared_instance_rpc_auto_interface_section() -> String {
 // the siblings' locals; the tail prints rnsd's output when the test panics.
 struct SharedInstanceRpcRnsd {
     guard: ChildGuard,
-    _log: ProcessLogTail,
+    log: ProcessLogTail,
     identity_file: std::path::PathBuf,
 }
 
@@ -156,7 +156,7 @@ impl SharedInstanceRpcRnsd {
             line.contains("Started shared instance interface").then_some(())
         })
         .await;
-        Self { guard, _log: log, identity_file: config_dir.join("storage/transport_identity") }
+        Self { guard, log, identity_file: config_dir.join("storage/transport_identity") }
     }
 
     /// Python's default `authkey`, the SHA-256 of the transport identity
@@ -207,17 +207,21 @@ impl SharedInstanceRpcRnsd {
     #[cfg(unix)]
     #[deny(clippy::await_holding_invalid_type)]
     async fn stop_gracefully(self, within: Duration) -> (std::process::ExitStatus, String) {
-        let Self { mut guard, _log: mut log, identity_file: _ } = self;
+        let Self { mut guard, mut log, identity_file: _ } = self;
         let mut rnsd = guard.child.take().expect("rnsd is held until drop");
-        tokio::task::spawn_blocking(move || {
+        let stop = tokio::task::spawn_blocking(move || {
             let status = terminate_child_gracefully(&mut rnsd, within);
             for drain in log.drains.drain(..) {
                 let _ = drain.join();
             }
             (status, log.snapshot())
         })
-        .await
-        .expect("the graceful stop neither panicked nor was cancelled")
+        .await;
+        match stop {
+            Ok(outcome) => outcome,
+            Err(err) if err.is_panic() => std::panic::resume_unwind(err.into_panic()),
+            Err(err) => panic!("the graceful stop was cancelled: {err}"),
+        }
     }
 
     /// rnsd binds the RPC listener only after `Transport.start`

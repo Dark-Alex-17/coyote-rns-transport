@@ -10,6 +10,8 @@
 //    the pipes or a leaked process;
 //  * a child that exits non-zero on TERM is reported as a failed shutdown,
 //    and is reaped;
+//  * a child that was already reaped is reported as such before any signal
+//    is sent, so `kill` never targets a pid that may have been reused;
 //  * a `ChildGuard` whose child was taken for the graceful stop does nothing
 //    on drop, so the stop is never followed by a second kill of a reaped pid.
 //
@@ -24,7 +26,7 @@ const GRACEFUL_WITHIN: Duration = Duration::from_secs(5);
 /// A shell child that installs the TERM trap, writes `ready`, then loops
 /// until TERM, when it runs `on_term`.
 #[cfg(unix)]
-fn graceful_probe_child(ready: &Path, on_term: &str) -> std::process::Child {
+fn graceful_probe_child(ready: &std::path::Path, on_term: &str) -> std::process::Child {
     std::process::Command::new("/bin/sh")
         .args([
             "-c",
@@ -41,7 +43,7 @@ fn graceful_probe_child(ready: &Path, on_term: &str) -> std::process::Child {
 
 /// Waits for the child's `ready` file so the signal lands on an installed trap.
 #[cfg(unix)]
-fn wait_until_ready(ready: &Path) {
+fn wait_until_ready(ready: &std::path::Path) {
     let started = std::time::Instant::now();
     while !ready.exists() {
         assert!(
@@ -76,11 +78,7 @@ fn terminate_child_gracefully_lets_the_term_handler_run_and_returns_the_clean_ex
     let mut child =
         graceful_probe_child(&ready, &format!("echo handled > \"{}\"; exit 0", marker.display()));
     wait_until_ready(&ready);
-    let started = std::time::Instant::now();
-    let status = terminate_child_gracefully(&mut child, GRACEFUL_WITHIN);
-    let elapsed = started.elapsed();
-    assert!(status.success(), "a child that exits 0 on TERM: {status}");
-    assert!(elapsed < GRACEFUL_WITHIN, "returned {elapsed:?} after the signal");
+    terminate_child_gracefully(&mut child, GRACEFUL_WITHIN);
     assert_eq!(
         fs::read_to_string(&marker).expect("the TERM handler wrote the marker").trim(),
         "handled",
@@ -127,6 +125,24 @@ fn terminate_child_gracefully_reports_a_nonzero_exit_on_term_as_a_failed_shutdow
         "the panic carries the exit status: {message}"
     );
     assert!(matches!(child.try_wait(), Ok(Some(_))), "the child is reaped");
+}
+
+#[cfg(unix)]
+#[test]
+fn terminate_child_gracefully_refuses_a_child_that_had_already_exited() {
+    let mut child = std::process::Command::new("/bin/sh")
+        .args(["-c", "exit 0"])
+        .stdout(std::process::Stdio::null())
+        .stderr(std::process::Stdio::null())
+        .spawn()
+        .expect("spawn /bin/sh");
+    let exited = child.wait().expect("the child is reaped before the stop");
+    assert!(exited.success(), "{exited}");
+    let message = graceful_stop_panics_with(&mut child, GRACEFUL_WITHIN);
+    assert!(
+        message.contains("had already exited") && message.contains("before SIGTERM"),
+        "the panic names the pre-check, not a signalling failure: {message}"
+    );
 }
 
 #[cfg(unix)]

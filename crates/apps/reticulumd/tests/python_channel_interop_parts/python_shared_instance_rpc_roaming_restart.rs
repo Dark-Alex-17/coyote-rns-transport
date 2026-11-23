@@ -124,8 +124,9 @@ async fn restart_scenario(
     rnsd_slot: &mut Option<SharedInstanceRpcRnsd>,
 ) {
     // The redial emits at most about 20 DialFailed a second at the 50 ms
-    // wait and nothing drains the channel during the respawn's start wait of
-    // at most 30 s, so 1024 never fills and no Connected is lost to `try_send`.
+    // wait, and nothing drains the channel through the stop (15 s at most)
+    // and the respawn's start wait (30 s at most): about 900 events over
+    // those 45 s, so 1024 never fills and no Connected is lost to `try_send`.
     let (events_tx, mut events) = tokio::sync::mpsc::channel(1024);
     let c_options = SharedInstanceOptions::default()
         .with_reconnect_wait(Duration::from_millis(50))
@@ -150,14 +151,7 @@ async fn restart_scenario(
     } = roaming_topology("restart", config_dir, c_options, rnsd_slot).await;
 
     // A goes down: the stats entry reads offline, the row does not move.
-    assert!(d.stop_interface(a_server).await, "D's A listener stops");
-    let (a_entry, offline_after) =
-        roaming_wait_online(&endpoint, &key, "A", false, ROAMING_A_OFFLINE).await;
-    eprintln!("A offline {offline_after:?} after D closed it: {a_entry:?}");
-    let rows = path_table(&endpoint, &key, None, PATH_LIVE_CALL).await.expect("path_table");
-    let stale = path_live_row(&rows, &hash).expect("the row survives A going offline");
-    assert_eq!(stale.hops, 1, "{stale:?}");
-    assert_eq!(stale.interface, a_name, "the stale row is never displaced: {stale:?}");
+    roaming_take_a_down(&d, a_server, &endpoint, &key, &hash, &a_name).await;
 
     // The attach's Connecting and Connected are still queued; from here on
     // the stream carries the restart alone.
@@ -167,7 +161,7 @@ async fn restart_scenario(
     let old_rnsd = rnsd_slot.as_ref().expect("the fixture spawned rnsd");
     let identity_file = old_rnsd.identity_file.clone();
     let identity_before = fs::read(&identity_file).expect("the transport identity on disk");
-    let log_before_stop = old_rnsd._log.snapshot().len();
+    let log_before_stop = old_rnsd.log.snapshot().len();
 
     // SIGTERM: rnsd persists the table and exits 0; the dead row is in it.
     let rnsd = rnsd_slot.take().expect("the fixture spawned rnsd");
@@ -286,7 +280,7 @@ async fn restart_scenario(
     // The restore, read while A is still offline.
     let restore_started = tokio::time::Instant::now();
     let loaded = rnsd
-        ._log
+        .log
         .wait_for("the restored row's log line", RESTART_RESTORE, |line| {
             (line.contains("Loaded path table entry for ")
                 && line.contains(&hex)
@@ -318,7 +312,7 @@ async fn restart_scenario(
     eprintln!("C's own row after the reconnect: {c_has_row}");
     assert!(!c_has_row, "the instance drop flushed C's own table");
     let c_hops_restored =
-        restart_request_answered_from_restored_row(&c, &rnsd._log, &hash, &hex).await;
+        restart_request_answered_from_restored_row(&c, &rnsd.log, &hash, &hex).await;
     let desc = c.destination_desc(&hash).await.expect("C holds D's description");
     let mut link_events = c.out_link_events();
     let link_started = tokio::time::Instant::now();
@@ -332,10 +326,11 @@ async fn restart_scenario(
     roaming_wait_path(&c, &hash, false, ROAMING_REPATH, "C drops the row of the timed-out link")
         .await;
     let c_hops_after_timeout =
-        restart_request_answered_from_restored_row(&c, &rnsd._log, &hash, &hex).await;
+        restart_request_answered_from_restored_row(&c, &rnsd.log, &hash, &hex).await;
 
     // The recipe: settle the drop, one request, the row moves to B.
-    assert!(roaming_stats_entry(&endpoint, &key, "B").await.online);
+    let b_before_recovery = roaming_stats_entry(&endpoint, &key, "B").await;
+    assert!(b_before_recovery.online, "{b_before_recovery:?}");
     let recovery_started = tokio::time::Instant::now();
     let settled =
         drop_path_settled(&endpoint, &key, &hash, PATH_LIVE_CALL).await.expect("drop_path_settled");
@@ -350,6 +345,7 @@ async fn restart_scenario(
         path_recipe_wait_announce(&mut announces, hash, ROAMING_BRING_UP).await;
     eprintln!("C's answer over B: hops={c_hops_via_b} path_response={path_response}");
     assert_eq!(c_hops_via_b, 3, "D, R2, R1, rnsd; C takes the shared-instance hop back");
+    assert_eq!(c.hops_to(&hash).await, 3);
     let mut link_events = c.out_link_events();
     let link = c.link(desc).await.expect("Ok: the B route is a path");
     wait_for_out_link_active(&mut link_events, &link, ROAMING_LINK).await;

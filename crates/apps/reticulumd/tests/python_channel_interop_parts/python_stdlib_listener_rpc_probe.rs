@@ -18,11 +18,12 @@
 //    (`RNS/Reticulum.py:1283-1306`): `max_hops` is present and `None` when
 //    the caller passes none, the hash arrives as `bytes` (the key type of
 //    `Transport.path_table`, `RNS/Transport.py:2459`, which umsgpack packs as
-//    bin, `RNS/vendor/umsgpack.py:505-506`), and the canned replies read as
-//    rnsd's shapes: `get_path_table` rows (`RNS/Reticulum.py:1638-1648`) with
-//    the int `0` timestamp of a dropped path (`RNS/Transport.py:3219-3226`),
-//    the str `"None"` for no next hop (`RNS/Reticulum.py:1715`), the int `6`
-//    first-hop timeout, the bool of `drop path` and the count of `drop all_via`.
+//    bin, `RNS/vendor/umsgpack.py:505-506`) on every hash-taking call, and
+//    the canned replies read as rnsd's shapes: `get_path_table` rows
+//    (`RNS/Reticulum.py:1638-1648`) with the int `0` timestamp of a dropped
+//    path (`RNS/Transport.py:3219-3226`), the str `"None"` for no next hop
+//    (`RNS/Reticulum.py:1715`), the int `6` first-hop timeout, the bool of
+//    `drop path` and the count of `drop all_via`.
 
 use rns_transport::transport::shared_instance_rpc::{
     drop_all_via, drop_path, drop_path_settled, first_hop_timeout, next_hop_interface_name,
@@ -50,6 +51,14 @@ path_rows = [
     {"hash": b"\x33" * 16, "timestamp": 0, "via": b"\x22" * 16, "hops": 0,
      "expires": 1700000600.5, "interface": "AutoInterface[probe]"},
 ]
+# A hash that did not arrive as bytes is logged; every branch but drop path,
+# whose bool reply is this check itself, then answers with a value the Rust
+# call rejects.
+def hash_is_bytes(request, call):
+    if isinstance(request["destination_hash"], bytes):
+        return True
+    print(json.dumps({"not_bytes": call}), flush=True)
+    return False
 served = 0
 refused = 0
 while True:
@@ -66,13 +75,13 @@ while True:
         print(json.dumps({"max_hops": request["max_hops"]}), flush=True)
         conn.send_bytes(mp.packb(path_rows))
     elif request.get("get") == "next_hop_if_name":
-        conn.send_bytes(mp.packb("None"))
+        conn.send_bytes(mp.packb("None" if hash_is_bytes(request, "next_hop_if_name") else "not-bytes"))
     elif request.get("get") == "first_hop_timeout":
-        conn.send_bytes(mp.packb(6))
+        conn.send_bytes(mp.packb(6 if hash_is_bytes(request, "first_hop_timeout") else "not-bytes"))
     elif request.get("drop") == "path":
-        conn.send_bytes(mp.packb(isinstance(request["destination_hash"], bytes)))
+        conn.send_bytes(mp.packb(hash_is_bytes(request, "drop path")))
     elif request.get("drop") == "all_via":
-        conn.send_bytes(mp.packb(2))
+        conn.send_bytes(mp.packb(2 if hash_is_bytes(request, "drop all_via") else -1))
     else:
         print(json.dumps({"unexpected": repr(request)}), flush=True)
     conn.close()
@@ -154,6 +163,19 @@ impl StdlibListener {
             })
             .await;
     }
+
+    /// No hash-taking call so far logged a `not_bytes` line; read after the
+    /// `served` count that follows the call, since the listener prints the
+    /// two in that order.
+    fn assert_hashes_arrived_as_bytes(&self) {
+        let log = self.log.snapshot();
+        let not_bytes: Vec<&str> =
+            log.lines().filter(|line| python_json_line(&["not_bytes"])(line).is_some()).collect();
+        assert!(
+            not_bytes.is_empty(),
+            "a destination_hash reached the listener as a non-bytes value: {not_bytes:?}"
+        );
+    }
 }
 
 fn stdlib_listener_assert_reply(stats: &InterfaceStats) {
@@ -214,11 +236,12 @@ async fn probe_python_stdlib_listener_takes_any_key_length_and_refuses_a_wrong_k
 /// key. `path_table` carries `max_hops` as Python `None` for `None` and as
 /// the int otherwise (the listener logs what it read), and its two canned
 /// rows decode with the second row's int `0` timestamp read as `0.0`;
+/// every hash-taking call is a bin pin, since the listener answers a hash
+/// that is not `bytes` with a reply the call rejects and logs it:
 /// `next_hop_interface_name` reads the str `"None"` as `None`;
-/// `first_hop_timeout` reads the int `6` as `6.0`; `drop_path` is the bin
-/// pin, since the listener answers whether `destination_hash` arrived as
-/// `bytes`; `drop_all_via`, handed the rows' next-hop transport hash, reads
-/// the canned count; and `drop_path_settled` is
+/// `first_hop_timeout` reads the int `6` as `6.0`; `drop_path` reads the
+/// `isinstance` bool itself; `drop_all_via`, handed the rows' next-hop
+/// transport hash, reads the canned count; and `drop_path_settled` is
 /// `Ok(true)` after the drop and one next-hop poll, two connections.
 #[tokio::test]
 #[ignore = "requires local Python Reticulum checkout"]
@@ -283,4 +306,5 @@ async fn probe_python_stdlib_listener_answers_shared_instance_rpc_path_calls_wit
         .expect("drop_path_settled");
     assert!(settled);
     listener.wait_served(8).await;
+    listener.assert_hashes_arrived_as_bytes();
 }

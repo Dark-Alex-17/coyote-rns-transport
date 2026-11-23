@@ -49,6 +49,13 @@ const PATH_LIVE_SETTLE: Duration = Duration::from_millis(500);
 // (`RNS/Transport.py:2238`), so successive announces are spaced past one.
 #[cfg(unix)]
 const PATH_LIVE_ANNOUNCE_GAP: Duration = Duration::from_millis(1100);
+/// A false `drop_path_settled` returns after the one drop dial, no polling.
+#[cfg(unix)]
+const PATH_LIVE_FALSE_DROP_RETURNS_WITHIN: Duration = Duration::from_secs(2);
+/// Python's `DEFAULT_PER_HOP_TIMEOUT` (`RNS/Reticulum.py:142`), rnsd's whole
+/// `first_hop_timeout` without a path and the floor of one with a path.
+#[cfg(unix)]
+const PATH_LIVE_DEFAULT_PER_HOP_TIMEOUT: f64 = 6.0;
 
 #[cfg(unix)]
 fn path_live_row(rows: &[PathRow], hash: &AddressHash) -> Option<PathRow> {
@@ -85,7 +92,7 @@ async fn path_live_wait_listed(
 #[ignore = "requires local Python Reticulum checkout"]
 async fn python_rnsd_path_calls_list_the_client_interface_and_a_drop_settles() {
     let _interop_guard = python_interop_guard().await;
-    let instance = live_tcp_shared_instance().with_transport(false);
+    let instance = live_tcp_shared_instance();
     let temp = tempfile::tempdir().expect("tempdir");
     let control_port = free_tcp_port();
     let mut rnsd = SharedInstanceRpcRnsd::spawn(
@@ -114,7 +121,10 @@ async fn python_rnsd_path_calls_list_the_client_interface_and_a_drop_settles() {
     let seconds = first_hop_timeout(&endpoint, &key, &unknown, PATH_LIVE_CALL)
         .await
         .expect("first_hop_timeout on an unknown hash");
-    assert_eq!(seconds, 6.0, "DEFAULT_PER_HOP_TIMEOUT without a path, the int 6 as f64");
+    assert_eq!(
+        seconds, PATH_LIVE_DEFAULT_PER_HOP_TIMEOUT,
+        "DEFAULT_PER_HOP_TIMEOUT without a path, the int 6 as f64"
+    );
     let dropped =
         drop_path(&endpoint, &key, &unknown, PATH_LIVE_CALL).await.expect("drop_path unknown");
     assert!(!dropped, "no entry to drop");
@@ -128,7 +138,7 @@ async fn python_rnsd_path_calls_list_the_client_interface_and_a_drop_settles() {
         .expect("drop_path_settled unknown");
     assert!(!settled);
     assert!(
-        settle_started.elapsed() < Duration::from_secs(2),
+        settle_started.elapsed() < PATH_LIVE_FALSE_DROP_RETURNS_WITHIN,
         "a false drop returns without polling: {:?}",
         settle_started.elapsed()
     );
@@ -175,7 +185,7 @@ async fn python_rnsd_path_calls_list_the_client_interface_and_a_drop_settles() {
         .await
         .expect("first_hop_timeout of the listed row");
     assert!(
-        seconds.is_finite() && (6.0..60.0).contains(&seconds),
+        seconds.is_finite() && (PATH_LIVE_DEFAULT_PER_HOP_TIMEOUT..60.0).contains(&seconds),
         "rnsd 1.5.2 answers MTU * latency + DEFAULT_PER_HOP_TIMEOUT \
          (RNS/Transport.py:3194-3197), observed 6.000004 over a LocalInterface: {seconds}"
     );
@@ -389,7 +399,7 @@ async fn python_rnsd_path_calls_filter_by_hops_and_repeat_idempotently() {
         .expect("drop_path_settled repeated on the settled row");
     assert!(!repeated, "a settled row has nothing left to drop");
     assert!(
-        repeat_started.elapsed() < Duration::from_secs(1),
+        repeat_started.elapsed() < PATH_LIVE_FALSE_DROP_RETURNS_WITHIN,
         "a false drop returns without polling: {:?}",
         repeat_started.elapsed()
     );
@@ -533,7 +543,7 @@ async fn python_rnsd_with_transport_and_a_given_interfaces_text_serves_the_path_
         .await
         .expect("first_hop_timeout of the listed row");
     assert!(
-        seconds.is_finite() && (6.0..60.0).contains(&seconds),
+        seconds.is_finite() && (PATH_LIVE_DEFAULT_PER_HOP_TIMEOUT..60.0).contains(&seconds),
         "MTU * latency + DEFAULT_PER_HOP_TIMEOUT (RNS/Transport.py:3194-3197): {seconds}"
     );
 

@@ -40,11 +40,12 @@ commits `3fddb1b4`, `280495b7`, `862a1128`, `6883f5ee`, `dd935a20`,
 `42748fdd`, `31576efd`, `7edc5c91`, `1867e6e4`, `800fa3ee`, `5d7fd412`,
 `d6eee86a`, `8bc21180` and `dfb85779`.
 The `link establishment timeout` patch is fork commits `a451a06e`,
-`312ede0a`, `7edc5c91`, `800fa3ee` and `d6eee86a`. The `Python-in-the-loop
-rnsd path rpc interop` patch carries no other id and is fork commits
-`60410ca9`, `cc67d5f3`, `d0e34ef2`, `ef50cff5`, `689f5ab3`, `a451a06e`,
-`312ede0a`, `ad5c7e15`, `cc69ed29`, `02b2cfb9`, `9b21a2c9`, `1867e6e4`,
-`800fa3ee`, `5d7fd412`, `d6eee86a`, `8bc21180` and `c3eaddcc`.
+`312ede0a`, `7edc5c91`, `800fa3ee`, `d6eee86a` and `91c32571`. The
+`Python-in-the-loop rnsd path rpc interop` patch carries no other id and
+is fork commits `60410ca9`, `cc67d5f3`, `d0e34ef2`, `ef50cff5`,
+`689f5ab3`, `a451a06e`, `312ede0a`, `ad5c7e15`, `cc69ed29`, `02b2cfb9`,
+`9b21a2c9`, `1867e6e4`, `800fa3ee`, `5d7fd412`, `d6eee86a`, `8bc21180` and
+`c3eaddcc`.
 
 | File | Patch |
 | --- | --- |
@@ -446,7 +447,8 @@ header.
 boot-relative on every platform and a fresh Windows box is where the uptime
 clamp showed up.
 
-Fork commits `a451a06e`, `312ede0a`, `7edc5c91`, `800fa3ee` and `d6eee86a`: Q3, link establishment timeout.
+Fork commits `a451a06e`, `312ede0a`, `7edc5c91`, `800fa3ee`, `d6eee86a` and
+`91c32571`: Q3, link establishment timeout.
 Upstream site: `Transport::link`'s establishment timeout in
 `crates/libs/rns-transport/src/transport/links_parts/transport_sections/link_establishment.rs`
 and its caller in `link_open.rs`, the `RNS.Link.__init__` sizing
@@ -495,7 +497,7 @@ pin the `### Fixed` bullet by its opener and cites, the register entry
 above `Not divergences:` and not below it, and this ledger's Q3 id, label,
 header and rows, which is why that part, the README and this file are
 rowed under the patch.
-Three hygiene commits follow. `7edc5c91` has the black-box twin close its
+Four hygiene commits follow. `7edc5c91` has the black-box twin close its
 link against the one-hop figure instead of the generic per-hop sum its
 message and bound carried. `800fa3ee` is the wording pass that has the
 README recipe size the caller's own outer timeout on the retried link from
@@ -503,6 +505,10 @@ README recipe size the caller's own outer timeout on the retried link from
 first-hop range as a finite float between 6.0 and 60.0 in the README and
 this narrative. `d6eee86a` leaves the first-hop probe unqualified in the
 README's recipe pin sentence and names its one-hop bound in the CHANGELOG.
+`91c32571` has the `readme_patch_list.rs` pins find the CHANGELOG section by
+the `### Fixed` bullet's opener and this section by its Q3 legend sentence,
+and read this patch header joined across wrapped lines, so the release cut
+that promotes the section leaves them green.
 
 Fork commits `60410ca9`, `cc67d5f3`, `d0e34ef2`, `ef50cff5`, `689f5ab3`,
 `a451a06e`, `312ede0a`, `ad5c7e15`, `cc69ed29`, `02b2cfb9`, `9b21a2c9`,

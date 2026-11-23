@@ -24,8 +24,6 @@
 use std::error::Error;
 use std::time::{Duration, Instant};
 
-use hmac::{Hmac, Mac};
-use sha2::Sha256;
 use tokio::io::{AsyncReadExt, AsyncWriteExt};
 use tokio::net::{TcpListener, TcpStream};
 
@@ -35,11 +33,18 @@ use rns_transport::transport::shared_instance_rpc::{
     interface_stats, RpcEndpoint, RpcError, RpcKey,
 };
 
+#[path = "support/every_rpc_error.rs"]
+mod every_rpc_error;
+#[path = "support/stdlib_rpc_frame.rs"]
+mod stdlib_rpc_frame;
+#[path = "support/stdlib_rpc_handshake.rs"]
+mod stdlib_rpc_handshake;
+use every_rpc_error::every_rpc_error;
+use stdlib_rpc_frame::{frame, recv_frame, CHALLENGE};
+use stdlib_rpc_handshake::{answer, serve_handshake, server_challenge};
+
 const WAIT: Duration = Duration::from_secs(5);
 const KEY_HEX: &str = "00112233445566778899aabbccddeeff00112233445566778899aabbccddeeff";
-
-const CHALLENGE: &[u8] = b"#CHALLENGE#";
-const WELCOME: &[u8] = b"#WELCOME#";
 
 /// The README's retry rule as a consumer writes it.
 fn retryable(err: &RpcError) -> bool {
@@ -59,65 +64,11 @@ fn key() -> RpcKey {
 /// must agree with it over every variant and every kind the README names.
 #[test]
 fn retryable_agrees_with_is_transient_over_every_variant_and_kind() {
-    use std::io::{Error, ErrorKind};
-    let mut errors = Vec::new();
-    for kind in [
-        ErrorKind::ConnectionReset,
-        ErrorKind::ConnectionAborted,
-        ErrorKind::BrokenPipe,
-        ErrorKind::UnexpectedEof,
-    ] {
-        errors.push(RpcError::Io(Error::from(kind)));
-        errors.push(RpcError::Connect(Error::from(kind)));
-    }
-    errors.extend([
-        RpcError::Connect(Error::from(ErrorKind::ConnectionRefused)),
-        RpcError::Io(Error::from(ErrorKind::Other)),
-        RpcError::Timeout,
-        RpcError::Authentication,
-        RpcError::Protocol("short".into()),
-        RpcError::Decode("shape".into()),
-        RpcError::UnsupportedDigest("sha1".into()),
-        RpcError::InvalidKeyMaterial,
-    ]);
+    let errors = every_rpc_error();
     for err in &errors {
         assert_eq!(retryable(err), err.is_transient(), "{err:?}");
     }
     assert_eq!(errors.iter().filter(|err| retryable(err)).count(), 9, "{errors:?}");
-}
-
-/// One stdlib `send_bytes` frame: signed big-endian 32-bit length, then the payload.
-fn frame(payload: &[u8]) -> Vec<u8> {
-    let mut out = i32::try_from(payload.len()).expect("frame fits").to_be_bytes().to_vec();
-    out.extend_from_slice(payload);
-    out
-}
-
-async fn recv_frame(stream: &mut TcpStream) -> std::io::Result<Vec<u8>> {
-    let mut header = [0u8; 4];
-    stream.read_exact(&mut header).await?;
-    let len = usize::try_from(i32::from_be_bytes(header)).expect("non-negative length");
-    let mut payload = vec![0u8; len];
-    stream.read_exact(&mut payload).await?;
-    Ok(payload)
-}
-
-/// The stdlib's `deliver_challenge` message in the modern form: `{sha256}` + 40 bytes.
-fn server_challenge() -> Vec<u8> {
-    let mut message = b"{sha256}".to_vec();
-    message.extend_from_slice(&[0x42u8; 40]);
-    message
-}
-
-/// The stdlib's `_create_response` for a `{sha256}`-prefixed message: the MAC covers the
-/// whole message, header included, and the reply carries the same prefix.
-fn answer(authkey: &[u8], message: &[u8]) -> Vec<u8> {
-    assert!(message.starts_with(b"{sha256}"), "the client challenges with {{sha256}}: {message:?}");
-    let mut mac = Hmac::<Sha256>::new_from_slice(authkey).expect("hmac key");
-    mac.update(message);
-    let mut out = b"{sha256}".to_vec();
-    out.extend_from_slice(&mac.finalize().into_bytes());
-    out
 }
 
 fn authkey() -> Vec<u8> {
@@ -173,27 +124,10 @@ async fn valid_challenge_then_fin_without_reading_is_io_retryable() {
     server.await.expect("server task");
 }
 
-/// Serve the stdlib's mutual handshake honestly (`deliver_challenge`, then
-/// `answer_challenge`) and read the request frame the client sends next.
+/// The honest handshake with the one key these tests hold; the servers here go wrong only
+/// after it, so the request is read and dropped.
 async fn serve_honest_handshake(stream: &mut TcpStream) {
-    let authkey = authkey();
-    // deliver_challenge: our challenge, the client's answer, our welcome.
-    let message = server_challenge();
-    let mut challenge = CHALLENGE.to_vec();
-    challenge.extend_from_slice(&message);
-    stream.write_all(&frame(&challenge)).await.expect("write challenge");
-    let response = recv_frame(stream).await.expect("the client's answer");
-    assert_eq!(response, answer(&authkey, &message), "the client's answer to our challenge");
-    stream.write_all(&frame(WELCOME)).await.expect("write welcome");
-    // answer_challenge: the client's challenge, our answer, the client's welcome.
-    let theirs = recv_frame(stream).await.expect("the client's challenge");
-    assert!(theirs.starts_with(CHALLENGE), "{theirs:?}");
-    let ours = answer(&authkey, &theirs[CHALLENGE.len()..]);
-    stream.write_all(&frame(&ours)).await.expect("write our answer");
-    let welcome = recv_frame(stream).await.expect("the client's verdict");
-    assert_eq!(welcome, WELCOME, "the client rejected a correct answer");
-    // The request.
-    let request = recv_frame(stream).await.expect("the request");
+    let request = serve_handshake(stream, &authkey()).await.expect("an honest handshake");
     assert!(!request.is_empty());
 }
 

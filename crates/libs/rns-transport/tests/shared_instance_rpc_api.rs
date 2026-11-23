@@ -33,11 +33,9 @@ use std::fmt::Debug;
 use std::path::Path;
 use std::time::{Duration, Instant};
 
-use hmac::{Hmac, Mac};
 use rmpv::Value;
-use sha2::Sha256;
 use tokio::io::{AsyncReadExt, AsyncWriteExt};
-use tokio::net::{TcpListener, TcpStream};
+use tokio::net::TcpListener;
 
 use rns_transport::hash::AddressHash;
 use rns_transport::transport::shared_instance_rpc::{
@@ -46,9 +44,21 @@ use rns_transport::transport::shared_instance_rpc::{
     RpcError, RpcKey,
 };
 
+#[path = "support/every_rpc_error.rs"]
+mod every_rpc_error;
 #[path = "support/free_loopback_port.rs"]
 mod free_loopback_port;
+#[path = "support/msgpack_value.rs"]
+mod msgpack_value;
+#[path = "support/stdlib_rpc_frame.rs"]
+mod stdlib_rpc_frame;
+#[path = "support/stdlib_rpc_handshake.rs"]
+mod stdlib_rpc_handshake;
+use every_rpc_error::every_rpc_error;
 use free_loopback_port::free_loopback_port;
+use msgpack_value::{map, pack};
+use stdlib_rpc_frame::frame;
+use stdlib_rpc_handshake::serve_handshake;
 
 const WAIT: Duration = Duration::from_secs(5);
 const KEY_HEX: &str = "00112233445566778899aabbccddeeff00112233445566778899aabbccddeeff";
@@ -285,35 +295,9 @@ fn io_kind_is_some_for_exactly_io_and_connect() {
     assert!(!readme_retryable(&RpcError::Protocol("short".into())));
 }
 
-/// Every variant, and every kind the README names, behind `Io` and `Connect`.
-fn every_variant_and_kind() -> Vec<RpcError> {
-    use std::io::{Error, ErrorKind};
-    let mut errors = Vec::new();
-    for kind in [
-        ErrorKind::ConnectionReset,
-        ErrorKind::ConnectionAborted,
-        ErrorKind::BrokenPipe,
-        ErrorKind::UnexpectedEof,
-    ] {
-        errors.push(RpcError::Io(Error::from(kind)));
-        errors.push(RpcError::Connect(Error::from(kind)));
-    }
-    errors.extend([
-        RpcError::Connect(Error::from(ErrorKind::ConnectionRefused)),
-        RpcError::Io(Error::from(ErrorKind::Other)),
-        RpcError::Timeout,
-        RpcError::Authentication,
-        RpcError::Protocol("short".into()),
-        RpcError::Decode("shape".into()),
-        RpcError::UnsupportedDigest("sha1".into()),
-        RpcError::InvalidKeyMaterial,
-    ]);
-    errors
-}
-
 #[test]
 fn is_transient_agrees_with_the_readme_retry_rule() {
-    let errors = every_variant_and_kind();
+    let errors = every_rpc_error();
     for err in &errors {
         assert_eq!(err.is_transient(), readme_retryable(err), "{err:?}");
     }
@@ -471,7 +455,8 @@ async fn endless_server(
         let mut reply = first;
         loop {
             let (mut stream, _) = listener.accept().await.expect("accept");
-            let request = serve_honest_handshake(&mut stream).await;
+            let request =
+                serve_handshake(&mut stream, &authkey()).await.expect("an honest handshake");
             let n = counter.fetch_add(1, Ordering::SeqCst);
             if n == 0 {
                 assert_eq!(request, hash_request(DROP_PATH_REQUEST_HEAD), "first dial is the drop");
@@ -502,6 +487,13 @@ async fn drop_path_settled_that_never_settles_is_timeout_under_one_shared_budget
     let result = drop_path_settled(&endpoint, &key, &destination(), budget).await;
     let elapsed = started.elapsed();
     server.abort();
+    // The task ends only by this abort; a request assertion that failed inside it before
+    // then surfaces here instead of being lost with the handle.
+    if let Err(err) = server.await {
+        if let Ok(panic) = err.try_into_panic() {
+            std::panic::resume_unwind(panic);
+        }
+    }
     match &result {
         Err(err @ RpcError::Timeout) => {
             assert_eq!(err.io_kind(), None, "{err:?}");
@@ -559,7 +551,7 @@ async fn silent_after_the_request() -> (RpcEndpoint, tokio::task::JoinHandle<Vec
     let endpoint = RpcEndpoint::Tcp(listener.local_addr().expect("listener address"));
     let server = tokio::spawn(async move {
         let (mut stream, _) = listener.accept().await.expect("accept");
-        let request = serve_honest_handshake(&mut stream).await;
+        let request = serve_handshake(&mut stream, &authkey()).await.expect("an honest handshake");
         hold_until_client_leaves(stream).await;
         request
     });
@@ -575,7 +567,7 @@ async fn path_table_against_a_server_silent_after_the_request_is_timeout() {
     let elapsed = started.elapsed();
     assert!(matches!(result, Err(RpcError::Timeout)), "{result:?}");
     assert!(elapsed >= Duration::from_millis(600), "{elapsed:?}");
-    assert!(elapsed < Duration::from_secs(4), "{elapsed:?}");
+    assert!(elapsed < Duration::from_millis(1200), "{elapsed:?} is more than one budget");
     assert_eq!(server.await.expect("server task"), PATH_TABLE_REQUEST_NO_MAX_HOPS);
 }
 
@@ -684,9 +676,6 @@ async fn drop_path_settled_with_a_mistyped_drop_reply_is_decode_without_polling(
     assert_eq!(served_request(server).await, hash_request(DROP_PATH_REQUEST_HEAD));
 }
 
-const CHALLENGE: &[u8] = b"#CHALLENGE#";
-const WELCOME: &[u8] = b"#WELCOME#";
-
 const DESTINATION: [u8; 16] = [
     0x10, 0x11, 0x12, 0x13, 0x14, 0x15, 0x16, 0x17, 0x18, 0x19, 0x1a, 0x1b, 0x1c, 0x1d, 0x1e, 0x1f,
 ];
@@ -720,66 +709,6 @@ fn authkey() -> Vec<u8> {
         .collect()
 }
 
-/// One stdlib `send_bytes` frame: signed big-endian 32-bit length, then the payload.
-fn frame(payload: &[u8]) -> Vec<u8> {
-    let mut out = i32::try_from(payload.len()).expect("frame fits").to_be_bytes().to_vec();
-    out.extend_from_slice(payload);
-    out
-}
-
-async fn recv_frame(stream: &mut TcpStream) -> std::io::Result<Vec<u8>> {
-    let mut header = [0u8; 4];
-    stream.read_exact(&mut header).await?;
-    let len = usize::try_from(i32::from_be_bytes(header)).expect("non-negative length");
-    let mut payload = vec![0u8; len];
-    stream.read_exact(&mut payload).await?;
-    Ok(payload)
-}
-
-/// The stdlib's `deliver_challenge` message in the modern form: `{sha256}` + 40 bytes.
-fn server_challenge() -> Vec<u8> {
-    let mut message = b"{sha256}".to_vec();
-    message.extend_from_slice(&[0x42u8; 40]);
-    message
-}
-
-/// The stdlib's `_create_response` for a `{sha256}`-prefixed message: the MAC covers the
-/// whole message, header included, and the reply carries the same prefix.
-fn answer(authkey: &[u8], message: &[u8]) -> Vec<u8> {
-    assert!(message.starts_with(b"{sha256}"), "the client challenges with {{sha256}}: {message:?}");
-    let mut mac = Hmac::<Sha256>::new_from_slice(authkey).expect("hmac key");
-    mac.update(message);
-    let mut out = b"{sha256}".to_vec();
-    out.extend_from_slice(&mac.finalize().into_bytes());
-    out
-}
-
-/// Serve the stdlib's mutual handshake honestly (`deliver_challenge`, then
-/// `answer_challenge`) and return the request frame the client sends next.
-async fn serve_honest_handshake(stream: &mut TcpStream) -> Vec<u8> {
-    let authkey = authkey();
-    let message = server_challenge();
-    let mut challenge = CHALLENGE.to_vec();
-    challenge.extend_from_slice(&message);
-    stream.write_all(&frame(&challenge)).await.expect("write challenge");
-    let response = recv_frame(stream).await.expect("the client's answer");
-    assert_eq!(response, answer(&authkey, &message), "the client's answer to our challenge");
-    stream.write_all(&frame(WELCOME)).await.expect("write welcome");
-    let theirs = recv_frame(stream).await.expect("the client's challenge");
-    assert!(theirs.starts_with(CHALLENGE), "{theirs:?}");
-    let ours = answer(&authkey, &theirs[CHALLENGE.len()..]);
-    stream.write_all(&frame(&ours)).await.expect("write our answer");
-    let welcome = recv_frame(stream).await.expect("the client's verdict");
-    assert_eq!(welcome, WELCOME, "the client rejected a correct answer");
-    recv_frame(stream).await.expect("the request")
-}
-
-fn pack(value: &Value) -> Vec<u8> {
-    let mut bytes = Vec::new();
-    rmpv::encode::write_value(&mut bytes, value).expect("pack into a vec");
-    bytes
-}
-
 /// A loopback listener that takes one connection per canned reply: the honest handshake,
 /// the request, the reply, then the close `rpc_loop` does. The task yields every request
 /// read, in connection order; a dial after the last reply is refused.
@@ -792,7 +721,9 @@ async fn canned_server(
         let mut requests = Vec::with_capacity(replies.len());
         for reply in replies {
             let (mut stream, _) = listener.accept().await.expect("accept");
-            requests.push(serve_honest_handshake(&mut stream).await);
+            let request =
+                serve_handshake(&mut stream, &authkey()).await.expect("an honest handshake");
+            requests.push(request);
             stream.write_all(&frame(&pack(&reply))).await.expect("write reply");
             stream.flush().await.expect("flush");
             stream.shutdown().await.expect("fin");
@@ -807,10 +738,6 @@ async fn served_request(server: tokio::task::JoinHandle<Vec<Vec<u8>>>) -> Vec<u8
     let mut requests = server.await.expect("server task");
     assert_eq!(requests.len(), 1, "{requests:?}");
     requests.remove(0)
-}
-
-fn map(pairs: Vec<(&str, Value)>) -> Value {
-    Value::Map(pairs.into_iter().map(|(key, value)| (Value::from(key), value)).collect())
 }
 
 /// A row as `get_path_table` builds it (`RNS/Reticulum.py:1638-1648`), with `extra`
@@ -1089,7 +1016,8 @@ async fn concurrent_path_calls_take_one_connection_each_and_never_cross_replies(
         for _ in 0..2 {
             let (mut stream, _) = listener.accept().await.expect("accept");
             workers.push(tokio::spawn(async move {
-                let request = serve_honest_handshake(&mut stream).await;
+                let request =
+                    serve_handshake(&mut stream, &authkey()).await.expect("an honest handshake");
                 let reply = if request == hash_request(DROP_PATH_REQUEST_HEAD) {
                     Value::from(true)
                 } else if request == hash_request(FIRST_HOP_TIMEOUT_REQUEST_HEAD) {
@@ -1117,8 +1045,9 @@ async fn concurrent_path_calls_take_one_connection_each_and_never_cross_replies(
 }
 
 /// Plan: the helper returns the drop's bool only once a poll reads `None`. When the
-/// server goes away after answering the first poll with a name, the helper must not
-/// report `Ok(true)`: whatever error it surfaces, the path was never seen gone.
+/// server goes away after answering the first poll with a name, the helper must not report
+/// `Ok(true)`: the next poll's dial meets a closed port, refused or reset, so the call is
+/// `Connect` or `Io`, and it ends on that dial, long before the budget.
 #[tokio::test]
 async fn drop_path_settled_whose_server_vanishes_mid_poll_never_reports_settled() {
     let key = RpcKey::from_hex(KEY_HEX).expect("hex key");
@@ -1129,8 +1058,14 @@ async fn drop_path_settled_whose_server_vanishes_mid_poll_never_reports_settled(
         drop_path_settled(&endpoint, &key, &destination(), Duration::from_millis(700)).await;
     let elapsed = started.elapsed();
     eprintln!("drop_path_settled with a vanished server: {result:?} in {elapsed:?}");
-    assert!(result.is_err(), "a poll that never read None reported {result:?}");
-    assert!(elapsed < Duration::from_millis(1200), "{elapsed:?} is more than one budget");
+    assert!(
+        matches!(result, Err(RpcError::Connect(_) | RpcError::Io(_))),
+        "a poll that never read None reported {result:?}"
+    );
+    assert!(
+        elapsed < Duration::from_millis(400),
+        "{elapsed:?} for one drop, one 50 ms poll and one dial of a closed port"
+    );
     let requests = server.await.expect("server task");
     assert_eq!(requests.len(), 2, "{requests:?}");
 }

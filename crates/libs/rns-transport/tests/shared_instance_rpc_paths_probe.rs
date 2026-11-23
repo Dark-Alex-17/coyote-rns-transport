@@ -13,10 +13,8 @@
 
 use std::time::{Duration, Instant};
 
-use hmac::{Hmac, Mac};
 use rmpv::Value;
-use sha2::Sha256;
-use tokio::io::{AsyncRead, AsyncReadExt, AsyncWrite, AsyncWriteExt};
+use tokio::io::{AsyncRead, AsyncWrite, AsyncWriteExt};
 use tokio::net::TcpListener;
 
 use rns_transport::hash::AddressHash;
@@ -27,13 +25,19 @@ use rns_transport::transport::shared_instance_rpc::{
     RpcError, RpcKey,
 };
 
+#[path = "support/msgpack_value.rs"]
+mod msgpack_value;
+#[path = "support/stdlib_rpc_frame.rs"]
+mod stdlib_rpc_frame;
+#[path = "support/stdlib_rpc_handshake.rs"]
+mod stdlib_rpc_handshake;
+use msgpack_value::{map, pack};
+use stdlib_rpc_frame::frame;
+use stdlib_rpc_handshake::serve_handshake;
+
 const WAIT: Duration = Duration::from_secs(5);
 const KEY_HEX: &str = "00112233445566778899aabbccddeeff00112233445566778899aabbccddeeff";
 const OTHER_KEY: [u8; 32] = [0x77; 32];
-
-const CHALLENGE: &[u8] = b"#CHALLENGE#";
-const WELCOME: &[u8] = b"#WELCOME#";
-const FAILURE: &[u8] = b"#FAILURE#";
 
 const DESTINATION: [u8; 16] = [
     0x10, 0x11, 0x12, 0x13, 0x14, 0x15, 0x16, 0x17, 0x18, 0x19, 0x1a, 0x1b, 0x1c, 0x1d, 0x1e, 0x1f,
@@ -67,84 +71,31 @@ fn authkey() -> Vec<u8> {
         .collect()
 }
 
-/// One stdlib `send_bytes` frame: signed big-endian 32-bit length, then the payload.
-fn frame(payload: &[u8]) -> Vec<u8> {
-    let mut out = i32::try_from(payload.len()).expect("frame fits").to_be_bytes().to_vec();
-    out.extend_from_slice(payload);
-    out
-}
-
-async fn recv_frame<S: AsyncRead + Unpin>(stream: &mut S) -> std::io::Result<Vec<u8>> {
-    let mut header = [0u8; 4];
-    stream.read_exact(&mut header).await?;
-    let len = usize::try_from(i32::from_be_bytes(header)).expect("non-negative length");
-    let mut payload = vec![0u8; len];
-    stream.read_exact(&mut payload).await?;
-    Ok(payload)
-}
-
-fn server_challenge() -> Vec<u8> {
-    let mut message = b"{sha256}".to_vec();
-    message.extend_from_slice(&[0x42u8; 40]);
-    message
-}
-
-fn answer(authkey: &[u8], message: &[u8]) -> Vec<u8> {
-    assert!(message.starts_with(b"{sha256}"), "the client challenges with {{sha256}}: {message:?}");
-    let mut mac = Hmac::<Sha256>::new_from_slice(authkey).expect("hmac key");
-    mac.update(message);
-    let mut out = b"{sha256}".to_vec();
-    out.extend_from_slice(&mac.finalize().into_bytes());
-    out
-}
-
-/// Serve the stdlib's mutual handshake honestly with `authkey` and return the request
-/// frame the client sends next; with a key the client does not hold, do what
-/// `deliver_challenge` does: send `#FAILURE#`, close, return `None`.
-async fn serve_handshake<S: AsyncRead + AsyncWrite + Unpin>(
-    stream: &mut S,
-    authkey: &[u8],
-) -> Option<Vec<u8>> {
-    let message = server_challenge();
-    let mut challenge = CHALLENGE.to_vec();
-    challenge.extend_from_slice(&message);
-    stream.write_all(&frame(&challenge)).await.expect("write challenge");
-    let response = recv_frame(stream).await.expect("the client's answer");
-    if response != answer(authkey, &message) {
-        stream.write_all(&frame(FAILURE)).await.expect("write failure");
-        stream.flush().await.expect("flush");
-        let _ = stream.shutdown().await;
-        return None;
-    }
-    stream.write_all(&frame(WELCOME)).await.expect("write welcome");
-    let theirs = recv_frame(stream).await.expect("the client's challenge");
-    assert!(theirs.starts_with(CHALLENGE), "{theirs:?}");
-    let ours = answer(authkey, &theirs[CHALLENGE.len()..]);
-    stream.write_all(&frame(&ours)).await.expect("write our answer");
-    let welcome = recv_frame(stream).await.expect("the client's verdict");
-    assert_eq!(welcome, WELCOME, "the client rejected a correct answer");
-    Some(recv_frame(stream).await.expect("the request"))
-}
-
 async fn reply_and_close<S: AsyncRead + AsyncWrite + Unpin>(stream: &mut S, reply: &Value) {
     stream.write_all(&frame(&pack(reply))).await.expect("write reply");
     stream.flush().await.expect("flush");
     stream.shutdown().await.expect("fin");
 }
 
-fn pack(value: &Value) -> Vec<u8> {
-    let mut bytes = Vec::new();
-    rmpv::encode::write_value(&mut bytes, value).expect("pack into a vec");
-    bytes
+/// A server task aborted when the handle is dropped, so a test that fails on its own
+/// assertion first does not leave the task serving, or panicking, into the output.
+struct AbortOnDrop<T>(tokio::task::JoinHandle<T>);
+
+impl<T> AbortOnDrop<T> {
+    async fn join(mut self) -> T {
+        (&mut self.0).await.expect("server task")
+    }
 }
 
-fn map(pairs: Vec<(&str, Value)>) -> Value {
-    Value::Map(pairs.into_iter().map(|(key, value)| (Value::from(key), value)).collect())
+impl<T> Drop for AbortOnDrop<T> {
+    fn drop(&mut self) {
+        self.0.abort();
+    }
 }
 
 /// A TCP loopback listener answering one canned reply per connection, in order; the task
 /// yields the requests read.
-async fn canned_tcp(replies: Vec<Value>) -> (RpcEndpoint, tokio::task::JoinHandle<Vec<Vec<u8>>>) {
+async fn canned_tcp(replies: Vec<Value>) -> (RpcEndpoint, AbortOnDrop<Vec<Vec<u8>>>) {
     let listener = TcpListener::bind("127.0.0.1:0").await.expect("bind loopback");
     let endpoint = RpcEndpoint::Tcp(listener.local_addr().expect("listener address"));
     let server = tokio::spawn(async move {
@@ -158,11 +109,11 @@ async fn canned_tcp(replies: Vec<Value>) -> (RpcEndpoint, tokio::task::JoinHandl
         }
         requests
     });
-    (endpoint, server)
+    (endpoint, AbortOnDrop(server))
 }
 
-async fn one_request(server: tokio::task::JoinHandle<Vec<Vec<u8>>>) -> Vec<u8> {
-    let mut requests = server.await.expect("server task");
+async fn one_request(server: AbortOnDrop<Vec<Vec<u8>>>) -> Vec<u8> {
+    let mut requests = server.join().await;
     assert_eq!(requests.len(), 1, "{requests:?}");
     requests.remove(0)
 }
@@ -194,7 +145,7 @@ async fn drop_path_settled_shares_one_budget_between_a_slow_drop_and_its_polls()
     let endpoint = RpcEndpoint::Tcp(listener.local_addr().expect("listener address"));
     let served = std::sync::Arc::new(AtomicUsize::new(0));
     let counter = served.clone();
-    let server = tokio::spawn(async move {
+    let _server = AbortOnDrop(tokio::spawn(async move {
         loop {
             let (mut stream, _) = listener.accept().await.expect("accept");
             let request = serve_handshake(&mut stream, &authkey()).await.expect("honest");
@@ -208,12 +159,11 @@ async fn drop_path_settled_shares_one_budget_between_a_slow_drop_and_its_polls()
                 reply_and_close(&mut stream, &Value::from(INTERFACE_NAME)).await;
             }
         }
-    });
+    }));
     let budget = Duration::from_millis(700);
     let started = Instant::now();
     let result = drop_path_settled(&endpoint, &key(), &destination(), budget).await;
     let elapsed = started.elapsed();
-    server.abort();
     let dials = served.load(Ordering::SeqCst);
     eprintln!("slow drop + endless polls: {result:?} after {dials} dials in {elapsed:?}");
     match &result {
@@ -234,10 +184,9 @@ async fn drop_path_settled_shares_one_budget_between_a_slow_drop_and_its_polls()
 /// helper can neither report `Ok(true)` nor `Ok(false)`.
 #[tokio::test]
 async fn drop_path_settled_with_a_zero_budget_is_timeout() {
-    let (endpoint, server) = canned_tcp(vec![Value::from(true), Value::from("None")]).await;
+    let (endpoint, _server) = canned_tcp(vec![Value::from(true), Value::from("None")]).await;
     let started = Instant::now();
     let result = drop_path_settled(&endpoint, &key(), &destination(), Duration::ZERO).await;
-    server.abort();
     assert!(matches!(result, Err(RpcError::Timeout)), "{result:?}");
     assert!(started.elapsed() < Duration::from_secs(1), "{:?}", started.elapsed());
 }

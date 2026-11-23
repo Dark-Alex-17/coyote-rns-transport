@@ -165,7 +165,11 @@ async fn a_path_through_a_relay_reads_two_hops_on_the_learners_own_interface() {
     let relay_status = relay.transport.path_status(&hash).await;
     assert_eq!(Some(at_relay.iface), relay_status.interface, "the accepted child A arrived on");
     assert_ne!(at_relay.iface, at_b.iface, "each transport names its own interface");
-    assert!(within_bracket(at_relay.learned_at, before, after));
+    assert!(
+        within_bracket(at_relay.learned_at, before, after),
+        "the relay's learned_at {:?} within a second of {before:?}..={after:?}",
+        at_relay.learned_at
+    );
     assert!(
         at_relay.learned_at <= at_b.learned_at + CLOCK_SLACK,
         "the relay learned the path no later than B: relay {:?}, B {:?}",

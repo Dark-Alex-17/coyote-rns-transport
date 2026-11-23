@@ -234,7 +234,11 @@ async fn a_reannounce_moves_learned_at_forward() {
     learn_announce("the first announce", &mut announces, &hash, WAIT).await;
     let first_after = SystemTime::now();
     let first = connector.path_interface(&hash).await.expect("the path is on file");
-    assert!(within_bracket(first.learned_at, first_before, first_after));
+    assert!(
+        within_bracket(first.learned_at, first_before, first_after),
+        "learned_at {:?} lies within a second of the first announce bracket {first_before:?}..={first_after:?}",
+        first.learned_at
+    );
 
     // Python keys the emission on whole seconds; cross one so the second announce is new.
     tokio::time::sleep(Duration::from_millis(1100)).await;

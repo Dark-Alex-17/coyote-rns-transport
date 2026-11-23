@@ -20,16 +20,17 @@ use rns_transport::transport::shared_instance_rpc::{
     interface_stats, RpcEndpoint, RpcError, RpcKey,
 };
 use sha2::Sha256;
-use tokio::io::{AsyncReadExt, AsyncWriteExt};
+use tokio::io::AsyncWriteExt;
 use tokio::net::{TcpListener, TcpStream};
+
+#[path = "support/stdlib_rpc_frame.rs"]
+mod stdlib_rpc_frame;
+use stdlib_rpc_frame::{frame, recv_frame, CHALLENGE, FAILURE, WELCOME};
 
 const WAIT: Duration = Duration::from_secs(5);
 const KEY_HEX: &str = "00112233445566778899aabbccddeeff00112233445566778899aabbccddeeff";
 const ONE_BYTE_KEY_HEX: &str = "ab";
 const LONG_KEY_LEN: usize = 200;
-const CHALLENGE: &[u8] = b"#CHALLENGE#";
-const WELCOME: &[u8] = b"#WELCOME#";
-const FAILURE: &[u8] = b"#FAILURE#";
 const DIGEST_PREFIX: &[u8] = b"{sha256}";
 const DEPARTED_ROUNDS: usize = 16;
 
@@ -42,29 +43,19 @@ enum Server {
     WrongThenDepart,
 }
 
+/// The bare MAC with no `{sha256}` prefix: `WrongThenDepart` inverts its bytes before the
+/// prefix goes on.
 fn hmac_sha256(key: &[u8], message: &[u8]) -> Vec<u8> {
     let mut mac = Hmac::<Sha256>::new_from_slice(key).expect("hmac takes any key length");
     mac.update(message);
     mac.finalize().into_bytes().to_vec()
 }
 
-/// `Connection._send_bytes`: a big-endian `!i` length then the payload.
+/// `Connection._send_bytes`, flushed; returns the io result so the `#FAILURE#` write can
+/// discard it.
 async fn send_frame(stream: &mut TcpStream, payload: &[u8]) -> std::io::Result<()> {
-    let len = u32::try_from(payload.len()).expect("frame fits");
-    stream.write_all(&len.to_be_bytes()).await?;
-    stream.write_all(payload).await?;
+    stream.write_all(&frame(payload)).await?;
     stream.flush().await
-}
-
-/// `Connection._recv_bytes` for the frames this exchange carries.
-async fn recv_frame(stream: &mut TcpStream) -> std::io::Result<Vec<u8>> {
-    let mut header = [0u8; 4];
-    stream.read_exact(&mut header).await?;
-    let len = i32::from_be_bytes(header);
-    let len = usize::try_from(len).map_err(|_| std::io::Error::other("negative frame"))?;
-    let mut payload = vec![0u8; len];
-    stream.read_exact(&mut payload).await?;
-    Ok(payload)
 }
 
 fn stats_reply() -> Vec<u8> {

@@ -117,7 +117,6 @@ async fn a_one_hop_link_over_a_262144_byte_shared_instance_client_times_out_at_p
     assert_eq!(learned.hops, 1, "one hop through a plain transport-enabled server");
     let hops = client.hops_to(&hash).await;
     assert_eq!(hops, 1);
-    let expected = EXPECTED_ONE_HOP + PER_HOP * (hops.max(1) as u32 - 1);
     let desc = client.destination_desc(&hash).await.expect("C holds H's description");
 
     // H goes away: nothing answers the link request and C's own row stays.
@@ -128,17 +127,17 @@ async fn a_one_hop_link_over_a_262144_byte_shared_instance_client_times_out_at_p
     let started = Instant::now();
     let link = client.link(desc).await.expect("Ok: a path exists");
     let id = *link.lock().await.id();
-    let closed = closed_event_for(&mut out_events, id, expected + CLOSE_SLACK).await;
+    let closed = closed_event_for(&mut out_events, id, EXPECTED_ONE_HOP + CLOSE_SLACK).await;
     let elapsed = started.elapsed();
-    eprintln!("OBSERVED: {hops}-hop link over a {CLIENT_MTU}-byte client interface at {CLIENT_BITRATE} bps closed with {:?} after {elapsed:?} (Python: {expected:?})", closed.close_reason);
+    eprintln!("OBSERVED: {hops}-hop link over a {CLIENT_MTU}-byte client interface at {CLIENT_BITRATE} bps closed with {:?} after {elapsed:?} (Python: {EXPECTED_ONE_HOP:?})", closed.close_reason);
     assert_eq!(closed.close_reason, Some(LinkCloseReason::Timeout));
     assert!(
         elapsed >= PER_HOP * 2,
         "Python's floor is first_hop_timeout (> 6 s) + 6 s per hop: closed after {elapsed:?}"
     );
     assert!(
-        elapsed <= expected + CLOSE_SLACK,
-        "sized with the 500-byte Reticulum MTU the link closes about {expected:?} in, \
+        elapsed <= EXPECTED_ONE_HOP + CLOSE_SLACK,
+        "sized with the 500-byte Reticulum MTU the link closes about {EXPECTED_ONE_HOP:?} in, \
          not the ~45 s a {CLIENT_MTU}-byte first hop gives: closed after {elapsed:?}"
     );
 

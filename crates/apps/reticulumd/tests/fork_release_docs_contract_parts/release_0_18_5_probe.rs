@@ -16,14 +16,19 @@
 // more usage pins read the release against the tree it describes: the
 // README block, CHANGELOG section and ledger section are ASCII with no plan
 // or task id and no `## Unreleased` stub beside them, and the test-hygiene
-// claims the three documents make hold in the tree. The
+// claims the three documents make hold in the tree. One more holds the
+// carried doc nits to the patches they belong to: `dfb85779` under rnsd
+// path rpc and path interface, `91c32571` under link establishment
+// timeout, in legend and header, and neither under the release patch. The
 // pins over the current tree, which the next release cut demotes, are the
 // first-release-heading test, the ledger-opening assertion of the patch-set
 // test, the README `[dependencies]` snippet pins of the consumer-note test,
 // and the crate-manifest version and publish-contract literal count of the
-// hand-pins test; the rest hold facts about the 0.18.5 section itself.
-// `first_release_heading` and `patchset_opening_section` are shared with
-// the 0.18.3 probe.
+// hand-pins test; the two no-`## Unreleased`-stub assertions of the ASCII
+// test go red sooner, on the commit that reopens the stub for the next
+// cycle, which is the commit that retires them; the rest hold facts about
+// the 0.18.5 section itself. `first_release_heading` and
+// `patchset_opening_section` are shared with the 0.18.3 probe.
 
 /// The 0.18.5 heading carries the day the release was cut and is the first
 /// release heading of the CHANGELOG.
@@ -228,10 +233,11 @@ fn release_0_18_5_readme_patch_list_runs_newest_first() {
 
 /// The first release section of the patch-set ledger is
 /// `## 0.18.5 (upstream 0.14.0)`; its legend names the id-less
-/// `release 0.18.5` patch and cites the three release commits both there
-/// and in the release paragraph header, and the table rows this file under
-/// `release 0.18.5`. The citations are `contains` checks so the ledger may
-/// cite later commits too; only this probe's own commit cannot cite itself.
+/// `release 0.18.5` patch and cites the release commits other than the one
+/// that last touched this file both there and in the release paragraph
+/// header, and the table rows this file under `release 0.18.5`. The
+/// citations are `contains` checks so the ledger may cite later commits
+/// too; only this probe's own commit cannot cite itself.
 #[test]
 fn release_0_18_5_patchset_opens_on_the_release_patch() {
     let ledger = read_repo_file("docs/fork/PATCHSET.md");
@@ -273,6 +279,45 @@ fn release_0_18_5_patchset_opens_on_the_release_patch() {
         }),
         "the 0.18.5 table should row this probe under `release 0.18.5`"
     );
+}
+
+/// The carried doc nits are ledgered under the patches they belong to and
+/// not under the release patch: `dfb85779` is cited by the rnsd path rpc
+/// and path interface legend sentences and patch headers, `91c32571` by the
+/// link establishment timeout legend sentence and patch header, and the
+/// release paragraph header cites neither.
+#[test]
+fn release_0_18_5_ledger_cites_the_carried_nits_under_their_own_patches() {
+    let ledger = read_repo_file("docs/fork/PATCHSET.md");
+    let prose = joined_prose(patchset_opening_section(&ledger));
+    let header_before = |label: &str| {
+        let end = prose.find(label).unwrap_or_else(|| panic!("a patch header ends with {label:?}"));
+        let start =
+            prose[..end].rfind("Fork commits `").expect("the patch header opens on `Fork commits`");
+        &prose[start..end]
+    };
+    for (patch, label, sha) in [
+        ("rnsd path rpc", ": Q1, rnsd path rpc.", "`dfb85779`"),
+        ("path interface", ": Q2, path interface.", "`dfb85779`"),
+        ("link establishment timeout", ": Q3, link establishment timeout.", "`91c32571`"),
+    ] {
+        let opener = format!("The `{patch}` patch is fork commits");
+        let legend_start = prose
+            .find(&opener)
+            .unwrap_or_else(|| panic!("the 0.18.5 legend names the `{patch}` patch"));
+        let legend = &prose[legend_start + opener.len()..];
+        let legend = &legend[..legend.find('.').expect("the legend sentence ends")];
+        assert!(legend.contains(sha), "the `{patch}` legend cites {sha}: {legend}");
+        let header = header_before(label);
+        assert!(header.contains(sha), "the `{patch}` patch header cites {sha}: {header}");
+    }
+    let release_header = header_before(": release 0.18.5.");
+    for sha in ["`dfb85779`", "`91c32571`"] {
+        assert!(
+            !release_header.contains(sha),
+            "the release paragraph header should not cite the carried nit {sha}: {release_header}"
+        );
+    }
 }
 
 /// The README 0.18.5 patch-list block carries one bullet per shipped change
@@ -481,9 +526,15 @@ fn release_0_18_5_hygiene_claims_hold_in_the_tree() {
         assert!(read_repo_file(path).contains(needle), "{path} should carry {needle:?}");
     }
     let ledger = joined_prose(patchset_opening_section(&read_repo_file("docs/fork/PATCHSET.md")));
+    let support_move = ledger
+        .find("`7edc5c91` moves the private copies")
+        .expect("the Q1 narrative credits the support-file move to `7edc5c91`");
+    let support_move = &ledger[support_move..];
+    let support_move =
+        &support_move[..support_move.find("`1867e6e4`").expect("the next hygiene commit follows")];
     assert!(
-        ledger.contains("under a 400 ms ceiling, caps the silent-server case at 1200 ms"),
-        "the ledger keeps the 400 ms ceiling with `7edc5c91`"
+        support_move.contains("under a 400 ms ceiling, caps the silent-server case at 1200 ms"),
+        "the ledger keeps the 400 ms ceiling with `7edc5c91`: {support_move}"
     );
     assert!(
         ledger.contains("`8bc21180` bounds the vanished-server case by its 700 ms budget instead of a 400 ms ceiling"),

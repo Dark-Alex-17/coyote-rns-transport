@@ -111,7 +111,7 @@ the fork. The licence is upstream's, see [Licence](#licence).
 
 ```toml
 [dependencies]
-coyote-rns-transport = "0.18.4"
+coyote-rns-transport = "0.18.5"
 ```
 
 ```rust

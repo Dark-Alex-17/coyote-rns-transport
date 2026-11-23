@@ -5,7 +5,7 @@
 //! lies within a second of the announce, `name` is `None` until the interface manager
 //! is given a display name and that name afterwards, an unknown destination answers
 //! `None`, and `expire_path` removes the record. `PathIface` is a `Send + Sync` value
-//! type: `Debug`, `Clone` and `PartialEq`.
+//! type: `Debug`, `Clone`, `PartialEq` and `Eq`.
 
 use std::time::{Duration, Instant, SystemTime};
 
@@ -89,7 +89,7 @@ async fn connector(port: u16) -> (Transport, broadcast::Receiver<AnnounceEvent>)
 #[test]
 fn path_iface_is_a_send_sync_value_type() {
     fn is_send_sync<T: Send + Sync>() {}
-    fn is_value<T: std::fmt::Debug + Clone + PartialEq>() {}
+    fn is_value<T: std::fmt::Debug + Clone + PartialEq + Eq>() {}
     is_send_sync::<PathIface>();
     is_value::<PathIface>();
 }
@@ -144,16 +144,18 @@ async fn path_interface_exposes_the_interface_its_name_the_learn_time_and_the_ho
         .lock()
         .await
         .set_display_name(iface, Some("uplink".to_owned())));
+    tokio::time::sleep(Duration::from_millis(50)).await;
     let named = connector.path_interface(&destination_hash).await.expect("the path is on file");
     assert_eq!(named.name.as_deref(), Some("uplink"));
     assert_eq!(named.iface, iface);
     // Two reads of one entry convert the same `Instant` through two clock samples,
-    // so they agree to the conversion's sub-millisecond imprecision, not exactly.
+    // so they agree to the sampling imprecision, not exactly; the sleep makes a
+    // relearn visible as a shift of its own size.
     let drift =
         named.learned_at.duration_since(learned_at).unwrap_or_else(|earlier| earlier.duration());
     assert!(
-        drift < Duration::from_millis(1),
-        "naming the interface does not relearn the path: the reads differ by {drift:?}"
+        drift < Duration::from_millis(25),
+        "two reads of one entry agree to the clock-sampling imprecision; a relearn would move learned_at by the 50 ms sleep: the reads differ by {drift:?}"
     );
     assert_eq!(named.clone(), named, "the record compares by value");
 

@@ -1306,17 +1306,24 @@ setup) reads the same fact in-process with `Transport::path_interface`,
 which returns a `PathIface` for one destination or `None` when the table
 has no entry: `iface`, the interface the announce arrived on; `name`, the
 interface manager's display name for it (the `interface_name` of
-`Transport::path_table`'s rows); `learned_at`, the time this transport
-accepted the announce, converted from the entry's monotonic clock; and
-`hops`. Python's `Transport.next_hop_interface` returns the interface
-object itself (`RNS/Transport.py:3156-3164`). The in-process up/down stream is
-`Transport::interface_events()`: a `Disconnected` followed by `Connecting`
-or `Connected` means the interface came back since the path was learned.
-On a failed link, read the path's interface, check it against that stream,
-and when the interface is down call `Transport::expire_path` and then
-`Transport::request_path`. Pinned by
-`transport/tests_parts/path_interface_api.rs` on loopback and
-`tests/path_interface_api.rs` from outside the crate.
+`Transport::path_table`'s rows), `None` when the interface has no display
+name or is no longer registered with the manager; `learned_at`, the time
+this transport accepted the announce, converted from the entry's monotonic
+clock and so carrying the imprecision of sampling the two clocks, typically
+well under a millisecond; and `hops`. `Transport::path_table` exports the
+same facts for every destination whose interface is still registered; a
+path whose interface has since been detached is omitted there and still
+returned by `path_interface`. Python's `Transport.next_hop_interface`
+returns the interface object itself (`RNS/Transport.py:3156-3164`). The
+in-process up/down stream is `Transport::interface_events()`: a
+`Disconnected` followed by `Connecting` or `Connected` means the interface
+came back since the path was learned. On a failed link, read the path's
+interface, check it against that stream, and when the interface is down
+call `Transport::expire_path` and then `Transport::request_path`. Pinned by
+`transport/tests_parts/path_interface_api.rs` on loopback,
+`tests/path_interface_api.rs` from outside the crate, and
+`tests/path_interface_usage_probe.rs`, which joins the record to the event
+stream by `iface` and walks the recipe after the listener goes away.
 
 Pinned by the Python-in-the-loop part
 `crates/apps/reticulumd/tests/python_channel_interop_parts/python_shared_instance_rpc_paths_live.rs`
@@ -1581,7 +1588,10 @@ Not divergences:
   interface, display name, local learn time and hops; Python's
   `Transport.next_hop_interface` returns the interface object
   (`RNS/Transport.py:3156-3164`) and the timestamp sits in the table row
-  (`:4122`). API shape, not behaviour.
+  (`:4122`). Only the path-table branch is mirrored: Python answers the
+  shared-instance interface for a destination in `destinations_map`
+  (`:3163`), where a destination of this transport's own has no path table
+  entry and answers `None`. API shape, not behaviour.
 - `Transport::interface_connect_count()` is a fork-only per-interface count of
   established streams; Python's reconnect loop keeps only a per-burst local
   `attempts` and no count of established streams

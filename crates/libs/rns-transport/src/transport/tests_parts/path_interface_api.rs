@@ -38,18 +38,20 @@ async fn path_interface_reports_the_learned_interface_name_time_and_hops() {
         .lock()
         .await
         .set_display_name(path.iface, Some("uplink".to_owned())));
+    tokio::time::sleep(Duration::from_millis(50)).await;
     let named = connector.transport.path_interface(&hash).await.expect("the path is still on file");
     assert_eq!(named.name.as_deref(), Some("uplink"));
     assert_eq!(named.iface, path.iface);
     // Two reads of one entry convert the same `Instant` through two clock samples,
-    // so they agree to the conversion's sub-millisecond imprecision, not exactly.
+    // so they agree to the sampling imprecision, not exactly; the sleep makes a
+    // relearn visible as a shift of its own size.
     let drift = named
         .learned_at
         .duration_since(path.learned_at)
         .unwrap_or_else(|earlier| earlier.duration());
     assert!(
-        drift < Duration::from_millis(1),
-        "naming the interface does not relearn the path: the reads differ by {drift:?}"
+        drift < Duration::from_millis(25),
+        "two reads of one entry agree to the clock-sampling imprecision; a relearn would move learned_at by the 50 ms sleep: the reads differ by {drift:?}"
     );
 
     let rows = connector.transport.path_table(None).await.expect("path table");

@@ -890,11 +890,12 @@ fn crate_readme_path_table_section_describes_the_calls_and_the_window() {
 /// the code presents it: `Transport::path_interface` and its `PathIface`
 /// record, the `learned_at` field, the Python line the interface read is
 /// named after, `Transport::interface_events()` as the up/down stream, the
-/// `expire_path` then `request_path` recipe, and the two pins; the
-/// divergence register lists the accessor as fork-only below the
-/// `Not divergences:` marker (API shape) and nowhere above it, and the
-/// changelog bullet carries the record, the field, the Python line, the
-/// stream and the same pin files.
+/// `expire_path` then `request_path` recipe, the detached-interface case
+/// `path_table` omits, and the three pins; the divergence register lists
+/// the accessor as fork-only below the `Not divergences:` marker (API
+/// shape) with the `destinations_map` branch it does not mirror and
+/// nowhere above it, and the changelog bullet carries the record, the
+/// field, the Python line, the stream and the same pin files.
 #[test]
 fn crate_readme_path_table_section_describes_the_in_process_accessor() {
     let readme = read_repo_file("crates/libs/rns-transport/README.md");
@@ -904,13 +905,17 @@ fn crate_readme_path_table_section_describes_the_in_process_accessor() {
         "`learned_at`",
         "`Transport::interface_events()`",
         "`RNS/Transport.py:3156-3164`",
+        "no longer registered with the manager",
+        "`destinations_map`",
         "`tests/path_interface_api.rs`",
         "`transport/tests_parts/path_interface_api.rs`",
+        "`tests/path_interface_usage_probe.rs`",
     ];
     for claim in shared_claims.into_iter().chain([
         "`Transport::path_interface`",
         "`Transport::expire_path`",
         "`Transport::request_path`",
+        "omitted there and still returned by `path_interface`",
     ]) {
         assert!(
             section.contains(&squash(claim)),
@@ -922,9 +927,13 @@ fn crate_readme_path_table_section_describes_the_in_process_accessor() {
         .split_once("\nNot divergences:\n")
         .expect("the register separates API-shape facts under `Not divergences:`");
     let bullet = "`Transport::path_interface` is a fork-only";
+    let item = top_level_bullets(api_shape)
+        .into_iter()
+        .find(|item| item.starts_with(&format!("- {bullet}")))
+        .unwrap_or_else(|| panic!("{bullet} is API shape, listed below the marker:\n{api_shape}"));
     assert!(
-        top_level_bullets(api_shape).iter().any(|item| item.starts_with(&format!("- {bullet}"))),
-        "{bullet} is API shape, listed below the marker:\n{api_shape}"
+        squash(&item).contains("`destinations_map`"),
+        "the bullet names the Python branch the read does not mirror:\n{item}"
     );
     assert!(
         !squash(real).contains(&squash(bullet)),

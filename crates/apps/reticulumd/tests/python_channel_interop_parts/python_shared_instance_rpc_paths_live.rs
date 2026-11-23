@@ -49,9 +49,10 @@ const PATH_LIVE_SETTLE: Duration = Duration::from_millis(500);
 // (`RNS/Transport.py:2238`), so successive announces are spaced past one.
 #[cfg(unix)]
 const PATH_LIVE_ANNOUNCE_GAP: Duration = Duration::from_millis(1100);
-/// A false `drop_path_settled` returns after the one drop dial, no polling.
+/// A false `drop_path_settled` is one dial; the bound is a hang guard well
+/// under `PATH_LIVE_CALL`.
 #[cfg(unix)]
-const PATH_LIVE_FALSE_DROP_RETURNS_WITHIN: Duration = Duration::from_secs(2);
+const PATH_LIVE_FALSE_DROP_RETURNS_WITHIN: Duration = Duration::from_secs(1);
 /// Python's `DEFAULT_PER_HOP_TIMEOUT` (`RNS/Reticulum.py:142`), rnsd's whole
 /// `first_hop_timeout` without a path and the floor of one with a path.
 #[cfg(unix)]
@@ -139,7 +140,7 @@ async fn python_rnsd_path_calls_list_the_client_interface_and_a_drop_settles() {
     assert!(!settled);
     assert!(
         settle_started.elapsed() < PATH_LIVE_FALSE_DROP_RETURNS_WITHIN,
-        "a false drop returns without polling: {:?}",
+        "a false drop is one dial: {:?}",
         settle_started.elapsed()
     );
     eprintln!("empty-table pass of seven dials took {:?}", started.elapsed());
@@ -400,7 +401,7 @@ async fn python_rnsd_path_calls_filter_by_hops_and_repeat_idempotently() {
     assert!(!repeated, "a settled row has nothing left to drop");
     assert!(
         repeat_started.elapsed() < PATH_LIVE_FALSE_DROP_RETURNS_WITHIN,
-        "a false drop returns without polling: {:?}",
+        "a false drop is one dial: {:?}",
         repeat_started.elapsed()
     );
     assert!(path_live_row(

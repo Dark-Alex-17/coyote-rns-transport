@@ -296,8 +296,8 @@ Removed) bullet of its own, marked as such.
   Python or says fork-only, holds `PathRow`, `InterfaceStat` and
   `InterfaceStats` to the same read-by-field, `#[non_exhaustive]` shape as
   the other decoded rows, and holds `RpcKey` to private fields.
-- Test and rustdoc hygiene, no library behaviour change: a pass over the rpc
-  and path tests. The stdlib handshake, frame, msgpack and every-error
+- Test-only, rustdoc included (no library behaviour change): a pass over the
+  rpc and path tests. The stdlib handshake, frame, msgpack and every-error
   helpers, copies of which the four rpc test binaries carried between them,
   are shared from
   `tests/support/stdlib_rpc_handshake.rs`, `tests/support/stdlib_rpc_frame.rs`,

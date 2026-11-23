@@ -4,13 +4,19 @@
 // the heading to the day the release was cut and to the top of the ledger,
 // the subsection set an additive patch release with one fix carries, the
 // four items `### Added` names, the patch digit and semver verdict the
-// version bullet records, the `### Fixed` bullet's opener, the fourteen
-// release-docs parts the restated include-set bullet lists, the README
-// patch-list order with the 0.18.5 block on top, and the usage pins a
-// consumer reads cold: the patch-set ledger opening on this release with
-// the id-less release patch in its legend and this file rowed under it, the
+// version bullet records, the `### Fixed` bullet's opener, the past tense
+// the ledger-pin bullet keeps for a pin that read the reopened section, the
+// fourteen release-docs parts the restated include-set bullet lists, the
+// README patch-list order with the 0.18.5 block on top, and the usage pins
+// a consumer reads cold: the patch-set ledger opening on this release with
+// the id-less release patch in its legend citing the release commits both
+// there and in its paragraph header and this file rowed under it, the
 // README block's six bullets and consumer note with the recovery recipe,
-// and the publish contract's two hand pins reading the release version. The
+// and the publish contract's two hand pins reading the release version. Two
+// more usage pins read the release against the tree it describes: the
+// README block, CHANGELOG section and ledger section are ASCII with no plan
+// or task id and no `## Unreleased` stub beside them, and the test-hygiene
+// claims the three documents make hold in the tree. The
 // pins over the current tree, which the next release cut demotes, are the
 // first-release-heading test, the ledger-opening assertion of the patch-set
 // test, the README `[dependencies]` snippet pins of the consumer-note test,
@@ -120,6 +126,27 @@ fn release_0_18_5_version_bullet_records_the_patch_digit_and_the_semver_verdict(
     }
 }
 
+/// The 0.18.5 ledger-pin bullet under `### Changed` reads in the past tense:
+/// the full-hash pin covered the reopened `## Unreleased` section while the
+/// work was in progress and no longer extends it, since the release tree
+/// carries no such section.
+#[test]
+fn release_0_18_5_ledger_pin_bullet_reads_in_the_past_tense() {
+    let changelog = read_repo_file("crates/libs/rns-transport/CHANGELOG.md");
+    let section = changelog_release_section(&changelog, "0.18.5");
+    let bullets: Vec<String> =
+        subsection_bullets(&section, "Changed").iter().map(|bullet| joined_prose(bullet)).collect();
+    let bullet = single_bullet_starting_with(&bullets, "- Test-only: the full-hash ledger pin in");
+    assert!(
+        bullet.contains("covered the reopened `## Unreleased` section"),
+        "the ledger-pin bullet should read in the past tense: {bullet}"
+    );
+    assert!(
+        !bullet.contains("extends the full-hash ledger pin"),
+        "the ledger-pin bullet should not read in the present tense: {bullet}"
+    );
+}
+
 /// `### Fixed` of 0.18.5 is the one link establishment timeout bullet: it
 /// opens on the timeout `Transport::link` gives a new link and names the
 /// Python sizing it now follows.
@@ -201,8 +228,10 @@ fn release_0_18_5_readme_patch_list_runs_newest_first() {
 
 /// The first release section of the patch-set ledger is
 /// `## 0.18.5 (upstream 0.14.0)`; its legend names the id-less
-/// `release 0.18.5` patch and the table rows this file under
-/// `release 0.18.5`.
+/// `release 0.18.5` patch and cites the three release commits both there
+/// and in the release paragraph header, and the table rows this file under
+/// `release 0.18.5`. The citations are `contains` checks so the ledger may
+/// cite later commits too; only this probe's own commit cannot cite itself.
 #[test]
 fn release_0_18_5_patchset_opens_on_the_release_patch() {
     let ledger = read_repo_file("docs/fork/PATCHSET.md");
@@ -213,10 +242,31 @@ fn release_0_18_5_patchset_opens_on_the_release_patch() {
         "the first release section of the patch-set ledger should be 0.18.5"
     );
     let prose = joined_prose(section);
-    assert!(
-        prose.contains("The `release 0.18.5` patch carries no other id and is fork commits"),
-        "the 0.18.5 legend names the id-less release patch"
-    );
+    let release_marker = "The `release 0.18.5` patch carries no other id and is fork commits";
+    let release_legend_start =
+        prose.find(release_marker).expect("the 0.18.5 legend names the id-less release patch");
+    let release_legend = &prose[release_legend_start + release_marker.len()..];
+    let release_legend = &release_legend[..release_legend.find('.').expect("sentence end")];
+    let release_commits = ["`8679349e`", "`12239075`", "`80e0cb4d`"];
+    for commit in release_commits {
+        assert!(
+            release_legend.contains(commit),
+            "the `release 0.18.5` legend should cite {commit}: {release_legend}"
+        );
+    }
+    let release_label = ": release 0.18.5.";
+    let release_header_end =
+        prose.find(release_label).expect("the release paragraph header carries its label");
+    let release_header_start = prose[..release_header_end]
+        .rfind("Fork commits ")
+        .expect("the release paragraph header opens on `Fork commits`");
+    let release_header = &prose[release_header_start..release_header_end];
+    for commit in release_commits {
+        assert!(
+            release_header.contains(commit),
+            "the release paragraph header should cite {commit}: {release_header}"
+        );
+    }
     assert!(
         section.lines().any(|line| {
             line == "| `crates/apps/reticulumd/tests/fork_release_docs_contract_parts/release_0_18_5_probe.rs` | release 0.18.5 |"
@@ -307,4 +357,136 @@ fn release_0_18_5_publish_contract_hand_pins_read_the_release_version() {
     let manifest = read_repo_file("crates/libs/rns-transport/Cargo.toml");
     assert!(manifest.contains("\nversion = \"0.18.5\"\n"), "the crate manifest declares 0.18.5");
     assert_eq!(read_repo_file("VERSION").trim(), "0.14.0", "the root VERSION file stays");
+}
+
+/// The 0.18.5 README block, CHANGELOG section and patch-set section are
+/// plain ASCII and carry no plan or task id: a consumer reads the release
+/// artefacts without the planning vocabulary the commit messages may carry.
+#[test]
+fn release_0_18_5_artefacts_are_ascii_and_carry_no_plan_ids() {
+    let readme = read_repo_file("crates/libs/rns-transport/README.md");
+    let marker = "What `0.18.5` carries on top";
+    let at = readme.find(marker).expect("the README patch list has the 0.18.5 block");
+    let block = &readme[at..];
+    let block =
+        &block[..block.find("\nWhat `0.18.4` carries on top").expect("the 0.18.4 block follows")];
+    let changelog = read_repo_file("crates/libs/rns-transport/CHANGELOG.md");
+    let section = changelog_release_section(&changelog, "0.18.5");
+    let ledger = read_repo_file("docs/fork/PATCHSET.md");
+    let patchset = patchset_opening_section(&ledger);
+    let plan_ids = ["TASK-", "PLAN-"]; // debris-exempt: the needles the artefacts must not carry
+    for (name, text) in [
+        ("README 0.18.5 block", block),
+        ("CHANGELOG 0.18.5 section", section.as_str()),
+        ("PATCHSET 0.18.5 section", patchset),
+    ] {
+        let non_ascii: Vec<(usize, &str)> = text
+            .lines()
+            .enumerate()
+            .filter(|(_, line)| !line.is_ascii())
+            .map(|(index, line)| (index + 1, line))
+            .collect();
+        assert!(non_ascii.is_empty(), "{name} should be ASCII, got {non_ascii:?}");
+        for id in plan_ids {
+            let hits: Vec<&str> = text.lines().filter(|line| line.contains(id)).collect();
+            assert!(hits.is_empty(), "{name} should carry no `{id}` ids, got {hits:?}");
+        }
+    }
+    assert!(
+        !changelog.contains("\n## Unreleased"),
+        "a release tree carries no `## Unreleased` stub in the CHANGELOG"
+    );
+    assert!(
+        !ledger.contains("\n## Unreleased"),
+        "a release tree carries no `## Unreleased` stub in the patch-set ledger"
+    );
+}
+
+/// The test-only hygiene claims the 0.18.5 README bullet, CHANGELOG bullet
+/// and ledger narrative make hold in the tree: the four shared support
+/// files exist, the mock peer serves a sequence and aborts on drop, the
+/// paths probe (not the api file) carries the abort-on-drop guard the
+/// CHANGELOG credits to it, the harness and support helpers exist under the
+/// names the docs give them, `path_row.rs` has replaced `path_table.rs`, the
+/// vanished-server case is gated off Windows with the Winsock rationale, the
+/// docs-pin header admits the read-by-field rows, the restored-row-age note
+/// is platform-neutral, and the ledger keeps the 400 ms ceiling with
+/// `7edc5c91` and the 700 ms budget with `8bc21180`.
+#[test]
+fn release_0_18_5_hygiene_claims_hold_in_the_tree() {
+    for support in
+        ["stdlib_rpc_handshake.rs", "stdlib_rpc_frame.rs", "msgpack_value.rs", "every_rpc_error.rs"]
+    {
+        let path = format!("crates/libs/rns-transport/tests/support/{support}");
+        assert!(repo_root().join(&path).is_file(), "{path} should exist");
+    }
+    let rpc_dir = repo_root().join("crates/libs/rns-transport/src/transport/shared_instance_rpc");
+    assert!(rpc_dir.join("path_row.rs").is_file(), "`path_row.rs` should exist");
+    assert!(!rpc_dir.join("path_table.rs").exists(), "`path_table.rs` should be gone");
+    let mock = read_repo_file(
+        "crates/libs/rns-transport/src/transport/shared_instance_rpc/tests/mock_server.rs",
+    );
+    for needle in ["fn spawn_sequence(", "fn finish_all(", "impl Drop for MockServer"] {
+        assert!(mock.contains(needle), "the mock rnsd peer should carry {needle:?}");
+    }
+    let paths_probe =
+        read_repo_file("crates/libs/rns-transport/tests/shared_instance_rpc_paths_probe.rs");
+    let api = read_repo_file("crates/libs/rns-transport/tests/shared_instance_rpc_api.rs");
+    assert!(
+        paths_probe.contains("impl<T> Drop for AbortOnDrop<T>"),
+        "the paths probe aborts its canned servers on drop"
+    );
+    assert!(!api.contains("AbortOnDrop"), "the api file carries no abort-on-drop guard of its own");
+    let changelog = read_repo_file("crates/libs/rns-transport/CHANGELOG.md");
+    let section = joined_prose(&changelog_release_section(&changelog, "0.18.5"));
+    assert!(
+        section.contains(
+            "`tests/shared_instance_rpc_paths_probe.rs` aborts its canned servers on drop"
+        ),
+        "the CHANGELOG hygiene bullet credits the abort-on-drop guard to the paths probe"
+    );
+    assert!(
+        !section.contains("`tests/shared_instance_rpc_api.rs` aborts its canned servers on drop"),
+        "the CHANGELOG hygiene bullet no longer credits the guard to the api file"
+    );
+    let vanished =
+        "async fn drop_path_settled_whose_server_vanishes_mid_poll_never_reports_settled()";
+    let at = api.find(vanished).expect("the vanished-server case exists");
+    let preamble = &api[at.saturating_sub(600)..at];
+    assert!(
+        preamble.contains("#[cfg(not(windows))]\n#[tokio::test]\n"),
+        "the vanished-server case is gated off Windows: {preamble}"
+    );
+    assert!(preamble.contains("Winsock"), "the Windows gate carries the Winsock rationale");
+    for (path, needle) in [
+        (
+            "crates/apps/reticulumd/tests/python_channel_interop_parts/python_shared_instance_rpc.rs",
+            "fn spawn_with_interfaces(",
+        ),
+        (
+            "crates/apps/reticulumd/tests/python_channel_interop_parts/python_shared_instance_live.rs",
+            "fn with_transport(",
+        ),
+        ("crates/apps/reticulumd/tests/support/python_channel_events.rs", "fn wait_for_out_link_closed("),
+        ("crates/apps/reticulumd/tests/support/python_channel_process.rs", "fn terminate_child_gracefully("),
+        (
+            "crates/apps/reticulumd/tests/fork_release_docs_contract_parts/request_layer_api_docs.rs",
+            "read-by-field rows",
+        ),
+        (
+            "crates/libs/rns-transport/src/transport/tests_parts/path_interface_api.rs",
+            "boot-relative on every platform",
+        ),
+    ] {
+        assert!(read_repo_file(path).contains(needle), "{path} should carry {needle:?}");
+    }
+    let ledger = joined_prose(patchset_opening_section(&read_repo_file("docs/fork/PATCHSET.md")));
+    assert!(
+        ledger.contains("under a 400 ms ceiling, caps the silent-server case at 1200 ms"),
+        "the ledger keeps the 400 ms ceiling with `7edc5c91`"
+    );
+    assert!(
+        ledger.contains("`8bc21180` bounds the vanished-server case by its 700 ms budget instead of a 400 ms ceiling"),
+        "the ledger keeps the 700 ms budget with `8bc21180`"
+    );
 }

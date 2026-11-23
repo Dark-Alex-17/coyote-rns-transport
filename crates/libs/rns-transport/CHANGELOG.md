@@ -279,12 +279,14 @@ Removed) bullet of its own, marked as such.
   `fork_release_docs_contract_parts/release_0_18_5_probe.rs` pins the heading
   date and its place as the first release heading, the subsection set
   `### Added`, `### Changed`, `### Fixed` of this release with no
-  `### Breaking`, the four `### Added` items by their names, the patch digit
-  and the semver sentence above, the README patch-list order with the 0.18.5
-  block on top, the fourteen parts the include-set bullet names, and the
-  usage pins a consumer reads cold: the ledger's release patch, the README
-  consumer note with the recovery recipe and the publish contract's two
-  hand pins reading `0.18.5`.
+  `### Breaking`, the four `### Added` items by their names, the `### Fixed`
+  bullet's opener, the patch digit and the semver sentence above, the README
+  patch-list order with the 0.18.5 block on top, the fourteen parts the
+  include-set bullet names, and the usage pins a consumer reads cold: the
+  ledger's release patch with its commits, the README consumer note with the
+  recovery recipe, the publish contract's two hand pins reading `0.18.5`,
+  the release artefacts ASCII with no plan ids, and the test-hygiene claims
+  holding in the tree.
 - Release docs contract, test-only: `fork_release_docs_contract.rs` includes
   its tests from `fork_release_docs_contract_parts/`
   (`crate_readme_sections.rs`, `readme_patch_list.rs`,

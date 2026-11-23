@@ -535,6 +535,7 @@ fn readme_patch_list_opens_with_the_0_18_5_block_and_keeps_the_0_18_4_paragraph(
         "python_shared_instance_rpc_roaming.rs",
         "python_shared_instance_rpc_roaming_restart.rs",
         "shared_instance_rpc_paths_probe.rs",
+        "tests/support/stdlib_rpc_handshake.rs",
         "coyote-rns-transport = \"0.18.5\"",
         "request_path",
         "nothing to opt into",

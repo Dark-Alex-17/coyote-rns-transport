@@ -17,11 +17,12 @@ handlers and what became of the response they sent, the resolved description
 of an announced destination, a responder's cap on the size of the response it
 sends, the shared-instance client's connection state and tunnel opt-in, an
 interface's connect and peer counts, an rnsd RPC client for its interface
-statistics, and the emission time of an announce, plus a handful of behaviour
-fixes. Publishing the fork lets Coyote pin it from crates.io instead of a git
-dependency. The fork started as upstream `0.14.0` plus one patch, the removed
-`println!` of the `link: close <id>` line (the `log::warn!` beside it already
-records the close); everything since is in the ledgers named below.
+statistics and path table, and the emission time of an announce, plus a
+handful of behaviour fixes. Publishing the fork lets Coyote pin it from
+crates.io instead of a git dependency. The fork started as upstream `0.14.0`
+plus one patch, the removed `println!` of the `link: close <id>` line (the
+`log::warn!` beside it already records the close); everything since is in
+the ledgers named below.
 
 ### What differs from upstream
 
@@ -73,6 +74,13 @@ their own are in the [Patch list](#patch-list)):
   `InterfaceStat` and `RpcError` in
   `rns_transport::transport::shared_instance_rpc`, the client side of rnsd's
   `get_interface_stats` RPC.
+- [Driving rnsd's path table](#driving-rnsds-path-table): `path_table`,
+  `next_hop_interface_name`, `drop_path`, `drop_all_via`,
+  `first_hop_timeout`, `drop_path_settled` and `PathRow` in
+  `rns_transport::transport::shared_instance_rpc`, the client side of the
+  path requests rnsd serves rnpath; in-process, `Transport::path_interface`
+  and `PathIface` in `rns_transport::transport`, the interface one path
+  rests on with its display name and learn time.
 
 The [Patch list](#patch-list) is the per-release summary of what each release
 changed and why, with `docs/fork/PATCHSET.md` as the per-file, per-commit
@@ -103,7 +111,7 @@ the fork. The licence is upstream's, see [Licence](#licence).
 
 ```toml
 [dependencies]
-coyote-rns-transport = "0.18.4"
+coyote-rns-transport = "0.18.5"
 ```
 
 ```rust
@@ -1176,6 +1184,204 @@ agreeing with the typed reply, and `python_stdlib_listener_rpc_probe.rs`
 runs CPython's own `multiprocessing.connection.Listener`, which takes a
 one-byte and a sixteen-byte key and refuses a wrong one.
 
+## Driving rnsd's path table
+
+`path_table`, `next_hop_interface_name`, `drop_path`, `drop_all_via`,
+`first_hop_timeout` and `drop_path_settled`, with the row type `PathRow`,
+in `rns_transport::transport::shared_instance_rpc` are the client side of
+the path requests `rpc_loop` serves rnpath (`RNS/Reticulum.py:1283-1306`):
+the `path_table`, `next_hop_if_name` and `first_hop_timeout` gets and the
+`path` and `all_via` drops, which `Reticulum.get_path_table`, `drop_path`
+and `drop_all_via` send when attached to a shared instance
+(`RNS/Reticulum.py:1630-1635`, `:1671-1676`, `:1681-1686`) and rnpath calls
+(`RNS/Utilities/rnpath.py:255`, `:406`, `:427`). Each call is one fresh
+connection under the caller's timeout, with the same `RpcEndpoint`,
+`RpcKey` and `RpcError` as `interface_stats` above.
+
+The problem they solve is roaming. A laptop that moves from the LAN to a
+phone's hotspot leaves rnsd holding a 1-hop row for its correspondent over
+the interface that is now offline. Python replaces a known row only for an
+announce with no more hops than the row's and a newer emission (or the same
+emission over an interface of higher gravity), or for one with more hops
+when the row has expired or the announce was emitted after every one the
+row has heard (`RNS/Transport.py:2236-2286`), or when a link request the
+instance relayed went unanswered (`:2292-2296`, set at `:929-931`, a
+transport-only path); an interface going offline never invalidates a row,
+`.online` being consulted only for the bitrate bounds
+(`RNS/Transport.py:568`, `:570`), the outbound broadcast (`:1449`), the
+inbound drop (`:1916`) and the path-request fan-out (`:3576`); and a
+transport-enabled rnsd restores its rows from `storage/destination_table`
+on start, finding each row's interface by hash (`RNS/Transport.py:404-441`,
+saved at `:3788-3863`). So the same announce heard again over a live 3-hop
+route is one the row already holds and, short of the unanswered-link-request
+case above, never displaces the dead 1-hop row, and a shared-instance
+client's path request is answered from the stale entry
+(`RNS/Transport.py:3459`) rather than forwarded. A client's
+in-process `Transport::expire_path` touches only its own table; what
+`rnpath -d` does is ask rnsd over the control connection, and that is what
+these calls do.
+
+On a failed link, read `path_table(None)` and find the row. Its
+`interface` is the `str(interface)` form and equals the `interface_stats`
+entry's `name` for the same interface, byte for byte:
+`ifstats["name"] = str(interface)` (`RNS/Reticulum.py:1527`) and
+`"interface": str(path_table[dst][5])` (`:1645`) are the same `str()` of
+the same object, where `short_name` is `str(interface.name)` (`:1528`) and
+differs. So the row's interface, its `online` and its counters can be
+looked up by that name. If `online == false`, or that entry's `online` has
+been seen to go false and back to true since the row's `timestamp` (the
+stats carry no per-interface uptime, `RNS/Reticulum.py:1527-1566`, so a
+consumer that polls them keeps that history itself), call
+`drop_path_settled`, then send one `Transport::request_path`, then retry
+the link, sizing your own outer timeout on it from `first_hop_timeout`.
+Along the way, the 1-hop row over the interface that went offline stays
+(an interface going offline does not meet the replacement rule above,
+`RNS/Transport.py:2236-2286`, and `RNS/Interfaces/TCPInterface.py:270-296`
+keeps a reconnecting interface registered, so no cull), a link over it
+times out, and a request sent then is still answered from the stale entry
+and not forwarded (`RNS/Transport.py:3459`); `drop_path_settled` plus one
+`request_path` moves the row to the live 3-hop route and a link over it
+comes up. The failed link closes inside rnsd's own `first_hop_timeout` plus
+6 s per hop and the maintenance job's slack, the link over the live route
+comes up inside the same budget, and a repeated `request_path` after the
+recovery leaves the row where it is. A restart of rnsd does not clear the
+dead row either: on SIGTERM rnsd persists the row to
+`storage/destination_table`, and the respawned rnsd restores it by
+interface hash from that row and the cached announce while that interface
+is still offline; the same recipe recovers it. The rule a path request
+obeys after a drop: after `drop_path_settled` the request is forwarded
+upstream (the rnsd line `Forwarding path request from local client`,
+`RNS/Transport.py:3523-3530`) and answered with a fresh announce, while a
+bare `drop_path` followed at once by a request is answered from the dropped
+entry (`RNS/Transport.py:3459`). Pinned on loopback by
+`python_rnsd_roaming_keeps_the_dead_one_hop_row_until_drop_settled_moves_it_to_the_live_route`
+in the part
+`crates/apps/reticulumd/tests/python_channel_interop_parts/python_shared_instance_rpc_roaming.rs`,
+which walks the recipe end to end with the client's rnsd holding two TCP
+upstreams (the dead row stays, the link over it times out, the request is
+answered stale, the settle plus one request moves the row to the live
+route and a link comes up); by
+`python_rnsd_roaming_recipe_links_inside_pythons_first_hop_timeout_budget_and_a_repeat_request_stays_on_b`
+(`python_shared_instance_rpc_roaming_recipe_budget_probe.rs`), which
+follows this recipe step by step on the same topology (the row's
+interface looked up in the stats by `name` and read offline, both links
+inside the budget, the repeated request leaving the row); by
+`python_rnsd_roaming_restart_restores_the_dead_one_hop_row_from_storage_until_drop_settled_moves_it_to_the_live_route`
+(`python_shared_instance_rpc_roaming_restart.rs`), which SIGTERMs rnsd on
+the same topology and recovers the restored row; by the companion part
+`python_shared_instance_rpc_paths_recipe_probe.rs`
+(`python_rnsd_recipe_drop_settled_then_request_path_is_forwarded_not_answered_stale`)
+for the forwarded-or-stale rule; and, for the first-hop sizing those
+budgets rest on, from outside the crate by
+`tests/link_establishment_timeout_shared_instance_probe.rs`.
+
+The settling helper exists because a drop is not immediate. `drop path` is
+`Transport.expire_path`, which zeroes the entry's timestamp and resets
+`tables_last_culled` (`RNS/Transport.py:3219-3226`); the cull that pops the
+entry runs on the next `Transport.jobs` tick (`job_interval = 0.250`,
+`RNS/Transport.py:248`; the gate at `:855`; the pop at `:1088-1090`), and
+until then `path_request` (`:3459`) answers from the dropped entry.
+Observed against rnsd 1.5.2: under a millisecond after `drop_path`
+answered true, `path_table` still lists the row with timestamp 0 and
+`next_hop_interface_name` still names the interface; both read as gone at
+about 160 to 220 ms; `drop_path_settled` (`drop_path`, then
+`next_hop_interface_name` polled every 50 ms until it reads `None`, every
+dial under the one timeout) returns true in about 50 to 180 ms; the cull's
+bound is one tick, 250 ms, wherever in the tick the drop lands, and the
+helper reads it on its next 50 ms poll. A `Timeout` from the helper can
+also mean the destination was re-learned from a fresh announce between the
+pop and a poll, so re-read `path_table` before treating it as a failure.
+
+Hashes travel as msgpack bin: `Transport.path_table` is keyed by `bytes`
+(`RNS/Transport.py:2459`) and umsgpack packs `bytes` as bin
+(`RNS/vendor/umsgpack.py:505-506`), which the client does; a str would miss
+and `drop path` would answer `False`. The `max_hops` key is always sent,
+nil for `None`, since rnsd reads `call["max_hops"]`
+(`RNS/Reticulum.py:1283-1285`) and a missing key hangs the call. `via` is
+the announce's `received_from`, the relaying transport's identity when the
+announce carried a transport header and the destination hash itself when
+it was heard directly (`RNS/Transport.py:2177-2178`, `:2202`), so a direct
+one-hop row has `via == hash` and `drop_all_via(row.via)` drops it too
+(`RNS/Reticulum.py:1689-1695`). `RpcError::is_transient()` decides whether
+to dial again: `Timeout`, or `Io` or `Connect` of kind `ConnectionReset`,
+`ConnectionAborted`, `BrokenPipe` or `UnexpectedEof`; `ConnectionRefused`
+is not.
+
+Pinned by the Python-in-the-loop part
+`crates/apps/reticulumd/tests/python_channel_interop_parts/python_shared_instance_rpc_paths_live.rs`
+of the reticulumd `python_channel_interop` binary
+(`python_rnsd_path_calls_list_the_client_interface_and_a_drop_settles`): a
+Rust client attached to a Python rnsd (RNS 1.5.2) announces one
+destination, the row is listed at hops 0 with `interface` equal to the
+`interface_stats` `name` of the client's `LocalInterface[<port>]` and
+different from its `short_name`, `next_hop_interface_name` is `Some` of
+that str, `first_hop_timeout` is a finite float between 6.0 and 60.0
+(observed 6.000004), the empty table and unknown-hash replies decode
+(`"None"`, int 6, `False`, 0), a random hash drops as false while the row
+stays, the window above is recorded, the second drop is false, after a
+re-announce `drop_path_settled` is true within two ticks with next hop
+`None` and the row gone, and after another re-announce
+`drop_all_via(row.via)` is at least 1; its sibling
+`python_rnsd_with_transport_and_a_given_interfaces_text_serves_the_path_calls`
+runs the same row, next-hop, first-hop and settle checks against an rnsd
+spawned with `enable_transport = yes` and a `TCPServerInterface` text in
+place of the AutoInterface, and
+`python_rnsd_path_calls_filter_by_hops_and_repeat_idempotently` reads the
+hops-0 row under `max_hops` 0 and 255 (`RNS/Reticulum.py:1641`), reads the
+matched stats entry's `online`, repeats `drop_path_settled` on the settled
+row for `Ok(false)` without polling, and reads `drop_all_via(row.via)` as 0
+once the row is gone. The harness constructors they use,
+`SharedInstanceRpcRnsd::spawn_with_interfaces` and
+`LiveSharedInstance::with_transport` in `python_shared_instance_rpc.rs`
+and `python_shared_instance_live.rs`, take the `[interfaces]` text and the
+`enable_transport` toggle, pinned by a config-text test. Black-box, beside
+`tests/shared_instance_rpc_api.rs`, `tests/shared_instance_rpc_paths_probe.rs`
+holds one shared budget across a slow drop and the polls, the unix endpoint
+twin, a wrong key as `Authentication` after one dial, a 2000-row reply past
+64 KiB read by name, only the exact str `"None"` as `None`, `drop_all_via`
+int-only, and a zero budget as `Timeout`.
+
+### The same fact in-process
+
+Without rnsd, a transport that holds its own table (a direct LAN or private
+setup) reads the same fact in-process with `Transport::path_interface`,
+which returns a `PathIface` for one destination or `None` when the table
+has no entry: `iface`, the interface the announce arrived on; `name`, the
+interface manager's display name for it (the `interface_name` of
+`Transport::path_table`'s rows), `None` when the interface has no display
+name or is no longer registered with the manager; `learned_at`, when the
+path was learned (the accepted announce, the restore moment for a tunnel
+restore, and for a disk restore the persisted row's own timestamp carried
+across the restart, as Python keeps `serialised_entry[1]`,
+`RNS/Transport.py:419`), converted from the entry's monotonic clock and so
+carrying the imprecision of sampling the two clocks; the `Instant` does
+not advance across a system suspend, so a path learned before a suspend
+reads later than it was; and `hops`.
+`Transport::path_table` exports the same facts for every destination whose
+interface is still registered; a path whose interface has since been
+detached is omitted there and still returned by `path_interface`, until the
+next cleanup pass, every 10 s, culls an entry whose interface is gone.
+Python's `Transport.next_hop_interface` returns the interface object itself
+(`RNS/Transport.py:3156-3164`); only its path-table branch is mirrored,
+since a destination in `destinations_map` answers the shared-instance
+interface there (`:3163`) where a destination of this transport's own has
+no path table entry and answers `None`. The in-process up/down stream is
+`Transport::interface_events()`: a `Disconnected` followed by `Connecting`
+or `Connected` means the interface came back since the path was learned.
+On a failed link, read the path's interface, check it against that
+stream, and when the interface is down call `Transport::expire_path` and
+then `Transport::request_path`. Pinned by
+`transport/tests_parts/path_interface_api.rs` on loopback,
+`tests/path_interface_api.rs` from outside the crate, and
+`tests/path_interface_usage_probe.rs`, which joins the record to the event
+stream by `iface`, walks the recipe after the listener goes away, and reads
+a detached interface's path with `name` as `None` while `path_table` omits
+it, and `tests/path_interface_usage_probe2.rs`, which reads a two-hop path
+through a transport-enabled relay on the learner's own interface, matches
+the record to the `path_table` row including `learned_at` against
+`timestamp_secs`, and drives the `#[non_exhaustive]` compile failures
+through rustc.
+
 ## Known divergences from Python RNS
 
 Where this crate is known to behave differently from RNS 1.5.2. Each entry
@@ -1367,6 +1573,16 @@ parity ledger; the `docs/status/*` matrices are not updated per fork task.
   `transport::shared_instance_rpc` challenges a Python 3.11 or older
   server in its legacy raw HMAC-MD5 form, where the stdlib client always
   sends a `{sha256}` challenge (`connection.py:970`, `:976`).
+- The outbound link establishment timeout sizes its first hop from the
+  local next-hop interface's bitrate at the 500-byte Reticulum MTU
+  (`RNS/Transport.py:3194-3197`); a Python shared-instance client asks the
+  shared instance for `first_hop_timeout` over the control connection
+  instead (`RNS/Reticulum.py:1728-1732`), so the two differ by the gap
+  between the client interface's bitrate guess and rnsd's next-hop bitrate,
+  milliseconds when the shared instance's next hop is a TCP interface and
+  seconds behind a slow radio hop (about 3.3 s at 1200 bps);
+  `shared_instance_rpc::first_hop_timeout` reads rnsd's figure for a caller
+  that wants to close that gap itself.
 
 Not divergences:
 
@@ -1391,6 +1607,14 @@ Not divergences:
   state tagged by interface; Python's clients log their state changes and
   expose no event stream (`RNS/Interfaces/LocalInterface.py:159-167`,
   `:255-266`). API shape, not behaviour.
+- `Transport::path_interface` is a fork-only in-process read of one path's
+  interface, display name, local learn time and hops; Python's
+  `Transport.next_hop_interface` returns the interface object
+  (`RNS/Transport.py:3156-3164`) and the timestamp sits in the table row
+  (`:4122`). Only the path-table branch is mirrored: Python answers the
+  shared-instance interface for a destination in `destinations_map`
+  (`:3163`), where a destination of this transport's own has no path table
+  entry and answers `None`. API shape, not behaviour.
 - `Transport::interface_connect_count()` is a fork-only per-interface count of
   established streams; Python's reconnect loop keeps only a per-burst local
   `attempts` and no count of established streams
@@ -1414,6 +1638,23 @@ Not divergences:
   `RNS/Reticulum.py:1397-1402`), and the RPC server stays Python-only:
   reticulumd hosts no `multiprocessing.connection` listener as of this
   release. API shape, not behaviour.
+- The path calls `path_table`, `next_hop_interface_name`, `drop_path`,
+  `drop_all_via` and `first_hop_timeout` and the settling helper
+  `drop_path_settled` are a fork-only typed client of the `path_table`,
+  `next_hop_if_name`, `first_hop_timeout`, `drop path` and `drop all_via`
+  requests rnpath drives through `Reticulum.get_path_table`, `drop_path`
+  and `drop_all_via` (`RNS/Utilities/rnpath.py:255`, `:406`, `:427`;
+  `RNS/Reticulum.py:1630-1635`, `:1671-1676`, `:1681-1686`) and `rpc_loop`
+  serves (`RNS/Reticulum.py:1283-1306`); the settling helper is client-side
+  polling of what Python's cull does on its own tick
+  (`RNS/Transport.py:855`). API shape, not behaviour.
+- `RpcError::is_transient()` is a fork-only predicate; Python's clients
+  have no retry rule: rnstatus makes one call and swallows any exception
+  into "Could not get RNS status" (`RNS/Reticulum.py:1397-1402`,
+  `RNS/Utilities/rnstatus.py:355-356`, `:821`) and rnpath makes one call
+  with no handler around it (`RNS/Utilities/rnpath.py:255`, `:406`,
+  `:427`; only `KeyboardInterrupt` is caught, `:525`).
+  API shape, not behaviour.
 - `RpcEndpoint::Tcp` dials the address it is given, loopback or not, as
   Python's own `multiprocessing.connection.Client` does in rnstatus
   (`RNS/Reticulum.py:1397-1402`); the loopback guard that
@@ -1440,8 +1681,116 @@ full `refs/tags/coyote-rns-transport-v<version>` ref, and
 
 `docs/fork/PATCHSET.md` is the single per-release ledger of every file changed
 since the previous release, with the commit that changed it and the upstream
-site; earlier sections carry the earlier patches. What `0.18.4` carries on top
-of `0.18.3`:
+site; earlier sections carry the earlier patches. What `0.18.5` carries on top
+of `0.18.4`:
+
+- The rnsd path calls: `path_table`, `next_hop_interface_name`,
+  `drop_path`, `drop_all_via` and `first_hop_timeout` on
+  `transport::shared_instance_rpc`, each one fresh connection, the mutual
+  handshake, one request and one reply under the caller's timeout, with
+  the same `RpcEndpoint`, `RpcKey`, `RpcError` and `io_kind()` contract as
+  `interface_stats`; the requests are the ones `rpc_loop` reads
+  (`RNS/Reticulum.py:1274-1334`: `{"get": "path_table", "max_hops": mh}`,
+  `{"get": "next_hop_if_name", "destination_hash": d}`,
+  `{"get": "first_hop_timeout", "destination_hash": d}`,
+  `{"drop": "path", "destination_hash": d}` and
+  `{"drop": "all_via", "destination_hash": t}`). The `#[non_exhaustive]`
+  `PathRow` carries the six fields `get_path_table` builds (`hash` and
+  `via` as `AddressHash`, `timestamp` and `expires` as `f64`, `hops` as
+  `u8`, `interface` as the `str(interface)` form) and `raw`, the whole
+  entry as received; hashes travel as msgpack bin, since
+  `Transport.path_table` is keyed by `bytes` (`RNS/Transport.py:2459`,
+  `RNS/vendor/umsgpack.py:505-506`) and a str would miss the entry; a
+  row's `interface` equals the `interface_stats` entry's `name` for the
+  same interface, byte for byte (`RNS/Reticulum.py:1527`, `:1645`), so a
+  row is matched to its interface's `online` by `name`.
+  `drop_path_settled` is `drop_path`, then `next_hop_interface_name`
+  polled every 50 ms until it reads `None`, every dial under the one
+  timeout: `expire_path` only zeroes the entry's timestamp
+  (`RNS/Transport.py:3219-3226`) and the cull that pops it runs on the
+  next `Transport.jobs` tick (`:855`, `:1088-1090`), one tick of 250 ms at
+  most, observed gone at about 160 to 220 ms against rnsd 1.5.2; a caller
+  sends one `request_path` after it returns `Ok(true)`, since a request
+  right after a bare `drop_path` is answered from the stale entry.
+  `RpcError::is_transient() -> bool` is the retry rule as one predicate:
+  `Timeout`, or `Io` or `Connect` of kind `ConnectionReset`,
+  `ConnectionAborted`, `BrokenPipe` or `UnexpectedEof`;
+  `Connect(ConnectionRefused)` is not. The library still never retries.
+- The path interface: `Transport::path_interface(&AddressHash) ->
+  Option<PathIface>` is the in-process read of the interface one path
+  rests on, beside `path_status`, and the `#[non_exhaustive]` `PathIface`
+  it returns is read by field: `iface`, the interface the announce
+  arrived on; `name`, the interface manager's display name, `None` when
+  the interface has none or is no longer registered; `learned_at`, when
+  the path was learned; and `hops`. `None` iff the table has no entry, the
+  `path_found == false` case of `path_status`, whose shape is unchanged.
+  The in-process up/down stream is the existing
+  `Transport::interface_events()`; no new stream is added.
+- The link establishment timeout fix: the outbound timeout
+  `Transport::link` gives a new link was sized with the next hop
+  interface's hardware MTU (262144 on a shared-instance client interface,
+  so about 45 s for a 1-hop path at 62500 bps) where Python sizes the
+  first hop with the fixed 500-byte Reticulum MTU (`RNS/Link.py:282-283`,
+  `RNS/Transport.py:3194-3197`, `RNS/Reticulum.py:93`); it is now about
+  12 s for that path. The first hop is still sized from the local
+  next-hop interface's bitrate where a Python shared-instance client asks
+  the shared instance for the figure (`RNS/Reticulum.py:1728-1732`), a
+  difference of milliseconds behind a TCP next hop and of seconds behind
+  a slow radio hop, recorded in the divergence register with
+  `shared_instance_rpc::first_hop_timeout` as the client that reads
+  rnsd's figure. Pinned by
+  `transport/tests_parts/establishment_timeout_python_sizing.rs` and
+  `tests/link_establishment_timeout_shared_instance_probe.rs`.
+- The Python-in-the-loop proofs: the live rnsd (RNS 1.5.2) parts of the
+  reticulumd `python_channel_interop` binary.
+  `python_shared_instance_rpc_paths_live.rs` reads a row whose
+  `interface` is identical to the `interface_stats` `name` and measures
+  the cull window; `python_shared_instance_rpc_paths_recipe_probe.rs`
+  sees a path request sent after `drop_path_settled` forwarded upstream;
+  `python_shared_instance_rpc_roaming.rs` gives rnsd two TCP upstreams,
+  keeps the stale 1-hop row over the interface that went offline, sees a
+  link over it close with `LinkCloseReason::Timeout`, and
+  `drop_path_settled` plus one `request_path` moves the row to the live
+  3-hop route; `python_shared_instance_rpc_roaming_recipe_budget_probe.rs`
+  follows the README recipe on that topology inside rnsd's own
+  `first_hop_timeout` budget;
+  `python_shared_instance_rpc_roaming_restart.rs` SIGTERMs rnsd, which
+  persists the stale row to `storage/destination_table`
+  (`RNS/Transport.py:3788-3863`), and the respawned rnsd restores it by
+  interface hash (`:404-441`) while that interface is still offline;
+  `graceful_stop_probe.rs` pins the SIGTERM stop without Python. Beside
+  them, the CPython stdlib listener `python_stdlib_listener_rpc_probe.rs`
+  answers whether `destination_hash` arrived as `bytes`, and the
+  black-box `tests/shared_instance_rpc_api.rs`,
+  `tests/shared_instance_rpc_paths_probe.rs`, `tests/path_interface_api.rs`,
+  `tests/path_interface_usage_probe.rs` and
+  `tests/path_interface_usage_probe2.rs` pin the calls, the helper, the
+  predicate and the record from outside the crate.
+- Test-only hygiene: the stdlib handshake, frame, msgpack and every-error
+  helpers the four rpc test binaries carried as copies are shared from
+  `tests/support/stdlib_rpc_handshake.rs`, `tests/support/stdlib_rpc_frame.rs`,
+  `tests/support/msgpack_value.rs` and `tests/support/every_rpc_error.rs`;
+  the mock rnsd peer serves a scripted sequence of connections on one
+  listener (`spawn_sequence`, `finish_all`) and aborts its task when
+  dropped unfinished; the live harness gains
+  `SharedInstanceRpcRnsd::spawn_with_interfaces` and
+  `LiveSharedInstance::with_transport(bool)`, the support files gain
+  `wait_for_out_link_closed` and `terminate_child_gracefully`, and the
+  private module `shared_instance_rpc/path_row.rs` is renamed from its
+  `path_table` file name.
+- For a consumer: pin `coyote-rns-transport = "0.18.5"`; there is nothing
+  to opt into. To recover a path that rests on an interface that went
+  down, call `drop_path_settled`, then send one `request_path`; never a
+  path request right after a bare `drop_path`, which is answered from the
+  stale entry. Classify retries with `is_transient()`. Match a row to its
+  interface by `name` against `interface_stats`; in-process, read a
+  path's interface with `path_interface`, and `interface_events()` is the
+  up/down stream. The only observable behaviour change is the shorter
+  link establishment timeout on a shared-instance client (about 12 s
+  instead of about 45 s for a 1-hop path), a timing correction toward
+  Python.
+
+What `0.18.4` carries on top of `0.18.3`:
 
 - The rpc io error: `RpcError::Io(std::io::Error)` on the
   `#[non_exhaustive]` `transport::shared_instance_rpc::RpcError` carries

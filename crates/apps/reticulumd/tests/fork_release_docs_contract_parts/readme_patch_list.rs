@@ -1,8 +1,9 @@
-// Crate README patch-list pins: the 0.18.4, 0.18.3, 0.18.2, 0.18.1, 0.18.0,
-// 0.17.0 and 0.16.0 blocks and their order above the 0.15.1 history, and the
-// Codex bullet whose removal pointer the 0.16.0 release notes resolve, plus
-// the shared-instance paragraph, register bullet and changelog bullet for
-// the AutoInterface peer count and the same three for the rnsd RPC client.
+// Crate README patch-list pins: the 0.18.5, 0.18.4, 0.18.3, 0.18.2, 0.18.1,
+// 0.18.0, 0.17.0 and 0.16.0 blocks and their order above the 0.15.1 history,
+// and the Codex bullet whose removal pointer the 0.16.0 release notes
+// resolve, plus the shared-instance paragraph, register bullet and changelog
+// bullet for the AutoInterface peer count and the same three for the rnsd
+// RPC client.
 
 /// The Codex review workflow was removed after 0.15.1, so the README register
 /// that records 0.15.0 adding it must say so in the same bullet: a reader of
@@ -430,13 +431,35 @@ fn readme_patch_list_keeps_the_0_18_3_block_above_the_0_18_2_paragraph() {
     }
 }
 
-/// The README patch list opens with the 0.18.4 block, which names every item
-/// of the release (the rpc io error with its retry contract, the README fork
-/// framing, the Python-in-the-loop proof and the consumer pin), and runs
-/// 0.18.3, then 0.18.2 below it; the demoted blocks' content is pinned by
-/// the tests above.
+/// What the README's 0.18.4 patch-list block says, one needle per item.
+const README_0_18_4_BLOCK_NEEDLES: [&str; 18] = [
+    "RpcError::Io(std::io::Error)",
+    "io_kind()",
+    "ConnectionReset",
+    "ConnectionAborted",
+    "BrokenPipe",
+    "UnexpectedEof",
+    "backlog=1",
+    "RNS/Reticulum.py:1274-1334",
+    "### How it tracks upstream",
+    "## Upstream LXMF-rs",
+    "python_shared_instance_rpc_io.rs",
+    "honest_rst",
+    "shared_instance_rpc_io_kind_probe.rs",
+    "shared_instance_rpc_api.rs",
+    "coyote-rns-transport = \"0.18.4\"",
+    "ConnectionRefused",
+    "`Io` instead of `Protocol`",
+    "nothing to opt into",
+];
+
+/// The demoted 0.18.4 block sits above the 0.18.3 and 0.18.2 blocks as
+/// history: it still names every item of the release (the rpc io error with
+/// its retry contract, the README fork framing, the Python-in-the-loop proof
+/// and the consumer pin); the demoted 0.18.3 block's content is pinned by
+/// the test above.
 #[test]
-fn readme_patch_list_opens_with_the_0_18_4_block_and_keeps_the_0_18_3_paragraph() {
+fn readme_patch_list_keeps_the_0_18_4_block_above_the_0_18_3_paragraph() {
     let readme = read_repo_file("crates/libs/rns-transport/README.md");
     let patch_list = crate_readme_section(&readme, "Patch list")
         .split_whitespace()
@@ -445,14 +468,8 @@ fn readme_patch_list_opens_with_the_0_18_4_block_and_keeps_the_0_18_3_paragraph(
     let marker_0_18_4 = "What `0.18.4` carries on top of `0.18.3`:";
     let marker_0_18_3 = "What `0.18.3` carries on top of `0.18.2`:";
     let marker_0_18_2 = "What `0.18.2` carries on top of `0.18.1`:";
-    let at_0_18_4 = patch_list
-        .find(marker_0_18_4)
-        .expect("the README patch list should open with the 0.18.4 block");
-    assert_eq!(
-        patch_list.find("What `"),
-        Some(at_0_18_4),
-        "the README patch list should open with the 0.18.4 block, not another release's"
-    );
+    let at_0_18_4 =
+        patch_list.find(marker_0_18_4).expect("the README patch list should keep the 0.18.4 block");
     let at_0_18_3 =
         patch_list.find(marker_0_18_3).expect("the README patch list should keep the 0.18.3 block");
     let at_0_18_2 =
@@ -463,29 +480,69 @@ fn readme_patch_list_opens_with_the_0_18_4_block_and_keeps_the_0_18_3_paragraph(
     );
 
     let block_0_18_4 = &patch_list[at_0_18_4..at_0_18_3];
+    for needle in README_0_18_4_BLOCK_NEEDLES {
+        assert!(
+            block_0_18_4.contains(needle),
+            "the README 0.18.4 block should still say {needle:?}:\n{block_0_18_4}"
+        );
+    }
+}
+
+/// The README patch list opens with the 0.18.5 block, which names every item
+/// of the release (the rnsd path calls with `PathRow`, `drop_path_settled`
+/// and `is_transient()`, the path interface, the link establishment timeout
+/// fix, the Python-in-the-loop proofs, the test-only hygiene and the
+/// consumer pin), and runs 0.18.4, then 0.18.3 below it; the demoted
+/// blocks' content is pinned by the tests above.
+#[test]
+fn readme_patch_list_opens_with_the_0_18_5_block_and_keeps_the_0_18_4_paragraph() {
+    let readme = read_repo_file("crates/libs/rns-transport/README.md");
+    let patch_list = crate_readme_section(&readme, "Patch list")
+        .split_whitespace()
+        .collect::<Vec<_>>()
+        .join(" ");
+    let marker_0_18_5 = "What `0.18.5` carries on top of `0.18.4`:";
+    let marker_0_18_4 = "What `0.18.4` carries on top of `0.18.3`:";
+    let marker_0_18_3 = "What `0.18.3` carries on top of `0.18.2`:";
+    let at_0_18_5 = patch_list
+        .find(marker_0_18_5)
+        .expect("the README patch list should open with the 0.18.5 block");
+    assert_eq!(
+        patch_list.find("What `"),
+        Some(at_0_18_5),
+        "the README patch list should open with the 0.18.5 block, not another release's"
+    );
+    let at_0_18_4 =
+        patch_list.find(marker_0_18_4).expect("the README patch list should keep the 0.18.4 block");
+    let at_0_18_3 =
+        patch_list.find(marker_0_18_3).expect("the README patch list should keep the 0.18.3 block");
+    assert!(
+        at_0_18_5 < at_0_18_4 && at_0_18_4 < at_0_18_3,
+        "the README patch list should run 0.18.5, then 0.18.4, then 0.18.3"
+    );
+
+    let block_0_18_5 = &patch_list[at_0_18_5..at_0_18_4];
     for needle in [
-        "RpcError::Io(std::io::Error)",
-        "io_kind()",
-        "ConnectionReset",
-        "ConnectionAborted",
-        "BrokenPipe",
-        "UnexpectedEof",
-        "backlog=1",
+        "path_table",
+        "drop_path_settled",
+        "is_transient",
+        "PathRow",
         "RNS/Reticulum.py:1274-1334",
-        "### How it tracks upstream",
-        "## Upstream LXMF-rs",
-        "python_shared_instance_rpc_io.rs",
-        "honest_rst",
-        "shared_instance_rpc_io_kind_probe.rs",
-        "shared_instance_rpc_api.rs",
-        "coyote-rns-transport = \"0.18.4\"",
-        "ConnectionRefused",
-        "`Io` instead of `Protocol`",
+        "path_interface",
+        "PathIface",
+        "interface_events",
+        "RNS/Link.py:282-283",
+        "python_shared_instance_rpc_roaming.rs",
+        "python_shared_instance_rpc_roaming_restart.rs",
+        "shared_instance_rpc_paths_probe.rs",
+        "tests/support/stdlib_rpc_handshake.rs",
+        "coyote-rns-transport = \"0.18.5\"",
+        "request_path",
         "nothing to opt into",
     ] {
         assert!(
-            block_0_18_4.contains(needle),
-            "the README 0.18.4 block should say {needle:?}:\n{block_0_18_4}"
+            block_0_18_5.contains(needle),
+            "the README 0.18.5 block should say {needle:?}:\n{block_0_18_5}"
         );
     }
 }
@@ -554,6 +611,129 @@ fn crate_readme_shared_instance_section_describes_interface_peer_count() {
         "`rnstatus_cli` test",
     ]) {
         assert!(changelog_section.contains(&squash(claim)), "the changelog should mention {claim}");
+    }
+}
+
+// Pins over the `link establishment timeout` docs, the ones no other contract
+// reads: the CHANGELOG `### Fixed` bullet that records the first-hop sizing
+// fix with the Python lines it is read from, the README divergence register's
+// entry for the residual first-hop sizing (a real divergence, so above `Not
+// divergences:` and not below it), and the patch-set ledger naming the patch
+// id with its label and the commit that carries it. Each pin finds its section
+// by content, so the release cut that promotes the section leaves it green.
+
+const LINK_TIMEOUT_FIXED_OPENER: &str =
+    "- The outbound link establishment timeout `Transport::link` gives a new";
+
+#[test]
+fn changelog_fixed_records_the_link_establishment_timeout_sizing() {
+    let changelog = read_repo_file("crates/libs/rns-transport/CHANGELOG.md");
+    let section = changelog_section_naming(&changelog, LINK_TIMEOUT_FIXED_OPENER);
+    let bullets = subsection_bullets(section, "Fixed");
+    let bullet = single_bullet_starting_with(&bullets, LINK_TIMEOUT_FIXED_OPENER);
+    for needle in [
+        "`Transport::link`",
+        "`RNS/Link.py:282-283`",
+        "`RNS/Transport.py:3194-3197`",
+        "`RNS/Reticulum.py:93`",
+        "`RNS/Reticulum.py:1728-1732`",
+        "`transport/tests_parts/establishment_timeout_python_sizing.rs`",
+        "`tests/link_establishment_timeout_shared_instance_probe.rs`",
+        "`python_channel_interop_parts/python_shared_instance_rpc_roaming.rs`",
+    ] {
+        assert!(
+            squash(&bullet).contains(&squash(needle)),
+            "the fix bullet names {needle}:\n{bullet}"
+        );
+    }
+}
+
+#[test]
+fn divergence_register_carries_the_first_hop_sizing_as_a_real_divergence() {
+    let readme = read_repo_file("crates/libs/rns-transport/README.md");
+    let register = crate_readme_section(&readme, "Known divergences from Python RNS");
+    let (real, api_shape) =
+        register.split_once("\nNot divergences:\n").expect("the register has both halves");
+    let entry = top_level_bullets(real)
+        .into_iter()
+        .find(|bullet| bullet.contains("`first_hop_timeout`"))
+        .expect("the register's real half carries the first-hop sizing entry");
+    for needle in ["`RNS/Reticulum.py:1728-1732`", "`RNS/Transport.py:3194-3197`", "radio"] {
+        assert!(squash(&entry).contains(&squash(needle)), "the entry names {needle}:\n{entry}");
+    }
+    assert!(
+        !api_shape.contains("`RNS/Reticulum.py:1728-1732`"),
+        "the first-hop sizing is a behaviour divergence, not an API-shape note"
+    );
+}
+
+/// The `Fork commit(s) ...:` patch headers below a ledger section's table,
+/// each joined from its `Fork commit` line through the line that ends the label
+/// sentence after the colon, so a header wrapped on either side of it reads whole.
+fn patch_headers(section: &str) -> Vec<String> {
+    let table_start =
+        section.find("\n| File | Patch |").expect("the section has a `| File | Patch |` table");
+    let mut headers: Vec<String> = Vec::new();
+    let mut in_header = false;
+    let mut saw_colon = false;
+    for line in section[table_start..].lines() {
+        if line.starts_with("Fork commit `") || line.starts_with("Fork commits `") {
+            headers.push(String::new());
+            in_header = true;
+            saw_colon = false;
+        }
+        let Some(header) = headers.last_mut().filter(|_| in_header) else { continue };
+        if !header.is_empty() {
+            header.push(' ');
+        }
+        header.push_str(line);
+        saw_colon |= line.contains(':');
+        in_header = !(saw_colon && line.ends_with('.'));
+    }
+    headers
+}
+
+#[test]
+fn patch_set_ledger_names_the_link_establishment_timeout_patch() {
+    let ledger = read_repo_file("docs/fork/PATCHSET.md");
+    let legend_claim = squash("Q3 is link establishment timeout");
+    let section = ledger
+        .split("\n## ")
+        .find(|section| squash(section).contains(&legend_claim))
+        .expect("a ledger section names Q3 as link establishment timeout");
+    assert!(
+        !section.contains("word for word"),
+        "the ledger's Q3 section vouches for no verbatim copy"
+    );
+    assert!(
+        squash(section).contains(&squash("and the maintenance job's slack")),
+        "the Q3 section's narrative qualifies the recovery budget by the maintenance job's slack"
+    );
+    let legend = squash(section.split("\n| File | Patch |").next().expect("legend"));
+    for claim in [
+        "Q3 is link establishment timeout",
+        "The `link establishment timeout` patch is fork commit",
+        "`a451a06e`",
+    ] {
+        assert!(legend.contains(&squash(claim)), "the legend says {claim:?}:\n{legend}");
+    }
+    let header = patch_headers(section)
+        .into_iter()
+        .find(|header| header.ends_with(": Q3, link establishment timeout."))
+        .expect("the patch header names Q3 with its label");
+    assert!(header.contains("`a451a06e`"), "the Q3 header cites the fix commit: {header}");
+    for path in [
+        "crates/libs/rns-transport/src/transport/links_parts/transport_sections/link_establishment.rs",
+        "crates/libs/rns-transport/src/transport/tests_parts/establishment_timeout_python_sizing.rs",
+        "crates/libs/rns-transport/tests/link_establishment_timeout_shared_instance_probe.rs",
+        "crates/libs/rns-transport/README.md",
+        "crates/apps/reticulumd/tests/fork_release_docs_contract_parts/readme_patch_list.rs",
+    ] {
+        let row = section
+            .lines()
+            .find(|line| line.starts_with(&format!("| `{path}` |")))
+            .unwrap_or_else(|| panic!("the table rows {path}"));
+        assert!(row.contains("link establishment timeout"), "{path} belongs to Q3: {row}");
     }
 }
 
@@ -638,6 +818,285 @@ fn crate_readme_rnsd_rpc_section_describes_the_client() {
         "`python_stdlib_listener_rpc_probe.rs`",
     ] {
         assert!(changelog_section.contains(&squash(claim)), "the changelog should mention {claim}");
+    }
+}
+
+/// The path table section describes the calls the way the code presents
+/// them: the six calls and the row type, the Python lines the name
+/// equality, the drop window, the cull tick, the replacement rule, the
+/// stale path answer and the bin encoding are read from, the live rnsd part
+/// with its harness constructors, the black-box probe, the roaming part and
+/// the recipe probe that pin it, the recipe's test citations gathered after
+/// the recipe prose rather than inside it; the divergence register names the
+/// calls and the retry predicate as fork-only below the `Not divergences:`
+/// marker (API shape) and nowhere above it, and the changelog bullets carry
+/// the same name equality, the same measured window and the same pin files,
+/// the roaming part and the recipe probe included.
+#[test]
+fn crate_readme_path_table_section_describes_the_calls_and_the_window() {
+    let readme = read_repo_file("crates/libs/rns-transport/README.md");
+    let section_text = crate_readme_section(&readme, "Driving rnsd's path table");
+    let section = squash(section_text);
+    let shared_claims = [
+        "`RNS/Reticulum.py:1527`",
+        "(`:1645`)",
+        "about 160 to 220 ms",
+        "50 to 180 ms",
+        "250 ms",
+        "python_channel_interop_parts/python_shared_instance_rpc_paths_live.rs`",
+        "`tests/shared_instance_rpc_paths_probe.rs`",
+        "the unix endpoint twin,",
+    ];
+    for claim in shared_claims.into_iter().chain([
+        "`path_table`",
+        "`next_hop_interface_name`",
+        "`drop_path`",
+        "`drop_all_via`",
+        "`first_hop_timeout`",
+        "`drop_path_settled`",
+        "`PathRow`",
+        "`RNS/Transport.py:3219-3226`",
+        "`RNS/Transport.py:248`",
+        "`RNS/Transport.py:2236-2286`",
+        "`RNS/Transport.py:3459`",
+        "`RNS/vendor/umsgpack.py:505-506`",
+        "`SharedInstanceRpcRnsd::spawn_with_interfaces`",
+        "`LiveSharedInstance::with_transport`",
+        "`RpcError::is_transient()`",
+        "`Transport::request_path`",
+        "short of the unanswered-link-request case above",
+        "sizing your own outer timeout on it from `first_hop_timeout`",
+        "`python_rnsd_roaming_keeps_the_dead_one_hop_row_until_drop_settled_moves_it_to_the_live_route`",
+        "python_channel_interop_parts/python_shared_instance_rpc_roaming.rs`",
+        "walks the recipe end to end with the client's rnsd holding two TCP upstreams",
+        "`python_shared_instance_rpc_paths_recipe_probe.rs`",
+        "`python_rnsd_recipe_drop_settled_then_request_path_is_forwarded_not_answered_stale`",
+        "`python_rnsd_roaming_recipe_links_inside_pythons_first_hop_timeout_budget_and_a_repeat_request_stays_on_b`",
+        "step by step",
+        "which SIGTERMs rnsd on the same topology",
+        "and the maintenance job's slack",
+        "`python_rnsd_roaming_restart_restores_the_dead_one_hop_row_from_storage_until_drop_settled_moves_it_to_the_live_route`",
+        "`python_shared_instance_rpc_roaming_restart.rs`",
+        "`storage/destination_table`",
+        "by interface hash",
+        "`tests/link_establishment_timeout_shared_instance_probe.rs`",
+        "a finite float between 6.0 and 60.0 (observed 6.000004)",
+    ]) {
+        assert!(
+            section.contains(&squash(claim)),
+            "the path table section should mention {claim}:\n{section}"
+        );
+    }
+    assert!(
+        !section_text.contains("word for word"),
+        "the path table section qualifies the recipe as step by step, not word for word"
+    );
+    // The recipe reads without its test citations: every test the recipe
+    // paragraph names sits in the `Pinned on loopback` sentence that trails
+    // it, after the retry step that closes the recipe proper.
+    let retry_step = section_text
+        .find("sizing your own outer timeout")
+        .expect("the recipe closes with the retry step");
+    let pinned_on_loopback = section_text
+        .find("Pinned on loopback")
+        .expect("the recipe paragraph trails into a `Pinned on loopback` sentence");
+    assert!(retry_step < pinned_on_loopback, "the recipe prose precedes its pins");
+    for test_name in [
+        "python_rnsd_roaming_keeps_the_dead_one_hop_row",
+        "python_rnsd_roaming_recipe_links_inside_pythons_first_hop_timeout_budget",
+        "python_rnsd_roaming_restart_restores_the_dead_one_hop_row",
+        "python_rnsd_recipe_drop_settled_then_request_path_is_forwarded",
+        "tests/link_establishment_timeout_shared_instance_probe.rs",
+    ] {
+        let at =
+            section_text.find(test_name).unwrap_or_else(|| panic!("the section names {test_name}"));
+        assert!(at > pinned_on_loopback, "{test_name} is cited after the recipe, in its pins");
+    }
+    // The section follows the interface statistics one directly, and the
+    // table of contents links it.
+    let stats_heading = readme
+        .find("\n## Reading rnsd's interface statistics\n")
+        .expect("the interface statistics section");
+    let next_heading = readme[stats_heading + 1..].find("\n## ").expect("a following section");
+    assert!(
+        readme[stats_heading + 1 + next_heading..].starts_with("\n## Driving rnsd's path table\n"),
+        "the path table section follows the interface statistics section"
+    );
+    assert!(
+        readme.contains("- [Driving rnsd's path table](#driving-rnsds-path-table):"),
+        "the table of contents links the path table section"
+    );
+    let divergences = crate_readme_section(&readme, "Known divergences from Python RNS");
+    let (real, api_shape) = divergences
+        .split_once("\nNot divergences:\n")
+        .expect("the register separates API-shape facts under `Not divergences:`");
+    for bullet in [
+        "`drop_path_settled` are a fork-only typed client",
+        "`RpcError::is_transient()` is a fork-only predicate",
+    ] {
+        assert!(
+            squash(api_shape).contains(&squash(bullet)),
+            "{bullet} is API shape, listed below the marker:\n{api_shape}"
+        );
+        assert!(
+            !squash(real).contains(&squash(bullet)),
+            "{bullet} is not a behaviour divergence:\n{real}"
+        );
+    }
+    let changelog = read_repo_file("crates/libs/rns-transport/CHANGELOG.md");
+    let changelog_section = changelog_section_naming(
+        &changelog,
+        "The path calls of rnsd's RPC listener on `transport::shared_instance_rpc`",
+    );
+    let changelog_text = squash(changelog_section);
+    for claim in shared_claims.into_iter().chain([
+        "`str(interface.name)` (`:1528`)",
+        "`drop_path_settled(endpoint, key, destination, timeout)",
+        "`RNS/Transport.py:248`",
+        "`RNS/Transport.py:3219-3226`",
+        "python_channel_interop_parts/python_shared_instance_rpc_roaming.rs`",
+        "the roaming proof",
+        "`RNS/Transport.py:2236-2286`",
+        "`RNS/Interfaces/TCPInterface.py:270-296`",
+        "python_channel_interop_parts/python_shared_instance_rpc_paths_recipe_probe.rs`",
+        "`transport/tests_parts/establishment_timeout_python_sizing.rs`",
+        "python_channel_interop_parts/python_shared_instance_rpc_roaming_recipe_budget_probe.rs`",
+        "and the maintenance job's slack",
+        "python_channel_interop_parts/python_shared_instance_rpc_roaming_restart.rs`",
+        "`storage/destination_table`",
+        "`:3820-3830`",
+        "`:404-441`",
+        "`:2987-2992`",
+        "by interface hash",
+        "on the next cull tick (observed about 160 to 220 ms; the test polls up to 5 s)",
+        "`\\x81\\xa3get\\xafinterface_stats`",
+    ]) {
+        assert!(changelog_text.contains(&squash(claim)), "the changelog should mention {claim}");
+    }
+    assert!(
+        !changelog_section.contains("word for word"),
+        "the changelog section vouches for no verbatim copy of the recipe"
+    );
+    let bullets = top_level_bullets(changelog_section);
+    let settled = bullets
+        .iter()
+        .find(|bullet| bullet.starts_with("- `drop_path_settled(endpoint"))
+        .expect("the changelog carries the settling helper bullet");
+    let window_claims =
+        ["Observed against rnsd 1.5.2", "about 160 to 220 ms", "50 to 180 ms", "250 ms"];
+    for claim in window_claims {
+        assert!(
+            squash(settled).contains(&squash(claim)),
+            "the measured window sits in the `drop_path_settled` bullet: {claim}\n{settled}"
+        );
+    }
+    let source =
+        read_repo_file("crates/libs/rns-transport/src/transport/shared_instance_rpc/paths.rs");
+    let lines: Vec<&str> = source.lines().collect();
+    let settled_fn = lines
+        .iter()
+        .position(|line| line.starts_with("pub async fn drop_path_settled("))
+        .expect("paths.rs declares drop_path_settled");
+    let rustdoc = squash(&doc_block_above(&lines, settled_fn));
+    for claim in window_claims {
+        assert!(rustdoc.contains(&squash(claim)), "the drop_path_settled rustdoc carries {claim}");
+    }
+}
+
+/// The path table section also describes the in-process accessor the way
+/// the code presents it: `Transport::path_interface` and its `PathIface`
+/// record, the `learned_at` field with the disk-restore case that carries
+/// the persisted row's timestamp across the restart and the suspend caveat,
+/// the Python line the interface read is named after,
+/// `Transport::interface_events()` as the up/down stream, the `expire_path`
+/// then `request_path` recipe, the detached-interface case `path_table`
+/// omits, and the four pins, all under a sub-heading that closes the
+/// section after the rnsd pins; the divergence register lists the accessor
+/// as fork-only below the
+/// `Not divergences:` marker (API shape) with the `destinations_map`
+/// branch it does not mirror and nowhere above it, and the
+/// `Transport::path_interface` changelog bullet itself carries the record,
+/// the field, the Python line, the stream and the same pin files.
+#[test]
+fn crate_readme_path_table_section_describes_the_in_process_accessor() {
+    let readme = read_repo_file("crates/libs/rns-transport/README.md");
+    let section_text = crate_readme_section(&readme, "Driving rnsd's path table");
+    let section = squash(section_text);
+    let shared_claims = [
+        "`PathIface`",
+        "`learned_at`",
+        "carried across the restart",
+        "does not advance across a system suspend, so a path learned before a suspend reads later than it was",
+        "`Transport::interface_events()`",
+        "`RNS/Transport.py:3156-3164`",
+        "no longer registered with the manager",
+        "until the next cleanup pass, every 10 s",
+        "`destinations_map`",
+        "`tests/path_interface_api.rs`",
+        "`transport/tests_parts/path_interface_api.rs`",
+        "`tests/path_interface_usage_probe.rs`",
+        "`tests/path_interface_usage_probe2.rs`",
+    ];
+    for claim in shared_claims.into_iter().chain([
+        "`Transport::path_interface`",
+        "`Transport::expire_path`",
+        "`Transport::request_path`",
+        "omitted there and still returned by `path_interface`",
+    ]) {
+        assert!(
+            section.contains(&squash(claim)),
+            "the path table section should mention {claim}:\n{section}"
+        );
+    }
+    let sub_heading = section_text
+        .find("\n### The same fact in-process\n")
+        .expect("the in-process accessor has its own sub-heading");
+    let rnsd_pins =
+        section_text.find("Pinned by the Python-in-the-loop part").expect("the rnsd calls' pins");
+    let in_process = section_text.find("Without rnsd,").expect("the in-process paragraph");
+    assert!(
+        rnsd_pins < sub_heading && sub_heading < in_process,
+        "the in-process paragraph closes the section under its sub-heading, after the rnsd pins"
+    );
+    assert!(
+        !section_text[sub_heading + 1..].contains("\n### "),
+        "the in-process sub-heading is the section's last"
+    );
+    let divergences = crate_readme_section(&readme, "Known divergences from Python RNS");
+    let (real, api_shape) = divergences
+        .split_once("\nNot divergences:\n")
+        .expect("the register separates API-shape facts under `Not divergences:`");
+    let bullet = "`Transport::path_interface` is a fork-only";
+    let item = top_level_bullets(api_shape)
+        .into_iter()
+        .find(|item| item.starts_with(&format!("- {bullet}")))
+        .unwrap_or_else(|| panic!("{bullet} is API shape, listed below the marker:\n{api_shape}"));
+    assert!(
+        squash(&item).contains("`destinations_map`"),
+        "the bullet names the Python branch the read does not mirror:\n{item}"
+    );
+    assert!(
+        !squash(real).contains(&squash(bullet)),
+        "{bullet} is not a behaviour divergence:\n{real}"
+    );
+    let changelog = read_repo_file("crates/libs/rns-transport/CHANGELOG.md");
+    let changelog_section = changelog_section_naming(
+        &changelog,
+        "`Transport::path_interface(&AddressHash) -> Option<PathIface>`",
+    );
+    let bullet = top_level_bullets(changelog_section)
+        .into_iter()
+        .find(|bullet| bullet.starts_with("- `Transport::path_interface(&AddressHash)"))
+        .expect("the changelog carries the path_interface bullet");
+    let bullet = squash(&bullet);
+    for claim in shared_claims.into_iter().chain([
+        "`transport/links_parts/transport_sections/path_interface.rs`",
+        "`PathRow.timestamp`",
+    ]) {
+        assert!(
+            bullet.contains(&squash(claim)),
+            "the path_interface changelog bullet should mention {claim}:\n{bullet}"
+        );
     }
 }
 

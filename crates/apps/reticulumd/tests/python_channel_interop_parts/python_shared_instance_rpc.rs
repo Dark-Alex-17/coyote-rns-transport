@@ -28,6 +28,55 @@ fn shared_instance_rpc_retryable(err: &RpcError) -> bool {
     matches!(err.io_kind(), Some(ConnectionReset | ConnectionAborted | BrokenPipe | UnexpectedEof))
 }
 
+// The kind-only predicate above is `RpcError::is_transient()` without its `Timeout` arm:
+// the two agree on every variant but `Timeout`, which `poll_interface_stats` returns as
+// the reply instead of dialling again.
+#[test]
+fn shared_instance_rpc_retryable_is_is_transient_without_the_timeout_arm() {
+    use std::io::{Error, ErrorKind};
+    for kind in [
+        ErrorKind::ConnectionReset,
+        ErrorKind::ConnectionAborted,
+        ErrorKind::BrokenPipe,
+        ErrorKind::UnexpectedEof,
+        ErrorKind::ConnectionRefused,
+        ErrorKind::Other,
+    ] {
+        for err in [RpcError::Io(Error::from(kind)), RpcError::Connect(Error::from(kind))] {
+            assert_eq!(shared_instance_rpc_retryable(&err), err.is_transient(), "{err:?}");
+        }
+    }
+    for err in [
+        RpcError::Authentication,
+        RpcError::Protocol("short".into()),
+        RpcError::Decode("shape".into()),
+        RpcError::UnsupportedDigest("sha1".into()),
+        RpcError::InvalidKeyMaterial,
+    ] {
+        assert_eq!(shared_instance_rpc_retryable(&err), err.is_transient(), "{err:?}");
+    }
+    assert!(RpcError::Timeout.is_transient());
+    assert!(!shared_instance_rpc_retryable(&RpcError::Timeout));
+}
+
+// The config text the rnsd fixture is written from: transport off unless
+// asked for, and `config_with_interfaces` appends the caller's section as is.
+#[test]
+fn shared_instance_rpc_config_text_carries_the_transport_toggle_and_the_interfaces() {
+    let interfaces = "[interfaces]\n  [[x]]\n    type = TCPClientInterface\n";
+    let instance = live_tcp_shared_instance();
+    let default = instance.config(37_000);
+    assert!(default.contains("enable_transport = no\n"), "{default}");
+    assert!(!default.contains("enable_transport = yes"), "{default}");
+    assert!(
+        instance.config_with_interfaces(37_000, interfaces).ends_with(interfaces),
+        "the interfaces text is the tail of the config"
+    );
+    let with_transport = instance.with_transport(true).config(37_000);
+    assert!(with_transport.contains("enable_transport = yes\n"), "{with_transport}");
+    assert!(!with_transport.contains("enable_transport = no"), "{with_transport}");
+}
+
 // The AutoInterface's data socket is bound without address reuse
 // (`RNS/Interfaces/AutoInterface.py:334-337`) and the bind error reaches the
 // catch-all that panics rnsd (`RNS/Reticulum.py:1120-1124`), so a host rnsd
@@ -58,7 +107,7 @@ fn shared_instance_rpc_auto_interface_section() -> String {
 // the siblings' locals; the tail prints rnsd's output when the test panics.
 struct SharedInstanceRpcRnsd {
     guard: ChildGuard,
-    _log: ProcessLogTail,
+    log: ProcessLogTail,
     identity_file: std::path::PathBuf,
 }
 
@@ -75,13 +124,30 @@ impl SharedInstanceRpcRnsd {
         control_port: u16,
         config_dir: &std::path::Path,
     ) -> Self {
+        Self::spawn_with_interfaces(
+            instance,
+            control_port,
+            config_dir,
+            &shared_instance_rpc_auto_interface_section(),
+        )
+        .await
+    }
+
+    /// `interfaces` is the config text from the top-level `[interfaces]`
+    /// header on, in the shape of the `TCPClientInterface` block
+    /// `client_config` ends with in `support/python_channel_process.rs`
+    /// (that fn returns a whole config, so only its tail is the shape).
+    #[deny(clippy::await_holding_invalid_type)]
+    async fn spawn_with_interfaces(
+        instance: &LiveSharedInstance,
+        control_port: u16,
+        config_dir: &std::path::Path,
+        interfaces: &str,
+    ) -> Self {
         let paths = python_channel_interop_paths();
         write_live_shared_instance_config(
             config_dir,
-            &instance.config_with_interfaces(
-                control_port,
-                &shared_instance_rpc_auto_interface_section(),
-            ),
+            &instance.config_with_interfaces(control_port, interfaces),
         );
         let mut rnsd = paths.spawn_rnsd(config_dir);
         let log = ProcessLogTail::follow("rnsd", &mut rnsd);
@@ -90,7 +156,7 @@ impl SharedInstanceRpcRnsd {
             line.contains("Started shared instance interface").then_some(())
         })
         .await;
-        Self { guard, _log: log, identity_file: config_dir.join("storage/transport_identity") }
+        Self { guard, log, identity_file: config_dir.join("storage/transport_identity") }
     }
 
     /// Python's default `authkey`, the SHA-256 of the transport identity
@@ -128,6 +194,33 @@ impl SharedInstanceRpcRnsd {
         let rnsd = self.guard.child.as_mut().expect("rnsd is held until drop");
         if let Some(status) = shared_instance_rpc_rnsd_exited(rnsd) {
             panic!("rnsd exited with {status}: {context}");
+        }
+    }
+
+    /// SIGTERMs rnsd so it runs `sigterm_handler` (`RNS/Reticulum.py:203-206`,
+    /// which detaches the interfaces and persists the tables through
+    /// `Transport.exit_handler`, `RNS/Transport.py:3977-3981`), reaps it and
+    /// returns its exit status and its complete output. The guard's child is
+    /// taken first so its Drop never kills a reaped pid; the drains are joined
+    /// after the reap (they see EOF once the child is gone) so the snapshot
+    /// holds the last lines rnsd wrote on its way out.
+    #[cfg(unix)]
+    #[deny(clippy::await_holding_invalid_type)]
+    async fn stop_gracefully(self, within: Duration) -> (std::process::ExitStatus, String) {
+        let Self { mut guard, mut log, identity_file: _ } = self;
+        let mut rnsd = guard.child.take().expect("rnsd is held until drop");
+        let stop = tokio::task::spawn_blocking(move || {
+            let status = terminate_child_gracefully(&mut rnsd, within);
+            for drain in log.drains.drain(..) {
+                let _ = drain.join();
+            }
+            (status, log.snapshot())
+        })
+        .await;
+        match stop {
+            Ok(outcome) => outcome,
+            Err(err) if err.is_panic() => std::panic::resume_unwind(err.into_panic()),
+            Err(err) => panic!("the graceful stop was cancelled: {err}"),
         }
     }
 

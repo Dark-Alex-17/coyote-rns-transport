@@ -25,6 +25,7 @@ include!("tests_parts/unknown_path_request_answered_by_announce.rs");
 
 include!("tests_parts/pending_out_link_rediscovery.rs");
 include!("tests_parts/pending_out_link_establishment_timeout.rs");
+include!("tests_parts/establishment_timeout_python_sizing.rs");
 include!("tests_parts/receipt_handler_on_shared_transport.rs");
 
 include!("tests_parts/tunnel_restore_freshness.rs");
@@ -224,6 +225,7 @@ include!("tests_parts/link_no_path_fast_fail.rs");
 
 include!("tests_parts/two_transport_loopback_announce_path_response.rs");
 include!("tests_parts/two_transport_loopback_announce_emitted.rs");
+include!("tests_parts/path_interface_api.rs");
 include!("tests_parts/two_transport_resolve_destination.rs");
 include!("tests_parts/two_transport_resolve_destination_probe.rs");
 include!("tests_parts/two_transport_resolve_destination_probe2.rs");

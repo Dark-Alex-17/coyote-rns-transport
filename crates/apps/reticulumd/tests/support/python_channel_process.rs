@@ -367,6 +367,63 @@ pub(super) struct ChildGuard {
     pub(super) child: Option<Child>,
 }
 
+/// SIGTERMs `child` so a Python process runs its exit handler (rnsd persists
+/// its tables there), then reaps it within `within` and asserts a clean exit.
+/// Any failure kills and reaps the child first: the caller has taken it out of
+/// its `ChildGuard`, and a live child keeps the log drain threads blocked on
+/// its pipes, which would turn the failing test into a hang.
+#[cfg(unix)]
+pub(super) fn terminate_child_gracefully(
+    child: &mut Child,
+    within: Duration,
+) -> std::process::ExitStatus {
+    match try_terminate_child_gracefully(child, within) {
+        Ok(status) => status,
+        Err(message) => {
+            let _ = child.kill();
+            let _ = child.wait();
+            panic!("{message}");
+        }
+    }
+}
+
+#[cfg(unix)]
+fn try_terminate_child_gracefully(
+    child: &mut Child,
+    within: Duration,
+) -> Result<std::process::ExitStatus, String> {
+    let pid = child.id();
+    // A child the harness already reaped through an earlier `try_wait` would
+    // make `kill` fail on a pid that may by now belong to someone else.
+    let already_exited = child.try_wait().map_err(|err| format!("poll child {pid}: {err}"))?;
+    if let Some(status) = already_exited {
+        return Err(format!("child {pid} had already exited with {status} before SIGTERM"));
+    }
+    let signalled = Command::new("kill")
+        .args(["-TERM", &pid.to_string()])
+        .status()
+        .map_err(|err| format!("send SIGTERM to child {pid}: {err}"))?;
+    if !signalled.success() {
+        return Err(format!("failed to signal child {pid} with SIGTERM: {signalled}"));
+    }
+    let deadline = std::time::Instant::now() + within;
+    loop {
+        let exited = child
+            .try_wait()
+            .map_err(|err| format!("wait for the graceful exit of child {pid}: {err}"))?;
+        if let Some(status) = exited {
+            if !status.success() {
+                return Err(format!("child {pid} failed during graceful shutdown: {status}"));
+            }
+            return Ok(status);
+        }
+        if std::time::Instant::now() >= deadline {
+            return Err(format!("child {pid} did not exit within {within:?} of SIGTERM"));
+        }
+        std::thread::sleep(Duration::from_millis(25));
+    }
+}
+
 impl Drop for ChildGuard {
     fn drop(&mut self) {
         if let Some(child) = self.child.as_mut() {

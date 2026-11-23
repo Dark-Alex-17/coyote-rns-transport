@@ -28,34 +28,6 @@ fn announce_emitted_blob_second(
     u64::from_be_bytes(emitted)
 }
 
-/// The next announce event for `hash`; events for other destinations are
-/// skipped.
-#[deny(clippy::await_holding_invalid_type)]
-async fn live_wait_for_announce_event(
-    announces: &mut tokio::sync::broadcast::Receiver<AnnounceEvent>,
-    hash: AddressHash,
-    within: Duration,
-) -> AnnounceEvent {
-    tokio::time::timeout(within, async {
-        loop {
-            match announces.recv().await {
-                Ok(event) => {
-                    let address_hash = { event.destination.lock().await.desc.address_hash };
-                    if address_hash == hash {
-                        return event;
-                    }
-                }
-                Err(tokio::sync::broadcast::error::RecvError::Lagged(_)) => continue,
-                Err(tokio::sync::broadcast::error::RecvError::Closed) => {
-                    panic!("announce channel closed")
-                }
-            }
-        }
-    })
-    .await
-    .expect("timed out waiting for the announce event from rnsd")
-}
-
 /// A Python rnsd (RNS 1.5.2) is the shared instance and two transports under
 /// distinct identities attach as local clients, B before A. Each announces
 /// its destination the way a Python shared-instance client does, as a path
@@ -122,8 +94,7 @@ async fn python_rnsd_shared_instance_relayed_path_response_keeps_announce_emitte
     let after = announce_emitted_clock_secs();
     let a_hash = a.desc.address_hash;
 
-    let original =
-        live_wait_for_announce_event(&mut b_announces, a_hash, ANNOUNCE_EMITTED_EVENT).await;
+    let original = wait_for_announce_event(&mut b_announces, a_hash, ANNOUNCE_EMITTED_EVENT).await;
     assert!(!original.is_path_response, "the relayed announce is unsolicited");
     assert_eq!(
         announce_emitted_blob_second(&original.random_blob),
@@ -150,8 +121,7 @@ async fn python_rnsd_shared_instance_relayed_path_response_keeps_announce_emitte
             (line.contains(&answering) && line.contains("path is known")).then_some(())
         })
         .await;
-    let replayed =
-        live_wait_for_announce_event(&mut b_announces, a_hash, ANNOUNCE_EMITTED_EVENT).await;
+    let replayed = wait_for_announce_event(&mut b_announces, a_hash, ANNOUNCE_EMITTED_EVENT).await;
     assert!(replayed.is_path_response, "rnsd answered the path request");
     assert_eq!(replayed.random_blob, original.random_blob, "rnsd replays the stored blob");
     assert_eq!(replayed.emitted, original.emitted, "a replay is not a fresh emission");
@@ -164,8 +134,7 @@ async fn python_rnsd_shared_instance_relayed_path_response_keeps_announce_emitte
     // (`RNS/Transport.py:2375-2396`); B drops that copy as a known blob.
     tokio::time::sleep_until(a_announced + Duration::from_millis(1100)).await;
     assert_eq!(a.transport.announce_destinations_to_shared_instance().await, 1);
-    let second =
-        live_wait_for_announce_event(&mut b_announces, a_hash, ANNOUNCE_EMITTED_EVENT).await;
+    let second = wait_for_announce_event(&mut b_announces, a_hash, ANNOUNCE_EMITTED_EVENT).await;
     assert!(!second.is_path_response, "the re-announce is relayed unsolicited");
     assert!(
         second.emitted > original.emitted,

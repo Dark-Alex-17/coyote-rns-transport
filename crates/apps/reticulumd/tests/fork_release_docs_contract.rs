@@ -20,7 +20,7 @@ fn read_repo_file(relative: &str) -> String {
 
 /// The source files the fork added over the upstream baseline: every public
 /// item in them is fork-new.
-const FORK_NEW_FILES: [&str; 13] = [
+const FORK_NEW_FILES: [&str; 17] = [
     "crates/libs/rns-transport/src/iface/events.rs",
     "crates/libs/rns-transport/src/destination/request/allow.rs",
     "crates/libs/rns-transport/src/destination/request/frame.rs",
@@ -30,10 +30,14 @@ const FORK_NEW_FILES: [&str; 13] = [
     "crates/libs/rns-transport/src/destination/request/outcome.rs",
     "crates/libs/rns-transport/src/destination/request/receipt.rs",
     "crates/libs/rns-transport/src/resource/outcome.rs",
+    "crates/libs/rns-transport/src/transport/links_parts/transport_sections/path_interface.rs",
     "crates/libs/rns-transport/src/transport/links_parts/transport_sections/shared_instance.rs",
     "crates/libs/rns-transport/src/transport/links_parts/transport_sections/shared_instance_announce.rs",
     "crates/libs/rns-transport/src/transport/links_parts/transport_sections/shared_instance_reconnect.rs",
     "crates/libs/rns-transport/src/transport/shared_instance.rs",
+    "crates/libs/rns-transport/src/transport/shared_instance_rpc.rs",
+    "crates/libs/rns-transport/src/transport/shared_instance_rpc/path_row.rs",
+    "crates/libs/rns-transport/src/transport/shared_instance_rpc/paths.rs",
 ];
 
 fn crate_version() -> String {
@@ -250,3 +254,5 @@ include!("fork_release_docs_contract_parts/release_0_18_2_probe.rs");
 include!("fork_release_docs_contract_parts/release_0_18_3_probe.rs");
 
 include!("fork_release_docs_contract_parts/release_0_18_4_probe.rs");
+
+include!("fork_release_docs_contract_parts/release_0_18_5_probe.rs");

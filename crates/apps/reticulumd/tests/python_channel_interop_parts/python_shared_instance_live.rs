@@ -111,6 +111,7 @@ fn python_json_line<'a>(keys: &'a [&'a str]) -> impl Fn(&str) -> Option<serde_js
 // line the test gates on (RNS/Transport.py:2461).
 struct LiveSharedInstance {
     instance_lines: String,
+    enable_transport: bool,
     endpoint: SharedInstanceEndpoint,
     #[cfg(target_os = "linux")]
     instance_name: Option<String>,
@@ -123,10 +124,15 @@ impl LiveSharedInstance {
         self
     }
 
+    fn with_transport(mut self, enabled: bool) -> Self {
+        self.enable_transport = enabled;
+        self
+    }
+
     fn config(&self, control_port: u16) -> String {
         format!(
             "[reticulum]\n\
-             enable_transport = no\n\
+             enable_transport = {}\n\
              share_instance = yes\n\
              {}\
              instance_control_port = {control_port}\n\
@@ -134,6 +140,7 @@ impl LiveSharedInstance {
              \n\
              [logging]\n\
              loglevel = 7\n",
+            if self.enable_transport { "yes" } else { "no" },
             self.instance_lines
         )
     }
@@ -160,6 +167,7 @@ fn live_tcp_shared_instance() -> LiveSharedInstance {
     let port = free_tcp_port();
     LiveSharedInstance {
         instance_lines: format!("shared_instance_type = tcp\nshared_instance_port = {port}\n"),
+        enable_transport: false,
         endpoint: SharedInstanceEndpoint::Tcp(SocketAddr::from(([127, 0, 0, 1], port))),
         #[cfg(target_os = "linux")]
         instance_name: None,
@@ -174,6 +182,7 @@ fn live_unix_shared_instance() -> LiveSharedInstance {
     let instance_name = live_run_tag();
     LiveSharedInstance {
         instance_lines: format!("shared_instance_type = unix\ninstance_name = {instance_name}\n"),
+        enable_transport: false,
         endpoint: SharedInstanceEndpoint::Unix(LocalUnixEndpoint::abstract_name(format!(
             "rns/{instance_name}"
         ))),

@@ -9,7 +9,7 @@ use super::RpcError;
 /// `Connection._send_bytes` for a payload the 32-bit header can carry
 /// (`connection.py:427-448`): header and payload go out in one write, as
 /// Python does for small frames. Our frames are the auth messages and a
-/// one-key request, so the wide header is never needed.
+/// request map of at most two keys, so the wide header is never needed.
 pub(super) async fn send_frame<S>(stream: &mut S, payload: &[u8]) -> Result<(), RpcError>
 where
     S: AsyncWrite + Unpin,

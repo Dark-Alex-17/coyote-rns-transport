@@ -4,30 +4,62 @@ use std::sync::{Arc, Mutex as StdMutex};
 use std::time::Duration;
 
 use rns_transport::channel_buffer::RawChannelReader;
+#[cfg(unix)]
+use rns_transport::destination::link::LinkCloseReason;
 use rns_transport::destination::link::{Link, LinkEvent, LinkEventData, LinkStatus};
 use rns_transport::destination::{DestinationDesc, SingleInputDestination};
 use rns_transport::hash::{AddressHash, Hash};
 use rns_transport::resource::{RejectReason, ResourceComplete, ResourceEvent, ResourceEventKind};
-use rns_transport::transport::{ReceivedData, Transport};
+use rns_transport::transport::{AnnounceEvent, ReceivedData, Transport};
 use tokio::time::{sleep, timeout, Instant};
 
+/// The next announce event for `target_hash` on an already subscribed
+/// receiver; events for other destinations are skipped, and a lag is logged
+/// and skipped so a timeout that follows it can be read back to the lag.
+#[deny(clippy::await_holding_invalid_type)]
+pub(super) async fn wait_for_announce_event(
+    announces: &mut tokio::sync::broadcast::Receiver<AnnounceEvent>,
+    target_hash: AddressHash,
+    duration: Duration,
+) -> AnnounceEvent {
+    timeout(duration, async {
+        loop {
+            match announces.recv().await {
+                Ok(event) => {
+                    let address_hash = { event.destination.lock().await.desc.address_hash };
+                    if address_hash == target_hash {
+                        return event;
+                    }
+                }
+                Err(tokio::sync::broadcast::error::RecvError::Lagged(skipped)) => {
+                    eprintln!(
+                        "announce receiver lagged by {skipped} events while waiting for {target_hash}"
+                    );
+                    continue;
+                }
+                Err(tokio::sync::broadcast::error::RecvError::Closed) => {
+                    panic!("announce channel closed")
+                }
+            }
+        }
+    })
+    .await
+    .expect("timed out waiting for the Python announce event")
+}
+
+#[deny(clippy::await_holding_invalid_type)]
 pub(super) async fn wait_for_announce(
     transport: &Transport,
     target_hash: AddressHash,
     duration: Duration,
 ) -> DestinationDesc {
     let mut announces = transport.recv_announces().await;
-    timeout(duration, async {
-        loop {
-            let event = announces.recv().await.expect("announce event");
-            let destination = event.destination.lock().await.desc;
-            if destination.address_hash == target_hash {
-                return destination;
-            }
-        }
-    })
-    .await
-    .expect("timed out waiting for Python announce")
+    wait_for_announce_event(&mut announces, target_hash, duration)
+        .await
+        .destination
+        .lock()
+        .await
+        .desc
 }
 
 pub(super) async fn wait_for_out_link_active(
@@ -47,6 +79,27 @@ pub(super) async fn wait_for_out_link_active(
     })
     .await
     .expect("timed out waiting for Rust link activation")
+}
+
+// Called from the unix-only live parts alone, so gated like them.
+#[cfg(unix)]
+pub(super) async fn wait_for_out_link_closed(
+    events: &mut tokio::sync::broadcast::Receiver<LinkEventData>,
+    link: &Arc<tokio::sync::Mutex<Link>>,
+    duration: Duration,
+) -> Option<LinkCloseReason> {
+    let expected = *link.lock().await.id();
+    timeout(duration, async {
+        loop {
+            let event = events.recv().await.expect("link event");
+            if event.id == expected && matches!(event.event, LinkEvent::Closed) {
+                assert_eq!(link.lock().await.status(), LinkStatus::Closed);
+                return event.close_reason;
+            }
+        }
+    })
+    .await
+    .expect("timed out waiting for Rust link close")
 }
 
 pub(super) async fn wait_for_in_link_active_with_announces(

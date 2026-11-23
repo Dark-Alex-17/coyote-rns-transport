@@ -30,7 +30,7 @@ per fork task.
 
 Every file changed since the `0.18.5` release and the patch each change
 belongs to. Patch ids: R1 is ci macos runner. The `ci macos runner` patch
-is fork commits `2e1cd507` and `2fd17928`.
+is fork commits `2e1cd507`, `2fd17928` and `6cc8c6e3`.
 
 | File | Patch |
 | --- | --- |
@@ -41,7 +41,7 @@ is fork commits `2e1cd507` and `2fd17928`.
 | `crates/libs/rns-transport/CHANGELOG.md` | ci macos runner |
 | `docs/fork/PATCHSET.md` | ci macos runner |
 
-Fork commits `2e1cd507` and `2fd17928`: R1, ci macos runner. CI only, no
+Fork commits `2e1cd507`, `2fd17928` and `6cc8c6e3`: R1, ci macos runner. CI only, no
 library change.
 Upstream site: the `runs-on` labels of the three macOS jobs,
 `macos-interface-runtime` in `.github/workflows/ci.yml` and the opt-in
@@ -53,7 +53,7 @@ writes them. `2e1cd507` pins all three to `macos-14`, the label
 software tests` job on `main` three times before a runner was assigned.
 The pull request's own run then refused `macos-14` for this repository
 (`The configuration 'macos-14-arm64-us-default' is not supported`) with
-GitHub's macOS arm64 capacity notice on the job, so the follow-up commit
+GitHub's macOS arm64 capacity notice on the job, so `6cc8c6e3`
 moves the three jobs to `macos-15-intel`, the x86_64 pool `release.yml`
 builds the Intel artefact on; arm64 coverage stays with the release
 workflow.

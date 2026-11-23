@@ -69,7 +69,7 @@ fork commits `60410ca9`, `cc67d5f3`, `d0e34ef2`, `ef50cff5`, `689f5ab3`,
 | `crates/libs/rns-transport/src/transport/next_hop_metrics.rs` | link establishment timeout |
 | `crates/libs/rns-transport/src/transport/shared_instance_rpc.rs` | rnsd path rpc |
 | `crates/libs/rns-transport/src/transport/shared_instance_rpc/decode.rs` | rnsd path rpc |
-| `crates/libs/rns-transport/src/transport/shared_instance_rpc/path_table.rs` | rnsd path rpc |
+| `crates/libs/rns-transport/src/transport/shared_instance_rpc/path_row.rs` | rnsd path rpc |
 | `crates/libs/rns-transport/src/transport/shared_instance_rpc/paths.rs` | rnsd path rpc |
 | `crates/libs/rns-transport/src/transport/shared_instance_rpc/tests/mock_server.rs` | rnsd path rpc |
 | `crates/libs/rns-transport/src/transport/shared_instance_rpc/tests/mod.rs` | rnsd path rpc |
@@ -100,7 +100,7 @@ request parameter and a `rmpv::Value` result, the generic seam every call
 now shares, re-expresses `interface_stats` on it with its byte constant
 `INTERFACE_STATS_REQUEST` kept as the pinned vector, and adds the
 sub-parts `shared_instance_rpc/paths.rs` and
-`shared_instance_rpc/path_table.rs`: `path_table(endpoint, key, max_hops,
+`shared_instance_rpc/path_row.rs`: `path_table(endpoint, key, max_hops,
 timeout) -> Result<Vec<PathRow>, RpcError>`, `next_hop_interface_name`,
 `drop_path`, `drop_all_via` and `first_hop_timeout`, the requests
 `rpc_loop` reads (`RNS/Reticulum.py:1274-1334`, `:1283-1285`, `:1289`,
@@ -204,7 +204,7 @@ has the CHANGELOG name the dial count the never-settles pin asserts.
 `50a177eb` has the fork docs contract
 (`crates/apps/reticulumd/tests/fork_release_docs_contract.rs`,
 `fork_release_docs_contract_parts/request_layer_api_docs.rs`) walk
-`shared_instance_rpc/paths.rs`, `shared_instance_rpc/path_table.rs` and
+`shared_instance_rpc/paths.rs`, `shared_instance_rpc/path_row.rs` and
 `RpcError::is_transient`, so every public item there cites Python or says
 fork-only, and hold `PathRow` to the read-by-field `#[non_exhaustive]`
 shape of the other decoded rows; has `PathRow::via` and `drop_all_via` say
@@ -219,8 +219,8 @@ part, whose listener now logs an unexpected request. `60410ca9` has the
 `drop_path` and `drop_path_settled` rustdocs in `shared_instance_rpc/paths.rs`
 carry the window as measured against rnsd 1.5.2 (the row still listed with
 timestamp 0 and the next hop still named under a millisecond after the
-drop, both gone at about 160 ms, the helper true in 110 to 160 ms as first
-measured, the bound one 250 ms tick) and adds the black-box file
+drop, both gone at about 160 to 220 ms, the helper true in 110 to 160 ms as
+first measured, the bound one 250 ms tick) and adds the black-box file
 `tests/shared_instance_rpc_paths_probe.rs` beside
 `tests/shared_instance_rpc_api.rs`: one shared budget across a slow drop and
 the polls that follow, the path calls over a unix endpoint answering like
@@ -362,7 +362,7 @@ that inserted whatever instant the test passed; drops the second probe's
 claim that two transports mint the same address for clients of one relay
 (addresses come from a per-manager counter, so the record is judged
 against the learner's own tag alone); and widens the same-entry re-read
-slack to 50 ms behind a 100 ms sleep in the three pins that used 25 ms.
+slack to 50 ms behind a 200 ms sleep in the three pins that used 25 ms.
 `42748fdd` bounds the detached-interface sentence in the rustdoc,
 CHANGELOG and README: the entry is still returned until the next cleanup
 pass, every 10 s, culls an entry whose interface is gone (`handle_cleanup`
@@ -434,11 +434,11 @@ announced by an attached Rust client is listed at hops 0 with a float
 after the attach, since the `LocalClientInterface` joins
 `Transport.interfaces` only then, `RNS/Interfaces/LocalInterface.py:457`)
 and different from its `short_name`; `next_hop_interface_name` is `Some` of
-that str; `first_hop_timeout` is a finite float in `6.0..60.0` (observed
-6.000004); a random hash drops as `false` with the row still listed;
+that str; `first_hop_timeout` is a finite float between 6.0 and 60.0
+(observed 6.000004); a random hash drops as `false` with the row still listed;
 `drop_path` answers `true` and the immediate re-read is recorded (under a
 millisecond after the drop the row is still listed with timestamp 0 and
-the next hop still named; `None` at about 160 ms); the second drop is
+the next hop still named; `None` at about 160 to 220 ms); the second drop is
 `false`; after a re-announce `drop_path_settled` is `true` (observed inside
 one 250 ms tick) with the next hop `None` and the row gone; and
 `drop_all_via(row.via)` counts at least 1. The same commit gives the
@@ -567,8 +567,8 @@ graceful stop without Python, tightens the restart part (the persisted
 entry count asserted, the reasoned disconnect alone, the identity compared
 without printing it) and the ledger wording. `02b2cfb9` makes the graceful
 stop probe wait for the shell's trap instead of sleeping, checks the taken
-guard directly, and folds the restart part's connect count into its
-reconnect wait, and extends the `readme_patch_list.rs` pins to this
+guard directly, folds the restart part's connect count into its reconnect
+wait, and extends the `readme_patch_list.rs` pins to this
 ledger's qualified budget wording and the softened recipe claim.
 `9b21a2c9` quotes the probe shell's temp paths and makes the graceful stop
 report a child that had already exited instead of signalling its pid.

@@ -29,7 +29,7 @@ Removed) bullet of its own, marked as such.
   `:1291`, `{"drop": "path", "destination_hash": d}` at `:1305` and
   `{"drop": "all_via", "destination_hash": t}` at `:1306`, whose key is
   `destination_hash` though the value is a transport hash). The
-  `#[non_exhaustive]` `PathRow` (`transport/shared_instance_rpc/path_table.rs`)
+  `#[non_exhaustive]` `PathRow` (`transport/shared_instance_rpc/path_row.rs`)
   carries the six fields `get_path_table` builds
   (`RNS/Reticulum.py:1638-1648`), `hash` and `via` as `AddressHash`,
   `timestamp` and `expires` as `f64`, `hops` as `u8`, `interface` as the
@@ -76,7 +76,7 @@ Removed) bullet of its own, marked as such.
   unknown key kept in `raw` and an int `0` timestamp, `"None"` and a real
   name, the bool, the count, the int and float seconds, and the `Decode`
   texts naming the bad key), `shared_instance_rpc/tests/mod.rs` (the
-  `interface_stats` request bytes equal to the pinned constant),
+  `interface_stats` request bytes `\x81\xa3get\xafinterface_stats`),
   `tests/shared_instance_rpc_api.rs` (the same vectors from outside the
   crate against a loopback server that completes the stdlib handshake,
   `PathRow` as a `Clone + Debug + PartialEq` value read by name, `Send`
@@ -98,10 +98,11 @@ Removed) bullet of its own, marked as such.
   `short_name`, the empty-table and unknown-hash replies decode, a random
   hash drops as false beside the listed row, the immediate re-read after
   `drop_path` is recorded (a row still listed carries timestamp 0), the row
-  is gone within the cull interval, the second drop is false, and
-  `drop_all_via(row.via)` counts at least 1, with a sibling test running
-  the same row, next-hop and first-hop checks against an rnsd spawned with
-  `enable_transport = yes` and a `TCPServerInterface` text and a third
+  is gone on the next cull tick (observed about 160 to 220 ms; the test
+  polls up to 5 s), the second drop is false, and `drop_all_via(row.via)`
+  counts at least 1, with a sibling test running the same row, next-hop and
+  first-hop checks against an rnsd spawned with `enable_transport = yes`
+  and a `TCPServerInterface` text and a third
   where `path_table(Some(0))` and `Some(255)` both list the hops-0 row
   (`RNS/Reticulum.py:1641`), the matched stats entry reads `online`, and
   `drop_all_via(row.via)` counts 0 once the row is gone, and
@@ -131,7 +132,7 @@ Removed) bullet of its own, marked as such.
   even while that interface is offline, so the dead 1-hop row is back
   after a restart; the same `drop_path_settled` plus one `request_path`
   moves it to the live route and a link comes up; and
-  `tests/shared_instance_rpc_paths_probe.rs` (the unix endpoint twins, a
+  `tests/shared_instance_rpc_paths_probe.rs` (the unix endpoint twin, a
   wrong key as `Authentication` after one dial, a 2000-row reply past
   64 KiB read by name, only the exact str `"None"` as `None`, and
   `drop_all_via` int-only).
@@ -148,7 +149,7 @@ Removed) bullet of its own, marked as such.
   the dropped entry's cached announce. Observed against rnsd 1.5.2: under
   a millisecond after `drop_path` answered true, `path_table` still lists
   the row with timestamp 0 and `next_hop_interface_name` still names the
-  interface; both read as gone at about 160 ms; `drop_path_settled`
+  interface; both read as gone at about 160 to 220 ms; `drop_path_settled`
   returns true in about 50 to 180 ms; the cull's bound is one tick,
   250 ms, wherever in the tick the drop lands, and the helper reads it on
   its next 50 ms poll. A path request sent
@@ -222,13 +223,14 @@ Removed) bullet of its own, marked as such.
   keeps `serialised_entry[1]`, `RNS/Transport.py:419`), the in-process
   analogue of a rnsd `PathRow.timestamp` (`RNS/Transport.py:4122`),
   converted from the entry's `Instant` and so carrying the imprecision of
-  sampling the two clocks; `hops` is the figure `hops_to` answers. `None`
-  iff the table has no entry, the `path_found == false` case of
-  `path_status`, whose shape is unchanged;
-  `path_table` exports the same facts for every destination whose
-  interface is still registered, while a path whose interface has since
-  been detached is omitted there and still returned here, until the next
-  cleanup pass, every 10 s, culls an entry whose interface is gone. Only
+  sampling the two clocks; the `Instant` does not advance across a system
+  suspend, so a path learned before a suspend reads later than it was;
+  `hops` is the figure `hops_to` answers. `None` iff the table has no
+  entry, the `path_found == false` case of `path_status`, whose shape is
+  unchanged; `path_table` exports the same facts for every destination
+  whose interface is still registered, while a path whose interface has
+  since been detached is omitted there and still returned here, until the
+  next cleanup pass, every 10 s, culls an entry whose interface is gone. Only
   Python's path-table branch is mirrored: a destination in `destinations_map`
   answers the shared-instance interface there (`:3163`), where a
   destination of this transport's own has no path table entry and answers
@@ -289,7 +291,7 @@ Removed) bullet of its own, marked as such.
   reported, a taken `ChildGuard` inert on drop).
 - Test-only: the fork docs contract (`fork_release_docs_contract.rs`,
   `fork_release_docs_contract_parts/request_layer_api_docs.rs`) walks the new
-  `shared_instance_rpc/paths.rs` and `shared_instance_rpc/path_table.rs` and
+  `shared_instance_rpc/paths.rs` and `shared_instance_rpc/path_row.rs` and
   `RpcError::is_transient`, so every public item there cites Python or says
   fork-only, and holds `PathRow` to the read-by-field, `#[non_exhaustive]`
   shape of the other decoded rows.

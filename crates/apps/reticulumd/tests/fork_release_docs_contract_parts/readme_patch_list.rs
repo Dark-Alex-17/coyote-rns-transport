@@ -621,7 +621,10 @@ fn patch_set_ledger_names_the_link_establishment_timeout_patch() {
         .split("\n## ")
         .find(|section| section.starts_with("Unreleased (upstream "))
         .expect("the ledger has an `## Unreleased` section");
-    assert!(!ledger.contains("word for word"), "the ledger vouches for no verbatim copy");
+    assert!(
+        !section.contains("word for word"),
+        "the ledger's Unreleased section vouches for no verbatim copy"
+    );
     assert!(
         squash(section).contains(&squash("and the maintenance job's slack")),
         "the Unreleased narrative qualifies the recovery budget by the maintenance job's slack"
@@ -745,23 +748,26 @@ fn crate_readme_rnsd_rpc_section_describes_the_client() {
 /// equality, the drop window, the cull tick, the replacement rule, the
 /// stale path answer and the bin encoding are read from, the live rnsd part
 /// with its harness constructors, the black-box probe, the roaming part and
-/// the recipe probe that pin it; the divergence register names the calls and
-/// the retry predicate as fork-only below the `Not divergences:` marker (API
-/// shape) and nowhere above it, and the changelog bullets carry the same
-/// name equality, the same measured window and the same pin files, the
-/// roaming part and the recipe probe included.
+/// the recipe probe that pin it, the recipe's test citations gathered after
+/// the recipe prose rather than inside it; the divergence register names the
+/// calls and the retry predicate as fork-only below the `Not divergences:`
+/// marker (API shape) and nowhere above it, and the changelog bullets carry
+/// the same name equality, the same measured window and the same pin files,
+/// the roaming part and the recipe probe included.
 #[test]
 fn crate_readme_path_table_section_describes_the_calls_and_the_window() {
     let readme = read_repo_file("crates/libs/rns-transport/README.md");
-    let section = squash(crate_readme_section(&readme, "Driving rnsd's path table"));
+    let section_text = crate_readme_section(&readme, "Driving rnsd's path table");
+    let section = squash(section_text);
     let shared_claims = [
         "`RNS/Reticulum.py:1527`",
         "(`:1645`)",
-        "about 160 ms",
+        "about 160 to 220 ms",
         "50 to 180 ms",
         "250 ms",
         "python_channel_interop_parts/python_shared_instance_rpc_paths_live.rs`",
         "`tests/shared_instance_rpc_paths_probe.rs`",
+        "the unix endpoint twin,",
     ];
     for claim in shared_claims.into_iter().chain([
         "`path_table`",
@@ -780,6 +786,8 @@ fn crate_readme_path_table_section_describes_the_calls_and_the_window() {
         "`LiveSharedInstance::with_transport`",
         "`RpcError::is_transient()`",
         "`Transport::request_path`",
+        "short of the unresponsive-path case above",
+        "sizing your own outer timeout on it from `first_hop_timeout`",
         "`python_rnsd_roaming_keeps_the_dead_one_hop_row_until_drop_settled_moves_it_to_the_live_route`",
         "python_channel_interop_parts/python_shared_instance_rpc_roaming.rs`",
         "`python_shared_instance_rpc_paths_recipe_probe.rs`",
@@ -792,13 +800,38 @@ fn crate_readme_path_table_section_describes_the_calls_and_the_window() {
         "`storage/destination_table`",
         "by interface hash",
         "`tests/link_establishment_timeout_shared_instance_probe.rs`",
+        "a finite float between 6.0 and 60.0 (observed 6.000004)",
     ]) {
         assert!(
             section.contains(&squash(claim)),
             "the path table section should mention {claim}:\n{section}"
         );
     }
-    assert!(!readme.contains("word for word"), "the README qualifies the recipe as step by step");
+    assert!(
+        !section_text.contains("word for word"),
+        "the path table section qualifies the recipe as step by step, not word for word"
+    );
+    // The recipe reads without its test citations: every test the recipe
+    // paragraph names sits in the `Pinned on loopback` sentence that trails
+    // it, after the retry step that closes the recipe proper.
+    let retry_step = section_text
+        .find("sizing your own outer timeout")
+        .expect("the recipe closes with the retry step");
+    let pinned_on_loopback = section_text
+        .find("Pinned on loopback")
+        .expect("the recipe paragraph trails into a `Pinned on loopback` sentence");
+    assert!(retry_step < pinned_on_loopback, "the recipe prose precedes its pins");
+    for test_name in [
+        "python_rnsd_roaming_keeps_the_dead_one_hop_row",
+        "python_rnsd_roaming_recipe_links_inside_pythons_first_hop_timeout_budget",
+        "python_rnsd_roaming_restart_restores_the_dead_one_hop_row",
+        "python_rnsd_recipe_drop_settled_then_request_path_is_forwarded",
+        "tests/link_establishment_timeout_shared_instance_probe.rs",
+    ] {
+        let at =
+            section_text.find(test_name).unwrap_or_else(|| panic!("the section names {test_name}"));
+        assert!(at > pinned_on_loopback, "{test_name} is cited after the recipe, in its pins");
+    }
     // The section follows the interface statistics one directly, and the
     // table of contents links it.
     let stats_heading = readme
@@ -855,24 +888,28 @@ fn crate_readme_path_table_section_describes_the_calls_and_the_window() {
         "`:404-441`",
         "`:2987-2992`",
         "by interface hash",
+        "on the next cull tick (observed about 160 to 220 ms; the test polls up to 5 s)",
+        "`\\x81\\xa3get\\xafinterface_stats`",
     ]) {
         assert!(changelog_text.contains(&squash(claim)), "the changelog should mention {claim}");
     }
     assert!(
-        !changelog.contains("word for word"),
-        "the CHANGELOG qualifies the recipe as step by step"
+        !changelog_section.contains("word for word"),
+        "the changelog section vouches for no verbatim copy of the recipe"
     );
     let bullets = top_level_bullets(changelog_section);
     let settled = bullets
         .iter()
         .find(|bullet| bullet.starts_with("- `drop_path_settled(endpoint"))
         .expect("the changelog carries the settling helper bullet");
-    for claim in ["Observed against rnsd 1.5.2", "about 160 ms", "50 to 180 ms", "250 ms"] {
+    for claim in ["Observed against rnsd 1.5.2", "about 160 to 220 ms", "50 to 180 ms", "250 ms"] {
         assert!(
             squash(settled).contains(&squash(claim)),
             "the measured window sits in the `drop_path_settled` bullet: {claim}\n{settled}"
         );
     }
+    // The rustdoc carries the first run's figure; the docs widened it to the
+    // recorded range.
     let source =
         read_repo_file("crates/libs/rns-transport/src/transport/shared_instance_rpc/paths.rs");
     let lines: Vec<&str> = source.lines().collect();
@@ -889,11 +926,13 @@ fn crate_readme_path_table_section_describes_the_calls_and_the_window() {
 /// The path table section also describes the in-process accessor the way
 /// the code presents it: `Transport::path_interface` and its `PathIface`
 /// record, the `learned_at` field with the disk-restore case that carries
-/// the persisted row's timestamp across the restart, the Python line the
-/// interface read is named after, `Transport::interface_events()` as the
-/// up/down stream, the `expire_path` then `request_path` recipe, the
-/// detached-interface case `path_table` omits, and the four pins; the
-/// divergence register lists the accessor as fork-only below the
+/// the persisted row's timestamp across the restart and the suspend caveat,
+/// the Python line the interface read is named after,
+/// `Transport::interface_events()` as the up/down stream, the `expire_path`
+/// then `request_path` recipe, the detached-interface case `path_table`
+/// omits, and the four pins, all under a sub-heading that closes the
+/// section after the rnsd pins; the divergence register lists the accessor
+/// as fork-only below the
 /// `Not divergences:` marker (API shape) with the `destinations_map`
 /// branch it does not mirror and nowhere above it, and the
 /// `Transport::path_interface` changelog bullet itself carries the record,
@@ -901,11 +940,13 @@ fn crate_readme_path_table_section_describes_the_calls_and_the_window() {
 #[test]
 fn crate_readme_path_table_section_describes_the_in_process_accessor() {
     let readme = read_repo_file("crates/libs/rns-transport/README.md");
-    let section = squash(crate_readme_section(&readme, "Driving rnsd's path table"));
+    let section_text = crate_readme_section(&readme, "Driving rnsd's path table");
+    let section = squash(section_text);
     let shared_claims = [
         "`PathIface`",
         "`learned_at`",
         "carried across the restart",
+        "does not advance across a system suspend, so a path learned before a suspend reads later than it was",
         "`Transport::interface_events()`",
         "`RNS/Transport.py:3156-3164`",
         "no longer registered with the manager",
@@ -927,6 +968,20 @@ fn crate_readme_path_table_section_describes_the_in_process_accessor() {
             "the path table section should mention {claim}:\n{section}"
         );
     }
+    let sub_heading = section_text
+        .find("\n### The same fact in-process\n")
+        .expect("the in-process accessor has its own sub-heading");
+    let rnsd_pins =
+        section_text.find("Pinned by the Python-in-the-loop part").expect("the rnsd calls' pins");
+    let in_process = section_text.find("Without rnsd,").expect("the in-process paragraph");
+    assert!(
+        rnsd_pins < sub_heading && sub_heading < in_process,
+        "the in-process paragraph closes the section under its sub-heading, after the rnsd pins"
+    );
+    assert!(
+        !section_text[sub_heading + 1..].contains("\n### "),
+        "the in-process sub-heading is the section's last"
+    );
     let divergences = crate_readme_section(&readme, "Known divergences from Python RNS");
     let (real, api_shape) = divergences
         .split_once("\nNot divergences:\n")

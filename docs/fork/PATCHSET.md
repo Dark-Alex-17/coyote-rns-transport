@@ -26,6 +26,39 @@ parity rows this file plus the crate README `## Known divergences from
 Python RNS` are the parity ledger; `docs/status/*` matrices are not updated
 per fork task.
 
+## Unreleased (upstream 0.14.0)
+
+Every file changed since the `0.18.5` release and the patch each change
+belongs to. Patch ids: R1 is ci macos runner. The `ci macos runner` patch
+is fork commits `2e1cd507` and `2fd17928`.
+
+| File | Patch |
+| --- | --- |
+| `.github/workflows/ci-full.yml` | ci macos runner |
+| `.github/workflows/ci.yml` | ci macos runner |
+| `crates/apps/reticulumd/tests/fork_publish_contract_parts/ledger_contract.rs` | ci macos runner |
+| `crates/apps/reticulumd/tests/fork_release_docs_contract_parts/release_0_18_5_probe.rs` | ci macos runner |
+| `crates/libs/rns-transport/CHANGELOG.md` | ci macos runner |
+| `docs/fork/PATCHSET.md` | ci macos runner |
+
+Fork commits `2e1cd507` and `2fd17928`: R1, ci macos runner. CI only, no
+library change.
+Upstream site: the `runs-on` labels of the three macOS jobs,
+`macos-interface-runtime` in `.github/workflows/ci.yml` and the opt-in
+`interfaces-build-macos` and `interfaces-test-ble-macos` in
+`.github/workflows/ci-full.yml`, which read `macos-latest` as upstream
+writes them. `2e1cd507` pins all three to `macos-14`, the label
+`release.yml` already builds the arm64 artefacts on: GitHub's hosted
+`macos-latest` pool cancelled the pull-request `macOS interface runtime
+software tests` job on `main` three times before a runner was assigned.
+`2fd17928` reopens the crate `CHANGELOG.md` with a CI-only Changed bullet,
+extends the full-hash ledger pin in `ledger_contract.rs` to this section,
+and has `release_0_18_5_probe.rs` close its range pin at the
+`coyote-rns-transport-v0.18.5` tag once that is reachable from `HEAD`,
+slice the 0.18.5 section by its heading in the pins that are not the
+opening one, and drop the two no-`## Unreleased`-stub assertions the reopen
+retires.
+
 ## 0.18.5 (upstream 0.14.0)
 
 Every file changed since the `0.18.4` release and the patch each change

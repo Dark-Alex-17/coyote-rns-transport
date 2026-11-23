@@ -1,7 +1,7 @@
 // Rustdoc and visibility pins over the public items the fork added: every
-// request-layer item cites Python or says fork-only, fork-new structs keep
-// their fields private, and the enums the docs call `#[non_exhaustive]`
-// carry the attribute.
+// request-layer item cites Python or says fork-only, fork-new structs hide
+// their fields or are `#[non_exhaustive]` read-by-field rows, and the enums
+// the docs call `#[non_exhaustive]` carry the attribute.
 
 /// Every public item the request layer and the outbound-outcome types added
 /// over the upstream baseline (types, free and associated functions, enum

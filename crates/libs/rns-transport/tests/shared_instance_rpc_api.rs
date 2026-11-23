@@ -1049,6 +1049,9 @@ async fn concurrent_path_calls_take_one_connection_each_and_never_cross_replies(
 /// server goes away after answering the first poll with a name, the helper must not report
 /// `Ok(true)`: the next poll's dial meets a closed port, refused or reset, so the call is
 /// `Connect` or `Io`, and it ends on that dial, long before the budget.
+/// Not on Windows: a refused loopback connect retries for about a second inside Winsock,
+/// so the refused poll cannot end the call before the budget.
+#[cfg(not(windows))]
 #[tokio::test]
 async fn drop_path_settled_whose_server_vanishes_mid_poll_never_reports_settled() {
     let key = RpcKey::from_hex(KEY_HEX).expect("hex key");

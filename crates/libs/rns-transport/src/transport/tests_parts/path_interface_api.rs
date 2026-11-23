@@ -78,9 +78,9 @@ fn within_a_second(actual: std::time::SystemTime, expected: std::time::SystemTim
     expected - second <= actual && actual <= expected + second
 }
 
-// `Instant` is boot-relative on Windows, where `restore_python_entry` clamps an
-// age past the uptime to now; an age under typical uptime keeps the restored
-// timestamp representable.
+// `Instant` is boot-relative on every platform, so `restore_python_entry` clamps
+// an age past the uptime to now; a fresh Windows box is where that clamp showed
+// up. An age under typical uptime keeps the restored timestamp representable.
 const RESTORED_ROW_AGE: Duration = Duration::from_secs(120);
 
 #[tokio::test]

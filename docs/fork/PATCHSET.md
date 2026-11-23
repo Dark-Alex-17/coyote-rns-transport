@@ -291,8 +291,9 @@ the stdlib handshake, framing, msgpack and every-error helpers that
 `shared_instance_rpc_io_kind_probe.rs` and `shared_instance_rpc_paths_probe.rs`
 each carried into `tests/support/stdlib_rpc_handshake.rs`,
 `stdlib_rpc_frame.rs`, `msgpack_value.rs` and `every_rpc_error.rs`, matches
-the vanished-server case to `Connect` or `Io` inside the 700 ms budget, caps the
-silent-server case at 1200 ms and has the canned servers abort on drop.
+the vanished-server case to `Connect` or `Io` under a 400 ms ceiling, caps
+the silent-server case at 1200 ms and has the paths probe's canned servers
+abort on drop.
 `1867e6e4` has `fork_release_docs_contract.rs` walk
 `shared_instance_rpc.rs` and the `path_row.rs` path, covers `RpcKey`,
 `InterfaceStat` and `InterfaceStats` in the hidden-fields part, and has

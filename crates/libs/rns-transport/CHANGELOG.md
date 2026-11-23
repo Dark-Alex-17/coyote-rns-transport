@@ -303,9 +303,10 @@ Removed) bullet of its own, marked as such.
   `tests/support/stdlib_rpc_handshake.rs`, `tests/support/stdlib_rpc_frame.rs`,
   `tests/support/msgpack_value.rs` and `tests/support/every_rpc_error.rs`;
   `tests/shared_instance_rpc_api.rs` matches the vanished-server case to
-  `Connect` or `Io` inside the 700 ms budget and caps the silent-server case
-  at 1200 ms,
-  with the canned servers aborted on drop;
+  `Connect` or `Io` inside the 700 ms budget (off Windows, where a refused
+  loopback connect retries for about a second inside Winsock) and caps the
+  silent-server case at 1200 ms;
+  `tests/shared_instance_rpc_paths_probe.rs` aborts its canned servers on drop;
   `transport/tests_parts/path_interface_api.rs` pins that `handle_cleanup`
   culls a detached interface's path and restores its row 120 s old; the
   reticulumd interop parts share the take-A-down step and the announce

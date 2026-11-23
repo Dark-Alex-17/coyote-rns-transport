@@ -80,8 +80,7 @@ fn within_a_second(actual: std::time::SystemTime, expected: std::time::SystemTim
 #[deny(clippy::await_holding_invalid_type)]
 async fn path_interface_learned_at_keeps_a_disk_restored_rows_own_timestamp() {
     let identity = PrivateIdentity::new_from_rand(OsRng);
-    let transport =
-        Transport::new(TransportConfig::new("path-interface-restore", &identity, true));
+    let transport = Transport::new(TransportConfig::new("path-interface-restore", &identity, true));
     let destination = AddressHash::new_from_hash(&Hash::new_from_slice(b"destination"));
     let received_from = AddressHash::new_from_hash(&Hash::new_from_slice(b"next-hop"));
     let iface = *transport.iface_manager().lock().await.new_channel(16).address();
@@ -120,8 +119,7 @@ async fn path_interface_learned_at_keeps_a_disk_restored_rows_own_timestamp() {
 #[deny(clippy::await_holding_invalid_type)]
 async fn path_interface_learned_at_is_the_restore_moment_for_a_tunnel_restore() {
     let identity = PrivateIdentity::new_from_rand(OsRng);
-    let transport =
-        Transport::new(TransportConfig::new("path-interface-restore", &identity, true));
+    let transport = Transport::new(TransportConfig::new("path-interface-restore", &identity, true));
     let destination = AddressHash::new_from_hash(&Hash::new_from_slice(b"destination"));
     let next_hop = AddressHash::new_from_hash(&Hash::new_from_slice(b"next-hop"));
     let iface = *transport.iface_manager().lock().await.new_channel(16).address();

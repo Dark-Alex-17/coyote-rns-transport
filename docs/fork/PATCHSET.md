@@ -46,7 +46,7 @@ is fork commits `60410ca9`, `cc67d5f3`, `d0e34ef2`, `ef50cff5`,
 `689f5ab3`, `a451a06e`, `312ede0a`, `ad5c7e15`, `cc69ed29`, `02b2cfb9`,
 `9b21a2c9`, `1867e6e4`, `800fa3ee`, `5d7fd412`, `d6eee86a`, `8bc21180` and
 `c3eaddcc`. The `release 0.18.5` patch carries no other id and is fork
-commits `8679349e`, `12239075`, `80e0cb4d` and `728464e5`.
+commits `8679349e`, `12239075`, `80e0cb4d`, `728464e5` and `b85267ae`.
 
 | File | Patch |
 | --- | --- |
@@ -705,9 +705,9 @@ the first-hop range in the transport-enabled live part's header.
 and says what it is: one dial, a hang guard well under the call timeout, not
 a proof that no poll ran.
 
-Fork commits `8679349e`, `12239075`, `80e0cb4d` and `728464e5`: release
-0.18.5. The first bumps the crate version to 0.18.5 at every manifest and
-consumer-snippet site (`Cargo.toml`,
+Fork commits `8679349e`, `12239075`, `80e0cb4d`, `728464e5` and
+`b85267ae`: release 0.18.5. The first bumps the crate version to 0.18.5 at
+every manifest and consumer-snippet site (`Cargo.toml`,
 `crates/libs/rns-transport/Cargo.toml`, `crates/apps/reticulumd/Cargo.toml`,
 `crates/apps/rns-tools/Cargo.toml`, the snippet in
 `crates/libs/rns-transport/README.md` and `docs/getting-started.md`) and in
@@ -783,7 +783,16 @@ adds the past-tense twin for the full-hash ledger-pin bullet, adds the
 `tests/support/stdlib_rpc_handshake.rs` hygiene needle to the README
 0.18.5 opener test in `readme_patch_list.rs`, and names the `### Fixed`
 opener and the two adopted pins in the crate `CHANGELOG.md` version
-bullet. The ledger commits that cite the four commits above are omitted
+bullet. The fifth adds to `release_0_18_5_probe.rs` the pin that the
+carried doc nits are ledgered under their own patches, `dfb85779` under
+rnsd path rpc and path interface and `91c32571` under link establishment
+timeout, in the legend sentences and the patch headers and not in this
+header; binds the hygiene test's 400 ms ceiling needle to the `7edc5c91`
+narrative by reading it between that hash and `1867e6e4`; names the two
+no-`## Unreleased`-stub assertions in the probe's header inventory with
+the stub-reopening commit as what retires them; and rewords the patch-set
+test's doc comment now that the legend cites more than three release
+commits. The ledger commits that cite the five commits above are omitted
 from the patch headers like every commit whose changes touch only this file.
 
 ## 0.18.4 (upstream 0.14.0)

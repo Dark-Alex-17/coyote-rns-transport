@@ -4,8 +4,9 @@
 // display name, and an unknown or expired destination answers `None`. The two
 // restore cases follow: a disk restore keeps the persisted row's own timestamp,
 // a tunnel restore, through the same `restore_tunnel_path_with_random_blobs`
-// the tunnel synth calls, stamps the restore moment. Helpers come from the
-// sibling `tests_parts` files included into this module.
+// the tunnel synth calls, stamps the restore moment. A detached interface's
+// entry survives with `name` None until `handle_cleanup` culls it. Helpers come
+// from the sibling `tests_parts` files included into this module.
 
 #[tokio::test]
 #[deny(clippy::await_holding_invalid_type)]

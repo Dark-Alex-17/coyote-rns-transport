@@ -117,7 +117,8 @@ async fn recipe_budget_scenario(
     );
 
     // ---- The recipe: drop_path_settled, one request_path, retry the link. ----
-    assert!(roaming_stats_entry(&endpoint, &key, "B").await.online);
+    let b_entry = roaming_stats_entry(&endpoint, &key, "B").await;
+    assert!(b_entry.online, "{b_entry:?}");
     assert!(
         drop_path_settled(&endpoint, &key, &hash, PATH_LIVE_CALL).await.expect("drop_path_settled"),
         "the stale row settles"

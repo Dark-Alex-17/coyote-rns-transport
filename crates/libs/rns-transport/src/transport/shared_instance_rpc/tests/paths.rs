@@ -333,3 +333,19 @@ fn is_transient_follows_the_io_kind_retry_rule() {
         assert!(!err.is_transient(), "{err:?}");
     }
 }
+
+// A new variant stops this match compiling; add it to the hand-maintained list in
+// tests/support/every_rpc_error.rs as well.
+#[test]
+fn every_rpc_error_variant_is_in_the_census() {
+    match RpcError::Timeout {
+        RpcError::Connect(_)
+        | RpcError::Authentication
+        | RpcError::Protocol(_)
+        | RpcError::Io(_)
+        | RpcError::Decode(_)
+        | RpcError::UnsupportedDigest(_)
+        | RpcError::InvalidKeyMaterial
+        | RpcError::Timeout => {}
+    }
+}

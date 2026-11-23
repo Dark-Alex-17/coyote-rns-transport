@@ -290,19 +290,21 @@ Removed) bullet of its own, marked as such.
   stubborn child killed and reaped inside the bound, a non-zero exit
   reported, a taken `ChildGuard` inert on drop).
 - Test-only: the fork docs contract (`fork_release_docs_contract.rs`,
-  `fork_release_docs_contract_parts/request_layer_api_docs.rs`) walks the new
+  `fork_release_docs_contract_parts/request_layer_api_docs.rs`) walks
   `shared_instance_rpc/paths.rs` and `shared_instance_rpc/path_row.rs` and
   `transport/shared_instance_rpc.rs`, so every public item there cites
   Python or says fork-only, holds `PathRow`, `InterfaceStat` and
   `InterfaceStats` to the same read-by-field, `#[non_exhaustive]` shape as
   the other decoded rows, and holds `RpcKey` to private fields.
-- Test-only: a hygiene pass over the rpc and path tests. The stdlib
-  handshake, frame, msgpack and every-error helpers, copies of which the
-  four rpc test binaries carried between them, are shared from
+- Test and rustdoc hygiene, no library behaviour change: a pass over the rpc
+  and path tests. The stdlib handshake, frame, msgpack and every-error
+  helpers, copies of which the four rpc test binaries carried between them,
+  are shared from
   `tests/support/stdlib_rpc_handshake.rs`, `tests/support/stdlib_rpc_frame.rs`,
   `tests/support/msgpack_value.rs` and `tests/support/every_rpc_error.rs`;
   `tests/shared_instance_rpc_api.rs` matches the vanished-server case to
-  `Connect` or `Io` under 400 ms and caps the silent-server case at 1200 ms,
+  `Connect` or `Io` inside the 700 ms budget and caps the silent-server case
+  at 1200 ms,
   with the canned servers aborted on drop;
   `transport/tests_parts/path_interface_api.rs` pins that `handle_cleanup`
   culls a detached interface's path and restores its row 120 s old; the

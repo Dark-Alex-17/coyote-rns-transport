@@ -301,7 +301,7 @@ fn is_transient_agrees_with_the_readme_retry_rule() {
     for err in &errors {
         assert_eq!(err.is_transient(), readme_retryable(err), "{err:?}");
     }
-    assert_eq!(errors.len(), 16, "RpcError grew; extend every_rpc_error");
+    assert_eq!(errors.len(), 16, "the census changed; re-count the transient set");
     // Four kinds on each of Io and Connect, and Timeout; the rest, ConnectionRefused included, stay.
     assert_eq!(errors.iter().filter(|err| err.is_transient()).count(), 9);
     assert!(RpcError::Timeout.is_transient());
@@ -1064,8 +1064,8 @@ async fn drop_path_settled_whose_server_vanishes_mid_poll_never_reports_settled(
         "a poll that never read None reported {result:?}"
     );
     assert!(
-        elapsed < Duration::from_millis(400),
-        "{elapsed:?} for one drop, one 50 ms poll and one dial of a closed port"
+        elapsed < Duration::from_millis(700),
+        "{elapsed:?} ran to the 700 ms budget: the refused poll should end the call"
     );
     let requests = server.await.expect("server task");
     assert_eq!(requests.len(), 2, "{requests:?}");

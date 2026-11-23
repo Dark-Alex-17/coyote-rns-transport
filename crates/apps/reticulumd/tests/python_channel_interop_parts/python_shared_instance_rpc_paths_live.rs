@@ -440,9 +440,9 @@ async fn python_rnsd_path_calls_filter_by_hops_and_repeat_idempotently() {
 // `transport_uptime` keys of the stats reply (`RNS/Reticulum.py:1614-1618`,
 // absent with transport off). A Rust client's announce is then listed with
 // `interface` equal to a stats `name` and unlike that entry's `short_name`,
-// `first_hop_timeout` is finite and at least 6.0, and `drop_path_settled`
-// settles within two cull ticks with the next hop `None` and the row gone,
-// the same as with transport off.
+// `first_hop_timeout` is inside `PATH_LIVE_DEFAULT_PER_HOP_TIMEOUT..60.0`, and
+// `drop_path_settled` settles within two cull ticks with the next hop `None`
+// and the row gone, the same as with transport off.
 #[cfg(unix)]
 #[tokio::test]
 #[ignore = "requires local Python Reticulum checkout"]

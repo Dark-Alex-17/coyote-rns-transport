@@ -1263,7 +1263,7 @@ answered stale, the settle plus one request moves the row to the live
 route and a link comes up); by
 `python_rnsd_roaming_recipe_links_inside_pythons_first_hop_timeout_budget_and_a_repeat_request_stays_on_b`
 (`python_shared_instance_rpc_roaming_recipe_budget_probe.rs`), which
-follows the paragraph above step by step on the same topology (the row's
+follows this recipe step by step on the same topology (the row's
 interface looked up in the stats by `name` and read offline, both links
 inside the budget, the repeated request leaving the row); by
 `python_rnsd_roaming_restart_restores_the_dead_one_hop_row_from_storage_until_drop_settled_moves_it_to_the_live_route`

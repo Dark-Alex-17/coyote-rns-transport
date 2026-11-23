@@ -1,6 +1,8 @@
-//! Every `RpcError` variant, with every io kind the README names behind `Io` and
-//! `Connect`; shared by the integration tests that hold a consumer's retry predicate to
-//! `RpcError::is_transient()`.
+//! Every `RpcError` variant as of 0.18.5, hand-maintained (the enum is `#[non_exhaustive]`,
+//! so this list cannot detect growth; the in-crate match beside
+//! `is_transient_follows_the_io_kind_retry_rule` does), with every io kind the README names
+//! behind `Io` and `Connect`; shared by the integration tests that hold a consumer's retry
+//! predicate to `RpcError::is_transient()`.
 
 use std::io::{Error, ErrorKind};
 

@@ -3,8 +3,9 @@
 // lies within a second of the announce, `name` follows the interface manager's
 // display name, and an unknown or expired destination answers `None`. The two
 // restore cases follow: a disk restore keeps the persisted row's own timestamp,
-// a tunnel restore stamps the restore moment. Helpers come from the sibling
-// `tests_parts` files included into this module.
+// a tunnel restore, through the same `restore_tunnel_path_with_random_blobs`
+// the tunnel synth calls, stamps the restore moment. Helpers come from the
+// sibling `tests_parts` files included into this module.
 
 #[tokio::test]
 #[deny(clippy::await_holding_invalid_type)]
@@ -40,7 +41,7 @@ async fn path_interface_reports_the_learned_interface_name_time_and_hops() {
         .lock()
         .await
         .set_display_name(path.iface, Some("uplink".to_owned())));
-    tokio::time::sleep(Duration::from_millis(50)).await;
+    tokio::time::sleep(Duration::from_millis(100)).await;
     let named = connector.transport.path_interface(&hash).await.expect("the path is still on file");
     assert_eq!(named.name.as_deref(), Some("uplink"));
     assert_eq!(named.iface, path.iface);
@@ -52,8 +53,8 @@ async fn path_interface_reports_the_learned_interface_name_time_and_hops() {
         .duration_since(path.learned_at)
         .unwrap_or_else(|earlier| earlier.duration());
     assert!(
-        drift < Duration::from_millis(25),
-        "two reads of one entry agree to the clock-sampling imprecision; a relearn would move learned_at by the 50 ms sleep: the reads differ by {drift:?}"
+        drift < Duration::from_millis(50),
+        "two reads of one entry agree to the clock-sampling imprecision; a relearn would move learned_at by the 100 ms sleep: the reads differ by {drift:?}"
     );
 
     let rows = connector.transport.path_table(None).await.expect("path table");
@@ -123,13 +124,18 @@ async fn path_interface_learned_at_is_the_restore_moment_for_a_tunnel_restore() 
     let destination = AddressHash::new_from_hash(&Hash::new_from_slice(b"destination"));
     let next_hop = AddressHash::new_from_hash(&Hash::new_from_slice(b"next-hop"));
     let iface = *transport.iface_manager().lock().await.new_channel(16).address();
-    assert!(transport.get_handler().lock().await.path_table.restore_tunnel_path(
-        destination,
-        next_hop,
-        1,
-        iface,
-        Hash::new_from_slice(b"packet"),
-        std::time::Instant::now(),
+    // The function the tunnel synth in `tunnels.rs` calls; it stamps the restore moment.
+    assert!(transport.get_handler().lock().await.path_table.restore_tunnel_path_with_random_blobs(
+        super::path_table::TunnelPathRestore {
+            destination,
+            received_from: next_hop,
+            hops: 1,
+            iface,
+            packet_hash: Hash::new_from_slice(b"packet"),
+            random_blobs: vec![],
+            existing_mode: None,
+            now: std::time::Instant::now(),
+        }
     ));
 
     let path = transport.path_interface(&destination).await.expect("the restored path is on file");

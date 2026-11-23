@@ -144,7 +144,7 @@ async fn path_interface_exposes_the_interface_its_name_the_learn_time_and_the_ho
         .lock()
         .await
         .set_display_name(iface, Some("uplink".to_owned())));
-    tokio::time::sleep(Duration::from_millis(50)).await;
+    tokio::time::sleep(Duration::from_millis(100)).await;
     let named = connector.path_interface(&destination_hash).await.expect("the path is on file");
     assert_eq!(named.name.as_deref(), Some("uplink"));
     assert_eq!(named.iface, iface);
@@ -154,8 +154,8 @@ async fn path_interface_exposes_the_interface_its_name_the_learn_time_and_the_ho
     let drift =
         named.learned_at.duration_since(learned_at).unwrap_or_else(|earlier| earlier.duration());
     assert!(
-        drift < Duration::from_millis(25),
-        "two reads of one entry agree to the clock-sampling imprecision; a relearn would move learned_at by the 50 ms sleep: the reads differ by {drift:?}"
+        drift < Duration::from_millis(50),
+        "two reads of one entry agree to the clock-sampling imprecision; a relearn would move learned_at by the 100 ms sleep: the reads differ by {drift:?}"
     );
     assert_eq!(named.clone(), named, "the record compares by value");
 

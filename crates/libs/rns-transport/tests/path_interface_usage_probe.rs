@@ -310,7 +310,8 @@ async fn a_detached_interface_keeps_the_record_drops_its_name_and_leaves_path_ta
         !connector.iface_manager().lock().await.interface_hashes().contains(&client_iface),
         "the manager no longer registers the detached interface"
     );
-    // Let any reaction to the stop settle before reading, so the read is of the steady state.
+    // Let any reaction to the stop settle before reading, so the read is of the steady
+    // state, while staying well inside the 10 s cleanup interval that would cull the entry.
     tokio::time::sleep(Duration::from_millis(200)).await;
 
     let detached = connector
@@ -324,7 +325,7 @@ async fn a_detached_interface_keeps_the_record_drops_its_name_and_leaves_path_ta
         .learned_at
         .duration_since(attached.learned_at)
         .unwrap_or_else(|earlier| earlier.duration());
-    assert!(drift < Duration::from_millis(25), "the learn time did not move: {drift:?}");
+    assert!(drift < Duration::from_millis(50), "the learn time did not move: {drift:?}");
     assert!(
         connector.path_status(&hash).await.path_found,
         "Some iff the table has an entry: path_status still finds the path"

@@ -133,7 +133,7 @@ fn assert_send<F: Send>(_: &F) {}
 #[deny(clippy::await_holding_invalid_type)]
 async fn a_path_through_a_relay_reads_two_hops_on_the_learners_own_interface() {
     let relay = relay("path-interface-relay").await;
-    let (a, a_iface, _a_announces) = connector("path-interface-relay-a", relay.port).await;
+    let (a, _a_iface, _a_announces) = connector("path-interface-relay-a", relay.port).await;
     await_accepted(&relay, 1).await;
     let (b, b_iface, mut b_announces) = connector("path-interface-relay-b", relay.port).await;
     await_accepted(&relay, 2).await;
@@ -147,12 +147,10 @@ async fn a_path_through_a_relay_reads_two_hops_on_the_learners_own_interface() {
     let at_b: PathIface = b.path_interface(&hash).await.expect("B has the path on file");
     assert_eq!(at_b.hops, 2, "one relay between A and B");
     assert_eq!(at_b.hops, b.hops_to(&hash).await, "hops is the figure hops_to answers");
-    // Interface addresses are minted from the interface's description (Python's
-    // `full_hash(str(interface))`), so A's and B's clients, both dialling the same relay
-    // port, carry the same address in their own transports; the record is judged
-    // against B's own tag, which is all a consumer joining on `iface` ever holds.
+    // Interface addresses are minted per manager from a counter, so the tag is only
+    // meaningful inside its own transport; the record is judged against B's own tag,
+    // which is all a consumer joining on `iface` ever holds.
     assert_eq!(at_b.iface, b_iface, "B's own client interface toward the relay");
-    assert_eq!(a_iface, b_iface, "same dial target, same minted address in either transport");
     assert_eq!(b.path_status(&hash).await.interface, Some(at_b.iface), "path_status agrees");
     assert_eq!(at_b.name.as_deref(), Some("to-relay"), "B's display name for its client");
     assert!(

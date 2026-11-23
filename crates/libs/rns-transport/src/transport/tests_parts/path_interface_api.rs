@@ -1,8 +1,10 @@
 // Loopback coverage for `Transport::path_interface`: the record agrees with
 // `path_status`, `hops_to` and `path_table` on the same destination, `learned_at`
 // lies within a second of the announce, `name` follows the interface manager's
-// display name, and an unknown or expired destination answers `None`. Helpers come
-// from the sibling `tests_parts` files included into this module.
+// display name, and an unknown or expired destination answers `None`. The two
+// restore cases follow: a disk restore keeps the persisted row's own timestamp,
+// a tunnel restore stamps the restore moment. Helpers come from the sibling
+// `tests_parts` files included into this module.
 
 #[tokio::test]
 #[deny(clippy::await_holding_invalid_type)]
@@ -67,4 +69,78 @@ async fn path_interface_reports_the_learned_interface_name_time_and_hops() {
     );
     assert!(connector.transport.expire_path(&hash).await, "the path table entry is removed");
     assert_eq!(connector.transport.path_interface(&hash).await, None);
+}
+
+fn within_a_second(actual: std::time::SystemTime, expected: std::time::SystemTime) -> bool {
+    let second = Duration::from_secs(1);
+    expected - second <= actual && actual <= expected + second
+}
+
+#[tokio::test]
+#[deny(clippy::await_holding_invalid_type)]
+async fn path_interface_learned_at_keeps_a_disk_restored_rows_own_timestamp() {
+    let identity = PrivateIdentity::new_from_rand(OsRng);
+    let transport =
+        Transport::new(TransportConfig::new("path-interface-restore", &identity, true));
+    let destination = AddressHash::new_from_hash(&Hash::new_from_slice(b"destination"));
+    let received_from = AddressHash::new_from_hash(&Hash::new_from_slice(b"next-hop"));
+    let iface = *transport.iface_manager().lock().await.new_channel(16).address();
+    let now_unix = std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .expect("the clock is past the epoch")
+        .as_secs_f64();
+    transport.get_handler().lock().await.path_table.restore_python_entry(
+        super::path_table::PythonPathEntry {
+            destination,
+            timestamp_secs: now_unix - 3600.0,
+            received_from,
+            hops: 2,
+            expires_secs: now_unix + 3600.0,
+            random_blobs: vec![],
+            iface,
+            interface_hash: Hash::new_from_slice(b"iface"),
+            packet_hash: Hash::new_from_slice(b"packet"),
+        },
+        std::time::Instant::now(),
+        now_unix,
+    );
+
+    let path = transport.path_interface(&destination).await.expect("the restored path is on file");
+    assert_eq!(path.hops, 2);
+    assert_eq!(path.iface, iface);
+    let an_hour_ago = std::time::SystemTime::now() - Duration::from_secs(3600);
+    assert!(
+        within_a_second(path.learned_at, an_hour_ago),
+        "learned_at {:?} is the persisted row's hour-old timestamp, about {an_hour_ago:?}",
+        path.learned_at
+    );
+}
+
+#[tokio::test]
+#[deny(clippy::await_holding_invalid_type)]
+async fn path_interface_learned_at_is_the_restore_moment_for_a_tunnel_restore() {
+    let identity = PrivateIdentity::new_from_rand(OsRng);
+    let transport =
+        Transport::new(TransportConfig::new("path-interface-restore", &identity, true));
+    let destination = AddressHash::new_from_hash(&Hash::new_from_slice(b"destination"));
+    let next_hop = AddressHash::new_from_hash(&Hash::new_from_slice(b"next-hop"));
+    let iface = *transport.iface_manager().lock().await.new_channel(16).address();
+    assert!(transport.get_handler().lock().await.path_table.restore_tunnel_path(
+        destination,
+        next_hop,
+        1,
+        iface,
+        Hash::new_from_slice(b"packet"),
+        std::time::Instant::now(),
+    ));
+
+    let path = transport.path_interface(&destination).await.expect("the restored path is on file");
+    assert_eq!(path.hops, 1);
+    assert_eq!(path.iface, iface);
+    let now = std::time::SystemTime::now();
+    assert!(
+        within_a_second(path.learned_at, now),
+        "learned_at {:?} is the restore moment, about {now:?}",
+        path.learned_at
+    );
 }

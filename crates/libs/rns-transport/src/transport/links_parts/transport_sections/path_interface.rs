@@ -24,14 +24,15 @@ pub struct PathIface {
     /// until it is culled or expired). Fork-only: Python's interface object
     /// carries its own `name`.
     pub name: Option<String>,
-    /// When this transport recorded the path, on the accepted announce or on
-    /// a tunnel or disk restore, the in-process analogue of a rnsd
-    /// `PathRow.timestamp` (`transport::shared_instance_rpc::PathRow`):
-    /// Python stores `now` in the row's `IDX_PT_TIMESTAMP` slot
-    /// (`RNS/Transport.py:4122`, set at `:2458-2459`). The table entry keeps
-    /// an `Instant`, so this is `SystemTime::now()` less the entry's age and
-    /// carries the imprecision of sampling the two clocks, typically well
-    /// under a millisecond.
+    /// When the path was learned: the accepted announce; the restore moment
+    /// for a tunnel restore; and for a disk restore the persisted row's own
+    /// timestamp carried across the restart (`restore_python_entry` keeps
+    /// it, as Python keeps `serialised_entry[1]`, `RNS/Transport.py:419`).
+    /// The in-process analogue of a rnsd `PathRow.timestamp`
+    /// (`transport::shared_instance_rpc::PathRow`, `RNS/Transport.py:4122`).
+    /// The table entry keeps an `Instant`, so this is `SystemTime::now()`
+    /// less the entry's age, carrying the imprecision of sampling the two
+    /// clocks.
     pub learned_at: std::time::SystemTime,
     /// The announce's hop count, the `IDX_PT_HOPS` slot (`RNS/Transport.py:4124`);
     /// the same figure [`Transport::hops_to`] answers.
@@ -62,6 +63,7 @@ impl Transport {
     /// is mirrored: Python answers the shared-instance interface for a
     /// destination in `destinations_map` (`:3163`), where a destination of
     /// this transport's own has no path table entry and answers `None` here.
+    #[deny(clippy::await_holding_invalid_type)]
     pub async fn path_interface(&self, destination: &AddressHash) -> Option<PathIface> {
         let (iface, hops, timestamp) = {
             let handler = self.handler.lock().await;

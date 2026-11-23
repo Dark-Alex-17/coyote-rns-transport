@@ -215,14 +215,16 @@ Removed) bullet of its own, marked as such.
   returns (`RNS/Transport.py:3156-3164`, `:4127`); `name` is the interface
   manager's display name, the same source as
   `TransportPathTableEntry::interface_name`, `None` when the interface has
-  none or is no longer registered with the manager; `learned_at` is the
-  time this transport recorded the path, on the accepted announce or on a
-  tunnel or disk restore, the in-process analogue of a rnsd
-  `PathRow.timestamp` (`RNS/Transport.py:4122`), converted from the
-  entry's `Instant` and so carrying the imprecision of sampling the two
-  clocks, typically well under a millisecond; `hops` is the figure
-  `hops_to` answers. `None` iff the table has no entry, the
-  `path_found == false` case of `path_status`, whose shape is unchanged;
+  none or is no longer registered with the manager; `learned_at` is when
+  the path was learned: the accepted announce, the restore moment for a
+  tunnel restore, and for a disk restore the persisted row's own timestamp
+  carried across the restart (`restore_python_entry` keeps it, as Python
+  keeps `serialised_entry[1]`, `RNS/Transport.py:419`), the in-process
+  analogue of a rnsd `PathRow.timestamp` (`RNS/Transport.py:4122`),
+  converted from the entry's `Instant` and so carrying the imprecision of
+  sampling the two clocks; `hops` is the figure `hops_to` answers. `None`
+  iff the table has no entry, the `path_found == false` case of
+  `path_status`, whose shape is unchanged;
   `path_table` exports the same facts for every destination whose
   interface is still registered, while a path whose interface has since
   been detached is omitted there and still returned here. Only Python's
@@ -243,7 +245,12 @@ Removed) bullet of its own, marked as such.
   `interface_events()` by `iface`, walks the `expire_path` then
   `request_path` recipe after the listener goes away, sees a re-announce
   move `learned_at` forward, and reads a path whose interface was detached
-  with `name` as `None` while `path_table` omits its row.
+  with `name` as `None` while `path_table` omits its row, and by
+  `tests/path_interface_usage_probe2.rs`, which reads a two-hop path
+  through a transport-enabled relay on the learner's own interface,
+  matches the record to the `path_table` row including `learned_at`
+  against `timestamp_secs`, and drives the `#[non_exhaustive]` compile
+  failures through rustc.
 
 ### Changed
 

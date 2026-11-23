@@ -888,14 +888,16 @@ fn crate_readme_path_table_section_describes_the_calls_and_the_window() {
 
 /// The path table section also describes the in-process accessor the way
 /// the code presents it: `Transport::path_interface` and its `PathIface`
-/// record, the `learned_at` field, the Python line the interface read is
-/// named after, `Transport::interface_events()` as the up/down stream, the
-/// `expire_path` then `request_path` recipe, the detached-interface case
-/// `path_table` omits, and the three pins; the divergence register lists
-/// the accessor as fork-only below the `Not divergences:` marker (API
-/// shape) with the `destinations_map` branch it does not mirror and
-/// nowhere above it, and the changelog bullet carries the record, the
-/// field, the Python line, the stream and the same pin files.
+/// record, the `learned_at` field with the disk-restore case that carries
+/// the persisted row's timestamp across the restart, the Python line the
+/// interface read is named after, `Transport::interface_events()` as the
+/// up/down stream, the `expire_path` then `request_path` recipe, the
+/// detached-interface case `path_table` omits, and the four pins; the
+/// divergence register lists the accessor as fork-only below the
+/// `Not divergences:` marker (API shape) with the `destinations_map`
+/// branch it does not mirror and nowhere above it, and the
+/// `Transport::path_interface` changelog bullet itself carries the record,
+/// the field, the Python line, the stream and the same pin files.
 #[test]
 fn crate_readme_path_table_section_describes_the_in_process_accessor() {
     let readme = read_repo_file("crates/libs/rns-transport/README.md");
@@ -903,6 +905,7 @@ fn crate_readme_path_table_section_describes_the_in_process_accessor() {
     let shared_claims = [
         "`PathIface`",
         "`learned_at`",
+        "carried across the restart",
         "`Transport::interface_events()`",
         "`RNS/Transport.py:3156-3164`",
         "no longer registered with the manager",
@@ -910,6 +913,7 @@ fn crate_readme_path_table_section_describes_the_in_process_accessor() {
         "`tests/path_interface_api.rs`",
         "`transport/tests_parts/path_interface_api.rs`",
         "`tests/path_interface_usage_probe.rs`",
+        "`tests/path_interface_usage_probe2.rs`",
     ];
     for claim in shared_claims.into_iter().chain([
         "`Transport::path_interface`",
@@ -940,15 +944,23 @@ fn crate_readme_path_table_section_describes_the_in_process_accessor() {
         "{bullet} is not a behaviour divergence:\n{real}"
     );
     let changelog = read_repo_file("crates/libs/rns-transport/CHANGELOG.md");
-    let changelog_text = squash(changelog_section_naming(
+    let changelog_section = changelog_section_naming(
         &changelog,
         "`Transport::path_interface(&AddressHash) -> Option<PathIface>`",
-    ));
+    );
+    let bullet = top_level_bullets(changelog_section)
+        .into_iter()
+        .find(|bullet| bullet.starts_with("- `Transport::path_interface(&AddressHash)"))
+        .expect("the changelog carries the path_interface bullet");
+    let bullet = squash(&bullet);
     for claim in shared_claims.into_iter().chain([
         "`transport/links_parts/transport_sections/path_interface.rs`",
         "`PathRow.timestamp`",
     ]) {
-        assert!(changelog_text.contains(&squash(claim)), "the changelog should mention {claim}");
+        assert!(
+            bullet.contains(&squash(claim)),
+            "the path_interface changelog bullet should mention {claim}:\n{bullet}"
+        );
     }
 }
 

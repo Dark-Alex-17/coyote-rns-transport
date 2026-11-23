@@ -1309,10 +1309,12 @@ which returns a `PathIface` for one destination or `None` when the table
 has no entry: `iface`, the interface the announce arrived on; `name`, the
 interface manager's display name for it (the `interface_name` of
 `Transport::path_table`'s rows), `None` when the interface has no display
-name or is no longer registered with the manager; `learned_at`, the time
-this transport recorded the path (the accepted announce or a restore),
-converted from the entry's monotonic clock and so carrying the imprecision
-of sampling the two clocks, typically well under a millisecond; and `hops`.
+name or is no longer registered with the manager; `learned_at`, when the
+path was learned (the accepted announce, the restore moment for a tunnel
+restore, and for a disk restore the persisted row's own timestamp carried
+across the restart, as Python keeps `serialised_entry[1]`,
+`RNS/Transport.py:419`), converted from the entry's monotonic clock and so
+carrying the imprecision of sampling the two clocks; and `hops`.
 `Transport::path_table` exports the same facts for every destination whose
 interface is still registered; a path whose interface has since been
 detached is omitted there and still returned by `path_interface`. Python's
@@ -1330,7 +1332,12 @@ then `Transport::request_path`. Pinned by
 `tests/path_interface_api.rs` from outside the crate, and
 `tests/path_interface_usage_probe.rs`, which joins the record to the event
 stream by `iface`, walks the recipe after the listener goes away, and reads
-a detached interface's path with `name` as `None` while `path_table` omits it.
+a detached interface's path with `name` as `None` while `path_table` omits
+it, and `tests/path_interface_usage_probe2.rs`, which reads a two-hop path
+through a transport-enabled relay on the learner's own interface, matches
+the record to the `path_table` row including `learned_at` against
+`timestamp_secs`, and drives the `#[non_exhaustive]` compile failures
+through rustc.
 
 Pinned by the Python-in-the-loop part
 `crates/apps/reticulumd/tests/python_channel_interop_parts/python_shared_instance_rpc_paths_live.rs`

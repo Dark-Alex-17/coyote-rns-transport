@@ -93,7 +93,7 @@ jobs:
 
   macos-interface-runtime:
     name: macOS interface runtime software tests
-    runs-on: macos-14
+    runs-on: macos-15-intel
     steps:
       - uses: actions/checkout@v4
       - uses: dtolnay/rust-toolchain@stable

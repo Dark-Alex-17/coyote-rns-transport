@@ -51,6 +51,12 @@ writes them. `2e1cd507` pins all three to `macos-14`, the label
 `release.yml` already builds the arm64 artefacts on: GitHub's hosted
 `macos-latest` pool cancelled the pull-request `macOS interface runtime
 software tests` job on `main` three times before a runner was assigned.
+The pull request's own run then refused `macos-14` for this repository
+(`The configuration 'macos-14-arm64-us-default' is not supported`) with
+GitHub's macOS arm64 capacity notice on the job, so the follow-up commit
+moves the three jobs to `macos-15-intel`, the x86_64 pool `release.yml`
+builds the Intel artefact on; arm64 coverage stays with the release
+workflow.
 `2fd17928` reopens the crate `CHANGELOG.md` with a CI-only Changed bullet,
 extends the full-hash ledger pin in `ledger_contract.rs` to this section,
 and has `release_0_18_5_probe.rs` close its range pin at the

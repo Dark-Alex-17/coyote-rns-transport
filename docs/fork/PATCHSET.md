@@ -33,8 +33,9 @@ belongs to. Patch ids: Q1 is rnsd path rpc, Q2 is path interface, Q3 is
 link establishment timeout. The `rnsd path rpc` patch is fork commits
 `1528b698`, `bab079de`, `6f22dca2`, `0adb116e`, `75126a26`, `5faf736d`,
 `50a177eb`, `60410ca9`, `cc67d5f3`, `d0e34ef2`, `ef50cff5` and `689f5ab3`.
-The `path interface` patch is fork commits `3fddb1b4` and `280495b7`. The
-`link establishment timeout` patch is fork commits `a451a06e` and `312ede0a`. The
+The `path interface` patch is fork commits `3fddb1b4`, `280495b7`,
+`862a1128` and `6883f5ee`. The `link establishment timeout` patch is fork
+commits `a451a06e` and `312ede0a`. The
 `Python-in-the-loop rnsd path rpc interop` patch carries no other id and is
 fork commits `60410ca9`, `cc67d5f3`, `d0e34ef2`, `ef50cff5`, `689f5ab3`,
 `a451a06e`, `312ede0a`, `ad5c7e15`, `cc69ed29`, `02b2cfb9` and `9b21a2c9`.
@@ -77,6 +78,7 @@ fork commits `60410ca9`, `cc67d5f3`, `d0e34ef2`, `ef50cff5`, `689f5ab3`,
 | `crates/libs/rns-transport/src/transport/tests_parts/path_interface_api.rs` | path interface |
 | `crates/libs/rns-transport/tests/link_establishment_timeout_shared_instance_probe.rs` | link establishment timeout |
 | `crates/libs/rns-transport/tests/path_interface_api.rs` | path interface |
+| `crates/libs/rns-transport/tests/path_interface_usage_probe.rs` | path interface |
 | `crates/libs/rns-transport/tests/shared_instance_rpc_api.rs` | rnsd path rpc |
 | `crates/libs/rns-transport/tests/shared_instance_rpc_io_kind_probe.rs` | rnsd path rpc |
 | `crates/libs/rns-transport/tests/shared_instance_rpc_paths_probe.rs` | rnsd path rpc |
@@ -264,15 +266,16 @@ the README, CHANGELOG and `drop_path_settled` rustdoc attribute the 250 ms
 tick to the cull, read by the helper on its next 50 ms poll; and widens the
 settle figure to about 50 to 180 ms after a 54 ms run.
 
-Fork commits `3fddb1b4` and `280495b7`: Q2, path interface.
+Fork commits `3fddb1b4`, `280495b7`, `862a1128` and `6883f5ee`: Q2, path
+interface.
 Upstream site: `Transport::path_status` in
 `crates/libs/rns-transport/src/transport/links_parts/transport_sections/close_channel.rs`,
 which reads one path table entry under the handler lock and reports the
 next hop, interface and hops; upstream carries `path_status` and the
 whole-table export `path_table` but no per-path read that also names the
 interface and dates the entry, so a transport that holds its own table
-could not check the interface one path rests on without exporting every
-row. `3fddb1b4` adds the section file
+could not read the interface's name or the entry's time for one path
+without exporting every row. `3fddb1b4` adds the section file
 `crates/libs/rns-transport/src/transport/links_parts/transport_sections/path_interface.rs`,
 included from `links_parts/transport.rs` beside `path_table.rs` so
 `close_channel.rs` stays unchanged, with
@@ -307,7 +310,21 @@ expected and by-field struct lists in `request_layer_api_docs.rs`.
 `## Driving rnsd's path table` that names `Transport::interface_events()`
 as the in-process up/down stream and the `expire_path` then
 `request_path` recipe, the `Not divergences:` bullet, and the
-`readme_patch_list.rs` pin that reads them.
+`readme_patch_list.rs` pin that reads them. `862a1128` adopts the
+black-box `crates/libs/rns-transport/tests/path_interface_usage_probe.rs`:
+a transport with no interfaces answers `None` for an unknown destination
+and for one of its own, the record's `iface` is the address the interface
+manager minted for the `TcpClient` and so the tag `interface_events()`
+carries, a listener that stops is read as `Disconnected` under that tag
+and `expire_path` then `request_path` leaves no entry, and a second
+accepted announce moves `learned_at` forward. `6883f5ee` says in the
+rustdoc, CHANGELOG, README paragraph and `Not divergences:` bullet that
+`name` is also `None` for an interface no longer registered with the
+manager, whose path `path_table` omits and `path_interface` still returns,
+and that only Python's path-table branch is mirrored (`:3163` answers the
+shared-instance interface for a `destinations_map` destination); derives
+`Eq` on `PathIface`; clamps the learn time with `checked_sub`; and widens
+the two twins' same-entry re-read check to 25 ms after a 50 ms sleep.
 
 Fork commits `a451a06e` and `312ede0a`: Q3, link establishment timeout.
 Upstream site: `Transport::link`'s establishment timeout in

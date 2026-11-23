@@ -295,6 +295,25 @@ Removed) bullet of its own, marked as such.
   `RpcError::is_transient`, so every public item there cites Python or says
   fork-only, and holds `PathRow` to the read-by-field, `#[non_exhaustive]`
   shape of the other decoded rows.
+- Test-only: a hygiene pass over the rpc and path tests. The stdlib
+  handshake, frame, msgpack and every-error helpers the four rpc test
+  binaries each carried a copy of are shared from
+  `tests/support/stdlib_rpc_handshake.rs`, `tests/support/stdlib_rpc_frame.rs`,
+  `tests/support/msgpack_value.rs` and `tests/support/every_rpc_error.rs`;
+  `tests/shared_instance_rpc_api.rs` matches the vanished-server case to
+  `Connect` or `Io` under 400 ms and caps the silent-server case at 1200 ms,
+  with the canned servers aborted on drop;
+  `transport/tests_parts/path_interface_api.rs` pins that `handle_cleanup`
+  culls a detached interface's path and restores its row 120 s old; the
+  reticulumd interop parts share the take-A-down step and the announce
+  waiter, the stdlib listener type-checks every hash it receives as bytes,
+  and `python_channel_interop_parts/graceful_stop_probe.rs` pins the stop of
+  a child that had already exited. The private module
+  `transport/shared_instance_rpc/path_row.rs` is renamed from `path_table.rs`,
+  with the `PathRow` field cites corrected; the `drop_path_settled` rustdoc
+  says what a settle cut off by `Timeout` leaves in rnsd's log and how to
+  size its budget; the `PathIface::learned_at` rustdoc documents the clamp
+  to `UNIX_EPOCH` when the wall clock reads earlier than the entry's age.
 
 ### Fixed
 

@@ -32,14 +32,16 @@ Every file changed since the `0.18.4` release and the patch each change
 belongs to. Patch ids: Q1 is rnsd path rpc, Q2 is path interface, Q3 is
 link establishment timeout. The `rnsd path rpc` patch is fork commits
 `1528b698`, `bab079de`, `6f22dca2`, `0adb116e`, `75126a26`, `5faf736d`,
-`50a177eb`, `60410ca9`, `cc67d5f3`, `d0e34ef2`, `ef50cff5` and `689f5ab3`.
-The `path interface` patch is fork commits `3fddb1b4`, `280495b7`,
-`862a1128`, `6883f5ee`, `dd935a20`, `3b2ffcb5`, `061b3176`, `bf3968a0`,
-`14176cc2`, `f052002c`, `7ecd0eca` and `42748fdd`. The `link establishment
-timeout` patch is fork commits `a451a06e` and `312ede0a`. The
-`Python-in-the-loop rnsd path rpc interop` patch carries no other id and is
-fork commits `60410ca9`, `cc67d5f3`, `d0e34ef2`, `ef50cff5`, `689f5ab3`,
-`a451a06e`, `312ede0a`, `ad5c7e15`, `cc69ed29`, `02b2cfb9` and `9b21a2c9`.
+`50a177eb`, `60410ca9`, `cc67d5f3`, `d0e34ef2`, `ef50cff5`, `689f5ab3`,
+`31576efd`, `7edc5c91`, `1867e6e4` and `800fa3ee`. The `path interface`
+patch is fork commits `3fddb1b4`, `280495b7`, `862a1128`, `6883f5ee`,
+`dd935a20`, `3b2ffcb5`, `061b3176`, `bf3968a0`, `14176cc2`, `f052002c`,
+`7ecd0eca`, `42748fdd`, `31576efd`, `7edc5c91`, `1867e6e4` and `800fa3ee`.
+The `link establishment timeout` patch is fork commits `a451a06e`,
+`312ede0a`, `7edc5c91` and `800fa3ee`. The `Python-in-the-loop rnsd path
+rpc interop` patch carries no other id and is fork commits `60410ca9`,
+`cc67d5f3`, `d0e34ef2`, `ef50cff5`, `689f5ab3`, `a451a06e`, `312ede0a`,
+`ad5c7e15`, `cc69ed29`, `02b2cfb9`, `9b21a2c9`, `1867e6e4` and `800fa3ee`.
 
 | File | Patch |
 | --- | --- |
@@ -49,6 +51,7 @@ fork commits `60410ca9`, `cc67d5f3`, `d0e34ef2`, `ef50cff5`, `689f5ab3`,
 | `crates/apps/reticulumd/tests/fork_release_docs_contract_parts/request_layer_api_docs.rs` | rnsd path rpc, path interface |
 | `crates/apps/reticulumd/tests/python_channel_interop.rs` | Python-in-the-loop rnsd path rpc interop |
 | `crates/apps/reticulumd/tests/python_channel_interop_parts/graceful_stop_probe.rs` | Python-in-the-loop rnsd path rpc interop |
+| `crates/apps/reticulumd/tests/python_channel_interop_parts/python_shared_instance_announce_emitted.rs` | Python-in-the-loop rnsd path rpc interop |
 | `crates/apps/reticulumd/tests/python_channel_interop_parts/python_shared_instance_live.rs` | Python-in-the-loop rnsd path rpc interop |
 | `crates/apps/reticulumd/tests/python_channel_interop_parts/python_shared_instance_rpc.rs` | rnsd path rpc, Python-in-the-loop rnsd path rpc interop |
 | `crates/apps/reticulumd/tests/python_channel_interop_parts/python_shared_instance_rpc_paths_live.rs` | Python-in-the-loop rnsd path rpc interop |
@@ -69,6 +72,7 @@ fork commits `60410ca9`, `cc67d5f3`, `d0e34ef2`, `ef50cff5`, `689f5ab3`,
 | `crates/libs/rns-transport/src/transport/next_hop_metrics.rs` | link establishment timeout |
 | `crates/libs/rns-transport/src/transport/shared_instance_rpc.rs` | rnsd path rpc |
 | `crates/libs/rns-transport/src/transport/shared_instance_rpc/decode.rs` | rnsd path rpc |
+| `crates/libs/rns-transport/src/transport/shared_instance_rpc/framing.rs` | rnsd path rpc |
 | `crates/libs/rns-transport/src/transport/shared_instance_rpc/path_row.rs` | rnsd path rpc |
 | `crates/libs/rns-transport/src/transport/shared_instance_rpc/paths.rs` | rnsd path rpc |
 | `crates/libs/rns-transport/src/transport/shared_instance_rpc/tests/mock_server.rs` | rnsd path rpc |
@@ -82,13 +86,18 @@ fork commits `60410ca9`, `cc67d5f3`, `d0e34ef2`, `ef50cff5`, `689f5ab3`,
 | `crates/libs/rns-transport/tests/path_interface_usage_probe.rs` | path interface |
 | `crates/libs/rns-transport/tests/path_interface_usage_probe2.rs` | path interface |
 | `crates/libs/rns-transport/tests/shared_instance_rpc_api.rs` | rnsd path rpc |
+| `crates/libs/rns-transport/tests/shared_instance_rpc_departed_server.rs` | rnsd path rpc |
 | `crates/libs/rns-transport/tests/shared_instance_rpc_io_kind_probe.rs` | rnsd path rpc |
 | `crates/libs/rns-transport/tests/shared_instance_rpc_paths_probe.rs` | rnsd path rpc |
+| `crates/libs/rns-transport/tests/support/every_rpc_error.rs` | rnsd path rpc |
+| `crates/libs/rns-transport/tests/support/msgpack_value.rs` | rnsd path rpc |
+| `crates/libs/rns-transport/tests/support/stdlib_rpc_frame.rs` | rnsd path rpc |
+| `crates/libs/rns-transport/tests/support/stdlib_rpc_handshake.rs` | rnsd path rpc |
 | `docs/fork/PATCHSET.md` | rnsd path rpc, Python-in-the-loop rnsd path rpc interop, link establishment timeout, path interface |
 
 Fork commits `1528b698`, `bab079de`, `6f22dca2`, `0adb116e`, `75126a26`,
-`5faf736d`, `50a177eb`, `60410ca9`, `cc67d5f3`, `d0e34ef2`, `ef50cff5` and
-`689f5ab3`: Q1, rnsd path rpc.
+`5faf736d`, `50a177eb`, `60410ca9`, `cc67d5f3`, `d0e34ef2`, `ef50cff5`,
+`689f5ab3`, `31576efd`, `7edc5c91`, `1867e6e4` and `800fa3ee`: Q1, rnsd path rpc.
 Upstream site: the fork-added rnsd RPC client
 `crates/libs/rns-transport/src/transport/shared_instance_rpc.rs` (O2 of
 `## 0.18.3`, P2 of `## 0.18.4`) and its sub-parts; upstream carries none
@@ -267,10 +276,30 @@ that the recipe names `Transport::request_path`; has the window sentence in
 the README, CHANGELOG and `drop_path_settled` rustdoc attribute the 250 ms
 tick to the cull, read by the helper on its next 50 ms poll; and widens the
 settle figure to about 50 to 180 ms after a 54 ms run.
+Four hygiene commits follow. `31576efd` renames the private module
+`shared_instance_rpc/path_table.rs` to `path_row.rs`, which drops the
+`fn@` disambiguator its rustdoc links needed, corrects the `PathRow` field
+cites to `RNS/Reticulum.py:1642-1645`, has `framing.rs` say a request map
+carries at most two keys, and has `drop_path_settled` say that a `Timeout`
+which cuts a dial leaves one `rpc_loop` error line in rnsd's log and
+advises a one-to-two-second budget. `7edc5c91` moves the private copies of
+the stdlib handshake, framing, msgpack and every-error helpers that
+`tests/shared_instance_rpc_api.rs`, `shared_instance_rpc_departed_server.rs`,
+`shared_instance_rpc_io_kind_probe.rs` and `shared_instance_rpc_paths_probe.rs`
+each carried into `tests/support/stdlib_rpc_handshake.rs`,
+`stdlib_rpc_frame.rs`, `msgpack_value.rs` and `every_rpc_error.rs`, matches
+the vanished-server case to `Connect` or `Io` under 400 ms, caps the
+silent-server case at 1200 ms and has the canned servers abort on drop.
+`1867e6e4` has `fork_release_docs_contract.rs` walk
+`shared_instance_rpc.rs` and the `path_row.rs` path, covers `RpcKey`,
+`InterfaceStat` and `InterfaceStats` in the hidden-fields part, and has
+`python_stdlib_listener_rpc_probe.rs` type-check every hash it receives as
+bytes. `800fa3ee` is the wording pass over the README, CHANGELOG and this
+ledger that cites `path_row.rs` and spells out the `interface_stats` bytes.
 
 Fork commits `3fddb1b4`, `280495b7`, `862a1128`, `6883f5ee`, `dd935a20`,
-`3b2ffcb5`, `061b3176`, `bf3968a0`, `14176cc2`, `f052002c`, `7ecd0eca` and
-`42748fdd`: Q2, path interface.
+`3b2ffcb5`, `061b3176`, `bf3968a0`, `14176cc2`, `f052002c`, `7ecd0eca`,
+`42748fdd`, `31576efd`, `7edc5c91`, `1867e6e4` and `800fa3ee`: Q2, path interface.
 Upstream site: `Transport::path_status` in
 `crates/libs/rns-transport/src/transport/links_parts/transport_sections/close_channel.rs`,
 which reads one path table entry under the handler lock and reports the
@@ -368,8 +397,20 @@ CHANGELOG and README: the entry is still returned until the next cleanup
 pass, every 10 s, culls an entry whose interface is gone (`handle_cleanup`
 and `remove_stale`), and notes that the entry's `Instant` does not advance
 across a system suspend, as `path_table`'s `timestamp_secs` does not.
+Four hygiene commits follow. `31576efd` has the `learned_at` rustdoc say
+the conversion clamps to `UNIX_EPOCH` when the wall clock reads earlier
+than the entry's age, names the restored row age in
+`tests_parts/path_interface_api.rs` as a 120 s constant (an age past the
+uptime is clamped to now on a Windows boot-relative `Instant`), and adds the
+pin there that `handle_cleanup` culls a detached interface's path.
+`7edc5c91` gives the `within_bracket` assertions in the two usage probes a
+message naming the `learned_at` read and its announce bracket. `1867e6e4`
+has `fork_release_docs_contract.rs` walk the renamed `path_row.rs` path.
+`800fa3ee` is the wording pass that adds the suspend caveat to the
+`learned_at` clause in the README and CHANGELOG and groups the in-process
+read under its own README heading.
 
-Fork commits `a451a06e` and `312ede0a`: Q3, link establishment timeout.
+Fork commits `a451a06e`, `312ede0a`, `7edc5c91` and `800fa3ee`: Q3, link establishment timeout.
 Upstream site: `Transport::link`'s establishment timeout in
 `crates/libs/rns-transport/src/transport/links_parts/transport_sections/link_establishment.rs`
 and its caller in `link_open.rs`, the `RNS.Link.__init__` sizing
@@ -418,10 +459,17 @@ pin the `### Fixed` bullet by its opener and cites, the register entry
 above `Not divergences:` and not below it, and this ledger's Q3 id, label,
 header and rows, which is why that part, the README and this file are
 rowed under the patch.
+Two hygiene commits follow. `7edc5c91` has the black-box twin close its
+link against the one-hop figure instead of the generic per-hop sum its
+message and bound carried. `800fa3ee` is the wording pass that has the
+README recipe size the caller's own outer timeout on the retried link from
+`first_hop_timeout`, since no link API takes a budget, and reads the
+first-hop range as a finite float between 6.0 and 60.0 in the README and
+this narrative.
 
 Fork commits `60410ca9`, `cc67d5f3`, `d0e34ef2`, `ef50cff5`, `689f5ab3`,
-`a451a06e`, `312ede0a`, `ad5c7e15`, `cc69ed29`, `02b2cfb9` and
-`9b21a2c9`: Python-in-the-loop rnsd path rpc interop. `60410ca9` adds the part
+`a451a06e`, `312ede0a`, `ad5c7e15`, `cc69ed29`, `02b2cfb9`, `9b21a2c9`,
+`1867e6e4` and `800fa3ee`: Python-in-the-loop rnsd path rpc interop. `60410ca9` adds the part
 `crates/apps/reticulumd/tests/python_channel_interop_parts/python_shared_instance_rpc_paths_live.rs`,
 included from `python_channel_interop.rs`, an ignored test against a live
 Python rnsd (RNS 1.5.2) that proves the path calls on rnsd itself: on the
@@ -572,6 +620,21 @@ wait, and extends the `readme_patch_list.rs` pins to this
 ledger's qualified budget wording and the softened recipe claim.
 `9b21a2c9` quotes the probe shell's temp paths and makes the graceful stop
 report a child that had already exited instead of signalling its pid.
+Two hygiene commits follow. `1867e6e4` hoists the announce waiter that
+`python_shared_instance_announce_emitted.rs` carried into
+`support/python_channel_events.rs` as `wait_for_announce_event`, shares the
+take-A-down step of the roaming test, its budget probe and the restart test
+as `roaming_take_a_down` and pins `hops_to == 3` after it, names the live
+part's per-hop timeout and the bound a `false` drop returns within as
+constants and drops its no-op `with_transport(false)`, adds the fifth
+graceful stop part for a child that had already exited, has the rpc part's
+harness read its `log` field and resume the stop helper's panic, and
+puts the child's pid in the stop helper's messages in
+`support/python_channel_process.rs`. `800fa3ee` is the wording pass that
+records the observed drop window as about 160 to 220 ms in the README,
+CHANGELOG and this narrative, names the cull tick and the live part's 5 s
+poll ceiling in the CHANGELOG, and collapses the recipe paragraph's test
+citations into one trailing sentence with the pins moved to match.
 
 ## 0.18.4 (upstream 0.14.0)
 

@@ -557,27 +557,23 @@ fn crate_readme_shared_instance_section_describes_interface_peer_count() {
     }
 }
 
-// Pins over the `link establishment timeout` docs of the reopened
-// `## Unreleased` section, the ones no other contract reads: the CHANGELOG
-// `### Fixed` bullet that records the first-hop sizing fix with the Python
-// lines it is read from, the README divergence register's entry for the
-// residual first-hop sizing (a real divergence, so above `Not divergences:`
-// and not below it), and the patch-set ledger naming the patch id with its
-// label and the commit that carries it.
+// Pins over the `link establishment timeout` docs, the ones no other contract
+// reads: the CHANGELOG `### Fixed` bullet that records the first-hop sizing
+// fix with the Python lines it is read from, the README divergence register's
+// entry for the residual first-hop sizing (a real divergence, so above `Not
+// divergences:` and not below it), and the patch-set ledger naming the patch
+// id with its label and the commit that carries it. Each pin finds its section
+// by content, so the release cut that promotes the section leaves it green.
 
-const UNRELEASED_FIXED_OPENER: &str =
+const LINK_TIMEOUT_FIXED_OPENER: &str =
     "- The outbound link establishment timeout `Transport::link` gives a new";
 
 #[test]
-fn unreleased_fixed_records_the_link_establishment_timeout_sizing() {
+fn fixed_records_the_link_establishment_timeout_sizing() {
     let changelog = read_repo_file("crates/libs/rns-transport/CHANGELOG.md");
-    let section = changelog_section_naming(&changelog, UNRELEASED_FIXED_OPENER);
-    assert!(
-        section.starts_with("Unreleased\n"),
-        "the fix bullet sits in the `## Unreleased` section until it is released"
-    );
+    let section = changelog_section_naming(&changelog, LINK_TIMEOUT_FIXED_OPENER);
     let bullets = subsection_bullets(section, "Fixed");
-    let bullet = single_bullet_starting_with(&bullets, UNRELEASED_FIXED_OPENER);
+    let bullet = single_bullet_starting_with(&bullets, LINK_TIMEOUT_FIXED_OPENER);
     for needle in [
         "`Transport::link`",
         "`RNS/Link.py:282-283`",
@@ -614,20 +610,47 @@ fn divergence_register_carries_the_first_hop_sizing_as_a_real_divergence() {
     );
 }
 
+/// The `Fork commit(s) ...:` patch headers below a ledger section's table,
+/// each joined from its `Fork commit` line through the line that carries its
+/// colon, so a header that wraps still reads whole.
+fn patch_headers(section: &str) -> Vec<String> {
+    let table_start =
+        section.find("\n| File | Patch |").expect("the section has a `| File | Patch |` table");
+    let mut headers: Vec<String> = Vec::new();
+    let mut in_header = false;
+    for line in section[table_start..].lines() {
+        if line.starts_with("Fork commit `") || line.starts_with("Fork commits `") {
+            headers.push(String::new());
+            in_header = true;
+        }
+        if !in_header {
+            continue;
+        }
+        let header = headers.last_mut().expect("a header is open");
+        if !header.is_empty() {
+            header.push(' ');
+        }
+        header.push_str(line);
+        in_header = !line.contains(':');
+    }
+    headers
+}
+
 #[test]
 fn patch_set_ledger_names_the_link_establishment_timeout_patch() {
     let ledger = read_repo_file("docs/fork/PATCHSET.md");
+    let legend_claim = squash("Q3 is link establishment timeout");
     let section = ledger
         .split("\n## ")
-        .find(|section| section.starts_with("Unreleased (upstream "))
-        .expect("the ledger has an `## Unreleased` section");
+        .find(|section| squash(section).contains(&legend_claim))
+        .expect("a ledger section names Q3 as link establishment timeout");
     assert!(
         !section.contains("word for word"),
-        "the ledger's Unreleased section vouches for no verbatim copy"
+        "the ledger's Q3 section vouches for no verbatim copy"
     );
     assert!(
         squash(section).contains(&squash("and the maintenance job's slack")),
-        "the Unreleased narrative qualifies the recovery budget by the maintenance job's slack"
+        "the Q3 section's narrative qualifies the recovery budget by the maintenance job's slack"
     );
     let legend = squash(section.split("\n| File | Patch |").next().expect("legend"));
     for claim in [
@@ -637,11 +660,9 @@ fn patch_set_ledger_names_the_link_establishment_timeout_patch() {
     ] {
         assert!(legend.contains(&squash(claim)), "the legend says {claim:?}:\n{legend}");
     }
-    let header = section
-        .lines()
-        .find(|line| {
-            line.starts_with("Fork commit") && line.ends_with(": Q3, link establishment timeout.")
-        })
+    let header = patch_headers(section)
+        .into_iter()
+        .find(|header| header.ends_with(": Q3, link establishment timeout."))
         .expect("the patch header names Q3 with its label");
     assert!(header.contains("`a451a06e`"), "the Q3 header cites the fix commit: {header}");
     for path in [

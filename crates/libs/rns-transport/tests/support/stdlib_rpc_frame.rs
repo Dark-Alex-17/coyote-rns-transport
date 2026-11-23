@@ -8,6 +8,8 @@ use tokio::io::{AsyncRead, AsyncReadExt};
 pub const CHALLENGE: &[u8] = b"#CHALLENGE#";
 pub const WELCOME: &[u8] = b"#WELCOME#";
 pub const FAILURE: &[u8] = b"#FAILURE#";
+/// The digest-name prefix the modern-form challenge and answer messages carry.
+pub const DIGEST_PREFIX: &[u8] = b"{sha256}";
 
 /// One stdlib `send_bytes` frame: signed big-endian 32-bit length, then the payload.
 pub fn frame(payload: &[u8]) -> Vec<u8> {

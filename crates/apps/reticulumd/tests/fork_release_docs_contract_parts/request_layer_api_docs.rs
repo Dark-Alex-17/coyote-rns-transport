@@ -223,11 +223,6 @@ fn request_layer_public_items_cite_python_or_say_fork_only() {
             ItemKind::Method,
             "connected_streams",
         ),
-        (
-            "crates/libs/rns-transport/src/transport/shared_instance_rpc.rs",
-            ItemKind::Method,
-            "is_transient",
-        ),
     ];
 
     let mut checked = 0usize;
@@ -302,7 +297,7 @@ fn request_layer_public_items_cite_python_or_say_fork_only() {
     }
 
     assert!(
-        checked >= 214,
+        checked >= 256,
         "the request layer should expose the receipt, frame, handler and outcome surface; found only {checked} public items"
     );
     assert!(

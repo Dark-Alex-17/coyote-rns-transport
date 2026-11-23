@@ -1213,7 +1213,7 @@ inbound drop (`:1916`) and the path-request fan-out (`:3576`); and a
 transport-enabled rnsd restores its rows from `storage/destination_table`
 on start, finding each row's interface by hash (`RNS/Transport.py:404-441`,
 saved at `:3788-3863`). So the same announce heard again over a live 3-hop
-route is one the row already holds and, short of the unresponsive-path
+route is one the row already holds and, short of the unanswered-link-request
 case above, never displaces the dead 1-hop row, and a shared-instance
 client's path request is answered from the stale entry
 (`RNS/Transport.py:3459`) rather than forwarded. A client's
@@ -1253,22 +1253,22 @@ obeys after a drop: after `drop_path_settled` the request is forwarded
 upstream (the rnsd line `Forwarding path request from local client`,
 `RNS/Transport.py:3523-3530`) and answered with a fresh announce, while a
 bare `drop_path` followed at once by a request is answered from the dropped
-entry (`RNS/Transport.py:3459`). Pinned on loopback, the client's rnsd
-holding two TCP upstreams, by
+entry (`RNS/Transport.py:3459`). Pinned on loopback by
 `python_rnsd_roaming_keeps_the_dead_one_hop_row_until_drop_settled_moves_it_to_the_live_route`
 in the part
 `crates/apps/reticulumd/tests/python_channel_interop_parts/python_shared_instance_rpc_roaming.rs`,
-which walks the recipe end to end (the dead row stays, the link over it
-times out, the request is answered stale, the settle plus one request
-moves the row to the live route and a link comes up); by
+which walks the recipe end to end with the client's rnsd holding two TCP
+upstreams (the dead row stays, the link over it times out, the request is
+answered stale, the settle plus one request moves the row to the live
+route and a link comes up); by
 `python_rnsd_roaming_recipe_links_inside_pythons_first_hop_timeout_budget_and_a_repeat_request_stays_on_b`
 (`python_shared_instance_rpc_roaming_recipe_budget_probe.rs`), which
 follows the paragraph above step by step on the same topology (the row's
 interface looked up in the stats by `name` and read offline, both links
 inside the budget, the repeated request leaving the row); by
 `python_rnsd_roaming_restart_restores_the_dead_one_hop_row_from_storage_until_drop_settled_moves_it_to_the_live_route`
-(`python_shared_instance_rpc_roaming_restart.rs`), which SIGTERMs rnsd and
-recovers the restored row; by the companion part
+(`python_shared_instance_rpc_roaming_restart.rs`), which SIGTERMs rnsd on
+the same topology and recovers the restored row; by the companion part
 `python_shared_instance_rpc_paths_recipe_probe.rs`
 (`python_rnsd_recipe_drop_settled_then_request_path_is_forwarded_not_answered_stale`)
 for the forwarded-or-stale rule; and, for the first-hop sizing those

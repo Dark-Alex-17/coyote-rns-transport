@@ -10,9 +10,7 @@ use hmac::{Hmac, Mac};
 use sha2::Sha256;
 use tokio::io::{AsyncRead, AsyncWrite, AsyncWriteExt};
 
-use super::stdlib_rpc_frame::{frame, recv_frame, CHALLENGE, FAILURE, WELCOME};
-
-const DIGEST_PREFIX: &[u8] = b"{sha256}";
+use super::stdlib_rpc_frame::{frame, recv_frame, CHALLENGE, DIGEST_PREFIX, FAILURE, WELCOME};
 
 /// The stdlib's `deliver_challenge` message in the modern form: `{sha256}` + 40 bytes.
 pub fn server_challenge() -> Vec<u8> {

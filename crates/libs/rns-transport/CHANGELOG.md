@@ -292,12 +292,13 @@ Removed) bullet of its own, marked as such.
 - Test-only: the fork docs contract (`fork_release_docs_contract.rs`,
   `fork_release_docs_contract_parts/request_layer_api_docs.rs`) walks the new
   `shared_instance_rpc/paths.rs` and `shared_instance_rpc/path_row.rs` and
-  `RpcError::is_transient`, so every public item there cites Python or says
-  fork-only, and holds `PathRow` to the read-by-field, `#[non_exhaustive]`
-  shape of the other decoded rows.
+  `transport/shared_instance_rpc.rs`, so every public item there cites
+  Python or says fork-only, holds `PathRow`, `InterfaceStat` and
+  `InterfaceStats` to the same read-by-field, `#[non_exhaustive]` shape as
+  the other decoded rows, and holds `RpcKey` to private fields.
 - Test-only: a hygiene pass over the rpc and path tests. The stdlib
-  handshake, frame, msgpack and every-error helpers the four rpc test
-  binaries each carried a copy of are shared from
+  handshake, frame, msgpack and every-error helpers, copies of which the
+  four rpc test binaries carried between them, are shared from
   `tests/support/stdlib_rpc_handshake.rs`, `tests/support/stdlib_rpc_frame.rs`,
   `tests/support/msgpack_value.rs` and `tests/support/every_rpc_error.rs`;
   `tests/shared_instance_rpc_api.rs` matches the vanished-server case to
@@ -308,9 +309,12 @@ Removed) bullet of its own, marked as such.
   reticulumd interop parts share the take-A-down step and the announce
   waiter, the stdlib listener type-checks every hash it receives as bytes,
   and `python_channel_interop_parts/graceful_stop_probe.rs` pins the stop of
-  a child that had already exited. The private module
-  `transport/shared_instance_rpc/path_row.rs` is renamed from `path_table.rs`,
-  with the `PathRow` field cites corrected; the `drop_path_settled` rustdoc
+  a child that had already exited;
+  `tests/link_establishment_timeout_shared_instance_probe.rs` closes its
+  upper bound against the one-hop figure instead of the generic per-hop sum.
+  The private module `transport/shared_instance_rpc/path_row.rs` is renamed
+  from its path_table file name, with the `PathRow` field cites corrected;
+  the `drop_path_settled` rustdoc
   says what a settle cut off by `Timeout` leaves in rnsd's log and how to
   size its budget; the `PathIface::learned_at` rustdoc says that a wall
   clock reading less than the entry's age yields a representable

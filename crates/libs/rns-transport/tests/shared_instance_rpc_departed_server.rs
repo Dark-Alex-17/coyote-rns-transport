@@ -25,13 +25,12 @@ use tokio::net::{TcpListener, TcpStream};
 
 #[path = "support/stdlib_rpc_frame.rs"]
 mod stdlib_rpc_frame;
-use stdlib_rpc_frame::{frame, recv_frame, CHALLENGE, FAILURE, WELCOME};
+use stdlib_rpc_frame::{frame, recv_frame, CHALLENGE, DIGEST_PREFIX, FAILURE, WELCOME};
 
 const WAIT: Duration = Duration::from_secs(5);
 const KEY_HEX: &str = "00112233445566778899aabbccddeeff00112233445566778899aabbccddeeff";
 const ONE_BYTE_KEY_HEX: &str = "ab";
 const LONG_KEY_LEN: usize = 200;
-const DIGEST_PREFIX: &[u8] = b"{sha256}";
 const DEPARTED_ROUNDS: usize = 16;
 
 #[derive(Clone, Copy, PartialEq, Eq, Debug)]

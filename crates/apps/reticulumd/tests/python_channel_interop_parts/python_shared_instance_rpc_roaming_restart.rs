@@ -124,9 +124,9 @@ async fn restart_scenario(
     rnsd_slot: &mut Option<SharedInstanceRpcRnsd>,
 ) {
     // The redial emits at most about 20 DialFailed a second at the 50 ms
-    // wait, and nothing drains the channel through the stop (15 s at most)
-    // and the respawn's start wait (30 s at most): about 900 events over
-    // those 45 s, so 1024 never fills and no Connected is lost to `try_send`.
+    // wait. The channel is drained once the old rnsd is reaped, so the longer
+    // undrained window is the respawn's start wait (30 s at most): about 600
+    // events, so 1024 never fills and no Connected is lost to `try_send`.
     let (events_tx, mut events) = tokio::sync::mpsc::channel(1024);
     let c_options = SharedInstanceOptions::default()
         .with_reconnect_wait(Duration::from_millis(50))

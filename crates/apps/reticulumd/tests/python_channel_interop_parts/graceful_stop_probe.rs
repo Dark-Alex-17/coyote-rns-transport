@@ -139,10 +139,13 @@ fn terminate_child_gracefully_refuses_a_child_that_had_already_exited() {
         .expect("spawn /bin/sh");
     let exited = child.wait().expect("the child is reaped before the stop");
     assert!(exited.success(), "{exited}");
+    let pid = child.id().to_string();
     let message = graceful_stop_panics_with(&mut child, GRACEFUL_WITHIN);
     assert!(
-        message.contains("had already exited") && message.contains("before SIGTERM"),
-        "the panic names the pre-check, not a signalling failure: {message}"
+        message.contains(&pid)
+            && message.contains("had already exited")
+            && message.contains("before SIGTERM"),
+        "the panic names the child {pid} and the pre-check, not a signalling failure: {message}"
     );
 }
 

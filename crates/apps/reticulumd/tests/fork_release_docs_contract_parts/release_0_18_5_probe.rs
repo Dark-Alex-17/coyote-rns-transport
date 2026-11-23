@@ -15,26 +15,26 @@
 // and the publish contract's two hand pins reading the release version. Two
 // more usage pins read the release against the tree it describes: the
 // README block, CHANGELOG section and ledger section are ASCII with no plan
-// or task id and no `## Unreleased` stub beside them, and the test-hygiene
-// claims the three documents make hold in the tree. One more holds the
-// carried doc nits to the patches they belong to: `dfb85779` under rnsd
-// path rpc and path interface, `91c32571` under link establishment
-// timeout, in legend and header, and neither under the release patch. Two
-// more read the release against the tree and the history it ships with:
-// every call, record, attribute and file the README block names resolves
-// in the crate, and the ledger section cites exactly the commits of the
-// release's own range, with the id-less release patch citing no
-// ledger-only commit. The pins over the current tree, which the next
-// release cut demotes, are the first-release-heading test, the
+// or task id, and the test-hygiene claims the three documents make hold in
+// the tree. One more holds the carried doc nits to the patches they belong
+// to: `dfb85779` under rnsd path rpc and path interface, `91c32571` under
+// link establishment timeout, in legend and header, and neither under the
+// release patch. Two more read the release against the tree and the
+// history it ships with: every call, record, attribute and file the README
+// block names resolves in the crate, and the ledger section cites exactly
+// the commits of the release's own range, with the id-less release patch
+// citing no ledger-only commit. The pins over the current tree, which the
+// next release cut demotes, are the first-release-heading test, the
 // ledger-opening assertion of the patch-set test, the README
 // `[dependencies]` snippet pins of the consumer-note test, the
 // crate-manifest version and publish-contract literal count of the
 // hand-pins test, and the range test, whose range runs from the previous
-// tag to HEAD; the two no-`## Unreleased`-stub assertions of the ASCII
-// test go red sooner, on the commit that reopens the stub for the next
-// cycle, which is the commit that retires them; the rest hold facts about
-// the 0.18.5 section itself. `first_release_heading` and
-// `patchset_opening_section` are shared with the 0.18.3 probe.
+// tag to the release tag once that is reachable and to HEAD before; the
+// rest hold facts about the 0.18.5 section itself. The ledger pins other
+// than the opening one slice the 0.18.5 section by its heading, so a
+// reopened `## Unreleased` stub above it leaves them green.
+// `first_release_heading` and `patchset_opening_section` are shared with
+// the 0.18.3 probe.
 
 /// The 0.18.5 heading carries the day the release was cut and is the first
 /// release heading of the CHANGELOG.
@@ -295,7 +295,7 @@ fn release_0_18_5_patchset_opens_on_the_release_patch() {
 #[test]
 fn release_0_18_5_ledger_cites_the_carried_nits_under_their_own_patches() {
     let ledger = read_repo_file("docs/fork/PATCHSET.md");
-    let prose = joined_prose(patchset_opening_section(&ledger));
+    let prose = joined_prose(patchset_0_18_5_section(&ledger));
     let header_before = |label: &str| {
         let end = prose.find(label).unwrap_or_else(|| panic!("a patch header ends with {label:?}"));
         let start =
@@ -420,7 +420,7 @@ fn release_0_18_5_artefacts_are_ascii_and_carry_no_plan_ids() {
     let changelog = read_repo_file("crates/libs/rns-transport/CHANGELOG.md");
     let section = changelog_release_section(&changelog, "0.18.5");
     let ledger = read_repo_file("docs/fork/PATCHSET.md");
-    let patchset = patchset_opening_section(&ledger);
+    let patchset = patchset_0_18_5_section(&ledger);
     let plan_ids = [concat!("TASK", "-"), concat!("PLAN", "-")];
     for (name, text) in [
         ("README 0.18.5 block", block),
@@ -439,14 +439,6 @@ fn release_0_18_5_artefacts_are_ascii_and_carry_no_plan_ids() {
             assert!(hits.is_empty(), "{name} should carry no `{id}` ids, got {hits:?}");
         }
     }
-    assert!(
-        !changelog.contains("\n## Unreleased"),
-        "a release tree carries no `## Unreleased` stub in the CHANGELOG"
-    );
-    assert!(
-        !ledger.contains("\n## Unreleased"),
-        "a release tree carries no `## Unreleased` stub in the patch-set ledger"
-    );
 }
 
 /// The test-only hygiene claims the 0.18.5 README bullet, CHANGELOG bullet
@@ -529,7 +521,7 @@ fn release_0_18_5_hygiene_claims_hold_in_the_tree() {
     ] {
         assert!(read_repo_file(path).contains(needle), "{path} should carry {needle:?}");
     }
-    let ledger = joined_prose(patchset_opening_section(&read_repo_file("docs/fork/PATCHSET.md")));
+    let ledger = joined_prose(patchset_0_18_5_section(&read_repo_file("docs/fork/PATCHSET.md")));
     let support_move = ledger
         .find("`7edc5c91` moves the private copies")
         .expect("the Q1 narrative credits the support-file move to `7edc5c91`");
@@ -642,6 +634,19 @@ fn readme_0_18_5_block(readme: &str) -> &str {
     &block[..block.find("\nWhat `0.18.4` carries on top").expect("the 0.18.4 block follows")]
 }
 
+/// The `## 0.18.5 (upstream 0.14.0)` section of the patch-set ledger,
+/// heading line included, up to the next `## ` heading, wherever the
+/// section sits below a reopened `## Unreleased` stub.
+fn patchset_0_18_5_section(ledger: &str) -> &str {
+    let heading = "\n## 0.18.5 (upstream 0.14.0)\n";
+    let start = ledger.find(heading).expect("the patch-set ledger has the 0.18.5 section") + 1;
+    let section = &ledger[start..];
+    match section[3..].find("\n## ") {
+        Some(end) => &section[..end + 3],
+        None => section,
+    }
+}
+
 /// Every public item the README 0.18.5 block tells a consumer to call or
 /// read is declared `pub` in the crate under the name and file the block
 /// gives, the two decoded records carry `#[non_exhaustive]` as the block
@@ -733,20 +738,27 @@ fn release_0_18_5_readme_block_claims_resolve_in_the_tree() {
 
 /// The 0.18.5 patch-set section cites exactly the commits of its range:
 /// every short hash in its legend and patch headers is a commit reachable
-/// from HEAD and not from the `coyote-rns-transport-v0.18.4` tag, every
-/// commit in that range that touched a file other than the two ledgers
-/// (`CHANGELOG.md`, `PATCHSET.md`) is cited at least once, and the id-less
-/// `release 0.18.5` patch cites no ledger-only commit, as the 0.18.4 cut
-/// did not. Skips, in so many words, on a checkout without the previous tag.
+/// from the `coyote-rns-transport-v0.18.5` tag when that is reachable from
+/// HEAD, else from HEAD, and not from the `coyote-rns-transport-v0.18.4`
+/// tag; every commit in that range that touched a file other than the two
+/// ledgers (`CHANGELOG.md`, `PATCHSET.md`) is cited at least once, and the
+/// id-less `release 0.18.5` patch cites no ledger-only commit, as the
+/// 0.18.4 cut did not. Skips, in so many words, on a checkout without the
+/// previous tag.
 #[test]
 fn release_0_18_5_ledger_cites_exactly_the_commits_of_its_range() {
     let previous = "coyote-rns-transport-v0.18.4";
+    let release = "coyote-rns-transport-v0.18.5";
     if is_ancestor_of(previous, "HEAD") != Some(true) {
         eprintln!("skipping: tag {previous} is not reachable from HEAD in this checkout");
         return;
     }
+    // Once the release tag is reachable the range closes on it: later
+    // commits belong to the next section. Before the tag exists the tree is
+    // the release in progress and HEAD closes the range.
+    let head = if is_ancestor_of(release, "HEAD") == Some(true) { release } else { "HEAD" };
     let ledger = read_repo_file("docs/fork/PATCHSET.md");
-    let section = patchset_opening_section(&ledger);
+    let section = patchset_0_18_5_section(&ledger);
     let hashes = cited_short_hashes(section);
     assert!(
         hashes.len() >= 40,
@@ -754,16 +766,16 @@ fn release_0_18_5_ledger_cites_exactly_the_commits_of_its_range() {
     );
     let mut wrong: Vec<String> = Vec::new();
     for hash in &hashes {
-        match (is_ancestor_of(hash, "HEAD"), is_ancestor_of(hash, previous)) {
+        match (is_ancestor_of(hash, head), is_ancestor_of(hash, previous)) {
             (Some(true), Some(false)) => {}
             (None, _) | (_, None) => wrong.push(format!("`{hash}` does not resolve to a commit")),
-            (Some(false), _) => wrong.push(format!("`{hash}` is not reachable from HEAD")),
+            (Some(false), _) => wrong.push(format!("`{hash}` is not reachable from {head}")),
             (_, Some(true)) => wrong.push(format!("`{hash}` was already released in {previous}")),
         }
     }
     assert!(
         wrong.is_empty(),
-        "the 0.18.5 ledger should cite only {previous}..HEAD commits:\n{}",
+        "the 0.18.5 ledger should cite only {previous}..{head} commits:\n{}",
         wrong.join("\n")
     );
 
@@ -773,7 +785,7 @@ fn release_0_18_5_ledger_cites_exactly_the_commits_of_its_range() {
             .iter()
             .all(|file| ledgers.contains(&file.as_str()))
     };
-    let range = format!("{previous}..HEAD");
+    let range = format!("{previous}..{head}");
     let uncited: Vec<String> = git_lines(&["rev-list", "--abbrev-commit", "--abbrev=8", &range])
         .into_iter()
         .filter(|hash| !ledger_only(hash) && !hashes.contains(&hash.as_str()))

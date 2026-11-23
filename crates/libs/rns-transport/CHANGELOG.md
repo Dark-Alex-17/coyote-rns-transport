@@ -8,6 +8,27 @@ no library behaviour (a test-only change such as a fixture hardening or a
 test hygiene pass, release tooling, CI) is a Changed (or, for a deleted file,
 Removed) bullet of its own, marked as such.
 
+## Unreleased
+
+### Changed
+
+- CI only, no library change: the three macOS jobs run on
+  `macos-15-intel` instead of `macos-latest`, the `macOS interface runtime
+  software tests` job of `.github/workflows/ci.yml` and the two opt-in
+  macOS jobs of `.github/workflows/ci-full.yml`, the x86_64 pool
+  `release.yml` already builds on; GitHub's hosted macOS arm64 pool
+  (`macos-latest`, and `macos-14`, which this repository is refused
+  outright) cancelled the pull-request job on `main` three times before a
+  runner was assigned, with the capacity notice on the job. The arm64
+  coverage stays with the release workflow's `macos-14` build. The full-hash
+  ledger pin in `fork_publish_contract_parts/ledger_contract.rs` admits
+  the reopened `## Unreleased` section of `docs/fork/PATCHSET.md`, and
+  `fork_release_docs_contract_parts/release_0_18_5_probe.rs` closes its
+  range pin at the `coyote-rns-transport-v0.18.5` tag once that is
+  reachable from `HEAD`, slices the 0.18.5 ledger section by its heading
+  in the pins that are not the opening one, and drops the two
+  no-`## Unreleased`-stub assertions the reopen retires.
+
 ## 0.18.5 - 2026-11-23
 
 ### Added

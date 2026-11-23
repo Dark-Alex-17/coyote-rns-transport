@@ -34,8 +34,9 @@ link establishment timeout. The `rnsd path rpc` patch is fork commits
 `1528b698`, `bab079de`, `6f22dca2`, `0adb116e`, `75126a26`, `5faf736d`,
 `50a177eb`, `60410ca9`, `cc67d5f3`, `d0e34ef2`, `ef50cff5` and `689f5ab3`.
 The `path interface` patch is fork commits `3fddb1b4`, `280495b7`,
-`862a1128`, `6883f5ee` and `dd935a20`. The `link establishment timeout`
-patch is fork commits `a451a06e` and `312ede0a`. The
+`862a1128`, `6883f5ee`, `dd935a20`, `3b2ffcb5` and `061b3176`. The `link
+establishment timeout` patch is fork commits `a451a06e` and `312ede0a`.
+The
 `Python-in-the-loop rnsd path rpc interop` patch carries no other id and is
 fork commits `60410ca9`, `cc67d5f3`, `d0e34ef2`, `ef50cff5`, `689f5ab3`,
 `a451a06e`, `312ede0a`, `ad5c7e15`, `cc69ed29`, `02b2cfb9` and `9b21a2c9`.
@@ -266,8 +267,8 @@ the README, CHANGELOG and `drop_path_settled` rustdoc attribute the 250 ms
 tick to the cull, read by the helper on its next 50 ms poll; and widens the
 settle figure to about 50 to 180 ms after a 54 ms run.
 
-Fork commits `3fddb1b4`, `280495b7`, `862a1128`, `6883f5ee` and `dd935a20`:
-Q2, path interface.
+Fork commits `3fddb1b4`, `280495b7`, `862a1128`, `6883f5ee`, `dd935a20`,
+`3b2ffcb5` and `061b3176`: Q2, path interface.
 Upstream site: `Transport::path_status` in
 `crates/libs/rns-transport/src/transport/links_parts/transport_sections/close_channel.rs`,
 which reads one path table entry under the handler lock and reports the
@@ -326,7 +327,15 @@ shared-instance interface for a `destinations_map` destination); derives
 `Eq` on `PathIface`; clamps the learn time with `checked_sub`; and widens
 the two twins' same-entry re-read check to 25 ms after a 50 ms sleep.
 `dd935a20` names that branch in the README path table paragraph as well,
-where the `readme_patch_list.rs` pin reads it.
+where the `readme_patch_list.rs` pin reads it. `3b2ffcb5` adds a fourth
+probe test: the client interface is named and then stopped through the
+manager, and the record is still returned with the same interface, hops
+and learn time, `name` reads `None`, `path_status` still finds the path and
+`path_table` omits the row. `061b3176` says in the rustdoc, CHANGELOG and
+README that `learned_at` is the time the path was recorded, on the
+accepted announce or on a tunnel or disk restore, lists `path_interface`
+and `PathIface` in the README `## What this is` inventory, and names the
+detached-interface pin in the CHANGELOG bullet and README paragraph.
 
 Fork commits `a451a06e` and `312ede0a`: Q3, link establishment timeout.
 Upstream site: `Transport::link`'s establishment timeout in
